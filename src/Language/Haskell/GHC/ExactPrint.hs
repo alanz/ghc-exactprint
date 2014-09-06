@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-{- # LANGUAGE TypeSynonymInstances # -}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -96,12 +96,6 @@ instance SrcInfo GHC.SrcSpan where
   startColumn = srcSpanStartColumn
 
 
--- | A Haskell comment. The 'Bool' is 'True' if the comment is multi-line, i.e. @{- -}@.
-data Comment = Comment Bool GHC.SrcSpan String
-  deriving (Eq,Show,Typeable,Data)
--- ++AZ++ : Will need to convert output of getRichTokenStream to Comment
-
--- getRichTokenStream :: GhcMonad m => Module -> m [(Located Token, String)]
 
 class Annotated a where
   ann :: a -> GHC.SrcSpan
@@ -327,7 +321,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
   exactP (GHC.HsModule (Just lmn@(GHC.L l mn)) mexp imps decls deprecs haddock) = do
     mAnn <- getAnnotation l
     case mAnn of
-      Just (AnnModuleName pm pn po pc pw) -> do
+      Just (AnnModuleName cs pm pn po pc pw) -> do
         printStringAt pm "module"
         exactPC lmn
         case mexp of
@@ -348,12 +342,12 @@ instance ExactP (GHC.ModuleName) where
 
 instance ExactP (GHC.LIE GHC.RdrName) where
   exactP (GHC.L l (GHC.IEVar n)) = do
-    Just (AnnIEVar mc) <- getAnnotation l
+    Just (AnnIEVar cs mc) <- getAnnotation l
     printStringAt (ss2pos l) (rdrName2String n)
     printStringAtMaybe mc ","
 
   exactP (GHC.L l (GHC.IEThingAbs n)) = do
-    Just (AnnIEThingAbs mc) <- getAnnotation l
+    Just (AnnIEThingAbs cs mc) <- getAnnotation l
     printStringAt (ss2pos l) (rdrName2String n)
     printStringAtMaybe mc ","
 

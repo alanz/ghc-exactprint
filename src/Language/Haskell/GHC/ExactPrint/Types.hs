@@ -1,11 +1,15 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module Language.Haskell.GHC.ExactPrint.Types
   (
-    Pos
+    Comment(..)
+  , Pos
   , PosToken
   , DeltaPos
   , Annotation(..)
   , Anns(..)
   ) where
+
+import Data.Data
 
 import qualified Bag           as GHC
 import qualified DynFlags      as GHC
@@ -26,6 +30,13 @@ import qualified Var           as GHC
 
 import qualified Data.Map as Map
 
+-- | A Haskell comment. The 'Bool' is 'True' if the comment is multi-line, i.e. @{- -}@.
+data Comment = Comment Bool GHC.SrcSpan String
+  deriving (Eq,Show,Typeable,Data)
+-- ++AZ++ : Will need to convert output of getRichTokenStream to Comment
+
+-- getRichTokenStream :: GhcMonad m => Module -> m [(Located Token, String)]
+
 type PosToken = (GHC.Located GHC.Token, String)
 
 type Pos = (Int,Int)
@@ -34,7 +45,8 @@ type DeltaPos = (Int,Int)
 
 data Annotation =
   AnnModuleName
-    { mn_module :: !DeltaPos -- module
+    { ann_comments :: ![Comment]
+    , mn_module :: !DeltaPos -- module
     , mn_name   :: !DeltaPos -- Language.Haskell.GHC.Types
     , mn_op     :: !DeltaPos -- '('
     , mn_cp     :: !DeltaPos -- ')'
@@ -42,8 +54,8 @@ data Annotation =
     }
 
   -- IE variants
-  | AnnIEVar      { ie_comma :: !(Maybe DeltaPos) }
-  | AnnIEThingAbs { ie_comma :: !(Maybe DeltaPos) }
+  | AnnIEVar      { ann_comments :: ![Comment], ie_comma :: !(Maybe DeltaPos) }
+  | AnnIEThingAbs { ann_comments :: ![Comment], ie_comma :: !(Maybe DeltaPos) }
   | AnnIEThingAll
   | AnnIEThingWith
   | AnnIEModuleContents

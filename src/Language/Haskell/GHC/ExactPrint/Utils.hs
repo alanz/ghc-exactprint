@@ -56,7 +56,7 @@ annotateLHsModule (GHC.L _ (GHC.HsModule mmn mexp imps decs depr haddock)) toks 
     whereTok  = head $ filter ghcIsWhere toks
     r = case mmn of
       Nothing -> [(undefined,AnnNone)]
-      Just (GHC.L l mn) -> (l,AnnModuleName mPos mnPos opPos cpPos wherePos):aexps
+      Just (GHC.L l mn) -> (l,AnnModuleName [] mPos mnPos opPos cpPos wherePos):aexps
         where
           mPos  = ss2delta $ tokenSpan moduleTok
           mnPos = ss2delta l
@@ -80,8 +80,8 @@ annotateLHsModule (GHC.L _ (GHC.HsModule mmn mexp imps decs depr haddock)) toks 
 -- This receives the toks for the entire exports section.
 -- So it can scan for the separating comma if required
 annotateLIE :: GHC.LIE GHC.RdrName -> [PosToken] -> [(GHC.SrcSpan,Annotation)]
-annotateLIE (GHC.L l (GHC.IEVar _)) toks = [(l,AnnIEVar (findTrailingComma l toks))]
-annotateLIE (GHC.L l (GHC.IEThingAbs _)) toks = [(l,AnnIEThingAbs (findTrailingComma l toks))]
+annotateLIE (GHC.L l (GHC.IEVar _)) toks = [(l,AnnIEVar [] (findTrailingComma l toks))]
+annotateLIE (GHC.L l (GHC.IEThingAbs _)) toks = [(l,AnnIEThingAbs [] (findTrailingComma l toks))]
 annotateLIE (GHC.L l (_)) toks = [] -- assert False undefined
 
 -- ---------------------------------------------------------------------
