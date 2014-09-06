@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 module Language.Haskell.GHC.ExactPrint.Utils
   (
     annotateLHsModule
@@ -11,6 +12,9 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , srcSpanEndLine
   , srcSpanStartColumn
   , srcSpanEndColumn
+
+  , ss2pos
+  , rdrName2String
   ) where
 
 import Control.Exception
@@ -36,22 +40,59 @@ import qualified Var           as GHC
 
 import qualified Data.Map as Map
 
+import Debug.Trace
+
+debug :: c -> String -> c
+debug = flip trace
+
 -- ---------------------------------------------------------------------
 
--- TODO: turn this into a class
-annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> [PosToken] -> (GHC.SrcSpan,Annotation)
+-- TODO: turn this into a class.
+-- TODO: distribute comments as per hindent
+annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> [PosToken] -> [(GHC.SrcSpan,Annotation)]
 annotateLHsModule (GHC.L _ (GHC.HsModule mmn mexp imps decs depr haddock)) toks = r
   where
     moduleTok = head $ filter ghcIsModule toks
     whereTok  = head $ filter ghcIsWhere toks
     r = case mmn of
-      Nothing -> (undefined,AnnNone)
-      Just (GHC.L l mn) -> (l,AnnModuleName mPos mnPos wherePos)
+      Nothing -> [(undefined,AnnNone)]
+      Just (GHC.L l mn) -> (l,AnnModuleName mPos mnPos opPos cpPos wherePos):aexps
         where
-          mPos = ss2delta $ tokenPos moduleTok
+          mPos  = ss2delta $ tokenSpan moduleTok
           mnPos = ss2delta l
-          wherePos = ss2delta $ tokenPos whereTok
+          wherePos = ss2delta $ tokenSpan whereTok
+          (opPos,cpPos,aexps) = case mexp of
+            Nothing -> ((0,0),(0,0),[])
+            Just exps -> (opPos',cpPos',aexps')
+              where
+                opTok = head $ filter ghcIsOParen toks
+                (toksE,toksRest) = case exps of
+                  [] -> (toks,toks)
+                  _ -> let (_,etoks,ts) = splitToks (GHC.getLoc (head exps),
+                                                     GHC.getLoc (last exps)) toks
+                       in (etoks,ts)
+                cpTok = head $ filter ghcIsCParen toksRest
+                opPos' = ss2delta $ tokenSpan opTok
+                cpPos' = ss2delta $ tokenSpan cpTok
+                aexps' = concatMap (\e -> annotateLIE e toksE) exps
 
+
+-- This receives the toks for the entire exports section.
+-- So it can scan for the separating comma if required
+annotateLIE :: GHC.LIE GHC.RdrName -> [PosToken] -> [(GHC.SrcSpan,Annotation)]
+annotateLIE (GHC.L l (GHC.IEVar _)) toks = [(l,AnnIEVar (findTrailingComma l toks))]
+annotateLIE (GHC.L l (GHC.IEThingAbs _)) toks = [(l,AnnIEThingAbs (findTrailingComma l toks))]
+annotateLIE (GHC.L l (_)) toks = [] -- assert False undefined
+
+-- ---------------------------------------------------------------------
+
+findTrailingComma :: GHC.SrcSpan -> [PosToken] -> Maybe DeltaPos
+findTrailingComma ss toks = r -- `debug` ("findTrailingComma:toksAfter=" ++ show (ss,toks,toksAfter))
+  where
+    (_,_,toksAfter) = splitToksForSpan ss toks
+    r = case filter ghcIsComma toksAfter of
+      [] -> Nothing
+      (t:_) -> Just (ss2delta $ tokenSpan t)
 
 -- ---------------------------------------------------------------------
 -- This section is horrible because there is no Eq instance for
@@ -95,6 +136,23 @@ ghcIsIn    ((GHC.L _ t),_s) = case t of
                       GHC.ITin -> True
                       _        -> False
 
+ghcIsOParen :: PosToken -> Bool
+ghcIsOParen ((GHC.L _ t),_s) = case t of
+                      GHC.IToparen -> True
+                      _            -> False
+
+ghcIsCParen :: PosToken -> Bool
+ghcIsCParen ((GHC.L _ t),_s) = case t of
+                      GHC.ITcparen -> True
+                      _            -> False
+
+ghcIsComma :: PosToken -> Bool
+ghcIsComma ((GHC.L _ t),_s) = case t of
+                      GHC.ITcomma -> True
+                      _           -> False
+
+
+
 ghcIsComment :: PosToken -> Bool
 ghcIsComment ((GHC.L _ (GHC.ITdocCommentNext _)),_s)  = True
 ghcIsComment ((GHC.L _ (GHC.ITdocCommentPrev _)),_s)  = True
@@ -123,6 +181,16 @@ ghcIsMultiLine ((GHC.L _ _),_s)                         = False
 ss2delta :: GHC.SrcSpan -> DeltaPos
 ss2delta ss = (srcSpanStartLine ss,srcSpanStartColumn ss)
 
+ss2pos :: GHC.SrcSpan -> Pos
+ss2pos ss = (srcSpanStartLine ss,srcSpanStartColumn ss)
+
+srcSpanStart :: GHC.SrcSpan -> Pos
+srcSpanStart ss = (srcSpanStartLine ss,srcSpanStartColumn ss)
+
+srcSpanEnd :: GHC.SrcSpan -> Pos
+srcSpanEnd ss = (srcSpanEndLine ss,srcSpanEndColumn ss)
+
+
 srcSpanEndColumn :: GHC.SrcSpan -> Int
 srcSpanEndColumn (GHC.RealSrcSpan s) = GHC.srcSpanEndCol s
 srcSpanEndColumn _ = 0
@@ -141,7 +209,39 @@ srcSpanStartLine _ = 0
 
 -- ---------------------------------------------------------------------
 
-tokenPos :: PosToken -> GHC.SrcSpan
-tokenPos ((GHC.L l _),_s) = l
+tokenSpan :: PosToken -> GHC.SrcSpan
+tokenSpan ((GHC.L l _),_s) = l
 
+tokenPos :: PosToken -> Pos
+tokenPos ((GHC.L l _),_s) = srcSpanStart l
 
+tokenPosEnd :: PosToken -> Pos
+tokenPosEnd ((GHC.L l _),_s) = srcSpanEnd l
+
+-- ---------------------------------------------------------------------
+
+splitToks:: (GHC.SrcSpan,GHC.SrcSpan) -> [PosToken]->([PosToken],[PosToken],[PosToken])
+splitToks (startPos, endPos) toks =
+  let (toks1,toks2)   = break (\t -> tokenSpan t >= startPos) toks
+      (toks21,toks22) = break (\t -> tokenSpan t >=   endPos) toks2
+  in
+    (toks1,toks21,toks22)
+
+-- ---------------------------------------------------------------------
+
+splitToksForSpan:: GHC.SrcSpan -> [PosToken] -> ([PosToken],[PosToken],[PosToken])
+splitToksForSpan ss toks =
+  let (toks1,toks2)   = break (\t -> tokenPos t >= srcSpanStart ss) toks
+      (toks21,toks22) = break (\t -> tokenPos t >= srcSpanEnd   ss) toks2
+  in
+    (toks1,toks21,toks22)
+
+-- ---------------------------------------------------------------------
+
+rdrName2String :: GHC.RdrName -> String
+rdrName2String = GHC.occNameString . GHC.rdrNameOcc
+
+-- ---------------------------------------------------------------------
+
+instance Show (GHC.GenLocated GHC.SrcSpan GHC.Token) where
+  show t@(GHC.L l tok) = show ((srcSpanStart l, srcSpanEnd l),tok)

@@ -1,6 +1,7 @@
 module Language.Haskell.GHC.ExactPrint.Types
   (
-    PosToken
+    Pos
+  , PosToken
   , DeltaPos
   , Annotation(..)
   , Anns(..)
@@ -27,13 +28,40 @@ import qualified Data.Map as Map
 
 type PosToken = (GHC.Located GHC.Token, String)
 
+type Pos = (Int,Int)
+
 type DeltaPos = (Int,Int)
 
-data Annotation = AnnModuleName
-  { mn_module :: !DeltaPos -- module
-  , mn_name   :: !DeltaPos -- Language.Haskell.GHC.Types
-  , mn_where  :: !DeltaPos -- where
-  }
+data Annotation =
+  AnnModuleName
+    { mn_module :: !DeltaPos -- module
+    , mn_name   :: !DeltaPos -- Language.Haskell.GHC.Types
+    , mn_op     :: !DeltaPos -- '('
+    , mn_cp     :: !DeltaPos -- ')'
+    , mn_where  :: !DeltaPos -- where
+    }
+
+  -- IE variants
+  | AnnIEVar      { ie_comma :: !(Maybe DeltaPos) }
+  | AnnIEThingAbs { ie_comma :: !(Maybe DeltaPos) }
+  | AnnIEThingAll
+  | AnnIEThingWith
+  | AnnIEModuleContents
+  | AnnIEGroup
+  | AnnIEDoc
+  | AnnIEDocNamed
+
+{-
+IEVar name
+IEThingAbs name
+IEThingAll name
+IEThingWith name [name]
+IEModuleContents ModuleName
+IEGroup Int HsDocString
+IEDoc HsDocString
+IEDocNamed String
+
+-}
   | AnnNone
 
 type Anns = Map.Map GHC.SrcSpan Annotation

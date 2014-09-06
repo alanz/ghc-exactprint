@@ -127,8 +127,6 @@ toksToComments toks = map tokToComment $ filter ghcIsComment toks
 ------------------------------------------------------
 -- The EP monad and basic combinators
 
-type Pos = (Int,Int)
-
 pos :: (SrcInfo loc) => loc -> Pos
 pos ss = (startLine ss, startColumn ss)
 
@@ -218,6 +216,12 @@ printWhitespace p = mPrintComments p >> padUntil p
 printStringAt :: Pos -> String -> EP ()
 printStringAt p str = printWhitespace p >> printString str
 
+printStringAtMaybe :: Maybe Pos -> String -> EP ()
+printStringAtMaybe mc s =
+  case mc of
+    Nothing -> return ()
+    Just cl -> printStringAt cl s
+
 errorEP :: String -> EP a
 errorEP = fail
 
@@ -232,7 +236,7 @@ exactPrint ast cs toks = runEP (exactPC ast) cs Map.empty
 
 exactPrintAnnotated ast cs toks = runEP (exactPC ast) cs ann
   where
-    ann = Map.fromList $ [annotateLHsModule ast toks]
+    ann = Map.fromList $ annotateLHsModule ast toks
 
 -- exactPC :: (ExactP ast) => ast SrcSpanInfo -> EP ()
 -- exactPC ast = let p = pos (ann ast) in mPrintComments p >> padUntil p >> exactP ast
@@ -320,40 +324,40 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
     printSeq $ map (pos . ann &&& exactPC) decls
     printString "foo"
 
-  exactP (GHC.HsModule (Just lmn@(GHC.L l mn)) exps imps decls deprecs haddock) = do
+  exactP (GHC.HsModule (Just lmn@(GHC.L l mn)) mexp imps decls deprecs haddock) = do
     mAnn <- getAnnotation l
     case mAnn of
-      Just (AnnModuleName pm pn pw) -> do
-        printWhitespace pm
-        printString "module"
+      Just (AnnModuleName pm pn po pc pw) -> do
+        printStringAt pm "module"
         exactPC lmn
-        printWhitespace pw
-        printString "where"
-        return ()
+        case mexp of
+          Just exps -> do
+            printStringAt po "("
+            mapM_ exactP exps
+            printStringAt pc ")"
+        printStringAt pw "where"
       _ -> return ()
     -- exactPC mn
     printSeq $ map (pos . ann &&& exactPC) decls
     printString "foo"
 
-{-
-
-instance ExactP Module where
-  exactP mdl = case mdl of
-    Module l mmh oss ids decls -> do
-        let (oPts, pts) = splitAt (max (length oss + 1) 2) (srcInfoPoints l)
-        layoutList oPts oss
-        maybeEP exactPC mmh
-        printStreams (map (pos *** printString) $ lList pts)
-                     (map (pos . ann &&& exactPC) ids ++ map (pos . ann &&& exactPC) (sepFunBinds decls))
-
--}
 
 instance ExactP (GHC.ModuleName) where
   exactP mn = do
-    -- ann <- getAnnotation 
-    
     printString (GHC.moduleNameString mn)
 
+instance ExactP (GHC.LIE GHC.RdrName) where
+  exactP (GHC.L l (GHC.IEVar n)) = do
+    Just (AnnIEVar mc) <- getAnnotation l
+    printStringAt (ss2pos l) (rdrName2String n)
+    printStringAtMaybe mc ","
+
+  exactP (GHC.L l (GHC.IEThingAbs n)) = do
+    Just (AnnIEThingAbs mc) <- getAnnotation l
+    printStringAt (ss2pos l) (rdrName2String n)
+    printStringAtMaybe mc ","
+
+  exactP (GHC.L l _) = printStringAt (ss2pos l) ("no exactP at" ++ show (ss2pos l))
 
 instance ExactP (GHC.HsDecl GHC.RdrName) where
   exactP decl = case decl of
