@@ -22,17 +22,21 @@
 -----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint
         ( exactPrint
+        , exactPrintAnnotated
         , ExactP
 
         , toksToComments
         ) where
 
+import Language.Haskell.GHC.ExactPrint.Types
+import Language.Haskell.GHC.ExactPrint.Utils
 
 import Control.Monad (when, liftM, ap)
 import Control.Applicative (Applicative(..))
 import Control.Arrow ((***), (&&&))
 import Data.Data
 import Data.List (intersperse)
+import Data.Maybe
 
 import qualified Bag           as GHC
 import qualified DynFlags      as GHC
@@ -50,6 +54,8 @@ import qualified StringBuffer  as GHC
 import qualified UniqSet       as GHC
 import qualified Unique        as GHC
 import qualified Var           as GHC
+
+import qualified Data.Map as Map
 
 -- import Debug.Trace (trace)
 
@@ -95,7 +101,6 @@ data Comment = Comment Bool GHC.SrcSpan String
   deriving (Eq,Show,Typeable,Data)
 -- ++AZ++ : Will need to convert output of getRichTokenStream to Comment
 
-type PosToken = (GHC.Located GHC.Token, String)
 -- getRichTokenStream :: GhcMonad m => Module -> m [(Located Token, String)]
 
 class Annotated a where
@@ -104,22 +109,6 @@ class Annotated a where
 instance Annotated (GHC.Located a) where
   ann (GHC.L l _) = l
 
-
-srcSpanEndColumn :: GHC.SrcSpan -> Int
-srcSpanEndColumn (GHC.RealSrcSpan s) = GHC.srcSpanEndCol s
-srcSpanEndColumn _ = 0
-
-srcSpanStartColumn :: GHC.SrcSpan -> Int
-srcSpanStartColumn (GHC.RealSrcSpan s) = GHC.srcSpanStartCol s
-srcSpanStartColumn _ = 0
-
-srcSpanEndLine :: GHC.SrcSpan -> Int
-srcSpanEndLine (GHC.RealSrcSpan s) = GHC.srcSpanEndLine s
-srcSpanEndLine _ = 0
-
-srcSpanStartLine :: GHC.SrcSpan -> Int
-srcSpanStartLine (GHC.RealSrcSpan s) = GHC.srcSpanStartLine s
-srcSpanStartLine _ = 0
 
 -- | Test if a given span starts and ends at the same location.
 isNullSpan :: GHC.SrcSpan -> Bool
@@ -134,29 +123,6 @@ toksToComments toks = map tokToComment $ filter ghcIsComment toks
   where
     tokToComment t@(GHC.L l _,s) = Comment (ghcIsMultiLine t) l s
 
--- ---------------------------------------------------------------------
-
-ghcIsComment :: PosToken -> Bool
-ghcIsComment ((GHC.L _ (GHC.ITdocCommentNext _)),_s)  = True
-ghcIsComment ((GHC.L _ (GHC.ITdocCommentPrev _)),_s)  = True
-ghcIsComment ((GHC.L _ (GHC.ITdocCommentNamed _)),_s) = True
-ghcIsComment ((GHC.L _ (GHC.ITdocSection _ _)),_s)    = True
-ghcIsComment ((GHC.L _ (GHC.ITdocOptions _)),_s)      = True
-ghcIsComment ((GHC.L _ (GHC.ITdocOptionsOld _)),_s)   = True
-ghcIsComment ((GHC.L _ (GHC.ITlineComment _)),_s)     = True
-ghcIsComment ((GHC.L _ (GHC.ITblockComment _)),_s)    = True
-ghcIsComment ((GHC.L _ _),_s)                         = False
-
-ghcIsMultiLine :: PosToken -> Bool
-ghcIsMultiLine ((GHC.L _ (GHC.ITdocCommentNext _)),_s)  = False
-ghcIsMultiLine ((GHC.L _ (GHC.ITdocCommentPrev _)),_s)  = False
-ghcIsMultiLine ((GHC.L _ (GHC.ITdocCommentNamed _)),_s) = False
-ghcIsMultiLine ((GHC.L _ (GHC.ITdocSection _ _)),_s)    = False
-ghcIsMultiLine ((GHC.L _ (GHC.ITdocOptions _)),_s)      = False
-ghcIsMultiLine ((GHC.L _ (GHC.ITdocOptionsOld _)),_s)   = False
-ghcIsMultiLine ((GHC.L _ (GHC.ITlineComment _)),_s)     = False
-ghcIsMultiLine ((GHC.L _ (GHC.ITblockComment _)),_s)    = True
-ghcIsMultiLine ((GHC.L _ _),_s)                         = False
 
 ------------------------------------------------------
 -- The EP monad and basic combinators
@@ -166,7 +132,7 @@ type Pos = (Int,Int)
 pos :: (SrcInfo loc) => loc -> Pos
 pos ss = (startLine ss, startColumn ss)
 
-newtype EP x = EP (Pos -> [Comment] -> (x, Pos, [Comment], ShowS))
+newtype EP x = EP (Pos -> [Comment] -> Anns -> (x, Pos, [Comment], Anns, ShowS))
 
 instance Functor EP where
   fmap = liftM
@@ -176,39 +142,42 @@ instance Applicative EP where
   (<*>) = ap
 
 instance Monad EP where
-  return x = EP $ \l cs -> (x, l, cs, id)
+  return x = EP $ \l cs an -> (x, l, cs, an, id)
 
-  EP m >>= k = EP $ \l0 c0 -> let
-        (a, l1, c1, s1) = m l0 c0
+  EP m >>= k = EP $ \l0 c0 an0 -> let
+        (a, l1, c1, an1, s1) = m l0 c0 an0
         EP f = k a
-        (b, l2, c2, s2) = f l1 c1
-    in (b, l2, c2, s1 . s2)
+        (b, l2, c2, an2, s2) = f l1 c1 an1
+    in (b, l2, c2, an2, s1 . s2)
 
-runEP :: EP () -> [Comment] -> String
-runEP (EP f) cs = let (_,_,_,s) = f (1,1) cs in s ""
+runEP :: EP () -> [Comment] -> Anns -> String
+runEP (EP f) cs ans = let (_,_,_,_,s) = f (1,1) cs ans in s ""
 
 getPos :: EP Pos
-getPos = EP (\l cs -> (l,l,cs,id))
+getPos = EP (\l cs an -> (l,l,cs,an,id))
 
 setPos :: Pos -> EP ()
-setPos l = EP (\_ cs -> ((),l,cs,id))
+setPos l = EP (\_ cs an -> ((),l,cs,an,id))
+
+getAnnotation :: GHC.SrcSpan -> EP (Maybe Annotation)
+getAnnotation ss = EP (\l cs an -> (Map.lookup ss an,l,cs,an,id))
 
 printString :: String -> EP ()
-printString str = EP (\(l,c) cs -> ((), (l,c+length str), cs, showString str))
+printString str = EP (\(l,c) cs an -> ((), (l,c+length str), cs, an, showString str))
 
 getComment :: EP (Maybe Comment)
-getComment = EP $ \l cs ->
+getComment = EP $ \l cs an ->
     let x = case cs of
              c:_ -> Just c
              _   -> Nothing
-     in (x, l, cs, id)
+     in (x, l, cs, an, id)
 
 dropComment :: EP ()
-dropComment = EP $ \l cs ->
+dropComment = EP $ \l cs an ->
     let cs' = case cs of
                (_:cs) -> cs
                _      -> cs
-     in ((), l, cs', id)
+     in ((), l, cs', an, id)
 
 newLine :: EP ()
 newLine = do
@@ -240,8 +209,8 @@ mPrintComments p = do
 
 printComment :: Bool -> String -> EP ()
 printComment b str
-    | b         = printString $ "{-" ++ str ++ "-}"
-    | otherwise = printString $ "--" ++ str
+    | b         = printString str
+    | otherwise = printString str
 
 printWhitespace :: Pos -> EP ()
 printWhitespace p = mPrintComments p >> padUntil p
@@ -257,15 +226,19 @@ errorEP = fail
 
 -- | Print an AST exactly as specified by the annotations on the nodes in the tree.
 -- exactPrint :: (ExactP ast) => ast -> [Comment] -> String
-exactPrint :: (ExactP ast) => GHC.Located ast -> [Comment] -> String
-exactPrint ast cs = runEP (exactPC ast) cs
+exactPrint :: (ExactP ast) => GHC.Located ast -> [Comment] -> [PosToken] -> String
+exactPrint ast cs toks = runEP (exactPC ast) cs Map.empty
+
+
+exactPrintAnnotated ast cs toks = runEP (exactPC ast) cs ann
+  where
+    ann = Map.fromList $ [annotateLHsModule ast toks]
 
 -- exactPC :: (ExactP ast) => ast SrcSpanInfo -> EP ()
 -- exactPC ast = let p = pos (ann ast) in mPrintComments p >> padUntil p >> exactP ast
 
--- exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
-exactPC (GHC.L l ast) = let p = pos (l) in mPrintComments p >> padUntil p >> exactP ast
+exactPC (GHC.L l ast) = let p = pos l in mPrintComments p >> padUntil p >> exactP ast
 
 printSeq :: [(Pos, EP ())] -> EP ()
 printSeq [] = return ()
@@ -343,8 +316,22 @@ class ExactP ast where
   exactP :: ast -> EP ()
 
 instance ExactP (GHC.HsModule GHC.RdrName) where
-  exactP (GHC.HsModule mn exps imps decls deprecs haddock) = do
-    maybeEP exactPC mn
+  exactP (GHC.HsModule Nothing exps imps decls deprecs haddock) = do
+    printSeq $ map (pos . ann &&& exactPC) decls
+    printString "foo"
+
+  exactP (GHC.HsModule (Just lmn@(GHC.L l mn)) exps imps decls deprecs haddock) = do
+    mAnn <- getAnnotation l
+    case mAnn of
+      Just (AnnModuleName pm pn pw) -> do
+        printWhitespace pm
+        printString "module"
+        exactPC lmn
+        printWhitespace pw
+        printString "where"
+        return ()
+      _ -> return ()
+    -- exactPC mn
     printSeq $ map (pos . ann &&& exactPC) decls
     printString "foo"
 
@@ -362,7 +349,10 @@ instance ExactP Module where
 -}
 
 instance ExactP (GHC.ModuleName) where
-  exactP mn = printString (GHC.moduleNameString mn)
+  exactP mn = do
+    -- ann <- getAnnotation 
+    
+    printString (GHC.moduleNameString mn)
 
 
 instance ExactP (GHC.HsDecl GHC.RdrName) where

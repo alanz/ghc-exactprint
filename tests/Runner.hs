@@ -4,18 +4,12 @@
 module Main where
 
 import Language.Haskell.GHC.ExactPrint
--- import Language.Haskell.Exts.Annotated
--- import qualified Language.Haskell.Exts as S -- S for "Simple", i.e. not annotated
+
 import GHC.Paths ( libdir )
 import qualified DynFlags      as GHC
-import qualified FastString    as GHC
 import qualified GHC           as GHC
--- import qualified GHC.Paths     as GHC
-import qualified Lexer         as GHC
-import qualified Name          as GHC
-import qualified SrcLoc        as GHC
-import qualified StringBuffer  as GHC
-import qualified Unique        as GHC
+
+import qualified GHC.SYB.Utils as SYB
 
 import Test.Tasty hiding (defaultMain)
 import Test.Tasty.Golden
@@ -28,7 +22,6 @@ import Control.Monad
 import Control.Monad.Trans
 import Control.Applicative
 import Data.Generics
--- import Extensions
 
 main :: IO ()
 main = do
@@ -60,13 +53,15 @@ exactPrinterTests sources = testGroup "Exact printer tests" $ do
       (t,toks) <- parsedFileGhc file
       let
         parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
+        parsedAST = SYB.showData SYB.Parser 0 parsed
         comments = toksToComments toks
         -- try to pretty-print; summarize the test result
-        printed = exactPrint parsed comments
+        -- printed = exactPrint parsed comments toks
+        printed = exactPrintAnnotated parsed comments toks
         result =
                 if printed == contents
                   then "Match"
-                  else printed
+                  else printed ++ "\n==============\n" ++ parsedAST
       writeBinaryFile out $ result ++ "\n"
   return $ goldenVsFile (takeBaseName file) golden out run
 -- }}}
