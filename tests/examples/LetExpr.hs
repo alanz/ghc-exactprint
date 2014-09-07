@@ -2,9 +2,10 @@
 -- With some haddock in the top
 {- And a normal
    mulitline comment too -}
-  module {- blah -}  Layout.LetExpr  (foo
-                                    , bar
-                                    , Baz)
+  module {- blah -}  Layout.LetExpr ( foo -- foo does ..
+                                    , bar -- bar does ..
+                                    , Baz -- baz does ..
+                                    )
     where
 
 -- comment

@@ -78,42 +78,43 @@ annotateLHsModule (GHC.L lm (GHC.HsModule mmn mexp imps decs depr haddock)) toks
                 cpTok = head $ filter ghcIsCParen toksRest
                 opPos' = ss2delta pos $ tokenSpan opTok
                 cpPos' = ss2delta cpRel $ tokenSpan cpTok
-                aexps' = annotateLIEs exps toksE Nothing
+                aexps' = annotateLIEs exps toksE Nothing (tokenSpan opTok)
 
-annotateLIEs :: [GHC.LIE GHC.RdrName] -> [PosToken] -> Maybe GHC.SrcSpan -> [(GHC.SrcSpan, Annotation)]
-annotateLIEs [ ]    _  _ = []
-annotateLIEs [x] toks pl = annotateLIE x toks pl
-annotateLIEs (x1@(GHC.L l1 _):x2:xs) toks pl = annotateLIE x1 toks pl ++ annotateLIEs (x2:xs) toks (Just l1)
+annotateLIEs :: [GHC.LIE GHC.RdrName] -> [PosToken] -> Maybe GHC.SrcSpan -> GHC.SrcSpan -> [(GHC.SrcSpan, Annotation)]
+annotateLIEs [ ]    _  _ _  = []
+annotateLIEs [x] toks pl pr = annotateLIE x toks pl pr
+annotateLIEs (x1@(GHC.L l1 _):x2:xs) toks pl pr = annotateLIE x1 toks pl pr ++ annotateLIEs (x2:xs) toks (Just l1) pr
 
 -- This receives the toks for the entire exports section.
 -- So it can scan for the separating comma if required
-annotateLIE :: GHC.LIE GHC.RdrName -> [PosToken] -> Maybe GHC.SrcSpan -> [(GHC.SrcSpan,Annotation)]
-annotateLIE (GHC.L l (GHC.IEVar _))      toks pl = [(l,Ann [] p (AnnIEVar mc))]
-  where (mc,p) = calcCommaListOffsets l toks pl
+annotateLIE :: GHC.LIE GHC.RdrName -> [PosToken] -> Maybe GHC.SrcSpan -> GHC.SrcSpan -> [(GHC.SrcSpan,Annotation)]
+annotateLIE (GHC.L l (GHC.IEVar _))      toks pl pr = [(l,Ann [] p (AnnIEVar mc))]
+  where (mc,p) = calcListOffsets ghcIsComma l toks pl pr
 
-annotateLIE (GHC.L l (GHC.IEThingAbs _)) toks pl = [(l,Ann [] p (AnnIEThingAbs mc))]
-  where (mc,p) = calcCommaListOffsets l toks pl
+annotateLIE (GHC.L l (GHC.IEThingAbs _)) toks pl pr = [(l,Ann [] p (AnnIEThingAbs mc))]
+  where (mc,p) = calcListOffsets ghcIsComma l toks pl pr
 
-annotateLIE (GHC.L l (_)) toks pl = [] -- assert False undefined
+annotateLIE (GHC.L l (_)) toks pl pr = [] -- assert False undefined
 
 -- ---------------------------------------------------------------------
 
-calcCommaListOffsets :: GHC.SrcSpan -> [PosToken] -> Maybe GHC.SrcSpan -> (Maybe DeltaPos, DeltaPos)
-calcCommaListOffsets l toks pl = (mc,p)
+calcListOffsets ::(PosToken -> Bool) -> GHC.SrcSpan
+  -> [PosToken] -> Maybe GHC.SrcSpan -> GHC.SrcSpan -> (Maybe DeltaPos, DeltaPos)
+calcListOffsets isToken l toks pl pr = (mc,p)
   where
-    (mc,p) = case findPrecedingComma l toks of
-      Nothing -> (Nothing,ss2delta (ss2pos  l) l)
+    (mc,p) = case findPreceding isToken l toks of
+      Nothing -> (Nothing,            ss2delta (ss2posEnd pr) l)
       Just ss -> (Just (DP (lo, co)), ss2delta (ss2posEnd ss) l)
                  where lp = maybe l id pl
                        DP (lo,co) = (ss2delta (ss2posEnd lp) ss)
 
 -- ---------------------------------------------------------------------
 
-findPrecedingComma :: GHC.SrcSpan -> [PosToken] -> Maybe GHC.SrcSpan
-findPrecedingComma ss toks = r
+findPreceding :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe GHC.SrcSpan
+findPreceding isToken ss toks = r
   where
     (toksBefore,_,_) = splitToksForSpan ss toks
-    r = case filter ghcIsComma (reverse toksBefore) of
+    r = case filter isToken (reverse toksBefore) of
       [] -> Nothing
       (t:_) -> Just (tokenSpan t)
 
