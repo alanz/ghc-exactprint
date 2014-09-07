@@ -102,9 +102,9 @@ calcCommaListOffsets l toks pl = (mc,p)
   where
     (mc,p) = case findPrecedingComma l toks of
       Nothing -> (Nothing,ss2delta (ss2pos  l) l)
-      Just ss -> (Just (DP (lo, co - 1)), ss2delta (ss2pos ss) l)
+      Just ss -> (Just (DP (lo, co)), ss2delta (ss2posEnd ss) l)
                  where lp = maybe l id pl
-                       DP (lo,co) = (ss2delta (ss2pos lp) ss)
+                       DP (lo,co) = (ss2delta (ss2posEnd lp) ss)
 
 -- ---------------------------------------------------------------------
 

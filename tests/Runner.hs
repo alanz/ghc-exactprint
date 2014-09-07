@@ -86,7 +86,9 @@ manipulateAstTest sources = testGroup "Exact printer tests" $ do
         -- printed = exactPrint parsed comments toks
         ann = annotate parsed toks
         Just exps = GHC.hsmodExports hsmod
-        parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (head exps : (drop 2 exps)) }))
+        parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (tail exps) }))
+        -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (head exps : (drop 2 exps)) }))
+        -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (init exps) }))
         printed = exactPrintAnnotation parsed' comments ann
         result =
                 if printed == contents
