@@ -4,6 +4,7 @@
 module Main where
 
 import Language.Haskell.GHC.ExactPrint
+import Language.Haskell.GHC.ExactPrint.Types
 
 import GHC.Paths ( libdir )
 import qualified DynFlags      as GHC
@@ -22,6 +23,8 @@ import Control.Monad
 import Control.Monad.Trans
 import Control.Applicative
 import Data.Generics
+
+import qualified Data.Map as Map
 
 main :: IO ()
 main = do
@@ -86,8 +89,13 @@ manipulateAstTest sources = testGroup "Exact printer tests" $ do
         -- printed = exactPrint parsed comments toks
         ann = annotate parsed toks
         Just exps = GHC.hsmodExports hsmod
-        parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (tail exps) }))
-        -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (head exps : (drop 2 exps)) }))
+
+        secondExp@(GHC.L l2 _) = head $ tail exps
+        Just (Ann cs ll (AnnIEVar mc)) = Map.lookup l2 ann
+        ann' = Map.insert l2 (Ann cs ll (AnnIEVar Nothing)) ann
+        -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (tail exps) }))
+
+        parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (head exps : (drop 2 exps)) }))
         -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (init exps) }))
         printed = exactPrintAnnotation parsed' comments ann
         result =

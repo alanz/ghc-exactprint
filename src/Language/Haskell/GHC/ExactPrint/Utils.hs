@@ -58,9 +58,10 @@ annotateLHsModule (GHC.L lm (GHC.HsModule mmn mexp imps decs depr haddock)) toks
     moduleTok = head $ filter ghcIsModule toks
     whereTok  = head $ filter ghcIsWhere  toks
     r = case mmn of
-      Nothing -> [(undefined,AnnNone)]
-      Just (GHC.L l mn) -> (l,AnnModuleName [] mPos mnPos opPos cpPos wherePos):aexps
+      Nothing -> [(undefined,annNone)]
+      Just (GHC.L l mn) -> (l,Ann [] (DP (0,0)) annSpecific):aexps
         where
+          annSpecific = AnnModuleName mPos mnPos opPos cpPos wherePos
           mPos  = ss2delta pos $ tokenSpan moduleTok
           mnPos = ss2delta pos l
           wherePos = ss2delta pos $ tokenSpan whereTok `debug` ("annotateLHsModule:(mPos,pos,moduleTok) =" ++ show (mPos,pos,moduleTok))
@@ -87,10 +88,10 @@ annotateLIEs (x1@(GHC.L l1 _):x2:xs) toks pl = annotateLIE x1 toks pl ++ annotat
 -- This receives the toks for the entire exports section.
 -- So it can scan for the separating comma if required
 annotateLIE :: GHC.LIE GHC.RdrName -> [PosToken] -> Maybe GHC.SrcSpan -> [(GHC.SrcSpan,Annotation)]
-annotateLIE (GHC.L l (GHC.IEVar _))      toks pl = [(l,AnnIEVar [] mc p)]
+annotateLIE (GHC.L l (GHC.IEVar _))      toks pl = [(l,Ann [] p (AnnIEVar mc))]
   where (mc,p) = calcCommaListOffsets l toks pl
 
-annotateLIE (GHC.L l (GHC.IEThingAbs _)) toks pl = [(l,AnnIEThingAbs [] mc p)]
+annotateLIE (GHC.L l (GHC.IEThingAbs _)) toks pl = [(l,Ann [] p (AnnIEThingAbs mc))]
   where (mc,p) = calcCommaListOffsets l toks pl
 
 annotateLIE (GHC.L l (_)) toks pl = [] -- assert False undefined

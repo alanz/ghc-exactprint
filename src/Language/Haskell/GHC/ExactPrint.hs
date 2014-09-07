@@ -362,7 +362,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
     -- p <- getPos -- starting position is bogus
     let p = (1,0)
     case mAnn of
-      Just (AnnModuleName cs pm pn po pc pw) -> do
+      Just (Ann cs _ (AnnModuleName pm pn po pc pw)) -> do
         printStringAt (undelta p pm) "module"
         exactPC lmn
         case mexp of
@@ -377,20 +377,19 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
     printSeq $ map (pos . ann &&& exactPC) decls
     printString "foo"
 
-
 instance ExactP (GHC.ModuleName) where
   exactP mn = do
     printString (GHC.moduleNameString mn)
 
 instance ExactP (GHC.LIE GHC.RdrName) where
   exactP (GHC.L l (GHC.IEVar n)) = do
-    Just (AnnIEVar cs mc ll) <- getAnnotation l
+    Just (Ann cs ll (AnnIEVar mc)) <- getAnnotation l
     printStringAtMaybeDelta mc ","
     p <- getPos
     printStringAt (undelta p ll) (rdrName2String n) `debug` ("exactP LIE.Var:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))
 
   exactP (GHC.L l (GHC.IEThingAbs n)) = do
-    Just (AnnIEThingAbs cs mc ll) <- getAnnotation l
+    Just (Ann cs ll (AnnIEThingAbs mc)) <- getAnnotation l
     printStringAtMaybeDelta mc ","
     p <- getPos
     printStringAt (undelta p ll) (rdrName2String n) `debug` ("exactP LIE.ThingAbs:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))

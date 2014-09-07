@@ -6,6 +6,8 @@ module Language.Haskell.GHC.ExactPrint.Types
   , PosToken
   , DeltaPos(..)
   , Annotation(..)
+  , AnnSpecific(..)
+  , annNone
   , Anns(..)
   ) where
 
@@ -43,10 +45,17 @@ type Pos = (Int,Int)
 
 newtype DeltaPos = DP (Int,Int) deriving Show
 
-data Annotation =
+annNone = Ann [] (DP (0,0)) AnnNone
+
+data Annotation = Ann
+  { ann_comments :: ![Comment]
+  , ann_loc      :: !DeltaPos
+  , ann_specific :: !AnnSpecific
+  } deriving (Show)
+
+data AnnSpecific =
   AnnModuleName
-    { ann_comments :: ![Comment]
-    , mn_module :: !DeltaPos -- module
+    { mn_module :: !DeltaPos -- module
     , mn_name   :: !DeltaPos -- Language.Haskell.GHC.Types
     , mn_op     :: !DeltaPos -- '('
     , mn_cp     :: !DeltaPos -- ')'
@@ -54,8 +63,8 @@ data Annotation =
     }
 
   -- IE variants, *preceding* comma
-  | AnnIEVar      { ann_comments :: ![Comment], ie_comma :: !(Maybe DeltaPos) , ie_loc :: !DeltaPos}
-  | AnnIEThingAbs { ann_comments :: ![Comment], ie_comma :: !(Maybe DeltaPos) , ie_loc :: !DeltaPos}
+  | AnnIEVar      { ie_comma :: !(Maybe DeltaPos) }
+  | AnnIEThingAbs { ie_comma :: !(Maybe DeltaPos) }
   | AnnIEThingAll
   | AnnIEThingWith
   | AnnIEModuleContents
@@ -75,6 +84,8 @@ IEDocNamed String
 
 -}
   | AnnNone
+  deriving (Show)
 
 type Anns = Map.Map GHC.SrcSpan Annotation
+
 
