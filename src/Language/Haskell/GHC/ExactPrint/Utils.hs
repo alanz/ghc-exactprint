@@ -69,14 +69,14 @@ annotateLHsModule (GHC.L lm (GHC.HsModule mmn mexp imps decs depr haddock)) toks
             Just exps -> (opPos',cpPos',aexps')
               where
                 opTok = head $ filter ghcIsOParen toks
-                (toksE,toksRest) = case exps of
-                  [] -> (toks,toks)
+                (toksE,toksRest,cpRel) = case exps of
+                  [] -> (toks,toks,pos)
                   _ -> let (_,etoks,ts) = splitToks (GHC.getLoc (head exps),
                                                      GHC.getLoc (last exps)) toks
-                       in (etoks,ts)
+                       in (etoks,ts,ss2posEnd $ GHC.getLoc (last exps))
                 cpTok = head $ filter ghcIsCParen toksRest
                 opPos' = ss2delta pos $ tokenSpan opTok
-                cpPos' = ss2delta pos $ tokenSpan cpTok
+                cpPos' = ss2delta cpRel $ tokenSpan cpTok
                 aexps' = annotateLIEs exps toksE Nothing
 
 annotateLIEs :: [GHC.LIE GHC.RdrName] -> [PosToken] -> Maybe GHC.SrcSpan -> [(GHC.SrcSpan, Annotation)]
@@ -225,6 +225,9 @@ undelta (l,c) (DP (dl,dc)) = (fl,fc)
 
 ss2pos :: GHC.SrcSpan -> Pos
 ss2pos ss = (srcSpanStartLine ss,srcSpanStartColumn ss)
+
+ss2posEnd :: GHC.SrcSpan -> Pos
+ss2posEnd ss = (srcSpanEndLine ss,srcSpanEndColumn ss)
 
 srcSpanStart :: GHC.SrcSpan -> Pos
 srcSpanStart ss = (srcSpanStartLine ss,srcSpanStartColumn ss)

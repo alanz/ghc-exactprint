@@ -369,7 +369,8 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
           Just exps -> do
             printStringAt (undelta p po) "("
             mapM_ exactP exps
-            printStringAt (undelta p pc) ")"
+            p2 <- getPos
+            printStringAt (undelta p2 pc) ")"
         printStringAt (undelta p pw) "where"
       _ -> return ()
 
