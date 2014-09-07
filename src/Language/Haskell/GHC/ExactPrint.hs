@@ -57,7 +57,10 @@ import qualified Var           as GHC
 
 import qualified Data.Map as Map
 
--- import Debug.Trace (trace)
+import Debug.Trace
+
+debug :: c -> String -> c
+debug = flip trace
 
 -- ---------------------------------------------------------------------
 
@@ -185,6 +188,15 @@ padUntil (l,c) = do
               | l1 < l             -> newLine >> padUntil (l,c)
               | otherwise          -> return ()
 
+padDelta :: DeltaPos -> EP ()
+padDelta (DP (dl,dc)) = do
+    (l1,c1) <- getPos
+    let (l,c) = (l1+dl,c1+dc)
+    case  {- trace (show ((l,c), (l1,c1))) -} () of
+     _ {-()-} | l1 >= l && c1 <= c -> printString $ replicate (c - c1) ' '
+              | l1 < l             -> newLine >> padUntil (l,c)
+              | otherwise          -> return ()
+
 
 mPrintComments :: Pos -> EP ()
 mPrintComments p = do
@@ -210,11 +222,25 @@ printWhitespace p = mPrintComments p >> padUntil p
 printStringAt :: Pos -> String -> EP ()
 printStringAt p str = printWhitespace p >> printString str
 
+printStringAtDelta :: DeltaPos -> String -> EP ()
+printStringAtDelta (DP (dl,dc)) str = do
+  (l1,c1) <- getPos
+  let (l,c) = (l1 + dl, c1 + dc)
+  printWhitespace (l,c) >> printString str
+
 printStringAtMaybe :: Maybe Pos -> String -> EP ()
 printStringAtMaybe mc s =
   case mc of
     Nothing -> return ()
     Just cl -> printStringAt cl s
+
+printStringAtMaybeDelta :: Maybe DeltaPos -> String -> EP ()
+printStringAtMaybeDelta mc s =
+  case mc of
+    Nothing -> return ()
+    Just cl -> do
+      p <- getPos
+      printStringAt (undelta p cl) s
 
 errorEP :: String -> EP a
 errorEP = fail
@@ -320,18 +346,20 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
 
   exactP (GHC.HsModule (Just lmn@(GHC.L l mn)) mexp imps decls deprecs haddock) = do
     mAnn <- getAnnotation l
+    -- p <- getPos -- starting position is bogus
+    let p = (1,0)
     case mAnn of
       Just (AnnModuleName cs pm pn po pc pw) -> do
-        printStringAt pm "module"
+        printStringAt (undelta p pm) "module"
         exactPC lmn
         case mexp of
           Just exps -> do
-            printStringAt po "("
+            printStringAt (undelta p po) "("
             mapM_ exactP exps
-            printStringAt pc ")"
-        printStringAt pw "where"
+            printStringAt (undelta p pc) ")"
+        printStringAt (undelta p pw) "where"
       _ -> return ()
-    -- exactPC mn
+
     printSeq $ map (pos . ann &&& exactPC) decls
     printString "foo"
 
@@ -342,14 +370,15 @@ instance ExactP (GHC.ModuleName) where
 
 instance ExactP (GHC.LIE GHC.RdrName) where
   exactP (GHC.L l (GHC.IEVar n)) = do
+    p <- getPos
     Just (AnnIEVar cs mc) <- getAnnotation l
-    printStringAt (ss2pos l) (rdrName2String n)
-    printStringAtMaybe mc ","
+    printStringAt (ss2pos l) (rdrName2String n) `debug` ("exactP LIE.Var:(l,cs,mc)=" ++ show (ss2pos l,cs,mc))
+    printStringAtMaybeDelta mc ","
 
   exactP (GHC.L l (GHC.IEThingAbs n)) = do
     Just (AnnIEThingAbs cs mc) <- getAnnotation l
-    printStringAt (ss2pos l) (rdrName2String n)
-    printStringAtMaybe mc ","
+    printStringAt (ss2pos l) (rdrName2String n) `debug` ("exactP LIE.Var:(l,cs,mc)=" ++ show (ss2pos l,cs,mc))
+    printStringAtMaybeDelta mc ","
 
   exactP (GHC.L l _) = printStringAt (ss2pos l) ("no exactP at" ++ show (ss2pos l))
 

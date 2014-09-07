@@ -14,6 +14,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , srcSpanEndColumn
 
   , ss2pos
+  , undelta
   , rdrName2String
   ) where
 
@@ -50,19 +51,20 @@ debug = flip trace
 -- TODO: turn this into a class.
 -- TODO: distribute comments as per hindent
 annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> [PosToken] -> [(GHC.SrcSpan,Annotation)]
-annotateLHsModule (GHC.L _ (GHC.HsModule mmn mexp imps decs depr haddock)) toks = r
+annotateLHsModule (GHC.L lm (GHC.HsModule mmn mexp imps decs depr haddock)) toks = r
   where
+    pos = ss2pos lm  -- start of the syntax fragment
     moduleTok = head $ filter ghcIsModule toks
-    whereTok  = head $ filter ghcIsWhere toks
+    whereTok  = head $ filter ghcIsWhere  toks
     r = case mmn of
       Nothing -> [(undefined,AnnNone)]
       Just (GHC.L l mn) -> (l,AnnModuleName [] mPos mnPos opPos cpPos wherePos):aexps
         where
-          mPos  = ss2delta $ tokenSpan moduleTok
-          mnPos = ss2delta l
-          wherePos = ss2delta $ tokenSpan whereTok
+          mPos  = ss2delta pos $ tokenSpan moduleTok
+          mnPos = ss2delta pos l
+          wherePos = ss2delta pos $ tokenSpan whereTok `debug` ("annotateLHsModule:(mPos,pos,moduleTok) =" ++ show (mPos,pos,moduleTok))
           (opPos,cpPos,aexps) = case mexp of
-            Nothing -> ((0,0),(0,0),[])
+            Nothing -> (DP (0,0), DP (0,0),[])
             Just exps -> (opPos',cpPos',aexps')
               where
                 opTok = head $ filter ghcIsOParen toks
@@ -72,15 +74,15 @@ annotateLHsModule (GHC.L _ (GHC.HsModule mmn mexp imps decs depr haddock)) toks 
                                                      GHC.getLoc (last exps)) toks
                        in (etoks,ts)
                 cpTok = head $ filter ghcIsCParen toksRest
-                opPos' = ss2delta $ tokenSpan opTok
-                cpPos' = ss2delta $ tokenSpan cpTok
+                opPos' = ss2delta pos $ tokenSpan opTok
+                cpPos' = ss2delta pos $ tokenSpan cpTok
                 aexps' = concatMap (\e -> annotateLIE e toksE) exps
 
 
 -- This receives the toks for the entire exports section.
 -- So it can scan for the separating comma if required
 annotateLIE :: GHC.LIE GHC.RdrName -> [PosToken] -> [(GHC.SrcSpan,Annotation)]
-annotateLIE (GHC.L l (GHC.IEVar _)) toks = [(l,AnnIEVar [] (findTrailingComma l toks))]
+annotateLIE (GHC.L l (GHC.IEVar _))      toks = [(l,AnnIEVar      [] (findTrailingComma l toks))]
 annotateLIE (GHC.L l (GHC.IEThingAbs _)) toks = [(l,AnnIEThingAbs [] (findTrailingComma l toks))]
 annotateLIE (GHC.L l (_)) toks = [] -- assert False undefined
 
@@ -92,7 +94,7 @@ findTrailingComma ss toks = r -- `debug` ("findTrailingComma:toksAfter=" ++ show
     (_,_,toksAfter) = splitToksForSpan ss toks
     r = case filter ghcIsComma toksAfter of
       [] -> Nothing
-      (t:_) -> Just (ss2delta $ tokenSpan t)
+      (t:_) -> Just (ss2delta (ss2pos ss) $ tokenSpan t)
 
 -- ---------------------------------------------------------------------
 -- This section is horrible because there is no Eq instance for
@@ -178,8 +180,18 @@ ghcIsMultiLine ((GHC.L _ _),_s)                         = False
 
 -- ---------------------------------------------------------------------
 
-ss2delta :: GHC.SrcSpan -> DeltaPos
-ss2delta ss = (srcSpanStartLine ss,srcSpanStartColumn ss)
+ss2delta :: Pos -> GHC.SrcSpan -> DeltaPos
+ss2delta (l,c) ss = DP (lo,co)
+  where
+    lo = srcSpanStartLine ss - l
+    co = if lo == 0 then srcSpanStartColumn ss - c
+                    else srcSpanStartColumn ss
+
+undelta :: Pos -> DeltaPos -> Pos
+undelta (l,c) (DP (dl,dc)) = (fl,fc)
+  where
+    fl = l + dl
+    fc = if dl == 0 then c + dc else dc
 
 ss2pos :: GHC.SrcSpan -> Pos
 ss2pos ss = (srcSpanStartLine ss,srcSpanStartColumn ss)

@@ -4,7 +4,7 @@ module Language.Haskell.GHC.ExactPrint.Types
     Comment(..)
   , Pos
   , PosToken
-  , DeltaPos
+  , DeltaPos(..)
   , Annotation(..)
   , Anns(..)
   ) where
@@ -41,7 +41,7 @@ type PosToken = (GHC.Located GHC.Token, String)
 
 type Pos = (Int,Int)
 
-type DeltaPos = (Int,Int)
+newtype DeltaPos = DP (Int,Int) deriving Show
 
 data Annotation =
   AnnModuleName
