@@ -53,9 +53,9 @@ data Annotation =
     , mn_where  :: !DeltaPos -- where
     }
 
-  -- IE variants
-  | AnnIEVar      { ann_comments :: ![Comment], ie_comma :: !(Maybe DeltaPos) }
-  | AnnIEThingAbs { ann_comments :: ![Comment], ie_comma :: !(Maybe DeltaPos) }
+  -- IE variants, *preceding* comma
+  | AnnIEVar      { ann_comments :: ![Comment], ie_comma :: !(Maybe DeltaPos) , ie_loc :: !DeltaPos}
+  | AnnIEThingAbs { ann_comments :: ![Comment], ie_comma :: !(Maybe DeltaPos) , ie_loc :: !DeltaPos}
   | AnnIEThingAll
   | AnnIEThingWith
   | AnnIEModuleContents

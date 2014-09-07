@@ -25,10 +25,12 @@ import Data.Generics
 
 main :: IO ()
 main = do
-  -- sources <- getTestFiles examplesDir
+  sources  <- getTestFiles examplesDir
   sources2 <- getTestFiles examplesDir2
   defaultMain $ testGroup "Tests" $
-    [ exactPrinterTests (sources2)
+    [ -- exactPrinterTests (sources)
+    -- , exactPrinterTests (sources2)
+    manipulateAstTest (sources2)
     ]
 
 -- | Where all the tests are to be found
@@ -46,7 +48,7 @@ exactPrinterTests sources = testGroup "Exact printer tests" $ do
   -- list monad
   file <- sources
   let
-    out = file <.> "exactprinter" <.> "out"
+    out    = file <.> "exactprinter" <.> "out"
     golden = file <.> "exactprinter" <.> "golden"
     run = do
       contents <- readUTF8File file
@@ -66,6 +68,33 @@ exactPrinterTests sources = testGroup "Exact printer tests" $ do
   return $ goldenVsFile (takeBaseName file) golden out run
 -- }}}
 
+manipulateAstTest :: [FilePath] -> TestTree -- {{{
+manipulateAstTest sources = testGroup "Exact printer tests" $ do
+  -- list monad
+  file <- take 1 sources
+  let
+    out    = file <.> "exactprinter" <.> "out"
+    golden = file <.> "exactprinter" <.> "golden"
+    run = do
+      contents <- readUTF8File file
+      (t,toks) <- parsedFileGhc file
+      let
+        parsed@(GHC.L l hsmod) = GHC.pm_parsed_source $ GHC.tm_parsed_module t
+        parsedAST = SYB.showData SYB.Parser 0 parsed
+        comments = toksToComments toks
+        -- try to pretty-print; summarize the test result
+        -- printed = exactPrint parsed comments toks
+        ann = annotate parsed toks
+        Just exps = GHC.hsmodExports hsmod
+        parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (head exps : (drop 2 exps)) }))
+        printed = exactPrintAnnotation parsed' comments ann
+        result =
+                if printed == contents
+                  then "Match"
+                  else printed ++ "\n==============\n" ++ parsedAST
+      writeBinaryFile out $ result ++ "\n"
+  return $ goldenVsFile (takeBaseName file) golden out run
+-- }}}
 
 -- ---------------------------------------------------------------------
 -- |Result of parsing a Haskell source file. It is simply the

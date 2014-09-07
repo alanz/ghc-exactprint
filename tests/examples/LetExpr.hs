@@ -4,8 +4,8 @@
    mulitline comment too -}
   module {- blah -}  Layout.LetExpr  (foo
                                     , bar
-                                    , Baz
-   ) where
+                                    , Baz)
+    where
 
 -- comment
 foo = let x = 1

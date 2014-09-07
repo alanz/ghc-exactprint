@@ -21,8 +21,11 @@
 --
 -----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint
-        ( exactPrint
+        ( annotate
         , exactPrintAnnotated
+        , exactPrintAnnotation
+
+        , exactPrint
         , ExactP
 
         , toksToComments
@@ -254,9 +257,19 @@ exactPrint :: (ExactP ast) => GHC.Located ast -> [Comment] -> [PosToken] -> Stri
 exactPrint ast cs toks = runEP (exactPC ast) cs Map.empty
 
 
+exactPrintAnnotated ::
+     GHC.Located (GHC.HsModule GHC.RdrName)
+  -> [Comment] -> [PosToken] -> String
 exactPrintAnnotated ast cs toks = runEP (exactPC ast) cs ann
   where
     ann = Map.fromList $ annotateLHsModule ast toks
+
+exactPrintAnnotation :: ExactP ast =>
+  GHC.Located ast -> [Comment] -> Anns -> String
+exactPrintAnnotation ast cs ann = runEP (exactPC ast) cs ann
+
+annotate :: GHC.Located (GHC.HsModule GHC.RdrName) -> [PosToken] -> Anns
+annotate ast toks = Map.fromList $ annotateLHsModule ast toks
 
 -- exactPC :: (ExactP ast) => ast SrcSpanInfo -> EP ()
 -- exactPC ast = let p = pos (ann ast) in mPrintComments p >> padUntil p >> exactP ast
@@ -370,15 +383,16 @@ instance ExactP (GHC.ModuleName) where
 
 instance ExactP (GHC.LIE GHC.RdrName) where
   exactP (GHC.L l (GHC.IEVar n)) = do
-    p <- getPos
-    Just (AnnIEVar cs mc) <- getAnnotation l
-    printStringAt (ss2pos l) (rdrName2String n) `debug` ("exactP LIE.Var:(l,cs,mc)=" ++ show (ss2pos l,cs,mc))
+    Just (AnnIEVar cs mc ll) <- getAnnotation l
     printStringAtMaybeDelta mc ","
+    p <- getPos
+    printStringAt (undelta p ll) (rdrName2String n) `debug` ("exactP LIE.Var:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))
 
   exactP (GHC.L l (GHC.IEThingAbs n)) = do
-    Just (AnnIEThingAbs cs mc) <- getAnnotation l
-    printStringAt (ss2pos l) (rdrName2String n) `debug` ("exactP LIE.Var:(l,cs,mc)=" ++ show (ss2pos l,cs,mc))
+    Just (AnnIEThingAbs cs mc ll) <- getAnnotation l
     printStringAtMaybeDelta mc ","
+    p <- getPos
+    printStringAt (undelta p ll) (rdrName2String n) `debug` ("exactP LIE.ThingAbs:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))
 
   exactP (GHC.L l _) = printStringAt (ss2pos l) ("no exactP at" ++ show (ss2pos l))
 
