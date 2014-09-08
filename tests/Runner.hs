@@ -87,7 +87,7 @@ manipulateAstTest sources = testGroup "Exact printer tests" $ do
         comments = toksToComments toks
         -- try to pretty-print; summarize the test result
         -- printed = exactPrint parsed comments toks
-        ann = annotate parsed toks
+        ann = annotate parsed comments toks
         Just exps = GHC.hsmodExports hsmod
 
         secondExp@(GHC.L l2 _) = head $ tail exps
@@ -95,9 +95,12 @@ manipulateAstTest sources = testGroup "Exact printer tests" $ do
         ann' = Map.insert l2 (Ann cs ll (AnnIEVar Nothing)) ann
         -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (tail exps) }))
 
-        parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (head exps : (drop 2 exps)) }))
+        -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (head exps : (drop 2 exps)) }))
         -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (init exps) }))
-        printed = exactPrintAnnotation parsed' comments ann
+
+        parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (head exps:(head $ tail exps):tail exps) }))
+        -- printed = exactPrintAnnotation parsed' comments ann
+        printed = exactPrintAnnotation parsed' [] ann
         result =
                 if printed == contents
                   then "Match"

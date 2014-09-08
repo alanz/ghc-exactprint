@@ -39,6 +39,7 @@ import Control.Applicative (Applicative(..))
 import Control.Arrow ((***), (&&&))
 import Data.Data
 import Data.List (intersperse)
+import Data.List.Utils
 import Data.Maybe
 
 import qualified Bag           as GHC
@@ -90,7 +91,7 @@ class SrcInfo si where
 
 
 instance SrcInfo GHC.SrcSpan where
-  toSrcInfo = error "toSrcInfo GHC.SrcSpan undefined"
+  toSrcInfo   = error "toSrcInfo GHC.SrcSpan undefined"
   fromSrcInfo = error "toSrcInfo GHC.SrcSpan undefined"
 
   getPointLoc = GHC.srcSpanStart
@@ -121,7 +122,7 @@ spanSize ss = (srcSpanEndLine ss - srcSpanStartLine ss,
 toksToComments :: [PosToken] -> [Comment]
 toksToComments toks = map tokToComment $ filter ghcIsComment toks
   where
-    tokToComment t@(GHC.L l _,s) = Comment (ghcIsMultiLine t) l s
+    tokToComment t@(GHC.L l _,s) = Comment (ghcIsMultiLine t) ((ss2pos l),(ss2posEnd l)) s
 
 
 ------------------------------------------------------
@@ -177,6 +178,12 @@ dropComment = EP $ \l cs an ->
                _      -> cs
      in ((), l, cs', an, id)
 
+mergeComments :: [DComment] -> EP ()
+mergeComments dcs = EP $ \l cs an ->
+    let acs = map (undeltaComment l) dcs
+        cs' = merge acs cs
+    in ((), l, cs', an, id)
+
 newLine :: EP ()
 newLine = do
     (l,_) <- getPos
@@ -206,12 +213,12 @@ mPrintComments p = do
     mc <- getComment
     case mc of
      Nothing -> return ()
-     Just (Comment multi s str) ->
-        when (pos s < p) $ do
+     Just (Comment multi (s,e) str) ->
+        when (s < p) $ do
             dropComment
-            padUntil (pos s)
+            padUntil s
             printComment multi str
-            setPos (srcSpanEndLine s, srcSpanEndColumn s)
+            setPos e
             mPrintComments p
 
 printComment :: Bool -> String -> EP ()
@@ -260,16 +267,16 @@ exactPrint ast cs toks = runEP (exactPC ast) cs Map.empty
 exactPrintAnnotated ::
      GHC.Located (GHC.HsModule GHC.RdrName)
   -> [Comment] -> [PosToken] -> String
-exactPrintAnnotated ast cs toks = runEP (exactPC ast) cs ann
+exactPrintAnnotated ast cs toks = runEP (exactPC ast) [] ann
   where
-    ann = Map.fromList $ annotateLHsModule ast toks
+    ann = Map.fromList $ annotateLHsModule ast cs toks
 
 exactPrintAnnotation :: ExactP ast =>
   GHC.Located ast -> [Comment] -> Anns -> String
 exactPrintAnnotation ast cs ann = runEP (exactPC ast) cs ann
 
-annotate :: GHC.Located (GHC.HsModule GHC.RdrName) -> [PosToken] -> Anns
-annotate ast toks = Map.fromList $ annotateLHsModule ast toks
+annotate :: GHC.Located (GHC.HsModule GHC.RdrName) -> [Comment] -> [PosToken] -> Anns
+annotate ast cs toks = Map.fromList $ annotateLHsModule ast cs toks
 
 -- exactPC :: (ExactP ast) => ast SrcSpanInfo -> EP ()
 -- exactPC ast = let p = pos (ann ast) in mPrintComments p >> padUntil p >> exactP ast
@@ -362,7 +369,8 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
     -- p <- getPos -- starting position is bogus
     let p = (1,0)
     case mAnn of
-      Just (Ann cs _ (AnnModuleName pm pn po pc pw)) -> do
+      Just (Ann cs _ (AnnModuleName pm _pn po pc pw)) -> do
+        mergeComments cs -- TODO: make this part of getAnnotation, or perhaps activateAnnotation
         printStringAt (undelta p pm) "module"
         exactPC lmn
         case mexp of
@@ -371,6 +379,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
             mapM_ exactP exps
             p2 <- getPos
             printStringAt (undelta p2 pc) ")"
+          Nothing -> return ()
         printStringAt (undelta p pw) "where"
       _ -> return ()
 
@@ -384,12 +393,14 @@ instance ExactP (GHC.ModuleName) where
 instance ExactP (GHC.LIE GHC.RdrName) where
   exactP (GHC.L l (GHC.IEVar n)) = do
     Just (Ann cs ll (AnnIEVar mc)) <- getAnnotation l
+    mergeComments cs
     printStringAtMaybeDelta mc ","
     p <- getPos
     printStringAt (undelta p ll) (rdrName2String n) `debug` ("exactP LIE.Var:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))
 
   exactP (GHC.L l (GHC.IEThingAbs n)) = do
     Just (Ann cs ll (AnnIEThingAbs mc)) <- getAnnotation l
+    mergeComments cs
     printStringAtMaybeDelta mc ","
     p <- getPos
     printStringAt (undelta p ll) (rdrName2String n) `debug` ("exactP LIE.ThingAbs:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))

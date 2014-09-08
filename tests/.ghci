@@ -1,3 +1,4 @@
 :set -package ghc
 :set -i../src
 :set -i../test
+:set -hide-package monads-tf

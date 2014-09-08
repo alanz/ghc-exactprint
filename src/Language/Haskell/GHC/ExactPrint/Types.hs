@@ -2,6 +2,7 @@
 module Language.Haskell.GHC.ExactPrint.Types
   (
     Comment(..)
+  , DComment(..)
   , Pos
   , PosToken
   , DeltaPos(..)
@@ -33,22 +34,26 @@ import qualified Var           as GHC
 import qualified Data.Map as Map
 
 -- | A Haskell comment. The 'Bool' is 'True' if the comment is multi-line, i.e. @{- -}@.
-data Comment = Comment Bool GHC.SrcSpan String
+data Comment = Comment Bool (Pos,Pos) String
   deriving (Eq,Show,Typeable,Data)
--- ++AZ++ : Will need to convert output of getRichTokenStream to Comment
 
--- getRichTokenStream :: GhcMonad m => Module -> m [(Located Token, String)]
+data DComment = DComment Bool (DeltaPos,DeltaPos) String
+  deriving (Eq,Show,Typeable,Data)
+
+instance Ord Comment where
+  compare (Comment _ p1 _) (Comment _ p2 _) = compare p1 p2
 
 type PosToken = (GHC.Located GHC.Token, String)
 
 type Pos = (Int,Int)
 
-newtype DeltaPos = DP (Int,Int) deriving Show
+newtype DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
 
+annNone :: Annotation
 annNone = Ann [] (DP (0,0)) AnnNone
 
 data Annotation = Ann
-  { ann_comments :: ![Comment]
+  { ann_comments :: ![DComment]
   , ann_loc      :: !DeltaPos
   , ann_specific :: !AnnSpecific
   } deriving (Show)

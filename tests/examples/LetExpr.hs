@@ -1,7 +1,7 @@
 -- | A simple let expression, to ensure the layout is detected
 -- With some haddock in the top
 {- And a normal
-   mulitline comment too -}
+   multiline comment too -}
   module {- blah -}  Layout.LetExpr ( foo -- foo does ..
                                     , bar -- bar does ..
                                     , Baz -- baz does ..

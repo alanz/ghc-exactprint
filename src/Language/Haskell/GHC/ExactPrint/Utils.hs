@@ -14,11 +14,14 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , srcSpanEndColumn
 
   , ss2pos
+  , ss2posEnd
   , undelta
+  , undeltaComment
   , rdrName2String
   ) where
 
 import Control.Exception
+import Data.List.Utils
 import Data.Maybe
 
 import Language.Haskell.GHC.ExactPrint.Types
@@ -51,16 +54,25 @@ debug = flip trace
 
 -- TODO: turn this into a class.
 -- TODO: distribute comments as per hindent
-annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> [PosToken] -> [(GHC.SrcSpan,Annotation)]
-annotateLHsModule (GHC.L lm (GHC.HsModule mmn mexp imps decs depr haddock)) toks = r
+annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName)
+  -> [Comment] -> [PosToken] -> [(GHC.SrcSpan,Annotation)]
+annotateLHsModule (GHC.L lm (GHC.HsModule mmn mexp imps decs depr haddock)) cs toks = r
   where
     pos = ss2pos lm  -- start of the syntax fragment
     moduleTok = head $ filter ghcIsModule toks
     whereTok  = head $ filter ghcIsWhere  toks
     r = case mmn of
       Nothing -> [(undefined,annNone)]
-      Just (GHC.L l mn) -> (l,Ann [] (DP (0,0)) annSpecific):aexps
+      Just (GHC.L l mn) -> (l,Ann lcs (DP (0,0)) annSpecific):aexps
         where
+          lcs = localComments lm cs (expSpan ++ impSpan ++ decsSpan)
+          expSpan = case mexp of
+            Nothing -> []
+            Just xs -> getListSpan xs
+
+          impSpan  = getListSpan imps
+          decsSpan = getListSpan decs
+
           annSpecific = AnnModuleName mPos mnPos opPos cpPos wherePos
           mPos  = ss2delta pos $ tokenSpan moduleTok
           mnPos = ss2delta pos l
@@ -98,6 +110,43 @@ annotateLIE (GHC.L l (_)) toks pl pr = [] -- assert False undefined
 
 -- ---------------------------------------------------------------------
 
+getListSpan [] = []
+getListSpan xs = [GHC.mkSrcSpan (GHC.srcSpanStart (GHC.getLoc (head xs)))
+                                (GHC.srcSpanEnd   (GHC.getLoc (last xs)))
+                 ]
+
+-- ---------------------------------------------------------------------
+
+-- | Given an enclosing SrcSpan @ss@, and a list of sub SrcSpans @ds@,
+-- identify all comments that are in @ss@ but not in @ds@, and convert
+-- them to be DComments relative to @ss@
+localComments :: GHC.SrcSpan -> [Comment] -> [GHC.SrcSpan] -> [DComment]
+localComments ss cs ds = r `debug` ("localComments:(ss,ds,r):" ++ show (ss,ds,r))
+  where
+    r = map (\c -> deltaComment ss c) matches
+
+    matches = filter notSub cs
+
+    notSub :: Comment -> Bool
+    notSub (Comment _ com _) = not $ any (\sub -> isSubPos com sub) dsp
+    dsp = map (\s -> (ss2pos s,ss2posEnd s)) ds
+
+    isSubPos src@(ss,se) parent@(ps,pe)
+      = ps <= ss && pe >= se
+
+{-
+-- | Determines whether a span is enclosed by another one
+isSubspanOf :: SrcSpan -- ^ The span that may be enclosed by the other
+            -> SrcSpan -- ^ The span it may be enclosed by
+            -> Bool
+isSubspanOf src parent
+    | srcSpanFileName_maybe parent /= srcSpanFileName_maybe src = False
+    | otherwise = srcSpanStart parent <= srcSpanStart src &&
+                  srcSpanEnd parent   >= srcSpanEnd src
+-}
+
+-- ---------------------------------------------------------------------
+
 calcListOffsets ::(PosToken -> Bool) -> GHC.SrcSpan
   -> [PosToken] -> Maybe GHC.SrcSpan -> GHC.SrcSpan -> (Maybe DeltaPos, DeltaPos)
 calcListOffsets isToken l toks pl pr = (mc,p)
@@ -127,6 +176,16 @@ findTrailingComma ss toks = r -- `debug` ("findTrailingComma:toksAfter=" ++ show
     r = case filter ghcIsComma toksAfter of
       [] -> Nothing
       (t:_) -> Just (ss2delta (ss2pos ss) $ tokenSpan t)
+
+
+-- ---------------------------------------------------------------------
+
+undeltaComment :: Pos -> DComment -> Comment
+undeltaComment l (DComment b (dps,dpe) s) = Comment b ((undelta l dpe),(undelta l dpe)) s
+
+deltaComment :: GHC.SrcSpan -> Comment -> DComment
+deltaComment l (Comment b (s,e) str)
+  = DComment b ((ss2delta s l),(ss2delta e l)) str
 
 -- ---------------------------------------------------------------------
 -- This section is horrible because there is no Eq instance for
