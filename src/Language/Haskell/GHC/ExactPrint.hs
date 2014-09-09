@@ -396,14 +396,14 @@ instance ExactP (GHC.LIE GHC.RdrName) where
     mergeComments cs
     printStringAtMaybeDelta mc ","
     p <- getPos
-    printStringAt (undelta p ll) (rdrName2String n) `debug` ("exactP LIE.Var:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))
+    printStringAt (undelta p ll) (rdrName2String n) -- `debug` ("exactP LIE.Var:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))
 
   exactP (GHC.L l (GHC.IEThingAbs n)) = do
     Just (Ann cs ll (AnnIEThingAbs mc)) <- getAnnotation l
     mergeComments cs
     printStringAtMaybeDelta mc ","
     p <- getPos
-    printStringAt (undelta p ll) (rdrName2String n) `debug` ("exactP LIE.ThingAbs:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))
+    printStringAt (undelta p ll) (rdrName2String n) -- `debug` ("exactP LIE.ThingAbs:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))
 
   exactP (GHC.L l _) = printStringAt (ss2pos l) ("no exactP at" ++ show (ss2pos l))
 
