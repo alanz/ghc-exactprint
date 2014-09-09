@@ -4,6 +4,7 @@ module Language.Haskell.GHC.ExactPrint.Types
     Comment(..)
   , DComment(..)
   , Pos
+  , Span
   , PosToken
   , DeltaPos(..)
   , Annotation(..)
@@ -46,6 +47,7 @@ instance Ord Comment where
 type PosToken = (GHC.Located GHC.Token, String)
 
 type Pos = (Int,Int)
+type Span = (Pos,Pos)
 
 newtype DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
 
