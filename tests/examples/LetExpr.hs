@@ -8,6 +8,11 @@
                                     )
     where
 
+import Data.List
+-- A comment in the middle
+import qualified Data.Map as Map
+import Control.Monad ()
+
 -- comment
 foo = let x = 1
           y = 2

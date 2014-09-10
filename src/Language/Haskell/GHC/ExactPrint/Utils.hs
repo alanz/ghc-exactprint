@@ -56,14 +56,14 @@ debug = flip trace
 -- TODO: distribute comments as per hindent
 annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName)
   -> [Comment] -> [PosToken] -> [(GHC.SrcSpan,Annotation)]
-annotateLHsModule (GHC.L lm (GHC.HsModule mmn mexp imps decs depr haddock)) cs toks = r
+annotateLHsModule (GHC.L lm (GHC.HsModule mmn mexp imps decs depr haddock)) cs toks = r ++ impsAnn
   where
     pos = ss2pos lm  -- start of the syntax fragment
     infiniteSpan = ((1,0),(99999999,0)) -- lm is a single char span
     moduleTok = head $ filter ghcIsModule toks
     whereTok  = head $ filter ghcIsWhere  toks
     r = case mmn of
-      Nothing -> [(undefined,annNone)]
+      Nothing -> []
       Just (GHC.L l _mn) -> (l,Ann lcs (DP (0,0)) annSpecific):aexps
         where
           lcs = localComments infiniteSpan cs (expSpan ++ impSpan ++ decsSpan)
@@ -94,23 +94,82 @@ annotateLHsModule (GHC.L lm (GHC.HsModule mmn mexp imps decs depr haddock)) cs t
                 cpSpan' = ss2span $ tokenSpan cpTok
                 aexps' = annotateLIEs exps cs toksE Nothing (tokenSpan opTok)
 
+    impsAnn = annotateLImportDecls imps cs toks Nothing
+
+-- ---------------------------------------------------------------------
+
+annotateLImportDecls :: [(GHC.LImportDecl GHC.RdrName)]
+  -> [Comment] -> [PosToken] -> Maybe GHC.SrcSpan -> [(GHC.SrcSpan,Annotation)]
+annotateLImportDecls [] _ _ _ = []
+annotateLImportDecls [x] cs toks pl = annotateLImportDecl x cs toks pl
+annotateLImportDecls (x1@(GHC.L l1 _):x2:xs) cs toks pl = annotateLImportDecl x1 cs toks pl ++ annotateLImportDecls (x2:xs) cs toks (Just l1)
+
+annotateLImportDecl :: (GHC.LImportDecl GHC.RdrName) -> [Comment] -> [PosToken]
+  -> Maybe GHC.SrcSpan -> [(GHC.SrcSpan,Annotation)]
+annotateLImportDecl (GHC.L l (GHC.ImportDecl (GHC.L ln _) _pkg src safe qual impl as hiding)) cs toks pl = r
+  where
+    r = [(l,Ann lcs impPos annSpecific)]
+    annSpecific = AnnImportDecl impPos Nothing Nothing Nothing Nothing
+    impPos = case findPreceding ghcIsImport ln toks of
+      Nothing -> error $ "annotateLImportDecl: No import token preceding :" ++ show (ss2span ln)
+      Just ss -> ss2delta (ss2pos l) ss
+
+    subs = []
+    lcs = localComments (ss2span l) cs subs
+
+{-
+ideclName :: Located ModuleName
+    Module name.
+
+ideclPkgQual :: Maybe FastString
+    Package qualifier.
+
+ideclSource :: Bool
+    True = {--} import
+
+ideclSafe :: Bool
+    True => safe import
+
+ideclQualified :: Bool
+    True => qualified
+
+ideclImplicit :: Bool
+    True => implicit import (of Prelude)
+
+ideclAs :: Maybe ModuleName
+    as Module
+
+ideclHiding :: Maybe (Bool, [LIE name])
+    (True => hiding, names)
+
+-}
+
+-- ---------------------------------------------------------------------
+
 annotateLIEs :: [GHC.LIE GHC.RdrName] -> [Comment] -> [PosToken] -> Maybe GHC.SrcSpan -> GHC.SrcSpan -> [(GHC.SrcSpan, Annotation)]
 annotateLIEs [ ]    _  _ _  _ = []
-annotateLIEs [x] cs toks pl pr = annotateLIE x cs toks pl pr
+annotateLIEs [x] cs toks pl pr                     = annotateLIE x  cs toks pl pr
 annotateLIEs (x1@(GHC.L l1 _):x2:xs) cs toks pl pr = annotateLIE x1 cs toks pl pr ++ annotateLIEs (x2:xs) cs toks (Just l1) pr
 
 -- This receives the toks for the entire exports section.
 -- So it can scan for the separating comma if required
 annotateLIE :: GHC.LIE GHC.RdrName -> [Comment] -> [PosToken] -> Maybe GHC.SrcSpan -> GHC.SrcSpan -> [(GHC.SrcSpan,Annotation)]
 annotateLIE (GHC.L l (GHC.IEVar _))      cs toks pl pr = [(l,Ann lcs p (AnnIEVar mc))]
-  where (mc,p,sp) = calcListOffsets ghcIsComma l toks pl pr
-        lcs = localComments sp cs []
+  where (mc, p, lcs) = getListAnnInfo l cs toks pl pr
 
 annotateLIE (GHC.L l (GHC.IEThingAbs _)) cs toks pl pr = [(l,Ann lcs p (AnnIEThingAbs mc))]
-  where (mc,p, sp) = calcListOffsets ghcIsComma l toks pl pr
-        lcs = localComments sp cs [] `debug` ("annotateLIE:sp=" ++ show sp )
+  where (mc, p, lcs) = getListAnnInfo l cs toks pl pr
 
 annotateLIE (GHC.L l (_)) cs toks pl pr = [] -- assert False undefined
+
+-- ---------------------------------------------------------------------
+
+getListAnnInfo :: GHC.SrcSpan -> [Comment] -> [PosToken]
+  -> Maybe GHC.SrcSpan -> GHC.SrcSpan
+  -> (Maybe DeltaPos, DeltaPos, [DComment])
+getListAnnInfo l cs toks pl pr = (mc,p,lcs)
+  where (mc,p, sp) = calcListOffsets ghcIsComma l toks pl pr
+        lcs = localComments sp cs [] -- `debug` ("annotateLIE:sp=" ++ show sp )
 
 -- ---------------------------------------------------------------------
 
@@ -151,10 +210,10 @@ localComments (p,e) cs ds = r `debug` ("localComments:(p,ds,r):" ++ show (p,ds,m
 calcListOffsets ::(PosToken -> Bool) -> GHC.SrcSpan
   -> [PosToken] -> Maybe GHC.SrcSpan -> GHC.SrcSpan
   -> (Maybe DeltaPos, DeltaPos, Span)
-calcListOffsets isToken l toks pl pr = (mc,p,sp) `debug` ("calcListOffsets:(mc,p,sp,pr)=" ++ show (mc,p,sp,ss2span pr))
+calcListOffsets isToken l toks pl pr = (mc,p,sp) `debug` ("calcListOffsets:(l,mc,p,sp,pr)=" ++ show (ss2span l,mc,p,sp,ss2span pr))
   where
     (mc,p,sp) = case findPreceding isToken l toks of
-      Nothing -> (Nothing, ss2delta (ss2posEnd pr) l, (ss2pos l, ss2posEnd l))
+      Nothing -> (Nothing, ss2delta (ss2posEnd pr) l, (ss2posEnd pr,ss2posEnd l))
       Just ss -> (Just lo, ss2delta (ss2posEnd ss) l, (ss2posEnd lp,ss2posEnd l))
                  where lp = maybe l id pl
                        lo = (ss2delta (ss2posEnd lp) ss)
@@ -245,6 +304,11 @@ ghcIsComma :: PosToken -> Bool
 ghcIsComma ((GHC.L _ t),_s) = case t of
                       GHC.ITcomma -> True
                       _           -> False
+
+ghcIsImport :: PosToken -> Bool
+ghcIsImport ((GHC.L _ t),_s) = case t of
+                      GHC.ITimport -> True
+                      _            -> False
 
 
 

@@ -381,6 +381,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
             printStringAt (undelta p2 pc) ")"
           Nothing -> return ()
         printStringAt (undelta p pw) "where"
+        mapM_ exactP imps
       _ -> return ()
 
     printSeq $ map (pos . ann &&& exactPC) decls
@@ -406,6 +407,14 @@ instance ExactP (GHC.LIE GHC.RdrName) where
     printStringAt (undelta p ll) (rdrName2String n) -- `debug` ("exactP LIE.ThingAbs:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))
 
   exactP (GHC.L l _) = printStringAt (ss2pos l) ("no exactP at" ++ show (ss2pos l))
+
+instance ExactP (GHC.LImportDecl GHC.RdrName) where
+  exactP (GHC.L l _) = do
+    Just (Ann cs ll _) <- getAnnotation l
+    mergeComments cs
+    p <- getPos
+    printStringAt (undelta p ll) "import"
+
 
 instance ExactP (GHC.HsDecl GHC.RdrName) where
   exactP decl = case decl of

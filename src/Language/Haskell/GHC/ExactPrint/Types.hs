@@ -90,6 +90,14 @@ IEDoc HsDocString
 IEDocNamed String
 
 -}
+
+  | AnnImportDecl
+     { id_import    :: !DeltaPos
+     , id_source    :: !(Maybe DeltaPos)
+     , id_safe      :: !(Maybe DeltaPos)
+     , id_qualified :: !(Maybe DeltaPos)
+     , id_as        :: !(Maybe DeltaPos)
+     }
   | AnnNone
   deriving (Show)
 
