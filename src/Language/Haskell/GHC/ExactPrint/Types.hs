@@ -97,6 +97,10 @@ IEDocNamed String
      , id_safe      :: !(Maybe DeltaPos)
      , id_qualified :: !(Maybe DeltaPos)
      , id_as        :: !(Maybe DeltaPos)
+     , id_as_pos    :: !(Maybe DeltaPos)
+     , id_hiding    :: !(Maybe DeltaPos)
+     , id_op        :: !(Maybe DeltaPos)
+     , id_cp        :: !(Maybe DeltaPos)
      }
   | AnnNone
   deriving (Show)

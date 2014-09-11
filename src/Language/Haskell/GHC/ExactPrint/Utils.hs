@@ -106,13 +106,46 @@ annotateLImportDecls (x1@(GHC.L l1 _):x2:xs) cs toks pl = annotateLImportDecl x1
 
 annotateLImportDecl :: (GHC.LImportDecl GHC.RdrName) -> [Comment] -> [PosToken]
   -> Maybe GHC.SrcSpan -> [(GHC.SrcSpan,Annotation)]
-annotateLImportDecl (GHC.L l (GHC.ImportDecl (GHC.L ln _) _pkg src safe qual impl as hiding)) cs toks pl = r
+annotateLImportDecl (GHC.L l (GHC.ImportDecl (GHC.L ln _) _pkg src safe qual impl as hiding)) cs toksIn pl = r
   where
-    r = [(l,Ann lcs impPos annSpecific)]
-    annSpecific = AnnImportDecl impPos Nothing Nothing Nothing Nothing
-    impPos = case findPreceding ghcIsImport ln toks of
-      Nothing -> error $ "annotateLImportDecl: No import token preceding :" ++ show (ss2span ln)
-      Just ss -> ss2delta (ss2pos l) ss
+    r = [(l,Ann lcs impPos annSpecific)] ++ aimps
+    annSpecific = AnnImportDecl impPos Nothing Nothing mqual mas maspos mhiding opPos cpPos
+    p = ss2pos l
+    (_,toks,_) = splitToksForSpan l toksIn
+    impPos = findPrecedingDelta ghcIsImport ln toks p
+
+    mqual = if qual
+              then Just (findPrecedingDelta ghcIsQualified ln toks p)
+              else Nothing
+
+    (mas,maspos) = case as of
+      Nothing -> (Nothing,Nothing)
+      Just _  -> (Just (findDelta ghcIsAs l toks p),asp)
+        where
+           (_,middle,_) = splitToksForSpan l toks
+           asp = case filter ghcIsAnyConid (reverse middle) of
+             [] -> Nothing
+             (t:_) -> Just (ss2delta (ss2pos l) $ tokenSpan t)
+
+    mhiding = case hiding of
+      Nothing -> Nothing
+      Just (True, _)  -> Just (findDelta ghcIsHiding l toks p)
+      Just (False,_)  -> Nothing
+
+    (aimps,opPos,cpPos) = case hiding of
+      Nothing -> ([],Nothing,Nothing)
+      Just (_,ies) -> (annotateLIEs ies cs toksI Nothing (tokenSpan opTok),opPos',cpPos')
+        where
+          opTok = head $ filter ghcIsOParen toks
+          cpTok = head $ filter ghcIsCParen toks
+          opPos' = Just $ ss2delta p $ tokenSpan opTok
+          cpPos' = Just $ ss2delta cpRel $ tokenSpan cpTok
+          (toksI,toksRest,cpRel) = case ies of
+            [] -> (toks,toks,p)
+            _ -> let (_,etoks,ts) = splitToks (GHC.getLoc (head ies),
+                                               GHC.getLoc (last ies)) toks
+                 in (etoks,ts,ss2posEnd $ GHC.getLoc (last ies))
+
 
     subs = []
     lcs = localComments (ss2span l) cs subs
@@ -220,6 +253,16 @@ calcListOffsets isToken l toks pl pr = (mc,p,sp) `debug` ("calcListOffsets:(l,mc
 
 -- ---------------------------------------------------------------------
 
+findToken :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe GHC.SrcSpan
+findToken isToken ss toks = r
+  where
+    (_,middle,_) = splitToksForSpan ss toks
+    r = case filter isToken middle of
+      [] -> Nothing
+      (t:_) -> Just (tokenSpan t)
+
+-- ---------------------------------------------------------------------
+
 findPreceding :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe GHC.SrcSpan
 findPreceding isToken ss toks = r
   where
@@ -227,6 +270,24 @@ findPreceding isToken ss toks = r
     r = case filter isToken (reverse toksBefore) of
       [] -> Nothing
       (t:_) -> Just (tokenSpan t)
+
+-- ---------------------------------------------------------------------
+
+findPrecedingDelta :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken]
+ -> Pos -> DeltaPos
+findPrecedingDelta isToken ln toks p =
+  case findPreceding isToken ln toks of
+    Nothing -> error $ "findPrecedingDelta: No matching token preceding :" ++ show (ss2span ln)
+    Just ss -> ss2delta p ss
+
+-- ---------------------------------------------------------------------
+
+findDelta :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken]
+ -> Pos -> DeltaPos
+findDelta isToken ln toks p =
+  case findToken isToken ln toks of
+    Nothing -> error $ "findPrecedingDelta: No matching token preceding :" ++ show (ss2span ln)
+    Just ss -> ss2delta p ss
 
 -- ---------------------------------------------------------------------
 
@@ -310,6 +371,34 @@ ghcIsImport ((GHC.L _ t),_s) = case t of
                       GHC.ITimport -> True
                       _            -> False
 
+ghcIsQualified :: PosToken -> Bool
+ghcIsQualified ((GHC.L _ t),_s) = case t of
+                      GHC.ITqualified -> True
+                      _               -> False
+
+ghcIsAs :: PosToken -> Bool
+ghcIsAs ((GHC.L _ t),_s) = case t of
+                      GHC.ITas -> True
+                      _        -> False
+
+ghcIsConid :: PosToken -> Bool
+ghcIsConid ((GHC.L _ t),_s) = case t of
+                      GHC.ITconid _ -> True
+                      _            -> False
+
+ghcIsQConid :: PosToken -> Bool
+ghcIsQConid ((GHC.L _ t),_s) = case t of
+                      GHC.ITqconid _ -> True
+                      _              -> False
+
+ghcIsAnyConid :: PosToken -> Bool
+ghcIsAnyConid t = ghcIsConid t || ghcIsQConid t
+
+
+ghcIsHiding :: PosToken -> Bool
+ghcIsHiding ((GHC.L _ t),_s) = case t of
+                      GHC.IThiding -> True
+                      _            -> False
 
 
 ghcIsComment :: PosToken -> Bool

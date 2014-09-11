@@ -252,6 +252,13 @@ printStringAtMaybeDelta mc s =
       p <- getPos
       printStringAt (undelta p cl) s
 
+printStringAtMaybeDeltaP :: Pos -> Maybe DeltaPos -> String -> EP ()
+printStringAtMaybeDeltaP p mc s =
+  case mc of
+    Nothing -> return ()
+    Just cl -> do
+      printStringAt (undelta p cl) s
+
 errorEP :: String -> EP a
 errorEP = fail
 
@@ -278,11 +285,14 @@ exactPrintAnnotation ast cs ann = runEP (exactPC ast) cs ann
 annotate :: GHC.Located (GHC.HsModule GHC.RdrName) -> [Comment] -> [PosToken] -> Anns
 annotate ast cs toks = Map.fromList $ annotateLHsModule ast cs toks
 
--- exactPC :: (ExactP ast) => ast SrcSpanInfo -> EP ()
--- exactPC ast = let p = pos (ann ast) in mPrintComments p >> padUntil p >> exactP ast
-
+-- |First move to the given location, then call exactP
 exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
-exactPC (GHC.L l ast) = let p = pos l in mPrintComments p >> padUntil p >> exactP ast
+exactPC (GHC.L l ast) =
+ let p = pos l
+ in do ma <- getAnnotation l
+       mPrintComments p
+       padUntil p
+       exactP ma ast
 
 printSeq :: [(Pos, EP ())] -> EP ()
 printSeq [] = return ()
@@ -294,11 +304,42 @@ printStrs = printSeq . map (pos *** printString)
 printPoints :: SrcSpanInfo -> [String] -> EP ()
 printPoints l = printStrs . zip (srcInfoPoints l)
 
--- printInterleaved, printInterleaved' :: (ExactP ast, SrcInfo loc) => [(loc, String)] -> [ast] -> EP ()
-printInterleaved :: (Annotated b1, SrcInfo b, ExactP b1) => [(b, String)] -> [b1] -> EP ()
+printInterleaved :: (Annotated ast, SrcInfo loc, ExactP ast) => [(loc, String)] -> [ast] -> EP ()
 printInterleaved sistrs asts = printSeq $
     interleave (map (pos *** printString ) sistrs)
-               (map (pos . ann &&& exactP) asts)
+           --  (map (pos . ann &&& exactP) asts)
+               (map (pos . ann &&& exactP') asts)
+  where
+    exactP' ast = do
+      ma <- getAnnotation (ann ast)
+      exactP ma ast
+
+-- so, f ast = pos $ ann ast
+--     g ast = exactP ast
+
+{-
+
+The default definition may be overridden with a more efficient version if desired.
+
+(***) :: a b c -> a b' c' -> a (b, b') (c, c') -- infixr 3
+  Split the input between the two argument arrows and combine their output.
+  Note that this is in general not a functor.
+f *** g = first f >>> second g
+
+
+(&&&) :: a b c -> a b c' -> a b (c, c') -- infixr 3
+  Fanout: send the input to both argument arrows and combine their output.
+f &&& g = arr (\b -> (b,b)) >>> f *** g
+
+
+-- | Lift a function to an arrow.
+    arr :: (b -> c) -> a b c
+
+-- | Send the first component of the input through the argument
+    --   arrow, and copy the rest unchanged to the output.
+    first :: a b c -> a (b,d) (c,d)
+
+-}
 
 printInterleaved' sistrs (a:asts) = exactPC a >> printInterleaved sistrs asts
 printInterleaved' _ _ = internalError "printInterleaved'"
@@ -339,7 +380,11 @@ parenHashList = bracketList ("(#",",","#)")
 layoutList :: (Annotated ast, ExactP ast) => [GHC.SrcSpan] -> [ast] -> EP ()
 layoutList poss asts = printStreams
         (map (pos *** printString) $ lList poss)
-        (map (pos . ann &&& exactP) asts)
+        (map (pos . ann &&& exactP') asts)
+  where
+    exactP' ast = do
+      ma <- getAnnotation (ann ast)
+      exactP ma ast
 
 lList (p:ps) = (if isNullSpan p then (p,"") else (p,"{")) : lList' ps
 lList _ = internalError "lList"
@@ -357,14 +402,16 @@ printSemi p = do
 -- Exact printing for GHC
 
 class ExactP ast where
-  exactP :: ast -> EP ()
+  -- | Print an AST fragment, possibly having an annotation. The
+  -- correct position in output is already established.
+  exactP :: (Maybe Annotation) -> ast -> EP ()
 
 instance ExactP (GHC.HsModule GHC.RdrName) where
-  exactP (GHC.HsModule Nothing exps imps decls deprecs haddock) = do
+  exactP ma (GHC.HsModule Nothing exps imps decls deprecs haddock) = do
     printSeq $ map (pos . ann &&& exactPC) decls
     printString "foo"
 
-  exactP (GHC.HsModule (Just lmn@(GHC.L l mn)) mexp imps decls deprecs haddock) = do
+  exactP ma (GHC.HsModule (Just lmn@(GHC.L l mn)) mexp imps decls deprecs haddock) = do
     mAnn <- getAnnotation l
     -- p <- getPos -- starting position is bogus
     let p = (1,0)
@@ -376,52 +423,76 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
         case mexp of
           Just exps -> do
             printStringAt (undelta p po) "("
-            mapM_ exactP exps
+            mapM_ exactPC exps
             p2 <- getPos
             printStringAt (undelta p2 pc) ")"
           Nothing -> return ()
         printStringAt (undelta p pw) "where"
-        mapM_ exactP imps
+        mapM_ exactPC imps
       _ -> return ()
 
     printSeq $ map (pos . ann &&& exactPC) decls
     printString "foo"
 
+-- ---------------------------------------------------------------------
+
 instance ExactP (GHC.ModuleName) where
-  exactP mn = do
+  exactP ma mn = do
     printString (GHC.moduleNameString mn)
 
-instance ExactP (GHC.LIE GHC.RdrName) where
-  exactP (GHC.L l (GHC.IEVar n)) = do
-    Just (Ann cs ll (AnnIEVar mc)) <- getAnnotation l
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.IE GHC.RdrName) where
+  exactP ma (GHC.IEVar n) = do
+    let Just (Ann cs ll (AnnIEVar mc)) = ma
     mergeComments cs
     printStringAtMaybeDelta mc ","
-    p <- getPos
-    printStringAt (undelta p ll) (rdrName2String n) -- `debug` ("exactP LIE.Var:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))
+    printStringAtDelta ll (rdrName2String n) -- `debug` ("exactP LIE.Var:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))
+    return ()
 
-  exactP (GHC.L l (GHC.IEThingAbs n)) = do
-    Just (Ann cs ll (AnnIEThingAbs mc)) <- getAnnotation l
+  exactP ma (GHC.IEThingAbs n) = do
+    let Just (Ann cs ll (AnnIEThingAbs mc)) = ma `debug` ("blah:" ++ show ma)
     mergeComments cs
     printStringAtMaybeDelta mc ","
-    p <- getPos
-    printStringAt (undelta p ll) (rdrName2String n) -- `debug` ("exactP LIE.ThingAbs:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))
+    printStringAtDelta ll (rdrName2String n) -- `debug` ("exactP LIE.ThingAbs:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))
+    return ()
 
-  exactP (GHC.L l _) = printStringAt (ss2pos l) ("no exactP at" ++ show (ss2pos l))
+  exactP ma _ = printString ("no exactP for " ++ show (ma))
 
-instance ExactP (GHC.LImportDecl GHC.RdrName) where
-  exactP (GHC.L l _) = do
-    Just (Ann cs ll _) <- getAnnotation l
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.ImportDecl GHC.RdrName) where
+  exactP ma imp = do
+    let Just (Ann cs ll an) = ma
     mergeComments cs
     p <- getPos
-    printStringAt (undelta p ll) "import"
+    printString "import"
+    printStringAtMaybeDeltaP p (id_qualified an) "qualified"
+    exactPC (GHC.ideclName imp)
+    printStringAtMaybeDeltaP p (id_as an) "as"
+    case GHC.ideclAs imp of
+      Nothing -> return ()
+      Just mn -> printStringAtMaybeDeltaP p (id_as_pos an) (GHC.moduleNameString mn)
+    printStringAtMaybeDeltaP p (id_hiding an) "hiding"
+    printStringAtMaybeDeltaP p (id_op an) "("
+    case GHC.ideclHiding imp of
+      Nothing -> return ()
+      Just (_,ies) -> mapM_ exactPC ies
+    printStringAtMaybeDelta (id_cp an) ")"
 
+-- ---------------------------------------------------------------------
+
+doMaybe :: (Monad m) => Maybe a -> (a -> m ()) -> m ()
+doMaybe ma f = case ma of
+                 Nothing -> return ()
+                 Just a -> f a
 
 instance ExactP (GHC.HsDecl GHC.RdrName) where
-  exactP decl = case decl of
+  exactP ma decl = case decl of
     GHC.TyClD d -> printString "TyCld"
     GHC.InstD d -> printString "InstD"
     GHC.DerivD d -> printString "DerivD"
-    GHC.ValD d -> exactP d
+    GHC.ValD d -> exactP ma d
     GHC.SigD d -> printString "SigD"
     GHC.DefD d -> printString "DefD"
     GHC.ForD d -> printString "ForD"
@@ -435,18 +506,18 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
     GHC.RoleAnnotD d -> printString "RoleAnnotD"
 
 instance ExactP (GHC.HsBind GHC.RdrName) where
-  exactP (GHC.FunBind _n _  (GHC.MG matches _ _ _) _fun_co_fn _fvs _tick) = mapM_ exactP matches
-  exactP (GHC.PatBind pat_lhs pat_rhs pat_rhs_ty bind_fvs pat_ticks) = printString "PatBind"
-  exactP (GHC.VarBind var_id var_rhs var_inline ) = printString "VarBind"
-  exactP (GHC.AbsBinds abs_tvs abs_ev_vars abs_exports abs_ev_binds abs_binds) = printString "AbsBinds"
-  exactP (GHC.PatSynBind patsyn_id bind_fvs patsyn_args patsyn_def patsyn_dir) = printString "PatSynBind"
+  exactP ma (GHC.FunBind _n _  (GHC.MG matches _ _ _) _fun_co_fn _fvs _tick) = mapM_ (exactP ma) matches
+  exactP ma (GHC.PatBind pat_lhs pat_rhs pat_rhs_ty bind_fvs pat_ticks) = printString "PatBind"
+  exactP ma (GHC.VarBind var_id var_rhs var_inline ) = printString "VarBind"
+  exactP ma (GHC.AbsBinds abs_tvs abs_ev_vars abs_exports abs_ev_binds abs_binds) = printString "AbsBinds"
+  exactP ma (GHC.PatSynBind patsyn_id bind_fvs patsyn_args patsyn_def patsyn_dir) = printString "PatSynBind"
 
 instance ExactP (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
-  exactP _ = printString "Match"
+  exactP _ _ = printString "Match"
 
 
 instance ExactP GHC.HsLit where
-  exactP lit = case lit of
+  exactP ma lit = case lit of
     GHC.HsChar       rw -> printString ('\'':rw:"\'")
 {-
     String     _ _ rw -> printString ('\"':rw ++ "\"")

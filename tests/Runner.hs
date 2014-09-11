@@ -100,7 +100,8 @@ manipulateAstTest sources = testGroup "Exact printer tests" $ do
 
         parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (head exps:(head $ tail exps):tail exps) }))
         -- printed = exactPrintAnnotation parsed' comments ann
-        printed = exactPrintAnnotation parsed' [] ann
+        -- printed = exactPrintAnnotation parsed' [] ann
+        printed = exactPrintAnnotation parsed [] ann
         result =
                 if printed == contents
                   then "Match"

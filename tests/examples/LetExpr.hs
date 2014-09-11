@@ -10,8 +10,11 @@
 
 import Data.List
 -- A comment in the middle
-import qualified Data.Map as Map
-import Control.Monad ()
+import qualified Data.Map as {- blah -}  Foo.Map
+import Control.Monad  (   )
+import Data.Word (Word8)
+import Data.Tree hiding  (  drawTree   )
+import qualified Data.Text as T hiding    ( pack    )
 
 -- comment
 foo = let x = 1
