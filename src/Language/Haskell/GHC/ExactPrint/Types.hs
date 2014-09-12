@@ -102,6 +102,27 @@ IEDocNamed String
      , id_op        :: !(Maybe DeltaPos)
      , id_cp        :: !(Maybe DeltaPos)
      }
+
+  -- HsBindLR
+  | AnnFunBind {}
+
+
+  | AnnGRHS { grhs_eq :: !(Maybe DeltaPos) }
+
+  -- TyClDecl
+  | AnnDataDecl {}
+
+
+  -- HsOverLit, must keep the exact original string used
+  | AnnOverLit { ol_str :: !String }
+
+
+  -- HsExpr
+  | AnnHsLet
+      { hsl_let :: !(Maybe DeltaPos)
+      , hsl_in  :: !(Maybe DeltaPos)
+      }
+
   | AnnNone
   deriving (Show)
 

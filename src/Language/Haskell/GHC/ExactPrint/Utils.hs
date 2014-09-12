@@ -1,4 +1,6 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE StandaloneDeriving #-}
 module Language.Haskell.GHC.ExactPrint.Utils
   (
     annotateLHsModule
@@ -56,13 +58,14 @@ debug = flip trace
 -- TODO: distribute comments as per hindent
 annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName)
   -> [Comment] -> [PosToken] -> [(GHC.SrcSpan,Annotation)]
-annotateLHsModule (GHC.L lm (GHC.HsModule mmn mexp imps decs depr haddock)) cs toks = r ++ impsAnn
+annotateLHsModule (GHC.L lm (GHC.HsModule mmn mexp imps decs depr haddock)) cs toks = r
   where
+    r = headerAnn ++ impsAnn ++ declsAnn
     pos = ss2pos lm  -- start of the syntax fragment
     infiniteSpan = ((1,0),(99999999,0)) -- lm is a single char span
     moduleTok = head $ filter ghcIsModule toks
     whereTok  = head $ filter ghcIsWhere  toks
-    r = case mmn of
+    headerAnn = case mmn of
       Nothing -> []
       Just (GHC.L l _mn) -> (l,Ann lcs (DP (0,0)) annSpecific):aexps
         where
@@ -71,7 +74,7 @@ annotateLHsModule (GHC.L lm (GHC.HsModule mmn mexp imps decs depr haddock)) cs t
             Nothing -> []
             Just _ -> [(undelta pos opPos,snd cpSpan)]
 
-          impSpan  = getListSpan imps
+          impSpan  = getListSpans imps
           decsSpan = getListSpan decs
 
           annSpecific = AnnModuleName mPos mnPos opPos cpPos wherePos
@@ -94,7 +97,8 @@ annotateLHsModule (GHC.L lm (GHC.HsModule mmn mexp imps decs depr haddock)) cs t
                 cpSpan' = ss2span $ tokenSpan cpTok
                 aexps' = annotateLIEs exps cs toksE Nothing (tokenSpan opTok)
 
-    impsAnn = annotateLImportDecls imps cs toks Nothing
+    impsAnn  = annotateLImportDecls imps cs toks Nothing
+    declsAnn = annotateLHsDecls     decs cs toks Nothing
 
 -- ---------------------------------------------------------------------
 
@@ -138,10 +142,10 @@ annotateLImportDecl (GHC.L l (GHC.ImportDecl (GHC.L ln _) _pkg src safe qual imp
         where
           opTok = head $ filter ghcIsOParen toks
           cpTok = head $ filter ghcIsCParen toks
-          opPos' = Just $ ss2delta p $ tokenSpan opTok
+          opPos' = Just $ ss2delta p     $ tokenSpan opTok
           cpPos' = Just $ ss2delta cpRel $ tokenSpan cpTok
           (toksI,toksRest,cpRel) = case ies of
-            [] -> (toks,toks,p)
+            [] -> (toks,toks,ss2posEnd $ tokenSpan opTok)
             _ -> let (_,etoks,ts) = splitToks (GHC.getLoc (head ies),
                                                GHC.getLoc (last ies)) toks
                  in (etoks,ts,ss2posEnd $ GHC.getLoc (last ies))
@@ -197,6 +201,132 @@ annotateLIE (GHC.L l (_)) cs toks pl pr = [] -- assert False undefined
 
 -- ---------------------------------------------------------------------
 
+annotateLHsDecls :: [(GHC.LHsDecl GHC.RdrName)]
+  -> [Comment] -> [PosToken] -> Maybe GHC.SrcSpan -> [(GHC.SrcSpan,Annotation)]
+annotateLHsDecls [] _ _ _ = []
+annotateLHsDecls [x] cs toks pl = annotateLHsDecl x cs toks pl
+annotateLHsDecls (x1@(GHC.L l1 _):x2:xs) cs toks pl = annotateLHsDecl x1 cs toks pl ++ annotateLHsDecls (x2:xs) cs toks (Just l1)
+
+annotateLHsDecl :: (GHC.LHsDecl GHC.RdrName) -> [Comment] -> [PosToken]
+  -> Maybe GHC.SrcSpan -> [(GHC.SrcSpan,Annotation)]
+annotateLHsDecl (GHC.L l decl) cs toksIn pl =
+ case decl of
+    GHC.TyClD d -> annotateLTyClDecl (GHC.L l d) cs toksIn pl
+    GHC.InstD d -> error $ "annotateLHsDecl:unimplemented " ++ "InstD"
+    GHC.DerivD d -> error $ "annotateLHsDecl:unimplemented " ++ "DerivD"
+    GHC.ValD d -> annotateLHsBind (GHC.L l d) cs toksIn
+    GHC.SigD d -> error $ "annotateLHsDecl:unimplemented " ++ "SigD"
+    GHC.DefD d -> error $ "annotateLHsDecl:unimplemented " ++ "DefD"
+    GHC.ForD d -> error $ "annotateLHsDecl:unimplemented " ++ "ForD"
+    GHC.WarningD d -> error $ "annotateLHsDecl:unimplemented " ++ "WarningD"
+    GHC.AnnD d -> error $ "annotateLHsDecl:unimplemented " ++ "AnnD"
+    GHC.RuleD d -> error $ "annotateLHsDecl:unimplemented " ++ "RuleD"
+    GHC.VectD d -> error $ "annotateLHsDecl:unimplemented " ++ "VectD"
+    GHC.SpliceD d -> error $ "annotateLHsDecl:unimplemented " ++ "SpliceD"
+    GHC.DocD d -> error $ "annotateLHsDecl:unimplemented " ++ "DocD"
+    GHC.QuasiQuoteD d -> error $ "annotateLHsDecl:unimplemented " ++ "QuasiQuoteD"
+    GHC.RoleAnnotD d -> error $ "annotateLHsDecl:unimplemented " ++ "RoleAnnotD"
+
+  where
+    r = assert False undefined
+
+-- ---------------------------------------------------------------------
+
+annotateLHsBind :: GHC.LHsBindLR GHC.RdrName GHC.RdrName
+  -> [Comment] -> [PosToken]
+  -> [(GHC.SrcSpan,Annotation)]
+annotateLHsBind (GHC.L l (GHC.FunBind ln _ (GHC.MG matches _ _ _) _ _ _)) cs toksIn = r
+  where
+    r = [(l,Ann lcs p AnnFunBind)] ++ matchesAnn
+    lcs = []
+    p = DP (0,0)
+    matchesAnn = concatMap (\m -> annotateLMatch m cs toksIn) matches
+
+-- ---------------------------------------------------------------------
+
+annotateLMatch :: (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
+  -> [Comment] -> [PosToken]
+  -> [(GHC.SrcSpan,Annotation)]
+annotateLMatch (GHC.L l (GHC.Match pats typ (GHC.GRHSs grhs lb))) cs toksIn = r -- `debug` ("annotateLMatch:" ++ show (r,length grhs))
+  where
+    r = patsAnn ++ typAnn ++ rhsAnn ++ lbAnn
+    patsAnn = []
+    typAnn  = []
+    rhsAnn  = concatMap (\rhs -> annotateLGRHS rhs cs toksIn) grhs
+    lbAnn   = annotateHsLocalBinds lb cs toksIn
+
+-- ---------------------------------------------------------------------
+
+annotateLGRHS :: GHC.LGRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)
+  -> [Comment] -> [PosToken]
+  -> [(GHC.SrcSpan,Annotation)]
+annotateLGRHS (GHC.L l (GHC.GRHS guards expr@(GHC.L le _))) cs toksIn = r -- `debug` ("annotateLGRHS:" ++ show (l,r))
+  where
+    r = [(l,(Ann lcs (DP (0,0)) (AnnGRHS eqPos)))] ++ guardsAnn ++ exprAnn
+    lcs = []
+    guardsAnn = []
+    -- eqPos = case findTokenSrcSpan ghcIsEqual l toksIn of
+    eqPos = case findPreceding ghcIsEqual le toksIn of
+      Just eqSpan -> Just $ ss2delta (ss2pos l) eqSpan `debug` ("annotateLGRHS:'=' found at:" ++ show (ss2span eqSpan))
+      Nothing -> Nothing `debug` ("annotateLGRHS:no '=' found in:" ++ show (ss2span l))
+    exprAnn = annotateLHsExpr expr cs toksIn
+
+-- ---------------------------------------------------------------------
+
+annotateHsLocalBinds :: (GHC.HsLocalBinds GHC.RdrName)
+  -> [Comment] -> [PosToken]
+  -> [(GHC.SrcSpan,Annotation)]
+annotateHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) cs toksIn = r -- `debug` ("annotateHsLocalBinds")
+  where
+    r = bindsAnn ++ sigsAnn
+    bindsAnn = concatMap (\b -> annotateLHsBind b cs toksIn) $ GHC.bagToList binds
+    sigsAnn = []
+annotateHsLocalBinds (GHC.HsValBinds _) _ _ = assert False undefined
+annotateHsLocalBinds (GHC.HsIPBinds vb) _ _ = assert False undefined
+annotateHsLocalBinds (GHC.EmptyLocalBinds) _ _ = []
+
+-- ---------------------------------------------------------------------
+
+annotateLHsExpr :: GHC.LHsExpr GHC.RdrName
+  -> [Comment] -> [PosToken]
+  -> [(GHC.SrcSpan,Annotation)]
+annotateLHsExpr (GHC.L l (GHC.HsOverLit ov)) cs toksIn = r -- `debug` ("annotateLHsExpr:" ++ show r)
+  where
+    r = [(l,Ann [] (DP (0,0)) (AnnOverLit str))]
+    Just tokLit = findToken ghcIsOverLit l toksIn
+    str = tokenString tokLit
+annotateLHsExpr (GHC.L l (GHC.HsLet lb expr)) cs toksIn = r
+  where
+    r = (l,(Ann lcs (DP (0,0)) annSpecific)) : lbAnn ++ exprAnn
+    lcs = []
+    p = ss2pos l
+
+    annSpecific = AnnHsLet letPos inPos
+
+    Just letp = findTokenSrcSpan ghcIsLet l toksIn
+    Just inp  = findTokenSrcSpan ghcIsIn l toksIn
+    letPos = Just $ ss2delta p letp
+    inPos  = Just $ ss2delta p inp
+
+    lbAnn = annotateHsLocalBinds lb cs toksIn
+    exprAnn = annotateLHsExpr expr cs toksIn
+
+annotateLHsExpr _ cs toksIn = [] -- assert False undefined
+
+-- ---------------------------------------------------------------------
+
+annotateLTyClDecl :: GHC.LTyClDecl GHC.RdrName
+  -> [Comment] -> [PosToken]
+  -> Maybe GHC.SrcSpan -> [(GHC.SrcSpan,Annotation)]
+annotateLTyClDecl (GHC.L l (GHC.DataDecl _ _ _ _)) cs toksIn pl = r
+  where
+    r = [(l,Ann lcs p AnnDataDecl)] ++ matchesAnn
+    lcs = []
+    p = DP (0,0)
+    matchesAnn = []
+
+-- ---------------------------------------------------------------------
+
 getListAnnInfo :: GHC.SrcSpan -> [Comment] -> [PosToken]
   -> Maybe GHC.SrcSpan -> GHC.SrcSpan
   -> (Maybe DeltaPos, DeltaPos, [DComment])
@@ -212,6 +342,10 @@ getListSpan xs = [ss2span $ GHC.mkSrcSpan (GHC.srcSpanStart (GHC.getLoc (head xs
                                           (GHC.srcSpanEnd   (GHC.getLoc (last xs)))
                  ]
 
+getListSpans :: [GHC.Located e] -> [Span]
+getListSpans xs = map (ss2span . GHC.getLoc) xs
+
+
 commentPos :: Comment -> (Pos,Pos)
 commentPos (Comment _ p _) = p
 
@@ -225,7 +359,7 @@ dcommentPos (DComment _ p _) = p
 -- identify all comments that are in @ss@ but not in @ds@, and convert
 -- them to be DComments relative to @ss@
 localComments :: Span -> [Comment] -> [Span] -> [DComment]
-localComments (p,e) cs ds = r `debug` ("localComments:(p,ds,r):" ++ show (p,ds,map commentPos matches,map dcommentPos r))
+localComments (p,e) cs ds = r -- `debug` ("localComments:(p,ds,r):" ++ show (p,ds,map commentPos matches,map dcommentPos r))
   where
     r = map (\c -> deltaComment p c) matches
 
@@ -243,7 +377,7 @@ localComments (p,e) cs ds = r `debug` ("localComments:(p,ds,r):" ++ show (p,ds,m
 calcListOffsets ::(PosToken -> Bool) -> GHC.SrcSpan
   -> [PosToken] -> Maybe GHC.SrcSpan -> GHC.SrcSpan
   -> (Maybe DeltaPos, DeltaPos, Span)
-calcListOffsets isToken l toks pl pr = (mc,p,sp) `debug` ("calcListOffsets:(l,mc,p,sp,pr)=" ++ show (ss2span l,mc,p,sp,ss2span pr))
+calcListOffsets isToken l toks pl pr = (mc,p,sp) -- `debug` ("calcListOffsets:(l,mc,p,sp,pr)=" ++ show (ss2span l,mc,p,sp,ss2span pr))
   where
     (mc,p,sp) = case findPreceding isToken l toks of
       Nothing -> (Nothing, ss2delta (ss2posEnd pr) l, (ss2posEnd pr,ss2posEnd l))
@@ -253,13 +387,22 @@ calcListOffsets isToken l toks pl pr = (mc,p,sp) `debug` ("calcListOffsets:(l,mc
 
 -- ---------------------------------------------------------------------
 
-findToken :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe GHC.SrcSpan
+findTokenSrcSpan :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe GHC.SrcSpan
+findTokenSrcSpan isToken ss toks =
+  case findToken isToken ss toks of
+      Nothing -> Nothing
+      Just t  -> Just (tokenSpan t)
+
+-- ---------------------------------------------------------------------
+
+findToken :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe PosToken
 findToken isToken ss toks = r
   where
     (_,middle,_) = splitToksForSpan ss toks
     r = case filter isToken middle of
       [] -> Nothing
-      (t:_) -> Just (tokenSpan t)
+      (t:_) -> Just t
+
 
 -- ---------------------------------------------------------------------
 
@@ -285,7 +428,7 @@ findPrecedingDelta isToken ln toks p =
 findDelta :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken]
  -> Pos -> DeltaPos
 findDelta isToken ln toks p =
-  case findToken isToken ln toks of
+  case findTokenSrcSpan isToken ln toks of
     Nothing -> error $ "findPrecedingDelta: No matching token preceding :" ++ show (ss2span ln)
     Just ss -> ss2delta p ss
 
@@ -310,95 +453,88 @@ deltaComment l (Comment b (s,e) str)
   = DComment b ((ss2deltaP l s),(ss2deltaP l e)) str
 
 -- ---------------------------------------------------------------------
--- This section is horrible because there is no Eq instance for
--- GHC.Token
+
+deriving instance Eq GHC.Token
+
+ghcIsTok :: PosToken -> GHC.Token -> Bool
+ghcIsTok ((GHC.L _ t),_s) tp = t == tp
 
 ghcIsModule :: PosToken -> Bool
-ghcIsModule ((GHC.L _ t),_s) =  case t of
-                       GHC.ITmodule -> True
-                       _            -> False
+ghcIsModule t = ghcIsTok t GHC.ITmodule
+
 ghcIsWhere :: PosToken -> Bool
-ghcIsWhere ((GHC.L _ t),_s) =  case t of
-                       GHC.ITwhere -> True
-                       _           -> False
+ghcIsWhere t = ghcIsTok t GHC.ITwhere
+
 ghcIsLet :: PosToken -> Bool
-ghcIsLet   ((GHC.L _ t),_s) =  case t of
-                       GHC.ITlet -> True
-                       _         -> False
+ghcIsLet t = ghcIsTok t GHC.ITlet
 
 ghcIsElse :: PosToken -> Bool
-ghcIsElse   ((GHC.L _ t),_s) =  case t of
-                       GHC.ITelse -> True
-                       _         -> False
+ghcIsElse t = ghcIsTok t GHC.ITelse
 
 ghcIsThen :: PosToken -> Bool
-ghcIsThen   ((GHC.L _ t),_s) =  case t of
-                       GHC.ITthen -> True
-                       _         -> False
+ghcIsThen t = ghcIsTok t GHC.ITthen
 
 ghcIsOf :: PosToken -> Bool
-ghcIsOf   ((GHC.L _ t),_s) =  case t of
-                       GHC.ITof -> True
-                       _        -> False
+ghcIsOf t = ghcIsTok t GHC.ITof
 
 ghcIsDo :: PosToken -> Bool
-ghcIsDo   ((GHC.L _ t),_s) =  case t of
-                       GHC.ITdo -> True
-                       _        -> False
+ghcIsDo t = ghcIsTok t GHC.ITdo
 
 ghcIsIn :: PosToken -> Bool
-ghcIsIn    ((GHC.L _ t),_s) = case t of
-                      GHC.ITin -> True
-                      _        -> False
+ghcIsIn t = ghcIsTok t GHC.ITin
 
 ghcIsOParen :: PosToken -> Bool
-ghcIsOParen ((GHC.L _ t),_s) = case t of
-                      GHC.IToparen -> True
-                      _            -> False
+ghcIsOParen t = ghcIsTok t GHC.IToparen
 
 ghcIsCParen :: PosToken -> Bool
-ghcIsCParen ((GHC.L _ t),_s) = case t of
-                      GHC.ITcparen -> True
-                      _            -> False
+ghcIsCParen t = ghcIsTok t GHC.ITcparen
 
 ghcIsComma :: PosToken -> Bool
-ghcIsComma ((GHC.L _ t),_s) = case t of
-                      GHC.ITcomma -> True
-                      _           -> False
+ghcIsComma t = ghcIsTok t GHC.ITcomma
 
 ghcIsImport :: PosToken -> Bool
-ghcIsImport ((GHC.L _ t),_s) = case t of
-                      GHC.ITimport -> True
-                      _            -> False
+ghcIsImport t = ghcIsTok t GHC.ITimport
 
 ghcIsQualified :: PosToken -> Bool
-ghcIsQualified ((GHC.L _ t),_s) = case t of
-                      GHC.ITqualified -> True
-                      _               -> False
+ghcIsQualified t = ghcIsTok t GHC.ITqualified
 
 ghcIsAs :: PosToken -> Bool
-ghcIsAs ((GHC.L _ t),_s) = case t of
-                      GHC.ITas -> True
-                      _        -> False
+ghcIsAs t = ghcIsTok t GHC.ITas
 
 ghcIsConid :: PosToken -> Bool
-ghcIsConid ((GHC.L _ t),_s) = case t of
-                      GHC.ITconid _ -> True
-                      _            -> False
+ghcIsConid ((GHC.L _ t),_) = case t of
+       GHC.ITconid _ -> True
+       _             -> False
 
 ghcIsQConid :: PosToken -> Bool
-ghcIsQConid ((GHC.L _ t),_s) = case t of
-                      GHC.ITqconid _ -> True
-                      _              -> False
+ghcIsQConid((GHC.L _ t),_) = case t of
+       GHC.ITqconid _ -> True
+       _              -> False
+
 
 ghcIsAnyConid :: PosToken -> Bool
 ghcIsAnyConid t = ghcIsConid t || ghcIsQConid t
 
 
 ghcIsHiding :: PosToken -> Bool
-ghcIsHiding ((GHC.L _ t),_s) = case t of
-                      GHC.IThiding -> True
-                      _            -> False
+ghcIsHiding t = ghcIsTok t GHC.IThiding
+
+ghcIsEqual :: PosToken -> Bool
+ghcIsEqual t = ghcIsTok t GHC.ITequal
+
+
+ghcIsInteger :: PosToken -> Bool
+ghcIsInteger ((GHC.L _ t),_)  = case t of
+      GHC.ITinteger _ -> True
+      _               -> False
+
+ghcIsRational :: PosToken -> Bool
+ghcIsRational ((GHC.L _ t),_) = case t of
+      GHC.ITrational _ -> True
+      _                -> False
+
+ghcIsOverLit :: PosToken -> Bool
+ghcIsOverLit t = ghcIsInteger t || ghcIsRational t
 
 
 ghcIsComment :: PosToken -> Bool
@@ -489,6 +625,9 @@ tokenPos ((GHC.L l _),_s) = srcSpanStart l
 tokenPosEnd :: PosToken -> Pos
 tokenPosEnd ((GHC.L l _),_s) = srcSpanEnd l
 
+tokenString :: PosToken -> String
+tokenString (_,s) = s
+
 -- ---------------------------------------------------------------------
 
 splitToks:: (GHC.SrcSpan,GHC.SrcSpan) -> [PosToken]->([PosToken],[PosToken],[PosToken])
@@ -510,7 +649,25 @@ splitToksForSpan ss toks =
 -- ---------------------------------------------------------------------
 
 rdrName2String :: GHC.RdrName -> String
-rdrName2String = GHC.occNameString . GHC.rdrNameOcc
+rdrName2String r =
+  case GHC.isExact_maybe r of
+    Just n  -> name2String n
+    Nothing ->  GHC.occNameString $ GHC.rdrNameOcc r
+
+name2String :: GHC.Name -> String
+name2String name = showGhc name
+
+-- |Show a GHC API structure
+showGhc :: (GHC.Outputable a) => a -> String
+#if __GLASGOW_HASKELL__ > 706
+showGhc x = GHC.showPpr GHC.unsafeGlobalDynFlags x
+#else
+#if __GLASGOW_HASKELL__ > 704
+showGhc x = GHC.showSDoc GHC.tracingDynFlags $ GHC.ppr x
+#else
+showGhc x = GHC.showSDoc                     $ GHC.ppr x
+#endif
+#endif
 
 -- ---------------------------------------------------------------------
 

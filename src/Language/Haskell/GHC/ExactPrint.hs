@@ -506,15 +506,66 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
     GHC.RoleAnnotD d -> printString "RoleAnnotD"
 
 instance ExactP (GHC.HsBind GHC.RdrName) where
-  exactP ma (GHC.FunBind _n _  (GHC.MG matches _ _ _) _fun_co_fn _fvs _tick) = mapM_ (exactP ma) matches
+  exactP ma (GHC.FunBind n _  (GHC.MG matches _ _ _) _fun_co_fn _fvs _tick) = do
+    exactPC n
+    mapM_ exactPC matches
+
   exactP ma (GHC.PatBind pat_lhs pat_rhs pat_rhs_ty bind_fvs pat_ticks) = printString "PatBind"
   exactP ma (GHC.VarBind var_id var_rhs var_inline ) = printString "VarBind"
   exactP ma (GHC.AbsBinds abs_tvs abs_ev_vars abs_exports abs_ev_binds abs_binds) = printString "AbsBinds"
   exactP ma (GHC.PatSynBind patsyn_id bind_fvs patsyn_args patsyn_def patsyn_dir) = printString "PatSynBind"
 
-instance ExactP (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
-  exactP _ _ = printString "Match"
+instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
+  exactP ma (GHC.Match pats typ (GHC.GRHSs grhs lb)) = do
+    mapM_ exactPC pats
+    doMaybe typ exactPC
+    mapM_ exactPC grhs
+    -- exactPC lb
 
+instance ExactP (GHC.Pat GHC.RdrName) where
+  exactP _ _ = printString "Pat"
+
+instance ExactP (GHC.HsType GHC.RdrName) where
+  exactP _ _ = printString "HsType"
+
+instance ExactP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
+  exactP _ (GHC.GRHS rhs lb) = do
+    mapM_ exactPC rhs
+    exactPC lb
+
+instance ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
+  exactP _ _ = printString "StmtLR"
+
+instance ExactP (GHC.HsExpr GHC.RdrName) where
+  exactP ma  (GHC.HsLet lb e)    = do
+    let Just (Ann cs dp an) = ma
+    p <- getPos
+    printStringAtMaybeDelta (hsl_let an) "let"
+    exactP Nothing lb
+    printStringAtMaybeDeltaP p (hsl_in an) "in"
+    exactPC e
+  exactP ma (GHC.HsOverLit lit) = exactP ma lit `debug` ("GHC.HsOverLit:" ++ show ma)
+  exactP _  (GHC.OpApp e1 op _f e2) = exactPC e1 >> exactPC op >> exactPC e2
+  exactP ma  (GHC.HsVar v)          = exactP ma v
+  exactP _ _ = printString "HsExpr"
+
+instance ExactP GHC.RdrName where
+  exactP _ n = printString (rdrName2String n)
+
+instance ExactP (GHC.HsLocalBinds GHC.RdrName) where
+  exactP _ (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
+    mapM_ exactPC (GHC.bagToList binds)
+    mapM_ exactPC sigs
+  exactP _ (GHC.HsValBinds (GHC.ValBindsOut binds sigs)) = printString "ValBindsOut"
+  exactP _ (GHC.HsIPBinds binds) = printString "HsIPBinds"
+  exactP _ (GHC.EmptyLocalBinds) = return ()
+
+instance ExactP (GHC.Sig GHC.RdrName) where
+  exactP _ _ = printString "Sig"
+
+instance ExactP (GHC.HsOverLit GHC.RdrName) where
+  exactP (Just (Ann cs p an)) _ = printString (ol_str an)
+  exactP Nothing            lit = printString "overlit no ann"
 
 instance ExactP GHC.HsLit where
   exactP ma lit = case lit of

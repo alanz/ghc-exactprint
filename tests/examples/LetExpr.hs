@@ -14,7 +14,7 @@ import qualified Data.Map as {- blah -}  Foo.Map
 import Control.Monad  (   )
 import Data.Word (Word8)
 import Data.Tree hiding  (  drawTree   )
-import qualified Data.Text as T hiding    ( pack    )
+import qualified Data.Text as T hiding    ( pack  , unpack  )
 
 -- comment
 foo = let x = 1
@@ -22,5 +22,8 @@ foo = let x = 1
       in x + y
 
 bar = 3
+bbb x
+ | x == 1 = ()
+ | otherwise = ()
 
 data Baz = Baz1 | Baz2
