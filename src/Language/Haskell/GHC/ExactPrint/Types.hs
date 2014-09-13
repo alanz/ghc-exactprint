@@ -107,7 +107,8 @@ IEDocNamed String
   | AnnFunBind {}
 
 
-  | AnnGRHS { grhs_eq :: !(Maybe DeltaPos) }
+  | AnnGRHS { grhs_eq :: !(Maybe DeltaPos) } -- ++AZ++ get rid of grhs_eq
+  | AnnMatch { match_eq :: !(Maybe DeltaPos) }
 
   -- TyClDecl
   | AnnDataDecl {}
@@ -126,6 +127,6 @@ IEDocNamed String
   | AnnNone
   deriving (Show)
 
-type Anns = Map.Map GHC.SrcSpan Annotation
+type Anns = Map.Map GHC.SrcSpan [Annotation]
 
 

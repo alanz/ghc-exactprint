@@ -158,7 +158,7 @@ getPos = EP (\l cs an -> (l,l,cs,an,id))
 setPos :: Pos -> EP ()
 setPos l = EP (\_ cs an -> ((),l,cs,an,id))
 
-getAnnotation :: GHC.SrcSpan -> EP (Maybe Annotation)
+getAnnotation :: GHC.SrcSpan -> EP (Maybe [Annotation])
 getAnnotation ss = EP (\l cs an -> (Map.lookup ss an,l,cs,an,id))
 
 printString :: String -> EP ()
@@ -276,15 +276,15 @@ exactPrintAnnotated ::
   -> [Comment] -> [PosToken] -> String
 exactPrintAnnotated ast cs toks = runEP (exactPC ast) [] ann
   where
-    ann = Map.fromList $ annotateLHsModule ast cs toks
+    ann = Map.fromListWith (++) $ annotateLHsModule ast cs toks
 
 exactPrintAnnotation :: ExactP ast =>
   GHC.Located ast -> [Comment] -> Anns -> String
 exactPrintAnnotation ast cs ann = runEP (exactPC ast) cs ann
-  `debug` ("exactPrintAnnotation:ann=" ++ (concatMap (\(l,a) -> show (ss2span l,a)) $ Map.toList ann ))
+  -- `debug` ("exactPrintAnnotation:ann=" ++ (concatMap (\(l,a) -> show (ss2span l,a)) $ Map.toList ann ))
 
 annotate :: GHC.Located (GHC.HsModule GHC.RdrName) -> [Comment] -> [PosToken] -> Anns
-annotate ast cs toks = Map.fromList $ annotateLHsModule ast cs toks
+annotate ast cs toks = Map.fromListWith (++) $ annotateLHsModule ast cs toks
 
 -- |First move to the given location, then call exactP
 exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
@@ -398,6 +398,33 @@ printSemi p = do
   printWhitespace (pos p)
   when (not $ isNullSpan p) $ printString ";"
 
+-- ---------------------------------------------------------------------
+
+getAnn :: (Annotation -> Bool) -> Maybe [Annotation] -> [Annotation]
+getAnn isAnn ma =
+  case ma of
+    Nothing -> error $ "getAnn expecting an annotation"
+    Just as -> filter isAnn as
+
+isAnnGRHS :: Annotation -> Bool
+isAnnGRHS an = case an of
+                (Ann _ _ (AnnGRHS {})) -> True
+                _                     -> False
+
+isAnnMatch :: Annotation -> Bool
+isAnnMatch an = case an of
+                (Ann _ _ (AnnMatch {})) -> True
+                _                       -> False
+
+isAnnHsLet :: Annotation -> Bool
+isAnnHsLet an = case an of
+                (Ann _ _ (AnnHsLet {})) -> True
+                _                     -> False
+
+isAnnOverLit :: Annotation -> Bool
+isAnnOverLit an = case an of
+                (Ann _ _ (AnnOverLit {})) -> True
+                _                         -> False
 
 --------------------------------------------------
 -- Exact printing for GHC
@@ -405,7 +432,7 @@ printSemi p = do
 class ExactP ast where
   -- | Print an AST fragment, possibly having an annotation. The
   -- correct position in output is already established.
-  exactP :: (Maybe Annotation) -> ast -> EP ()
+  exactP :: (Maybe [Annotation]) -> ast -> EP ()
 
 instance ExactP (GHC.HsModule GHC.RdrName) where
   exactP ma (GHC.HsModule Nothing exps imps decls deprecs haddock) = do
@@ -417,7 +444,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
     -- p <- getPos -- starting position is bogus
     let p = (1,0)
     case mAnn of
-      Just (Ann cs _ (AnnModuleName pm _pn po pc pw)) -> do
+      Just [(Ann cs _ (AnnModuleName pm _pn po pc pw))] -> do
         mergeComments cs -- TODO: make this part of getAnnotation, or perhaps activateAnnotation
         printStringAt (undelta p pm) "module"
         exactPC lmn
@@ -445,14 +472,14 @@ instance ExactP (GHC.ModuleName) where
 
 instance ExactP (GHC.IE GHC.RdrName) where
   exactP ma (GHC.IEVar n) = do
-    let Just (Ann cs ll (AnnIEVar mc)) = ma
+    let Just [(Ann cs ll (AnnIEVar mc))] = ma
     mergeComments cs
     printStringAtMaybeDelta mc ","
     printStringAtDelta ll (rdrName2String n) -- `debug` ("exactP LIE.Var:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))
     return ()
 
   exactP ma (GHC.IEThingAbs n) = do
-    let Just (Ann cs ll (AnnIEThingAbs mc)) = ma -- `debug` ("blah:" ++ show ma)
+    let Just [(Ann cs ll (AnnIEThingAbs mc))] = ma -- `debug` ("blah:" ++ show ma)
     mergeComments cs
     printStringAtMaybeDelta mc ","
     printStringAtDelta ll (rdrName2String n) -- `debug` ("exactP LIE.ThingAbs:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))
@@ -464,7 +491,7 @@ instance ExactP (GHC.IE GHC.RdrName) where
 
 instance ExactP (GHC.ImportDecl GHC.RdrName) where
   exactP ma imp = do
-    let Just (Ann cs ll an) = ma
+    let Just [(Ann cs ll an)] = ma
     mergeComments cs
     p <- getPos
     printString "import"
@@ -518,7 +545,12 @@ instance ExactP (GHC.HsBind GHC.RdrName) where
 
 instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP ma (GHC.Match pats typ (GHC.GRHSs grhs lb)) = do
+    p <- getPos
+    let [(Ann lcs _dp (AnnMatch eqPos))] = getAnn isAnnMatch ma
+    mergeComments lcs
     mapM_ exactPC pats
+    p' <- getPos
+    printStringAtMaybeDeltaP p' eqPos "=" `debug` ("exactP.Match:" ++ show (p,p',eqPos))
     doMaybe typ exactPC
     mapM_ exactPC grhs
     -- exactPC lb
@@ -531,8 +563,8 @@ instance ExactP (GHC.HsType GHC.RdrName) where
 
 instance ExactP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP ma (GHC.GRHS guards expr) = do
-    -- let Just (Ann lcs dp (AnnGRHS eqPos)) = ma `debug` ("exactP.GRHS:ma=" ++ show ma)
-    -- mergeComments lcs
+    let [(Ann lcs _dp (AnnGRHS eqPos))] = getAnn isAnnGRHS ma
+    mergeComments lcs
     mapM_ exactPC guards
     -- printStringAtMaybeDelta eqPos "="
     exactPC expr
@@ -542,9 +574,10 @@ instance ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsExpr GHC.RdrName)) w
 
 instance ExactP (GHC.HsExpr GHC.RdrName) where
   exactP ma  (GHC.HsLet lb e)    = do
-    let Just (Ann cs dp an) = ma
+    let [(Ann cs dp an)] = getAnn isAnnHsLet ma
+
     p <- getPos
-    printStringAtMaybeDelta (hsl_let an) "let"
+    printStringAtMaybeDelta (hsl_let an) "let" `debug` ("exactP.HsLet:an=" ++ show an)
     exactP Nothing lb
     printStringAtMaybeDeltaP p (hsl_in an) "in"
     exactPC e
@@ -568,7 +601,9 @@ instance ExactP (GHC.Sig GHC.RdrName) where
   exactP _ _ = printString "Sig"
 
 instance ExactP (GHC.HsOverLit GHC.RdrName) where
-  exactP (Just (Ann cs p an)) _ = printString (ol_str an)
+  -- exactP (Just [(Ann cs p an)]) _ = printString (ol_str an)
+  exactP a@(Just as) _ = printString (ol_str an)
+    where [(Ann cs p an)] = getAnn isAnnOverLit a
   exactP Nothing            lit = printString "overlit no ann"
 
 instance ExactP GHC.HsLit where

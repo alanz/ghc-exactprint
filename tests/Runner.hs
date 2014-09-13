@@ -91,8 +91,8 @@ manipulateAstTest sources = testGroup "Exact printer tests" $ do
         Just exps = GHC.hsmodExports hsmod
 
         secondExp@(GHC.L l2 _) = head $ tail exps
-        Just (Ann cs ll (AnnIEVar mc)) = Map.lookup l2 ann
-        ann' = Map.insert l2 (Ann cs ll (AnnIEVar Nothing)) ann
+        Just [(Ann cs ll (AnnIEVar mc))] = Map.lookup l2 ann
+        ann' = Map.insert l2 [(Ann cs ll (AnnIEVar Nothing))] ann
         -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (tail exps) }))
 
         -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (head exps : (drop 2 exps)) }))
