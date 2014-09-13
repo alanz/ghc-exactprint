@@ -281,6 +281,7 @@ exactPrintAnnotated ast cs toks = runEP (exactPC ast) [] ann
 exactPrintAnnotation :: ExactP ast =>
   GHC.Located ast -> [Comment] -> Anns -> String
 exactPrintAnnotation ast cs ann = runEP (exactPC ast) cs ann
+  `debug` ("exactPrintAnnotation:ann=" ++ (concatMap (\(l,a) -> show (ss2span l,a)) $ Map.toList ann ))
 
 annotate :: GHC.Located (GHC.HsModule GHC.RdrName) -> [Comment] -> [PosToken] -> Anns
 annotate ast cs toks = Map.fromList $ annotateLHsModule ast cs toks
@@ -451,7 +452,7 @@ instance ExactP (GHC.IE GHC.RdrName) where
     return ()
 
   exactP ma (GHC.IEThingAbs n) = do
-    let Just (Ann cs ll (AnnIEThingAbs mc)) = ma `debug` ("blah:" ++ show ma)
+    let Just (Ann cs ll (AnnIEThingAbs mc)) = ma -- `debug` ("blah:" ++ show ma)
     mergeComments cs
     printStringAtMaybeDelta mc ","
     printStringAtDelta ll (rdrName2String n) -- `debug` ("exactP LIE.ThingAbs:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))
@@ -529,9 +530,12 @@ instance ExactP (GHC.HsType GHC.RdrName) where
   exactP _ _ = printString "HsType"
 
 instance ExactP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
-  exactP _ (GHC.GRHS rhs lb) = do
-    mapM_ exactPC rhs
-    exactPC lb
+  exactP ma (GHC.GRHS guards expr) = do
+    -- let Just (Ann lcs dp (AnnGRHS eqPos)) = ma `debug` ("exactP.GRHS:ma=" ++ show ma)
+    -- mergeComments lcs
+    mapM_ exactPC guards
+    -- printStringAtMaybeDelta eqPos "="
+    exactPC expr
 
 instance ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP _ _ = printString "StmtLR"
@@ -544,7 +548,7 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     exactP Nothing lb
     printStringAtMaybeDeltaP p (hsl_in an) "in"
     exactPC e
-  exactP ma (GHC.HsOverLit lit) = exactP ma lit `debug` ("GHC.HsOverLit:" ++ show ma)
+  exactP ma (GHC.HsOverLit lit) = exactP ma lit -- `debug` ("GHC.HsOverLit:" ++ show ma)
   exactP _  (GHC.OpApp e1 op _f e2) = exactPC e1 >> exactPC op >> exactPC e2
   exactP ma  (GHC.HsVar v)          = exactP ma v
   exactP _ _ = printString "HsExpr"

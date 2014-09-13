@@ -15,6 +15,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , srcSpanStartColumn
   , srcSpanEndColumn
 
+  , ss2span
   , ss2pos
   , ss2posEnd
   , undelta
@@ -260,7 +261,7 @@ annotateLMatch (GHC.L l (GHC.Match pats typ (GHC.GRHSs grhs lb))) cs toksIn = r 
 annotateLGRHS :: GHC.LGRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)
   -> [Comment] -> [PosToken]
   -> [(GHC.SrcSpan,Annotation)]
-annotateLGRHS (GHC.L l (GHC.GRHS guards expr@(GHC.L le _))) cs toksIn = r -- `debug` ("annotateLGRHS:" ++ show (l,r))
+annotateLGRHS (GHC.L l (GHC.GRHS guards expr@(GHC.L le _))) cs toksIn = r  `debug` ("annotateLGRHS :l=" ++ show (ss2span l))
   where
     r = [(l,(Ann lcs (DP (0,0)) (AnnGRHS eqPos)))] ++ guardsAnn ++ exprAnn
     lcs = []
@@ -295,7 +296,7 @@ annotateLHsExpr (GHC.L l (GHC.HsOverLit ov)) cs toksIn = r -- `debug` ("annotate
     r = [(l,Ann [] (DP (0,0)) (AnnOverLit str))]
     Just tokLit = findToken ghcIsOverLit l toksIn
     str = tokenString tokLit
-annotateLHsExpr (GHC.L l (GHC.HsLet lb expr)) cs toksIn = r
+annotateLHsExpr (GHC.L l (GHC.HsLet lb expr)) cs toksIn = r `debug` ("annotateLHsExpr.HsLet:l=" ++ show (ss2span l))
   where
     r = (l,(Ann lcs (DP (0,0)) annSpecific)) : lbAnn ++ exprAnn
     lcs = []
