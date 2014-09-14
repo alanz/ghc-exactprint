@@ -261,7 +261,7 @@ annotateLMatch (GHC.L l (GHC.Match pats typ (GHC.GRHSs grhs lb))) cs toksIn = r 
              [GHC.L _ (GHC.GRHS [] _)] -> findTokenWrtPrior ghcIsEqual l toksIn -- unguarded
              _                         -> Nothing
 
-    patsAnn = []
+    patsAnn = concatMap (\pat -> annotateLPat pat cs toksIn) pats
     typAnn  = []
     rhsAnn  = concatMap (\rhs -> annotateLGRHS rhs cs toksIn) grhs
     lbAnn   = annotateHsLocalBinds lb cs toksIn
@@ -308,6 +308,16 @@ findTokenWrtPrior isToken le toksIn = eqPos `debug` ("findTokenWrtPrior:" ++ sho
           prior = head $ dropWhile ghcIsComment $ reverse before
           pe = tokenPosEnd prior
       Nothing -> Nothing
+
+-- ---------------------------------------------------------------------
+
+annotateLPat :: GHC.LPat GHC.RdrName
+  -> [Comment] -> [PosToken]
+  -> [(GHC.SrcSpan,[Annotation])]
+annotateLPat (GHC.L l _) cs toksIn = r
+  where
+    r = [(l,[Ann lcs (DP (0,0)) (AnnNone)])]
+    lcs = []
 
 -- ---------------------------------------------------------------------
 

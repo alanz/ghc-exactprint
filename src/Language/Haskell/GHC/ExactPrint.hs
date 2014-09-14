@@ -560,6 +560,9 @@ instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
     -- exactPC lb
 
 instance ExactP (GHC.Pat GHC.RdrName) where
+  exactP _ (GHC.VarPat n)     = printString (rdrName2String n)
+  exactP _ (GHC.ConPatIn e _) = exactPC e
+  exactP _ (GHC.WildPat _)    = printString "_"
   exactP _ _ = printString "Pat"
 
 instance ExactP (GHC.HsType GHC.RdrName) where

@@ -26,4 +26,9 @@ bbb x
  | x == 1 = ()
  | otherwise = ()
 
+
+aaa []   = 0
+aaa _    = 1
+aaa _unk = 5
+
 data Baz = Baz1 | Baz2
