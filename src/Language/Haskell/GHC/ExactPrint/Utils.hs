@@ -256,14 +256,10 @@ annotateLMatch (GHC.L l (GHC.Match pats typ (GHC.GRHSs grhs lb))) cs toksIn = r 
     r = matchAnn ++ patsAnn ++ typAnn ++ rhsAnn ++ lbAnn
     matchAnn = [(l,[Ann lcs (DP (0,0)) (AnnMatch eqPos)])]
     lcs = []
-    eqPos = case findTokenSrcSpan ghcIsEqual le toksIn of
-      Just eqSpan -> Just $ ss2delta pe eqSpan `debug` ("annotateLMatch:'=' found at:" ++ show (ss2span eqSpan,pe))
-        where
-          (before,_,_) = splitToksForSpan eqSpan toksIn
-          prior = head $ dropWhile ghcIsComment $ reverse before
-          pe = tokenPosEnd prior
-      Nothing -> Nothing `debug` ("annotateLMatch:no '=' found in:" ++ show (ss2span l))
-    le = l
+
+    eqPos = case grhs of
+             [GHC.L _ (GHC.GRHS [] _)] -> findTokenWrtPrior ghcIsEqual l toksIn -- unguarded
+             _                         -> Nothing
 
     patsAnn = []
     typAnn  = []
@@ -271,20 +267,60 @@ annotateLMatch (GHC.L l (GHC.Match pats typ (GHC.GRHSs grhs lb))) cs toksIn = r 
     lbAnn   = annotateHsLocalBinds lb cs toksIn
 
 -- ---------------------------------------------------------------------
+{-
+rhs     :: { Located (GRHSs RdrName) }
+        : '=' exp wherebinds    { sL (comb3 $1 $2 $3) $ GRHSs (unguardedRHS $2) (unLoc $3) }
+        | gdrhs wherebinds      { LL $ GRHSs (reverse (unLoc $1)) (unLoc $2) }
 
+gdrhs :: { Located [LGRHS RdrName] }
+        : gdrhs gdrh            { LL ($2 : unLoc $1) }
+        | gdrh                  { L1 [$1] }
+
+gdrh :: { LGRHS RdrName }
+        : '|' guardquals '=' exp        { sL (comb2 $1 $>) $ GRHS (unLoc $2) $4 }
+
+-}
 annotateLGRHS :: GHC.LGRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)
   -> [Comment] -> [PosToken]
   -> [(GHC.SrcSpan,[Annotation])]
 annotateLGRHS (GHC.L l (GHC.GRHS guards expr@(GHC.L le _))) cs toksIn = r  `debug` ("annotateLGRHS :l=" ++ show (ss2span l))
   where
-    r = [(l,[Ann lcs (DP (0,0)) (AnnGRHS eqPos)])] ++ guardsAnn ++ exprAnn
-    lcs = []
-    guardsAnn = []
-    -- eqPos = case findTokenSrcSpan ghcIsEqual l toksIn of
-    eqPos = case findPreceding ghcIsEqual le toksIn of
-      Just eqSpan -> Just $ ss2delta (ss2pos le) eqSpan `debug` ("annotateLGRHS:'=' found at:" ++ show (ss2span eqSpan))
-      Nothing -> Nothing `debug` ("annotateLGRHS:no '=' found in:" ++ show (ss2span l))
+    r = [(l,[Ann lcs (DP (0,0)) (AnnGRHS guardPos eqPos)])] ++ guardsAnn ++ exprAnn
+    lcs = [] `debug` ("annotateLGRHS:(guardPos,eqPos)=" ++ show (guardPos,eqPos))
+    guardsAnn = concatMap (\g -> annotateLStmt g cs toksIn) guards
+
+    (guardPos,eqPos) = case guards of
+             [] -> (Nothing,Nothing)
+             _  -> (Just $ findDelta ghcIsVbar l toksIn (ss2pos l)
+                   , findTokenWrtPrior ghcIsEqual l toksIn)
+
     exprAnn = annotateLHsExpr expr cs toksIn
+
+-- ---------------------------------------------------------------------
+
+findTokenWrtPrior :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe DeltaPos
+findTokenWrtPrior isToken le toksIn = eqPos `debug` ("findTokenWrtPrior:" ++ show (ss2span le))
+  where
+    eqPos = case findTokenSrcSpan isToken le toksIn of
+      Just eqSpan -> Just $ ss2delta pe eqSpan
+        where
+          (before,_,_) = splitToksForSpan eqSpan toksIn
+          prior = head $ dropWhile ghcIsComment $ reverse before
+          pe = tokenPosEnd prior
+      Nothing -> Nothing
+
+-- ---------------------------------------------------------------------
+
+annotateLStmt :: GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)
+  -> [Comment] -> [PosToken]
+  -> [(GHC.SrcSpan,[Annotation])]
+annotateLStmt (GHC.L l (GHC.BodyStmt body _ _ _)) cs toksIn = r
+  where
+    r = lAnn ++ bodyAnn
+    lAnn = [(l,[Ann lcs (DP (0,0)) (AnnStmtLR)])]
+    lcs = []
+
+    bodyAnn = annotateLHsExpr body cs toksIn
 
 -- ---------------------------------------------------------------------
 
@@ -305,11 +341,19 @@ annotateHsLocalBinds (GHC.EmptyLocalBinds) _ _ = []
 annotateLHsExpr :: GHC.LHsExpr GHC.RdrName
   -> [Comment] -> [PosToken]
   -> [(GHC.SrcSpan,[Annotation])]
-annotateLHsExpr (GHC.L l (GHC.HsOverLit ov)) cs toksIn = r -- `debug` ("annotateLHsExpr:" ++ show r)
+annotateLHsExpr (GHC.L l (GHC.HsOverLit ov)) cs toksIn = r -- `debug` ("annotateLHsExpr.HsOverLit:" ++ show r)
   where
     r = [(l,[Ann [] (DP (0,0)) (AnnOverLit str)])]
     Just tokLit = findToken ghcIsOverLit l toksIn
     str = tokenString tokLit
+
+annotateLHsExpr (GHC.L l (GHC.OpApp e1 op _f e2)) cs toksIn = r
+  where
+    r = e1Ann ++ opAnn ++ e2Ann
+    e1Ann = annotateLHsExpr e1 cs toksIn
+    opAnn = annotateLHsExpr op cs toksIn
+    e2Ann = annotateLHsExpr e2 cs toksIn
+
 annotateLHsExpr (GHC.L l (GHC.HsLet lb expr)) cs toksIn = r `debug` ("annotateLHsExpr.HsLet:l=" ++ show (ss2span l))
   where
     r = (l,[Ann lcs (DP (0,0)) annSpecific]) : lbAnn ++ exprAnn
@@ -536,6 +580,9 @@ ghcIsHiding t = ghcIsTok t GHC.IThiding
 
 ghcIsEqual :: PosToken -> Bool
 ghcIsEqual t = ghcIsTok t GHC.ITequal
+
+ghcIsVbar :: PosToken -> Bool
+ghcIsVbar t = ghcIsTok t GHC.ITvbar
 
 
 ghcIsInteger :: PosToken -> Bool

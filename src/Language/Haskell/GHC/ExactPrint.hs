@@ -408,23 +408,28 @@ getAnn isAnn ma =
 
 isAnnGRHS :: Annotation -> Bool
 isAnnGRHS an = case an of
-                (Ann _ _ (AnnGRHS {})) -> True
-                _                     -> False
+  (Ann _ _ (AnnGRHS {})) -> True
+  _                     -> False
 
 isAnnMatch :: Annotation -> Bool
 isAnnMatch an = case an of
-                (Ann _ _ (AnnMatch {})) -> True
-                _                       -> False
+  (Ann _ _ (AnnMatch {})) -> True
+  _                       -> False
 
 isAnnHsLet :: Annotation -> Bool
 isAnnHsLet an = case an of
-                (Ann _ _ (AnnHsLet {})) -> True
-                _                     -> False
+  (Ann _ _ (AnnHsLet {})) -> True
+  _                     -> False
 
 isAnnOverLit :: Annotation -> Bool
 isAnnOverLit an = case an of
-                (Ann _ _ (AnnOverLit {})) -> True
-                _                         -> False
+  (Ann _ _ (AnnOverLit {})) -> True
+  _                         -> False
+
+isAnnStmtLR :: Annotation -> Bool
+isAnnStmtLR an = case an of
+  (Ann _ _ (AnnStmtLR {})) -> True
+  _                        -> False
 
 --------------------------------------------------
 -- Exact printing for GHC
@@ -549,8 +554,7 @@ instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
     let [(Ann lcs _dp (AnnMatch eqPos))] = getAnn isAnnMatch ma
     mergeComments lcs
     mapM_ exactPC pats
-    p' <- getPos
-    printStringAtMaybeDeltaP p' eqPos "=" `debug` ("exactP.Match:" ++ show (p,p',eqPos))
+    printStringAtMaybeDelta eqPos "="
     doMaybe typ exactPC
     mapM_ exactPC grhs
     -- exactPC lb
@@ -563,19 +567,25 @@ instance ExactP (GHC.HsType GHC.RdrName) where
 
 instance ExactP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP ma (GHC.GRHS guards expr) = do
-    let [(Ann lcs _dp (AnnGRHS eqPos))] = getAnn isAnnGRHS ma
+    let [(Ann lcs _dp (AnnGRHS guardPos eqPos))] = getAnn isAnnGRHS ma
     mergeComments lcs
+    printStringAtMaybeDelta guardPos "|"
     mapM_ exactPC guards
-    -- printStringAtMaybeDelta eqPos "="
+    printStringAtMaybeDelta eqPos "="
     exactPC expr
 
 instance ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
+  exactP ma (GHC.BodyStmt e _ _ _) = do
+    let [(Ann lcs dp an)] = getAnn isAnnStmtLR ma
+    mergeComments lcs
+    exactPC e
+
   exactP _ _ = printString "StmtLR"
 
 instance ExactP (GHC.HsExpr GHC.RdrName) where
   exactP ma  (GHC.HsLet lb e)    = do
-    let [(Ann cs dp an)] = getAnn isAnnHsLet ma
-
+    let [(Ann lcs dp an)] = getAnn isAnnHsLet ma
+    mergeComments lcs
     p <- getPos
     printStringAtMaybeDelta (hsl_let an) "let" `debug` ("exactP.HsLet:an=" ++ show an)
     exactP Nothing lb

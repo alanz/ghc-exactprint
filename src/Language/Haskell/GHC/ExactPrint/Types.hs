@@ -107,7 +107,11 @@ IEDocNamed String
   | AnnFunBind {}
 
 
-  | AnnGRHS { grhs_eq :: !(Maybe DeltaPos) } -- ++AZ++ get rid of grhs_eq
+  | AnnGRHS
+    { grhs_guard :: !(Maybe DeltaPos) --  track the '|'
+    , grhs_eq    :: !(Maybe DeltaPos)
+    }
+
   | AnnMatch { match_eq :: !(Maybe DeltaPos) }
 
   -- TyClDecl
@@ -123,6 +127,9 @@ IEDocNamed String
       { hsl_let :: !(Maybe DeltaPos)
       , hsl_in  :: !(Maybe DeltaPos)
       }
+
+  -- StmtLR
+  | AnnStmtLR {}
 
   | AnnNone
   deriving (Show)
