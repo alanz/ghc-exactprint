@@ -239,23 +239,32 @@ annotateLHsDecl (GHC.L l decl) cs toksIn pl =
 annotateLHsBind :: GHC.LHsBindLR GHC.RdrName GHC.RdrName
   -> [Comment] -> [PosToken]
   -> [(GHC.SrcSpan,[Annotation])]
-annotateLHsBind (GHC.L l (GHC.FunBind ln _ (GHC.MG matches _ _ _) _ _ _)) cs toksIn = r
+annotateLHsBind (GHC.L l (GHC.FunBind (GHC.L _ n) isInfix (GHC.MG matches _ _ _) _ _ _)) cs toksIn = r
   where
     r = [(l,[Ann lcs p AnnFunBind])] ++ matchesAnn
     lcs = []
     p = DP (0,0)
-    matchesAnn = concatMap (\m -> annotateLMatch m cs toksIn) matches
+    matchesAnn = concatMap (\m -> annotateLMatch m n isInfix cs toksIn) matches
 
 -- ---------------------------------------------------------------------
 
 annotateLMatch :: (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
+  -> GHC.RdrName -> Bool
   -> [Comment] -> [PosToken]
   -> [(GHC.SrcSpan,[Annotation])]
-annotateLMatch (GHC.L l (GHC.Match pats typ (GHC.GRHSs grhs lb))) cs toksIn = r -- `debug` ("annotateLMatch:" ++ show (r,length grhs))
+annotateLMatch (GHC.L l (GHC.Match pats _typ (GHC.GRHSs grhs lb))) n isInfix cs toksIn = r -- `debug` ("annotateLMatch:" ++ show (r,length grhs))
   where
     r = matchAnn ++ patsAnn ++ typAnn ++ rhsAnn ++ lbAnn
-    matchAnn = [(l,[Ann lcs (DP (0,0)) (AnnMatch eqPos)])]
-    lcs = []
+    matchAnn = [(l,[Ann lcs (DP (0,0)) (AnnMatch nPos n isInfix eqPos)])]
+    lcs = [] `debug` ("annotateLMatch:" ++ show matchToks)
+
+    (_,matchToks,_) = splitToksForSpan l toksIn
+    nPos = if isInfix
+             then fromJust $ findTokenWrtPrior ghcIsFunName ln matchToks
+             else findDelta ghcIsFunName l matchToks (ss2pos l)
+
+    ln = GHC.mkSrcSpan (GHC.srcSpanEnd (GHC.getLoc (head pats)))
+                       (GHC.srcSpanEnd l)
 
     eqPos = case grhs of
              [GHC.L _ (GHC.GRHS [] _)] -> findTokenWrtPrior ghcIsEqual l toksIn -- unguarded
@@ -580,6 +589,21 @@ ghcIsQConid((GHC.L _ t),_) = case t of
        GHC.ITqconid _ -> True
        _              -> False
 
+ghcIsVarid :: PosToken -> Bool
+ghcIsVarid ((GHC.L _ t),_) = case t of
+       GHC.ITvarid _ -> True
+       _             -> False
+
+ghcIsVarsym :: PosToken -> Bool
+ghcIsVarsym ((GHC.L _ t),_) = case t of
+       GHC.ITvarsym _ -> True
+       _              -> False
+
+ghcIsBackquote :: PosToken -> Bool
+ghcIsBackquote t = ghcIsTok t GHC.ITbackquote
+
+ghcIsFunName :: PosToken -> Bool
+ghcIsFunName t = ghcIsVarid t || ghcIsVarsym t || ghcIsBackquote t
 
 ghcIsAnyConid :: PosToken -> Bool
 ghcIsAnyConid t = ghcIsConid t || ghcIsQConid t

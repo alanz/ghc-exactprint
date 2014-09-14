@@ -539,8 +539,8 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
     GHC.RoleAnnotD d -> printString "RoleAnnotD"
 
 instance ExactP (GHC.HsBind GHC.RdrName) where
-  exactP ma (GHC.FunBind n _  (GHC.MG matches _ _ _) _fun_co_fn _fvs _tick) = do
-    exactPC n
+  exactP ma (GHC.FunBind _n _  (GHC.MG matches _ _ _) _fun_co_fn _fvs _tick) = do
+    -- exactPC n
     mapM_ exactPC matches
 
   exactP ma (GHC.PatBind pat_lhs pat_rhs pat_rhs_ty bind_fvs pat_ticks) = printString "PatBind"
@@ -551,9 +551,16 @@ instance ExactP (GHC.HsBind GHC.RdrName) where
 instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP ma (GHC.Match pats typ (GHC.GRHSs grhs lb)) = do
     p <- getPos
-    let [(Ann lcs _dp (AnnMatch eqPos))] = getAnn isAnnMatch ma
-    mergeComments lcs
-    mapM_ exactPC pats
+    let [(Ann lcs _dp (AnnMatch nPos n isInfix eqPos))] = getAnn isAnnMatch ma
+    mergeComments lcs `debug` ("exactP.Match:(nPos,eqPos,isInfix):" ++ show (nPos,eqPos,isInfix))
+    if isInfix
+      then do
+        exactPC (head pats)
+        printStringAtDelta nPos (rdrName2String n)
+        mapM_ exactPC (tail pats)
+      else do
+        printStringAtDelta nPos (rdrName2String n)
+        mapM_ exactPC pats
     printStringAtMaybeDelta eqPos "="
     doMaybe typ exactPC
     mapM_ exactPC grhs

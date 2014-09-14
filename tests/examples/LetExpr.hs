@@ -27,8 +27,13 @@ bbb x
  | otherwise = ()
 
 
-aaa []   = 0
-aaa _    = 1
-aaa _unk = 5
+aaa [] _    = 0
+aaa x  _unk = 1
+aaa _  _    = 2
+
+x `ccc` 1 = x + 1
+x `ccc` y = x + y
+
+x !@# y = x + y
 
 data Baz = Baz1 | Baz2

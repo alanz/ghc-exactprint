@@ -112,7 +112,12 @@ IEDocNamed String
     , grhs_eq    :: !(Maybe DeltaPos)
     }
 
-  | AnnMatch { match_eq :: !(Maybe DeltaPos) }
+  | AnnMatch
+     { match_npos  :: !DeltaPos -- location of the function name
+     , match_n     :: !GHC.RdrName
+     , match_infix :: !Bool  -- if the function is infix
+     , match_eq    :: !(Maybe DeltaPos)
+     }
 
   -- TyClDecl
   | AnnDataDecl {}
@@ -133,6 +138,9 @@ IEDocNamed String
 
   | AnnNone
   deriving (Show)
+
+instance Show GHC.RdrName where
+  show n = "(a RdrName)"
 
 type Anns = Map.Map GHC.SrcSpan [Annotation]
 
