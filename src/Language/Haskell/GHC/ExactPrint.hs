@@ -480,14 +480,15 @@ instance ExactP (GHC.IE GHC.RdrName) where
     let Just [(Ann cs ll (AnnIEVar mc))] = ma
     mergeComments cs
     printStringAtMaybeDelta mc ","
-    printStringAtDelta ll (rdrName2String n) -- `debug` ("exactP LIE.Var:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))
+    p <- getPos
+    printStringAtDelta ll (rdrName2String n) `debug` ("exactP LIE.Var:(mc,ll,p)=" ++ show (mc,ll,p))
     return ()
 
   exactP ma (GHC.IEThingAbs n) = do
     let Just [(Ann cs ll (AnnIEThingAbs mc))] = ma -- `debug` ("blah:" ++ show ma)
     mergeComments cs
     printStringAtMaybeDelta mc ","
-    printStringAtDelta ll (rdrName2String n) -- `debug` ("exactP LIE.ThingAbs:(l,cs,mc,ll)=" ++ show (ss2pos l,cs,mc,ll))
+    printStringAtDelta ll (rdrName2String n) `debug` ("exactP LIE.ThingAbs:(mc,ll)=" ++ show (mc,ll))
     return ()
 
   exactP ma _ = printString ("no exactP for " ++ show (ma))
@@ -552,7 +553,7 @@ instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP ma (GHC.Match pats typ (GHC.GRHSs grhs lb)) = do
     p <- getPos
     let [(Ann lcs _dp (AnnMatch nPos n isInfix eqPos))] = getAnn isAnnMatch ma
-    mergeComments lcs `debug` ("exactP.Match:(nPos,eqPos,isInfix):" ++ show (nPos,eqPos,isInfix))
+    mergeComments lcs -- `debug` ("exactP.Match:(nPos,eqPos,isInfix):" ++ show (nPos,eqPos,isInfix))
     if isInfix
       then do
         exactPC (head pats)

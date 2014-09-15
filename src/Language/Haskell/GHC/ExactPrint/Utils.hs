@@ -89,16 +89,19 @@ annotateLHsModule (GHC.L lm (GHC.HsModule mmn mexp imps decs depr haddock)) cs t
             Just exps -> (opPos',cpPos',aexps',cpSpan')
               where
                 opTok = head $ filter ghcIsOParen toks
-                (toksE,toksRest,cpRel) = case exps of
-                  [] -> (toks,toks,pos)
-                  _ -> let (_,etoks,ts) = splitToks (GHC.getLoc (head exps),
-                                                     GHC.getLoc (last exps)) toks
-                       in (etoks,ts,ss2posEnd $ GHC.getLoc (last exps))
-                cpTok = head $ filter ghcIsCParen toksRest
-                opPos' = ss2delta pos $ tokenSpan opTok
-                cpPos' = ss2delta cpRel $ tokenSpan cpTok
+                (toksE,cpRel) = case exps of
+                  [] -> (toks,pos)
+                  -- _ -> let (_,etoks,ts) = splitToks (GHC.getLoc (head exps),
+                  --                                    GHC.getLoc (last exps)) toks
+                  _ -> let (_,etoks,_) = splitToks ((tokenSpan opTok),
+                                                    (tokenSpan cpTok)) toks
+                       in (etoks ++ [cpTok],ss2posEnd $ GHC.getLoc (last exps))
+                cpTok   = head $ filter ghcIsCParen toks
+                opPos'  = ss2delta pos $ tokenSpan opTok
+                cpPos'  = ss2delta cpRel $ tokenSpan cpTok
                 cpSpan' = ss2span $ tokenSpan cpTok
-                aexps' = annotateLIEs exps cs toksE Nothing (tokenSpan opTok)
+                aexps'  = annotateLIEs exps cs toksE Nothing (tokenSpan opTok)
+                        -- `debug` ("annotateLHsModule:toksE=" ++ show toksE)
 
     impsAnn  = annotateLImportDecls imps cs toks Nothing
     declsAnn = annotateLHsDecls     decs cs toks Nothing
@@ -109,7 +112,8 @@ annotateLImportDecls :: [(GHC.LImportDecl GHC.RdrName)]
   -> [Comment] -> [PosToken] -> Maybe GHC.SrcSpan -> [(GHC.SrcSpan,[Annotation])]
 annotateLImportDecls [] _ _ _ = []
 annotateLImportDecls [x] cs toks pl = annotateLImportDecl x cs toks pl
-annotateLImportDecls (x1@(GHC.L l1 _):x2:xs) cs toks pl = annotateLImportDecl x1 cs toks pl ++ annotateLImportDecls (x2:xs) cs toks (Just l1)
+annotateLImportDecls (x1@(GHC.L l1 _):x2:xs) cs toks pl =
+   annotateLImportDecl x1 cs toks pl ++ annotateLImportDecls (x2:xs) cs toks (Just l1)
 
 annotateLImportDecl :: (GHC.LImportDecl GHC.RdrName) -> [Comment] -> [PosToken]
   -> Maybe GHC.SrcSpan -> [(GHC.SrcSpan,[Annotation])]
@@ -186,23 +190,59 @@ ideclHiding :: Maybe (Bool, [LIE name])
 
 -- ---------------------------------------------------------------------
 
-annotateLIEs :: [GHC.LIE GHC.RdrName] -> [Comment] -> [PosToken] -> Maybe GHC.SrcSpan
-  -> GHC.SrcSpan -> [(GHC.SrcSpan, [Annotation])]
+annotateLIEs :: [GHC.LIE GHC.RdrName] -> [Comment] -> [PosToken]
+  -> Maybe GHC.SrcSpan -- previous export, Nothing for first item
+  -> GHC.SrcSpan       -- open parenthesis token position
+  -> [(GHC.SrcSpan, [Annotation])]
 annotateLIEs [ ]    _  _ _  _ = []
 annotateLIEs [x] cs toks pl pr                     = annotateLIE x  cs toks pl pr
-annotateLIEs (x1@(GHC.L l1 _):x2:xs) cs toks pl pr = annotateLIE x1 cs toks pl pr ++ annotateLIEs (x2:xs) cs toks (Just l1) pr
+annotateLIEs (x1@(GHC.L l1 _):x2:xs) cs toks pl pr = annotateLIE x1 cs toks pl pr
+                                     ++ annotateLIEs (x2:xs) cs toks (Just l1) pr
+
 
 -- This receives the toks for the entire exports section.
 -- So it can scan for the separating comma if required
 annotateLIE :: GHC.LIE GHC.RdrName -> [Comment] -> [PosToken] -> Maybe GHC.SrcSpan
   -> GHC.SrcSpan -> [(GHC.SrcSpan,[Annotation])]
-annotateLIE (GHC.L l (GHC.IEVar _))      cs toks pl pr = [(l,[Ann lcs p (AnnIEVar mc)])]
+
+annotateLIE (GHC.L l (GHC.IEVar _))     cs toks pl pr = [(l,[Ann lcs p (AnnIEVar mc)])]
   where (mc, p, lcs) = getListAnnInfo l cs toks pl pr
 
 annotateLIE (GHC.L l (GHC.IEThingAbs _)) cs toks pl pr = [(l,[Ann lcs p (AnnIEThingAbs mc)])]
   where (mc, p, lcs) = getListAnnInfo l cs toks pl pr
 
-annotateLIE (GHC.L l (_)) cs toks pl pr = [] -- assert False undefined
+annotateLIE (GHC.L l (_)) cs toks pl pr = assert False undefined
+
+-- ---------------------------------------------------------------------
+
+getListAnnInfo :: GHC.SrcSpan -> [Comment] -> [PosToken]
+  -> Maybe GHC.SrcSpan -- SrcSpan of previous item for 2nd and later items
+  -> GHC.SrcSpan       -- SrcSpan of opening parenthesis of list
+  -> (Maybe DeltaPos, DeltaPos, [DComment])
+getListAnnInfo l cs toks pl pr = (mc,p,lcs) `debug` ("getListAnnInfo:lcs=" ++ show lcs)
+  where (mc,p,sp) = calcListOffsets isToken l toks pl pr
+        lcs = localComments sp cs [] `debug` ("getListAnnInfo:sp=" ++ show sp )
+
+        isToken t = ghcIsComma t || ghcIsCParen t
+
+-- ---------------------------------------------------------------------
+
+calcListOffsets ::(PosToken -> Bool) -> GHC.SrcSpan
+  -> [PosToken]
+  -> Maybe GHC.SrcSpan -- Span for previous item, where there is one
+  -> GHC.SrcSpan       -- opening parenthesis of list
+  -> (Maybe DeltaPos, DeltaPos, Span)
+calcListOffsets isToken l toks pl pr = (mc,p,sp) `debug` ("calcListOffsets:(l,mc,p,sp,pr)=" ++ show (ss2span l,mc,p,sp,ss2span pr))
+  where
+    endPos = case findTrailing isToken l toks of
+      Nothing -> ss2posEnd l `debug` ("calcListOffsets:no next pos")
+      Just ss -> ss2pos ss   `debug` ("calcListOffsets:next=" ++ show (ss2span ss))
+    (mc,p,sp) = case findPreceding isToken l toks of
+      -- Nothing -> (Nothing, ss2delta (ss2posEnd pr) l, (ss2posEnd pr,ss2posEnd l))
+      Nothing -> (Nothing, DP (0,0),                  (ss2posEnd pr,endPos))
+      Just ss -> (Just lo, ss2delta (ss2posEnd ss) l, (ss2posEnd ss,endPos))
+                 where lp = maybe l id pl
+                       lo = (ss2delta (ss2posEnd lp) ss)
 
 -- ---------------------------------------------------------------------
 
@@ -258,7 +298,7 @@ annotateLMatch (GHC.L l (GHC.Match pats _typ (GHC.GRHSs grhs lb))) n isInfix cs 
     r = matchAnn ++ patsAnn ++ typAnn ++ rhsAnn ++ lbAnn
     matchAnn = [(l,[Ann lcs (DP (0,0)) (AnnMatch nPos n isInfix eqPos)])]
     lcs = [] -- `debug` ("annotateLMatch:" ++ show matchToks)
-     `debug` ("annotateLMatch:n" ++ show (GHC.isSymOcc $ GHC.rdrNameOcc n))
+     -- `debug` ("annotateLMatch:n" ++ show (GHC.isSymOcc $ GHC.rdrNameOcc n))
 
     (_,matchToks,_) = splitToksForSpan l toksIn
     nPos = if isInfix
@@ -301,10 +341,10 @@ gdrh :: { LGRHS RdrName }
 annotateLGRHS :: GHC.LGRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)
   -> [Comment] -> [PosToken]
   -> [(GHC.SrcSpan,[Annotation])]
-annotateLGRHS (GHC.L l (GHC.GRHS guards expr@(GHC.L le _))) cs toksIn = r  `debug` ("annotateLGRHS :l=" ++ show (ss2span l))
+annotateLGRHS (GHC.L l (GHC.GRHS guards expr@(GHC.L le _))) cs toksIn = r -- `debug` ("annotateLGRHS :l=" ++ show (ss2span l))
   where
     r = [(l,[Ann lcs (DP (0,0)) (AnnGRHS guardPos eqPos)])] ++ guardsAnn ++ exprAnn
-    lcs = [] `debug` ("annotateLGRHS:(guardPos,eqPos)=" ++ show (guardPos,eqPos))
+    lcs = [] -- `debug` ("annotateLGRHS:(guardPos,eqPos)=" ++ show (guardPos,eqPos))
     guardsAnn = concatMap (\g -> annotateLStmt g cs toksIn) guards
 
     (guardPos,eqPos) = case guards of
@@ -317,7 +357,7 @@ annotateLGRHS (GHC.L l (GHC.GRHS guards expr@(GHC.L le _))) cs toksIn = r  `debu
 -- ---------------------------------------------------------------------
 
 findTokenWrtPrior :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe DeltaPos
-findTokenWrtPrior isToken le toksIn = eqPos `debug` ("findTokenWrtPrior:" ++ show (ss2span le))
+findTokenWrtPrior isToken le toksIn = eqPos -- `debug` ("findTokenWrtPrior:" ++ show (ss2span le))
   where
     eqPos = case findTokenSrcSpan isToken le toksIn of
       Just eqSpan -> Just $ ss2delta pe eqSpan
@@ -418,15 +458,6 @@ annotateLTyClDecl (GHC.L l (GHC.DataDecl _ _ _ _)) cs toksIn pl = r
 
 -- ---------------------------------------------------------------------
 
-getListAnnInfo :: GHC.SrcSpan -> [Comment] -> [PosToken]
-  -> Maybe GHC.SrcSpan -> GHC.SrcSpan
-  -> (Maybe DeltaPos, DeltaPos, [DComment])
-getListAnnInfo l cs toks pl pr = (mc,p,lcs)
-  where (mc,p, sp) = calcListOffsets ghcIsComma l toks pl pr
-        lcs = localComments sp cs [] -- `debug` ("annotateLIE:sp=" ++ show sp )
-
--- ---------------------------------------------------------------------
-
 getListSpan :: [GHC.Located e] -> [Span]
 getListSpan [] = []
 getListSpan xs = [ss2span $ GHC.mkSrcSpan (GHC.srcSpanStart (GHC.getLoc (head xs)))
@@ -462,19 +493,6 @@ localComments (p,e) cs ds = r -- `debug` ("localComments:(p,ds,r):" ++ show (p,d
 
     isSubPos (subs,sube) (parents,parente)
       = parents <= subs && parente >= sube
-
--- ---------------------------------------------------------------------
-
-calcListOffsets ::(PosToken -> Bool) -> GHC.SrcSpan
-  -> [PosToken] -> Maybe GHC.SrcSpan -> GHC.SrcSpan
-  -> (Maybe DeltaPos, DeltaPos, Span)
-calcListOffsets isToken l toks pl pr = (mc,p,sp) -- `debug` ("calcListOffsets:(l,mc,p,sp,pr)=" ++ show (ss2span l,mc,p,sp,ss2span pr))
-  where
-    (mc,p,sp) = case findPreceding isToken l toks of
-      Nothing -> (Nothing, ss2delta (ss2posEnd pr) l, (ss2posEnd pr,ss2posEnd l))
-      Just ss -> (Just lo, ss2delta (ss2posEnd ss) l, (ss2posEnd lp,ss2posEnd l))
-                 where lp = maybe l id pl
-                       lo = (ss2delta (ss2posEnd lp) ss)
 
 -- ---------------------------------------------------------------------
 
@@ -532,6 +550,17 @@ findTrailingComma ss toks = r
     r = case filter ghcIsComma toksAfter of
       [] -> Nothing
       (t:_) -> Just (ss2delta (ss2pos ss) $ tokenSpan t)
+
+
+-- ---------------------------------------------------------------------
+
+findTrailing :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe GHC.SrcSpan
+findTrailing isToken ss toks = r
+  where
+    (_,_,toksAfter) = splitToksForSpan ss toks
+    r = case filter isToken toksAfter of
+      [] -> Nothing
+      (t:_) -> Just (tokenSpan t)
 
 
 -- ---------------------------------------------------------------------
