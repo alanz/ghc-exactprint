@@ -21,6 +21,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , undelta
   , undeltaComment
   , rdrName2String
+  , isSymbolRdrName
   ) where
 
 import Control.Exception
@@ -256,12 +257,20 @@ annotateLMatch (GHC.L l (GHC.Match pats _typ (GHC.GRHSs grhs lb))) n isInfix cs 
   where
     r = matchAnn ++ patsAnn ++ typAnn ++ rhsAnn ++ lbAnn
     matchAnn = [(l,[Ann lcs (DP (0,0)) (AnnMatch nPos n isInfix eqPos)])]
-    lcs = [] `debug` ("annotateLMatch:" ++ show matchToks)
+    lcs = [] -- `debug` ("annotateLMatch:" ++ show matchToks)
+     `debug` ("annotateLMatch:n" ++ show (GHC.isSymOcc $ GHC.rdrNameOcc n))
 
     (_,matchToks,_) = splitToksForSpan l toksIn
     nPos = if isInfix
              then fromJust $ findTokenWrtPrior ghcIsFunName ln matchToks
              else findDelta ghcIsFunName l matchToks (ss2pos l)
+
+{-
+Infix representations
+((((35,3),(35,4)),ITbackquote),"`"),((((35,4),(35,7)),ITvarid "ccc"),"ccc"),((((35,7),(35,8)),ITbackquote),"`")
+or
+((((37,3),(37,6)),ITvarsym "!@#"),"!@#")
+-}
 
     ln = GHC.mkSrcSpan (GHC.srcSpanEnd (GHC.getLoc (head pats)))
                        (GHC.srcSpanEnd l)
@@ -323,6 +332,10 @@ findTokenWrtPrior isToken le toksIn = eqPos `debug` ("findTokenWrtPrior:" ++ sho
 annotateLPat :: GHC.LPat GHC.RdrName
   -> [Comment] -> [PosToken]
   -> [(GHC.SrcSpan,[Annotation])]
+annotateLPat (GHC.L l (GHC.NPat ol _ _)) cs toksIn = r
+  where
+    r = annotateLHsExpr (GHC.L l (GHC.HsOverLit ol)) cs toksIn
+
 annotateLPat (GHC.L l _) cs toksIn = r
   where
     r = [(l,[Ann lcs (DP (0,0)) (AnnNone)])]
@@ -743,6 +756,9 @@ splitToksForSpan ss toks =
     (toks1,toks21,toks22)
 
 -- ---------------------------------------------------------------------
+
+isSymbolRdrName :: GHC.RdrName -> Bool
+isSymbolRdrName n = GHC.isSymOcc $ GHC.rdrNameOcc n
 
 rdrName2String :: GHC.RdrName -> String
 rdrName2String r =
