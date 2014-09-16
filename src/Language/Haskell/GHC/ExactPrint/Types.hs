@@ -69,7 +69,7 @@ data AnnSpecific =
     , mn_where  :: !DeltaPos -- where
     }
 
-  -- IE variants, *preceding* comma
+  -- IE variants, *trailing* comma
   | AnnIEVar      { ie_comma :: !(Maybe DeltaPos) }
   | AnnIEThingAbs { ie_comma :: !(Maybe DeltaPos) }
   | AnnIEThingAll

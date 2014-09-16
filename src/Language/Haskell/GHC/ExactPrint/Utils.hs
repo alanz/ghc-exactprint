@@ -199,6 +199,7 @@ annotateLIEs [x] cs toks pl pr                     = annotateLIE x  cs toks pl p
 annotateLIEs (x1@(GHC.L l1 _):x2:xs) cs toks pl pr = annotateLIE x1 cs toks pl pr
                                      ++ annotateLIEs (x2:xs) cs toks (Just l1) pr
 
+-- ---------------------------------------------------------------------
 
 -- This receives the toks for the entire exports section.
 -- So it can scan for the separating comma if required
@@ -234,7 +235,32 @@ calcListOffsets ::(PosToken -> Bool) -> GHC.SrcSpan
   -> (Maybe DeltaPos, DeltaPos, Span)
 calcListOffsets isToken l toks pl pr = (mc,p,sp) `debug` ("calcListOffsets:(l,mc,p,sp,pr)=" ++ show (ss2span l,mc,p,sp,ss2span pr))
   where
-    endPos = case findTrailing isToken l toks of
+    (endPos,mc) = case findTrailing isToken l toks of
+      Nothing -> (ss2posEnd l,Nothing) `debug` ("calcListOffsets:no next pos")
+      Just t  -> ((tokenPos t),mc') `debug` ("calcListOffsets:next=" ++ show (tokenPos t))
+        where mc' = if ghcIsComma t
+                      then Just (ss2delta (ss2pos l) (tokenSpan t))
+                      else Nothing
+    p = DP (0,0)
+    sp = (ss2pos l,endPos)
+{-
+    (mc,p,sp) = case findPreceding isToken l toks of
+      Nothing -> (Nothing, DP (0,0),                  (ss2posEnd pr,endPos))
+      Just ss -> (Just lo, ss2delta (ss2posEnd ss) l, (ss2posEnd ss,endPos))
+                 where lp = maybe l id pl
+                       lo = (ss2delta (ss2posEnd lp) ss)
+-}
+
+-- ---------------------------------------------------------------------
+
+calcListOffsetsPreceding ::(PosToken -> Bool) -> GHC.SrcSpan
+  -> [PosToken]
+  -> Maybe GHC.SrcSpan -- Span for previous item, where there is one
+  -> GHC.SrcSpan       -- opening parenthesis of list
+  -> (Maybe DeltaPos, DeltaPos, Span)
+calcListOffsetsPreceding isToken l toks pl pr = (mc,p,sp) `debug` ("calcListOffsets:(l,mc,p,sp,pr)=" ++ show (ss2span l,mc,p,sp,ss2span pr))
+  where
+    endPos = case findTrailingSrcSpan isToken l toks of
       Nothing -> ss2posEnd l `debug` ("calcListOffsets:no next pos")
       Just ss -> ss2pos ss   `debug` ("calcListOffsets:next=" ++ show (ss2span ss))
     (mc,p,sp) = case findPreceding isToken l toks of
@@ -554,13 +580,23 @@ findTrailingComma ss toks = r
 
 -- ---------------------------------------------------------------------
 
-findTrailing :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe GHC.SrcSpan
-findTrailing isToken ss toks = r
+findTrailingSrcSpan :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe GHC.SrcSpan
+findTrailingSrcSpan isToken ss toks = r
   where
     (_,_,toksAfter) = splitToksForSpan ss toks
     r = case filter isToken toksAfter of
       [] -> Nothing
       (t:_) -> Just (tokenSpan t)
+
+-- ---------------------------------------------------------------------
+
+findTrailing :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe PosToken
+findTrailing isToken ss toks = r
+  where
+    (_,_,toksAfter) = splitToksForSpan ss toks
+    r = case filter isToken toksAfter of
+      [] -> Nothing
+      (t:_) -> Just t
 
 
 -- ---------------------------------------------------------------------

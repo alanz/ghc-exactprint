@@ -182,7 +182,7 @@ mergeComments :: [DComment] -> EP ()
 mergeComments dcs = EP $ \l cs an ->
     let acs = map (undeltaComment l) dcs
         cs' = merge acs cs
-    in ((), l, cs', an, id)
+    in ((), l, cs', an, id) `debug` ("mergeComments:(l,acs)=" ++ show (l,acs))
 
 newLine :: EP ()
 newLine = do
@@ -308,7 +308,6 @@ printPoints l = printStrs . zip (srcInfoPoints l)
 printInterleaved :: (Annotated ast, SrcInfo loc, ExactP ast) => [(loc, String)] -> [ast] -> EP ()
 printInterleaved sistrs asts = printSeq $
     interleave (map (pos *** printString ) sistrs)
-           --  (map (pos . ann &&& exactP) asts)
                (map (pos . ann &&& exactP') asts)
   where
     exactP' ast = do
@@ -446,7 +445,6 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
 
   exactP ma (GHC.HsModule (Just lmn@(GHC.L l mn)) mexp imps decls deprecs haddock) = do
     mAnn <- getAnnotation l
-    -- p <- getPos -- starting position is bogus
     let p = (1,0)
     case mAnn of
       Just [(Ann cs _ (AnnModuleName pm _pn po pc pw))] -> do
@@ -478,17 +476,17 @@ instance ExactP (GHC.ModuleName) where
 instance ExactP (GHC.IE GHC.RdrName) where
   exactP ma (GHC.IEVar n) = do
     let Just [(Ann cs ll (AnnIEVar mc))] = ma
-    mergeComments cs
-    printStringAtMaybeDelta mc ","
     p <- getPos
-    printStringAtDelta ll (rdrName2String n) `debug` ("exactP LIE.Var:(mc,ll,p)=" ++ show (mc,ll,p))
+    mergeComments cs  `debug` ("exactP LIE.Var:(mc,ll,p,cs)=" ++ show (mc,ll,p,cs))
+    printStringAtDelta ll (rdrName2String n)
+    printStringAtMaybeDelta mc ","
     return ()
 
   exactP ma (GHC.IEThingAbs n) = do
     let Just [(Ann cs ll (AnnIEThingAbs mc))] = ma -- `debug` ("blah:" ++ show ma)
-    mergeComments cs
+    mergeComments cs `debug` ("exactP LIE.ThingAbs:(mc,ll,cs)=" ++ show (mc,ll,cs))
+    printStringAtDelta ll (rdrName2String n)
     printStringAtMaybeDelta mc ","
-    printStringAtDelta ll (rdrName2String n) `debug` ("exactP LIE.ThingAbs:(mc,ll)=" ++ show (mc,ll))
     return ()
 
   exactP ma _ = printString ("no exactP for " ++ show (ma))
