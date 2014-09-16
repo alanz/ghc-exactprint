@@ -441,7 +441,7 @@ class ExactP ast where
 instance ExactP (GHC.HsModule GHC.RdrName) where
   exactP ma (GHC.HsModule Nothing exps imps decls deprecs haddock) = do
     printSeq $ map (pos . ann &&& exactPC) decls
-    printString "foo"
+    -- printString "foo"
 
   exactP ma (GHC.HsModule (Just lmn@(GHC.L l mn)) mexp imps decls deprecs haddock) = do
     mAnn <- getAnnotation l
@@ -463,7 +463,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
       _ -> return ()
 
     printSeq $ map (pos . ann &&& exactPC) decls
-    printString "foo"
+    -- printString "foo"
 
 -- ---------------------------------------------------------------------
 
@@ -521,7 +521,7 @@ doMaybe ma f = case ma of
 
 instance ExactP (GHC.HsDecl GHC.RdrName) where
   exactP ma decl = case decl of
-    GHC.TyClD d -> printString "TyCld"
+    GHC.TyClD d -> exactP ma d
     GHC.InstD d -> printString "InstD"
     GHC.DerivD d -> printString "DerivD"
     GHC.ValD d -> exactP ma d
@@ -666,13 +666,39 @@ data HsLit
 
 
 
+instance ExactP (GHC.TyClDecl GHC.RdrName) where
+  exactP ma (GHC.ForeignType _ _)    = printString "ForeignType"
+  exactP ma (GHC.FamDecl  _)         = printString "FamDecl"
+  exactP ma (GHC.SynDecl  _ _ _ _)   = printString "SynDecl"
+
+  exactP ma (GHC.DataDecl  ln (GHC.HsQTvs ns tyVars) defn _) = do
+    printString "data"
+    exactPC ln
+    mapM_ exactPC tyVars
+    exactP ma defn
+    -- printString "DataDecl"
 
 
+  exactP ma (GHC.ClassDecl  _ _ _ _ _ _ _ _ _ _) = printString "ClassDecl"
 
+-- ---------------------------------------------------------------------
 
+instance ExactP (GHC.HsTyVarBndr GHC.RdrName) where
+  exactP _ _ = printString "HsTyVarBndr"
 
+-- ---------------------------------------------------------------------
 
+instance ExactP (GHC.HsDataDefn GHC.RdrName) where
+  exactP _ (GHC.HsDataDefn nOrD ctx mtyp mkind cons mderivs) = do
+    mapM_ exactPC cons
+    -- printString "HsDataDefn"
 
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.ConDecl GHC.RdrName) where
+  exactP _ (GHC.ConDecl ln exp qvars ctx dets res _ _) = do
+    exactPC ln
+    -- printString "ConDecl"
 
 -- ---------------------------------------------------------------------
 

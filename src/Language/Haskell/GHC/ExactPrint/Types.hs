@@ -89,6 +89,7 @@ IEGroup Int HsDocString
 IEDoc HsDocString
 IEDocNamed String
 
+
 -}
 
   | AnnImportDecl
@@ -135,6 +136,12 @@ IEDocNamed String
 
   -- StmtLR
   | AnnStmtLR {}
+
+
+  -- Data declarations
+  | AnnHsDataDefn { dd_equal :: !DeltaPos }
+  | AnnHsConDecl  { cs_vbar  :: !(Maybe DeltaPos) }
+
 
   | AnnNone
   deriving (Show)
