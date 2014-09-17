@@ -56,8 +56,79 @@ debug = flip trace
 
 -- ---------------------------------------------------------------------
 
+annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName)
+  -> [Comment] -> [PosToken]
+  -> [(GHC.SrcSpan,[Annotation])]
+annotateLHsModule modu cs toks = annotate modu cs toks
+
+-- ---------------------------------------------------------------------
+
+-- TODO: mirror the EP monad structure
+class Annotate a where
+
+  -- |Generate an annotation for @a@ and all its subelements
+  annotate :: a
+    -> [Comment] -> [PosToken]
+    -> [(GHC.SrcSpan,[Annotation])]
+
+instance Annotate (GHC.Located (GHC.HsModule GHC.RdrName)) where
+  annotate (GHC.L lm (GHC.HsModule mmn mexp imps decs _depr _haddock)) cs toks = r
+            `debug` ("annotateLHsModule:(lm,lpo,lastTok,secondLastTok)="
+               ++ show (lm,lpo,lastTok,secondLastTok,take 5 $ reverse toks))
+    where
+      r = [(lm,[Ann [] (DP (0,0)) (AnnHsModule lpo)])]
+          ++ headerAnn ++ impsAnn ++ declsAnn
+      pos = ss2pos lm  -- start of the syntax fragment
+      infiniteSpan = ((1,1),(99999999,0)) -- lm is a single char span
+      moduleTok = head $ filter ghcIsModule toks
+      whereTok  = head $ filter ghcIsWhere  toks
+      headerAnn = case mmn of
+        Nothing -> []
+        Just (GHC.L l _mn) -> (l,[Ann lcs (DP (0,0)) annSpecific]):aexps
+          where
+            lcs = localComments infiniteSpan cs (expSpan ++ impSpan ++ decsSpan)
+            expSpan = case mexp of
+              Nothing -> []
+              Just _ -> [(undelta pos opPos,snd cpSpan)]
+
+            impSpan  = getListSpans imps
+            decsSpan = getListSpan decs
+
+            annSpecific = AnnModuleName mPos mnPos opPos cpPos wherePos
+            mPos  = ss2delta pos $ tokenSpan moduleTok
+            mnPos = ss2delta pos l
+            wherePos = ss2delta pos $ tokenSpan whereTok
+            (opPos,cpPos,aexps,cpSpan) = case mexp of
+              Nothing -> (DP (0,0), DP (0,0),[], ((0,0),(0,0)) )
+              Just exps -> (opPos',cpPos',aexps',cpSpan')
+                where
+                  opTok = head $ filter ghcIsOParen toks
+                  (toksE,cpRel) = case exps of
+                    [] -> (toks,pos)
+                    _ -> let (_,etoks,_) = splitToks ((tokenSpan opTok),
+                                                      (tokenSpan cpTok)) toks
+                         in (etoks ++ [cpTok],ss2posEnd $ GHC.getLoc (last exps))
+                  cpTok   = head $ filter ghcIsCParen toks
+                  opPos'  = ss2delta pos   $ tokenSpan opTok
+                  cpPos'  = ss2delta cpRel $ tokenSpan cpTok
+                  cpSpan' = ss2span $ tokenSpan cpTok
+                  aexps'  = annotate exps cs toksE
+
+      impsAnn  = annotate imps cs toks
+      declsAnn = annotate decs cs toks
+
+      lpo = ss2delta (ss2posEnd $ tokenSpan secondLastTok) (tokenSpan lastTok)
+      secondLastTok = head $ dropWhile ghcIsComment $ tail $ reverse toks
+      lastTok       = last toks
+
+instance (Annotate a) => Annotate [a] where
+  annotate asts cs toks = concatMap (\ast -> annotate ast cs toks) asts
+
+-- ---------------------------------------------------------------------
+
 -- TODO: turn this into a class.
 -- TODO: distribute comments as per hindent
+{-
 annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName)
   -> [Comment] -> [PosToken]
   -> [(GHC.SrcSpan,[Annotation])]
@@ -104,67 +175,67 @@ annotateLHsModule (GHC.L lm (GHC.HsModule mmn mexp imps decs depr haddock)) cs t
                 aexps'  = annotateLIEs exps cs toksE
                         -- `debug` ("annotateLHsModule:toksE=" ++ show toksE)
 
-    impsAnn  = annotateLImportDecls imps cs toks Nothing
+    impsAnn  = annotateLImportDecls imps cs toks
     declsAnn = annotateLHsDecls     decs cs toks
 
     lpo = ss2delta (ss2posEnd $ tokenSpan secondLastTok) (tokenSpan lastTok)
     secondLastTok = head $ dropWhile ghcIsComment $ tail $ reverse toks
     lastTok       = last toks
+-}
 
 -- ---------------------------------------------------------------------
-
+{-
 annotateLImportDecls :: [(GHC.LImportDecl GHC.RdrName)]
-  -> [Comment] -> [PosToken] -> Maybe GHC.SrcSpan -> [(GHC.SrcSpan,[Annotation])]
-annotateLImportDecls [] _ _ _ = []
-annotateLImportDecls [x] cs toks pl = annotateLImportDecl x cs toks pl
-annotateLImportDecls (x1@(GHC.L l1 _):x2:xs) cs toks pl =
-   annotateLImportDecl x1 cs toks pl ++ annotateLImportDecls (x2:xs) cs toks (Just l1)
+  -> [Comment] -> [PosToken] -> [(GHC.SrcSpan,[Annotation])]
+annotateLImportDecls [] _ _ = []
+annotateLImportDecls (x:xs) cs toks =
+   annotateLImportDecl x cs toks ++ annotateLImportDecls xs cs toks
+-}
 
-annotateLImportDecl :: (GHC.LImportDecl GHC.RdrName) -> [Comment] -> [PosToken]
-  -> Maybe GHC.SrcSpan -> [(GHC.SrcSpan,[Annotation])]
-annotateLImportDecl (GHC.L l (GHC.ImportDecl (GHC.L ln _) _pkg src safe qual impl as hiding)) cs toksIn pl = r
-  where
-    r = [(l,[Ann lcs impPos annSpecific])] ++ aimps
-    annSpecific = AnnImportDecl impPos Nothing Nothing mqual mas maspos mhiding opPos cpPos
-    p = ss2pos l
-    (_,toks,_) = splitToksForSpan l toksIn
-    impPos = findPrecedingDelta ghcIsImport ln toks p
+instance Annotate (GHC.LImportDecl GHC.RdrName) where
+  annotate (GHC.L l (GHC.ImportDecl (GHC.L ln _) _pkg _src _safe qual _impl as hiding)) cs toksIn = r
+    where
+      r = [(l,[Ann lcs impPos annSpecific])] ++ aimps
+      annSpecific = AnnImportDecl impPos Nothing Nothing mqual mas maspos mhiding opPos cpPos
+      p = ss2pos l
+      (_,toks,_) = splitToksForSpan l toksIn
+      impPos = findPrecedingDelta ghcIsImport ln toks p
 
-    mqual = if qual
-              then Just (findPrecedingDelta ghcIsQualified ln toks p)
-              else Nothing
+      mqual = if qual
+                then Just (findPrecedingDelta ghcIsQualified ln toks p)
+                else Nothing
 
-    (mas,maspos) = case as of
-      Nothing -> (Nothing,Nothing)
-      Just _  -> (Just (findDelta ghcIsAs l toks p),asp)
-        where
-           (_,middle,_) = splitToksForSpan l toks
-           asp = case filter ghcIsAnyConid (reverse middle) of
-             [] -> Nothing
-             (t:_) -> Just (ss2delta (ss2pos l) $ tokenSpan t)
+      (mas,maspos) = case as of
+        Nothing -> (Nothing,Nothing)
+        Just _  -> (Just (findDelta ghcIsAs l toks p),asp)
+          where
+             (_,middle,_) = splitToksForSpan l toks
+             asp = case filter ghcIsAnyConid (reverse middle) of
+               [] -> Nothing
+               (t:_) -> Just (ss2delta (ss2pos l) $ tokenSpan t)
 
-    mhiding = case hiding of
-      Nothing -> Nothing
-      Just (True, _)  -> Just (findDelta ghcIsHiding l toks p)
-      Just (False,_)  -> Nothing
+      mhiding = case hiding of
+        Nothing -> Nothing
+        Just (True, _)  -> Just (findDelta ghcIsHiding l toks p)
+        Just (False,_)  -> Nothing
 
-    (aimps,opPos,cpPos) = case hiding of
-      Nothing -> ([],Nothing,Nothing)
-      Just (_,ies) -> (annotateLIEs ies cs toksI,opPos',cpPos')
-        where
-          opTok = head $ filter ghcIsOParen toks
-          cpTok = head $ filter ghcIsCParen toks
-          opPos' = Just $ ss2delta p     $ tokenSpan opTok
-          cpPos' = Just $ ss2delta cpRel $ tokenSpan cpTok
-          (toksI,toksRest,cpRel) = case ies of
-            [] -> (toks,toks,ss2posEnd $ tokenSpan opTok)
-            _ -> let (_,etoks,ts) = splitToks (GHC.getLoc (head ies),
-                                               GHC.getLoc (last ies)) toks
-                 in (etoks,ts,ss2posEnd $ GHC.getLoc (last ies))
+      (aimps,opPos,cpPos) = case hiding of
+        Nothing -> ([],Nothing,Nothing)
+        Just (_,ies) -> (annotate ies cs toksI,opPos',cpPos')
+          where
+            opTok = head $ filter ghcIsOParen toks
+            cpTok = head $ filter ghcIsCParen toks
+            opPos' = Just $ ss2delta p     $ tokenSpan opTok
+            cpPos' = Just $ ss2delta cpRel $ tokenSpan cpTok
+            (toksI,toksRest,cpRel) = case ies of
+              [] -> (toks,toks,ss2posEnd $ tokenSpan opTok)
+              _ -> let (_,etoks,ts) = splitToks (GHC.getLoc (head ies),
+                                                 GHC.getLoc (last ies)) toks
+                   in (etoks,ts,ss2posEnd $ GHC.getLoc (last ies))
 
 
-    subs = []
-    lcs = localComments (ss2span l) cs subs
+      subs = []
+      lcs = localComments (ss2span l) cs subs
 
 {-
 ideclName :: Located ModuleName
@@ -194,29 +265,26 @@ ideclHiding :: Maybe (Bool, [LIE name])
 -}
 
 -- ---------------------------------------------------------------------
-
+{-
 annotateLIEs :: [GHC.LIE GHC.RdrName]
   -> [Comment] -> [PosToken]
   -> [(GHC.SrcSpan, [Annotation])]
 annotateLIEs [ ]    _  _    = []
 annotateLIEs (x:xs) cs toks = annotateLIE   x cs toks
                            ++ annotateLIEs xs cs toks
-
+-}
 -- ---------------------------------------------------------------------
 
--- This receives the toks for the entire exports section.
--- So it can scan for the separating comma if required
-annotateLIE :: GHC.LIE GHC.RdrName
-  -> [Comment] -> [PosToken]
-  -> [(GHC.SrcSpan,[Annotation])]
+instance Annotate (GHC.LIE GHC.RdrName) where
+  -- This receives the toks for the entire exports section.
+  -- So it can scan for the separating comma if required
+  annotate (GHC.L l (GHC.IEVar _))     cs toks = [(l,[Ann lcs p (AnnIEVar mc)])]
+    where (mc, p, lcs) = getListAnnInfo l ghcIsComma ghcIsCParen cs toks
 
-annotateLIE (GHC.L l (GHC.IEVar _))     cs toks = [(l,[Ann lcs p (AnnIEVar mc)])]
-  where (mc, p, lcs) = getListAnnInfo l ghcIsComma ghcIsCParen cs toks
+  annotate (GHC.L l (GHC.IEThingAbs _)) cs toks = [(l,[Ann lcs p (AnnIEThingAbs mc)])]
+    where (mc, p, lcs) = getListAnnInfo l ghcIsComma ghcIsCParen cs toks
 
-annotateLIE (GHC.L l (GHC.IEThingAbs _)) cs toks = [(l,[Ann lcs p (AnnIEThingAbs mc)])]
-  where (mc, p, lcs) = getListAnnInfo l ghcIsComma ghcIsCParen cs toks
-
-annotateLIE (GHC.L l (_)) cs toks = assert False undefined
+  annotate (GHC.L l (_)) cs toks = assert False undefined
 
 -- ---------------------------------------------------------------------
 
@@ -271,47 +339,45 @@ calcListOffsetsPreceding isToken l toks pl pr = (mc,p,sp) `debug` ("calcListOffs
 
 -- ---------------------------------------------------------------------
 
+{-
 annotateLHsDecls :: [(GHC.LHsDecl GHC.RdrName)]
   -> [Comment] -> [PosToken]
   -> [(GHC.SrcSpan,[Annotation])]
 annotateLHsDecls [] _ _ = []
 annotateLHsDecls (x:xs) cs toks = annotateLHsDecl x cs toks ++ annotateLHsDecls xs cs toks
+-}
 
-annotateLHsDecl :: (GHC.LHsDecl GHC.RdrName)
-  -> [Comment] -> [PosToken]
-  -> [(GHC.SrcSpan,[Annotation])]
-annotateLHsDecl (GHC.L l decl) cs toksIn =
- case decl of
-    GHC.TyClD d -> annotateLTyClDecl (GHC.L l d) cs toksIn
-    GHC.InstD d -> error $ "annotateLHsDecl:unimplemented " ++ "InstD"
-    GHC.DerivD d -> error $ "annotateLHsDecl:unimplemented " ++ "DerivD"
-    GHC.ValD d -> annotateLHsBind (GHC.L l d) cs toksIn
-    GHC.SigD d -> error $ "annotateLHsDecl:unimplemented " ++ "SigD"
-    GHC.DefD d -> error $ "annotateLHsDecl:unimplemented " ++ "DefD"
-    GHC.ForD d -> error $ "annotateLHsDecl:unimplemented " ++ "ForD"
-    GHC.WarningD d -> error $ "annotateLHsDecl:unimplemented " ++ "WarningD"
-    GHC.AnnD d -> error $ "annotateLHsDecl:unimplemented " ++ "AnnD"
-    GHC.RuleD d -> error $ "annotateLHsDecl:unimplemented " ++ "RuleD"
-    GHC.VectD d -> error $ "annotateLHsDecl:unimplemented " ++ "VectD"
-    GHC.SpliceD d -> error $ "annotateLHsDecl:unimplemented " ++ "SpliceD"
-    GHC.DocD d -> error $ "annotateLHsDecl:unimplemented " ++ "DocD"
-    GHC.QuasiQuoteD d -> error $ "annotateLHsDecl:unimplemented " ++ "QuasiQuoteD"
-    GHC.RoleAnnotD d -> error $ "annotateLHsDecl:unimplemented " ++ "RoleAnnotD"
+instance Annotate (GHC.LHsDecl GHC.RdrName) where
+  annotate (GHC.L l decl) cs toksIn =
+   case decl of
+      GHC.TyClD d -> annotateLTyClDecl (GHC.L l d) cs toksIn
+      GHC.InstD d -> error $ "annotateLHsDecl:unimplemented " ++ "InstD"
+      GHC.DerivD d -> error $ "annotateLHsDecl:unimplemented " ++ "DerivD"
+      GHC.ValD d -> annotate (GHC.L l d) cs toksIn
+      GHC.SigD d -> error $ "annotateLHsDecl:unimplemented " ++ "SigD"
+      GHC.DefD d -> error $ "annotateLHsDecl:unimplemented " ++ "DefD"
+      GHC.ForD d -> error $ "annotateLHsDecl:unimplemented " ++ "ForD"
+      GHC.WarningD d -> error $ "annotateLHsDecl:unimplemented " ++ "WarningD"
+      GHC.AnnD d -> error $ "annotateLHsDecl:unimplemented " ++ "AnnD"
+      GHC.RuleD d -> error $ "annotateLHsDecl:unimplemented " ++ "RuleD"
+      GHC.VectD d -> error $ "annotateLHsDecl:unimplemented " ++ "VectD"
+      GHC.SpliceD d -> error $ "annotateLHsDecl:unimplemented " ++ "SpliceD"
+      GHC.DocD d -> error $ "annotateLHsDecl:unimplemented " ++ "DocD"
+      GHC.QuasiQuoteD d -> error $ "annotateLHsDecl:unimplemented " ++ "QuasiQuoteD"
+      GHC.RoleAnnotD d -> error $ "annotateLHsDecl:unimplemented " ++ "RoleAnnotD"
 
-  where
-    r = assert False undefined
+    where
+      r = assert False undefined
 
 -- ---------------------------------------------------------------------
 
-annotateLHsBind :: GHC.LHsBindLR GHC.RdrName GHC.RdrName
-  -> [Comment] -> [PosToken]
-  -> [(GHC.SrcSpan,[Annotation])]
-annotateLHsBind (GHC.L l (GHC.FunBind (GHC.L _ n) isInfix (GHC.MG matches _ _ _) _ _ _)) cs toksIn = r
-  where
-    r = [(l,[Ann lcs p AnnFunBind])] ++ matchesAnn
-    lcs = []
-    p = DP (0,0)
-    matchesAnn = concatMap (\m -> annotateLMatch m n isInfix cs toksIn) matches
+instance Annotate (GHC.LHsBindLR GHC.RdrName GHC.RdrName) where
+  annotate (GHC.L l (GHC.FunBind (GHC.L _ n) isInfix (GHC.MG matches _ _ _) _ _ _)) cs toksIn = r
+    where
+      r = [(l,[Ann lcs p AnnFunBind])] ++ matchesAnn
+      lcs = []
+      p = DP (0,0)
+      matchesAnn = concatMap (\m -> annotateLMatch m n isInfix cs toksIn) matches
 
 -- ---------------------------------------------------------------------
 
@@ -421,7 +487,8 @@ annotateHsLocalBinds :: (GHC.HsLocalBinds GHC.RdrName)
 annotateHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) cs toksIn = r -- `debug` ("annotateHsLocalBinds")
   where
     r = bindsAnn ++ sigsAnn
-    bindsAnn = concatMap (\b -> annotateLHsBind b cs toksIn) $ GHC.bagToList binds
+    -- bindsAnn = concatMap (\b -> annotate b cs toksIn) $ GHC.bagToList binds
+    bindsAnn = annotate (GHC.bagToList binds) cs toksIn
     sigsAnn = []
 annotateHsLocalBinds (GHC.HsValBinds _) _ _ = assert False undefined
 annotateHsLocalBinds (GHC.HsIPBinds vb) _ _ = assert False undefined
@@ -458,6 +525,7 @@ annotateLHsExpr (GHC.L l (GHC.HsLet lb expr)) cs toksIn = r `debug` ("annotateLH
     letPos = Just $ ss2delta p letp
     inPos  = Just $ ss2delta p inp
 
+    -- lbAnn = annotateHsLocalBinds lb cs toksIn
     lbAnn = annotateHsLocalBinds lb cs toksIn
     exprAnn = annotateLHsExpr expr cs toksIn
 
