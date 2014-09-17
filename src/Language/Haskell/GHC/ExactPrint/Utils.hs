@@ -24,6 +24,8 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , isSymbolRdrName
   ) where
 
+import Control.Applicative (Applicative(..))
+import Control.Monad (when, liftM, ap)
 import Control.Exception
 import Data.List.Utils
 import Data.Maybe
@@ -53,6 +55,44 @@ import Debug.Trace
 
 debug :: c -> String -> c
 debug = flip trace
+
+-- ---------------------------------------------------------------------
+
+newtype AP x = AP (Pos -> [Comment] -> [PosToken]
+        -> (x, Pos, [Comment], [PosToken], [(GHC.SrcSpan,[Annotation])]))
+
+instance Functor AP where
+  fmap = liftM
+
+instance Applicative AP where
+  pure = return
+  (<*>) = ap
+
+instance Monad AP where
+  return x = AP $ \l cs toks -> (x, l, cs, toks, [])
+
+  AP m >>= k = AP $ \l0 c0 toks0 -> let
+        (a, l1, c1, toks1, s1) = m l0 c0 toks0
+        AP f = k a
+        (b, l2, c2, toks2, s2) = f l1 c1 toks1
+    in (b, l2, c2, toks2, s1 ++ s2)
+
+runAP :: AP () -> [Comment] -> [PosToken] -> Anns
+runAP (AP f) cs toks = let (_,_,_,_,s) = f (1,1) cs toks in Map.fromListWith (++) s
+
+
+getComments :: AP [Comment]
+getComments = AP (\l cs toks -> (cs,l,cs,toks,[]))
+
+setComments :: [Comment] -> AP ()
+setComments cs = AP (\l _ toks -> ((),l,cs,toks,[]))
+
+
+getToks :: AP [PosToken]
+getToks = AP (\l cs toks -> (toks,l,cs,toks,[]))
+
+setToks :: [PosToken] -> AP ()
+setToks toks = AP (\l cs _ -> ((),l,cs,toks,[]))
 
 -- ---------------------------------------------------------------------
 
