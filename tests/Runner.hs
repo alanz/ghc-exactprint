@@ -104,9 +104,9 @@ manipulateAstTest sources = testGroup "Exact printer tests" $ do
         printed = exactPrintAnnotation parsed [] ann
         result =
                 if printed == contents
-                  then "Match"
+                  then "Match\n"
                   else printed ++ "\n==============\n" ++ parsedAST
-      writeBinaryFile out $ result ++ "\n"
+      writeBinaryFile out $ result
   return $ goldenVsFile (takeBaseName file) golden out run
 -- }}}
 

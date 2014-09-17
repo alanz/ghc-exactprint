@@ -430,6 +430,16 @@ isAnnStmtLR an = case an of
   (Ann _ _ (AnnStmtLR {})) -> True
   _                        -> False
 
+isAnnDataDecl :: Annotation -> Bool
+isAnnDataDecl an = case an of
+  (Ann _ _ (AnnDataDecl {})) -> True
+  _                          -> False
+
+isAnnConDecl :: Annotation -> Bool
+isAnnConDecl an = case an of
+  (Ann _ _ (AnnConDecl {})) -> True
+  _                         -> False
+
 --------------------------------------------------
 -- Exact printing for GHC
 
@@ -440,12 +450,19 @@ class ExactP ast where
 
 instance ExactP (GHC.HsModule GHC.RdrName) where
   exactP ma (GHC.HsModule Nothing exps imps decls deprecs haddock) = do
+    let Just [Ann _ _ (AnnHsModule ep)] = ma
     printSeq $ map (pos . ann &&& exactPC) decls
-    -- printString "foo"
+
+    -- put the end of file whitespace in
+    pe <- getPos
+    padUntil (undelta pe ep)
+    printString ""
 
   exactP ma (GHC.HsModule (Just lmn@(GHC.L l mn)) mexp imps decls deprecs haddock) = do
+    let Just [Ann _ _ (AnnHsModule ep)] = ma
+
     mAnn <- getAnnotation l
-    let p = (1,0)
+    let p = (1,1)
     case mAnn of
       Just [(Ann cs _ (AnnModuleName pm _pn po pc pw))] -> do
         mergeComments cs -- TODO: make this part of getAnnotation, or perhaps activateAnnotation
@@ -463,7 +480,11 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
       _ -> return ()
 
     printSeq $ map (pos . ann &&& exactPC) decls
-    -- printString "foo"
+
+    -- put the end of file whitespace in
+    pe <- getPos
+    padUntil (undelta pe ep)
+    printString ""
 
 -- ---------------------------------------------------------------------
 
@@ -671,12 +692,13 @@ instance ExactP (GHC.TyClDecl GHC.RdrName) where
   exactP ma (GHC.FamDecl  _)         = printString "FamDecl"
   exactP ma (GHC.SynDecl  _ _ _ _)   = printString "SynDecl"
 
-  exactP ma (GHC.DataDecl  ln (GHC.HsQTvs ns tyVars) defn _) = do
+  exactP ma (GHC.DataDecl ln (GHC.HsQTvs ns tyVars) defn _) = do
+    let [(Ann lcs p (AnnDataDecl eqDelta))] = getAnn isAnnDataDecl ma
     printString "data"
     exactPC ln
+    printStringAtDelta eqDelta "="
     mapM_ exactPC tyVars
     exactP ma defn
-    -- printString "DataDecl"
 
 
   exactP ma (GHC.ClassDecl  _ _ _ _ _ _ _ _ _ _) = printString "ClassDecl"
@@ -691,14 +713,15 @@ instance ExactP (GHC.HsTyVarBndr GHC.RdrName) where
 instance ExactP (GHC.HsDataDefn GHC.RdrName) where
   exactP _ (GHC.HsDataDefn nOrD ctx mtyp mkind cons mderivs) = do
     mapM_ exactPC cons
-    -- printString "HsDataDefn"
 
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.ConDecl GHC.RdrName) where
-  exactP _ (GHC.ConDecl ln exp qvars ctx dets res _ _) = do
+  exactP ma (GHC.ConDecl ln exp qvars ctx dets res _ _) = do
+    let [(Ann lcs p (AnnConDecl mp))] = getAnn isAnnConDecl ma
     exactPC ln
-    -- printString "ConDecl"
+    printStringAtMaybeDelta mp "|"
+
 
 -- ---------------------------------------------------------------------
 

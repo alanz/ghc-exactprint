@@ -61,7 +61,9 @@ data Annotation = Ann
   } deriving (Show)
 
 data AnnSpecific =
-  AnnModuleName
+   AnnHsModule { m_fileEnd :: !DeltaPos }
+
+ | AnnModuleName
     { mn_module :: !DeltaPos -- module
     , mn_name   :: !DeltaPos -- Language.Haskell.GHC.Types
     , mn_op     :: !DeltaPos -- '('
@@ -120,10 +122,6 @@ IEDocNamed String
      , match_eq    :: !(Maybe DeltaPos)
      }
 
-  -- TyClDecl
-  | AnnDataDecl {}
-
-
   -- HsOverLit, must keep the exact original string used
   | AnnOverLit { ol_str :: !String }
 
@@ -138,9 +136,10 @@ IEDocNamed String
   | AnnStmtLR {}
 
 
-  -- Data declarations
-  | AnnHsDataDefn { dd_equal :: !DeltaPos }
-  | AnnHsConDecl  { cs_vbar  :: !(Maybe DeltaPos) }
+  -- TyClDecl
+  --  Data declarations
+  | AnnDataDecl { dd_equal :: !DeltaPos }
+  | AnnConDecl  { cs_mvbar  :: !(Maybe DeltaPos) }
 
 
   | AnnNone

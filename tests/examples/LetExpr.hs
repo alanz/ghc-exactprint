@@ -5,6 +5,7 @@
   module {- blah -}  Layout.LetExpr ( foo -- foo does ..
                                     , bar -- bar does ..
                                     , Baz -- baz does ..
+                                    , bbb ,  aaa
                                     )
     where
 
