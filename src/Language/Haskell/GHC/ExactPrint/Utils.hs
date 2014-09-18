@@ -4,6 +4,7 @@
 module Language.Haskell.GHC.ExactPrint.Utils
   (
     annotateLHsModule
+  , annotateLHsModule'
 
   , ghcIsWhere
   , ghcIsLet
@@ -27,6 +28,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
 import Control.Applicative (Applicative(..))
 import Control.Monad (when, liftM, ap)
 import Control.Exception
+import Data.List
 import Data.List.Utils
 import Data.Maybe
 
@@ -58,8 +60,15 @@ debug = flip trace
 
 -- ---------------------------------------------------------------------
 
-newtype AP x = AP (Pos -> [Comment] -> [PosToken]
-        -> (x, Pos, [Comment], [PosToken], [(GHC.SrcSpan,[Annotation])]))
+-- | Type used in the AP Monad. The state variables maintain a stack
+-- of SrcSpans to the root of the AST as it is traversed, the comment
+-- stream that has not yet been allocated to annotations, and the
+-- tokens.
+-- TODO: should the tokens be limited according to the current SrcSpan?
+
+newtype AP x = AP ([GHC.SrcSpan] -> [[GHC.SrcSpan]] -> [Comment] -> [PosToken]
+            -> (x, [GHC.SrcSpan],   [[GHC.SrcSpan]],   [Comment],   [PosToken],
+                  [(GHC.SrcSpan,[Annotation])]))
 
 instance Functor AP where
   fmap = liftM
@@ -69,30 +78,82 @@ instance Applicative AP where
   (<*>) = ap
 
 instance Monad AP where
-  return x = AP $ \l cs toks -> (x, l, cs, toks, [])
+  return x = AP $ \l ss cs toks -> (x, l, ss, cs, toks, [])
 
-  AP m >>= k = AP $ \l0 c0 toks0 -> let
-        (a, l1, c1, toks1, s1) = m l0 c0 toks0
+  AP m >>= k = AP $ \l0 ss0 c0 toks0 -> let
+        (a, l1, ss1, c1, toks1, s1) = m l0 ss0 c0 toks0
         AP f = k a
-        (b, l2, c2, toks2, s2) = f l1 c1 toks1
-    in (b, l2, c2, toks2, s1 ++ s2)
+        (b, l2, ss2, c2, toks2, s2) = f l1 ss1 c1 toks1
+    in (b, l2, ss2, c2, toks2, s1 ++ s2)
 
 runAP :: AP () -> [Comment] -> [PosToken] -> Anns
-runAP (AP f) cs toks = let (_,_,_,_,s) = f (1,1) cs toks in Map.fromListWith (++) s
+runAP (AP f) cs toks = let (_,_,_,_,_,s) = f [] [] cs toks in Map.fromListWith (++) s
 
+-- -------------------------------------
+
+-- |Note: assumes the SrcSpan stack is nonempty
+getSrcSpan :: AP GHC.SrcSpan
+getSrcSpan = AP (\l ss cs toks -> (head l,l,ss,cs,toks,[]))
+
+pushSrcSpan :: GHC.SrcSpan -> AP ()
+pushSrcSpan l = AP (\ls ss cs toks -> ((),l:ls,[]:ss,cs,toks,[]))
+
+popSrcSpan :: AP ()
+popSrcSpan = AP (\(l:ls) (s:ss) cs toks -> ((),ls,ss,cs,toks,[]))
+
+getSubSpans :: AP [Span]
+getSubSpans= AP (\l (s:ss) cs toks -> (map ss2span s,l,s:ss,cs,toks,[]))
+
+-- -------------------------------------
 
 getComments :: AP [Comment]
-getComments = AP (\l cs toks -> (cs,l,cs,toks,[]))
+getComments = AP (\l ss cs toks -> (cs,l,ss,cs,toks,[]))
 
 setComments :: [Comment] -> AP ()
-setComments cs = AP (\l _ toks -> ((),l,cs,toks,[]))
+setComments cs = AP (\l ss _ toks -> ((),l,ss,cs,toks,[]))
 
+-- -------------------------------------
 
 getToks :: AP [PosToken]
-getToks = AP (\l cs toks -> (toks,l,cs,toks,[]))
+getToks = AP (\l ss cs toks -> (toks,l,ss,cs,toks,[]))
 
 setToks :: [PosToken] -> AP ()
-setToks toks = AP (\l cs _ -> ((),l,cs,toks,[]))
+setToks toks = AP (\l ss cs _ -> ((),l,ss,cs,toks,[]))
+
+-- -------------------------------------
+
+-- |Add some annotation to the currently active SrcSpan
+addAnnotions :: [Annotation] -> AP ()
+addAnnotions anns = AP (\l (h:r) cs toks -> ( (),l,(head l:h):r,cs,toks,[(head l,anns)]) )
+    -- Insert the span into the current head of the list of spans at this level
+
+-- -------------------------------------
+
+-- | Enter a new AST element. Maintain SrcSpan stack
+enterAST :: GHC.SrcSpan -> AP ()
+enterAST ss = do
+  pushSrcSpan ss
+  return ()
+
+-- | Pop up the SrcSpan stack, capture the annotations, and work the
+-- comments in belonging to the span
+-- Assumption: the annotations belong to the immediate sub elements of
+-- the AST, hence relate to the current SrcSpan. They can thus be used
+-- to decide which comments belong at this level,
+-- The assumption is made valid by matching enterAST/leaveAST calls.
+leaveAST :: AnnSpecific -> AP ()
+leaveAST anns = do
+  ss <- getSrcSpan
+  cs <- getComments
+  subSpans <- getSubSpans
+  let lcs = localComments (ss2span ss) cs subSpans
+
+  addAnnotions [Ann lcs (ss2span ss) anns]
+  popSrcSpan
+  return ()
+
+-- ---------------------------------------------------------------------
+-- Start of application specific part
 
 -- ---------------------------------------------------------------------
 
@@ -103,7 +164,92 @@ annotateLHsModule modu cs toks = annotate modu cs toks
 
 -- ---------------------------------------------------------------------
 
--- TODO: mirror the EP monad structure
+annotateLHsModule' :: GHC.Located (GHC.HsModule GHC.RdrName)
+  -> [Comment] -> [PosToken]
+  -> Anns
+annotateLHsModule' modu cs toks = r `debug` ("annotateModule':r=" ++ show r)
+  where r = runAP (annotateModule modu) cs toks
+
+
+annotateModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> AP ()
+annotateModule (GHC.L lm (GHC.HsModule mmn mexp imps decs _depr _haddock)) = do
+  enterAST lm
+  annotateModuleHeader mmn mexp
+  toks <- getToks
+  let
+    lpo = ss2delta (ss2posEnd $ tokenSpan secondLastTok) (tokenSpan lastTok)
+    secondLastTok = head $ dropWhile ghcIsComment $ tail $ reverse toks
+    lastTok       = last toks
+  leaveAST (AnnHsModule lpo)
+
+-- ---------------------------------------------------------------------
+
+annotateModuleHeader ::
+     Maybe (GHC.Located GHC.ModuleName)
+  -> Maybe [GHC.LIE GHC.RdrName] -> AP ()
+annotateModuleHeader Nothing _ = return ()
+annotateModuleHeader (Just (GHC.L l _mn)) mexp = do
+  enterAST l
+  lm <- getSrcSpan
+  toks <- getToks
+  cs <- getComments
+  let
+    pos = ss2pos lm  -- start of the syntax fragment
+    moduleTok = head $ filter ghcIsModule toks
+    whereTok  = head $ filter ghcIsWhere  toks
+
+    {-
+    lcs = localComments infiniteSpan cs (expSpan ++ impSpan ++ decsSpan)
+    expSpan = case mexp of
+      Nothing -> []
+      Just _ -> [(undelta pos opPos,snd cpSpan)]
+    -}
+    -- impSpan  = getListSpans imps
+    -- decsSpan = getListSpan decs
+
+    annSpecific = AnnModuleName mPos mnPos opPos cpPos wherePos
+    mPos  = ss2delta pos $ tokenSpan moduleTok
+    mnPos = ss2delta pos l
+    wherePos = ss2delta pos $ tokenSpan whereTok
+    (opPos,cpPos) = case mexp of
+      Nothing -> (DP (0,0), DP (0,0) )
+      Just exps -> (opPos',cpPos')
+        where
+          opTok = head $ filter ghcIsOParen toks
+          cpRel = case exps of
+            [] -> pos
+            _  -> (ss2posEnd $ GHC.getLoc (last exps))
+          cpTok   = head $ filter ghcIsCParen toks
+          opPos'  = ss2delta pos   $ tokenSpan opTok
+          cpPos'  = ss2delta cpRel $ tokenSpan cpTok
+
+  case mexp of
+    Nothing -> return ()
+    Just exps -> mapM_ annotateLIE exps
+  leaveAST annSpecific
+
+annotateLIE :: GHC.LIE GHC.RdrName -> AP ()
+annotateLIE (GHC.L l ie) = do
+  enterAST l
+  cs <- getComments
+  toks <- getToks
+  let
+    annSpecific = case ie of
+    -- This receives the toks for the entire exports section.
+    -- So it can scan for the separating comma if required
+      (GHC.IEVar _) -> AnnIEVar mc
+        where (mc, p, lcs) = getListAnnInfo l ghcIsComma ghcIsCParen cs toks
+
+      (GHC.IEThingAbs _) -> AnnIEThingAbs mc
+        where (mc, p, lcs) = getListAnnInfo l ghcIsComma ghcIsCParen cs toks
+
+      _ -> assert False undefined
+
+  leaveAST annSpecific
+
+-- =====================================================================
+-- ---------------------------------------------------------------------
+
 class Annotate a where
 
   -- |Generate an annotation for @a@ and all its subelements
@@ -116,7 +262,7 @@ instance Annotate (GHC.Located (GHC.HsModule GHC.RdrName)) where
             `debug` ("annotateLHsModule:(lm,lpo,lastTok,secondLastTok)="
                ++ show (lm,lpo,lastTok,secondLastTok,take 5 $ reverse toks))
     where
-      r = [(lm,[Ann [] (DP (0,0)) (AnnHsModule lpo)])]
+      r = [(lm,[Ann [] (ss2span lm) (AnnHsModule lpo)])]
           ++ headerAnn ++ impsAnn ++ declsAnn
       pos = ss2pos lm  -- start of the syntax fragment
       infiniteSpan = ((1,1),(99999999,0)) -- lm is a single char span
@@ -124,7 +270,7 @@ instance Annotate (GHC.Located (GHC.HsModule GHC.RdrName)) where
       whereTok  = head $ filter ghcIsWhere  toks
       headerAnn = case mmn of
         Nothing -> []
-        Just (GHC.L l _mn) -> (l,[Ann lcs (DP (0,0)) annSpecific]):aexps
+        Just (GHC.L l _mn) -> (l,[Ann lcs (ss2span l) annSpecific]):aexps
           where
             lcs = localComments infiniteSpan cs (expSpan ++ impSpan ++ decsSpan)
             expSpan = case mexp of
@@ -235,7 +381,8 @@ annotateLImportDecls (x:xs) cs toks =
 instance Annotate (GHC.LImportDecl GHC.RdrName) where
   annotate (GHC.L l (GHC.ImportDecl (GHC.L ln _) _pkg _src _safe qual _impl as hiding)) cs toksIn = r
     where
-      r = [(l,[Ann lcs impPos annSpecific])] ++ aimps
+      -- r = [(l,[Ann lcs impPos annSpecific])] ++ aimps
+      r = [(l,[Ann lcs (ss2span l) annSpecific])] ++ aimps
       annSpecific = AnnImportDecl impPos Nothing Nothing mqual mas maspos mhiding opPos cpPos
       p = ss2pos l
       (_,toks,_) = splitToksForSpan l toksIn
@@ -331,7 +478,7 @@ instance Annotate (GHC.LIE GHC.RdrName) where
 getListAnnInfo :: GHC.SrcSpan
   -> (PosToken -> Bool) -> (PosToken -> Bool)
   -> [Comment] -> [PosToken]
-  -> (Maybe DeltaPos, DeltaPos, [DComment])
+  -> (Maybe DeltaPos, Span, [DComment])
 getListAnnInfo l isSeparator isTerminator cs toks = (mc,p,lcs) `debug` ("getListAnnInfo:lcs=" ++ show lcs)
   where (mc,p,sp) = calcListOffsets isSeparator isTerminator l toks
         lcs = localComments sp cs [] `debug` ("getListAnnInfo:sp=" ++ show sp )
@@ -344,7 +491,7 @@ isCommaOrCParen t = ghcIsComma t || ghcIsCParen t
 calcListOffsets :: (PosToken -> Bool) -> (PosToken -> Bool)
   -> GHC.SrcSpan
   -> [PosToken]
-  -> (Maybe DeltaPos, DeltaPos, Span)
+  -> (Maybe DeltaPos, Span, Span)
 calcListOffsets isSeparator isTerminator l toks = (mc,p,sp) `debug` ("calcListOffsets:(l,mc,p,sp)=" ++ show (ss2span l,mc,p,sp))
   where
     (endPos,mc) = case findTrailing isToken l toks of
@@ -353,7 +500,7 @@ calcListOffsets isSeparator isTerminator l toks = (mc,p,sp) `debug` ("calcListOf
         where mc' = if isSeparator t
                       then Just (ss2delta (ss2posEnd l) (tokenSpan t))
                       else Nothing
-    p = DP (0,0)
+    p = ss2span l
     sp = (ss2pos l,endPos)
 
     isToken t = isSeparator t || isTerminator t
@@ -414,9 +561,8 @@ instance Annotate (GHC.LHsDecl GHC.RdrName) where
 instance Annotate (GHC.LHsBindLR GHC.RdrName GHC.RdrName) where
   annotate (GHC.L l (GHC.FunBind (GHC.L _ n) isInfix (GHC.MG matches _ _ _) _ _ _)) cs toksIn = r
     where
-      r = [(l,[Ann lcs p AnnFunBind])] ++ matchesAnn
+      r = [(l,[Ann lcs (ss2span l) AnnFunBind])] ++ matchesAnn
       lcs = []
-      p = DP (0,0)
       matchesAnn = concatMap (\m -> annotateLMatch m n isInfix cs toksIn) matches
 
 -- ---------------------------------------------------------------------
@@ -428,7 +574,7 @@ annotateLMatch :: (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
 annotateLMatch (GHC.L l (GHC.Match pats _typ (GHC.GRHSs grhs lb))) n isInfix cs toksIn = r -- `debug` ("annotateLMatch:" ++ show (r,length grhs))
   where
     r = matchAnn ++ patsAnn ++ typAnn ++ rhsAnn ++ lbAnn
-    matchAnn = [(l,[Ann lcs (DP (0,0)) (AnnMatch nPos n isInfix eqPos)])]
+    matchAnn = [(l,[Ann lcs (ss2span l) (AnnMatch nPos n isInfix eqPos)])]
     lcs = [] -- `debug` ("annotateLMatch:" ++ show matchToks)
      -- `debug` ("annotateLMatch:n" ++ show (GHC.isSymOcc $ GHC.rdrNameOcc n))
 
@@ -468,7 +614,7 @@ annotateLGRHS :: GHC.LGRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)
   -> [(GHC.SrcSpan,[Annotation])]
 annotateLGRHS (GHC.L l (GHC.GRHS guards expr@(GHC.L le _))) cs toksIn = r -- `debug` ("annotateLGRHS :l=" ++ show (ss2span l))
   where
-    r = [(l,[Ann lcs (DP (0,0)) (AnnGRHS guardPos eqPos)])] ++ guardsAnn ++ exprAnn
+    r = [(l,[Ann lcs (ss2span l) (AnnGRHS guardPos eqPos)])] ++ guardsAnn ++ exprAnn
     lcs = [] -- `debug` ("annotateLGRHS:(guardPos,eqPos)=" ++ show (guardPos,eqPos))
     guardsAnn = concatMap (\g -> annotateLStmt g cs toksIn) guards
 
@@ -503,7 +649,7 @@ annotateLPat (GHC.L l (GHC.NPat ol _ _)) cs toksIn = r
 
 annotateLPat (GHC.L l _) cs toksIn = r
   where
-    r = [(l,[Ann lcs (DP (0,0)) (AnnNone)])]
+    r = [(l,[Ann lcs (ss2span l) (AnnNone)])]
     lcs = []
 
 -- ---------------------------------------------------------------------
@@ -514,7 +660,7 @@ annotateLStmt :: GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)
 annotateLStmt (GHC.L l (GHC.BodyStmt body _ _ _)) cs toksIn = r
   where
     r = lAnn ++ bodyAnn
-    lAnn = [(l,[Ann lcs (DP (0,0)) (AnnStmtLR)])]
+    lAnn = [(l,[Ann lcs (ss2span l) (AnnStmtLR)])]
     lcs = []
 
     bodyAnn = annotateLHsExpr body cs toksIn
@@ -541,7 +687,7 @@ annotateLHsExpr :: GHC.LHsExpr GHC.RdrName
   -> [(GHC.SrcSpan,[Annotation])]
 annotateLHsExpr (GHC.L l (GHC.HsOverLit ov)) cs toksIn = r -- `debug` ("annotateLHsExpr.HsOverLit:" ++ show r)
   where
-    r = [(l,[Ann [] (DP (0,0)) (AnnOverLit str)])]
+    r = [(l,[Ann [] (ss2span l) (AnnOverLit str)])]
     Just tokLit = findToken ghcIsOverLit l toksIn
     str = tokenString tokLit
 
@@ -554,7 +700,7 @@ annotateLHsExpr (GHC.L l (GHC.OpApp e1 op _f e2)) cs toksIn = r
 
 annotateLHsExpr (GHC.L l (GHC.HsLet lb expr)) cs toksIn = r `debug` ("annotateLHsExpr.HsLet:l=" ++ show (ss2span l))
   where
-    r = (l,[Ann lcs (DP (0,0)) annSpecific]) : lbAnn ++ exprAnn
+    r = (l,[Ann lcs (ss2span l) annSpecific]) : lbAnn ++ exprAnn
     lcs = []
     p = ss2pos l
 
@@ -578,9 +724,8 @@ annotateLTyClDecl :: GHC.LTyClDecl GHC.RdrName
   -> [(GHC.SrcSpan,[Annotation])]
 annotateLTyClDecl (GHC.L l (GHC.DataDecl ln (GHC.HsQTvs ns tyVars) defn _)) cs toksIn = r
   where
-    r = [(l,[Ann lcs p (AnnDataDecl eqPos)])] ++ declAnn
+    r = [(l,[Ann lcs (ss2span l) (AnnDataDecl eqPos)])] ++ declAnn
     lcs = []
-    p = DP (0,0)
     Just eqPos = findTokenWrtPrior ghcIsEqual l toksIn
 
     declAnn = annotateHsDataDefn defn cs toksIn
@@ -626,15 +771,15 @@ dcommentPos (DComment _ p _) = p
 
 -- ---------------------------------------------------------------------
 
--- | Given an enclosing Span @ss@, and a list of sub SrcSpans @ds@,
--- identify all comments that are in @ss@ but not in @ds@, and convert
--- them to be DComments relative to @ss@
+-- | Given an enclosing Span @(p,e)@, and a list of sub SrcSpans @ds@,
+-- identify all comments that are in @(p,e)@ but not in @ds@, and convert
+-- them to be DComments relative to @p@
 localComments :: Span -> [Comment] -> [Span] -> [DComment]
 localComments (p,e) cs ds = r -- `debug` ("localComments:(p,ds,r):" ++ show (p,ds,map commentPos matches,map dcommentPos r))
   where
     r = map (\c -> deltaComment p c) matches
 
-    matches = filter notSub cs'
+    (matches,misses) = partition notSub cs'
     cs' = filter (\(Comment _ com _) -> isSubPos com (p,e)) cs
 
     notSub :: Comment -> Bool
@@ -910,6 +1055,9 @@ srcSpanEndLine _ = 0
 srcSpanStartLine :: GHC.SrcSpan -> Int
 srcSpanStartLine (GHC.RealSrcSpan s) = GHC.srcSpanStartLine s
 srcSpanStartLine _ = 0
+
+nullSpan :: Span
+nullSpan = ((0,0),(0,0))
 
 -- ---------------------------------------------------------------------
 

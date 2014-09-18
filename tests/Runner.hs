@@ -87,7 +87,8 @@ manipulateAstTest sources = testGroup "Exact printer tests" $ do
         comments = toksToComments toks
         -- try to pretty-print; summarize the test result
         -- printed = exactPrint parsed comments toks
-        ann = annotate parsed comments toks
+        -- ann = annotate parsed comments toks
+        ann = annotate' parsed comments toks
         Just exps = GHC.hsmodExports hsmod
 
         secondExp@(GHC.L l2 _) = head $ tail exps
