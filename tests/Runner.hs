@@ -26,6 +26,11 @@ import Data.Generics
 
 import qualified Data.Map as Map
 
+import Debug.Trace
+
+debug :: c -> String -> c
+debug = flip trace
+
 main :: IO ()
 main = do
   sources  <- getTestFiles examplesDir
@@ -102,7 +107,7 @@ manipulateAstTest sources = testGroup "Exact printer tests" $ do
         parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (head exps:(head $ tail exps):tail exps) }))
         -- printed = exactPrintAnnotation parsed' comments ann
         -- printed = exactPrintAnnotation parsed' [] ann
-        printed = exactPrintAnnotation parsed [] ann
+        printed = exactPrintAnnotation parsed [] ann -- `debug` ("ann=" ++ show ann)
         result =
                 if printed == contents
                   then "Match\n"

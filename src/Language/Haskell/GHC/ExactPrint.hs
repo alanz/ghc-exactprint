@@ -463,14 +463,15 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
     printString ""
 
   exactP ma (GHC.HsModule (Just lmn@(GHC.L l mn)) mexp imps decls deprecs haddock) = do
-    let Just [Ann _ _ (AnnHsModule ep)] = ma
+    let Just [Ann csm _ (AnnHsModule ep)] = ma
+    mergeComments csm
 
     mAnn <- getAnnotation l
     let p = (1,1)
     case mAnn of
       Just [(Ann cs _ (AnnModuleName pm _pn po pc pw))] -> do
         mergeComments cs -- TODO: make this part of getAnnotation, or perhaps activateAnnotation
-        printStringAt (undelta p pm) "module"
+        printStringAt (undelta p pm) "module" `debug` ("exactP.HsModule:cs=" ++ show cs)
         exactPC lmn
         case mexp of
           Just exps -> do
@@ -480,7 +481,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
             printStringAt (undelta p2 pc) ")"
           Nothing -> return ()
         printStringAt (undelta p pw) "where"
-        -- ++AZ++ temporary mapM_ exactPC imps
+        mapM_ exactPC imps
       _ -> return ()
 
     -- ++AZ++ temporary printSeq $ map (pos . ann &&& exactPC) decls
@@ -508,7 +509,7 @@ instance ExactP (GHC.IE GHC.RdrName) where
     return ()
 
   exactP ma (GHC.IEThingAbs n) = do
-    let Just [(Ann cs _ (AnnIEThingAbs mc))] = ma -- `debug` ("blah:" ++ show ma)
+    let Just [(Ann cs _ (AnnIEThingAbs mc))] = ma `debug` ("blah:" ++ show ma)
     mergeComments cs `debug` ("exactP LIE.ThingAbs:(mc,cs)=" ++ show (mc,cs))
     printString (rdrName2String n)
     printStringAtMaybeDelta mc ","
