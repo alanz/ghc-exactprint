@@ -175,14 +175,14 @@ annotateModule (GHC.L lm (GHC.HsModule mmn mexp imps decs _depr _haddock)) = do
   toks <- getToks
   let
     lpo = ss2delta (ss2posEnd $ tokenSpan secondLastTok) (tokenSpan lastTok)
-    secondLastTok = head $ dropWhile ghcIsComment $ tail $ reverse toks
+    secondLastTok = head $ dropWhile ghcIsBlankOrComment $ tail $ reverse toks
     lastTok       = last toks
 
   mapM_ annotateImportDecl imps
 
   mapM_ annotateLHsDecl decs
 
-  leaveAST (AnnHsModule lpo)
+  leaveAST (AnnHsModule lpo) `debug` ("annotateModule:(lpo,lastTok,secondLastTok):" ++ show (lpo,lastTok,secondLastTok))
 
 -- ---------------------------------------------------------------------
 
@@ -850,6 +850,12 @@ ghcIsMultiLine ((GHC.L _ (GHC.ITdocOptionsOld _)),_s)   = False
 ghcIsMultiLine ((GHC.L _ (GHC.ITlineComment _)),_s)     = False
 ghcIsMultiLine ((GHC.L _ (GHC.ITblockComment _)),_s)    = True
 ghcIsMultiLine ((GHC.L _ _),_s)                         = False
+
+ghcIsBlank :: PosToken -> Bool
+ghcIsBlank (_,s)  = s == ""
+
+ghcIsBlankOrComment :: PosToken -> Bool
+ghcIsBlankOrComment t = ghcIsBlank t || ghcIsComment t
 
 -- ---------------------------------------------------------------------
 
