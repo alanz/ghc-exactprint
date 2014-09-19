@@ -183,7 +183,7 @@ mergeComments :: [DComment] -> EP ()
 mergeComments dcs = EP $ \l cs an ->
     let acs = map (undeltaComment l) dcs
         cs' = merge acs cs
-    in ((), l, cs', an, id) `debug` ("mergeComments:(l,acs)=" ++ show (l,acs))
+    in ((), l, cs', an, id) `debug` ("mergeComments:(l,acs)=" ++ show (l,acs,cs))
 
 newLine :: EP ()
 newLine = do
@@ -403,10 +403,10 @@ printSemi p = do
 
 -- ---------------------------------------------------------------------
 
-getAnn :: (Annotation -> Bool) -> Maybe [Annotation] -> [Annotation]
-getAnn isAnn ma =
+getAnn :: (Annotation -> Bool) -> Maybe [Annotation] -> String -> [Annotation]
+getAnn isAnn ma str =
   case ma of
-    Nothing -> error $ "getAnn expecting an annotation"
+    Nothing -> error $ "getAnn expecting an annotation:" ++ str
     Just as -> filter isAnn as
 
 isAnnGRHS :: Annotation -> Bool
@@ -484,7 +484,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
         mapM_ exactPC imps
       _ -> return ()
 
-    -- ++AZ++ temporary printSeq $ map (pos . ann &&& exactPC) decls
+    printSeq $ map (pos . ann &&& exactPC) decls
 
     -- put the end of file whitespace in
     pe <- getPos
@@ -509,7 +509,7 @@ instance ExactP (GHC.IE GHC.RdrName) where
     return ()
 
   exactP ma (GHC.IEThingAbs n) = do
-    let Just [(Ann cs _ (AnnIEThingAbs mc))] = ma `debug` ("blah:" ++ show ma)
+    let Just [(Ann cs _ (AnnIEThingAbs mc))] = ma `debug` ("exactP.IEThingAbs:" ++ show ma)
     mergeComments cs `debug` ("exactP LIE.ThingAbs:(mc,cs)=" ++ show (mc,cs))
     printString (rdrName2String n)
     printStringAtMaybeDelta mc ","
@@ -576,7 +576,7 @@ instance ExactP (GHC.HsBind GHC.RdrName) where
 instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP ma (GHC.Match pats typ (GHC.GRHSs grhs lb)) = do
     p <- getPos
-    let [(Ann lcs _ (AnnMatch nPos n isInfix eqPos))] = getAnn isAnnMatch ma
+    let [(Ann lcs _ (AnnMatch nPos n isInfix eqPos))] = getAnn isAnnMatch ma "Match"
     mergeComments lcs -- `debug` ("exactP.Match:(nPos,eqPos,isInfix):" ++ show (nPos,eqPos,isInfix))
     if isInfix
       then do
@@ -605,7 +605,7 @@ instance ExactP (GHC.HsType GHC.RdrName) where
 
 instance ExactP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP ma (GHC.GRHS guards expr) = do
-    let [(Ann lcs _ (AnnGRHS guardPos eqPos))] = getAnn isAnnGRHS ma
+    let [(Ann lcs _ (AnnGRHS guardPos eqPos))] = getAnn isAnnGRHS ma "GRHS"
     mergeComments lcs
     printStringAtMaybeDelta guardPos "|"
     mapM_ exactPC guards
@@ -614,7 +614,7 @@ instance ExactP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 
 instance ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP ma (GHC.BodyStmt e _ _ _) = do
-    let [(Ann lcs _ an)] = getAnn isAnnStmtLR ma
+    let [(Ann lcs _ an)] = getAnn isAnnStmtLR ma "StmtLR"
     mergeComments lcs
     exactPC e
 
@@ -622,7 +622,7 @@ instance ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsExpr GHC.RdrName)) w
 
 instance ExactP (GHC.HsExpr GHC.RdrName) where
   exactP ma  (GHC.HsLet lb e)    = do
-    let [(Ann lcs _ an)] = getAnn isAnnHsLet ma
+    let [(Ann lcs _ an)] = getAnn isAnnHsLet ma "HsLet"
     mergeComments lcs
     p <- getPos
     printStringAtMaybeDelta (hsl_let an) "let" `debug` ("exactP.HsLet:an=" ++ show an)
@@ -651,7 +651,7 @@ instance ExactP (GHC.Sig GHC.RdrName) where
 instance ExactP (GHC.HsOverLit GHC.RdrName) where
   -- exactP (Just [(Ann cs p an)]) _ = printString (ol_str an)
   exactP a@(Just as) _ = printString (ol_str an)
-    where [(Ann cs _ an)] = getAnn isAnnOverLit a
+    where [(Ann cs _ an)] = getAnn isAnnOverLit a "OverLit"
   exactP Nothing            lit = printString "overlit no ann"
 
 instance ExactP GHC.HsLit where
@@ -698,7 +698,7 @@ instance ExactP (GHC.TyClDecl GHC.RdrName) where
   exactP ma (GHC.SynDecl  _ _ _ _)   = printString "SynDecl"
 
   exactP ma (GHC.DataDecl ln (GHC.HsQTvs ns tyVars) defn _) = do
-    let [(Ann lcs _ (AnnDataDecl eqDelta))] = getAnn isAnnDataDecl ma
+    let [(Ann lcs _ (AnnDataDecl eqDelta))] = getAnn isAnnDataDecl ma "DataDecl"
     printString "data"
     exactPC ln
     printStringAtDelta eqDelta "="
@@ -723,7 +723,7 @@ instance ExactP (GHC.HsDataDefn GHC.RdrName) where
 
 instance ExactP (GHC.ConDecl GHC.RdrName) where
   exactP ma (GHC.ConDecl ln exp qvars ctx dets res _ _) = do
-    let [(Ann lcs _ (AnnConDecl mp))] = getAnn isAnnConDecl ma
+    let [(Ann lcs _ (AnnConDecl mp))] = getAnn isAnnConDecl ma "ConDecl"
     exactPC ln
     printStringAtMaybeDelta mp "|"
 

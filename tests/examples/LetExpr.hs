@@ -2,7 +2,7 @@
 -- With some haddock in the top
 {- And a normal
    multiline comment too -}
-  module {- blah -}  Layout.LetExpr ( foo -- foo does ..
+  module {- brah -}  Layout.LetExpr ( foo -- foo does ..
                                     , bar -- bar does ..
                                     , Baz -- baz does ..
                                     , bbb ,  aaa
