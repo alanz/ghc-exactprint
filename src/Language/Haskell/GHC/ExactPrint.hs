@@ -22,7 +22,6 @@
 -----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint
         ( annotate
-        , annotate'
         , exactPrintAnnotated
         , exactPrintAnnotation
 
@@ -277,18 +276,18 @@ exactPrintAnnotated ::
   -> [Comment] -> [PosToken] -> String
 exactPrintAnnotated ast cs toks = runEP (exactPC ast) [] ann
   where
-    ann = Map.fromListWith (++) $ annotateLHsModule ast cs toks
+    ann = annotateLHsModule ast cs toks
 
 exactPrintAnnotation :: ExactP ast =>
   GHC.Located ast -> [Comment] -> Anns -> String
 exactPrintAnnotation ast cs ann = runEP (exactPC ast) cs ann
   -- `debug` ("exactPrintAnnotation:ann=" ++ (concatMap (\(l,a) -> show (ss2span l,a)) $ Map.toList ann ))
 
-annotate :: GHC.Located (GHC.HsModule GHC.RdrName) -> [Comment] -> [PosToken] -> Anns
-annotate ast cs toks = Map.fromListWith (++) $ annotateLHsModule ast cs toks
+-- annotate :: GHC.Located (GHC.HsModule GHC.RdrName) -> [Comment] -> [PosToken] -> Anns
+-- annotate ast cs toks = Map.fromListWith (++) $ annotateLHsModule ast cs toks
 
-annotate' :: GHC.Located (GHC.HsModule GHC.RdrName) -> [Comment] -> [PosToken] -> Anns
-annotate' ast cs toks = annotateLHsModule' ast cs toks
+annotate :: GHC.Located (GHC.HsModule GHC.RdrName) -> [Comment] -> [PosToken] -> Anns
+annotate ast cs toks = annotateLHsModule ast cs toks
 
 -- |First move to the given location, then call exactP
 exactPC :: (ExactP ast) => GHC.Located ast -> EP ()

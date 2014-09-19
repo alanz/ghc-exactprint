@@ -4,7 +4,6 @@
 module Language.Haskell.GHC.ExactPrint.Utils
   (
     annotateLHsModule
-  , annotateLHsModule'
 
   , ghcIsWhere
   , ghcIsLet
@@ -162,16 +161,8 @@ leaveAST anns = do
 
 annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName)
   -> [Comment] -> [PosToken]
-  -> [(GHC.SrcSpan,[Annotation])]
--- annotateLHsModule modu cs toks = annotate modu cs toks
-annotateLHsModule modu cs toks = assert False undefined
-
--- ---------------------------------------------------------------------
-
-annotateLHsModule' :: GHC.Located (GHC.HsModule GHC.RdrName)
-  -> [Comment] -> [PosToken]
   -> Anns
-annotateLHsModule' modu cs toks = r -- `debug` ("annotateModule':r=" ++ show r)
+annotateLHsModule modu cs toks = r -- `debug` ("annotateModule':r=" ++ show r)
   where r = runAP (annotateModule modu) cs toks
 
 
@@ -330,121 +321,6 @@ ideclHiding :: Maybe (Bool, [LIE name])
 -- =====================================================================
 -- ---------------------------------------------------------------------
 
-class Annotate a where
-
-  -- |Generate an annotation for @a@ and all its subelements
-  annotate :: a
-    -> [Comment] -> [PosToken]
-    -> [(GHC.SrcSpan,[Annotation])]
-
-
-instance (Annotate a) => Annotate [a] where
-  annotate asts cs toks = concatMap (\ast -> annotate ast cs toks) asts
-
--- ---------------------------------------------------------------------
-
--- TODO: turn this into a class.
--- TODO: distribute comments as per hindent
-
--- ---------------------------------------------------------------------
-
-{-
-instance Annotate (GHC.LImportDecl GHC.RdrName) where
-  annotate (GHC.L l (GHC.ImportDecl (GHC.L ln _) _pkg _src _safe qual _impl as hiding)) cs toksIn = r
-    where
-      r = [(l,[Ann lcs (ss2span l) annSpecific])] ++ aimps
-      annSpecific = AnnImportDecl impPos Nothing Nothing mqual mas maspos mhiding opPos cpPos
-      p = ss2pos l
-      (_,toks,_) = splitToksForSpan l toksIn
-      impPos = findPrecedingDelta ghcIsImport ln toks p
-
-      mqual = if qual
-                then Just (findPrecedingDelta ghcIsQualified ln toks p)
-                else Nothing
-
-      (mas,maspos) = case as of
-        Nothing -> (Nothing,Nothing)
-        Just _  -> (Just (findDelta ghcIsAs l toks p),asp)
-          where
-             (_,middle,_) = splitToksForSpan l toks
-             asp = case filter ghcIsAnyConid (reverse middle) of
-               [] -> Nothing
-               (t:_) -> Just (ss2delta (ss2pos l) $ tokenSpan t)
-
-      mhiding = case hiding of
-        Nothing -> Nothing
-        Just (True, _)  -> Just (findDelta ghcIsHiding l toks p)
-        Just (False,_)  -> Nothing
-
-      (aimps,opPos,cpPos) = case hiding of
-        Nothing -> ([],Nothing,Nothing)
-        Just (_,ies) -> (annotate ies cs toksI,opPos',cpPos')
-          where
-            opTok = head $ filter ghcIsOParen toks
-            cpTok = head $ filter ghcIsCParen toks
-            opPos' = Just $ ss2delta p     $ tokenSpan opTok
-            cpPos' = Just $ ss2delta cpRel $ tokenSpan cpTok
-            (toksI,toksRest,cpRel) = case ies of
-              [] -> (toks,toks,ss2posEnd $ tokenSpan opTok)
-              _ -> let (_,etoks,ts) = splitToks (GHC.getLoc (head ies),
-                                                 GHC.getLoc (last ies)) toks
-                   in (etoks,ts,ss2posEnd $ GHC.getLoc (last ies))
-
-
-      subs = []
-      (lcs,_) = localComments (ss2span l) cs subs
--}
-
-{-
-ideclName :: Located ModuleName
-    Module name.
-
-ideclPkgQual :: Maybe FastString
-    Package qualifier.
-
-ideclSource :: Bool
-    True = {--} import
-
-ideclSafe :: Bool
-    True => safe import
-
-ideclQualified :: Bool
-    True => qualified
-
-ideclImplicit :: Bool
-    True => implicit import (of Prelude)
-
-ideclAs :: Maybe ModuleName
-    as Module
-
-ideclHiding :: Maybe (Bool, [LIE name])
-    (True => hiding, names)
-
--}
-
--- ---------------------------------------------------------------------
-{-
-annotateLIEs :: [GHC.LIE GHC.RdrName]
-  -> [Comment] -> [PosToken]
-  -> [(GHC.SrcSpan, [Annotation])]
-annotateLIEs [ ]    _  _    = []
-annotateLIEs (x:xs) cs toks = annotateLIE   x cs toks
-                           ++ annotateLIEs xs cs toks
--}
--- ---------------------------------------------------------------------
-
-instance Annotate (GHC.LIE GHC.RdrName) where
-  -- This receives the toks for the entire exports section.
-  -- So it can scan for the separating comma if required
-  annotate (GHC.L l (GHC.IEVar _))     cs toks = [(l,[Ann lcs p (AnnIEVar mc)])]
-    where (mc, p, lcs) = getListAnnInfo l ghcIsComma ghcIsCParen cs toks
-
-  annotate (GHC.L l (GHC.IEThingAbs _)) cs toks = [(l,[Ann lcs p (AnnIEThingAbs mc)])]
-    where (mc, p, lcs) = getListAnnInfo l ghcIsComma ghcIsCParen cs toks
-
-  annotate (GHC.L l (_)) cs toks = assert False undefined
-
--- ---------------------------------------------------------------------
 
 getListAnnInfo :: GHC.SrcSpan
   -> (PosToken -> Bool) -> (PosToken -> Bool)
