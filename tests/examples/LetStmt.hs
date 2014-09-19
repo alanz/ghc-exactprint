@@ -3,7 +3,7 @@
 module Layout.LetStmt where
 
 foo = do
-        let x = 1
-            y = 2
-        x+y
+{- ffo -}let x = 1
+             y = 2 -- baz
+         x+y
 

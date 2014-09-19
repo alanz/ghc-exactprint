@@ -131,10 +131,16 @@ IEDocNamed String
       { hsl_let :: !(Maybe DeltaPos)
       , hsl_in  :: !(Maybe DeltaPos)
       }
+  | AnnHsDo
+      { hsd_do :: !(Maybe DeltaPos)
+      }
 
   -- StmtLR
   | AnnStmtLR {}
-
+  | AnnLetStmt
+      { ls_let :: !(Maybe DeltaPos)
+      , ls_in  :: !(Maybe DeltaPos)
+      }
 
   -- TyClDecl
   --  Data declarations

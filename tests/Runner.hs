@@ -37,7 +37,7 @@ main = do
   sources2 <- getTestFiles examplesDir2
   defaultMain $ testGroup "Tests" $
     [ -- exactPrinterTests (sources)
-    -- , exactPrinterTests (sources2)
+    -- exactPrinterTests (sources2)
     manipulateAstTest (sources2)
     ]
 
@@ -79,7 +79,7 @@ exactPrinterTests sources = testGroup "Exact printer tests" $ do
 manipulateAstTest :: [FilePath] -> TestTree -- {{{
 manipulateAstTest sources = testGroup "Exact printer tests" $ do
   -- list monad
-  file <- take 1 sources
+  file <- take 1 $ drop 1 sources
   let
     out    = file <.> "exactprinter" <.> "out"
     golden = file <.> "exactprinter" <.> "golden"

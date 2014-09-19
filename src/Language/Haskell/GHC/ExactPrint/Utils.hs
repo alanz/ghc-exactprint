@@ -492,6 +492,22 @@ annotateLStmt (GHC.L l (GHC.BodyStmt body _ _ _)) = do
   annotateLHsExpr body
   leaveAST AnnStmtLR
 
+annotateLStmt (GHC.L l (GHC.LetStmt lb)) = do
+  enterAST l
+  toksIn <- getToks
+  let
+    p = ss2pos l
+
+    Just letp = findTokenSrcSpan ghcIsLet l toksIn
+    -- Just inp  = findTokenSrcSpan ghcIsIn l toksIn
+    letPos = Just $ ss2delta p letp
+    -- inPos  = Just $ ss2delta p inp
+    inPos  = Nothing
+
+  annotateHsLocalBinds lb
+
+  leaveAST (AnnLetStmt letPos inPos)
+
 -- ---------------------------------------------------------------------
 
 annotateHsLocalBinds :: (GHC.HsLocalBinds GHC.RdrName) -> AP ()
@@ -523,11 +539,7 @@ annotateLHsExpr (GHC.L l exprIn) = do
 
     GHC.HsLet lb expr -> do
       let
-        -- r = (l,[Ann lcs (ss2span l) annSpecific]) : lbAnn ++ exprAnn
-        lcs = []
         p = ss2pos l
-
-        annSpecific = AnnHsLet letPos inPos
 
         Just letp = findTokenSrcSpan ghcIsLet l toksIn
         Just inp  = findTokenSrcSpan ghcIsIn l toksIn
@@ -537,7 +549,19 @@ annotateLHsExpr (GHC.L l exprIn) = do
       annotateHsLocalBinds lb
       annotateLHsExpr expr
 
-      return annSpecific
+      return (AnnHsLet letPos inPos)
+
+    -- HsDo (HsStmtContext Name) [ExprLStmt id] PostTcType
+    GHC.HsDo ctx stmts _typ -> do
+      let
+        p = ss2pos l
+
+        Just dop = findTokenSrcSpan ghcIsDo l toksIn
+        doPos = Just $ ss2delta p dop
+
+      mapM_ annotateLStmt stmts
+
+      return (AnnHsDo doPos)
 
     _ -> return AnnNone
 

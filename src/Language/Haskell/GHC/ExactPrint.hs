@@ -283,9 +283,6 @@ exactPrintAnnotation :: ExactP ast =>
 exactPrintAnnotation ast cs ann = runEP (exactPC ast) cs ann
   -- `debug` ("exactPrintAnnotation:ann=" ++ (concatMap (\(l,a) -> show (ss2span l,a)) $ Map.toList ann ))
 
--- annotate :: GHC.Located (GHC.HsModule GHC.RdrName) -> [Comment] -> [PosToken] -> Anns
--- annotate ast cs toks = Map.fromListWith (++) $ annotateLHsModule ast cs toks
-
 annotate :: GHC.Located (GHC.HsModule GHC.RdrName) -> [Comment] -> [PosToken] -> Anns
 annotate ast cs toks = annotateLHsModule ast cs toks
 
@@ -423,6 +420,11 @@ isAnnHsLet an = case an of
   (Ann _ _ (AnnHsLet {})) -> True
   _                     -> False
 
+isAnnHsDo :: Annotation -> Bool
+isAnnHsDo an = case an of
+  (Ann _ _ (AnnHsDo {})) -> True
+  _                      -> False
+
 isAnnOverLit :: Annotation -> Bool
 isAnnOverLit an = case an of
   (Ann _ _ (AnnOverLit {})) -> True
@@ -432,6 +434,11 @@ isAnnStmtLR :: Annotation -> Bool
 isAnnStmtLR an = case an of
   (Ann _ _ (AnnStmtLR {})) -> True
   _                        -> False
+
+isAnnLetStmt :: Annotation -> Bool
+isAnnLetStmt an = case an of
+  (Ann _ _ (AnnLetStmt {})) -> True
+  _                         -> False
 
 isAnnDataDecl :: Annotation -> Bool
 isAnnDataDecl an = case an of
@@ -458,7 +465,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
 
     -- put the end of file whitespace in
     pe <- getPos
-    padUntil (undelta pe ep)
+    padUntil (undelta pe ep) `debug` ("exactP.HsModule:(pe,ep)=" ++ show (pe,ep))
     printString ""
 
   exactP ma (GHC.HsModule (Just lmn@(GHC.L l mn)) mexp imps decls deprecs haddock) = do
@@ -487,7 +494,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
 
     -- put the end of file whitespace in
     pe <- getPos
-    padUntil (undelta pe ep)
+    padUntil (undelta pe ep) `debug` ("exactP.HsModule:(pe,ep)=" ++ show (pe,ep))
     printString ""
 
 -- ---------------------------------------------------------------------
@@ -617,6 +624,15 @@ instance ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsExpr GHC.RdrName)) w
     mergeComments lcs
     exactPC e
 
+  exactP ma (GHC.LetStmt lb) = do
+    let [(Ann lcs _ an)] = getAnn isAnnLetStmt ma "LetStmt"
+    mergeComments lcs
+    p <- getPos
+    printStringAtMaybeDelta (ls_let an) "let" `debug` ("exactP.LetStmt:an=" ++ show an)
+    exactP Nothing lb
+    printStringAtMaybeDeltaP p (ls_in an) "in"
+
+
   exactP _ _ = printString "StmtLR"
 
 instance ExactP (GHC.HsExpr GHC.RdrName) where
@@ -628,6 +644,11 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     exactP Nothing lb
     printStringAtMaybeDeltaP p (hsl_in an) "in"
     exactPC e
+  exactP ma  (GHC.HsDo cts stmts _typ)    = do
+    let [(Ann lcs _ an)] = getAnn isAnnHsDo ma "HsDo"
+    mergeComments lcs
+    printStringAtMaybeDelta (hsd_do an) "do" `debug` ("exactP.HsDo:an=" ++ show an)
+    mapM_ exactPC stmts
   exactP ma (GHC.HsOverLit lit) = exactP ma lit -- `debug` ("GHC.HsOverLit:" ++ show ma)
   exactP _  (GHC.OpApp e1 op _f e2) = exactPC e1 >> exactPC op >> exactPC e2
   exactP ma  (GHC.HsVar v)          = exactP ma v
