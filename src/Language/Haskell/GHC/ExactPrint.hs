@@ -61,6 +61,8 @@ import qualified Var           as GHC
 
 import qualified Data.Map as Map
 
+import qualified GHC.SYB.Utils as SYB
+
 import Debug.Trace
 
 debug :: c -> String -> c
@@ -259,6 +261,15 @@ printStringAtMaybeDeltaP p mc s =
     Just cl -> do
       printStringAt (undelta p cl) s
 
+printListCommaMaybe :: Maybe [Annotation] -> EP ()
+printListCommaMaybe Nothing = return ()
+printListCommaMaybe ma = do
+  case getAnn isAnnListItem ma "ListItem" of
+    [Ann _ _ (AnnListItem commaPos)] -> do
+      printStringAtMaybeDelta commaPos ","
+    _ -> return ()
+
+
 errorEP :: String -> EP a
 errorEP = fail
 
@@ -294,6 +305,18 @@ exactPC (GHC.L l ast) =
        mPrintComments p
        padUntil p
        exactP ma ast
+       printListCommaMaybe ma
+
+{-
+exactPCTrailingComma :: (ExactP ast) => GHC.Located ast -> EP ()
+exactPCTrailingComma a@(GHC.L l _) = do
+  exactPC a
+  ma <- getAnnotation l
+  case getAnn isAnnListItem ma "ListItem" of
+    [Ann _ _ (AnnListItem commaPos)] -> do
+      printStringAtMaybeDelta commaPos ","
+    _ -> return ()
+-}
 
 printSeq :: [(Pos, EP ())] -> EP ()
 printSeq [] = return ()
@@ -465,10 +488,20 @@ isAnnHsFunTy an = case an of
   (Ann _ _ (AnnHsFunTy {})) -> True
   _                         -> False
 
+isAnnHsForAllTy :: Annotation -> Bool
+isAnnHsForAllTy an = case an of
+  (Ann _ _ (AnnHsForAllTy {})) -> True
+  _                            -> False
+
 isAnnHsParTy :: Annotation -> Bool
 isAnnHsParTy an = case an of
   (Ann _ _ (AnnHsParTy {})) -> True
   _                         -> False
+
+isAnnHsTupleTy :: Annotation -> Bool
+isAnnHsTupleTy an = case an of
+  (Ann _ _ (AnnHsTupleTy {})) -> True
+  _                           -> False
 
 --------------------------------------------------
 -- Exact printing for GHC
@@ -628,7 +661,10 @@ instance ExactP (GHC.Pat GHC.RdrName) where
 
 instance ExactP (GHC.HsType GHC.RdrName) where
 -- HsForAllTy HsExplicitFlag (LHsTyVarBndrs name) (LHsContext name) (LHsType name)
-  exactP _ (GHC.HsForAllTy f bndrs ctx typ) = do
+  exactP ma (GHC.HsForAllTy f bndrs ctx typ) = do
+    let [(Ann _ _ (AnnHsForAllTy darrowPos))] = getAnn isAnnHsForAllTy ma "HsForAllTy"
+    exactPC ctx
+    printStringAtMaybeDelta darrowPos "=>"
     exactPC typ
 
   exactP _ (GHC.HsTyVar n) = printString (rdrName2String n)
@@ -638,7 +674,7 @@ instance ExactP (GHC.HsType GHC.RdrName) where
   exactP ma (GHC.HsFunTy t1 t2) = do
     let [(Ann _ _ (AnnHsFunTy rarrowPos))] = getAnn isAnnHsFunTy ma "HsFunTy"
     exactPC t1
-    printStringAtDelta rarrowPos "~>"
+    printStringAtDelta rarrowPos "->"
     exactPC t2
 
   exactP ma (GHC.HsParTy t1) = do
@@ -647,6 +683,15 @@ instance ExactP (GHC.HsType GHC.RdrName) where
     exactPC t1
     printStringAtDelta cpPos ")"
 
+  exactP ma (GHC.HsTupleTy sort ts) = do
+    let [(Ann _ _ (AnnHsTupleTy opPos cpPos))] = getAnn isAnnHsTupleTy ma "HsTupleTy"
+    let (ostr,cstr) = case sort of
+          GHC.HsUnboxedTuple -> ("(#","#)")
+          _ -> ("(",")")
+    printStringAtDelta opPos ostr
+    mapM_ exactPC ts
+    printStringAtDelta cpPos cstr
+
 
 
 {-
@@ -654,7 +699,6 @@ HsListTy (LHsType name)
 HsPArrTy (LHsType name)	 
 HsTupleTy HsTupleSort [LHsType name]	 
 HsOpTy (LHsType name) (LHsTyOp name) (LHsType name)	 
-HsParTy (LHsType name)	 
 HsIParamTy HsIPName (LHsType name)	 
 HsEqTy (LHsType name) (LHsType name)	 
 HsKindSig (LHsType name) (LHsKind name)	 
@@ -670,7 +714,12 @@ HsTyLit HsTyLit
 HsWrapTy HsTyWrapper (HsType name)
 -}
 
-  exactP _ _ = printString "HsType"
+  exactP _ t = printString "HsType" `debug` ("exactP.LHSType:ignoring " ++ (SYB.showData SYB.Parser 0 t))
+
+
+instance ExactP (GHC.HsContext GHC.RdrName) where
+  exactP _ typs = do
+    mapM_ exactPC typs
 
 instance ExactP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP ma (GHC.GRHS guards expr) = do
@@ -722,11 +771,7 @@ instance ExactP GHC.RdrName where
 
   exactP ma@(Just _) n = do
     printString (rdrName2String n)
-    case getAnn isAnnListItem ma "ListItem" of
-      [Ann _ _ (AnnListItem commaPos)] -> do
-        printStringAtMaybeDelta commaPos ","
-      _ -> return ()
-
+    -- printListCommaMaybe ma
 
 
 instance ExactP (GHC.HsLocalBinds GHC.RdrName) where

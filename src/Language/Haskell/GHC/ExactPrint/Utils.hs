@@ -482,10 +482,16 @@ annotateLGRHS (GHC.L l (GHC.GRHS guards expr)) = do
 annotateLSig :: GHC.LSig GHC.RdrName -> AP ()
 annotateLSig (GHC.L l (GHC.TypeSig lns typ)) = do
   enterAST l
+
   toks <- getToks
   let [ls] = getListSrcSpan lns
+
+{-
+  let [ls] = getListSrcSpan lns
   let (_,ltoks,_) = splitToksForSpan ls toks
-  mapM_ (annotateListItem ltoks) lns
+  mapM_ (annotateListItem ltoks noOp) lns
+-}
+  annotateListItems lns noOp
 
   let dcolonPos = findDelta ghcIsDcolon l toks (ss2posEnd ls)
 
@@ -495,11 +501,21 @@ annotateLSig (GHC.L l (GHC.TypeSig lns typ)) = do
 
 -- ---------------------------------------------------------------------
 
+noOp :: a -> AP ()
+noOp _ = return ()
+
+-- ---------------------------------------------------------------------
+
 annotateLHsType :: GHC.LHsType GHC.RdrName -> AP ()
-annotateLHsType (GHC.L l (GHC.HsForAllTy f bndrs ctx typ)) = do
+annotateLHsType (GHC.L l (GHC.HsForAllTy f bndrs ctx@(GHC.L lc cc) typ)) = do
   enterAST l
+  toks <- getToks
+  annotateListItems cc annotateLHsType
+  let darrowPos = case cc of
+        [] -> Nothing
+        _ -> Just (findDelta ghcIsDarrow l toks (ss2posEnd lc))
   annotateLHsType typ
-  leaveAST AnnNone
+  leaveAST (AnnHsForAllTy darrowPos)
 
 annotateLHsType (GHC.L l (GHC.HsTyVar _n)) = do
   enterAST l
@@ -519,6 +535,49 @@ annotateLHsType (GHC.L l (GHC.HsFunTy t1@(GHC.L l1 _) t2)) = do
   annotateLHsType t2
   leaveAST (AnnHsFunTy raPos)
 
+annotateLHsType (GHC.L l (GHC.HsListTy t)) = do
+  enterAST l
+  annotateLHsType t
+  leaveAST AnnNone
+
+annotateLHsType (GHC.L l (GHC.HsPArrTy t)) = do
+  enterAST l
+  annotateLHsType t
+  leaveAST AnnNone
+
+annotateLHsType (GHC.L l (GHC.HsTupleTy srt typs)) = do
+  -- sort can be HsBoxedOrConstraintTuple for (Int,Int)
+  --             HsUnboxedTuple           for (# Int, Int #)
+
+  -- '('            { L _ IToparen }
+  -- ')'            { L _ ITcparen }
+  -- '(#'           { L _ IToubxparen }
+  -- '#)'           { L _ ITcubxparen }
+
+  enterAST l
+  toks <- getToks
+  let (isOpenTok,isCloseTok) = case srt of
+        GHC.HsUnboxedTuple -> (ghcIsOubxparen,ghcIsCubxparen)
+        _                  -> (ghcIsOParen,   ghcIsCParen)
+  let opPos = findDelta isOpenTok  l toks (ss2pos l)
+
+  -- mapM_ annotateLHsType typs
+  annotateListItems typs annotateLHsType
+
+  let cpPos = findDelta isCloseTok l toks (ss2posEnd l)
+  leaveAST (AnnHsTupleTy opPos cpPos)
+
+annotateLHsType (GHC.L l (GHC.HsOpTy t1 (_,ln) t2)) = do
+  enterAST l
+  annotateLHsType t1
+
+-- type LHsTyOp name = HsTyOp (Located name)
+-- type HsTyOp name = (HsTyWrapper, name)
+  -- annotateLHsType op
+
+  annotateLHsType t1
+  leaveAST AnnNone
+
 annotateLHsType (GHC.L l (GHC.HsParTy typ)) = do
   enterAST l
   toks <- getToks
@@ -527,16 +586,129 @@ annotateLHsType (GHC.L l (GHC.HsParTy typ)) = do
   let cpPos = findDelta ghcIsCParen l toks (ss2posEnd l)
   leaveAST (AnnHsParTy opPos cpPos) `debug` ("annotateLHsType.HsParTy:(l,opPos,cpPos)=" ++ show (ss2span l,opPos,cpPos))
 
-annotateLHsType (GHC.L l t) = do
+annotateLHsType (GHC.L l (GHC.HsIParamTy _n typ)) = do
+  --  ipvar '::' type               { LL (HsIParamTy (unLoc $1) $3) }
+  -- HsIParamTy HsIPName (LHsType name)
   enterAST l
-  leaveAST AnnNone `debug` ("annotateLHSType:ignoring " ++ (SYB.showData SYB.Parser 0 t))
+  toks <- getToks
+  let dcolonPos = findDelta ghcIsDcolon l toks (ss2pos l)
+  annotateLHsType typ
+  leaveAST (AnnHsIParamTy dcolonPos)
+
+annotateLHsType (GHC.L l (GHC.HsEqTy t1 t2)) = do
+  -- : btype '~'      btype          {% checkContext
+  --                                     (LL $ HsEqTy $1 $3) }
+  enterAST l
+  annotateLHsType t1
+  toks <- getToks
+  let tildePos = findDelta ghcIsTilde l toks (ss2pos l)
+  annotateLHsType t2
+  leaveAST (AnnHsEqTy tildePos)
+
+annotateLHsType (GHC.L l (GHC.HsKindSig t@(GHC.L lt _) k@(GHC.L kl _))) = do
+  -- HsKindSig (LHsType name) (LHsKind name)
+  --  '(' ctype '::' kind ')'        { LL $ HsKindSig $2 $4 }
+  enterAST l
+  toks <- getToks
+  let opPos = findPrecedingDelta ghcIsOParen l toks (ss2pos l)
+  annotateLHsType t
+  let dcolonPos = findDelta ghcIsDcolon l toks (ss2posEnd lt)
+  annotateLHsType k
+  let cpPos = findTrailingDelta ghcIsCParen l toks (ss2posEnd kl)
+  leaveAST (AnnHsKindSig opPos dcolonPos cpPos)
+
+annotateLHsType (GHC.L l (GHC.HsQuasiQuoteTy qq)) = do
+  -- HsQuasiQuoteTy (HsQuasiQuote name)
+  enterAST l
+  leaveAST AnnNone
+
+annotateLHsType (GHC.L l (GHC.HsSpliceTy splice _)) = do
+  -- HsSpliceTy (HsSplice name) PostTcKind
+  enterAST l
+  leaveAST AnnNone
+
+annotateLHsType (GHC.L l (GHC.HsDocTy t ds)) = do
+  -- HsDocTy (LHsType name) LHsDocString
+  -- The docstring is treated as a normal comment
+  enterAST l
+  annotateLHsType t
+  leaveAST AnnNone
+
+annotateLHsType (GHC.L l (GHC.HsBangTy _bang t)) = do
+  -- HsBangTy HsBang (LHsType name)
+  enterAST l
+  toks <- getToks
+  let bangPos = findDelta ghcIsBang l toks (ss2posEnd l)
+  annotateLHsType t
+  leaveAST (AnnHsBangTy bangPos)
+
+annotateLHsType (GHC.L l (GHC.HsRecTy decs)) = do
+  -- HsRecTy [ConDeclField name]
+  enterAST l
+  mapM_ annotateConDeclField decs
+  leaveAST AnnNone
+
+annotateLHsType (GHC.L l (GHC.HsCoreTy typ)) = do
+  -- HsCoreTy Type
+  enterAST l
+  leaveAST AnnNone
+
+annotateLHsType (GHC.L l (GHC.HsExplicitListTy _ typs)) = do
+  -- HsExplicitListTy PostTcKind [LHsType name]
+  enterAST l
+  toks <- getToks
+  let obPos = findPrecedingDelta ghcIsOBrack  l toks (ss2pos l)
+  annotateListItems typs annotateLHsType
+  let cbPos = findTrailingDelta ghcIsCBrack l toks (ss2posEnd l)
+
+  leaveAST (AnnHsExplicitListTy obPos cbPos)
+
+
+annotateLHsType (GHC.L l (GHC.HsExplicitTupleTy _ typs)) = do
+  -- HsExplicitTupleTy [PostTcKind] [LHsType name]
+  enterAST l
+  toks <- getToks
+  let opPos = findPrecedingDelta ghcIsOParen l toks (ss2pos l)
+  annotateListItems typs annotateLHsType
+  let cpPos = findTrailingDelta ghcIsCParen  l toks (ss2posEnd l)
+
+  leaveAST (AnnHsExplicitTupleTy opPos cpPos)
+
+annotateLHsType (GHC.L l (GHC.HsTyLit _lit)) = do
+ -- HsTyLit HsTyLit
+  enterAST l
+  leaveAST AnnNone
+
+annotateLHsType (GHC.L _l (GHC.HsWrapTy _w _t)) = return ()
+  -- HsWrapTy HsTyWrapper (HsType name)
+  -- These are not emitted by the parse
+
+-- annotateLHsType (GHC.L l t) = do
+--   enterAST l
+--   leaveAST AnnNone `debug` ("annotateLHSType:ignoring " ++ (SYB.showData SYB.Parser 0 t))
 
 -- ---------------------------------------------------------------------
 
+annotateConDeclField :: GHC.ConDeclField GHC.RdrName -> AP ()
+annotateConDeclField (GHC.ConDeclField ln lbang ldoc) = do
+  -- enterAST l
+  -- leaveAST AnnNone
+  return ()
+
+-- ---------------------------------------------------------------------
+
+annotateListItems :: [GHC.Located a] -> (GHC.Located a -> AP ()) -> AP ()
+annotateListItems lns subAnnFun = do
+  toks <- getToks
+  let [ls] = getListSrcSpan lns
+  let (_,ltoks,_) = splitToksForSpan ls toks
+  mapM_ (annotateListItem ltoks subAnnFun) lns
+
 -- |Annotate a comma-separated list of names
-annotateListItem ::  [PosToken] -> GHC.Located a ->AP ()
-annotateListItem ltoks (GHC.L l _) = do
+annotateListItem ::  [PosToken] -> (GHC.Located a -> AP ()) -> GHC.Located a ->AP ()
+annotateListItem ltoks subAnnFun a@(GHC.L l _) = do
   enterAST l
+  subAnnFun a
   let commaPos = findTrailingComma l ltoks
   leaveAST (AnnListItem commaPos) -- `debug` ("annotateListItem:(ss,l,commaPos)=" ++ show (ss2span ss,ss2span l,commaPos))
 
@@ -855,6 +1027,18 @@ ghcIsOParen t = ghcIsTok t GHC.IToparen
 ghcIsCParen :: PosToken -> Bool
 ghcIsCParen t = ghcIsTok t GHC.ITcparen
 
+ghcIsOBrack :: PosToken -> Bool
+ghcIsOBrack t = ghcIsTok t GHC.ITobrack
+
+ghcIsCBrack :: PosToken -> Bool
+ghcIsCBrack t = ghcIsTok t GHC.ITcbrack
+
+ghcIsOubxparen :: PosToken -> Bool
+ghcIsOubxparen t = ghcIsTok t GHC.IToubxparen
+
+ghcIsCubxparen :: PosToken -> Bool
+ghcIsCubxparen t = ghcIsTok t GHC.ITcubxparen
+
 ghcIsComma :: PosToken -> Bool
 ghcIsComma t = ghcIsTok t GHC.ITcomma
 
@@ -870,8 +1054,17 @@ ghcIsAs t = ghcIsTok t GHC.ITas
 ghcIsDcolon :: PosToken -> Bool
 ghcIsDcolon t = ghcIsTok t GHC.ITdcolon
 
+ghcIsTilde :: PosToken -> Bool
+ghcIsTilde t = ghcIsTok t GHC.ITtilde
+
+ghcIsBang :: PosToken -> Bool
+ghcIsBang t = ghcIsTok t GHC.ITbang
+
 ghcIsRarrow :: PosToken -> Bool
 ghcIsRarrow t = ghcIsTok t GHC.ITrarrow
+
+ghcIsDarrow :: PosToken -> Bool
+ghcIsDarrow t = ghcIsTok t GHC.ITdarrow
 
 ghcIsConid :: PosToken -> Bool
 ghcIsConid ((GHC.L _ t),_) = case t of

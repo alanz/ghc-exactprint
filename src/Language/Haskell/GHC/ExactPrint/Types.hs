@@ -154,8 +154,19 @@ IEDocNamed String
   | AnnConDecl  { cs_mvbar :: !(Maybe DeltaPos) }
 
   -- HsType
+  | AnnHsForAllTy { fa_darrow :: !(Maybe DeltaPos) }
   | AnnHsFunTy { ft_rarrow :: !DeltaPos }
   | AnnHsParTy { pt_opos :: !DeltaPos,  pt_cpos :: !DeltaPos }
+  | AnnHsTupleTy { t_opos :: !DeltaPos,  t_cpos :: !DeltaPos }
+  | AnnHsIParamTy { ipt_dcolon :: !DeltaPos }
+  | AnnHsEqTy { ipt_tilde :: !DeltaPos }
+  | AnnHsKindSig
+      { ks_op :: !DeltaPos, ks_dcolon :: !DeltaPos, ks_cp :: !DeltaPos }
+  | AnnHsBangTy { b_bang :: !DeltaPos }
+  | AnnHsExplicitListTy
+       { el_opos :: !DeltaPos,  el_cpos :: !DeltaPos }
+  | AnnHsExplicitTupleTy
+       { et_opos :: !DeltaPos,  et_cpos :: !DeltaPos }
 
   -- Basics
   | AnnListItem { li_comma :: !(Maybe DeltaPos) }
