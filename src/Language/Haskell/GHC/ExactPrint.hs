@@ -182,7 +182,7 @@ mergeComments :: [DComment] -> EP ()
 mergeComments dcs = EP $ \l cs an ->
     let acs = map (undeltaComment l) dcs
         cs' = merge acs cs
-    in ((), l, cs', an, id) `debug` ("mergeComments:(l,acs)=" ++ show (l,acs,cs))
+    in ((), l, cs', an, id) -- `debug` ("mergeComments:(l,acs)=" ++ show (l,acs,cs))
 
 newLine :: EP ()
 newLine = do
@@ -430,6 +430,11 @@ isAnnOverLit an = case an of
   (Ann _ _ (AnnOverLit {})) -> True
   _                         -> False
 
+isAnnTypeSig :: Annotation -> Bool
+isAnnTypeSig an = case an of
+  (Ann _ _ (AnnTypeSig {})) -> True
+  _                         -> False
+
 isAnnStmtLR :: Annotation -> Bool
 isAnnStmtLR an = case an of
   (Ann _ _ (AnnStmtLR {})) -> True
@@ -448,6 +453,21 @@ isAnnDataDecl an = case an of
 isAnnConDecl :: Annotation -> Bool
 isAnnConDecl an = case an of
   (Ann _ _ (AnnConDecl {})) -> True
+  _                         -> False
+
+isAnnListItem :: Annotation -> Bool
+isAnnListItem an = case an of
+  (Ann _ _ (AnnListItem {})) -> True
+  _                          -> False
+
+isAnnHsFunTy :: Annotation -> Bool
+isAnnHsFunTy an = case an of
+  (Ann _ _ (AnnHsFunTy {})) -> True
+  _                         -> False
+
+isAnnHsParTy :: Annotation -> Bool
+isAnnHsParTy an = case an of
+  (Ann _ _ (AnnHsParTy {})) -> True
   _                         -> False
 
 --------------------------------------------------
@@ -557,7 +577,7 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
     GHC.InstD d -> printString "InstD"
     GHC.DerivD d -> printString "DerivD"
     GHC.ValD d -> exactP ma d
-    GHC.SigD d -> printString "SigD"
+    GHC.SigD d -> exactP ma d
     GHC.DefD d -> printString "DefD"
     GHC.ForD d -> printString "ForD"
     GHC.WarningD d -> printString "WarningD"
@@ -607,6 +627,49 @@ instance ExactP (GHC.Pat GHC.RdrName) where
   exactP _ _ = printString "Pat"
 
 instance ExactP (GHC.HsType GHC.RdrName) where
+-- HsForAllTy HsExplicitFlag (LHsTyVarBndrs name) (LHsContext name) (LHsType name)
+  exactP _ (GHC.HsForAllTy f bndrs ctx typ) = do
+    exactPC typ
+
+  exactP _ (GHC.HsTyVar n) = printString (rdrName2String n)
+
+  exactP _ (GHC.HsAppTy t1 t2) = exactPC t1 >> exactPC t2
+
+  exactP ma (GHC.HsFunTy t1 t2) = do
+    let [(Ann _ _ (AnnHsFunTy rarrowPos))] = getAnn isAnnHsFunTy ma "HsFunTy"
+    exactPC t1
+    printStringAtDelta rarrowPos "~>"
+    exactPC t2
+
+  exactP ma (GHC.HsParTy t1) = do
+    let [(Ann _ _ (AnnHsParTy opPos cpPos))] = getAnn isAnnHsParTy ma "HsParTy"
+    printStringAtDelta opPos "("
+    exactPC t1
+    printStringAtDelta cpPos ")"
+
+
+
+{-
+HsListTy (LHsType name)	 
+HsPArrTy (LHsType name)	 
+HsTupleTy HsTupleSort [LHsType name]	 
+HsOpTy (LHsType name) (LHsTyOp name) (LHsType name)	 
+HsParTy (LHsType name)	 
+HsIParamTy HsIPName (LHsType name)	 
+HsEqTy (LHsType name) (LHsType name)	 
+HsKindSig (LHsType name) (LHsKind name)	 
+HsQuasiQuoteTy (HsQuasiQuote name)	 
+HsSpliceTy (HsSplice name) PostTcKind	 
+HsDocTy (LHsType name) LHsDocString	 
+HsBangTy HsBang (LHsType name)	 
+HsRecTy [ConDeclField name]	 
+HsCoreTy Type	 
+HsExplicitListTy PostTcKind [LHsType name]	 
+HsExplicitTupleTy [PostTcKind] [LHsType name]	 
+HsTyLit HsTyLit	 
+HsWrapTy HsTyWrapper (HsType name)
+-}
+
   exactP _ _ = printString "HsType"
 
 instance ExactP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
@@ -655,7 +718,16 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
   exactP _ _ = printString "HsExpr"
 
 instance ExactP GHC.RdrName where
-  exactP _ n = printString (rdrName2String n)
+  exactP Nothing n = printString (rdrName2String n)
+
+  exactP ma@(Just _) n = do
+    printString (rdrName2String n)
+    case getAnn isAnnListItem ma "ListItem" of
+      [Ann _ _ (AnnListItem commaPos)] -> do
+        printStringAtMaybeDelta commaPos ","
+      _ -> return ()
+
+
 
 instance ExactP (GHC.HsLocalBinds GHC.RdrName) where
   exactP _ (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
@@ -666,6 +738,12 @@ instance ExactP (GHC.HsLocalBinds GHC.RdrName) where
   exactP _ (GHC.EmptyLocalBinds) = return ()
 
 instance ExactP (GHC.Sig GHC.RdrName) where
+  exactP ma (GHC.TypeSig lns typ) = do
+    let [(Ann _ _ (AnnTypeSig dc))] = getAnn isAnnTypeSig ma "TypeSig"
+    mapM_ exactPC lns
+    printStringAtDelta dc "::"
+    exactPC typ
+
   exactP _ _ = printString "Sig"
 
 instance ExactP (GHC.HsOverLit GHC.RdrName) where

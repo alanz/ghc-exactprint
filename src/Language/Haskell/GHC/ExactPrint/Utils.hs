@@ -52,6 +52,8 @@ import qualified Var           as GHC
 
 import qualified Data.Map as Map
 
+import qualified GHC.SYB.Utils as SYB
+
 import Debug.Trace
 
 debug :: c -> String -> c
@@ -134,7 +136,7 @@ addAnnotions anns = AP (\l (h:r) cs toks -> ( (),l,(head l:h):r,cs,toks,[(head l
 enterAST :: GHC.SrcSpan -> AP ()
 enterAST ss = do
   pushSrcSpan ss
-  return () `debug` ("enterAST:" ++ show (ss2span ss))
+  return () -- `debug` ("enterAST:" ++ show (ss2span ss))
 
 -- | Pop up the SrcSpan stack, capture the annotations, and work the
 -- comments in belonging to the span
@@ -152,7 +154,7 @@ leaveAST anns = do
   addAnnotions [Ann lcs (ss2span ss) anns]
   setComments cs'
   popSrcSpan
-  return () `debug` ("leaveAST:" ++ show (ss2span ss,lcs))
+  return () -- `debug` ("leaveAST:" ++ show (ss2span ss,lcs))
 
 -- ---------------------------------------------------------------------
 -- Start of application specific part
@@ -162,7 +164,7 @@ leaveAST anns = do
 annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName)
   -> [Comment] -> [PosToken]
   -> Anns
-annotateLHsModule modu cs toks = r -- `debug` ("annotateModule':r=" ++ show r)
+annotateLHsModule modu cs toks = r
   where r = runAP (annotateModule modu) cs toks
 
 
@@ -182,7 +184,7 @@ annotateModule (GHC.L lm (GHC.HsModule mmn mexp imps decs _depr _haddock)) = do
 
   mapM_ annotateLHsDecl decs
 
-  leaveAST (AnnHsModule lpo) `debug` ("annotateModule:(lpo,lastTok,secondLastTok):" ++ show (lpo,lastTok,secondLastTok))
+  leaveAST (AnnHsModule lpo)
 
 -- ---------------------------------------------------------------------
 
@@ -198,7 +200,6 @@ annotateModuleHeader (Just (GHC.L l _mn)) mexp pos = do
     -- pos = ss2pos lm  -- start of the syntax fragment
     moduleTok = head $ filter ghcIsModule toks
     whereTok  = head $ filter ghcIsWhere  toks
-
 
     annSpecific = AnnModuleName mPos mnPos opPos cpPos wherePos
          `debug` ("annotateModuleHeader:" ++ show (pos,mPos,ss2span $ tokenSpan moduleTok))
@@ -234,10 +235,10 @@ annotateLIE (GHC.L l ie) = do
     -- This receives the toks for the entire exports section.
     -- So it can scan for the separating comma if required
       (GHC.IEVar _) -> AnnIEVar mc
-        where (mc, _p, _lcs) = getListAnnInfo l ghcIsComma ghcIsCParen cs toks
+        where mc = getListAnnInfo l ghcIsComma ghcIsCParen cs toks
 
       (GHC.IEThingAbs _) -> AnnIEThingAbs mc
-        where (mc, _p, _lcs) = getListAnnInfo l ghcIsComma ghcIsCParen cs toks
+        where mc = getListAnnInfo l ghcIsComma ghcIsCParen cs toks
 
       _ -> assert False undefined
 
@@ -325,10 +326,9 @@ ideclHiding :: Maybe (Bool, [LIE name])
 getListAnnInfo :: GHC.SrcSpan
   -> (PosToken -> Bool) -> (PosToken -> Bool)
   -> [Comment] -> [PosToken]
-  -> (Maybe DeltaPos, Span, [DComment])
-getListAnnInfo l isSeparator isTerminator cs toks = (mc,p,lcs) -- `debug` ("getListAnnInfo:lcs=" ++ show lcs)
-  where (mc,p,sp) = calcListOffsets isSeparator isTerminator l toks
-        (lcs,_) = localComments sp cs [] -- `debug` ("getListAnnInfo:sp=" ++ show sp )
+  -> Maybe DeltaPos
+getListAnnInfo l isSeparator isTerminator cs toks = mc
+  where mc = calcListOffsets isSeparator isTerminator l toks
 
 isCommaOrCParen :: PosToken -> Bool
 isCommaOrCParen t = ghcIsComma t || ghcIsCParen t
@@ -338,38 +338,17 @@ isCommaOrCParen t = ghcIsComma t || ghcIsCParen t
 calcListOffsets :: (PosToken -> Bool) -> (PosToken -> Bool)
   -> GHC.SrcSpan
   -> [PosToken]
-  -> (Maybe DeltaPos, Span, Span)
-calcListOffsets isSeparator isTerminator l toks = (mc,p,sp) -- `debug` ("calcListOffsets:(l,mc,p,sp)=" ++ show (ss2span l,mc,p,sp))
+  -> Maybe DeltaPos
+calcListOffsets isSeparator isTerminator l toks = mc
   where
-    (endPos,mc) = case findTrailing isToken l toks of
-      Nothing -> (ss2posEnd l,Nothing) -- `debug` ("calcListOffsets:no next pos")
-      Just t  -> ((tokenPos t),mc') -- `debug` ("calcListOffsets:next=" ++ show (tokenPos t))
+    mc = case findTrailing isToken l toks of
+      Nothing -> Nothing
+      Just t  -> mc'
         where mc' = if isSeparator t
                       then Just (ss2delta (ss2posEnd l) (tokenSpan t))
                       else Nothing
-    p = ss2span l
-    sp = (ss2pos l,endPos)
 
     isToken t = isSeparator t || isTerminator t
-
--- ---------------------------------------------------------------------
-
-calcListOffsetsPreceding ::(PosToken -> Bool) -> GHC.SrcSpan
-  -> [PosToken]
-  -> Maybe GHC.SrcSpan -- Span for previous item, where there is one
-  -> GHC.SrcSpan       -- opening parenthesis of list
-  -> (Maybe DeltaPos, DeltaPos, Span)
-calcListOffsetsPreceding isToken l toks pl pr = (mc,p,sp) -- `debug` ("calcListOffsets:(l,mc,p,sp,pr)=" ++ show (ss2span l,mc,p,sp,ss2span pr))
-  where
-    endPos = case findTrailingSrcSpan isToken l toks of
-      Nothing -> ss2posEnd l -- `debug` ("calcListOffsets:no next pos")
-      Just ss -> ss2pos ss   -- `debug` ("calcListOffsets:next=" ++ show (ss2span ss))
-    (mc,p,sp) = case findPreceding isToken l toks of
-      -- Nothing -> (Nothing, ss2delta (ss2posEnd pr) l, (ss2posEnd pr,ss2posEnd l))
-      Nothing -> (Nothing, DP (0,0),                  (ss2posEnd pr,endPos))
-      Just ss -> (Just lo, ss2delta (ss2posEnd ss) l, (ss2posEnd ss,endPos))
-                 where lp = maybe l id pl
-                       lo = (ss2delta (ss2posEnd lp) ss)
 
 -- ---------------------------------------------------------------------
 
@@ -380,7 +359,7 @@ annotateLHsDecl (GHC.L l decl) =
       GHC.InstD d -> error $ "annotateLHsDecl:unimplemented " ++ "InstD"
       GHC.DerivD d -> error $ "annotateLHsDecl:unimplemented " ++ "DerivD"
       GHC.ValD d -> annotateLHsBind (GHC.L l d)
-      GHC.SigD d -> error $ "annotateLHsDecl:unimplemented " ++ "SigD"
+      GHC.SigD d -> annotateLSig (GHC.L l d)
       GHC.DefD d -> error $ "annotateLHsDecl:unimplemented " ++ "DefD"
       GHC.ForD d -> error $ "annotateLHsDecl:unimplemented " ++ "ForD"
       GHC.WarningD d -> error $ "annotateLHsDecl:unimplemented " ++ "WarningD"
@@ -399,6 +378,45 @@ annotateLHsBind (GHC.L l (GHC.FunBind (GHC.L _ n) isInfix (GHC.MG matches _ _ _)
   enterAST l
   mapM_ (\m -> annotateLMatch m n isInfix) matches
   leaveAST AnnFunBind
+
+annotateLHsBind (GHC.L l (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks)) = do
+  enterAST l
+
+  annotateLPat lhs
+  mapM_ annotateLGRHS grhs
+  annotateHsLocalBinds lb
+
+  leaveAST AnnPatBind
+
+
+annotateLHsBind (GHC.L l (GHC.VarBind n rhse _)) = do
+  -- Note: this bind is introduced by the typechecker
+  enterAST l
+  annotateLHsExpr rhse
+  leaveAST AnnNone
+
+annotateLHsBind (GHC.L l (GHC.PatSynBind n _fvs args patsyndef patsyn_dir)) = do
+  enterAST l
+  leaveAST AnnPatSynBind
+
+{-
+PatSynBind
+
+patsyn_id :: Located idL
+
+    Name of the pattern synonym
+bind_fvs :: NameSet
+
+    After the renamer, this contains the locally-bound free variables of this defn. See Note [Bind free vars]
+patsyn_args :: HsPatSynDetails (Located idR)
+
+    Formal parameter names
+patsyn_def :: LPat idR
+
+    Right-hand side
+patsyn_dir :: HsPatSynDir idR
+
+    Directionality-}
 
 -- ---------------------------------------------------------------------
 
@@ -458,6 +476,69 @@ annotateLGRHS (GHC.L l (GHC.GRHS guards expr)) = do
   annotateLHsExpr expr
 
   leaveAST (AnnGRHS guardPos eqPos)
+
+-- ---------------------------------------------------------------------
+
+annotateLSig :: GHC.LSig GHC.RdrName -> AP ()
+annotateLSig (GHC.L l (GHC.TypeSig lns typ)) = do
+  enterAST l
+  toks <- getToks
+  let [ls] = getListSrcSpan lns
+  let (_,ltoks,_) = splitToksForSpan ls toks
+  mapM_ (annotateListItem ltoks) lns
+
+  let dcolonPos = findDelta ghcIsDcolon l toks (ss2posEnd ls)
+
+  annotateLHsType typ
+
+  leaveAST (AnnTypeSig dcolonPos)
+
+-- ---------------------------------------------------------------------
+
+annotateLHsType :: GHC.LHsType GHC.RdrName -> AP ()
+annotateLHsType (GHC.L l (GHC.HsForAllTy f bndrs ctx typ)) = do
+  enterAST l
+  annotateLHsType typ
+  leaveAST AnnNone
+
+annotateLHsType (GHC.L l (GHC.HsTyVar _n)) = do
+  enterAST l
+  leaveAST AnnNone
+
+annotateLHsType (GHC.L l (GHC.HsAppTy t1 t2)) = do
+  enterAST l
+  annotateLHsType t1
+  annotateLHsType t2
+  leaveAST AnnNone
+
+annotateLHsType (GHC.L l (GHC.HsFunTy t1@(GHC.L l1 _) t2)) = do
+  enterAST l
+  toks <- getToks
+  annotateLHsType t1
+  let raPos = findDelta ghcIsRarrow l toks (ss2posEnd l1)
+  annotateLHsType t2
+  leaveAST (AnnHsFunTy raPos)
+
+annotateLHsType (GHC.L l (GHC.HsParTy typ)) = do
+  enterAST l
+  toks <- getToks
+  let opPos = findDelta ghcIsOParen l toks (ss2pos l)
+  annotateLHsType typ
+  let cpPos = findDelta ghcIsCParen l toks (ss2posEnd l)
+  leaveAST (AnnHsParTy opPos cpPos) `debug` ("annotateLHsType.HsParTy:(l,opPos,cpPos)=" ++ show (ss2span l,opPos,cpPos))
+
+annotateLHsType (GHC.L l t) = do
+  enterAST l
+  leaveAST AnnNone `debug` ("annotateLHSType:ignoring " ++ (SYB.showData SYB.Parser 0 t))
+
+-- ---------------------------------------------------------------------
+
+-- |Annotate a comma-separated list of names
+annotateListItem ::  [PosToken] -> GHC.Located a ->AP ()
+annotateListItem ltoks (GHC.L l _) = do
+  enterAST l
+  let commaPos = findTrailingComma l ltoks
+  leaveAST (AnnListItem commaPos) -- `debug` ("annotateListItem:(ss,l,commaPos)=" ++ show (ss2span ss,ss2span l,commaPos))
 
 -- ---------------------------------------------------------------------
 
@@ -593,16 +674,19 @@ annotateLConDecl (GHC.L l (GHC.ConDecl ln exp qvars ctx dets res _ _)) = do
   toksIn <- getToks
   cs <- getComments
   let
-    (mc, p, lcs) = getListAnnInfo l ghcIsVbar (const False) cs toksIn
+    mc = getListAnnInfo l ghcIsVbar (const False) cs toksIn
   leaveAST (AnnConDecl mc)
 
 -- ---------------------------------------------------------------------
 
 getListSpan :: [GHC.Located e] -> [Span]
-getListSpan [] = []
-getListSpan xs = [ss2span $ GHC.mkSrcSpan (GHC.srcSpanStart (GHC.getLoc (head xs)))
-                                          (GHC.srcSpanEnd   (GHC.getLoc (last xs)))
-                 ]
+getListSpan xs = map ss2span $ getListSrcSpan xs
+
+getListSrcSpan :: [GHC.Located e] -> [GHC.SrcSpan]
+getListSrcSpan [] = []
+getListSrcSpan xs = [GHC.mkSrcSpan (GHC.srcSpanStart (GHC.getLoc (head xs)))
+                                   (GHC.srcSpanEnd   (GHC.getLoc (last xs)))
+                    ]
 
 getListSpans :: [GHC.Located e] -> [Span]
 getListSpans xs = map (ss2span . GHC.getLoc) xs
@@ -677,6 +761,15 @@ findPrecedingDelta isToken ln toks p =
 
 -- ---------------------------------------------------------------------
 
+findTrailingDelta :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken]
+ -> Pos -> DeltaPos
+findTrailingDelta isToken ln toks p =
+  case findTrailing isToken ln toks of
+    Nothing -> error $ "findTrailingDelta: No matching token trailing :" ++ show (ss2span ln)
+    Just t -> ss2delta p (tokenSpan t)
+
+-- ---------------------------------------------------------------------
+
 findDelta :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken]
  -> Pos -> DeltaPos
 findDelta isToken ln toks p =
@@ -692,7 +785,7 @@ findTrailingComma ss toks = r
     (_,_,toksAfter) = splitToksForSpan ss toks
     r = case filter ghcIsComma toksAfter of
       [] -> Nothing
-      (t:_) -> Just (ss2delta (ss2pos ss) $ tokenSpan t)
+      (t:_) -> Just (ss2delta (ss2posEnd ss) $ tokenSpan t)
 
 
 -- ---------------------------------------------------------------------
@@ -773,6 +866,12 @@ ghcIsQualified t = ghcIsTok t GHC.ITqualified
 
 ghcIsAs :: PosToken -> Bool
 ghcIsAs t = ghcIsTok t GHC.ITas
+
+ghcIsDcolon :: PosToken -> Bool
+ghcIsDcolon t = ghcIsTok t GHC.ITdcolon
+
+ghcIsRarrow :: PosToken -> Bool
+ghcIsRarrow t = ghcIsTok t GHC.ITrarrow
 
 ghcIsConid :: PosToken -> Bool
 ghcIsConid ((GHC.L _ t),_) = case t of

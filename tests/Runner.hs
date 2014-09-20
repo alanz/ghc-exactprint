@@ -79,7 +79,7 @@ exactPrinterTests sources = testGroup "Exact printer tests" $ do
 manipulateAstTest :: [FilePath] -> TestTree -- {{{
 manipulateAstTest sources = testGroup "Exact printer tests" $ do
   -- list monad
-  file <- take 1 $ drop 1 sources
+  file <- take 1 $ drop 2 sources
   let
     out    = file <.> "exactprinter" <.> "out"
     golden = file <.> "exactprinter" <.> "golden"

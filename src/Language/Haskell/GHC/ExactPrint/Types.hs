@@ -106,9 +106,15 @@ IEDocNamed String
      , id_cp        :: !(Maybe DeltaPos)
      }
 
+  -- Sig
+  | AnnTypeSig { st_dcolon :: !DeltaPos }
+
   -- HsBindLR
   | AnnFunBind {}
-
+  | AnnPatBind {}
+  -- AnnVarBind {} not needed, only introduced by type checker
+  -- AnnAbsBind {} only used after renamer
+  | AnnPatSynBind {}
 
   | AnnGRHS
     { grhs_guard :: !(Maybe DeltaPos) --  track the '|'
@@ -145,8 +151,14 @@ IEDocNamed String
   -- TyClDecl
   --  Data declarations
   | AnnDataDecl { dd_equal :: !DeltaPos }
-  | AnnConDecl  { cs_mvbar  :: !(Maybe DeltaPos) }
+  | AnnConDecl  { cs_mvbar :: !(Maybe DeltaPos) }
 
+  -- HsType
+  | AnnHsFunTy { ft_rarrow :: !DeltaPos }
+  | AnnHsParTy { pt_opos :: !DeltaPos,  pt_cpos :: !DeltaPos }
+
+  -- Basics
+  | AnnListItem { li_comma :: !(Maybe DeltaPos) }
 
   | AnnNone
   deriving (Show)
