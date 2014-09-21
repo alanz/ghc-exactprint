@@ -858,7 +858,8 @@ annotateLHsExpr (GHC.L l exprIn) = do
                               then (ghcIsOParen,ghcIsCParen)
                               else (ghcIsOubxparen,ghcIsCubxparen)
       let opPos = findDelta isOpen l toksIn (ss2pos l)
-      mapM_ annotateHsTupArg args
+      let (_,ltoks,_) = splitToksForSpan l toksIn
+      mapM_ (annotateHsTupArg ltoks) args
       let Just cpPos = findTokenWrtPriorReversed isClose l toksIn
 
       return (AnnExplicitTuple opPos cpPos)
@@ -874,9 +875,14 @@ annotateLHsExpr (GHC.L l exprIn) = do
 
 -- ---------------------------------------------------------------------
 
-annotateHsTupArg :: GHC.HsTupArg GHC.RdrName -> AP ()
-annotateHsTupArg (GHC.Present e) = annotateLHsExpr e
-annotateHsTupArg (GHC.Missing _) = return ()
+annotateHsTupArg :: [PosToken] -> GHC.HsTupArg GHC.RdrName -> AP ()
+annotateHsTupArg ltoks (GHC.Present e@(GHC.L l _)) = do
+  enterAST l
+  annotateLHsExpr e
+  let commaPos = findTrailingComma l ltoks
+  leaveAST (AnnListItem commaPos)
+
+annotateHsTupArg _ (GHC.Missing _) = return ()
 
 -- ---------------------------------------------------------------------
 
