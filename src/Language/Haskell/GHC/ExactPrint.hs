@@ -305,6 +305,10 @@ exactPC (GHC.L l ast) =
  in do ma <- getAnnotation l
        mPrintComments p
        padUntil p
+       case ma of
+         Nothing -> return ()
+         Just anns -> mergeComments lcs
+           where lcs = concatMap (\(Ann cs _ _) -> cs) anns
        exactP ma ast
        printListCommaMaybe ma
 
@@ -563,13 +567,11 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
 
   exactP ma (GHC.HsModule (Just lmn@(GHC.L l mn)) mexp imps decls deprecs haddock) = do
     let Just [Ann csm _ (AnnHsModule ep)] = ma
-    mergeComments csm
 
     mAnn <- getAnnotation l
     let p = (1,1)
     case mAnn of
       Just [(Ann cs _ (AnnModuleName pm _pn po pc pw))] -> do
-        mergeComments cs -- TODO: make this part of getAnnotation, or perhaps activateAnnotation
         printStringAt (undelta p pm) "module" `debug` ("exactP.HsModule:cs=" ++ show cs)
         exactPC lmn
         case mexp of
@@ -602,14 +604,12 @@ instance ExactP (GHC.IE GHC.RdrName) where
   exactP ma (GHC.IEVar n) = do
     let Just [(Ann cs _ (AnnIEVar mc))] = ma
     p <- getPos
-    mergeComments cs  `debug` ("exactP LIE.Var:(mc,ll,p,cs)=" ++ show (mc,p,cs))
     printString (rdrName2String n)
     printStringAtMaybeDelta mc ","
     return ()
 
   exactP ma (GHC.IEThingAbs n) = do
     let Just [(Ann cs _ (AnnIEThingAbs mc))] = ma `debug` ("exactP.IEThingAbs:" ++ show ma)
-    mergeComments cs `debug` ("exactP LIE.ThingAbs:(mc,cs)=" ++ show (mc,cs))
     printString (rdrName2String n)
     printStringAtMaybeDelta mc ","
     return ()
@@ -621,7 +621,6 @@ instance ExactP (GHC.IE GHC.RdrName) where
 instance ExactP (GHC.ImportDecl GHC.RdrName) where
   exactP ma imp = do
     let Just [(Ann cs _ an)] = ma
-    mergeComments cs
     p <- getPos
     printString "import"
     printStringAtMaybeDeltaP p (id_qualified an) "qualified"
@@ -681,7 +680,6 @@ instance ExactP (GHC.HsBind GHC.RdrName) where
 instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP ma (GHC.Match pats typ (GHC.GRHSs grhs lb)) = do
     let [(Ann lcs _ (AnnMatch nPos n isInfix eqPos wherePos))] = getAnn isAnnMatch ma "Match"
-    mergeComments lcs -- `debug` ("exactP.Match:(nPos,eqPos,isInfix):" ++ show (nPos,eqPos,isInfix))
     if isInfix
       then do
         exactPC (head pats)
@@ -787,7 +785,6 @@ instance ExactP (GHC.HsContext GHC.RdrName) where
 instance ExactP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP ma (GHC.GRHS guards expr) = do
     let [(Ann lcs _ (AnnGRHS guardPos eqPos))] = getAnn isAnnGRHS ma "GRHS"
-    mergeComments lcs
     printStringAtMaybeDelta guardPos "|"
     mapM_ exactPC guards
     printStringAtMaybeDelta eqPos "="
@@ -796,12 +793,10 @@ instance ExactP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 instance ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP ma (GHC.BodyStmt e _ _ _) = do
     let [(Ann lcs _ an)] = getAnn isAnnStmtLR ma "StmtLR"
-    mergeComments lcs
     exactPC e
 
   exactP ma (GHC.LetStmt lb) = do
     let [(Ann lcs _ an)] = getAnn isAnnLetStmt ma "LetStmt"
-    mergeComments lcs
     p <- getPos
     printStringAtMaybeDelta (ls_let an) "let" `debug` ("exactP.LetStmt:an=" ++ show an)
     exactP Nothing lb
@@ -813,7 +808,6 @@ instance ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsExpr GHC.RdrName)) w
 instance ExactP (GHC.HsExpr GHC.RdrName) where
   exactP ma  (GHC.HsLet lb e)    = do
     let [(Ann lcs _ an)] = getAnn isAnnHsLet ma "HsLet"
-    mergeComments lcs
     p <- getPos
     printStringAtMaybeDelta (hsl_let an) "let" `debug` ("exactP.HsLet:an=" ++ show an)
     exactP Nothing lb
@@ -821,7 +815,6 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     exactPC e
   exactP ma  (GHC.HsDo cts stmts _typ)    = do
     let [(Ann lcs _ an)] = getAnn isAnnHsDo ma "HsDo"
-    mergeComments lcs
     printStringAtMaybeDelta (hsd_do an) "do" `debug` ("exactP.HsDo:an=" ++ show an)
     mapM_ exactPC stmts
   exactP ma (GHC.HsOverLit lit) = exactP ma lit -- `debug` ("GHC.HsOverLit:" ++ show ma)
