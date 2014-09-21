@@ -43,6 +43,7 @@ import Data.List.Utils
 import Data.Maybe
 
 import qualified Bag           as GHC
+import qualified BasicTypes    as GHC
 import qualified DynFlags      as GHC
 import qualified FastString    as GHC
 import qualified ForeignCall   as GHC
@@ -448,6 +449,16 @@ isAnnHsDo an = case an of
   (Ann _ _ (AnnHsDo {})) -> True
   _                      -> False
 
+isAnnHsExplicitTupleTy :: Annotation -> Bool
+isAnnHsExplicitTupleTy an = case an of
+  (Ann _ _ (AnnHsExplicitTupleTy {})) -> True
+  _                                   -> False
+
+isAnnExplicitTuple :: Annotation -> Bool
+isAnnExplicitTuple an = case an of
+  (Ann _ _ (AnnExplicitTuple {})) -> True
+  _                               -> False
+
 isAnnOverLit :: Annotation -> Bool
 isAnnOverLit an = case an of
   (Ann _ _ (AnnOverLit {})) -> True
@@ -634,8 +645,7 @@ instance ExactP (GHC.HsBind GHC.RdrName) where
 
 instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP ma (GHC.Match pats typ (GHC.GRHSs grhs lb)) = do
-    p <- getPos
-    let [(Ann lcs _ (AnnMatch nPos n isInfix eqPos))] = getAnn isAnnMatch ma "Match"
+    let [(Ann lcs _ (AnnMatch nPos n isInfix eqPos wherePos))] = getAnn isAnnMatch ma "Match"
     mergeComments lcs -- `debug` ("exactP.Match:(nPos,eqPos,isInfix):" ++ show (nPos,eqPos,isInfix))
     if isInfix
       then do
@@ -650,7 +660,8 @@ instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
     printStringAtMaybeDelta eqPos "="
     doMaybe typ exactPC
     mapM_ exactPC grhs
-    -- exactPC lb
+    printStringAtMaybeDelta wherePos "where"
+    exactP Nothing lb
 
 instance ExactP (GHC.Pat GHC.RdrName) where
   exactP _  (GHC.VarPat n)     = printString (rdrName2String n)
@@ -662,8 +673,10 @@ instance ExactP (GHC.Pat GHC.RdrName) where
 instance ExactP (GHC.HsType GHC.RdrName) where
 -- HsForAllTy HsExplicitFlag (LHsTyVarBndrs name) (LHsContext name) (LHsType name)
   exactP ma (GHC.HsForAllTy f bndrs ctx typ) = do
-    let [(Ann _ _ (AnnHsForAllTy darrowPos))] = getAnn isAnnHsForAllTy ma "HsForAllTy"
+    let [(Ann _ _ (AnnHsForAllTy opPos darrowPos cpPos))] = getAnn isAnnHsForAllTy ma "HsForAllTy"
+    printStringAtMaybeDelta opPos "("
     exactPC ctx
+    printStringAtMaybeDelta cpPos ")"
     printStringAtMaybeDelta darrowPos "=>"
     exactPC typ
 
@@ -764,7 +777,17 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
   exactP ma (GHC.HsOverLit lit) = exactP ma lit -- `debug` ("GHC.HsOverLit:" ++ show ma)
   exactP _  (GHC.OpApp e1 op _f e2) = exactPC e1 >> exactPC op >> exactPC e2
   exactP ma  (GHC.HsVar v)          = exactP ma v
-  exactP _ _ = printString "HsExpr"
+ -- ExplicitTuple [HsTupArg id] Boxity
+  exactP ma (GHC.ExplicitTuple args b) = do
+    let [(Ann lcs _ an)] = getAnn isAnnExplicitTuple ma "ExplicitTuple"
+    if b == GHC.Boxed then printStringAtDelta (et_opos an) "("
+                      else printStringAtDelta (et_opos an) "(#"
+    mapM_ (exactP Nothing) args `debug` ("exactP.ExplicitTuple")
+    if b == GHC.Boxed then printStringAtDelta (et_cpos an) ")"
+                      else printStringAtDelta (et_cpos an) "#)"
+
+  exactP _ e = printString "HsExpr"
+    `debug` ("exactP.HsExpr:not processing " ++ (SYB.showData SYB.Parser 0 e) )
 
 instance ExactP GHC.RdrName where
   exactP Nothing n = printString (rdrName2String n)
@@ -773,6 +796,9 @@ instance ExactP GHC.RdrName where
     printString (rdrName2String n)
     -- printListCommaMaybe ma
 
+instance ExactP (GHC.HsTupArg GHC.RdrName) where
+  exactP _ (GHC.Missing _) = return ()
+  exactP _ (GHC.Present e) = exactPC e
 
 instance ExactP (GHC.HsLocalBinds GHC.RdrName) where
   exactP _ (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do

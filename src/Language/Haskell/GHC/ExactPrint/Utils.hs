@@ -34,6 +34,7 @@ import Data.Maybe
 import Language.Haskell.GHC.ExactPrint.Types
 
 import qualified Bag           as GHC
+import qualified BasicTypes    as GHC
 import qualified DynFlags      as GHC
 import qualified FastString    as GHC
 import qualified ForeignCall   as GHC
@@ -438,11 +439,23 @@ annotateLMatch (GHC.L l (GHC.Match pats _typ (GHC.GRHSs grhs lb))) n isInfix = d
     eqPos = case grhs of
              [GHC.L _ (GHC.GRHS [] _)] -> findTokenWrtPrior ghcIsEqual l toksIn -- unguarded
              _                         -> Nothing
+    wherePos = case lb of
+      GHC.EmptyLocalBinds -> Nothing
+      GHC.HsIPBinds i -> Nothing `debug` ("annotateLMatch.wherePos:got " ++ (SYB.showData SYB.Parser 0 i))
+      GHC.HsValBinds (GHC.ValBindsIn binds sigs) -> Just wp
+        where
+          [lbs] = getListSrcSpan $ GHC.bagToList binds
+          lvb = case sigs of
+            [] -> lbs
+            _  -> GHC.combineSrcSpans lbs lcs
+              where [lcs] = getListSrcSpan sigs
+          [lg] = getListSrcSpan grhs
+          wp = findPrecedingDelta ghcIsWhere lvb toksIn (ss2posEnd lg)
 
   mapM_ annotateLPat pats
   mapM_ annotateLGRHS grhs
   annotateHsLocalBinds lb
-  leaveAST (AnnMatch nPos n isInfix eqPos)
+  leaveAST (AnnMatch nPos n isInfix eqPos wherePos)
 
 
 -- ---------------------------------------------------------------------
@@ -511,11 +524,16 @@ annotateLHsType (GHC.L l (GHC.HsForAllTy f bndrs ctx@(GHC.L lc cc) typ)) = do
   enterAST l
   toks <- getToks
   annotateListItems cc annotateLHsType
-  let darrowPos = case cc of
-        [] -> Nothing
-        _ -> Just (findDelta ghcIsDarrow l toks (ss2posEnd lc))
+  let (opPos,darrowPos,cpPos) = case cc of
+        [] -> (Nothing,Nothing,Nothing)
+        _  -> (op,da,cp)
+          where
+            [lca] = getListSrcSpan cc
+            op = findPrecedingMaybeDelta ghcIsOParen lca toks (ss2pos l)
+            da = Just (findDelta ghcIsDarrow l toks (ss2posEnd lc))
+            cp = findTrailingMaybeDelta ghcIsCParen lca toks (ss2posEnd lca)
   annotateLHsType typ
-  leaveAST (AnnHsForAllTy darrowPos)
+  leaveAST (AnnHsForAllTy opPos darrowPos cpPos)
 
 annotateLHsType (GHC.L l (GHC.HsTyVar _n)) = do
   enterAST l
@@ -564,8 +582,10 @@ annotateLHsType (GHC.L l (GHC.HsTupleTy srt typs)) = do
   -- mapM_ annotateLHsType typs
   annotateListItems typs annotateLHsType
 
-  let cpPos = findDelta isCloseTok l toks (ss2posEnd l)
+  let [lt] = getListSrcSpan typs
+  let cpPos = findDelta isCloseTok l toks (ss2posEnd lt)
   leaveAST (AnnHsTupleTy opPos cpPos)
+    `debug` ("annotateLHsType.HsTupleTy:(l,cpPos):" ++ show (ss2span l,cpPos))
 
 annotateLHsType (GHC.L l (GHC.HsOpTy t1 (_,ln) t2)) = do
   enterAST l
@@ -663,7 +683,6 @@ annotateLHsType (GHC.L l (GHC.HsExplicitListTy _ typs)) = do
 
   leaveAST (AnnHsExplicitListTy obPos cbPos)
 
-
 annotateLHsType (GHC.L l (GHC.HsExplicitTupleTy _ typs)) = do
   -- HsExplicitTupleTy [PostTcKind] [LHsType name]
   enterAST l
@@ -673,6 +692,7 @@ annotateLHsType (GHC.L l (GHC.HsExplicitTupleTy _ typs)) = do
   let cpPos = findTrailingDelta ghcIsCParen  l toks (ss2posEnd l)
 
   leaveAST (AnnHsExplicitTupleTy opPos cpPos)
+    `debug` ("AnnListItem.HsExplicitTupleTy:(l,opPos,cpPos)=" ++ show (ss2span l,opPos,cpPos))
 
 annotateLHsType (GHC.L l (GHC.HsTyLit _lit)) = do
  -- HsTyLit HsTyLit
@@ -717,11 +737,27 @@ annotateListItem ltoks subAnnFun a@(GHC.L l _) = do
 findTokenWrtPrior :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe DeltaPos
 findTokenWrtPrior isToken le toksIn = eqPos -- `debug` ("findTokenWrtPrior:" ++ show (ss2span le))
   where
-    eqPos = case findTokenSrcSpan isToken le toksIn of
+    mspan = findTokenSrcSpan isToken le toksIn
+    eqPos = findTokenWrtPriorF mspan toksIn
+
+-- ---------------------------------------------------------------------
+
+findTokenWrtPriorReversed :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe DeltaPos
+findTokenWrtPriorReversed isToken le toksIn = eqPos -- `debug` ("findTokenWrtPrior:" ++ show (ss2span le))
+  where
+    mspan = findTokenSrcSpanReverse isToken le toksIn
+    eqPos = findTokenWrtPriorF mspan toksIn
+
+-- ---------------------------------------------------------------------
+
+findTokenWrtPriorF :: Maybe GHC.SrcSpan -> [PosToken] -> Maybe DeltaPos
+findTokenWrtPriorF mspan toksIn = eqPos
+  where
+    eqPos = case mspan of
       Just eqSpan -> Just $ ss2delta pe eqSpan
         where
           (before,_,_) = splitToksForSpan eqSpan toksIn
-          prior = head $ dropWhile ghcIsComment $ reverse before
+          prior = head $ dropWhile ghcIsBlankOrComment $ reverse before
           pe = tokenPosEnd prior
       Nothing -> Nothing
 
@@ -816,9 +852,31 @@ annotateLHsExpr (GHC.L l exprIn) = do
 
       return (AnnHsDo doPos)
 
-    _ -> return AnnNone
+    -- ExplicitTuple [HsTupArg id] Boxity
+    GHC.ExplicitTuple args boxity -> do
+      let (isOpen,isClose) = if boxity == GHC.Boxed
+                              then (ghcIsOParen,ghcIsCParen)
+                              else (ghcIsOubxparen,ghcIsCubxparen)
+      let opPos = findDelta isOpen l toksIn (ss2pos l)
+      mapM_ annotateHsTupArg args
+      let Just cpPos = findTokenWrtPriorReversed isClose l toksIn
+
+      return (AnnExplicitTuple opPos cpPos)
+        `debug` ("annotateLHsExpr.ExplicitTuple:(l,opPos,cpPos)=" ++ show (ss2span l,opPos,cpPos))
+
+
+    GHC.HsVar _ -> return AnnNone
+
+    e -> return AnnNone
+       `debug` ("annotateLHsExpr:not processing:" ++ (SYB.showData SYB.Parser 0 e))
 
   leaveAST ann
+
+-- ---------------------------------------------------------------------
+
+annotateHsTupArg :: GHC.HsTupArg GHC.RdrName -> AP ()
+annotateHsTupArg (GHC.Present e) = annotateLHsExpr e
+annotateHsTupArg (GHC.Missing _) = return ()
 
 -- ---------------------------------------------------------------------
 
@@ -903,6 +961,14 @@ findTokenSrcSpan isToken ss toks =
 
 -- ---------------------------------------------------------------------
 
+findTokenSrcSpanReverse :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe GHC.SrcSpan
+findTokenSrcSpanReverse isToken ss toks =
+  case findTokenReverse isToken ss toks of
+      Nothing -> Nothing
+      Just t  -> Just (tokenSpan t)
+
+-- ---------------------------------------------------------------------
+
 findToken :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe PosToken
 findToken isToken ss toks = r
   where
@@ -911,6 +977,16 @@ findToken isToken ss toks = r
       [] -> Nothing
       (t:_) -> Just t
 
+-- ---------------------------------------------------------------------
+
+findTokenReverse :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe PosToken
+findTokenReverse isToken ss toks = r
+  `debug` ("findTokenReverse:(ss,r,middle):" ++ show (ss2span ss,r,middle))
+  where
+    (_,middle,_) = splitToksForSpan ss toks
+    r = case filter isToken (reverse middle) of
+      [] -> Nothing
+      (t:_) -> Just t
 
 -- ---------------------------------------------------------------------
 
@@ -924,21 +1000,39 @@ findPreceding isToken ss toks = r
 
 -- ---------------------------------------------------------------------
 
+findPrecedingMaybeDelta :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken]
+ -> Pos -> Maybe DeltaPos
+findPrecedingMaybeDelta isToken ln toks p =
+  case findPreceding isToken ln toks of
+    Nothing -> Nothing
+    Just ss -> Just (ss2delta p ss)
+
+-- ---------------------------------------------------------------------
+
 findPrecedingDelta :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken]
  -> Pos -> DeltaPos
 findPrecedingDelta isToken ln toks p =
-  case findPreceding isToken ln toks of
+  case findPrecedingMaybeDelta isToken ln toks p of
     Nothing -> error $ "findPrecedingDelta: No matching token preceding :" ++ show (ss2span ln)
-    Just ss -> ss2delta p ss
+    Just d  -> d
+
+-- ---------------------------------------------------------------------
+
+findTrailingMaybeDelta :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken]
+ -> Pos -> Maybe DeltaPos
+findTrailingMaybeDelta isToken ln toks p =
+  case findTrailing isToken ln toks of
+    Nothing -> Nothing
+    Just t -> Just (ss2delta p (tokenSpan t))
 
 -- ---------------------------------------------------------------------
 
 findTrailingDelta :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken]
  -> Pos -> DeltaPos
 findTrailingDelta isToken ln toks p =
-  case findTrailing isToken ln toks of
+  case findTrailingMaybeDelta isToken ln toks p of
     Nothing -> error $ "findTrailingDelta: No matching token trailing :" ++ show (ss2span ln)
-    Just t -> ss2delta p (tokenSpan t)
+    Just d -> d
 
 -- ---------------------------------------------------------------------
 
@@ -946,6 +1040,15 @@ findDelta :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken]
  -> Pos -> DeltaPos
 findDelta isToken ln toks p =
   case findTokenSrcSpan isToken ln toks of
+    Nothing -> error $ "findPrecedingDelta: No matching token preceding :" ++ show (ss2span ln)
+    Just ss -> ss2delta p ss
+
+-- ---------------------------------------------------------------------
+
+findDeltaReverse :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken]
+ -> Pos -> DeltaPos
+findDeltaReverse isToken ln toks p =
+  case findTokenSrcSpanReverse isToken ln toks of
     Nothing -> error $ "findPrecedingDelta: No matching token preceding :" ++ show (ss2span ln)
     Just ss -> ss2delta p ss
 

@@ -126,6 +126,7 @@ IEDocNamed String
      , match_n     :: !GHC.RdrName
      , match_infix :: !Bool  -- if the function is infix
      , match_eq    :: !(Maybe DeltaPos)
+     , match_where :: !(Maybe DeltaPos)
      }
 
   -- HsOverLit, must keep the exact original string used
@@ -140,6 +141,8 @@ IEDocNamed String
   | AnnHsDo
       { hsd_do :: !(Maybe DeltaPos)
       }
+  | AnnExplicitTuple
+       { et_opos :: !DeltaPos,  et_cpos :: !DeltaPos }
 
   -- StmtLR
   | AnnStmtLR {}
@@ -154,7 +157,11 @@ IEDocNamed String
   | AnnConDecl  { cs_mvbar :: !(Maybe DeltaPos) }
 
   -- HsType
-  | AnnHsForAllTy { fa_darrow :: !(Maybe DeltaPos) }
+  | AnnHsForAllTy
+      { fa_oparen :: !(Maybe DeltaPos)
+      , fa_darrow :: !(Maybe DeltaPos)
+      , fa_cparen :: !(Maybe DeltaPos)
+      }
   | AnnHsFunTy { ft_rarrow :: !DeltaPos }
   | AnnHsParTy { pt_opos :: !DeltaPos,  pt_cpos :: !DeltaPos }
   | AnnHsTupleTy { t_opos :: !DeltaPos,  t_cpos :: !DeltaPos }
