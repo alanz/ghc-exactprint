@@ -111,7 +111,10 @@ IEDocNamed String
 
   -- HsBindLR
   | AnnFunBind {}
-  | AnnPatBind {}
+  | AnnPatBind
+     { pb_equal :: !(Maybe DeltaPos)
+     , pb_where :: !(Maybe DeltaPos) }
+
   -- AnnVarBind {} not needed, only introduced by type checker
   -- AnnAbsBind {} only used after renamer
   | AnnPatSynBind {}
@@ -150,6 +153,12 @@ IEDocNamed String
       { ls_let :: !(Maybe DeltaPos)
       , ls_in  :: !(Maybe DeltaPos)
       }
+  | AnnArithSeq
+      { as_ob     :: !DeltaPos
+      , as_comma  :: !(Maybe DeltaPos)
+      , as_dotdot :: !DeltaPos
+      , as_cb     :: !DeltaPos
+      }
 
   -- TyClDecl
   --  Data declarations
@@ -174,6 +183,10 @@ IEDocNamed String
        { el_opos :: !DeltaPos,  el_cpos :: !DeltaPos }
   | AnnHsExplicitTupleTy
        { et_opos :: !DeltaPos,  et_cpos :: !DeltaPos }
+
+  -- Pat
+  | AnnAsPat { ap_as :: !DeltaPos }
+  | AnnTuplePat { tp_opPos :: !DeltaPos, tp_cpPos :: !DeltaPos }
 
   -- Basics
   | AnnListItem { li_comma :: !(Maybe DeltaPos) }

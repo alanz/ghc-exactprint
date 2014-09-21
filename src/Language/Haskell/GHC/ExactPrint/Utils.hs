@@ -380,14 +380,25 @@ annotateLHsBind (GHC.L l (GHC.FunBind (GHC.L _ n) isInfix (GHC.MG matches _ _ _)
   mapM_ (\m -> annotateLMatch m n isInfix) matches
   leaveAST AnnFunBind
 
-annotateLHsBind (GHC.L l (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks)) = do
+annotateLHsBind (GHC.L l (GHC.PatBind lhs@(GHC.L ll _) grhss@(GHC.GRHSs grhs lb) _typ _fvs _ticks)) = do
   enterAST l
 
   annotateLPat lhs
   mapM_ annotateLGRHS grhs
   annotateHsLocalBinds lb
 
-  leaveAST AnnPatBind
+  toksIn <- getToks
+
+  let [lr] = getListSrcSpan grhs
+  let el = GHC.mkSrcSpan (GHC.srcSpanEnd ll) (GHC.srcSpanStart lr)
+
+  let eqPos = case findTokenSrcSpan ghcIsEqual el toksIn of
+        Nothing -> Nothing
+        Just ss -> Just $ ss2delta (ss2posEnd ll) ss
+
+  let wherePos = getGRHSsWherePos grhss toksIn
+
+  leaveAST (AnnPatBind eqPos wherePos)
 
 
 annotateLHsBind (GHC.L l (GHC.VarBind n rhse _)) = do
@@ -424,7 +435,7 @@ patsyn_dir :: HsPatSynDir idR
 annotateLMatch :: (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
   -> GHC.RdrName -> Bool
   -> AP ()
-annotateLMatch (GHC.L l (GHC.Match pats _typ (GHC.GRHSs grhs lb))) n isInfix = do
+annotateLMatch (GHC.L l (GHC.Match pats _typ grhss@(GHC.GRHSs grhs lb))) n isInfix = do
   enterAST l
   toksIn <- getToks
   let
@@ -439,6 +450,8 @@ annotateLMatch (GHC.L l (GHC.Match pats _typ (GHC.GRHSs grhs lb))) n isInfix = d
     eqPos = case grhs of
              [GHC.L _ (GHC.GRHS [] _)] -> findTokenWrtPrior ghcIsEqual l toksIn -- unguarded
              _                         -> Nothing
+    wherePos = getGRHSsWherePos grhss toksIn
+{-
     wherePos = case lb of
       GHC.EmptyLocalBinds -> Nothing
       GHC.HsIPBinds i -> Nothing `debug` ("annotateLMatch.wherePos:got " ++ (SYB.showData SYB.Parser 0 i))
@@ -451,12 +464,30 @@ annotateLMatch (GHC.L l (GHC.Match pats _typ (GHC.GRHSs grhs lb))) n isInfix = d
               where [lcs] = getListSrcSpan sigs
           [lg] = getListSrcSpan grhs
           wp = findPrecedingDelta ghcIsWhere lvb toksIn (ss2posEnd lg)
+-}
 
   mapM_ annotateLPat pats
   mapM_ annotateLGRHS grhs
   annotateHsLocalBinds lb
   leaveAST (AnnMatch nPos n isInfix eqPos wherePos)
 
+-- ---------------------------------------------------------------------
+
+getGRHSsWherePos :: GHC.GRHSs GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> [PosToken] -> Maybe DeltaPos
+getGRHSsWherePos (GHC.GRHSs grhs lb) toksIn = wherePos
+  where
+    wherePos = case lb of
+      GHC.EmptyLocalBinds -> Nothing
+      GHC.HsIPBinds i -> Nothing `debug` ("annotateLMatch.wherePos:got " ++ (SYB.showData SYB.Parser 0 i))
+      GHC.HsValBinds (GHC.ValBindsIn binds sigs) -> Just wp
+        where
+          [lbs] = getListSrcSpan $ GHC.bagToList binds
+          lvb = case sigs of
+            [] -> lbs
+            _  -> GHC.combineSrcSpans lbs lcs
+              where [lcs] = getListSrcSpan sigs
+          [lg] = getListSrcSpan grhs
+          wp = findPrecedingDelta ghcIsWhere lvb toksIn (ss2posEnd lg)
 
 -- ---------------------------------------------------------------------
 {-
@@ -585,7 +616,7 @@ annotateLHsType (GHC.L l (GHC.HsTupleTy srt typs)) = do
   let [lt] = getListSrcSpan typs
   let cpPos = findDelta isCloseTok l toks (ss2posEnd lt)
   leaveAST (AnnHsTupleTy opPos cpPos)
-    `debug` ("annotateLHsType.HsTupleTy:(l,cpPos):" ++ show (ss2span l,cpPos))
+    -- `debug` ("annotateLHsType.HsTupleTy:(l,cpPos):" ++ show (ss2span l,cpPos))
 
 annotateLHsType (GHC.L l (GHC.HsOpTy t1 (_,ln) t2)) = do
   enterAST l
@@ -604,7 +635,7 @@ annotateLHsType (GHC.L l (GHC.HsParTy typ)) = do
   let opPos = findDelta ghcIsOParen l toks (ss2pos l)
   annotateLHsType typ
   let cpPos = findDelta ghcIsCParen l toks (ss2posEnd l)
-  leaveAST (AnnHsParTy opPos cpPos) `debug` ("annotateLHsType.HsParTy:(l,opPos,cpPos)=" ++ show (ss2span l,opPos,cpPos))
+  leaveAST (AnnHsParTy opPos cpPos) -- `debug` ("annotateLHsType.HsParTy:(l,opPos,cpPos)=" ++ show (ss2span l,opPos,cpPos))
 
 annotateLHsType (GHC.L l (GHC.HsIParamTy _n typ)) = do
   --  ipvar '::' type               { LL (HsIParamTy (unLoc $1) $3) }
@@ -692,7 +723,7 @@ annotateLHsType (GHC.L l (GHC.HsExplicitTupleTy _ typs)) = do
   let cpPos = findTrailingDelta ghcIsCParen  l toks (ss2posEnd l)
 
   leaveAST (AnnHsExplicitTupleTy opPos cpPos)
-    `debug` ("AnnListItem.HsExplicitTupleTy:(l,opPos,cpPos)=" ++ show (ss2span l,opPos,cpPos))
+    -- `debug` ("AnnListItem.HsExplicitTupleTy:(l,opPos,cpPos)=" ++ show (ss2span l,opPos,cpPos))
 
 annotateLHsType (GHC.L l (GHC.HsTyLit _lit)) = do
  -- HsTyLit HsTyLit
@@ -767,11 +798,32 @@ annotateLPat :: GHC.LPat GHC.RdrName -> AP ()
 annotateLPat (GHC.L l pat) = do
   enterAST l
 
-  case pat of
-    (GHC.NPat ol _ _) -> annotateLHsExpr (GHC.L l (GHC.HsOverLit ol))
-    _                 -> return ()
+  toks <- getToks
 
-  leaveAST AnnNone
+  ann <- case pat of
+    GHC.NPat ol _ _ -> annotateLHsExpr (GHC.L l (GHC.HsOverLit ol)) >> return AnnNone
+
+    GHC.AsPat (GHC.L ln _) pat2 -> do
+      let asPos = findDelta ghcIsAt l toks (ss2posEnd ln)
+      annotateLPat pat2
+      return (AnnAsPat asPos)
+
+    GHC.TuplePat pats boxity _ -> do
+      let (isOpen,isClose) = if boxity == GHC.Boxed
+                              then (ghcIsOParen,ghcIsCParen)
+                              else (ghcIsOubxparen,ghcIsCubxparen)
+      let opPos = findDelta isOpen l toks (ss2pos l)
+      annotateListItems pats annotateLPat
+      let Just cpPos = findTokenWrtPriorReversed isClose l toks
+
+      return (AnnTuplePat opPos cpPos)
+
+    GHC.VarPat _ -> return AnnNone
+
+    p -> return AnnNone
+      `debug` ("annotateLPat:ignoring " ++ (SYB.showData SYB.Parser 0 p))
+
+  leaveAST ann
 
 -- ---------------------------------------------------------------------
 
@@ -802,7 +854,8 @@ annotateLStmt (GHC.L l (GHC.LetStmt lb)) = do
 annotateHsLocalBinds :: (GHC.HsLocalBinds GHC.RdrName) -> AP ()
 annotateHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
     mapM_ annotateLHsBind (GHC.bagToList binds)
-    -- sigsAnn = []
+    mapM_ annotateLSig sigs
+
 annotateHsLocalBinds (GHC.HsValBinds _) = assert False undefined
 annotateHsLocalBinds (GHC.HsIPBinds vb) = assert False undefined
 annotateHsLocalBinds (GHC.EmptyLocalBinds) = return ()
@@ -852,7 +905,6 @@ annotateLHsExpr (GHC.L l exprIn) = do
 
       return (AnnHsDo doPos)
 
-    -- ExplicitTuple [HsTupArg id] Boxity
     GHC.ExplicitTuple args boxity -> do
       let (isOpen,isClose) = if boxity == GHC.Boxed
                               then (ghcIsOParen,ghcIsCParen)
@@ -863,10 +915,40 @@ annotateLHsExpr (GHC.L l exprIn) = do
       let Just cpPos = findTokenWrtPriorReversed isClose l toksIn
 
       return (AnnExplicitTuple opPos cpPos)
-        `debug` ("annotateLHsExpr.ExplicitTuple:(l,opPos,cpPos)=" ++ show (ss2span l,opPos,cpPos))
+        -- `debug` ("annotateLHsExpr.ExplicitTuple:(l,opPos,cpPos)=" ++ show (ss2span l,opPos,cpPos))
 
 
     GHC.HsVar _ -> return AnnNone
+
+    -- HsApp (LHsExpr id) (LHsExpr id)
+    GHC.HsApp e1 e2 -> do
+      annotateLHsExpr e1
+      annotateLHsExpr e2
+      return AnnNone
+
+    -- ArithSeq PostTcExpr (Maybe (SyntaxExpr id)) (ArithSeqInfo id)
+    -- x| texp '..'             { LL $ ArithSeq noPostTcExpr (From $1) }
+    -- x| texp ',' exp '..'     { LL $ ArithSeq noPostTcExpr (FromThen $1 $3) }
+    -- x| texp '..' exp         { LL $ ArithSeq noPostTcExpr (FromTo $1 $3) }
+    -- x| texp ',' exp '..' exp { LL $ ArithSeq noPostTcExpr (FromThenTo $1 $3 $5) }
+    GHC.ArithSeq _ _ seqInfo -> do
+      let obPos = findDelta ghcIsOBrack l toksIn (ss2pos l)
+          getComma l1 l2 = Just $ findDelta ghcIsComma ll toksIn (ss2posEnd l1)
+            where ll = GHC.mkSrcSpan (GHC.srcSpanEnd l1) (GHC.srcSpanStart l2)
+      (ld,mcPos) <- case seqInfo of
+        GHC.From e1@(GHC.L l1 _) -> annotateLHsExpr e1 >> return (l1,Nothing)
+        GHC.FromTo e1@(GHC.L l1 _) e2 -> annotateLHsExpr e1 >> annotateLHsExpr e2 >> return (l1,Nothing)
+        GHC.FromThen e1@(GHC.L l1 _) e2@(GHC.L l2 _) ->
+          annotateLHsExpr e1 >> annotateLHsExpr e2 >> return (l2,(getComma l1 l2))
+        GHC.FromThenTo e1@(GHC.L l1 _) e2@(GHC.L l2 _) e3 -> do
+          annotateLHsExpr e1
+          annotateLHsExpr e2
+          annotateLHsExpr e3
+          return (l2,(getComma l1 l2))
+      let ddPos = findDelta ghcIsDotdot l toksIn (ss2posEnd ld)
+      let Just cbPos = findTokenWrtPriorReversed ghcIsCBrack l toksIn
+
+      return (AnnArithSeq obPos mcPos ddPos cbPos)
 
     e -> return AnnNone
        `debug` ("annotateLHsExpr:not processing:" ++ (SYB.showData SYB.Parser 0 e))
@@ -987,7 +1069,7 @@ findToken isToken ss toks = r
 
 findTokenReverse :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe PosToken
 findTokenReverse isToken ss toks = r
-  `debug` ("findTokenReverse:(ss,r,middle):" ++ show (ss2span ss,r,middle))
+  -- `debug` ("findTokenReverse:(ss,r,middle):" ++ show (ss2span ss,r,middle))
   where
     (_,middle,_) = splitToksForSpan ss toks
     r = case filter isToken (reverse middle) of
@@ -1115,6 +1197,9 @@ ghcIsWhere t = ghcIsTok t GHC.ITwhere
 ghcIsLet :: PosToken -> Bool
 ghcIsLet t = ghcIsTok t GHC.ITlet
 
+ghcIsAt :: PosToken -> Bool
+ghcIsAt t = ghcIsTok t GHC.ITat
+
 ghcIsElse :: PosToken -> Bool
 ghcIsElse t = ghcIsTok t GHC.ITelse
 
@@ -1174,6 +1259,9 @@ ghcIsRarrow t = ghcIsTok t GHC.ITrarrow
 
 ghcIsDarrow :: PosToken -> Bool
 ghcIsDarrow t = ghcIsTok t GHC.ITdarrow
+
+ghcIsDotdot :: PosToken -> Bool
+ghcIsDotdot t = ghcIsTok t GHC.ITdotdot
 
 ghcIsConid :: PosToken -> Bool
 ghcIsConid ((GHC.L _ t),_) = case t of

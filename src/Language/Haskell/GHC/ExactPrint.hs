@@ -375,6 +375,15 @@ printStreams (x@(p1,ep1):xs) (y@(p2,ep2):ys)
     | p1 <= p2 = printWhitespace p1 >> ep1 >> printStreams xs (y:ys)
     | otherwise = printWhitespace p2 >> ep2 >> printStreams (x:xs) ys
 
+-- printMerged :: [a] -> [b] -> EP ()
+printMerged :: (ExactP a, ExactP b) => [GHC.Located a] -> [GHC.Located b] -> EP ()
+printMerged [] [] = return ()
+printMerged [] bs = mapM_ exactPC bs
+printMerged as [] = mapM_ exactPC as
+printMerged (a@(GHC.L l1 _):as) (b@(GHC.L l2 _):bs) =
+  if l1 < l2
+    then exactPC a >> printMerged    as (b:bs)
+    else exactPC b >> printMerged (a:as)   bs
 
 interleave :: [a] -> [a] -> [a]
 interleave [] ys = ys
@@ -459,6 +468,11 @@ isAnnExplicitTuple an = case an of
   (Ann _ _ (AnnExplicitTuple {})) -> True
   _                               -> False
 
+isAnnArithSeq :: Annotation -> Bool
+isAnnArithSeq an = case an of
+  (Ann _ _ (AnnArithSeq {})) -> True
+  _                          -> False
+
 isAnnOverLit :: Annotation -> Bool
 isAnnOverLit an = case an of
   (Ann _ _ (AnnOverLit {})) -> True
@@ -513,6 +527,21 @@ isAnnHsTupleTy :: Annotation -> Bool
 isAnnHsTupleTy an = case an of
   (Ann _ _ (AnnHsTupleTy {})) -> True
   _                           -> False
+
+isAnnPatBind :: Annotation -> Bool
+isAnnPatBind an = case an of
+  (Ann _ _ (AnnPatBind {})) -> True
+  _                         -> False
+
+isAnnAsPat :: Annotation -> Bool
+isAnnAsPat an = case an of
+  (Ann _ _ (AnnAsPat {})) -> True
+  _                       -> False
+
+isAnnTuplePat :: Annotation -> Bool
+isAnnTuplePat an = case an of
+  (Ann _ _ (AnnTuplePat {})) -> True
+  _                          -> False
 
 --------------------------------------------------
 -- Exact printing for GHC
@@ -634,11 +663,17 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
     GHC.RoleAnnotD d -> printString "RoleAnnotD"
 
 instance ExactP (GHC.HsBind GHC.RdrName) where
-  exactP ma (GHC.FunBind _n _  (GHC.MG matches _ _ _) _fun_co_fn _fvs _tick) = do
-    -- exactPC n
+  exactP _ (GHC.FunBind _n _  (GHC.MG matches _ _ _) _fun_co_fn _fvs _tick) = do
     mapM_ exactPC matches
 
-  exactP ma (GHC.PatBind pat_lhs pat_rhs pat_rhs_ty bind_fvs pat_ticks) = printString "PatBind"
+  exactP ma (GHC.PatBind lhs (GHC.GRHSs grhs lb) _ty _fvs _ticks) = do
+    let [(Ann _ _ (AnnPatBind eqPos wherePos))] = getAnn isAnnPatBind ma "PatBind"
+    exactPC lhs
+    printStringAtMaybeDelta eqPos "="
+    mapM_ exactPC grhs
+    printStringAtMaybeDelta wherePos "where"
+    exactP Nothing lb
+
   exactP ma (GHC.VarBind var_id var_rhs var_inline ) = printString "VarBind"
   exactP ma (GHC.AbsBinds abs_tvs abs_ev_vars abs_exports abs_ev_binds abs_binds) = printString "AbsBinds"
   exactP ma (GHC.PatSynBind patsyn_id bind_fvs patsyn_args patsyn_def patsyn_dir) = printString "PatSynBind"
@@ -668,7 +703,22 @@ instance ExactP (GHC.Pat GHC.RdrName) where
   exactP ma (GHC.NPat ol _ _)  = exactP ma ol
   exactP _  (GHC.ConPatIn e _) = exactPC e
   exactP _  (GHC.WildPat _)    = printString "_"
-  exactP _ _ = printString "Pat"
+  exactP ma (GHC.AsPat n p) = do
+    let [(Ann _ _ (AnnAsPat asPos))] = getAnn isAnnAsPat ma "AsPat"
+    exactPC n
+    printStringAtDelta asPos "@"
+    exactPC p
+
+  exactP ma  (GHC.TuplePat pats b _) = do
+    let [(Ann _ _ (AnnTuplePat opPos cpPos))] = getAnn isAnnTuplePat ma "TuplePat"
+    if b == GHC.Boxed then printStringAtDelta opPos "("
+                      else printStringAtDelta opPos "(#"
+    mapM_ exactPC pats
+    if b == GHC.Boxed then printStringAtDelta cpPos ")"
+                      else printStringAtDelta cpPos "#)"
+
+  exactP _ p = printString "Pat"
+   `debug` ("exactP.Pat:ignoring " ++ (SYB.showData SYB.Parser 0 p))
 
 instance ExactP (GHC.HsType GHC.RdrName) where
 -- HsForAllTy HsExplicitFlag (LHsTyVarBndrs name) (LHsContext name) (LHsType name)
@@ -786,6 +836,31 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     if b == GHC.Boxed then printStringAtDelta (et_cpos an) ")"
                       else printStringAtDelta (et_cpos an) "#)"
 
+  exactP _  (GHC.HsApp e1 e2) = exactPC e1 >> exactPC e2
+
+  exactP ma (GHC.ArithSeq _ _ seqInfo) = do
+    let [(Ann lcs _ (AnnArithSeq obPos mcPos ddPos cbPos))] = getAnn isAnnArithSeq ma "ArithSeq"
+    printStringAtDelta obPos "["
+    case seqInfo of
+      GHC.From e1 -> exactPC e1 >> printStringAtDelta ddPos ".."
+      GHC.FromTo e1 e2 -> do
+        exactPC e1
+        printStringAtDelta ddPos ".."
+        exactPC e2
+      GHC.FromThen e1 e2 -> do
+        exactPC e1
+        printStringAtMaybeDelta mcPos ","
+        exactPC e2
+        printStringAtDelta ddPos ".."
+      GHC.FromThenTo e1 e2 e3 -> do
+        exactPC e1
+        printStringAtMaybeDelta mcPos ","
+        exactPC e2
+        printStringAtDelta ddPos ".."
+        exactPC e3
+
+    printStringAtDelta cbPos "]"
+
   exactP _ e = printString "HsExpr"
     `debug` ("exactP.HsExpr:not processing " ++ (SYB.showData SYB.Parser 0 e) )
 
@@ -802,11 +877,11 @@ instance ExactP (GHC.HsTupArg GHC.RdrName) where
 
 instance ExactP (GHC.HsLocalBinds GHC.RdrName) where
   exactP _ (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
-    mapM_ exactPC (GHC.bagToList binds)
-    mapM_ exactPC sigs
+    printMerged (GHC.bagToList binds) sigs
   exactP _ (GHC.HsValBinds (GHC.ValBindsOut binds sigs)) = printString "ValBindsOut"
   exactP _ (GHC.HsIPBinds binds) = printString "HsIPBinds"
   exactP _ (GHC.EmptyLocalBinds) = return ()
+
 
 instance ExactP (GHC.Sig GHC.RdrName) where
   exactP ma (GHC.TypeSig lns typ) = do
