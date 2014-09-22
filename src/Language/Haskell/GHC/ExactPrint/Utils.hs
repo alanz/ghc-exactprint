@@ -152,7 +152,7 @@ leaveAST anns = do
   subSpans <- getSubSpans
   let (lcs,cs') = localComments (ss2span ss) cs subSpans
 
-  addAnnotions [Ann lcs (ss2span ss) anns]
+  addAnnotions [Ann lcs (DP (0,0)) anns]
   setComments cs'
   popSrcSpan
   return () -- `debug` ("leaveAST:" ++ show (ss2span ss,lcs))

@@ -166,6 +166,9 @@ setPos l = EP (\_ dp cs an -> ((),l,dp,cs,an,id))
 getOffset :: EP DeltaPos
 getOffset = EP (\l dp cs an -> (dp,l,dp,cs,an,id))
 
+addOffset :: DeltaPos -> EP ()
+addOffset (DP (r,c)) = EP (\l (DP (ro,co)) cs an -> ((),l,(DP (r+ro,c+co)),cs,an,id))
+
 setOffset :: DeltaPos -> EP ()
 setOffset dp = EP (\l _ cs an -> ((),l,dp,cs,an,id))
 
@@ -324,15 +327,20 @@ exactPC (GHC.L l ast) =
  in do ma <- getAnnotation l
        mPrintComments p
        padUntil p
-       case ma of
-         Nothing -> return ()
+       off@(DP (r,c)) <- case ma of
+         Nothing -> return (DP (0,0))
          Just anns -> do
              mergeComments lcs
              putAnnotation l anns'
+             return dp
            where lcs = concatMap (\(Ann cs _ _) -> cs) anns
+                 dp = foldl (\(DP (ro,co)) (Ann _ (DP (r1,c1)) _ ) -> DP (ro+r1,co+c1)) (DP (0,0)) anns
                  anns' = map (\(Ann _ p a) -> Ann [] p a) anns
+       let negOff = DP (-r,-c)
+       addOffset off
        exactP ma ast
        printListCommaMaybe ma
+       addOffset negOff
 
 {-
 exactPCTrailingComma :: (ExactP ast) => GHC.Located ast -> EP ()

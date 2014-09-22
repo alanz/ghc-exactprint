@@ -52,11 +52,11 @@ type Span = (Pos,Pos)
 newtype DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
 
 annNone :: Annotation
-annNone = Ann [] ((0,0),(0,0)) AnnNone
+annNone = Ann [] (DP (0,0)) AnnNone
 
 data Annotation = Ann
   { ann_comments :: ![DComment]
-  , ann_span     :: !Span -- TODO: Does this make sense?
+  , ann_delta    :: !DeltaPos
   , ann_specific :: !AnnSpecific
   } deriving (Show)
 
