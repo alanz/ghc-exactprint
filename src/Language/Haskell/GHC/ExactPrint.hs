@@ -134,7 +134,8 @@ toksToComments toks = map tokToComment $ filter ghcIsComment toks
 pos :: (SrcInfo loc) => loc -> Pos
 pos ss = (startLine ss, startColumn ss)
 
-newtype EP x = EP (Pos -> [Comment] -> Anns -> (x, Pos, [Comment], Anns, ShowS))
+newtype EP x = EP (Pos -> DeltaPos -> [Comment] -> Anns
+            -> (x, Pos,   DeltaPos,   [Comment],   Anns, ShowS))
 
 instance Functor EP where
   fmap = liftM
@@ -144,54 +145,62 @@ instance Applicative EP where
   (<*>) = ap
 
 instance Monad EP where
-  return x = EP $ \l cs an -> (x, l, cs, an, id)
+  return x = EP $ \l dp cs an -> (x, l, dp, cs, an, id)
 
-  EP m >>= k = EP $ \l0 c0 an0 -> let
-        (a, l1, c1, an1, s1) = m l0 c0 an0
+  EP m >>= k = EP $ \l0 dp0 c0 an0 -> let
+        (a, l1, dp1, c1, an1, s1) = m l0 dp0 c0 an0
         EP f = k a
-        (b, l2, c2, an2, s2) = f l1 c1 an1
-    in (b, l2, c2, an2, s1 . s2)
+        (b, l2, dp2, c2, an2, s2) = f l1 dp1 c1 an1
+    in (b, l2, dp2, c2, an2, s1 . s2)
 
 runEP :: EP () -> [Comment] -> Anns -> String
-runEP (EP f) cs ans = let (_,_,_,_,s) = f (1,1) cs ans in s ""
+runEP (EP f) cs ans = let (_,_,_,_,_,s) = f (1,1) (DP (0,0)) cs ans in s ""
 
 getPos :: EP Pos
-getPos = EP (\l cs an -> (l,l,cs,an,id))
+getPos = EP (\l dp cs an -> (l,l,dp,cs,an,id))
 
 setPos :: Pos -> EP ()
-setPos l = EP (\_ cs an -> ((),l,cs,an,id))
+setPos l = EP (\_ dp cs an -> ((),l,dp,cs,an,id))
+
+
+getOffset :: EP DeltaPos
+getOffset = EP (\l dp cs an -> (dp,l,dp,cs,an,id))
+
+setOffset :: DeltaPos -> EP ()
+setOffset dp = EP (\l _ cs an -> ((),l,dp,cs,an,id))
+
 
 getAnnotation :: GHC.SrcSpan -> EP (Maybe [Annotation])
-getAnnotation ss = EP (\l cs an -> (Map.lookup ss an,l,cs,an,id))
+getAnnotation ss = EP (\l dp cs an -> (Map.lookup ss an,l,dp,cs,an,id))
 
 putAnnotation :: GHC.SrcSpan -> [Annotation] -> EP ()
-putAnnotation ss anns = EP (\l cs an ->
+putAnnotation ss anns = EP (\l dp cs an ->
   let
     an' = Map.insert ss anns an
-  in ((),l,cs,an',id))
+  in ((),l,dp, cs,an',id))
 
 printString :: String -> EP ()
-printString str = EP (\(l,c) cs an -> ((), (l,c+length str), cs, an, showString str))
+printString str = EP (\(l,c) dp cs an -> ((), (l,c+length str), dp, cs, an, showString str))
 
 getComment :: EP (Maybe Comment)
-getComment = EP $ \l cs an ->
+getComment = EP $ \l dp cs an ->
     let x = case cs of
              c:_ -> Just c
              _   -> Nothing
-     in (x, l, cs, an, id)
+     in (x, l, dp, cs, an, id)
 
 dropComment :: EP ()
-dropComment = EP $ \l cs an ->
+dropComment = EP $ \l dp cs an ->
     let cs' = case cs of
                (_:cs) -> cs
                _      -> cs
-     in ((), l, cs', an, id)
+     in ((), l, dp, cs', an, id)
 
 mergeComments :: [DComment] -> EP ()
-mergeComments dcs = EP $ \l cs an ->
+mergeComments dcs = EP $ \l dp cs an ->
     let acs = map (undeltaComment l) dcs
         cs' = merge acs cs
-    in ((), l, cs', an, id) `debug` ("mergeComments:(l,acs)=" ++ show (l,acs,cs))
+    in ((), l, dp, cs', an, id) -- `debug` ("mergeComments:(l,acs)=" ++ show (l,acs,cs))
 
 newLine :: EP ()
 newLine = do
@@ -235,8 +244,12 @@ printComment b str
     | b         = printString str
     | otherwise = printString str
 
+-- Single point of delta application
 printWhitespace :: Pos -> EP ()
-printWhitespace p = mPrintComments p >> padUntil p
+printWhitespace (r,c) = do
+  DP (dr,dc)  <- getOffset
+  let p = (r + dr, c + dc)
+  mPrintComments p >> padUntil p
 
 printStringAt :: Pos -> String -> EP ()
 printStringAt p str = printWhitespace p >> printString str

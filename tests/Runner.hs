@@ -5,6 +5,7 @@ module Main where
 
 import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Types
+import Language.Haskell.GHC.ExactPrint.Utils
 
 import GHC.Paths ( libdir )
 import qualified DynFlags      as GHC
@@ -107,7 +108,8 @@ manipulateAstTest sources = testGroup "Exact printer tests" $ do
         parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (head exps:(head $ tail exps):tail exps) }))
         -- printed = exactPrintAnnotation parsed' comments ann
         -- printed = exactPrintAnnotation parsed' [] ann
-        printed = exactPrintAnnotation parsed [] ann -- `debug` ("ann=" ++ show ann)
+        -- ((16,9),(16,27))
+        printed = exactPrintAnnotation parsed [] ann -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
         result =
                 if printed == contents
                   then "Match\n"
