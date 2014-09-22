@@ -155,7 +155,7 @@ leaveAST anns = do
   addAnnotions [Ann lcs (ss2span ss) anns]
   setComments cs'
   popSrcSpan
-  return () -- `debug` ("leaveAST:" ++ show (ss2span ss,lcs))
+  return () `debug` ("leaveAST:" ++ show (ss2span ss,lcs))
 
 -- ---------------------------------------------------------------------
 -- Start of application specific part

@@ -164,6 +164,12 @@ setPos l = EP (\_ cs an -> ((),l,cs,an,id))
 getAnnotation :: GHC.SrcSpan -> EP (Maybe [Annotation])
 getAnnotation ss = EP (\l cs an -> (Map.lookup ss an,l,cs,an,id))
 
+putAnnotation :: GHC.SrcSpan -> [Annotation] -> EP ()
+putAnnotation ss anns = EP (\l cs an ->
+  let
+    an' = Map.insert ss anns an
+  in ((),l,cs,an',id))
+
 printString :: String -> EP ()
 printString str = EP (\(l,c) cs an -> ((), (l,c+length str), cs, an, showString str))
 
@@ -185,7 +191,7 @@ mergeComments :: [DComment] -> EP ()
 mergeComments dcs = EP $ \l cs an ->
     let acs = map (undeltaComment l) dcs
         cs' = merge acs cs
-    in ((), l, cs', an, id) -- `debug` ("mergeComments:(l,acs)=" ++ show (l,acs,cs))
+    in ((), l, cs', an, id) `debug` ("mergeComments:(l,acs)=" ++ show (l,acs,cs))
 
 newLine :: EP ()
 newLine = do
@@ -307,8 +313,11 @@ exactPC (GHC.L l ast) =
        padUntil p
        case ma of
          Nothing -> return ()
-         Just anns -> mergeComments lcs
+         Just anns -> do
+             mergeComments lcs
+             putAnnotation l anns'
            where lcs = concatMap (\(Ann cs _ _) -> cs) anns
+                 anns' = map (\(Ann _ p a) -> Ann [] p a) anns
        exactP ma ast
        printListCommaMaybe ma
 
