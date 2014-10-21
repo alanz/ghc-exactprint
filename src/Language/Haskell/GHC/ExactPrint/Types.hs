@@ -56,7 +56,7 @@ annNone = Ann [] (DP (0,0)) AnnNone
 
 data Annotation = Ann
   { ann_comments :: ![DComment]
-  , ann_delta    :: !DeltaPos
+  , ann_delta    :: !DeltaPos -- Do we need this?
   , ann_specific :: !AnnSpecific
   } deriving (Show)
 
@@ -66,8 +66,8 @@ data AnnSpecific =
  | AnnModuleName
     { mn_module :: !DeltaPos -- module
     , mn_name   :: !DeltaPos -- Language.Haskell.GHC.Types
-    , mn_op     :: !DeltaPos -- '('
-    , mn_cp     :: !DeltaPos -- ')'
+    , mn_op     :: !(Maybe DeltaPos) -- '('
+    , mn_cp     :: !(Maybe DeltaPos) -- ')'
     , mn_where  :: !DeltaPos -- where
     }
 

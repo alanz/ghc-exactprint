@@ -205,23 +205,28 @@ annotateModuleHeader (Just (GHC.L l _mn)) mexp pos = do
     annSpecific = AnnModuleName mPos mnPos opPos cpPos wherePos
          `debug` ("annotateModuleHeader:" ++ show (pos,mPos,ss2span $ tokenSpan moduleTok))
     mPos  = ss2delta pos $ tokenSpan moduleTok
-    mnPos = ss2delta pos l
+    -- mnPos = ss2delta pos l
+    mnPos = deltaFromSrcSpans (tokenSpan moduleTok) l
+    -- wherePos = ss2delta pos $ tokenSpan whereTok
     wherePos = ss2delta pos $ tokenSpan whereTok
     (opPos,cpPos) = case mexp of
-      Nothing -> (DP (0,0), DP (0,0) )
-      Just exps -> (opPos',cpPos')
+      Nothing -> (Nothing,Nothing)
+      Just exps -> (Just opPos',Just cpPos')
         where
           opTok = head $ filter ghcIsOParen toks
-          cpRel = case exps of
-            [] -> pos
-            _  -> (ss2posEnd $ GHC.getLoc (last exps))
+          cpSpan = case exps of
+            [] -> tokenSpan opTok
+            _  -> GHC.getLoc (last exps)
           cpTok   = head $ filter ghcIsCParen toks
-          opPos'  = ss2delta pos   $ tokenSpan opTok
-          cpPos'  = ss2delta cpRel $ tokenSpan cpTok
+          -- opPos'  = ss2delta pos   $ tokenSpan opTok
+          opPos'  = deltaFromSrcSpans l (tokenSpan opTok)
+          -- cpPos'  = ss2delta cpRel $ tokenSpan cpTok
+          cpPos'  = deltaFromSrcSpans cpSpan (tokenSpan cpTok)
 
   case mexp of
     Nothing -> return ()
     Just exps -> mapM_ annotateLIE exps
+
   leaveAST annSpecific
 
 -- ---------------------------------------------------------------------
@@ -1347,6 +1352,9 @@ ghcIsBlankOrComment :: PosToken -> Bool
 ghcIsBlankOrComment t = ghcIsBlank t || ghcIsComment t
 
 -- ---------------------------------------------------------------------
+
+deltaFromSrcSpans :: GHC.SrcSpan -> GHC.SrcSpan -> DeltaPos
+deltaFromSrcSpans ss1 ss2 = ss2delta (ss2posEnd ss1) ss2
 
 ss2delta :: Pos -> GHC.SrcSpan -> DeltaPos
 ss2delta ref ss = ss2deltaP ref (ss2pos ss)

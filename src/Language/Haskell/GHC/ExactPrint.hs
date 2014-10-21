@@ -251,7 +251,7 @@ printComment b str
 printWhitespace :: Pos -> EP ()
 printWhitespace (r,c) = do
   DP (dr,dc)  <- getOffset
-  let p = (r + dr, c + dc)
+  let p = (r + dr, c + dc) -- `debug` ("printWhiteSpace:offset=" ++ (show (dr,dc)))
   mPrintComments p >> padUntil p
 
 printStringAt :: Pos -> String -> EP ()
@@ -337,10 +337,10 @@ exactPC (GHC.L l ast) =
                  dp = foldl (\(DP (ro,co)) (Ann _ (DP (r1,c1)) _ ) -> DP (ro+r1,co+c1)) (DP (0,0)) anns
                  anns' = map (\(Ann _ p a) -> Ann [] p a) anns
        let negOff = DP (-r,-c)
-       addOffset off
+       addOffset off -- `debug` ("addOffset:push:" ++ show (ss2span l,off))
        exactP ma ast
        printListCommaMaybe ma
-       addOffset negOff
+       addOffset negOff -- `debug` ("addOffset:pop:" ++ show (ss2span l,negOff))
 
 {-
 exactPCTrailingComma :: (ExactP ast) => GHC.Located ast -> EP ()
@@ -606,10 +606,9 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
         exactPC lmn
         case mexp of
           Just exps -> do
-            printStringAt (undelta p po) "("
+            printStringAtMaybeDelta po "("
             mapM_ exactPC exps
-            p2 <- getPos
-            printStringAt (undelta p2 pc) ")"
+            printStringAtMaybeDelta pc ")"
           Nothing -> return ()
         printStringAt (undelta p pw) "where"
         mapM_ exactPC imps

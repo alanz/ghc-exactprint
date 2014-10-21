@@ -1,4 +1,4 @@
-module Layout.PatBind where
+module   Layout.PatBind where
 
 a,b :: Int
 a = 1
@@ -25,5 +25,10 @@ tup@(h,t) = head $ zip [1..10] [3..ff]
   where
     ff :: Int
     ff = 15
+
+blah = do {
+ ; print "a"
+ ; print "b"
+ }
 
 

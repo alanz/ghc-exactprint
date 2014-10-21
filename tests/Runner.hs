@@ -8,6 +8,7 @@ import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
 import GHC.Paths ( libdir )
+import qualified FastString    as GHC
 import qualified DynFlags      as GHC
 import qualified GHC           as GHC
 
@@ -95,6 +96,7 @@ manipulateAstTest sources = testGroup "Exact printer tests" $ do
         -- printed = exactPrint parsed comments toks
         -- ann = annotate parsed comments toks
         ann = annotate parsed comments toks
+         `debug` ("toks:" ++ show toks)
         Just exps = GHC.hsmodExports hsmod
 
         secondExp@(GHC.L l2 _) = head $ tail exps
@@ -109,7 +111,14 @@ manipulateAstTest sources = testGroup "Exact printer tests" $ do
         -- printed = exactPrintAnnotation parsed' comments ann
         -- printed = exactPrintAnnotation parsed' [] ann
         -- ((16,9),(16,27))
+        ss = GHC.mkSrcSpan (GHC.mkSrcLoc (GHC.mkFastString "examples/PatBind.hs") 16 9)
+                           (GHC.mkSrcLoc (GHC.mkFastString "examples/PatBind.hs") 16 27)
+
+        Just [Ann cs1 dp1 as1,Ann cs2 dp2 as2] = Map.lookup ss ann
+        ann2 = Map.insert ss [Ann cs1 (DP (0,6)) as1,Ann cs2 dp2 as2] ann
         printed = exactPrintAnnotation parsed [] ann -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
+           `debug` ("ann=" ++ (show $ Map.lookup ss ann))
+
         result =
                 if printed == contents
                   then "Match\n"
