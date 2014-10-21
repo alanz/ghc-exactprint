@@ -22,13 +22,14 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , undeltaComment
   , rdrName2String
   , isSymbolRdrName
+
+  , showGhc
   ) where
 
 import Control.Applicative (Applicative(..))
 import Control.Monad (when, liftM, ap)
 import Control.Exception
 import Data.List
-import Data.List.Utils
 import Data.Maybe
 
 import Language.Haskell.GHC.ExactPrint.Types
@@ -52,8 +53,6 @@ import qualified Unique        as GHC
 import qualified Var           as GHC
 
 import qualified Data.Map as Map
-
-import qualified GHC.SYB.Utils as SYB
 
 import Debug.Trace
 
@@ -166,9 +165,11 @@ annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName)
   -> [Comment] -> [PosToken]
   -> Anns
 annotateLHsModule modu cs toks = r
-  where r = runAP (annotateModule modu) cs toks
+  where
+    -- r = runAP (annotateModule modu) cs toks
+    r = assert False undefined
 
-
+{-
 annotateModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> AP ()
 annotateModule (GHC.L lm (GHC.HsModule mmn mexp imps decs _depr _haddock)) = do
   -- let infiniteSpan = GHC.mkSrcSpan (GHC.srcSpanStart lm) (GHC.mkSrcLoc (GHC.mkFastString "ff") 99999999 0)
@@ -483,7 +484,7 @@ getGRHSsWherePos (GHC.GRHSs grhs lb) toksIn = wherePos
   where
     wherePos = case lb of
       GHC.EmptyLocalBinds -> Nothing
-      GHC.HsIPBinds i -> Nothing `debug` ("annotateLMatch.wherePos:got " ++ (SYB.showData SYB.Parser 0 i))
+      GHC.HsIPBinds i -> Nothing `debug` ("annotateLMatch.wherePos:got " ++ (pp i))
       GHC.HsValBinds (GHC.ValBindsIn binds sigs) -> Just wp
         where
           [lbs] = getListSrcSpan $ GHC.bagToList binds
@@ -826,7 +827,7 @@ annotateLPat (GHC.L l pat) = do
     GHC.VarPat _ -> return AnnNone
 
     p -> return AnnNone
-      `debug` ("annotateLPat:ignoring " ++ (SYB.showData SYB.Parser 0 p))
+      `debug` ("annotateLPat:ignoring " ++ (pp p))
 
   leaveAST ann
 
@@ -956,7 +957,7 @@ annotateLHsExpr (GHC.L l exprIn) = do
       return (AnnArithSeq obPos mcPos ddPos cbPos)
 
     e -> return AnnNone
-       `debug` ("annotateLHsExpr:not processing:" ++ (SYB.showData SYB.Parser 0 e))
+       `debug` ("annotateLHsExpr:not processing:" ++ (pp e))
 
   leaveAST ann
 
@@ -999,7 +1000,7 @@ annotateLConDecl (GHC.L l (GHC.ConDecl ln exp qvars ctx dets res _ _)) = do
   let
     mc = getListAnnInfo l ghcIsVbar (const False) cs toksIn
   leaveAST (AnnConDecl mc)
-
+-}
 -- ---------------------------------------------------------------------
 
 getListSpan :: [GHC.Located e] -> [Span]
@@ -1473,3 +1474,7 @@ showGhc x = GHC.showSDoc                     $ GHC.ppr x
 
 instance Show (GHC.GenLocated GHC.SrcSpan GHC.Token) where
   show t@(GHC.L l tok) = show ((srcSpanStart l, srcSpanEnd l),tok)
+
+-- ---------------------------------------------------------------------
+
+pp a = GHC.showPpr GHC.unsafeGlobalDynFlags a

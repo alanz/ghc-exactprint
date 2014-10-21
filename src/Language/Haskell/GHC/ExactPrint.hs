@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
@@ -39,7 +40,7 @@ import Control.Applicative (Applicative(..))
 import Control.Arrow ((***), (&&&))
 import Data.Data
 import Data.List (intersperse)
-import Data.List.Utils
+-- import Data.List.Utils
 import Data.Maybe
 
 import qualified Bag           as GHC
@@ -61,8 +62,6 @@ import qualified Unique        as GHC
 import qualified Var           as GHC
 
 import qualified Data.Map as Map
-
-import qualified GHC.SYB.Utils as SYB
 
 import Debug.Trace
 
@@ -595,7 +594,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
     padUntil (undelta pe ep) `debug` ("exactP.HsModule:(pe,ep)=" ++ show (pe,ep))
     printString ""
 
-  exactP ma (GHC.HsModule (Just lmn@(GHC.L l mn)) mexp imps decls deprecs haddock) = do
+  exactP ma (GHC.HsModule (Just lmn@(GHC.L l mn)) mexp limps decls deprecs haddock) = do
     let Just [Ann csm _ (AnnHsModule ep)] = ma
 
     mAnn <- getAnnotation l
@@ -605,13 +604,13 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
         printStringAt (undelta p pm) "module" `debug` ("exactP.HsModule:cs=" ++ show cs)
         exactPC lmn
         case mexp of
-          Just exps -> do
+          Just lexps -> do
             printStringAtMaybeDelta po "("
-            mapM_ exactPC exps
+            exactPC lexps
             printStringAtMaybeDelta pc ")"
           Nothing -> return ()
         printStringAt (undelta p pw) "where"
-        mapM_ exactPC imps
+        exactPC limps
       _ -> return ()
 
     printSeq $ map (pos . ann &&& exactPC) decls
@@ -626,6 +625,16 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
 instance ExactP (GHC.ModuleName) where
   exactP ma mn = do
     printString (GHC.moduleNameString mn)
+
+-- ---------------------------------------------------------------------
+
+instance ExactP [GHC.LIE GHC.RdrName] where
+  exactP ma ies = mapM_ exactPC ies
+
+-- ---------------------------------------------------------------------
+
+instance ExactP [GHC.LImportDecl GHC.RdrName] where
+  exactP ma imps = mapM_ exactPC imps
 
 -- ---------------------------------------------------------------------
 
@@ -704,7 +713,7 @@ instance ExactP (GHC.HsBind GHC.RdrName) where
 
   exactP ma (GHC.VarBind var_id var_rhs var_inline ) = printString "VarBind"
   exactP ma (GHC.AbsBinds abs_tvs abs_ev_vars abs_exports abs_ev_binds abs_binds) = printString "AbsBinds"
-  exactP ma (GHC.PatSynBind patsyn_id bind_fvs patsyn_args patsyn_def patsyn_dir) = printString "PatSynBind"
+  exactP ma (GHC.PatSynBind (GHC.PSB patsyn_id bind_fvs patsyn_args patsyn_def patsyn_dir)) = printString "PatSynBind"
 
 instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP ma (GHC.Match pats typ (GHC.GRHSs grhs lb)) = do
@@ -745,7 +754,7 @@ instance ExactP (GHC.Pat GHC.RdrName) where
                       else printStringAtDelta cpPos "#)"
 
   exactP _ p = printString "Pat"
-   `debug` ("exactP.Pat:ignoring " ++ (SYB.showData SYB.Parser 0 p))
+   `debug` ("exactP.Pat:ignoring " ++ (showGhc p))
 
 instance ExactP (GHC.HsType GHC.RdrName) where
 -- HsForAllTy HsExplicitFlag (LHsTyVarBndrs name) (LHsContext name) (LHsType name)
@@ -804,7 +813,7 @@ HsTyLit HsTyLit
 HsWrapTy HsTyWrapper (HsType name)
 -}
 
-  exactP _ t = printString "HsType" `debug` ("exactP.LHSType:ignoring " ++ (SYB.showData SYB.Parser 0 t))
+  exactP _ t = printString "HsType" `debug` ("exactP.LHSType:ignoring " ++ (showGhc t))
 
 
 instance ExactP (GHC.HsContext GHC.RdrName) where
@@ -854,7 +863,7 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     let [(Ann lcs _ an)] = getAnn isAnnExplicitTuple ma "ExplicitTuple"
     if b == GHC.Boxed then printStringAtDelta (et_opos an) "("
                       else printStringAtDelta (et_opos an) "(#"
-    mapM_ (exactP Nothing) args `debug` ("exactP.ExplicitTuple")
+    mapM_ exactPC args `debug` ("exactP.ExplicitTuple")
     if b == GHC.Boxed then printStringAtDelta (et_cpos an) ")"
                       else printStringAtDelta (et_cpos an) "#)"
 
@@ -884,7 +893,7 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     printStringAtDelta cbPos "]"
 
   exactP _ e = printString "HsExpr"
-    `debug` ("exactP.HsExpr:not processing " ++ (SYB.showData SYB.Parser 0 e) )
+    `debug` ("exactP.HsExpr:not processing " ++ (showGhc e) )
 
 instance ExactP GHC.RdrName where
   exactP Nothing n = printString (rdrName2String n)
@@ -987,6 +996,11 @@ instance ExactP (GHC.HsDataDefn GHC.RdrName) where
 
 -- ---------------------------------------------------------------------
 
+instance ExactP [GHC.LConDecl GHC.RdrName] where
+  exactP _ cons = mapM_ exactPC cons
+
+-- ---------------------------------------------------------------------
+
 instance ExactP (GHC.ConDecl GHC.RdrName) where
   exactP ma (GHC.ConDecl ln exp qvars ctx dets res _ _) = do
     let [(Ann lcs _ (AnnConDecl mp))] = getAnn isAnnConDecl ma "ConDecl"
@@ -1012,5 +1026,45 @@ internalError loc = error $ unlines
     , "a bug in haskell-src-exts. If this happens on an unmodified AST obtained"
     , "by the haskell-src-exts Parser it is a bug, please it report it at"
     , "https://github.com/haskell-suite/haskell-src-exts"]
+
+
+-- -------------------------------------------------------------------..
+-- Copied from MissingH, does not compile with HEAD
+
+
+{- | Merge two sorted lists into a single, sorted whole.
+
+Example:
+
+> merge [1,3,5] [1,2,4,6] -> [1,1,2,3,4,5,6]
+
+QuickCheck test property:
+
+prop_merge xs ys =
+    merge (sort xs) (sort ys) == sort (xs ++ ys)
+          where types = xs :: [Int]
+-}
+merge ::  (Ord a) => [a] -> [a] -> [a]
+merge = mergeBy (compare)
+
+{- | Merge two sorted lists using into a single, sorted whole,
+allowing the programmer to specify the comparison function.
+
+QuickCheck test property:
+
+prop_mergeBy xs ys =
+    mergeBy cmp (sortBy cmp xs) (sortBy cmp ys) == sortBy cmp (xs ++ ys)
+          where types = xs :: [ (Int, Int) ]
+                cmp (x1,_) (x2,_) = compare x1 x2
+-}
+mergeBy :: (a -> a -> Ordering) -> [a] -> [a] -> [a]
+mergeBy cmp [] ys = ys
+mergeBy cmp xs [] = xs
+mergeBy cmp (allx@(x:xs)) (ally@(y:ys)) 
+        -- Ordering derives Eq, Ord, so the comparison below is valid.
+        -- Explanation left as an exercise for the reader.
+        -- Someone please put this code out of its misery.
+    | (x `cmp` y) <= EQ = x : mergeBy cmp xs ally
+    | otherwise = y : mergeBy cmp allx ys
 
 
