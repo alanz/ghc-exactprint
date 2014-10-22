@@ -61,14 +61,14 @@ debug = flip trace
 
 -- ---------------------------------------------------------------------
 
--- | Type used in the AP Monad. The state variables maintain a stack
--- of SrcSpans to the root of the AST as it is traversed, the comment
--- stream that has not yet been allocated to annotations, and the
--- tokens.
--- TODO: should the tokens be limited according to the current SrcSpan?
+-- | Type used in the AP Monad. The state variables maintain the
+-- current SrcSpan, a stack of SrcSpans to the root of the AST as it is
+-- traversed, the comment stream that has not yet been allocated to
+-- annotations, and the tokens. TODO: should the tokens be limited
+-- according to the current SrcSpan?
 
-newtype AP x = AP ([GHC.SrcSpan] -> [[GHC.SrcSpan]] -> [Comment] -> [PosToken]
-            -> (x, [GHC.SrcSpan],   [[GHC.SrcSpan]],   [Comment],   [PosToken],
+newtype AP x = AP ([GHC.SrcSpan] -> [[GHC.SrcSpan]] -> [Comment] -> GHC.ApiAnns
+            -> (x, [GHC.SrcSpan],   [[GHC.SrcSpan]],   [Comment],   GHC.ApiAnns,
                   [(GHC.SrcSpan,[Annotation])]))
 
 instance Functor AP where
@@ -79,55 +79,55 @@ instance Applicative AP where
   (<*>) = ap
 
 instance Monad AP where
-  return x = AP $ \l ss cs toks -> (x, l, ss, cs, toks, [])
+  return x = AP $ \l ss cs ga -> (x, l, ss, cs, ga, [])
 
-  AP m >>= k = AP $ \l0 ss0 c0 toks0 -> let
-        (a, l1, ss1, c1, toks1, s1) = m l0 ss0 c0 toks0
+  AP m >>= k = AP $ \l0 ss0 c0 ga0 -> let
+        (a, l1, ss1, c1, ga1, s1) = m l0 ss0 c0 ga0
         AP f = k a
-        (b, l2, ss2, c2, toks2, s2) = f l1 ss1 c1 toks1
-    in (b, l2, ss2, c2, toks2, s1 ++ s2)
+        (b, l2, ss2, c2, ga2, s2) = f l1 ss1 c1 ga1
+    in (b, l2, ss2, c2, ga2, s1 ++ s2)
 
-runAP :: AP () -> [Comment] -> [PosToken] -> Anns
-runAP (AP f) cs toks
- = let (_,_,_,_,_,s) = f [] [] cs toks
+runAP :: AP () -> [Comment] -> GHC.ApiAnns -> Anns
+runAP (AP f) cs ga
+ = let (_,_,_,_,_,s) = f [] [] cs ga
    in Map.fromListWith (++) s
 
 -- -------------------------------------
 
 -- |Note: assumes the SrcSpan stack is nonempty
 getSrcSpan :: AP GHC.SrcSpan
-getSrcSpan = AP (\l ss cs toks -> (head l,l,ss,cs,toks,[]))
+getSrcSpan = AP (\l ss cs ga -> (head l,l,ss,cs,ga,[]))
 
 pushSrcSpan :: GHC.SrcSpan -> AP ()
-pushSrcSpan l = AP (\ls ss cs toks -> ((),l:ls,[]:ss,cs,toks,[]))
+pushSrcSpan l = AP (\ls ss cs ga -> ((),l:ls,[]:ss,cs,ga,[]))
 
 popSrcSpan :: AP ()
-popSrcSpan = AP (\(l:ls) (s:ss) cs toks -> ((),ls,ss,cs,toks,[]))
+popSrcSpan = AP (\(l:ls) (s:ss) cs ga -> ((),ls,ss,cs,ga,[]))
 
 getSubSpans :: AP [Span]
-getSubSpans= AP (\l (s:ss) cs toks -> (map ss2span s,l,s:ss,cs,toks,[]))
+getSubSpans= AP (\l (s:ss) cs ga -> (map ss2span s,l,s:ss,cs,ga,[]))
 
 -- -------------------------------------
 
 getComments :: AP [Comment]
-getComments = AP (\l ss cs toks -> (cs,l,ss,cs,toks,[]))
+getComments = AP (\l ss cs ga -> (cs,l,ss,cs,ga,[]))
 
 setComments :: [Comment] -> AP ()
-setComments cs = AP (\l ss _ toks -> ((),l,ss,cs,toks,[]))
+setComments cs = AP (\l ss _ ga -> ((),l,ss,cs,ga,[]))
 
 -- -------------------------------------
 
 getToks :: AP [PosToken]
-getToks = AP (\l ss cs toks -> (toks,l,ss,cs,toks,[]))
+getToks = AP (\l ss cs ga -> ([],l,ss,cs,ga,[]))
 
 setToks :: [PosToken] -> AP ()
-setToks toks = AP (\l ss cs _ -> ((),l,ss,cs,toks,[]))
+setToks toks = AP (\l ss cs ga -> ((),l,ss,cs,ga,[]))
 
 -- -------------------------------------
 
 -- |Add some annotation to the currently active SrcSpan
 addAnnotions :: [Annotation] -> AP ()
-addAnnotions anns = AP (\l (h:r) cs toks -> ( (),l,(head l:h):r,cs,toks,[(head l,anns)]) )
+addAnnotions anns = AP (\l (h:r) cs ga -> ( (),l,(head l:h):r,cs,ga,[(head l,anns)]) )
     -- Insert the span into the current head of the list of spans at this level
 
 -- -------------------------------------
@@ -157,37 +157,62 @@ leaveAST anns = do
   return () -- `debug` ("leaveAST:" ++ show (ss2span ss,lcs))
 
 -- ---------------------------------------------------------------------
+
+class AnnotateP ast where
+  annotateP :: GHC.SrcSpan -> ast -> AP AnnSpecific
+
+-- |First move to the given location, then call exactP
+annotatePC :: (AnnotateP ast) => GHC.Located ast -> AP ()
+annotatePC (GHC.L l ast) = do
+  enterAST l
+  annSpecific <- annotateP l ast
+  leaveAST annSpecific
+
+annotateMaybe :: (AnnotateP ast) => Maybe (GHC.Located ast) -> AP ()
+annotateMaybe Nothing    = return ()
+annotateMaybe (Just ast) = annotatePC ast
+
+annotateList :: (AnnotateP ast) => [GHC.Located ast] -> AP ()
+annotateList xs = mapM_ annotatePC xs
+
+-- ---------------------------------------------------------------------
 -- Start of application specific part
 
 -- ---------------------------------------------------------------------
 
 annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName)
-  -> [Comment] -> [PosToken]
+  -> [Comment] -> [PosToken] -> GHC.ApiAnns
   -> Anns
-annotateLHsModule modu cs toks = r
+annotateLHsModule modu cs toks ghcAnns = r
   where
-    -- r = runAP (annotateModule modu) cs toks
-    r = assert False undefined
+    r = runAP (annotatePC modu) cs ghcAnns
 
-{-
-annotateModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> AP ()
+instance AnnotateP (GHC.HsModule GHC.RdrName) where
+  annotateP lm (GHC.HsModule mmn mexp imps decs _depr _haddock) = do
+    let pos = ss2pos lm  -- start of the syntax fragment
+    -- annotateMaybe mmn
+    -- annotateMaybe mexp
+    -- annotateList (GHC.unLoc imps)
+    return AnnNone
+
+annotateModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> AP AnnSpecific
 annotateModule (GHC.L lm (GHC.HsModule mmn mexp imps decs _depr _haddock)) = do
   -- let infiniteSpan = GHC.mkSrcSpan (GHC.srcSpanStart lm) (GHC.mkSrcLoc (GHC.mkFastString "ff") 99999999 0)
-  enterAST lm
   let pos = ss2pos lm  -- start of the syntax fragment
-  annotateModuleHeader mmn mexp pos
+  -- annotateModuleHeader mmn mexp pos
   toks <- getToks
   let
     lpo = ss2delta (ss2posEnd $ tokenSpan secondLastTok) (tokenSpan lastTok)
     secondLastTok = head $ dropWhile ghcIsBlankOrComment $ tail $ reverse toks
     lastTok       = last toks
 
-  mapM_ annotateImportDecl imps
+  -- mapM_ annotateImportDecl imps
 
-  mapM_ annotateLHsDecl decs
+  -- mapM_ annotateLHsDecl decs
 
-  leaveAST (AnnHsModule lpo)
+  return (AnnHsModule lpo)
 
+{-
 -- ---------------------------------------------------------------------
 
 annotateModuleHeader ::

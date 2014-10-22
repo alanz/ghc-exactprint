@@ -306,18 +306,18 @@ exactPrint ast cs toks = runEP (exactPC ast) cs Map.empty
 
 exactPrintAnnotated ::
      GHC.Located (GHC.HsModule GHC.RdrName)
-  -> [Comment] -> [PosToken] -> String
-exactPrintAnnotated ast cs toks = runEP (exactPC ast) [] ann
+  -> [Comment] -> [PosToken] -> GHC.ApiAnns -> String
+exactPrintAnnotated ast cs toks ghcAnns = runEP (exactPC ast) [] ann
   where
-    ann = annotateLHsModule ast cs toks
+    ann = annotateLHsModule ast cs toks ghcAnns
 
 exactPrintAnnotation :: ExactP ast =>
   GHC.Located ast -> [Comment] -> Anns -> String
 exactPrintAnnotation ast cs ann = runEP (exactPC ast) cs ann
   -- `debug` ("exactPrintAnnotation:ann=" ++ (concatMap (\(l,a) -> show (ss2span l,a)) $ Map.toList ann ))
 
-annotate :: GHC.Located (GHC.HsModule GHC.RdrName) -> [Comment] -> [PosToken] -> Anns
-annotate ast cs toks = annotateLHsModule ast cs toks
+annotate :: GHC.Located (GHC.HsModule GHC.RdrName) -> [Comment] -> [PosToken] -> GHC.ApiAnns -> Anns
+annotate ast cs toks ghcAnns = annotateLHsModule ast cs toks ghcAnns
 
 -- |First move to the given location, then call exactP
 exactPC :: (ExactP ast) => GHC.Located ast -> EP ()

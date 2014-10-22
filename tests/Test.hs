@@ -47,7 +47,7 @@ manipulateAstTest sources = do
   let out    = file <.> "exactprinter" <.> "out"
 
   contents <- readUTF8File file
-  (t,toks) <- parsedFileGhc file
+  (ghcAnns,t,toks) <- parsedFileGhc file
   let
     parsed@(GHC.L l hsmod) = GHC.pm_parsed_source $ GHC.tm_parsed_module t
     -- parsedAST = SYB.showData SYB.Parser 0 parsed
@@ -56,8 +56,9 @@ manipulateAstTest sources = do
     -- try to pretty-print; summarize the test result
     -- printed = exactPrint parsed comments toks
     -- ann = annotate parsed comments toks
-    ann = annotate parsed comments toks
+    ann = annotate parsed comments toks ghcAnns
       -- `debug` ("toks:" ++ show toks)
+      `debug` ("ghcAnns:" ++ showGhc ghcAnns)
     Just (GHC.L le exps) = GHC.hsmodExports hsmod
     secondExp@(GHC.L l2 _) = head $ tail exps
     Just [(Ann cs ll (AnnIEVar mc))] = Map.lookup l2 ann
@@ -91,7 +92,7 @@ manipulateAstTest sources = do
 -- TypeCheckedModule produced by GHC.
 type ParseResult = GHC.TypecheckedModule
 
-parsedFileGhc :: String -> IO (ParseResult,[(GHC.Located GHC.Token, String)])
+parsedFileGhc :: String -> IO (GHC.ApiAnns,ParseResult,[(GHC.Located GHC.Token, String)])
 parsedFileGhc fileName = do
     putStrLn $ "parsedFileGhc:" ++ show fileName
 #if __GLASGOW_HASKELL__ > 704
@@ -109,7 +110,13 @@ parsedFileGhc fileName = do
             dflags''' = dflags'' { GHC.hscTarget = GHC.HscInterpreted,
                                    GHC.ghcLink =  GHC.LinkInMemory }
 
-        void $ GHC.setSessionDynFlags dflags'''
+            dflags4 = if True -- useHaddock
+                        then GHC.gopt_set (GHC.gopt_set dflags''' GHC.Opt_Haddock)
+                                       GHC.Opt_KeepRawTokenStream
+                        else GHC.gopt_set (GHC.gopt_unset dflags''' GHC.Opt_Haddock)
+                                       GHC.Opt_KeepRawTokenStream
+
+        void $ GHC.setSessionDynFlags dflags4
         -- GHC.liftIO $ putStrLn $ "dflags set"
 
         target <- GHC.guessTarget fileName Nothing
@@ -126,7 +133,8 @@ parsedFileGhc fileName = do
         t <- GHC.typecheckModule p
         -- GHC.liftIO $ putStrLn $ "parsed"
         toks <- GHC.getRichTokenStream (GHC.ms_mod modSum)
-        return (t,toks)
+        let anns = GHC.pm_annotations p
+        return (anns,t,toks)
 
 readUTF8File :: FilePath -> IO String
 readUTF8File fp = openFile fp ReadMode >>= \h -> do
