@@ -61,14 +61,12 @@ data Annotation = Ann
   } deriving (Show)
 
 data AnnSpecific =
-   AnnHsModule { m_fileEnd :: !DeltaPos }
-
- | AnnModuleName
-    { mn_module :: !DeltaPos -- module
-    , mn_name   :: !DeltaPos -- Language.Haskell.GHC.Types
-    , mn_op     :: !(Maybe DeltaPos) -- '('
-    , mn_cp     :: !(Maybe DeltaPos) -- ')'
-    , mn_where  :: !DeltaPos -- where
+  AnnHsModule
+    { m_module :: !(Maybe DeltaPos) -- module
+    , m_op     :: !(Maybe DeltaPos) -- '('
+    , m_cp     :: !(Maybe DeltaPos) -- ')'
+    , m_where  :: !(Maybe DeltaPos) -- where
+    , m_fileEnd :: !DeltaPos
     }
 
   -- IE variants, *trailing* comma

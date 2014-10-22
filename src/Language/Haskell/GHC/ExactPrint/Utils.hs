@@ -109,6 +109,13 @@ getSubSpans= AP (\l (s:ss) cs ga -> (map ss2span s,l,s:ss,cs,ga,[]))
 
 -- -------------------------------------
 
+getAnnotation :: GHC.SrcSpan -> GHC.Ann -> AP (Maybe GHC.SrcSpan)
+getAnnotation sp an = AP (\l ss cs ga
+    -> (GHC.getAnnotation ga sp an, l,ss,cs,ga,[]))
+
+
+-- -------------------------------------
+
 getComments :: AP [Comment]
 getComments = AP (\l ss cs ga -> (cs,l,ss,cs,ga,[]))
 
@@ -189,28 +196,16 @@ annotateLHsModule modu cs toks ghcAnns = r
 
 instance AnnotateP (GHC.HsModule GHC.RdrName) where
   annotateP lm (GHC.HsModule mmn mexp imps decs _depr _haddock) = do
-    let pos = ss2pos lm  -- start of the syntax fragment
+    pm <- getAnnotation lm GHC.AnnModule
+    pw <- getAnnotation lm GHC.AnnWhere
+    let po = Nothing
+    let pc = Nothing
+    let lpo = GHC.noSrcSpan
     -- annotateMaybe mmn
     -- annotateMaybe mexp
     -- annotateList (GHC.unLoc imps)
-    return AnnNone
+    return (AnnHsModule pm po pc pw lpo)
 
-annotateModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> AP AnnSpecific
-annotateModule (GHC.L lm (GHC.HsModule mmn mexp imps decs _depr _haddock)) = do
-  -- let infiniteSpan = GHC.mkSrcSpan (GHC.srcSpanStart lm) (GHC.mkSrcLoc (GHC.mkFastString "ff") 99999999 0)
-  let pos = ss2pos lm  -- start of the syntax fragment
-  -- annotateModuleHeader mmn mexp pos
-  toks <- getToks
-  let
-    lpo = ss2delta (ss2posEnd $ tokenSpan secondLastTok) (tokenSpan lastTok)
-    secondLastTok = head $ dropWhile ghcIsBlankOrComment $ tail $ reverse toks
-    lastTok       = last toks
-
-  -- mapM_ annotateImportDecl imps
-
-  -- mapM_ annotateLHsDecl decs
-
-  return (AnnHsModule lpo)
 
 {-
 -- ---------------------------------------------------------------------
