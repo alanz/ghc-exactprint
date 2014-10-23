@@ -69,7 +69,7 @@ debug = flip trace
 
 newtype AP x = AP ([GHC.SrcSpan] -> [[GHC.SrcSpan]] -> [Comment] -> GHC.ApiAnns
             -> (x, [GHC.SrcSpan],   [[GHC.SrcSpan]],   [Comment],   GHC.ApiAnns,
-                  [(GHC.SrcSpan,[Annotation])]))
+                  [(AnnKey,(Annotation,Value))]))
 
 instance Functor AP where
   fmap = liftM
@@ -90,7 +90,7 @@ instance Monad AP where
 runAP :: AP () -> [Comment] -> GHC.ApiAnns -> Anns
 runAP (AP f) cs ga
  = let (_,_,_,_,_,s) = f [] [] cs ga
-   in Map.fromListWith (++) s
+   in Map.fromList s
 
 -- -------------------------------------
 
@@ -133,8 +133,8 @@ setToks toks = AP (\l ss cs ga -> ((),l,ss,cs,ga,[]))
 -- -------------------------------------
 
 -- |Add some annotation to the currently active SrcSpan
-addAnnotions :: [Annotation] -> AP ()
-addAnnotions anns = AP (\l (h:r) cs ga -> ( (),l,(head l:h):r,cs,ga,[(head l,anns)]) )
+addAnnotions :: (Annotation,Value) -> AP ()
+addAnnotions (ann,v) = AP (\l (h:r) cs ga -> ( (),l,(head l:h):r,cs,ga,[(mkAnnKeyV (head l) v,(ann,v))]) )
     -- Insert the span into the current head of the list of spans at this level
 
 -- -------------------------------------
@@ -151,14 +151,14 @@ enterAST ss = do
 -- the AST, hence relate to the current SrcSpan. They can thus be used
 -- to decide which comments belong at this level,
 -- The assumption is made valid by matching enterAST/leaveAST calls.
-leaveAST :: AnnSpecific -> AP ()
+leaveAST :: Value -> AP ()
 leaveAST anns = do
   ss <- getSrcSpan
   cs <- getComments
   subSpans <- getSubSpans
   let (lcs,cs') = localComments (ss2span ss) cs subSpans
 
-  addAnnotions [Ann lcs (DP (0,0)) anns]
+  addAnnotions (Ann lcs (DP (0,0)),anns)
   setComments cs'
   popSrcSpan
   return () -- `debug` ("leaveAST:" ++ show (ss2span ss,lcs))
@@ -166,7 +166,7 @@ leaveAST anns = do
 -- ---------------------------------------------------------------------
 
 class AnnotateP ast where
-  annotateP :: GHC.SrcSpan -> ast -> AP AnnSpecific
+  annotateP :: GHC.SrcSpan -> ast -> AP Value
 
 -- |First move to the given location, then call exactP
 annotatePC :: (AnnotateP ast) => GHC.Located ast -> AP ()
@@ -196,16 +196,30 @@ annotateLHsModule modu cs toks ghcAnns = r
 
 instance AnnotateP (GHC.HsModule GHC.RdrName) where
   annotateP lm (GHC.HsModule mmn mexp imps decs _depr _haddock) = do
-    pm <- getAnnotation lm GHC.AnnModule
-    pw <- getAnnotation lm GHC.AnnWhere
-    let po = Nothing
-    let pc = Nothing
-    let lpo = GHC.noSrcSpan
-    -- annotateMaybe mmn
-    -- annotateMaybe mexp
-    -- annotateList (GHC.unLoc imps)
-    return (AnnHsModule pm po pc pw lpo)
+    am <- getAnnotation lm GHC.AnnModule
+    aw <- getAnnotation lm GHC.AnnWhere
+    let pm = deltaFromMaybeSrcSpans (Just lm) am
+        pn = deltaFromMaybeSrcSpans am (maybeSrcSpan mmn)
+        po = deltaFromMaybeSrcSpans (maybeSrcSpan mmn) (maybeSrcSpan mexp)
+        (mEndExps,mCp) = case mexp of
+          Nothing -> (Nothing,Nothing)
+          Just (GHC.L le es) -> (Just ee,Just cp)
+            where
+              ee = if null es
+                     then GHC.mkSrcSpan (GHC.srcSpanStart le) (GHC.srcSpanStart le)
+                     else GHC.getLoc (last es)
+              cp = GHC.mkSrcSpan (GHC.srcSpanEnd le) (GHC.srcSpanEnd le)
+        pc = deltaFromMaybeSrcSpans mEndExps mCp
+        pw = deltaFromMaybeSrcSpans mCp aw
+            -- `debug` ("annotateLHsModule:(po,mmn,mexp)=" ++ show (po,maybeSrcSpan mmn,maybeSrcSpan mexp))
+            `debug` ("annotateLHsModule:(pc,mEndExps,mCp)=" ++ show (pc,mEndExps,mCp))
 
+    let lpo = deltaFromSrcSpans lm lm
+    -- annotateMaybe mmn
+    annotateMaybe mexp
+    -- annotateList (GHC.unLoc imps)
+    return (newValue $ AnnHsModule pm pn po pc pw lpo)
+-- 'module' mmn '(' mexp  ')' 'where'
 
 {-
 -- ---------------------------------------------------------------------
@@ -249,9 +263,29 @@ annotateModuleHeader (Just (GHC.L l _mn)) mexp pos = do
     Just exps -> mapM_ annotateLIE exps
 
   leaveAST annSpecific
-
+-}
 -- ---------------------------------------------------------------------
 
+instance AnnotateP [GHC.LIE GHC.RdrName] where
+   annotateP ss ls = mapM annotatePC ls >> return (newValue AnnNone)
+
+instance AnnotateP (GHC.IE GHC.RdrName) where
+  annotateP l ie = do
+    ma <- getAnnotation l GHC.AnnComma
+    let mc = deltaFromMaybeSrcSpans (Just l) ma
+    let
+      annSpecific = case ie of
+      -- This receives the toks for the entire exports section.
+      -- So it can scan for the separating comma if required
+        (GHC.IEVar _) -> AnnIEVar mc
+
+        (GHC.IEThingAbs _) -> AnnIEThingAbs mc
+
+        _ -> assert False undefined
+
+    return (newValue annSpecific) `debug` ("annotateP.IE:annSpecific=" ++ show annSpecific)
+
+{-
 annotateLIE :: GHC.LIE GHC.RdrName -> AP ()
 annotateLIE (GHC.L l ie) = do
   enterAST l
@@ -270,9 +304,9 @@ annotateLIE (GHC.L l ie) = do
       _ -> assert False undefined
 
   leaveAST annSpecific `debug` ("annotateLIE:annSpecific=" ++ show annSpecific)
-
+-}
 -- ---------------------------------------------------------------------
-
+{-
 annotateImportDecl :: GHC.LImportDecl GHC.RdrName -> AP ()
 annotateImportDecl (GHC.L l (GHC.ImportDecl (GHC.L ln _) _pkg _src _safe qual _impl as hiding)) = do
   enterAST l
@@ -1374,6 +1408,16 @@ ghcIsBlankOrComment t = ghcIsBlank t || ghcIsComment t
 
 -- ---------------------------------------------------------------------
 
+maybeSrcSpan :: Maybe (GHC.Located a) -> Maybe GHC.SrcSpan
+maybeSrcSpan (Just (GHC.L ss _)) = Just ss
+maybeSrcSpan _ = Nothing
+
+deltaFromMaybeSrcSpans :: Maybe GHC.SrcSpan -> Maybe GHC.SrcSpan -> Maybe DeltaPos
+deltaFromMaybeSrcSpans (Just ss1) (Just ss2) = Just (deltaFromSrcSpans ss1 ss2)
+deltaFromMaybeSrcSpans _ _ = Nothing
+
+-- | Create a delta covering the gap between the end of the first
+-- @SrcSpan@ and the start of the second.
 deltaFromSrcSpans :: GHC.SrcSpan -> GHC.SrcSpan -> DeltaPos
 deltaFromSrcSpans ss1 ss2 = ss2delta (ss2posEnd ss1) ss2
 

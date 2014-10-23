@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE ExistentialQuantification #-}
 module Language.Haskell.GHC.ExactPrint.Types
   (
     Comment(..)
@@ -8,12 +9,38 @@ module Language.Haskell.GHC.ExactPrint.Types
   , PosToken
   , DeltaPos(..)
   , Annotation(..)
-  , AnnSpecific(..)
   , annNone
   , Anns(..)
+
+  , Value(..)
+  , AnnKey
+  , newValue
+  , typeValue
+  , fromValue
+  , mkAnnKey
+  , mkAnnKeyV
+  , getAnnotationValue
+
+  -- * Specific annotation
+  , AnnHsModule(..)
+  , AnnIe(..)
+  , AnnImportDecl(..)
+  , AnnTypeSig(..)
+  , AnnHsBind(..)
+  , AnnGRHS(..)
+  , AnnMatch(..)
+  , AnnOverLit(..)
+  , AnnHsExpr(..)
+  , AnnStmt(..)
+  , AnnTyClDecl(..)
+  , AnnHsType(..)
+  , AnnPat(..)
+  , AnnListItem(..)
+  , AnnNone(..)
   ) where
 
 import Data.Data
+import Data.Maybe
 
 import qualified Bag           as GHC
 import qualified DynFlags      as GHC
@@ -52,25 +79,29 @@ type Span = (Pos,Pos)
 newtype DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
 
 annNone :: Annotation
-annNone = Ann [] (DP (0,0)) AnnNone
+annNone = Ann [] (DP (0,0))
 
 data Annotation = Ann
   { ann_comments :: ![DComment]
-  , ann_delta    :: !DeltaPos -- Do we need this?
-  , ann_specific :: !AnnSpecific
-  } deriving (Show)
+  , ann_delta    :: !DeltaPos -- Do we need this? Yes indeed.
+  -- , ann_specific :: !Value
+  } deriving (Show,Typeable)
 
-data AnnSpecific =
-  AnnHsModule
+-- Specific annotation types
+
+data AnnHsModule = AnnHsModule
     { m_module :: !(Maybe DeltaPos) -- module
+    , m_n      :: !(Maybe DeltaPos) -- name
     , m_op     :: !(Maybe DeltaPos) -- '('
     , m_cp     :: !(Maybe DeltaPos) -- ')'
     , m_where  :: !(Maybe DeltaPos) -- where
     , m_fileEnd :: !DeltaPos
     }
+  deriving (Show,Typeable,Eq)
 
+data AnnIe =
   -- IE variants, *trailing* comma
-  | AnnIEVar      { ie_comma :: !(Maybe DeltaPos) }
+    AnnIEVar      { ie_comma :: !(Maybe DeltaPos) }
   | AnnIEThingAbs { ie_comma :: !(Maybe DeltaPos) }
   | AnnIEThingAll
   | AnnIEThingWith
@@ -78,6 +109,7 @@ data AnnSpecific =
   | AnnIEGroup
   | AnnIEDoc
   | AnnIEDocNamed
+  deriving (Show,Typeable,Eq)
 
 {-
 IEVar name
@@ -92,7 +124,8 @@ IEDocNamed String
 
 -}
 
-  | AnnImportDecl
+data AnnImportDecl =
+  AnnImportDecl
      { id_import    :: !DeltaPos
      , id_source    :: !(Maybe DeltaPos)
      , id_safe      :: !(Maybe DeltaPos)
@@ -103,12 +136,17 @@ IEDocNamed String
      , id_op        :: !(Maybe DeltaPos)
      , id_cp        :: !(Maybe DeltaPos)
      }
+  deriving (Show,Typeable,Eq)
+
 
   -- Sig
-  | AnnTypeSig { st_dcolon :: !DeltaPos }
+data AnnTypeSig =
+    AnnTypeSig { st_dcolon :: !DeltaPos }
+  deriving (Show,Typeable,Eq)
 
+data AnnHsBind
   -- HsBindLR
-  | AnnFunBind {}
+  = AnnFunBind {}
   | AnnPatBind
      { pb_equal :: !(Maybe DeltaPos)
      , pb_where :: !(Maybe DeltaPos) }
@@ -116,26 +154,34 @@ IEDocNamed String
   -- AnnVarBind {} not needed, only introduced by type checker
   -- AnnAbsBind {} only used after renamer
   | AnnPatSynBind {}
+  deriving (Show,Typeable,Eq)
 
-  | AnnGRHS
+data AnnGRHS
+  = AnnGRHS
     { grhs_guard :: !(Maybe DeltaPos) --  track the '|'
     , grhs_eq    :: !(Maybe DeltaPos)
     }
+  deriving (Show,Typeable,Eq)
 
-  | AnnMatch
+data AnnMatch
+  = AnnMatch
      { match_npos  :: !DeltaPos -- location of the function name
      , match_n     :: !GHC.RdrName
      , match_infix :: !Bool  -- if the function is infix
      , match_eq    :: !(Maybe DeltaPos)
      , match_where :: !(Maybe DeltaPos)
      }
+  deriving (Show,Typeable,Eq)
 
   -- HsOverLit, must keep the exact original string used
-  | AnnOverLit { ol_str :: !String }
+data AnnOverLit
+  = AnnOverLit { ol_str :: !String }
+  deriving (Show,Typeable,Eq)
 
 
   -- HsExpr
-  | AnnHsLet
+data AnnHsExpr
+  = AnnHsLet
       { hsl_let :: !(Maybe DeltaPos)
       , hsl_in  :: !(Maybe DeltaPos)
       }
@@ -144,9 +190,11 @@ IEDocNamed String
       }
   | AnnExplicitTuple
        { et_opos :: !DeltaPos,  et_cpos :: !DeltaPos }
+  deriving (Show,Typeable,Eq)
 
   -- StmtLR
-  | AnnStmtLR {}
+data AnnStmt
+  = AnnStmtLR {}
   | AnnLetStmt
       { ls_let :: !(Maybe DeltaPos)
       , ls_in  :: !(Maybe DeltaPos)
@@ -157,14 +205,18 @@ IEDocNamed String
       , as_dotdot :: !DeltaPos
       , as_cb     :: !DeltaPos
       }
+  deriving (Show,Typeable,Eq)
 
   -- TyClDecl
   --  Data declarations
-  | AnnDataDecl { dd_equal :: !DeltaPos }
+data AnnTyClDecl
+  = AnnDataDecl { dd_equal :: !DeltaPos }
   | AnnConDecl  { cs_mvbar :: !(Maybe DeltaPos) }
+  deriving (Show,Typeable,Eq)
 
   -- HsType
-  | AnnHsForAllTy
+data AnnHsType
+  = AnnHsForAllTy
       { fa_oparen :: !(Maybe DeltaPos)
       , fa_darrow :: !(Maybe DeltaPos)
       , fa_cparen :: !(Maybe DeltaPos)
@@ -180,21 +232,61 @@ IEDocNamed String
   | AnnHsExplicitListTy
        { el_opos :: !DeltaPos,  el_cpos :: !DeltaPos }
   | AnnHsExplicitTupleTy
-       { et_opos :: !DeltaPos,  et_cpos :: !DeltaPos }
+       { ett_opos :: !DeltaPos,  ett_cpos :: !DeltaPos }
+  deriving (Show,Typeable,Eq)
 
   -- Pat
-  | AnnAsPat { ap_as :: !DeltaPos }
+data AnnPat
+  = AnnAsPat { ap_as :: !DeltaPos }
   | AnnTuplePat { tp_opPos :: !DeltaPos, tp_cpPos :: !DeltaPos }
+  deriving (Show,Typeable,Eq)
 
   -- Basics
-  | AnnListItem { li_comma :: !(Maybe DeltaPos) }
+data AnnListItem
+  = AnnListItem { li_comma :: !(Maybe DeltaPos) }
+  deriving (Show,Typeable,Eq)
 
-  | AnnNone
-  deriving (Show)
+data  AnnNone = AnnNone
+  deriving (Show,Typeable,Eq)
 
 instance Show GHC.RdrName where
   show n = "(a RdrName)"
 
-type Anns = Map.Map GHC.SrcSpan [Annotation]
+-- type Anns = Map.Map GHC.SrcSpan [Annotation]
+type Anns = Map.Map (GHC.SrcSpan,TypeRep) (Annotation,Value)
 
+-- ---------------------------------------------------------------------
 
+type AnnKey = (GHC.SrcSpan, TypeRep)
+
+mkAnnKey :: (Typeable a) => GHC.SrcSpan -> a -> AnnKey
+mkAnnKey l a = (l,(typeOf (Just (annNone,a))))
+
+mkAnnKeyV :: GHC.SrcSpan -> Value -> AnnKey
+mkAnnKeyV l a = (l,(typeOf (Just (annNone,typeValue a))))
+
+data Value = forall a . (Eq a, Show a, Typeable a) => Value a
+
+instance Show (Value) where
+  show _ = "Value (..)"
+
+newValue :: (Eq a, Show a, Typeable a) => a -> Value
+newValue = Value
+
+typeValue :: Value -> TypeRep
+typeValue (Value x) = typeOf x
+
+fromValue :: Typeable a => Value -> a
+fromValue (Value x) = fromMaybe (error errMsg) $ res
+  where
+    res = cast x
+    errMsg = "fromValue, bad cast from " ++ show (typeOf x)
+                ++ " to " ++ show (typeOf res)
+
+-- | Retrieve an annotation based on the SrcSpan of the annotated AST
+-- element, and the known type of the annotation.
+getAnnotationValue :: (Typeable a) => Anns -> GHC.SrcSpan -> Maybe (Annotation,a)
+getAnnotationValue anns span = res
+  where res = case  Map.lookup (span, (typeOf res)) anns of
+                Nothing -> Nothing
+                Just (ann,d) -> Just (ann,fromValue d)

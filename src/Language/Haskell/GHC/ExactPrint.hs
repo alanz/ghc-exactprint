@@ -172,7 +172,7 @@ setOffset :: DeltaPos -> EP ()
 setOffset dp = EP (\l _ cs an -> ((),l,dp,cs,an,id))
 
 
-getAnnotation :: GHC.SrcSpan -> EP (Maybe [Annotation])
+getAnnotation :: (Typeable a) => GHC.SrcSpan -> EP (Maybe (Annotation,a))
 getAnnotation ss = EP (\l dp cs an -> (Map.lookup ss an,l,dp,cs,an,id))
 
 putAnnotation :: GHC.SrcSpan -> [Annotation] -> EP ()
@@ -319,13 +319,14 @@ exactPrintAnnotation ast cs ann = runEP (exactPC ast) cs ann
 annotate :: GHC.Located (GHC.HsModule GHC.RdrName) -> [Comment] -> [PosToken] -> GHC.ApiAnns -> Anns
 annotate ast cs toks ghcAnns = annotateLHsModule ast cs toks ghcAnns
 
+-- ++AZ++ TODO: needs to use a delta location.
 -- |First move to the given location, then call exactP
 exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC (GHC.L l ast) =
  let p = pos l
  in do ma <- getAnnotation l
        mPrintComments p
-       padUntil p
+       -- padUntil p -- ++AZ++ needed?
        off@(DP (r,c)) <- case ma of
          Nothing -> return (DP (0,0))
          Just anns -> do
@@ -586,7 +587,7 @@ class ExactP ast where
 
 instance ExactP (GHC.HsModule GHC.RdrName) where
   exactP ma (GHC.HsModule Nothing exps imps decls deprecs haddock) = do
-    let Just [Ann _ _ (AnnHsModule ep)] = ma
+    let Just [Ann _ _ (AnnHsModule mm mn mo mc mw ep)] = ma
     printSeq $ map (pos . ann &&& exactPC) decls
 
     -- put the end of file whitespace in
@@ -595,25 +596,25 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
     printString ""
 
   exactP ma (GHC.HsModule (Just lmn@(GHC.L l mn)) mexp limps decls deprecs haddock) = do
-    let Just [Ann csm _ (AnnHsModule ep)] = ma
-
+    let Just [Ann cs _ (AnnHsModule mm mn mo mc mw ep)] = ma
+          `debug` ("exactP.HsModule:ma=" ++ show ma)
     mAnn <- getAnnotation l
     let p = (1,1)
-    case mAnn of
-      Just [(Ann cs _ (AnnModuleName pm _pn po pc pw))] -> do
-        printStringAt (undelta p pm) "module" `debug` ("exactP.HsModule:cs=" ++ show cs)
-        exactPC lmn
-        case mexp of
-          Just lexps -> do
-            printStringAtMaybeDelta po "("
-            exactPC lexps
-            printStringAtMaybeDelta pc ")"
-          Nothing -> return ()
-        printStringAt (undelta p pw) "where"
-        exactPC limps
-      _ -> return ()
+      -- Just [(Ann cs _ (AnnModuleName pm _pn po pc pw))] -> do
+    printStringAtMaybeDelta mm "module" `debug` ("exactP.HsModule:cs=" ++ show cs)
+    printStringAtMaybeDelta mn ""
+    exactPC lmn
+    case mexp of
+      Just lexps -> do
+        printStringAtMaybeDelta mo "("
+        exactPC lexps
+        printStringAtMaybeDelta mc ")"
+        return ()
+      Nothing -> return ()
+    printStringAtMaybeDelta mw "where"
+    -- exactPC limps
 
-    printSeq $ map (pos . ann &&& exactPC) decls
+    -- printSeq $ map (pos . ann &&& exactPC) decls
 
     -- put the end of file whitespace in
     pe <- getPos

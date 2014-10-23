@@ -58,7 +58,7 @@ manipulateAstTest sources = do
     -- ann = annotate parsed comments toks
     ann = annotate parsed comments toks ghcAnns
       -- `debug` ("toks:" ++ show toks)
-      `debug` ("ghcAnns:" ++ showGhc ghcAnns)
+      -- `debug` ("ghcAnns:" ++ showGhc ghcAnns)
     Just (GHC.L le exps) = GHC.hsmodExports hsmod
     secondExp@(GHC.L l2 _) = head $ tail exps
     Just [(Ann cs ll (AnnIEVar mc))] = Map.lookup l2 ann
