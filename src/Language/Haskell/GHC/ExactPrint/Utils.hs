@@ -31,6 +31,7 @@ import Control.Monad (when, liftM, ap)
 import Control.Exception
 import Data.List
 import Data.Maybe
+import Data.Monoid
 
 import Language.Haskell.GHC.ExactPrint.Types
 
@@ -69,7 +70,8 @@ debug = flip trace
 
 newtype AP x = AP ([GHC.SrcSpan] -> [[GHC.SrcSpan]] -> [Comment] -> GHC.ApiAnns
             -> (x, [GHC.SrcSpan],   [[GHC.SrcSpan]],   [Comment],   GHC.ApiAnns,
-                  [(AnnKey,(Annotation,Value))]))
+                  ([(AnnKey,Annotation)],[(AnnKey,Value)])
+                 ))
 
 instance Functor AP where
   fmap = liftM
@@ -79,56 +81,56 @@ instance Applicative AP where
   (<*>) = ap
 
 instance Monad AP where
-  return x = AP $ \l ss cs ga -> (x, l, ss, cs, ga, [])
+  return x = AP $ \l ss cs ga -> (x, l, ss, cs, ga, ([],[]))
 
   AP m >>= k = AP $ \l0 ss0 c0 ga0 -> let
         (a, l1, ss1, c1, ga1, s1) = m l0 ss0 c0 ga0
         AP f = k a
         (b, l2, ss2, c2, ga2, s2) = f l1 ss1 c1 ga1
-    in (b, l2, ss2, c2, ga2, s1 ++ s2)
+    in (b, l2, ss2, c2, ga2, s1 <> s2)
 
 runAP :: AP () -> [Comment] -> GHC.ApiAnns -> Anns
 runAP (AP f) cs ga
- = let (_,_,_,_,_,s) = f [] [] cs ga
-   in Map.fromList s
+ = let (_,_,_,_,_,(se,su)) = f [] [] cs ga
+   in (Map.fromList se,Map.fromList su)
 
 -- -------------------------------------
 
 -- |Note: assumes the SrcSpan stack is nonempty
 getSrcSpan :: AP GHC.SrcSpan
-getSrcSpan = AP (\l ss cs ga -> (head l,l,ss,cs,ga,[]))
+getSrcSpan = AP (\l ss cs ga -> (head l,l,ss,cs,ga,([],[])))
 
 pushSrcSpan :: GHC.SrcSpan -> AP ()
-pushSrcSpan l = AP (\ls ss cs ga -> ((),l:ls,[]:ss,cs,ga,[]))
+pushSrcSpan l = AP (\ls ss cs ga -> ((),l:ls,[]:ss,cs,ga,([],[])))
 
 popSrcSpan :: AP ()
-popSrcSpan = AP (\(l:ls) (s:ss) cs ga -> ((),ls,ss,cs,ga,[]))
+popSrcSpan = AP (\(l:ls) (s:ss) cs ga -> ((),ls,ss,cs,ga,([],[])))
 
 getSubSpans :: AP [Span]
-getSubSpans= AP (\l (s:ss) cs ga -> (map ss2span s,l,s:ss,cs,ga,[]))
+getSubSpans= AP (\l (s:ss) cs ga -> (map ss2span s,l,s:ss,cs,ga,([],[])))
 
 -- -------------------------------------
 
 getAnnotation :: GHC.SrcSpan -> GHC.Ann -> AP (Maybe GHC.SrcSpan)
 getAnnotation sp an = AP (\l ss cs ga
-    -> (GHC.getAnnotation ga sp an, l,ss,cs,ga,[]))
+    -> (GHC.getAnnotation ga sp an, l,ss,cs,ga,([],[])))
 
 
 -- -------------------------------------
 
 getComments :: AP [Comment]
-getComments = AP (\l ss cs ga -> (cs,l,ss,cs,ga,[]))
+getComments = AP (\l ss cs ga -> (cs,l,ss,cs,ga,([],[])))
 
 setComments :: [Comment] -> AP ()
-setComments cs = AP (\l ss _ ga -> ((),l,ss,cs,ga,[]))
+setComments cs = AP (\l ss _ ga -> ((),l,ss,cs,ga,([],[])))
 
 -- -------------------------------------
 
 getToks :: AP [PosToken]
-getToks = AP (\l ss cs ga -> ([],l,ss,cs,ga,[]))
+getToks = AP (\l ss cs ga -> ([],l,ss,cs,ga,([],[])))
 
 setToks :: [PosToken] -> AP ()
-setToks toks = AP (\l ss cs ga -> ((),l,ss,cs,ga,[]))
+setToks toks = AP (\l ss cs ga -> ((),l,ss,cs,ga,([],[])))
 
 -- -------------------------------------
 

@@ -11,15 +11,18 @@ module Language.Haskell.GHC.ExactPrint.Types
   , Annotation(..)
   , annNone
   , Anns(..)
+  , AnnsEP(..)
+  , AnnsUser(..)
 
   , Value(..)
   , AnnKey
   , newValue
   , typeValue
   , fromValue
-  , mkAnnKey
+  , mkAnnKeyEP
   , mkAnnKeyV
   , getAnnotationValue
+  , putAnnotationValue
 
   -- * Specific annotation
   , AnnHsModule(..)
@@ -252,18 +255,41 @@ data  AnnNone = AnnNone
 instance Show GHC.RdrName where
   show n = "(a RdrName)"
 
--- type Anns = Map.Map GHC.SrcSpan [Annotation]
-type Anns = Map.Map (GHC.SrcSpan,TypeRep) (Annotation,Value)
+
+type Anns = (AnnsEP,AnnsUser)
+
+-- | For every @Located a@, use the @SrcSpan@ and TypeRep of a as the
+-- key, to store the standard annotation.
+type AnnsEP = Map.Map (GHC.SrcSpan,TypeRep) Annotation
+
+-- | For every SrcSpan, store an annotation as a value where the
+-- TypeRep is of the item wrapped in the Value
+type AnnsUser = Map.Map (GHC.SrcSpan,TypeRep) Value
 
 -- ---------------------------------------------------------------------
+{-
+
+Rationale.
+
+We need an offset for every SrcSpan, as well as the comments
+associated with it.
+
+We also need optional other annotations for keywords etc.
+
+So perhaps one AnnKey based on the typeRep of a in (Located a), and
+another for the user annotation.
+
+
+-}
+
 
 type AnnKey = (GHC.SrcSpan, TypeRep)
 
-mkAnnKey :: (Typeable a) => GHC.SrcSpan -> a -> AnnKey
-mkAnnKey l a = (l,(typeOf (Just (annNone,a))))
+mkAnnKeyEP :: (Typeable a) => GHC.Located a -> AnnKey
+mkAnnKeyEP (GHC.L l a) = (l,typeOf a)
 
 mkAnnKeyV :: GHC.SrcSpan -> Value -> AnnKey
-mkAnnKeyV l a = (l,(typeOf (Just (annNone,typeValue a))))
+mkAnnKeyV l a = (l,typeOf (Just (typeValue a)))
 
 data Value = forall a . (Eq a, Show a, Typeable a) => Value a
 
@@ -283,10 +309,17 @@ fromValue (Value x) = fromMaybe (error errMsg) $ res
     errMsg = "fromValue, bad cast from " ++ show (typeOf x)
                 ++ " to " ++ show (typeOf res)
 
+getAnnotationEP :: (Typeable a) => AnnsEP -> GHC.Located a -> Maybe Annotation
+getAnnotationEP anns (GHC.L span a) = Map.lookup (span, (typeOf a)) anns
+
 -- | Retrieve an annotation based on the SrcSpan of the annotated AST
 -- element, and the known type of the annotation.
-getAnnotationValue :: (Typeable a) => Anns -> GHC.SrcSpan -> Maybe (Annotation,a)
+getAnnotationValue :: (Typeable a) => AnnsUser -> GHC.SrcSpan -> Maybe a
 getAnnotationValue anns span = res
   where res = case  Map.lookup (span, (typeOf res)) anns of
                 Nothing -> Nothing
-                Just (ann,d) -> Just (ann,fromValue d)
+                Just d -> Just (fromValue d)
+
+putAnnotationValue :: AnnsUser -> GHC.SrcSpan -> Value -> AnnsUser
+putAnnotationValue anns span v
+  = Map.insert (mkAnnKeyV span v) v anns

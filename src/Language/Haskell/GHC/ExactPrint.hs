@@ -173,12 +173,12 @@ setOffset dp = EP (\l _ cs an -> ((),l,dp,cs,an,id))
 
 
 getAnnotation :: (Typeable a) => GHC.SrcSpan -> EP (Maybe (Annotation,a))
-getAnnotation ss = EP (\l dp cs an -> (Map.lookup ss an,l,dp,cs,an,id))
+getAnnotation ss = EP (\l dp cs an -> (getAnnotationValue an ss,l,dp,cs,an,id))
 
-putAnnotation :: GHC.SrcSpan -> [Annotation] -> EP ()
+putAnnotation :: GHC.SrcSpan -> (Annotation,Value) -> EP ()
 putAnnotation ss anns = EP (\l dp cs an ->
   let
-    an' = Map.insert ss anns an
+    an' = putAnnotationValue an ss anns
   in ((),l,dp, cs,an',id))
 
 printString :: String -> EP ()
@@ -283,6 +283,7 @@ printStringAtMaybeDeltaP p mc s =
     Just cl -> do
       printStringAt (undelta p cl) s
 
+{-
 printListCommaMaybe :: Maybe [Annotation] -> EP ()
 printListCommaMaybe Nothing = return ()
 printListCommaMaybe ma = do
@@ -290,7 +291,7 @@ printListCommaMaybe ma = do
     [Ann _ _ (AnnListItem commaPos)] -> do
       printStringAtMaybeDelta commaPos ","
     _ -> return ()
-
+-}
 
 errorEP :: String -> EP a
 errorEP = fail
@@ -331,16 +332,31 @@ exactPC (GHC.L l ast) =
          Nothing -> return (DP (0,0))
          Just anns -> do
              mergeComments lcs
-             putAnnotation l anns'
              return dp
-           where lcs = concatMap (\(Ann cs _ _) -> cs) anns
-                 dp = foldl (\(DP (ro,co)) (Ann _ (DP (r1,c1)) _ ) -> DP (ro+r1,co+c1)) (DP (0,0)) anns
-                 anns' = map (\(Ann _ p a) -> Ann [] p a) anns
+           where lcs = concatMap (\(Ann cs _) -> cs) anns
+                 dp = foldl (\(DP (ro,co)) (Ann _ (DP (r1,c1)) ) -> DP (ro+r1,co+c1)) (DP (0,0)) anns
        let negOff = DP (-r,-c)
        addOffset off -- `debug` ("addOffset:push:" ++ show (ss2span l,off))
        exactP ma ast
-       printListCommaMaybe ma
+       -- printListCommaMaybe ma
        addOffset negOff -- `debug` ("addOffset:pop:" ++ show (ss2span l,negOff))
+
+{-
+
+Two approaches:
+
+getAnn2 anns span = res
+  where res = case  Map.lookup (span,typeOf res) anns of
+                       Nothing -> Nothing
+                       Just d -> fromDynamic d
+
+Or:
+
+getAnn2 :: forall a. Map.Map (SrcSpan,TypeRep) Dynamic -> SrcSpan -> Maybe a
+... typeOf (undefined :: a) ...
+
+-}
+
 
 {-
 exactPCTrailingComma :: (ExactP ast) => GHC.Located ast -> EP ()
