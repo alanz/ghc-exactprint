@@ -53,6 +53,7 @@ manipulateAstTest sources = do
     -- parsedAST = SYB.showData SYB.Parser 0 parsed
     parsedAST = showGhc parsed
     comments = toksToComments toks
+       `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
     -- try to pretty-print; summarize the test result
     -- printed = exactPrint parsed comments toks
     -- ann = annotate parsed comments toks
@@ -61,23 +62,24 @@ manipulateAstTest sources = do
       -- `debug` ("ghcAnns:" ++ showGhc ghcAnns)
     Just (GHC.L le exps) = GHC.hsmodExports hsmod
     secondExp@(GHC.L l2 _) = head $ tail exps
-    Just [(Ann cs ll (AnnIEVar mc))] = Map.lookup l2 ann
-    ann' = Map.insert l2 [(Ann cs ll (AnnIEVar Nothing))] ann
+    -- Just [(Ann cs ll (AnnIEVar mc))] = Map.lookup l2 ann
+    -- ann' = Map.insert l2 [(Ann cs ll (AnnIEVar Nothing))] ann
     -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (tail exps) }))
     -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (head exps : (drop 2 exps)) }))
     -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (init exps) }))
 
-    parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (GHC.L le (head exps:(head $ tail exps):tail exps)) }))
+    -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (GHC.L le (head exps:(head $ tail exps):tail exps)) }))
     -- printed = exactPrintAnnotation parsed' comments ann
     -- printed = exactPrintAnnotation parsed' [] ann
     -- ((16,9),(16,27))
     ss = GHC.mkSrcSpan (GHC.mkSrcLoc (GHC.mkFastString "examples/PatBind.hs") 16 9)
                        (GHC.mkSrcLoc (GHC.mkFastString "examples/PatBind.hs") 16 27)
 
-    Just [Ann cs1 dp1 as1,Ann cs2 dp2 as2] = Map.lookup ss ann
-    ann2 = Map.insert ss [Ann cs1 (DP (0,6)) as1,Ann cs2 dp2 as2] ann
+    -- Just [Ann cs1 dp1 as1,Ann cs2 dp2 as2] = Map.lookup ss ann
+    -- ann2 = Map.insert ss [Ann cs1 (DP (0,6)) as1,Ann cs2 dp2 as2] ann
     printed = exactPrintAnnotation parsed [] ann -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
-       `debug` ("ann=" ++ (show $ Map.lookup ss ann))
+       -- `debug` ("ann=" ++ (show (snd ann)))
+       `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
 
     result =
             if printed == contents

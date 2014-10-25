@@ -29,6 +29,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
 import Control.Applicative (Applicative(..))
 import Control.Monad (when, liftM, ap)
 import Control.Exception
+import Data.Data
 import Data.List
 import Data.Maybe
 import Data.Monoid
@@ -62,14 +63,16 @@ debug = flip trace
 
 -- ---------------------------------------------------------------------
 
--- | Type used in the AP Monad. The state variables maintain the
--- current SrcSpan, a stack of SrcSpans to the root of the AST as it is
--- traversed, the comment stream that has not yet been allocated to
--- annotations, and the tokens. TODO: should the tokens be limited
--- according to the current SrcSpan?
+-- | Type used in the AP Monad. The state variables maintain
+--    - the current SrcSpan and the TypeRep of the thing it encloses
+--      as a stack to the root of the AST as it is traversed,
+--    - the matching sets of enclosed SrcSpans per entry in the first,
+--    - the comment stream that has not yet been allocated to
+--      annotations,
+--    - the annotations provided by GH
 
-newtype AP x = AP ([GHC.SrcSpan] -> [[GHC.SrcSpan]] -> [Comment] -> GHC.ApiAnns
-            -> (x, [GHC.SrcSpan],   [[GHC.SrcSpan]],   [Comment],   GHC.ApiAnns,
+newtype AP x = AP ([(GHC.SrcSpan,TypeRep)] -> [[GHC.SrcSpan]] -> [Comment] -> GHC.ApiAnns
+            -> (x, [(GHC.SrcSpan,TypeRep)],   [[GHC.SrcSpan]],   [Comment],   GHC.ApiAnns,
                   ([(AnnKey,Annotation)],[(AnnKey,Value)])
                  ))
 
@@ -98,10 +101,10 @@ runAP (AP f) cs ga
 
 -- |Note: assumes the SrcSpan stack is nonempty
 getSrcSpan :: AP GHC.SrcSpan
-getSrcSpan = AP (\l ss cs ga -> (head l,l,ss,cs,ga,([],[])))
+getSrcSpan = AP (\l ss cs ga -> (fst $ head l,l,ss,cs,ga,([],[])))
 
-pushSrcSpan :: GHC.SrcSpan -> AP ()
-pushSrcSpan l = AP (\ls ss cs ga -> ((),l:ls,[]:ss,cs,ga,([],[])))
+pushSrcSpan :: (Typeable a) => (GHC.Located a) -> AP ()
+pushSrcSpan (GHC.L l a) = AP (\ls ss cs ga -> ((),(l,typeOf a):ls,[]:ss,cs,ga,([],[])))
 
 popSrcSpan :: AP ()
 popSrcSpan = AP (\(l:ls) (s:ss) cs ga -> ((),ls,ss,cs,ga,([],[])))
@@ -136,15 +139,17 @@ setToks toks = AP (\l ss cs ga -> ((),l,ss,cs,ga,([],[])))
 
 -- |Add some annotation to the currently active SrcSpan
 addAnnotions :: (Annotation,Value) -> AP ()
-addAnnotions (ann,v) = AP (\l (h:r) cs ga -> ( (),l,(head l:h):r,cs,ga,[(mkAnnKeyV (head l) v,(ann,v))]) )
+addAnnotions (ann,v) = AP (\l (h:r)                cs ga ->
+                       ( (),l,((fst $ head l):h):r,cs,ga,
+                 ([((head l),ann)],[(mkAnnKeyV (fst $ head l) v,v)])))
     -- Insert the span into the current head of the list of spans at this level
 
 -- -------------------------------------
 
 -- | Enter a new AST element. Maintain SrcSpan stack
-enterAST :: GHC.SrcSpan -> AP ()
-enterAST ss = do
-  pushSrcSpan ss
+enterAST :: (Typeable a) => GHC.Located a -> AP ()
+enterAST lss = do
+  pushSrcSpan lss
   return () -- `debug` ("enterAST:" ++ show (ss2span ss))
 
 -- | Pop up the SrcSpan stack, capture the annotations, and work the
@@ -167,13 +172,13 @@ leaveAST anns = do
 
 -- ---------------------------------------------------------------------
 
-class AnnotateP ast where
+class (Typeable ast) => AnnotateP ast where
   annotateP :: GHC.SrcSpan -> ast -> AP Value
 
 -- |First move to the given location, then call exactP
 annotatePC :: (AnnotateP ast) => GHC.Located ast -> AP ()
-annotatePC (GHC.L l ast) = do
-  enterAST l
+annotatePC a@(GHC.L l ast) = do
+  enterAST a
   annSpecific <- annotateP l ast
   leaveAST annSpecific
 

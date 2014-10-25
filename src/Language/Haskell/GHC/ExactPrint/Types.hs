@@ -21,6 +21,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , fromValue
   , mkAnnKeyEP
   , mkAnnKeyV
+  , getAnnotationEP
   , getAnnotationValue
   , putAnnotationValue
 
@@ -193,6 +194,12 @@ data AnnHsExpr
       }
   | AnnExplicitTuple
        { et_opos :: !DeltaPos,  et_cpos :: !DeltaPos }
+  | AnnArithSeq
+      { as_ob     :: !DeltaPos
+      , as_comma  :: !(Maybe DeltaPos)
+      , as_dotdot :: !DeltaPos
+      , as_cb     :: !DeltaPos
+      }
   deriving (Show,Typeable,Eq)
 
   -- StmtLR
@@ -201,12 +208,6 @@ data AnnStmt
   | AnnLetStmt
       { ls_let :: !(Maybe DeltaPos)
       , ls_in  :: !(Maybe DeltaPos)
-      }
-  | AnnArithSeq
-      { as_ob     :: !DeltaPos
-      , as_comma  :: !(Maybe DeltaPos)
-      , as_dotdot :: !DeltaPos
-      , as_cb     :: !DeltaPos
       }
   deriving (Show,Typeable,Eq)
 
