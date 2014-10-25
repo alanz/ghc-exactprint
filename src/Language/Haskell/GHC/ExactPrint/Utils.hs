@@ -1,6 +1,8 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Language.Haskell.GHC.ExactPrint.Utils
   (
     annotateLHsModule
@@ -138,10 +140,10 @@ setToks toks = AP (\l ss cs ga -> ((),l,ss,cs,ga,([],[])))
 -- -------------------------------------
 
 -- |Add some annotation to the currently active SrcSpan
-addAnnotions :: (Annotation,Value) -> AP ()
+addAnnotions :: (Typeable a,Show a,Eq a) => (Annotation,a) -> AP ()
 addAnnotions (ann,v) = AP (\l (h:r)                cs ga ->
                        ( (),l,((fst $ head l):h):r,cs,ga,
-                 ([((head l),ann)],[(mkAnnKeyV (fst $ head l) v,v)])))
+                 ([((head l),ann)],[(((fst $ head l),typeOf (Just v)),newValue v)])))
     -- Insert the span into the current head of the list of spans at this level
 
 -- -------------------------------------
@@ -158,7 +160,7 @@ enterAST lss = do
 -- the AST, hence relate to the current SrcSpan. They can thus be used
 -- to decide which comments belong at this level,
 -- The assumption is made valid by matching enterAST/leaveAST calls.
-leaveAST :: Value -> AP ()
+leaveAST :: (Typeable a,Show a,Eq a) => a -> AP ()
 leaveAST anns = do
   ss <- getSrcSpan
   cs <- getComments
@@ -173,13 +175,13 @@ leaveAST anns = do
 -- ---------------------------------------------------------------------
 
 class (Typeable ast) => AnnotateP ast where
-  annotateP :: GHC.SrcSpan -> ast -> AP Value
+  annotateP :: (Typeable a,Show a,Eq a) => GHC.SrcSpan -> ast -> AP a
 
 -- |First move to the given location, then call exactP
-annotatePC :: (AnnotateP ast) => GHC.Located ast -> AP ()
+annotatePC :: forall b ast. (AnnotateP ast,Typeable b,Show b,Eq b) => GHC.Located ast -> AP ()
 annotatePC a@(GHC.L l ast) = do
   enterAST a
-  annSpecific <- annotateP l ast
+  annSpecific <- annotateP l ast :: AP b
   leaveAST annSpecific
 
 annotateMaybe :: (AnnotateP ast) => Maybe (GHC.Located ast) -> AP ()

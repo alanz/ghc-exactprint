@@ -290,7 +290,8 @@ mkAnnKeyEP :: (Typeable a) => GHC.Located a -> AnnKey
 mkAnnKeyEP (GHC.L l a) = (l,typeOf a)
 
 mkAnnKeyV :: GHC.SrcSpan -> Value -> AnnKey
-mkAnnKeyV l a = (l,typeOf (Just (typeValue a)))
+-- mkAnnKeyV l a = (l,typeOf (Just (typeValue a)))
+mkAnnKeyV l a = (l,typeValue a)
 
 data Value = forall a . (Eq a, Show a, Typeable a) => Value a
 
@@ -321,6 +322,15 @@ getAnnotationValue anns span = res
                 Nothing -> Nothing
                 Just d -> Just (fromValue d)
 
-putAnnotationValue :: AnnsUser -> GHC.SrcSpan -> Value -> AnnsUser
+putAnnotationValue :: (Typeable a,Show a,Eq a) => AnnsUser -> GHC.SrcSpan -> a -> AnnsUser
 putAnnotationValue anns span v
-  = Map.insert (mkAnnKeyV span v) v anns
+  = Map.insert (span,typeOf (Just v)) (newValue v) anns
+
+
+{-
+addAnnotation :: (Typeable a,Outputable a,Show a,Eq a) => SrcSpan -> a -> P ()
+addAnnotation l v = P $ \s -> POk s {
+annotations = (AK l (typeOf (Just v)), newValue v) : annotations s
+} ()
+
+-}
