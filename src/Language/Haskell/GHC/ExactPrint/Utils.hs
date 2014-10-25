@@ -1,8 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 module Language.Haskell.GHC.ExactPrint.Utils
   (
     annotateLHsModule
@@ -140,11 +138,21 @@ setToks toks = AP (\l ss cs ga -> ((),l,ss,cs,ga,([],[])))
 -- -------------------------------------
 
 -- |Add some annotation to the currently active SrcSpan
-addAnnotions :: (Typeable a,Show a,Eq a) => (Annotation,a) -> AP ()
-addAnnotions (ann,v) = AP (\l (h:r)                cs ga ->
-                       ( (),l,((fst $ head l):h):r,cs,ga,
-                 ([((head l),ann)],[(((fst $ head l),typeOf (Just v)),newValue v)])))
+addAnnotions :: Annotation -> AP ()
+addAnnotions ann = AP (\l (h:r)                cs ga ->
+                   ( (),l,((fst $ head l):h):r,cs,ga,
+                 ([((head l),ann)],[])))
     -- Insert the span into the current head of the list of spans at this level
+
+-- -------------------------------------
+
+-- |Add some annotation to the currently active SrcSpan
+addAnnValue :: (Typeable a,Show a,Eq a) => a -> AP ()
+addAnnValue v = AP (\l (h:r)                cs ga ->
+                ( (),l,((fst $ head l):h):r,cs,ga,
+                 ([],[( ((fst $ head l),typeOf (Just v)),newValue v)])))
+    -- Insert the span into the current head of the list of spans at this level
+
 
 -- -------------------------------------
 
@@ -160,14 +168,14 @@ enterAST lss = do
 -- the AST, hence relate to the current SrcSpan. They can thus be used
 -- to decide which comments belong at this level,
 -- The assumption is made valid by matching enterAST/leaveAST calls.
-leaveAST :: (Typeable a,Show a,Eq a) => a -> AP ()
-leaveAST anns = do
+leaveAST :: AP ()
+leaveAST = do
   ss <- getSrcSpan
   cs <- getComments
   subSpans <- getSubSpans
   let (lcs,cs') = localComments (ss2span ss) cs subSpans
 
-  addAnnotions (Ann lcs (DP (0,0)),anns)
+  addAnnotions (Ann lcs (DP (0,0)))
   setComments cs'
   popSrcSpan
   return () -- `debug` ("leaveAST:" ++ show (ss2span ss,lcs))
@@ -175,14 +183,14 @@ leaveAST anns = do
 -- ---------------------------------------------------------------------
 
 class (Typeable ast) => AnnotateP ast where
-  annotateP :: (Typeable a,Show a,Eq a) => GHC.SrcSpan -> ast -> AP a
+  annotateP :: GHC.SrcSpan -> ast -> AP ()
 
 -- |First move to the given location, then call exactP
-annotatePC :: forall b ast. (AnnotateP ast,Typeable b,Show b,Eq b) => GHC.Located ast -> AP ()
+annotatePC :: (AnnotateP ast) => GHC.Located ast -> AP ()
 annotatePC a@(GHC.L l ast) = do
   enterAST a
-  annSpecific <- annotateP l ast :: AP b
-  leaveAST annSpecific
+  annotateP l ast
+  leaveAST
 
 annotateMaybe :: (AnnotateP ast) => Maybe (GHC.Located ast) -> AP ()
 annotateMaybe Nothing    = return ()
@@ -227,7 +235,7 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
     -- annotateMaybe mmn
     annotateMaybe mexp
     -- annotateList (GHC.unLoc imps)
-    return (newValue $ AnnHsModule pm pn po pc pw lpo)
+    addAnnValue (AnnHsModule pm pn po pc pw lpo)
 -- 'module' mmn '(' mexp  ')' 'where'
 
 {-
@@ -276,7 +284,7 @@ annotateModuleHeader (Just (GHC.L l _mn)) mexp pos = do
 -- ---------------------------------------------------------------------
 
 instance AnnotateP [GHC.LIE GHC.RdrName] where
-   annotateP ss ls = mapM annotatePC ls >> return (newValue AnnNone)
+   annotateP ss ls = mapM_ annotatePC ls
 
 instance AnnotateP (GHC.IE GHC.RdrName) where
   annotateP l ie = do
@@ -292,7 +300,7 @@ instance AnnotateP (GHC.IE GHC.RdrName) where
 
         _ -> assert False undefined
 
-    return (newValue annSpecific) `debug` ("annotateP.IE:annSpecific=" ++ show annSpecific)
+    addAnnValue annSpecific `debug` ("annotateP.IE:annSpecific=" ++ show annSpecific)
 
 {-
 annotateLIE :: GHC.LIE GHC.RdrName -> AP ()
