@@ -338,11 +338,9 @@ annotate ast cs toks ghcAnns = annotateLHsModule ast cs toks ghcAnns
 -- |First move to the given location, then call exactP
 exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC a@(GHC.L l ast) =
- let p = pos l `debug` ("exactPC entered for:" ++ showGhc l)
- in do setSrcSpan l
+ let p = pos l
+ in do setSrcSpan l  `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAnnotation a
-       mPrintComments p
-       -- padUntil p -- ++AZ++ needed?
        off@(DP (r,c)) <- case ma of
          Nothing -> return (DP (0,0))
          Just ann -> do
@@ -350,11 +348,15 @@ exactPC a@(GHC.L l ast) =
              return dp
            where lcs = ann_comments ann
                  dp = ann_delta ann
+       pe <- getPos
+       let p = undelta pe off
+       mPrintComments p
+       padUntil p
+
        let negOff = DP (-r,-c)
-       addOffset off `debug` ("addOffset:push:" ++ show (ss2span l,off))
+       -- addOffset off `debug` ("addOffset:push:" ++ show (ss2span l,off))
        exactP ast
-       -- printListCommaMaybe ma
-       addOffset negOff `debug` ("addOffset:pop:" ++ show (ss2span l,negOff))
+       -- addOffset negOff `debug` ("addOffset:pop:" ++ show (ss2span l,negOff))
 
 {-
 

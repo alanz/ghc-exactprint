@@ -56,7 +56,7 @@ manipulateAstTest sources = do
     -- parsedAST = SYB.showData SYB.Parser 0 parsed
     parsedAST = showGhc parsed
     comments = toksToComments toks
-       `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
+       -- `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
     -- try to pretty-print; summarize the test result
     -- printed = exactPrint parsed comments toks
     -- ann = annotate parsed comments toks
@@ -84,7 +84,7 @@ manipulateAstTest sources = do
     -- ann2 = Map.insert ss [Ann cs1 (DP (0,6)) as1,Ann cs2 dp2 as2] ann
     printed = exactPrintAnnotation parsed [] ann -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
        -- `debug` ("ann=" ++ (show (snd ann)))
-       `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
+       -- `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
 
     result =
             if printed == contents
