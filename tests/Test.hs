@@ -32,8 +32,8 @@ debug = flip trace
 main :: IO ()
 main = do
     putStrLn "hello"
-    -- let sources2 = ["examples/LetExpr.hs"]
-    let sources2 = ["examples/Simple.hs"]
+    let sources2 = ["examples/LetExpr.hs"]
+    -- let sources2 = ["examples/Simple.hs"]
     manipulateAstTest (sources2)
     putStrLn "done"
 
@@ -64,7 +64,7 @@ manipulateAstTest sources = do
       -- `debug` ("toks:" ++ show toks)
       -- `debug` ("ghcAnns:" ++ showGhc ghcAnns)
       -- `debug` ("ann:" ++ (show $ snd ann))
-{-
+
     Just (GHC.L le exps) = GHC.hsmodExports hsmod
     secondExp@(GHC.L l2 _) = head $ tail exps
     -- Just [(Ann cs ll (AnnIEVar mc))] = Map.lookup l2 ann
@@ -90,10 +90,8 @@ manipulateAstTest sources = do
             if printed == contents
               then "Match\n"
               else printed ++ "\n==============\n" ++ parsedAST
--}
-  putStrLn $ "Test:ann=" ++ show ann
-  putStrLn $ "Test:ann 2=" ++ show ann
-  -- writeFile out $ result
+  -- putStrLn $ "Test:ann=" ++ show ann
+  writeFile out $ result
   return ()
 -- }}}
 
@@ -153,7 +151,7 @@ readUTF8File fp = openFile fp ReadMode >>= \h -> do
 
 
 -- ---------------------------------------------------------------------
-
+{-
 testAP :: AP a -> [Comment] -> GHC.ApiAnns -> IO a
 testAP (AP f) cs ga = do
   let st = S [] [] cs ga
@@ -176,6 +174,7 @@ testAPSrcSpans = do
 
   ss <- testAP sst [] (Map.empty,Map.empty)
   putStrLn $ "testAPStuff: ss=" ++ showGhc ss
+-}
 
 -- ---------------------------------------------------------------------
 

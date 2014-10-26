@@ -27,14 +27,14 @@ module Language.Haskell.GHC.ExactPrint.Utils
 
   -- * For tests
   , runAP
-  , APState(..)
+  -- , APState(..)
   , AP(..)
   , getSrcSpanAP, pushSrcSpan, popSrcSpan
   , getSubSpans
   , getAnnotationAP
   , getComments
   , setComments
-  , getS
+  -- , getS
   , addAnnotationsAP, addAnnValue
   ) where
 
@@ -83,13 +83,14 @@ debug = flip trace
 --      annotations,
 --    - the annotations provided by GH
 
-{-
+{- -}
 newtype AP x = AP ([(GHC.SrcSpan,TypeRep)] -> [[GHC.SrcSpan]] -> [Comment] -> GHC.ApiAnns
             -> (x, [(GHC.SrcSpan,TypeRep)],   [[GHC.SrcSpan]],   [Comment],   GHC.ApiAnns,
                   ([(AnnKey,Annotation)],[(AnnKey,Value)])
                  ))
--}
+{- -}
 
+{-
 newtype AP x = AP (APState
             -> (x, APState,
                   ([(AnnKey,Annotation)],[(AnnKey,Value)])
@@ -101,6 +102,7 @@ data APState = S
   , sComments :: ![Comment]
   , sAnns     :: !GHC.ApiAnns
   } deriving Show
+-}
 
 instance Functor AP where
   fmap = liftM
@@ -110,27 +112,27 @@ instance Applicative AP where
   (<*>) = ap
 
 instance Monad AP where
-  -- return x = AP $ \l ss cs ga -> (x, l, ss, cs, ga, ([],[]))
-  return x = AP $ \st -> (x, st, ([],[]) )
+  return x = AP $ \l ss cs ga -> (x, l, ss, cs, ga, ([],[]))
+  -- return x = AP $ \st -> (x, st, ([],[]) )
 
-  -- AP m >>= k = AP $ \l0 ss0 c0 ga0 -> let
-  --       (a, l1, ss1, c1, ga1, s1) = m l0 ss0 c0 ga0
-  --       AP f = k a
-  --       (b, l2, ss2, c2, ga2, s2) = f l1 ss1 c1 ga1
-  --   in (b, l2, ss2, c2, ga2, s1 <> s2)
-
-  AP m >>= k = AP $ \st0 -> let
-        (a, st1, s1) = m st0
+  AP m >>= k = AP $ \l0 ss0 c0 ga0 -> let
+        (a, l1, ss1, c1, ga1, s1) = m l0 ss0 c0 ga0
         AP f = k a
-        (b, st2, s2) = f st1
-    in (b, st2, s1 <> s2)
-       `debug` (">>= : " ++ show (st1,st2,s1 <> s2))
+        (b, l2, ss2, c2, ga2, s2) = f l1 ss1 c1 ga1
+    in (b, l2, ss2, c2, ga2, s1 <> s2)
+
+  -- AP m >>= k = AP $ \st0 -> let
+  --       (a, st1, s1) = m st0
+  --       AP f = k a
+  --       (b, st2, s2) = f st1
+  --   in (b, st2, s1 <> s2)
+  --      `debug` (">>= : " ++ show (st1,st2,s1 <> s2))
 
 runAP :: AP () -> [Comment] -> GHC.ApiAnns -> Anns
 runAP (AP f) cs ga
--- = let (_,_,_,_,_,(se,su)) = f [] [] cs ga
- = let -- st = S [] [] cs ga
-       (_,st',(se,su)) = f (S [] [] cs ga) -- `debug` ("runAP:initial state=" ++ show st)
+ = let (_,_,_,_,_,(se,su)) = f [] [] cs ga
+ -- = let -- st = S [] [] cs ga
+ --       (_,st',(se,su)) = f (S [] [] cs ga) -- `debug` ("runAP:initial state=" ++ show st)
    in (Map.fromList se,Map.fromList su)
       -- `debug` ("runAP done" ++ (show (se,su)))
       -- `debug` ("runAP done")
@@ -140,97 +142,97 @@ runAP (AP f) cs ga
 
 -- |Note: assumes the SrcSpan stack is nonempty
 getSrcSpanAP :: AP GHC.SrcSpan
--- getSrcSpanAP = AP (\l ss cs ga -> (fst $ head l,l,ss,cs,ga,([],[])))
-getSrcSpanAP = AP (\st -> (fst $ head (sCrumbs st),   st, ([],[]) ))
+getSrcSpanAP = AP (\l ss cs ga -> (fst $ head l,l,ss,cs,ga,([],[])))
+-- getSrcSpanAP = AP (\st -> (fst $ head (sCrumbs st),   st, ([],[]) ))
 
 pushSrcSpan :: (Typeable a) => (GHC.Located a) -> AP ()
--- pushSrcSpan (GHC.L l a) = AP (\ls ss cs ga -> ((),(l,typeOf a):ls,[]:ss,cs,ga,([],[])))
-pushSrcSpan (GHC.L l a) = AP (\st ->
-   ( ()
-   , st { sCrumbs = (l,typeOf a):(sCrumbs st), sEnclosed = []:sEnclosed st }
-   , ([],[]) ))
+pushSrcSpan (GHC.L l a) = AP (\ls ss cs ga -> ((),(l,typeOf a):ls,[]:ss,cs,ga,([],[])))
+-- pushSrcSpan (GHC.L l a) = AP (\st ->
+--    ( ()
+--    , st { sCrumbs = (l,typeOf a):(sCrumbs st), sEnclosed = []:sEnclosed st }
+--    , ([],[]) ))
 
 popSrcSpan :: AP ()
--- popSrcSpan = AP (\(l:ls) (s:ss) cs ga -> ((),ls,ss,cs,ga,([],[])))
-popSrcSpan = AP (\st -> (()
-                        ,st { sCrumbs   = tail $ sCrumbs   st
-                            , sEnclosed = tail $ sEnclosed st
-                            }
-                        , ([],[]) ))
+popSrcSpan = AP (\(l:ls) (s:ss) cs ga -> ((),ls,ss,cs,ga,([],[])))
+-- popSrcSpan = AP (\st -> (()
+--                         ,st { sCrumbs   = tail $ sCrumbs   st
+--                             , sEnclosed = tail $ sEnclosed st
+--                             }
+--                         , ([],[]) ))
 
 getSubSpans :: AP [Span]
--- getSubSpans= AP (\l (s:ss) cs ga -> (map ss2span s,l,s:ss,cs,ga,([],[])))
-getSubSpans= AP (\st -> (map ss2span (head $ sEnclosed st), st, ([],[]) ))
+getSubSpans= AP (\l (s:ss) cs ga -> (map ss2span s,l,s:ss,cs,ga,([],[])))
+-- getSubSpans= AP (\st -> (map ss2span (head $ sEnclosed st), st, ([],[]) ))
 
 -- -------------------------------------
 
 getAnnotationAP :: GHC.SrcSpan -> GHC.Ann -> AP (Maybe GHC.SrcSpan)
--- getAnnotationAP sp an = AP (\l ss cs ga
---     -> (GHC.getAnnotation ga sp an, l,ss,cs,ga,([],[])))
-getAnnotationAP sp an = AP (\st
+getAnnotationAP sp an = AP (\l ss cs ga
+    -> (GHC.getAnnotation ga sp an, l,ss,cs,ga,([],[])))
+-- getAnnotationAP sp an = AP (\st
  --   -> (GHC.getAnnotation (sAnns st) sp an, st, ([],[])))
-  -> (GHC.getAnnotation (sAnns st) sp an, st, ([],[])))
+--  -> (GHC.getAnnotation (sAnns st) sp an, st, ([],[])))
 
 
 -- -------------------------------------
 
 getComments :: AP [Comment]
--- getComments = AP (\l ss cs ga -> (cs,l,ss,cs,ga,([],[])))
-getComments = AP (\st -> (sComments st,st,([],[])))
+getComments = AP (\l ss cs ga -> (cs,l,ss,cs,ga,([],[])))
+-- getComments = AP (\st -> (sComments st,st,([],[])))
 
 setComments :: [Comment] -> AP ()
--- setComments cs = AP (\l ss _ ga -> ((),l,ss,cs,ga,([],[])))
-setComments cs = AP (\st -> ((),st {sComments = cs },([],[])))
+setComments cs = AP (\l ss _ ga -> ((),l,ss,cs,ga,([],[])))
+-- setComments cs = AP (\st -> ((),st {sComments = cs },([],[])))
 
 -- -------------------------------------
 
 getToks :: AP [PosToken]
--- getToks = AP (\l ss cs ga -> ([],l,ss,cs,ga,([],[])))
-getToks = AP (\st -> ([],st,([],[])))
+getToks = AP (\l ss cs ga -> ([],l,ss,cs,ga,([],[])))
+-- getToks = AP (\st -> ([],st,([],[])))
 
 setToks :: [PosToken] -> AP ()
--- setToks toks = AP (\l ss cs ga -> ((),l,ss,cs,ga,([],[])))
-setToks toks = AP (\st -> ((),st,([],[])))
+setToks toks = AP (\l ss cs ga -> ((),l,ss,cs,ga,([],[])))
+-- setToks toks = AP (\st -> ((),st,([],[])))
 
 -- -------------------------------------
 
-getS :: AP APState
-getS = AP (\st -> (st,st,([],[])))
+-- getS :: AP APState
+-- getS = AP (\st -> (st,st,([],[])))
 
 -- -------------------------------------
 
 -- |Add some annotation to the currently active SrcSpan
 addAnnotationsAP :: Annotation -> AP ()
--- addAnnotationsAP ann = AP (\l (h:r)                cs ga ->
---                    ( (),l,((fst $ head l):h):r,cs,ga,
---                  ([((head l),ann)],[])))
-addAnnotationsAP ann = AP (\st ->
-        let l     = sCrumbs    st
-            (h:r) = sEnclosed  st
-        in
-                ( () -- `debug` ("addAnnotationsAP:(l,h,r)=" ++ show (l,h,r))
-                , st { sEnclosed = ((fst $ head l):h):r }
-                , ([(head l,ann)],[]) -- `debug` ("addAnnotationsAP:(l,h,r)=" ++ show (l,h,r))
-                -- , ([],[]) -- ++AZ++ temporary
-                ))
+addAnnotationsAP ann = AP (\l (h:r)                cs ga ->
+                   ( (),l,((fst $ head l):h):r,cs,ga,
+                 ([((head l),ann)],[])))
+-- addAnnotationsAP ann = AP (\st ->
+--         let l     = sCrumbs    st
+--             (h:r) = sEnclosed  st
+--         in
+--                 ( () -- `debug` ("addAnnotationsAP:(l,h,r)=" ++ show (l,h,r))
+--                 , st { sEnclosed = ((fst $ head l):h):r }
+--                 , ([(head l,ann)],[]) -- `debug` ("addAnnotationsAP:(l,h,r)=" ++ show (l,h,r))
+--                 -- , ([],[]) -- ++AZ++ temporary
+--                 ))
     -- Insert the span into the current head of the list of spans at this level
 
 -- -------------------------------------
 
 -- |Add some annotation to the currently active SrcSpan
 addAnnValue :: (Typeable a,Show a,Eq a) => a -> AP ()
--- addAnnValue v = AP (\l (h:r)                cs ga ->
---                 ( (),l,((fst $ head l):h):r,cs,ga,
---                  ([],[( ((fst $ head l),typeOf (Just v)),newValue v)])))
-addAnnValue v = AP (\st ->
-        let l     = sCrumbs   st
-            (h:r) = sEnclosed st
-        in
-                ( ()  -- `debug` ("addAnnValue:(l,h,r)=" ++ show (l,h,r))
-                , st { sEnclosed = ((fst $ head l):h):r }
-                ,  ([] ,[( ((fst $ head l),typeOf (Just v)),newValue v)])
-                -- , ([],[]) -- ++AZ++ temporary
-                ))
+addAnnValue v = AP (\l (h:r)                cs ga ->
+                ( (),l,((fst $ head l):h):r,cs,ga,
+                 ([],[( ((fst $ head l),typeOf (Just v)),newValue v)])))
+-- addAnnValue v = AP (\st ->
+--         let l     = sCrumbs   st
+--             (h:r) = sEnclosed st
+--         in
+--                 ( ()  -- `debug` ("addAnnValue:(l,h,r)=" ++ show (l,h,r))
+--                 , st { sEnclosed = ((fst $ head l):h):r }
+--                 ,  ([] ,[( ((fst $ head l),typeOf (Just v)),newValue v)])
+--                 -- , ([],[]) -- ++AZ++ temporary
+--                 ))
     -- Insert the span into the current head of the list of spans at this level
 
 
@@ -250,17 +252,17 @@ enterAST lss = do
 -- The assumption is made valid by matching enterAST/leaveAST calls.
 leaveAST :: Maybe GHC.SrcSpan -> AP ()
 leaveAST end = do
-  -- ss <- getSrcSpanAP `debug` ("leaveAST: entered")
-  -- cs <- getComments
-  -- subSpans <- getSubSpans  `debug` ("leaveAST: getting subspans")
-  -- let (lcs,cs') = localComments (ss2span ss) cs subSpans
+  ss <- getSrcSpanAP `debug` ("leaveAST: entered")
+  cs <- getComments
+  subSpans <- getSubSpans  `debug` ("leaveAST: getting subspans")
+  let (lcs,cs') = localComments (ss2span ss) cs subSpans
 
   -- let priorEnd = ss
   -- let dp = deltaFromSrcSpans priorEnd ss
   let dp = DP (0,0)
-  -- addAnnotationsAP (Ann lcs dp)
+  addAnnotationsAP (Ann lcs dp)
   -- st <- getS
-  -- setComments cs'  `debug` ("leaveAST: setting comments:s=" ++ show st)
+  setComments cs'
   popSrcSpan
   return () -- `debug` ("leaveAST:1")
 
@@ -273,10 +275,9 @@ class (Typeable ast) => AnnotateP ast where
 annotatePC :: (AnnotateP ast) => GHC.Located ast -> AP ()
 annotatePC a@(GHC.L l ast) = do
   enterAST a `debug` ("annotatePC:entering " ++ showGhc l)
-  -- end <- annotateP l ast
-  -- leaveAST end `debug` ("annotatePC:leaving " ++ showGhc (l,end))
-  leaveAST Nothing -- `debug` ("annotatePC:leaving " ++ showGhc (l))
-  return ()
+  end <- annotateP l ast
+  leaveAST end `debug` ("annotatePC:leaving " ++ showGhc (l,end))
+
 
 annotateMaybe :: (AnnotateP ast) => Maybe (GHC.Located ast) -> AP ()
 annotateMaybe Nothing    = return ()
@@ -298,7 +299,6 @@ annotateLHsModule modu cs toks ghcAnns
 
 instance AnnotateP (GHC.HsModule GHC.RdrName) where
   annotateP lm (GHC.HsModule mmn mexp imps decs _depr _haddock) = do
-{-
     am <- getAnnotationAP lm GHC.AnnModule
     aw <- getAnnotationAP lm GHC.AnnWhere
     let pm = deltaFromMaybeSrcSpans (Just lm) am
@@ -318,12 +318,10 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
             `debug` ("annotateLHsModule:(pc,mEndExps,mCp)=" ++ show (pc,mEndExps,mCp))
 
     let lpo = deltaFromSrcSpans lm lm
-    -- ++AZ++ annotateMaybe mexp
+    annotateMaybe mexp
     -- annotateList (GHC.unLoc imps)
     addAnnValue (AnnHsModule pm pn po pc pw lpo) -- `debug` ("annotateP.HsModule:adding ann")
     return (Just lm)
--}
-    return Nothing
 -- 'module' mmn '(' mexp  ')' 'where'
 
 {-
@@ -378,8 +376,8 @@ instance AnnotateP [GHC.LIE GHC.RdrName] where
 
 instance AnnotateP (GHC.IE GHC.RdrName) where
   annotateP l ie = do
-    -- ma <- getAnnotationAP l GHC.AnnComma
-    let ma = Nothing
+    ma <- getAnnotationAP l GHC.AnnComma
+    -- let ma = Nothing
               `debug` ("annotateP.IE entered for:" ++ showGhc l)
     let mc = deltaFromMaybeSrcSpans (Just l) ma
     let
