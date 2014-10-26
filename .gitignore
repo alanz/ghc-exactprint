@@ -2,3 +2,4 @@
 /tests/examples/LetExpr.hs.exactprinter.out
 /tests/examples/LetStmt.hs.exactprinter.out
 /tests/examples/PatBind.hs.exactprinter.out
+/tests/examples/Simple.hs.exactprinter.out

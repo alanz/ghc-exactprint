@@ -33,7 +33,7 @@ library
 Test-Suite test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      tests
-  main-is:             Runner.hs
+  main-is:             Test.hs
   GHC-Options:         -threaded
   Default-language:    Haskell2010
   Build-depends:       base < 5,
@@ -44,5 +44,6 @@ Test-Suite test
                        directory,
                        syb,
                        ghc,
-                       ghc-paths
+                       ghc-paths,
+                       HUnit
 

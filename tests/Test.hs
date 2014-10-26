@@ -20,6 +20,8 @@ import Control.Monad.Trans
 import Control.Applicative
 import Data.Generics
 
+import Test.HUnit
+
 import qualified Data.Map as Map
 
 import Debug.Trace
@@ -30,7 +32,8 @@ debug = flip trace
 main :: IO ()
 main = do
     putStrLn "hello"
-    let sources2 = ["examples/LetExpr.hs"]
+    -- let sources2 = ["examples/LetExpr.hs"]
+    let sources2 = ["examples/Simple.hs"]
     manipulateAstTest (sources2)
     putStrLn "done"
 
@@ -60,6 +63,8 @@ manipulateAstTest sources = do
     ann = annotate parsed comments toks ghcAnns
       -- `debug` ("toks:" ++ show toks)
       -- `debug` ("ghcAnns:" ++ showGhc ghcAnns)
+      -- `debug` ("ann:" ++ (show $ snd ann))
+{-
     Just (GHC.L le exps) = GHC.hsmodExports hsmod
     secondExp@(GHC.L l2 _) = head $ tail exps
     -- Just [(Ann cs ll (AnnIEVar mc))] = Map.lookup l2 ann
@@ -85,7 +90,10 @@ manipulateAstTest sources = do
             if printed == contents
               then "Match\n"
               else printed ++ "\n==============\n" ++ parsedAST
-  writeFile out $ result
+-}
+  putStrLn $ "Test:ann=" ++ show ann
+  putStrLn $ "Test:ann 2=" ++ show ann
+  -- writeFile out $ result
   return ()
 -- }}}
 
@@ -146,9 +154,40 @@ readUTF8File fp = openFile fp ReadMode >>= \h -> do
 
 -- ---------------------------------------------------------------------
 
+testAP :: AP a -> [Comment] -> GHC.ApiAnns -> IO a
+testAP (AP f) cs ga = do
+  let st = S [] [] cs ga
+      (r,st',(se,su)) = f st
+  return r
+
+testAPSrcSpans = do
+  let ss1 = mkSs (1,2) (3,4)
+      ss2 = mkSs (2,3) (4,5)
+      ss3 = mkSs (3,4) (5,6)
+
+      sst :: AP (GHC.SrcSpan,GHC.SrcSpan)
+      sst = do
+        pushSrcSpan (GHC.L ss1 ())
+        pushSrcSpan (GHC.L ss2 ())
+        r1 <- getSrcSpanAP
+        popSrcSpan
+        r2 <- getSrcSpanAP
+        return (r1,r2)
+
+  ss <- testAP sst [] (Map.empty,Map.empty)
+  putStrLn $ "testAPStuff: ss=" ++ showGhc ss
+
+-- ---------------------------------------------------------------------
+
 pwd :: IO FilePath
 pwd = getCurrentDirectory
 
 cd :: FilePath -> IO ()
 cd = setCurrentDirectory
 
+-- ---------------------------------------------------------------------
+
+mkSs :: (Int,Int) -> (Int,Int) -> GHC.SrcSpan
+mkSs (sr,sc) (er,ec)
+  = GHC.mkSrcSpan (GHC.mkSrcLoc (GHC.mkFastString "examples/PatBind.hs") sr sc)
+                  (GHC.mkSrcLoc (GHC.mkFastString "examples/PatBind.hs") er ec)
