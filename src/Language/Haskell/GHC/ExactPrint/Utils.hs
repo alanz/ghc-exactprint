@@ -411,16 +411,21 @@ instance AnnotateP (GHC.IE GHC.RdrName) where
     -- let ma = Nothing
               `debug` ("annotateP.IE entered for:" ++ showGhc l)
     let mc = deltaFromMaybeSrcSpans (Just l) ma
-    let
-      annSpecific = case ie of
+    annSpecific <- case ie of
       -- This receives the toks for the entire exports section.
       -- So it can scan for the separating comma if required
-        (GHC.IEVar _) -> AnnIEVar mc
+        (GHC.IEVar (GHC.L ln _)) -> do
+          mpattern <- getAnnotationAP l GHC.AnnPattern
+          let vp = case mpattern of
+                Nothing -> DP (0,0)
+                Just pp -> deltaFromSrcSpans pp ln
+          let mp = deltaFromMaybeSrcSpans (Just l) mpattern
+          return (AnnIEVar mp vp mc)
 
-        (GHC.IEThingAbs _) -> AnnIEThingAbs mc
+        (GHC.IEThingAbs _) -> return (AnnIEThingAbs mc)
 
         _ -> assert False undefined
-      annSpecific' = annSpecific `debug` ("annotateP.IE:annSpecific=" ++ show annSpecific)
+    let annSpecific' = annSpecific `debug` ("annotateP.IE:annSpecific=" ++ show annSpecific)
     addAnnValue annSpecific'
     return (Just (maybe l id ma)) -- `debug` ("annotateP.IE:annSpecific=" ++ show ma)
 

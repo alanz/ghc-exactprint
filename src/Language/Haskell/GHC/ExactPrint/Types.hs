@@ -105,7 +105,9 @@ data AnnHsModule = AnnHsModule
 
 data AnnIe =
   -- IE variants, *trailing* comma
-    AnnIEVar      { ie_comma :: !(Maybe DeltaPos) }
+    AnnIEVar      { ie_pattern :: !(Maybe DeltaPos)
+                  , ie_var     :: !DeltaPos
+                  , ie_comma   :: !(Maybe DeltaPos) }
   | AnnIEThingAbs { ie_comma :: !(Maybe DeltaPos) }
   | AnnIEThingAll
   | AnnIEThingWith

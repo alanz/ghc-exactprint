@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternSynonyms #-}
 -- | A simple let expression, to ensure the layout is detected
 -- With some haddock in the top
 {- And a normal
@@ -6,6 +7,7 @@
                                     , bar -- bar does ..
                                     , Baz -- baz does ..
                                     , bbb ,  aaa
+                                    , pattern  Bar
                                     )
     where
 
@@ -15,7 +17,7 @@ import qualified Data.Map as {- blah -}  Foo.Map
 import Control.Monad  (   )
 import Data.Word (Word8)
 import Data.Tree hiding  (  drawTree   )
-import qualified Data.Text as T hiding    ( pack  , unpack  )
+-- import qualified Data.Text as T hiding    ( pack  , unpack  )
 
 -- comment
 foo = let x = 1
@@ -30,7 +32,6 @@ bbb x
 
 aaa [] _    = 0
 aaa x  _unk = 1
-aaa _  _    = 2
 
 x `ccc` 1 = x + 1
 x `ccc` y = x + y
@@ -38,3 +39,8 @@ x `ccc` y = x + y
 x !@# y = x + y
 
 data Baz = Baz1 | Baz2
+
+pattern Foo a <- RealFoo a
+pattern Bar a <- RealBar a
+
+data Thing = RealFoo Thing | RealBar Int

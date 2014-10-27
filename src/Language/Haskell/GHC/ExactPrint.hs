@@ -671,11 +671,11 @@ instance ExactP [GHC.LImportDecl GHC.RdrName] where
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.IE GHC.RdrName) where
-  exactP (GHC.IEVar n) = do
-    Just (AnnIEVar mc) <- getAnnValue :: EP (Maybe AnnIe)
+  exactP (GHC.IEVar (GHC.L l n)) = do
+    Just (AnnIEVar mp vp mc) <- getAnnValue :: EP (Maybe AnnIe)
     -- let Just [(Ann cs _ (AnnIEVar mc))] = ma
-    p <- getPos
-    printString (rdrName2String n)
+    printStringAtMaybeDelta mp "pattern"
+    printStringAtDelta vp (rdrName2String n)
     printStringAtMaybeDelta mc ","
     return ()
 
