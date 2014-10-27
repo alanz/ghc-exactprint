@@ -424,7 +424,14 @@ instance AnnotateP (GHC.IE GHC.RdrName) where
 
         (GHC.IEThingAbs _) -> return (AnnIEThingAbs mc)
 
-        _ -> assert False undefined
+        (GHC.IEThingWith (GHC.L ln n) ns) -> do
+           Just o <- getAnnotationAP l GHC.AnnOpen
+           Just c <- getAnnotationAP l GHC.AnnClose
+           let op = deltaFromSrcSpans ln o
+           let cp = deltaFromSrcSpans o  c
+           return (AnnIEThingWith op cp mc)
+        x -> error $ "annotateP.IE: notimplemented for " ++ showGhc x
+
     let annSpecific' = annSpecific `debug` ("annotateP.IE:annSpecific=" ++ show annSpecific)
     addAnnValue annSpecific'
     return (Just (maybe l id ma)) -- `debug` ("annotateP.IE:annSpecific=" ++ show ma)

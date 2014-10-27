@@ -45,5 +45,6 @@ Test-Suite test
                        syb,
                        ghc,
                        ghc-paths,
-                       HUnit
+                       HUnit,
+                       text
 

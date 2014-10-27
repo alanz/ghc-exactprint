@@ -5,7 +5,8 @@
    multiline comment too -}
   module {- brah -}  Layout.LetExpr ( foo -- foo does ..
                                     , bar -- bar does ..
-                                    , Baz -- baz does ..
+                                    , Baz () -- baz does ..
+                                 , Ba   ( ..),Ca(Cc,Cd)
                                     , bbb ,  aaa
                                     , pattern  Bar
                                     )
@@ -39,6 +40,10 @@ x `ccc` y = x + y
 x !@# y = x + y
 
 data Baz = Baz1 | Baz2
+
+data Ba = Ba | Bb
+
+data Ca = Cc | Cd
 
 pattern Foo a <- RealFoo a
 pattern Bar a <- RealBar a
