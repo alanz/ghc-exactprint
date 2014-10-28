@@ -109,9 +109,11 @@ data AnnIe =
                   , ie_var     :: !DeltaPos
                   , ie_comma   :: !(Maybe DeltaPos) }
   | AnnIEThingAbs { ie_comma :: !(Maybe DeltaPos) }
-  | AnnIEThingAll  { ie_op, ie_dotdot, ie_cp :: !DeltaPos, ie_comma :: !(Maybe DeltaPos) }
+  | AnnIEThingAll  { ie_op, ie_dotdot, ie_cp :: !DeltaPos
+                   , ie_comma :: !(Maybe DeltaPos) }
   | AnnIEThingWith { ie_op, ie_cp :: !DeltaPos, ie_comma :: !(Maybe DeltaPos) }
-  | AnnIEModuleContents
+  | AnnIEModuleContents { ie_module :: !DeltaPos
+                        , ie_comma :: !(Maybe DeltaPos) }
   | AnnIEGroup
   | AnnIEDoc
   | AnnIEDocNamed

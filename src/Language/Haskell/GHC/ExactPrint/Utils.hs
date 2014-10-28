@@ -444,6 +444,11 @@ instance AnnotateP (GHC.IE GHC.RdrName) where
            let cp = deltaFromSrcSpans dd c
            return (AnnIEThingAll op dp cp mc)
 
+        (GHC.IEModuleContents (GHC.L lm n)) -> do
+           Just m  <- getAnnotationAP l GHC.AnnModule
+           let mp = deltaFromSrcSpans m lm
+           return (AnnIEModuleContents mp mc)
+
         x -> error $ "annotateP.IE: notimplemented for " ++ showGhc x
 
     let annSpecific' = annSpecific `debug` ("annotateP.IE:annSpecific=" ++ show annSpecific)

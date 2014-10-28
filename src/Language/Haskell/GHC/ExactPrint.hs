@@ -703,6 +703,13 @@ instance ExactP (GHC.IE GHC.RdrName) where
 
     printStringAtMaybeDelta mc ","
 
+  exactP (GHC.IEModuleContents (GHC.L lm n)) = do
+    Just (AnnIEModuleContents mp mc) <- getAnnValue
+    printString "module"
+    printStringAtDelta mp (GHC.moduleNameString n)
+
+    printStringAtMaybeDelta mc ","
+
   exactP x = printString ("no exactP.IE for " ++ showGhc (x))
 
 -- ---------------------------------------------------------------------
