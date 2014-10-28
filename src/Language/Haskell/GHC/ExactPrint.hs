@@ -672,7 +672,7 @@ instance ExactP [GHC.LImportDecl GHC.RdrName] where
 
 instance ExactP (GHC.IE GHC.RdrName) where
   exactP (GHC.IEVar (GHC.L l n)) = do
-    Just (AnnIEVar mp vp mc) <- getAnnValue :: EP (Maybe AnnIe)
+    Just (AnnIEVar mp vp mc) <- getAnnValue
     -- let Just [(Ann cs _ (AnnIEVar mc))] = ma
     printStringAtMaybeDelta mp "pattern"
     printStringAtDelta vp (rdrName2String n)
@@ -680,12 +680,30 @@ instance ExactP (GHC.IE GHC.RdrName) where
     return ()
 
   exactP (GHC.IEThingAbs n) = do
-    Just (AnnIEThingAbs mc) <- getAnnValue :: EP (Maybe AnnIe)
+    Just (AnnIEThingAbs mc) <- getAnnValue
     printString (rdrName2String n)
     printStringAtMaybeDelta mc ","
     return ()
 
-  exactP x = printString ("no exactP for " ++ showGhc (x))
+  exactP (GHC.IEThingWith (GHC.L _ n) ns) = do
+    Just (AnnIEThingWith op cp mc) <- getAnnValue
+    printString (rdrName2String n)
+    printStringAtDelta op "("
+    mapM_ exactPC ns
+    printStringAtDelta cp ")"
+
+    printStringAtMaybeDelta mc ","
+
+  exactP (GHC.IEThingAll (GHC.L _ n)) = do
+    Just (AnnIEThingAll op dp cp mc) <- getAnnValue
+    printString (rdrName2String n)
+    printStringAtDelta op "("
+    printStringAtDelta dp ".."
+    printStringAtDelta cp ")"
+
+    printStringAtMaybeDelta mc ","
+
+  exactP x = printString ("no exactP.IE for " ++ showGhc (x))
 
 -- ---------------------------------------------------------------------
 
@@ -947,7 +965,8 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
 instance ExactP GHC.RdrName where
   exactP n = do
     printString (rdrName2String n)
-    -- printListCommaMaybe ma
+    Just (AnnListItem mc) <- getAnnValue
+    printStringAtMaybeDelta mc ","
 
 instance ExactP (GHC.HsTupArg GHC.RdrName) where
   exactP (GHC.Missing _) = return ()

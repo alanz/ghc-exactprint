@@ -428,34 +428,37 @@ instance AnnotateP (GHC.IE GHC.RdrName) where
            Just o <- getAnnotationAP l GHC.AnnOpen
            Just c <- getAnnotationAP l GHC.AnnClose
            let op = deltaFromSrcSpans ln o
-           let cp = deltaFromSrcSpans o  c
+           pushPriorEnd o
+           mapM_ annotatePC ns
+           popPriorEnd
+           let pp = if null ns then o else (GHC.getLoc $ last ns)
+           let cp = deltaFromSrcSpans pp c
            return (AnnIEThingWith op cp mc)
+
+        (GHC.IEThingAll (GHC.L ln n)) -> do
+           Just o  <- getAnnotationAP l GHC.AnnOpen
+           Just dd <- getAnnotationAP l GHC.AnnDotdot
+           Just c  <- getAnnotationAP l GHC.AnnClose
+           let op = deltaFromSrcSpans ln o
+           let dp = deltaFromSrcSpans o  dd
+           let cp = deltaFromSrcSpans dd c
+           return (AnnIEThingAll op dp cp mc)
+
         x -> error $ "annotateP.IE: notimplemented for " ++ showGhc x
 
     let annSpecific' = annSpecific `debug` ("annotateP.IE:annSpecific=" ++ show annSpecific)
     addAnnValue annSpecific'
     return (Just (maybe l id ma)) -- `debug` ("annotateP.IE:annSpecific=" ++ show ma)
 
-{-
-annotateLIE :: GHC.LIE GHC.RdrName -> AP ()
-annotateLIE (GHC.L l ie) = do
-  enterAST l
-  cs <- getComments
-  toks <- getToks
-  let
-    annSpecific = case ie of
-    -- This receives the toks for the entire exports section.
-    -- So it can scan for the separating comma if required
-      (GHC.IEVar _) -> AnnIEVar mc
-        where mc = getListAnnInfo l ghcIsComma ghcIsCParen cs toks
+-- ---------------------------------------------------------------------
 
-      (GHC.IEThingAbs _) -> AnnIEThingAbs mc
-        where mc = getListAnnInfo l ghcIsComma ghcIsCParen cs toks
+instance AnnotateP GHC.RdrName where
+  annotateP l n = do
+    ma <- getAnnotationAP l GHC.AnnComma
+    let mc = deltaFromMaybeSrcSpans (Just l) ma
+    addAnnValue (AnnListItem mc)
+    return (Just (maybe l id ma))
 
-      _ -> assert False undefined
-
-  leaveAST annSpecific `debug` ("annotateLIE:annSpecific=" ++ show annSpecific)
--}
 -- ---------------------------------------------------------------------
 {-
 annotateImportDecl :: GHC.LImportDecl GHC.RdrName -> AP ()

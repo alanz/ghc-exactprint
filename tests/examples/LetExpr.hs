@@ -6,8 +6,8 @@
   module {- brah -}  Layout.LetExpr ( foo -- foo does ..
                                     , bar -- bar does ..
                                     , Baz () -- baz does ..
-                                 , Ba   ( ..),Ca(Cc,Cd)
-                                    , bbb ,  aaa
+                                 , Ba   ( ..),Ca(Cc,Cd)   ,
+                                     bbb ,  aaa
                                     , pattern  Bar
                                     )
     where
