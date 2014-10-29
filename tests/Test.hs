@@ -64,6 +64,7 @@ manipulateAstTest sources = do
       -- `debug` ("toks:" ++ show toks)
       -- `debug` ("ghcAnns:" ++ showGhc ghcAnns)
       -- `debug` ("ann:" ++ (show $ snd ann))
+      -- `debug` ("comments:toks" ++ show (take 10 toks))
 
     Just (GHC.L le exps) = GHC.hsmodExports hsmod
     secondExp@(GHC.L l2 _) = head $ tail exps
@@ -119,7 +120,8 @@ parsedFileGhc fileName = do
                                    GHC.ghcLink =  GHC.LinkInMemory }
 
             dflags4 = if True -- useHaddock
-                        then GHC.gopt_set (GHC.gopt_set dflags''' GHC.Opt_Haddock)
+                        -- then GHC.gopt_set (GHC.gopt_set dflags''' GHC.Opt_Haddock)
+                        then GHC.gopt_set dflags'''
                                        GHC.Opt_KeepRawTokenStream
                         else GHC.gopt_set (GHC.gopt_unset dflags''' GHC.Opt_Haddock)
                                        GHC.Opt_KeepRawTokenStream

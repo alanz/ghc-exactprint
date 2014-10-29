@@ -1,4 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# Language DeriveFoldable #-}
+{-# options_ghc -w #-}
+
 -- | A simple let expression, to ensure the layout is detected
 -- With some haddock in the top
 {- And a normal

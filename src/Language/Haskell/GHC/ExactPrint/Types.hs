@@ -27,6 +27,7 @@ module Language.Haskell.GHC.ExactPrint.Types
 
   -- * Specific annotation
   , AnnHsModule(..)
+  , AnnHsExports(..)
   , AnnIe(..)
   , AnnImportDecl(..)
   , AnnTypeSig(..)
@@ -96,10 +97,14 @@ data Annotation = Ann
 data AnnHsModule = AnnHsModule
     { m_module :: !(Maybe DeltaPos) -- module
     , m_n      :: !(Maybe DeltaPos) -- name
-    , m_op     :: !(Maybe DeltaPos) -- '('
-    , m_cp     :: !(Maybe DeltaPos) -- ')'
     , m_where  :: !(Maybe DeltaPos) -- where
     , m_fileEnd :: !DeltaPos
+    }
+  deriving (Show,Typeable,Eq)
+
+data AnnHsExports = AnnHsExports
+    { e_op     :: !DeltaPos -- '('
+    , e_cp     :: !DeltaPos -- ')'
     }
   deriving (Show,Typeable,Eq)
 

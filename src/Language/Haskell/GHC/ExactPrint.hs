@@ -122,9 +122,7 @@ spanSize ss = (srcSpanEndLine ss - srcSpanStartLine ss,
                max 0 (srcSpanEndColumn ss - srcSpanStartColumn ss))
 
 toksToComments :: [PosToken] -> [Comment]
-toksToComments toks = map tokToComment $ filter ghcIsComment toks
-  where
-    tokToComment t@(GHC.L l _,s) = Comment (ghcIsMultiLine t) ((ss2pos l),(ss2posEnd l)) s
+toksToComments toks = []
 
 
 ------------------------------------------------------
@@ -216,7 +214,7 @@ mergeComments :: [DComment] -> EP ()
 mergeComments dcs = EP $ \l dp s cs an ->
     let acs = map (undeltaComment l) dcs
         cs' = merge acs cs
-    in ((), l, dp, s, cs', an, id) -- `debug` ("mergeComments:(l,acs)=" ++ show (l,acs,cs))
+    in ((), l, dp, s, cs', an, id) `debug` ("mergeComments:(l,acs,dcs)=" ++ show (l,acs,dcs))
 
 newLine :: EP ()
 newLine = do
@@ -248,12 +246,14 @@ mPrintComments p = do
     case mc of
      Nothing -> return ()
      Just (Comment multi (s,e) str) ->
+        (
         when (s < p) $ do
             dropComment
             padUntil s
             printComment multi str
             setPos e
             mPrintComments p
+         ) `debug` ("mPrintComments:(s,p):" ++ show (s,p))
 
 printComment :: Bool -> String -> EP ()
 printComment b str
@@ -322,24 +322,30 @@ exactPrint ast@(GHC.L l _) cs toks = runEP (exactPC ast) l cs (Map.empty,Map.emp
 exactPrintAnnotated ::
      GHC.Located (GHC.HsModule GHC.RdrName)
   -> [Comment] -> [PosToken] -> GHC.ApiAnns -> String
-exactPrintAnnotated ast@(GHC.L l _) cs toks ghcAnns = runEP (exactPC ast) l [] ann
+exactPrintAnnotated ast@(GHC.L l _) cs toks ghcAnns = runEP (loadInitialComments >> exactPC ast) l [] ann
   where
     ann = annotateLHsModule ast cs toks ghcAnns
 
 exactPrintAnnotation :: ExactP ast =>
   GHC.Located ast -> [Comment] -> Anns -> String
-exactPrintAnnotation ast@(GHC.L l _) cs ann = runEP (exactPC ast) l cs ann
+exactPrintAnnotation ast@(GHC.L l _) cs ann = runEP (loadInitialComments >> exactPC ast) l cs ann
   -- `debug` ("exactPrintAnnotation:ann=" ++ (concatMap (\(l,a) -> show (ss2span l,a)) $ Map.toList ann ))
 
 annotate :: GHC.Located (GHC.HsModule GHC.RdrName) -> [Comment] -> [PosToken] -> GHC.ApiAnns -> Anns
 annotate ast cs toks ghcAnns = annotateLHsModule ast cs toks ghcAnns
 
+loadInitialComments :: EP ()
+loadInitialComments = do
+  Just (Ann cs _) <- getAnnotation (GHC.L GHC.noSrcSpan ())
+  mergeComments cs
+  return ()
+
 -- ++AZ++ TODO: needs to use a delta location.
 -- |First move to the given location, then call exactP
 exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC a@(GHC.L l ast) =
- let p = pos l
- in do setSrcSpan l  `debug` ("exactPC entered for:" ++ showGhc l)
+ -- let p = pos l
+    do setSrcSpan l  `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAnnotation a
        off@(DP (r,c)) <- case ma of
          Nothing -> return (DP (0,0))
@@ -614,7 +620,7 @@ class (Typeable ast) => ExactP ast where
 
 instance ExactP (GHC.HsModule GHC.RdrName) where
   exactP (GHC.HsModule Nothing exps imps decls deprecs haddock) = do
-    Just (AnnHsModule mm mn mo mc mw ep) <- getAnnValue :: EP (Maybe AnnHsModule)
+    Just (AnnHsModule mm mn mw ep) <- getAnnValue :: EP (Maybe AnnHsModule)
     -- let Just [Ann _ _ (AnnHsModule mm mn mo mc mw ep)] = ma
     printSeq $ map (pos . ann &&& exactPC) decls
 
@@ -626,7 +632,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
   exactP (GHC.HsModule (Just lmn@(GHC.L l mn)) mexp limps decls deprecs haddock) = do
     ss <- getSrcSpan
     return () `debug` ("exactP.HsModule:ss=" ++ showGhc ss)
-    Just (AnnHsModule mm mn mo mc mw ep) <- getAnnValue :: EP (Maybe AnnHsModule)
+    Just (AnnHsModule mm mn mw ep) <- getAnnValue :: EP (Maybe AnnHsModule)
     -- let Just [Ann cs _ (AnnHsModule mm mn mo mc mw ep)] = ma
     --      `debug` ("exactP.HsModule:ma=" ++ show ma)
     mAnn <- getAnnotation (GHC.L l ())
@@ -637,9 +643,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
     exactPC lmn
     case mexp of
       Just lexps -> do
-        printStringAtMaybeDelta mo "("
         exactPC lexps
-        printStringAtMaybeDelta mc ")"
         return ()
       Nothing -> return ()
     printStringAtMaybeDelta mw "where"
@@ -661,7 +665,12 @@ instance ExactP (GHC.ModuleName) where
 -- ---------------------------------------------------------------------
 
 instance ExactP [GHC.LIE GHC.RdrName] where
-  exactP ies = mapM_ exactPC ies
+  exactP ies = do
+    Just (AnnHsExports op cp) <- getAnnValue
+    return () `debug` ("exactP.[LIE]:" ++ show (AnnHsExports op cp))
+    printStringAtDelta op "("
+    mapM_ exactPC ies
+    printStringAtDelta cp ")"
 
 -- ---------------------------------------------------------------------
 

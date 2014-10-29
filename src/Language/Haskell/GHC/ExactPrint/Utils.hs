@@ -188,9 +188,20 @@ getAnnotationAP sp an = AP (\l ss pe cs ga
 
 -- -------------------------------------
 
+getCommentsForSpan :: GHC.SrcSpan -> AP [Comment]
+getCommentsForSpan s = AP (\l ss pe cs ga ->
+  let
+    gcs = GHC.getAnnotationComments ga s
+    cs = reverse $ map tokComment gcs
+    tokComment :: GHC.Located GHC.Token -> Comment
+    tokComment t@(GHC.L l _) = Comment (ghcIsMultiLine t) (ss2span l) (ghcCommentText t)
+  in (cs,l,ss,pe,cs,ga,([],[])))
+
+
 getComments :: AP [Comment]
 getComments = AP (\l ss pe cs ga -> (cs,l,ss,pe,cs,ga,([],[])))
 -- getComments = AP (\st -> (sComments st,st,([],[])))
+
 
 setComments :: [Comment] -> AP ()
 setComments cs = AP (\l ss pe _ ga -> ((),l,ss,pe,cs,ga,([],[])))
@@ -265,8 +276,8 @@ enterAST lss = do
 leaveAST :: Maybe GHC.SrcSpan -> AP ()
 leaveAST end = do
   ss <- getSrcSpanAP `debug` ("leaveAST: entered")
-  cs <- getComments
-  subSpans <- getSubSpans  `debug` ("leaveAST: getting subspans")
+  cs <- getCommentsForSpan ss
+  subSpans <- getSubSpans  `debug` ("leaveAST: getting subspans of " ++ show cs)
   let (lcs,cs') = localComments (ss2span ss) cs subSpans
 
   priorEnd <- getPriorEnd
@@ -312,7 +323,17 @@ annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName)
   -> [Comment] -> [PosToken] -> GHC.ApiAnns
   -> Anns
 annotateLHsModule modu cs toks ghcAnns
-   = runAP (annotatePC modu) cs ghcAnns
+   = runAP (annotatePC modu >> addFinalComments) cs ghcAnns
+
+addFinalComments :: AP ()
+addFinalComments = do
+  cs <- getCommentsForSpan GHC.noSrcSpan
+  let (dcs,_) = localComments ((1,1),(1,1)) cs []
+  pushSrcSpan (GHC.L GHC.noSrcSpan ())
+  addAnnotationsAP (Ann dcs (DP (0,0)))
+  return () `debug` ("addFinalComments:dcs=" ++ show dcs)
+
+-- ---------------------------------------------------------------------
 
 instance AnnotateP (GHC.HsModule GHC.RdrName) where
   annotateP lm (GHC.HsModule mmn mexp imps decs _depr _haddock) = do
@@ -346,64 +367,35 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
     case mexp of
       Nothing -> return ()
       Just exp -> do
-        pushPriorEnd (fromJust mOp)
+        -- pushPriorEnd (fromJust mOp)
+        pushPriorEnd (GHC.getLoc $ fromJust mmn)
         annotatePC exp
         popPriorEnd
 
     -- annotateList (GHC.unLoc imps)
-    addAnnValue (AnnHsModule pm pn po pc pw lpo) -- `debug` ("annotateP.HsModule:adding ann")
+    addAnnValue (AnnHsModule pm pn pw lpo) -- `debug` ("annotateP.HsModule:adding ann")
     return (Just lm)
 -- 'module' mmn '(' mexp  ')' 'where'
 
-{-
--- ---------------------------------------------------------------------
-
-annotateModuleHeader ::
-     Maybe (GHC.Located GHC.ModuleName)
-  -> Maybe [GHC.LIE GHC.RdrName] -> Pos -> AP ()
-annotateModuleHeader Nothing _ _ = return ()
-annotateModuleHeader (Just (GHC.L l _mn)) mexp pos = do
-  enterAST l
-  lm <- getSrcSpanAP
-  toks <- getToks
-  let
-    -- pos = ss2pos lm  -- start of the syntax fragment
-    moduleTok = head $ filter ghcIsModule toks
-    whereTok  = head $ filter ghcIsWhere  toks
-
-    annSpecific = AnnModuleName mPos mnPos opPos cpPos wherePos
-         `debug` ("annotateModuleHeader:" ++ show (pos,mPos,ss2span $ tokenSpan moduleTok))
-    mPos  = ss2delta pos $ tokenSpan moduleTok
-    -- mnPos = ss2delta pos l
-    mnPos = deltaFromSrcSpans (tokenSpan moduleTok) l
-    -- wherePos = ss2delta pos $ tokenSpan whereTok
-    wherePos = ss2delta pos $ tokenSpan whereTok
-    (opPos,cpPos) = case mexp of
-      Nothing -> (Nothing,Nothing)
-      Just exps -> (Just opPos',Just cpPos')
-        where
-          opTok = head $ filter ghcIsOParen toks
-          cpSpan = case exps of
-            [] -> tokenSpan opTok
-            _  -> GHC.getLoc (last exps)
-          cpTok   = head $ filter ghcIsCParen toks
-          -- opPos'  = ss2delta pos   $ tokenSpan opTok
-          opPos'  = deltaFromSrcSpans l (tokenSpan opTok)
-          -- cpPos'  = ss2delta cpRel $ tokenSpan cpTok
-          cpPos'  = deltaFromSrcSpans cpSpan (tokenSpan cpTok)
-
-  case mexp of
-    Nothing -> return ()
-    Just exps -> mapM_ annotateLIE exps
-
-  leaveAST annSpecific
--}
 -- ---------------------------------------------------------------------
 
 instance AnnotateP [GHC.LIE GHC.RdrName] where
-   annotateP ss ls = do
+   annotateP l ls = do
+     ss <- getPriorEnd
+     Just op <- getAnnotationAP l GHC.AnnOpen
+     Just cp <- getAnnotationAP l GHC.AnnClose
+     let
+       ee = if null ls
+               then GHC.mkSrcSpan (GHC.srcSpanStart l) (GHC.srcSpanStart l)
+               else GHC.getLoc (last ls)
+
+     let po = deltaFromSrcSpans ss op
+         pc = deltaFromSrcSpans ee cp
+
      mapM_ annotatePC ls
-     return Nothing
+
+     addAnnValue (AnnHsExports po pc)
+     return (Just l)
 
 instance AnnotateP (GHC.IE GHC.RdrName) where
   annotateP l ie = do
@@ -1242,7 +1234,7 @@ dcommentPos (DComment _ p _) = p
 -- identify all comments that are in @(p,e)@ but not in @ds@, and convert
 -- them to be DComments relative to @p@
 localComments :: Span -> [Comment] -> [Span] -> ([DComment],[Comment])
-localComments pin cs ds = r -- `debug` ("localComments:(p,ds,r):" ++ show ((p,e),ds,map commentPos matches,map dcommentPos r))
+localComments pin cs ds = r `debug` ("localComments:(p,ds,r):" ++ show ((p,e),ds,map commentPos matches,map dcommentPos (fst r)))
   where
     r = (map (\c -> deltaComment p c) matches,misses ++ missesRest)
     (p,e) = if pin == ((1,1),(1,1))
@@ -1548,6 +1540,7 @@ ghcIsComment ((GHC.L _ (GHC.ITblockComment _)),_s)    = True
 ghcIsComment ((GHC.L _ _),_s)                         = False
 
 
+{-
 ghcIsMultiLine :: PosToken -> Bool
 ghcIsMultiLine ((GHC.L _ (GHC.ITdocCommentNext _)),_s)  = False
 ghcIsMultiLine ((GHC.L _ (GHC.ITdocCommentPrev _)),_s)  = False
@@ -1558,6 +1551,29 @@ ghcIsMultiLine ((GHC.L _ (GHC.ITdocOptionsOld _)),_s)   = False
 ghcIsMultiLine ((GHC.L _ (GHC.ITlineComment _)),_s)     = False
 ghcIsMultiLine ((GHC.L _ (GHC.ITblockComment _)),_s)    = True
 ghcIsMultiLine ((GHC.L _ _),_s)                         = False
+-}
+
+ghcIsMultiLine :: GHC.Located GHC.Token -> Bool
+ghcIsMultiLine (GHC.L _ (GHC.ITdocCommentNext _))  = False
+ghcIsMultiLine (GHC.L _ (GHC.ITdocCommentPrev _))  = False
+ghcIsMultiLine (GHC.L _ (GHC.ITdocCommentNamed _)) = False
+ghcIsMultiLine (GHC.L _ (GHC.ITdocSection _ _))    = False
+ghcIsMultiLine (GHC.L _ (GHC.ITdocOptions _))      = False
+ghcIsMultiLine (GHC.L _ (GHC.ITdocOptionsOld _))   = False
+ghcIsMultiLine (GHC.L _ (GHC.ITlineComment _))     = False
+ghcIsMultiLine (GHC.L _ (GHC.ITblockComment _))    = True
+ghcIsMultiLine (GHC.L _ _)                         = False
+
+ghcCommentText :: GHC.Located GHC.Token -> String
+ghcCommentText (GHC.L _ (GHC.ITdocCommentNext s))  = s
+ghcCommentText (GHC.L _ (GHC.ITdocCommentPrev s))  = s
+ghcCommentText (GHC.L _ (GHC.ITdocCommentNamed s)) = s
+ghcCommentText (GHC.L _ (GHC.ITdocSection _ s))    = s
+ghcCommentText (GHC.L _ (GHC.ITdocOptions s))      = s
+ghcCommentText (GHC.L _ (GHC.ITdocOptionsOld s))   = s
+ghcCommentText (GHC.L _ (GHC.ITlineComment s))     = s
+ghcCommentText (GHC.L _ (GHC.ITblockComment s))    = s ++ "-}"
+ghcCommentText (GHC.L _ _)                         = ""
 
 ghcIsBlank :: PosToken -> Bool
 ghcIsBlank (_,s)  = s == ""
