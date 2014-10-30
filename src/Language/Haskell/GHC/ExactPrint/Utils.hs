@@ -25,6 +25,8 @@ module Language.Haskell.GHC.ExactPrint.Utils
 
   , showGhc
 
+  , merge
+
   -- * For tests
   , runAP
   -- , APState(..)
@@ -36,6 +38,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , setComments
   -- , getS
   , addAnnotationsAP, addAnnValue
+
   ) where
 
 import Control.Applicative (Applicative(..))
@@ -197,15 +200,17 @@ getCommentsForSpan s = AP (\l ss pe cs ga ->
     tokComment t@(GHC.L l _) = Comment (ghcIsMultiLine t) (ss2span l) (ghcCommentText t)
   in (cs,l,ss,pe,cs,ga,([],[])))
 
-
 getComments :: AP [Comment]
 getComments = AP (\l ss pe cs ga -> (cs,l,ss,pe,cs,ga,([],[])))
 -- getComments = AP (\st -> (sComments st,st,([],[])))
 
-
 setComments :: [Comment] -> AP ()
 setComments cs = AP (\l ss pe _ ga -> ((),l,ss,pe,cs,ga,([],[])))
 -- setComments cs = AP (\st -> ((),st {sComments = cs },([],[])))
+
+addComments  :: [Comment] -> AP ()
+addComments acs = AP (\l ss pe cs           ga ->
+                   ((),l,ss,pe,merge acs cs,ga,([],[])))
 
 -- -------------------------------------
 
@@ -265,7 +270,12 @@ addAnnValue v = AP (\l (h:r)                pe cs ga ->
 enterAST :: (Typeable a) => GHC.Located a -> AP ()
 enterAST lss = do
   pushSrcSpan lss
+  -- newCs <- getCommentsForSpan (GHC.getLoc lss)
+  -- addComments newCs
+  --    `debug` ("enterAST: entered for " ++ show (ss2span $ GHC.getLoc lss, newCs))
+  -- cs <- getComments
   return () -- `debug` ("enterAST:" ++ show (ss2span $ GHC.getLoc lss))
+   --  `debug` ("enterAST:ss,cs=" ++ show (ss2span $ GHC.getLoc lss,cs))
 
 -- | Pop up the SrcSpan stack, capture the annotations, and work the
 -- comments in belonging to the span
@@ -275,22 +285,26 @@ enterAST lss = do
 -- The assumption is made valid by matching enterAST/leaveAST calls.
 leaveAST :: Maybe GHC.SrcSpan -> AP ()
 leaveAST end = do
-  ss <- getSrcSpanAP `debug` ("leaveAST: entered")
-  cs <- getCommentsForSpan ss
-  subSpans <- getSubSpans  `debug` ("leaveAST: getting subspans of " ++ show cs)
-  let (lcs,cs') = localComments (ss2span ss) cs subSpans
-
+  ss <- getSrcSpanAP
+  -- cs <- getComments
+  -- subSpans <- getSubSpans
+  -- let (lcs,cs') = localComments (ss2span ss) cs subSpans
+  -- return () `debug` ("leaveAST: local comments are: " ++ show (ss2span ss,lcs,cs))
   priorEnd <- getPriorEnd
   popPriorEnd
   case end of
     Nothing -> pushPriorEnd priorEnd -- keep it?
     Just pe -> pushPriorEnd pe
 
+  newCs <- getCommentsForSpan ss
+  let (lcs,_) = localComments (ss2span ss) newCs [] `debug` ("++AZ++ quick test")
+  -- let (lcs,_) = ([] :: [DComment],[]) `debug` ("++AZ++ quick test")
+
   let dp = deltaFromSrcSpans priorEnd ss
-  -- let dp = DP (0,0)
-  addAnnotationsAP (Ann lcs dp) `debug` ("leaveAST:(priorEnd,ss,dp)=" ++ show (ss2span priorEnd,ss2span ss,dp))
-  -- st <- getS
-  setComments cs'
+  addAnnotationsAP (Ann lcs dp)
+        --   `debug` ("leaveAST:(priorEnd,ss,dp)=" ++ show (ss2span priorEnd,ss2span ss,dp))
+           `debug` ("leaveAST:(ss,dp,lcs)=" ++ show (ss2span ss,dp,lcs))
+  -- setComments cs'
   popSrcSpan
   return () -- `debug` ("leaveAST:1")
 
@@ -331,6 +345,7 @@ addFinalComments = do
   let (dcs,_) = localComments ((1,1),(1,1)) cs []
   pushSrcSpan (GHC.L GHC.noSrcSpan ())
   addAnnotationsAP (Ann dcs (DP (0,0)))
+    `debug` ("leaveAST:dcs=" ++ show dcs)
   return () `debug` ("addFinalComments:dcs=" ++ show dcs)
 
 -- ---------------------------------------------------------------------
@@ -346,29 +361,22 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
             -- `debug` ("annotateLHsModule:(po,mmn,mexp)=" ++ show (po,maybeSrcSpan mmn,maybeSrcSpan mexp))
             -- `debug` ("annotateLHsModule:(pc,mEndExps,mCp)=" ++ show (pc,mEndExps,mCp))
 
-    (mEndExps,mOp,mCp) <- case mexp of
-      Nothing -> return (Nothing,Nothing,Nothing)
+    mCp <- case mexp of
+      Nothing -> return Nothing
       Just (GHC.L le es) -> do
         let
-          ee = if null es
-                 then GHC.mkSrcSpan (GHC.srcSpanStart le) (GHC.srcSpanStart le)
-                 else GHC.getLoc (last es)
-          -- op = GHC.mkSrcSpan (GHC.srcSpanStart le) (GHC.srcSpanStart le)
-          -- cp = GHC.mkSrcSpan (GHC.srcSpanEnd le) (GHC.srcSpanEnd le)
-        Just op <- getAnnotationAP le GHC.AnnOpen
         Just cp <- getAnnotationAP le GHC.AnnClose
-        return (Just ee,Just op,Just cp)
+        return (Just cp)
 
     let
-        pc = deltaFromMaybeSrcSpans mEndExps mCp
         pw = deltaFromMaybeSrcSpans mCp aw
 
     let lpo = deltaFromSrcSpans lm lm
     case mexp of
       Nothing -> return ()
       Just exp -> do
-        -- pushPriorEnd (fromJust mOp)
         pushPriorEnd (GHC.getLoc $ fromJust mmn)
+          `debug` ("annotateP.HsModule:pushPriorEnd:" ++ show (ss2span (GHC.getLoc $ fromJust mmn)))
         annotatePC exp
         popPriorEnd
 
@@ -389,12 +397,15 @@ instance AnnotateP [GHC.LIE GHC.RdrName] where
                then GHC.mkSrcSpan (GHC.srcSpanStart l) (GHC.srcSpanStart l)
                else GHC.getLoc (last ls)
 
-     let po = deltaFromSrcSpans ss op
-         pc = deltaFromSrcSpans ee cp
+     let pc = deltaFromSrcSpans ee cp
 
+     pushPriorEnd op
      mapM_ annotatePC ls
+     popPriorEnd
 
-     addAnnValue (AnnHsExports po pc)
+     addAnnValue (AnnHsExports pc)
+     -- popPriorEnd
+     -- pushPriorEnd ss
      return (Just l)
 
 instance AnnotateP (GHC.IE GHC.RdrName) where
@@ -1234,7 +1245,8 @@ dcommentPos (DComment _ p _) = p
 -- identify all comments that are in @(p,e)@ but not in @ds@, and convert
 -- them to be DComments relative to @p@
 localComments :: Span -> [Comment] -> [Span] -> ([DComment],[Comment])
-localComments pin cs ds = r `debug` ("localComments:(p,ds,r):" ++ show ((p,e),ds,map commentPos matches,map dcommentPos (fst r)))
+localComments pin cs ds = r
+   `debug` ("localComments:(p,ds,r):" ++ show ((p,e),ds,map commentPos matches,map dcommentPos (fst r)))
   where
     r = (map (\c -> deltaComment p c) matches,misses ++ missesRest)
     (p,e) = if pin == ((1,1),(1,1))
@@ -1717,3 +1729,44 @@ instance Show (GHC.GenLocated GHC.SrcSpan GHC.Token) where
 -- ---------------------------------------------------------------------
 
 pp a = GHC.showPpr GHC.unsafeGlobalDynFlags a
+
+-- -------------------------------------------------------------------..
+-- Copied from MissingH, does not compile with HEAD
+
+
+{- | Merge two sorted lists into a single, sorted whole.
+
+Example:
+
+> merge [1,3,5] [1,2,4,6] -> [1,1,2,3,4,5,6]
+
+QuickCheck test property:
+
+prop_merge xs ys =
+    merge (sort xs) (sort ys) == sort (xs ++ ys)
+          where types = xs :: [Int]
+-}
+merge ::  (Ord a) => [a] -> [a] -> [a]
+merge = mergeBy (compare)
+
+{- | Merge two sorted lists using into a single, sorted whole,
+allowing the programmer to specify the comparison function.
+
+QuickCheck test property:
+
+prop_mergeBy xs ys =
+    mergeBy cmp (sortBy cmp xs) (sortBy cmp ys) == sortBy cmp (xs ++ ys)
+          where types = xs :: [ (Int, Int) ]
+                cmp (x1,_) (x2,_) = compare x1 x2
+-}
+mergeBy :: (a -> a -> Ordering) -> [a] -> [a] -> [a]
+mergeBy cmp [] ys = ys
+mergeBy cmp xs [] = xs
+mergeBy cmp (allx@(x:xs)) (ally@(y:ys)) 
+        -- Ordering derives Eq, Ord, so the comparison below is valid.
+        -- Explanation left as an exercise for the reader.
+        -- Someone please put this code out of its misery.
+    | (x `cmp` y) <= EQ = x : mergeBy cmp xs ally
+    | otherwise = y : mergeBy cmp allx ys
+
+

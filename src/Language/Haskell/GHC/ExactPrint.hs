@@ -340,24 +340,25 @@ loadInitialComments = do
   mergeComments cs
   return ()
 
--- ++AZ++ TODO: needs to use a delta location.
 -- |First move to the given location, then call exactP
 exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC a@(GHC.L l ast) =
  -- let p = pos l
     do setSrcSpan l  `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAnnotation a
-       off@(DP (r,c)) <- case ma of
-         Nothing -> return (DP (0,0))
+       (off@(DP (r,c)),cs) <- case ma of
+         Nothing -> return ((DP (0,0)),[])
+           `debug` ("exactPC:no annotation for " ++ show (ss2span l,typeOf ast))
          Just ann -> do
-             mergeComments lcs
-             return dp
+             -- mergeComments lcs
+             return (dp,lcs)
            where lcs = ann_comments ann
                  dp = ann_delta ann
        pe <- getPos
        let p = undelta pe off
-       mPrintComments p
+       mPrintComments p `debug` ("exactPC:(p,off)=" ++ show (p,off))
        padUntil p
+       mergeComments cs
 
        let negOff = DP (-r,-c)
        -- addOffset off `debug` ("addOffset:push:" ++ show (ss2span l,off))
@@ -666,9 +667,10 @@ instance ExactP (GHC.ModuleName) where
 
 instance ExactP [GHC.LIE GHC.RdrName] where
   exactP ies = do
-    Just (AnnHsExports op cp) <- getAnnValue
-    return () `debug` ("exactP.[LIE]:" ++ show (AnnHsExports op cp))
-    printStringAtDelta op "("
+    Just (AnnHsExports cp) <- getAnnValue
+    p <- getPos
+    return () `debug` ("exactP.[LIE]:(p,ann)" ++ show (p,AnnHsExports cp))
+    printString "("
     mapM_ exactPC ies
     printStringAtDelta cp ")"
 
@@ -682,6 +684,7 @@ instance ExactP [GHC.LImportDecl GHC.RdrName] where
 instance ExactP (GHC.IE GHC.RdrName) where
   exactP (GHC.IEVar (GHC.L l n)) = do
     Just (AnnIEVar mp vp mc) <- getAnnValue
+    return () `debug` ("exactP.IEVar:" ++ show (AnnIEVar mp vp mc))
     -- let Just [(Ann cs _ (AnnIEVar mc))] = ma
     printStringAtMaybeDelta mp "pattern"
     printStringAtDelta vp (rdrName2String n)
@@ -1112,45 +1115,5 @@ internalError loc = error $ unlines
     , "a bug in haskell-src-exts. If this happens on an unmodified AST obtained"
     , "by the haskell-src-exts Parser it is a bug, please it report it at"
     , "https://github.com/haskell-suite/haskell-src-exts"]
-
-
--- -------------------------------------------------------------------..
--- Copied from MissingH, does not compile with HEAD
-
-
-{- | Merge two sorted lists into a single, sorted whole.
-
-Example:
-
-> merge [1,3,5] [1,2,4,6] -> [1,1,2,3,4,5,6]
-
-QuickCheck test property:
-
-prop_merge xs ys =
-    merge (sort xs) (sort ys) == sort (xs ++ ys)
-          where types = xs :: [Int]
--}
-merge ::  (Ord a) => [a] -> [a] -> [a]
-merge = mergeBy (compare)
-
-{- | Merge two sorted lists using into a single, sorted whole,
-allowing the programmer to specify the comparison function.
-
-QuickCheck test property:
-
-prop_mergeBy xs ys =
-    mergeBy cmp (sortBy cmp xs) (sortBy cmp ys) == sortBy cmp (xs ++ ys)
-          where types = xs :: [ (Int, Int) ]
-                cmp (x1,_) (x2,_) = compare x1 x2
--}
-mergeBy :: (a -> a -> Ordering) -> [a] -> [a] -> [a]
-mergeBy cmp [] ys = ys
-mergeBy cmp xs [] = xs
-mergeBy cmp (allx@(x:xs)) (ally@(y:ys)) 
-        -- Ordering derives Eq, Ord, so the comparison below is valid.
-        -- Explanation left as an exercise for the reader.
-        -- Someone please put this code out of its misery.
-    | (x `cmp` y) <= EQ = x : mergeBy cmp xs ally
-    | otherwise = y : mergeBy cmp allx ys
 
 

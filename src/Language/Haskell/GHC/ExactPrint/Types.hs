@@ -103,8 +103,7 @@ data AnnHsModule = AnnHsModule
   deriving (Show,Typeable,Eq)
 
 data AnnHsExports = AnnHsExports
-    { e_op     :: !DeltaPos -- '('
-    , e_cp     :: !DeltaPos -- ')'
+    { e_cp     :: !DeltaPos -- ')'
     }
   deriving (Show,Typeable,Eq)
 
