@@ -273,7 +273,8 @@ printStringAt p str = printWhitespace p >> printString str
 printStringAtDelta :: DeltaPos -> String -> EP ()
 printStringAtDelta (DP (dl,dc)) str = do
   (l1,c1) <- getPos
-  let (l,c) = (l1 + dl, c1 + dc)
+  let (l,c) = if dl == 0 then (l1 + dl, c1 + dc)
+                         else (l1 + dl, dc)
   printWhitespace (l,c) >> printString str
 
 printStringAtMaybe :: Maybe Pos -> String -> EP ()
@@ -668,10 +669,10 @@ instance ExactP (GHC.ModuleName) where
 instance ExactP [GHC.LIE GHC.RdrName] where
   exactP ies = do
     Just (AnnHsExports cp) <- getAnnValue
-    p <- getPos
-    return () `debug` ("exactP.[LIE]:(p,ann)" ++ show (p,AnnHsExports cp))
     printString "("
     mapM_ exactPC ies
+    p <- getPos
+    return () `debug` ("exactP.[LIE]:(p,ann)" ++ show (p,AnnHsExports cp))
     printStringAtDelta cp ")"
 
 -- ---------------------------------------------------------------------
