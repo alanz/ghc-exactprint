@@ -270,12 +270,8 @@ addAnnValue v = AP (\l (h:r)                pe cs ga ->
 enterAST :: (Typeable a) => GHC.Located a -> AP ()
 enterAST lss = do
   pushSrcSpan lss
-  -- newCs <- getCommentsForSpan (GHC.getLoc lss)
-  -- addComments newCs
-  --    `debug` ("enterAST: entered for " ++ show (ss2span $ GHC.getLoc lss, newCs))
-  -- cs <- getComments
-  return () -- `debug` ("enterAST:" ++ show (ss2span $ GHC.getLoc lss))
-   --  `debug` ("enterAST:ss,cs=" ++ show (ss2span $ GHC.getLoc lss,cs))
+  return ()
+
 
 -- | Pop up the SrcSpan stack, capture the annotations, and work the
 -- comments in belonging to the span
@@ -286,10 +282,6 @@ enterAST lss = do
 leaveAST :: Maybe GHC.SrcSpan -> AP ()
 leaveAST end = do
   ss <- getSrcSpanAP
-  -- cs <- getComments
-  -- subSpans <- getSubSpans
-  -- let (lcs,cs') = localComments (ss2span ss) cs subSpans
-  -- return () `debug` ("leaveAST: local comments are: " ++ show (ss2span ss,lcs,cs))
   priorEnd <- getPriorEnd
   popPriorEnd
   case end of
@@ -297,14 +289,11 @@ leaveAST end = do
     Just pe -> pushPriorEnd pe
 
   newCs <- getCommentsForSpan ss
-  let (lcs,_) = localComments (ss2span ss) newCs [] `debug` ("++AZ++ quick test")
-  -- let (lcs,_) = ([] :: [DComment],[]) `debug` ("++AZ++ quick test")
+  let (lcs,_) = localComments (ss2span ss) newCs []
+
 
   let dp = deltaFromSrcSpans priorEnd ss
   addAnnotationsAP (Ann lcs dp)
-        --   `debug` ("leaveAST:(priorEnd,ss,dp)=" ++ show (ss2span priorEnd,ss2span ss,dp))
-           `debug` ("leaveAST:(ss,dp,lcs)=" ++ show (ss2span ss,dp,lcs))
-  -- setComments cs'
   popSrcSpan
   return () -- `debug` ("leaveAST:1")
 
@@ -404,8 +393,7 @@ instance AnnotateP [GHC.LIE GHC.RdrName] where
      popPriorEnd
 
      addAnnValue (AnnHsExports pc)
-     -- popPriorEnd
-     -- pushPriorEnd ss
+
      return (Just l)
 
 instance AnnotateP (GHC.IE GHC.RdrName) where
@@ -1551,20 +1539,6 @@ ghcIsComment ((GHC.L _ (GHC.ITlineComment _)),_s)     = True
 ghcIsComment ((GHC.L _ (GHC.ITblockComment _)),_s)    = True
 ghcIsComment ((GHC.L _ _),_s)                         = False
 
-
-{-
-ghcIsMultiLine :: PosToken -> Bool
-ghcIsMultiLine ((GHC.L _ (GHC.ITdocCommentNext _)),_s)  = False
-ghcIsMultiLine ((GHC.L _ (GHC.ITdocCommentPrev _)),_s)  = False
-ghcIsMultiLine ((GHC.L _ (GHC.ITdocCommentNamed _)),_s) = False
-ghcIsMultiLine ((GHC.L _ (GHC.ITdocSection _ _)),_s)    = False
-ghcIsMultiLine ((GHC.L _ (GHC.ITdocOptions _)),_s)      = False
-ghcIsMultiLine ((GHC.L _ (GHC.ITdocOptionsOld _)),_s)   = False
-ghcIsMultiLine ((GHC.L _ (GHC.ITlineComment _)),_s)     = False
-ghcIsMultiLine ((GHC.L _ (GHC.ITblockComment _)),_s)    = True
-ghcIsMultiLine ((GHC.L _ _),_s)                         = False
--}
-
 ghcIsMultiLine :: GHC.Located GHC.Token -> Bool
 ghcIsMultiLine (GHC.L _ (GHC.ITdocCommentNext _))  = False
 ghcIsMultiLine (GHC.L _ (GHC.ITdocCommentPrev _))  = False
@@ -1762,7 +1736,7 @@ prop_mergeBy xs ys =
 mergeBy :: (a -> a -> Ordering) -> [a] -> [a] -> [a]
 mergeBy cmp [] ys = ys
 mergeBy cmp xs [] = xs
-mergeBy cmp (allx@(x:xs)) (ally@(y:ys)) 
+mergeBy cmp (allx@(x:xs)) (ally@(y:ys))
         -- Ordering derives Eq, Ord, so the comparison below is valid.
         -- Explanation left as an exercise for the reader.
         -- Someone please put this code out of its misery.

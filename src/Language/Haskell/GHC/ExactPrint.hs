@@ -298,16 +298,6 @@ printStringAtMaybeDeltaP p mc s =
     Just cl -> do
       printStringAt (undelta p cl) s
 
-{-
-printListCommaMaybe :: Maybe [Annotation] -> EP ()
-printListCommaMaybe Nothing = return ()
-printListCommaMaybe ma = do
-  case getAnn isAnnListItem ma "ListItem" of
-    [Ann _ _ (AnnListItem commaPos)] -> do
-      printStringAtMaybeDelta commaPos ","
-    _ -> return ()
--}
-
 errorEP :: String -> EP a
 errorEP = fail
 
@@ -505,112 +495,6 @@ getAnn isAnn ma str =
     Nothing -> error $ "getAnn expecting an annotation:" ++ str
     Just as -> filter isAnn as
 
-{-
-isAnnGRHS :: Annotation -> Bool
-isAnnGRHS an = case an of
-  (Ann _ _ (AnnGRHS {})) -> True
-  _                     -> False
-
-isAnnMatch :: Annotation -> Bool
-isAnnMatch an = case an of
-  (Ann _ _ (AnnMatch {})) -> True
-  _                       -> False
-
-isAnnHsLet :: Annotation -> Bool
-isAnnHsLet an = case an of
-  (Ann _ _ (AnnHsLet {})) -> True
-  _                     -> False
-
-isAnnHsDo :: Annotation -> Bool
-isAnnHsDo an = case an of
-  (Ann _ _ (AnnHsDo {})) -> True
-  _                      -> False
-
-isAnnHsExplicitTupleTy :: Annotation -> Bool
-isAnnHsExplicitTupleTy an = case an of
-  (Ann _ _ (AnnHsExplicitTupleTy {})) -> True
-  _                                   -> False
-
-isAnnExplicitTuple :: Annotation -> Bool
-isAnnExplicitTuple an = case an of
-  (Ann _ _ (AnnExplicitTuple {})) -> True
-  _                               -> False
-
-isAnnArithSeq :: Annotation -> Bool
-isAnnArithSeq an = case an of
-  (Ann _ _ (AnnArithSeq {})) -> True
-  _                          -> False
-
-isAnnOverLit :: Annotation -> Bool
-isAnnOverLit an = case an of
-  (Ann _ _ (AnnOverLit {})) -> True
-  _                         -> False
-
-isAnnTypeSig :: Annotation -> Bool
-isAnnTypeSig an = case an of
-  (Ann _ _ (AnnTypeSig {})) -> True
-  _                         -> False
-
-isAnnStmtLR :: Annotation -> Bool
-isAnnStmtLR an = case an of
-  (Ann _ _ (AnnStmtLR {})) -> True
-  _                        -> False
-
-isAnnLetStmt :: Annotation -> Bool
-isAnnLetStmt an = case an of
-  (Ann _ _ (AnnLetStmt {})) -> True
-  _                         -> False
-
-isAnnDataDecl :: Annotation -> Bool
-isAnnDataDecl an = case an of
-  (Ann _ _ (AnnDataDecl {})) -> True
-  _                          -> False
-
-isAnnConDecl :: Annotation -> Bool
-isAnnConDecl an = case an of
-  (Ann _ _ (AnnConDecl {})) -> True
-  _                         -> False
-
-isAnnListItem :: Annotation -> Bool
-isAnnListItem an = case an of
-  (Ann _ _ (AnnListItem {})) -> True
-  _                          -> False
-
-isAnnHsFunTy :: Annotation -> Bool
-isAnnHsFunTy an = case an of
-  (Ann _ _ (AnnHsFunTy {})) -> True
-  _                         -> False
-
-isAnnHsForAllTy :: Annotation -> Bool
-isAnnHsForAllTy an = case an of
-  (Ann _ _ (AnnHsForAllTy {})) -> True
-  _                            -> False
-
-isAnnHsParTy :: Annotation -> Bool
-isAnnHsParTy an = case an of
-  (Ann _ _ (AnnHsParTy {})) -> True
-  _                         -> False
-
-isAnnHsTupleTy :: Annotation -> Bool
-isAnnHsTupleTy an = case an of
-  (Ann _ _ (AnnHsTupleTy {})) -> True
-  _                           -> False
-
-isAnnPatBind :: Annotation -> Bool
-isAnnPatBind an = case an of
-  (Ann _ _ (AnnPatBind {})) -> True
-  _                         -> False
-
-isAnnAsPat :: Annotation -> Bool
-isAnnAsPat an = case an of
-  (Ann _ _ (AnnAsPat {})) -> True
-  _                       -> False
-
-isAnnTuplePat :: Annotation -> Bool
-isAnnTuplePat an = case an of
-  (Ann _ _ (AnnTuplePat {})) -> True
-  _                          -> False
--}
 
 --------------------------------------------------
 -- Exact printing for GHC
@@ -635,11 +519,8 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
     ss <- getSrcSpan
     return () `debug` ("exactP.HsModule:ss=" ++ showGhc ss)
     Just (AnnHsModule mm mn mw ep) <- getAnnValue :: EP (Maybe AnnHsModule)
-    -- let Just [Ann cs _ (AnnHsModule mm mn mo mc mw ep)] = ma
-    --      `debug` ("exactP.HsModule:ma=" ++ show ma)
     mAnn <- getAnnotation (GHC.L l ())
     let p = (1,1)
-      -- Just [(Ann cs _ (AnnModuleName pm _pn po pc pw))] -> do
     printStringAtMaybeDelta mm "module" -- `debug` ("exactP.HsModule:cs=" ++ show cs)
     printStringAtMaybeDelta mn ""
     exactPC lmn
@@ -686,7 +567,6 @@ instance ExactP (GHC.IE GHC.RdrName) where
   exactP (GHC.IEVar (GHC.L l n)) = do
     Just (AnnIEVar mp vp mc) <- getAnnValue
     return () `debug` ("exactP.IEVar:" ++ show (AnnIEVar mp vp mc))
-    -- let Just [(Ann cs _ (AnnIEVar mc))] = ma
     printStringAtMaybeDelta mp "pattern"
     printStringAtDelta vp (rdrName2String n)
     printStringAtMaybeDelta mc ","
