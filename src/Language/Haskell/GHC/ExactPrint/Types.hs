@@ -209,6 +209,7 @@ data AnnHsExpr
       , as_dotdot :: !DeltaPos
       , as_cb     :: !DeltaPos
       }
+  | AnnHsPar { hp_op, hp_cp :: !DeltaPos }
   deriving (Show,Typeable,Eq)
 
   -- StmtLR

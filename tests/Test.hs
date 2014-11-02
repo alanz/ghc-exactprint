@@ -32,8 +32,8 @@ debug = flip trace
 main :: IO ()
 main = do
     putStrLn "hello"
-    -- manipulateAstTest ["examples/LetExpr.hs"]
-    manipulateAstTest ["examples/Tuple.hs"]
+    manipulateAstTest ["examples/LetExpr.hs"]
+    -- manipulateAstTest ["examples/Tuple.hs"]
     putStrLn "done"
 
 -- | Where all the tests are to be found
@@ -89,7 +89,9 @@ manipulateAstTest sources = do
     result =
             if printed == contents
               then "Match\n"
-              else printed ++ "\n==============\n" ++ parsedAST
+              else printed ++ "\n==============\n"
+                    ++ "lengths:" ++ show (length printed,length contents) ++ "\n"
+                    ++ parsedAST
   -- putStrLn $ "Test:ann=" ++ show ann
   writeFile out $ result
   return ()
