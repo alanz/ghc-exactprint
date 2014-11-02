@@ -652,12 +652,14 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
     GHC.RoleAnnotD d -> printString "RoleAnnotD"
 
 instance ExactP (GHC.HsBind GHC.RdrName) where
-  exactP (GHC.FunBind _n _  (GHC.MG matches _ _ _) _fun_co_fn _fvs _tick) = do
+  exactP (GHC.FunBind n _  (GHC.MG matches _ _ _) _fun_co_fn _fvs _tick) = do
+    Just (AnnFunBind eqPos) <- getAnnValue
+    printString (showGhc (GHC.unLoc n))
+    printStringAtMaybeDelta eqPos "="
     mapM_ exactPC matches
 
   exactP (GHC.PatBind lhs (GHC.GRHSs grhs lb) _ty _fvs _ticks) = do
-    (Just (AnnPatBind eqPos wherePos)) <- getAnnValue :: EP (Maybe AnnHsBind)
-    -- let [(Ann _ _ (AnnPatBind eqPos wherePos))] = getAnn isAnnPatBind ma "PatBind"
+    Just (AnnPatBind eqPos wherePos) <- getAnnValue
     exactPC lhs
     printStringAtMaybeDelta eqPos "="
     mapM_ exactPC grhs
@@ -670,8 +672,8 @@ instance ExactP (GHC.HsBind GHC.RdrName) where
 
 instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP (GHC.Match pats typ (GHC.GRHSs grhs lb)) = do
-    (Just (AnnMatch nPos n isInfix eqPos wherePos)) <- getAnnValue :: EP (Maybe AnnMatch)
-    -- let [(Ann lcs _ (AnnMatch nPos n isInfix eqPos wherePos))] = getAnn isAnnMatch ma "Match"
+    (Just (AnnMatch {- nPos n isInfix -} eqPos wherePos)) <- getAnnValue
+{-
     if isInfix
       then do
         exactPC (head pats)
@@ -682,8 +684,10 @@ instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
       else do
         printStringAtDelta nPos (rdrName2String n)
         mapM_ exactPC pats
+-}
     printStringAtMaybeDelta eqPos "="
-    doMaybe typ exactPC
+    -- doMaybe typ exactPC
+    mapM_ exactPC typ
     mapM_ exactPC grhs
     printStringAtMaybeDelta wherePos "where"
     exactP lb
@@ -782,8 +786,7 @@ instance ExactP (GHC.HsContext GHC.RdrName) where
 
 instance ExactP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP (GHC.GRHS guards expr) = do
-    Just (AnnGRHS guardPos eqPos) <- getAnnValue :: EP (Maybe AnnGRHS)
-    -- let [(Ann lcs _ (AnnGRHS guardPos eqPos))] = getAnn isAnnGRHS ma "GRHS"
+    Just (AnnGRHS guardPos eqPos) <- getAnnValue
     printStringAtMaybeDelta guardPos "|"
     mapM_ exactPC guards
     printStringAtMaybeDelta eqPos "="
@@ -823,15 +826,16 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
   exactP (GHC.HsOverLit lit)     = exactP lit -- `debug` ("GHC.HsOverLit:" ++ show ma)
   exactP (GHC.OpApp e1 op _f e2) = exactPC e1 >> exactPC op >> exactPC e2
   exactP (GHC.HsVar v)           = exactP v
+
  -- ExplicitTuple [HsTupArg id] Boxity
   exactP (GHC.ExplicitTuple args b) = do
-    Just an <- getAnnValue :: EP (Maybe AnnHsExpr)
-    -- let [(Ann lcs _ an)] = getAnn isAnnExplicitTuple ma "ExplicitTuple"
-    if b == GHC.Boxed then printStringAtDelta (et_opos an) "("
-                      else printStringAtDelta (et_opos an) "(#"
+    Just (AnnExplicitTuple op cp) <- getAnnValue
+    return () `debug` ("exactP.ExplicitTuple:" ++ show (AnnExplicitTuple op cp))
+    if b == GHC.Boxed then printStringAtDelta op "("
+                      else printStringAtDelta op "(#"
     mapM_ exactPC args `debug` ("exactP.ExplicitTuple")
-    if b == GHC.Boxed then printStringAtDelta (et_cpos an) ")"
-                      else printStringAtDelta (et_cpos an) "#)"
+    if b == GHC.Boxed then printStringAtDelta cp ")"
+                      else printStringAtDelta cp "#)"
 
   exactP (GHC.HsApp e1 e2) = exactPC e1 >> exactPC e2
 
@@ -892,10 +896,9 @@ instance ExactP (GHC.Sig GHC.RdrName) where
 
 instance ExactP (GHC.HsOverLit GHC.RdrName) where
   -- exactP (Just [(Ann cs p an)]) _ = printString (ol_str an)
-  exactP  _ = do
-    Just an <- getAnnValue :: EP (Maybe AnnOverLit)
-    -- where [(Ann cs _ an)] = getAnn isAnnOverLit a "OverLit"
-    printString (ol_str an)
+  exactP  l = do
+    -- Just an <- getAnnValue :: EP (Maybe AnnOverLit)
+    printString (showGhc l) -- ++AZ temporary until D412
 
 instance ExactP GHC.HsLit where
   exactP lit = case lit of

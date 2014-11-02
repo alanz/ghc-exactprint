@@ -32,9 +32,8 @@ debug = flip trace
 main :: IO ()
 main = do
     putStrLn "hello"
-    let sources2 = ["examples/LetExpr.hs"]
-    -- let sources2 = ["examples/Simple.hs"]
-    manipulateAstTest (sources2)
+    -- manipulateAstTest ["examples/LetExpr.hs"]
+    manipulateAstTest ["examples/Tuple.hs"]
     putStrLn "done"
 
 -- | Where all the tests are to be found

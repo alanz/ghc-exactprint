@@ -158,7 +158,7 @@ data AnnTypeSig =
 
 data AnnHsBind
   -- HsBindLR
-  = AnnFunBind {}
+  = AnnFunBind { fb_equal :: !(Maybe DeltaPos) }
   | AnnPatBind
      { pb_equal :: !(Maybe DeltaPos)
      , pb_where :: !(Maybe DeltaPos) }
@@ -177,10 +177,10 @@ data AnnGRHS
 
 data AnnMatch
   = AnnMatch
-     { match_npos  :: !DeltaPos -- location of the function name
-     , match_n     :: !GHC.RdrName
-     , match_infix :: !Bool  -- if the function is infix
-     , match_eq    :: !(Maybe DeltaPos)
+     { -- match_npos  :: !DeltaPos -- location of the function name
+     -- , match_n     :: !GHC.RdrName
+     -- , match_infix :: !Bool  -- if the function is infix
+       match_eq    :: !(Maybe DeltaPos)
      , match_where :: !(Maybe DeltaPos)
      }
   deriving (Show,Typeable,Eq)
@@ -202,6 +202,7 @@ data AnnHsExpr
       }
   | AnnExplicitTuple
        { et_opos :: !DeltaPos,  et_cpos :: !DeltaPos }
+  | AnnExprWithTySig { ets_dotdot :: !DeltaPos }
   | AnnArithSeq
       { as_ob     :: !DeltaPos
       , as_comma  :: !(Maybe DeltaPos)

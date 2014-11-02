@@ -370,7 +370,11 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
         popPriorEnd
 
     -- annotateList (GHC.unLoc imps)
+    -- annotatePC imps
     addAnnValue (AnnHsModule pm pn pw lpo) -- `debug` ("annotateP.HsModule:adding ann")
+
+    mapM_ annotatePC decs
+
     return (Just lm)
 -- 'module' mmn '(' mexp  ')' 'where'
 
@@ -561,8 +565,30 @@ calcListOffsets isSeparator isTerminator l toks = mc
 
     isToken t = isSeparator t || isTerminator t
 
+-}
 -- ---------------------------------------------------------------------
 
+instance AnnotateP (GHC.HsDecl GHC.RdrName) where
+  annotateP l decl = do
+    case decl of
+      GHC.TyClD d -> error $ "annotateLHsDecl:unimplemented " ++ "TyClD"
+      GHC.InstD d -> error $ "annotateLHsDecl:unimplemented " ++ "InstD"
+      GHC.DerivD d -> error $ "annotateLHsDecl:unimplemented " ++ "DerivD"
+      GHC.ValD d -> annotateP l d
+      GHC.SigD d -> error $ "annotateLHsDecl:unimplemented " ++ "SigD"
+      GHC.DefD d -> error $ "annotateLHsDecl:unimplemented " ++ "DefD"
+      GHC.ForD d -> error $ "annotateLHsDecl:unimplemented " ++ "ForD"
+      GHC.WarningD d -> error $ "annotateLHsDecl:unimplemented " ++ "WarningD"
+      GHC.AnnD d -> error $ "annotateLHsDecl:unimplemented " ++ "AnnD"
+      GHC.RuleD d -> error $ "annotateLHsDecl:unimplemented " ++ "RuleD"
+      GHC.VectD d -> error $ "annotateLHsDecl:unimplemented " ++ "VectD"
+      GHC.SpliceD d -> error $ "annotateLHsDecl:unimplemented " ++ "SpliceD"
+      GHC.DocD d -> error $ "annotateLHsDecl:unimplemented " ++ "DocD"
+      GHC.QuasiQuoteD d -> error $ "annotateLHsDecl:unimplemented " ++ "QuasiQuoteD"
+      GHC.RoleAnnotD d -> error $ "annotateLHsDecl:unimplemented " ++ "RoleAnnotD"
+
+
+{-
 annotateLHsDecl :: GHC.LHsDecl GHC.RdrName -> AP ()
 annotateLHsDecl (GHC.L l decl) =
    case decl of
@@ -581,9 +607,38 @@ annotateLHsDecl (GHC.L l decl) =
       GHC.DocD d -> error $ "annotateLHsDecl:unimplemented " ++ "DocD"
       GHC.QuasiQuoteD d -> error $ "annotateLHsDecl:unimplemented " ++ "QuasiQuoteD"
       GHC.RoleAnnotD d -> error $ "annotateLHsDecl:unimplemented " ++ "RoleAnnotD"
-
+-}
 -- ---------------------------------------------------------------------
 
+instance AnnotateP (GHC.HsBind GHC.RdrName) where
+  annotateP l (GHC.FunBind (GHC.L ln n) isInfix (GHC.MG matches _ _ _) _ _ _) = do
+    -- ae <- getAnnotationAP l GHC.AnnEqual
+    -- let me = deltaFromMaybeSrcSpans (Just ln) ae
+    addAnnValue (AnnFunBind Nothing) -- ++AZ++ needed?
+
+    -- let prior = maybe ln id ae
+    let prior = ln
+    pushPriorEnd prior
+    mapM_ annotatePC matches
+    popPriorEnd
+
+    return (Just l)
+
+  annotateP l (GHC.PatBind lhs@(GHC.L ll _) grhss@(GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
+    annotatePC lhs
+    mapM_ annotatePC grhs
+    annotateHsLocalBinds lb
+    return (Just l)
+
+  annotateP l (GHC.VarBind n rhse _) = do
+    -- Note: this bind is introduced by the typechecker
+    annotatePC rhse
+    return (Just l)
+
+  annotateP l (GHC.PatSynBind (GHC.PSB n _fvs args patsyndef patsyn_dir)) = do
+    return (Just l)
+
+{-
 annotateLHsBind :: GHC.LHsBindLR GHC.RdrName GHC.RdrName -> AP ()
 annotateLHsBind (GHC.L l (GHC.FunBind (GHC.L _ n) isInfix (GHC.MG matches _ _ _) _ _ _)) = do
   enterAST l
@@ -639,9 +694,51 @@ patsyn_def :: LPat idR
 patsyn_dir :: HsPatSynDir idR
 
     Directionality-}
+-}
 
 -- ---------------------------------------------------------------------
 
+instance AnnotateP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
+  annotateP l (GHC.Match pats _typ grhss@(GHC.GRHSs grhs lb)) = do
+    {-
+    let
+      (_,matchToks,_) = splitToksForSpan l toksIn
+      nPos = if isInfix
+               then fromJust $ findTokenWrtPrior ghcIsFunName ln matchToks
+               else findDelta ghcIsFunName l matchToks (ss2pos l)
+
+      ln = GHC.mkSrcSpan (GHC.srcSpanEnd (GHC.getLoc (head pats)))
+                         (GHC.srcSpanEnd l)
+
+      eqPos = case grhs of
+               [GHC.L _ (GHC.GRHS [] _)] -> findTokenWrtPrior ghcIsEqual l toksIn -- unguarded
+               _                         -> Nothing
+      wherePos = getGRHSsWherePos grhss toksIn
+    -}
+    ss <- getPriorEnd
+    mEqPos    <- getAnnotationAP l GHC.AnnEqual
+    mWherePos <- getAnnotationAP l GHC.AnnWhere
+    let eqPos = deltaFromMaybeSrcSpans (Just ss) mEqPos
+    return () `debug` ("annotateP.Match:(ss,mEqPos,eqPos)=" ++ show (ss2span ss,fmap ss2span mEqPos,eqPos))
+
+    case mEqPos of
+      Nothing -> return ()
+      Just pp -> pushPriorEnd pp
+    mapM_ annotatePC pats
+    mapM_ annotatePC grhs
+    annotateHsLocalBinds lb
+
+    ss2 <- getPriorEnd
+    let wherePos = deltaFromMaybeSrcSpans (Just ss2) mWherePos
+
+    case mEqPos of
+      Nothing -> return ()
+      Just pp -> popPriorEnd
+
+    addAnnValue (AnnMatch eqPos wherePos)
+    return (Just l)
+
+{-
 annotateLMatch :: (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
   -> GHC.RdrName -> Bool
   -> AP ()
@@ -698,7 +795,7 @@ getGRHSsWherePos (GHC.GRHSs grhs lb) toksIn = wherePos
               where [lcs] = getListSrcSpan sigs
           [lg] = getListSrcSpan grhs
           wp = findPrecedingDelta ghcIsWhere lvb toksIn (ss2posEnd lg)
-
+-}
 -- ---------------------------------------------------------------------
 {-
 rhs     :: { Located (GRHSs RdrName) }
@@ -714,6 +811,23 @@ gdrh :: { LGRHS RdrName }
 
 -}
 
+instance AnnotateP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
+  annotateP l (GHC.GRHS guards expr) = do
+    return () `debug` ("annotateP.GRHS:" ++ showGhc (l))
+    ss <- getPriorEnd
+    mvbar <- getAnnotationAP l GHC.AnnVbar
+    meq   <- getAnnotationAP l GHC.AnnEqual
+    let mgp = deltaFromMaybeSrcSpans (Just l) mvbar
+        eg = case guards of
+               [] -> mvbar
+               _  -> Just (head $ getListSrcSpan guards)
+        mep = deltaFromMaybeSrcSpans eg meq
+    annotatePC expr
+    addAnnValue (AnnGRHS mgp mep)
+      `debug` ("annotateP.GRHS:(ss,mgp,eg,mep)=" ++ show (ss2span ss,mgp,fmap ss2span eg,mep))
+    return Nothing
+
+{-
 annotateLGRHS :: GHC.LGRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> AP ()
 annotateLGRHS (GHC.L l (GHC.GRHS guards expr)) = do
   enterAST l
@@ -730,9 +844,15 @@ annotateLGRHS (GHC.L l (GHC.GRHS guards expr)) = do
   annotateLHsExpr expr
 
   leaveAST (AnnGRHS guardPos eqPos)
-
+-}
 -- ---------------------------------------------------------------------
 
+instance AnnotateP (GHC.Sig GHC.RdrName) where
+  annotateP l s = do
+    return () `debug` ("annotateP.Sig:" ++ showGhc (l,s))
+    return Nothing
+
+{-
 annotateLSig :: GHC.LSig GHC.RdrName -> AP ()
 annotateLSig (GHC.L l (GHC.TypeSig lns typ)) = do
   enterAST l
@@ -757,9 +877,21 @@ annotateLSig (GHC.L l (GHC.TypeSig lns typ)) = do
 
 noOp :: a -> AP ()
 noOp _ = return ()
-
+-}
 -- ---------------------------------------------------------------------
 
+-- TODO ++AZ++: parameterise over id
+instance AnnotateP (GHC.HsType GHC.RdrName) where
+  annotateP l typ = do
+    return () `debug` ("annotateP.HsType not implemented for " ++ showGhc (l,typ))
+    return (Just l)
+
+instance AnnotateP (GHC.HsType GHC.Name) where
+  annotateP l typ = do
+    return () `debug` ("annotateP.HsType not implemented for " ++ showGhc (l,typ))
+    return (Just l)
+
+{-
 annotateLHsType :: GHC.LHsType GHC.RdrName -> AP ()
 annotateLHsType (GHC.L l (GHC.HsForAllTy f bndrs ctx@(GHC.L lc cc) typ)) = do
   enterAST l
@@ -1001,9 +1133,15 @@ findTokenWrtPriorF mspan toksIn = eqPos
           prior = head $ dropWhile ghcIsBlankOrComment $ reverse before
           pe = tokenPosEnd prior
       Nothing -> Nothing
-
+-}
 -- ---------------------------------------------------------------------
 
+instance AnnotateP (GHC.Pat GHC.RdrName) where
+  annotateP l p = do
+    return () `debug` ("annotateP.Pat:" ++ showGhc (l,p))
+    return Nothing
+
+{-
 annotateLPat :: GHC.LPat GHC.RdrName -> AP ()
 annotateLPat (GHC.L l pat) = do
   enterAST l
@@ -1034,9 +1172,15 @@ annotateLPat (GHC.L l pat) = do
       `debug` ("annotateLPat:ignoring " ++ (pp p))
 
   leaveAST ann
-
+-}
 -- ---------------------------------------------------------------------
 
+instance AnnotateP (GHC.Stmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
+  annotateP l stmt = do
+    return () `debug` ("annotateP.Stmt:not implemented for " ++ (showGhc (l,stmt)))
+    return (Just l)
+
+{-
 annotateLStmt :: GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> AP ()
 annotateLStmt (GHC.L l (GHC.BodyStmt body _ _ _)) = do
   enterAST l
@@ -1058,13 +1202,13 @@ annotateLStmt (GHC.L l (GHC.LetStmt lb)) = do
   annotateHsLocalBinds lb
 
   leaveAST (AnnLetStmt letPos inPos)
-
+-}
 -- ---------------------------------------------------------------------
 
 annotateHsLocalBinds :: (GHC.HsLocalBinds GHC.RdrName) -> AP ()
 annotateHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
-    mapM_ annotateLHsBind (GHC.bagToList binds)
-    mapM_ annotateLSig sigs
+    mapM_ annotatePC (GHC.bagToList binds)
+    mapM_ annotatePC sigs
 
 annotateHsLocalBinds (GHC.HsValBinds _) = assert False undefined
 annotateHsLocalBinds (GHC.HsIPBinds vb) = assert False undefined
@@ -1072,6 +1216,121 @@ annotateHsLocalBinds (GHC.EmptyLocalBinds) = return ()
 
 -- ---------------------------------------------------------------------
 
+annotateMatchGroup :: (GHC.MatchGroup GHC.RdrName (GHC.LHsExpr GHC.RdrName))
+                   -> AP ()
+annotateMatchGroup (GHC.MG matches _ _ _)
+  = mapM_ annotatePC matches
+
+-- ---------------------------------------------------------------------
+
+instance AnnotateP (GHC.HsExpr GHC.RdrName) where
+  annotateP l (GHC.HsVar _)           = return (Just l)
+  annotateP l (GHC.HsIPVar _)         = return (Just l)
+  annotateP l (GHC.HsOverLit ov)      = return (Just l)
+  annotateP l (GHC.HsLit _)           = return (Just l)
+  annotateP l (GHC.HsLam match)       = annotateMatchGroup match >> return (Just l)
+  annotateP l (GHC.HsLamCase _ match) = annotateMatchGroup match >> return (Just l)
+
+  annotateP l (GHC.HsApp e1 e2) = do
+    annotatePC e1
+    annotatePC e2
+    return (Just l)
+
+  annotateP l (GHC.OpApp e1 e2 _ e3) = do
+    annotatePC e1
+    annotatePC e2
+    annotatePC e3
+    return (Just l)
+
+  annotateP l (GHC.NegApp e _) = annotatePC e >> return (Just l)
+  annotateP l (GHC.HsPar e) = annotatePC e >> return (Just l)
+
+  annotateP l (GHC.SectionL e1 e2) = do
+    annotatePC e1
+    annotatePC e2
+    return (Just l)
+
+  annotateP l (GHC.SectionR e1 e2) = do
+    annotatePC e1
+    annotatePC e2
+    return (Just l)
+
+  annotateP l (GHC.ExplicitTuple args boxity) = do
+    Just op <- getAnnotationAP l GHC.AnnOpen
+    Just cp <- getAnnotationAP l GHC.AnnClose
+    ss <- getPriorEnd
+    pushPriorEnd op
+    mapM_ annotatePC args
+    popPriorEnd
+    let
+      opPos = deltaFromSrcSpans ss op
+      ep = case args of
+             [] -> l
+             cs -> (head $ getListSrcSpan args)
+      cpPos = deltaFromSrcSpans ep cp
+    addAnnValue (AnnExplicitTuple opPos cpPos)
+      `debug` ("annotateP.ExplicitTuple:(ss,l,op,opPos)=" ++ show (ss2span ss,ss2span l,ss2span op,opPos))
+    return (Just l) `debug` ("annotateP.ExplicitTuple")
+
+  annotateP l (GHC.HsCase e1 matches) = do
+    annotatePC e1
+    annotateMatchGroup matches
+    return (Just l)
+
+
+  annotateP l (GHC.HsIf _ e1 e2 e3) = do
+    annotatePC e1
+    annotatePC e2
+    annotatePC e3
+    return (Just l)
+
+  annotateP l (GHC.HsMultiIf _ rhs) = mapM_ annotatePC rhs >> return (Just l)
+
+  annotateP l (GHC.HsLet binds e) = do
+    Just lp <- getAnnotationAP l GHC.AnnLet
+    Just ip <- getAnnotationAP l GHC.AnnIn
+    annotateHsLocalBinds binds
+    annotatePC e
+    let ld = deltaFromSrcSpans l lp
+    let id = case getHsLocalBindsSrcSpan binds of
+               Just lb -> deltaFromSrcSpans lb ip
+               Nothing -> deltaFromSrcSpans lp ip
+    addAnnValue (AnnHsLet (Just ld) (Just id))
+    return (Just l)
+
+  annotateP l (GHC.HsDo _ es _)         = mapM_ annotatePC es >> return (Just l)
+  annotateP l (GHC.ExplicitList _ _ es) = mapM_ annotatePC es >> return (Just l)
+  annotateP l (GHC.ExplicitPArr _ es)   = mapM_ annotatePC es >> return (Just l)
+
+  annotateP l (GHC.RecordCon _ _ (GHC.HsRecFields fs _)) = do
+    mapM_ annotatePC fs
+    return (Just l)
+
+  annotateP l (GHC.RecordUpd e (GHC.HsRecFields fs _) cons _ _) = do
+    annotatePC e
+    mapM_ annotatePC fs
+    -- annotatePC cons
+    return (Just l)
+
+  annotateP l (GHC.ExprWithTySig e typ) = do
+    annotatePC e
+    annotatePC typ
+    return (Just l)
+
+  annotateP l (GHC.ExprWithTySigOut e typ) = do
+    Just dd <- getAnnotationAP l GHC.AnnDotdot
+    annotatePC e
+    annotatePC typ
+    addAnnValue (AnnExprWithTySig (deltaFromSrcSpans (GHC.getLoc e) dd))
+    return (Just l)
+
+
+  annotateP l e = do
+    return () `debug` ("annotateP.HsExpr:" ++ showGhcDebug (l,e))
+    return Nothing
+
+
+{-
 annotateLHsExpr :: GHC.LHsExpr GHC.RdrName -> AP ()
 annotateLHsExpr (GHC.L l exprIn) = do
   enterAST l
@@ -1164,18 +1423,24 @@ annotateLHsExpr (GHC.L l exprIn) = do
        `debug` ("annotateLHsExpr:not processing:" ++ (pp e))
 
   leaveAST ann
-
+-}
 -- ---------------------------------------------------------------------
 
-annotateHsTupArg :: [PosToken] -> GHC.HsTupArg GHC.RdrName -> AP ()
-annotateHsTupArg ltoks (GHC.Present e@(GHC.L l _)) = do
-  enterAST l
-  annotateLHsExpr e
-  let commaPos = findTrailingComma l ltoks
-  leaveAST (AnnListItem commaPos)
+instance AnnotateP (GHC.HsTupArg GHC.RdrName) where
+  annotateP l (GHC.Present e@(GHC.L le _)) = do
+    annotatePC e
+    mcp <- getAnnotationAP l GHC.AnnComma
+    let commaPos = deltaFromMaybeSrcSpans (Just le) mcp
+    addAnnValue (AnnListItem commaPos)
+    return (Just l)
 
-annotateHsTupArg _ (GHC.Missing _) = return ()
+  annotateP l (GHC.Missing _) = do
+    mcp <- getAnnotationAP l GHC.AnnComma
+    let commaPos = deltaFromMaybeSrcSpans (Just l) mcp
+    addAnnValue (AnnListItem commaPos)
+    return (Just l)
 
+{-
 -- ---------------------------------------------------------------------
 
 annotateLTyClDecl :: GHC.LTyClDecl GHC.RdrName -> AP ()
@@ -1187,9 +1452,14 @@ annotateLTyClDecl (GHC.L l (GHC.DataDecl _ln (GHC.HsQTvs _ns _tyVars) defn _)) =
 
   annotateHsDataDefn defn
   leaveAST (AnnDataDecl eqPos)
-
+-}
 -- ---------------------------------------------------------------------
 
+instance AnnotateP (GHC.HsRecField GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
+  annotateP l (GHC.HsRecField _ e _) = annotatePC e >> return (Just l)
+
+-- ---------------------------------------------------------------------
+{-
 annotateHsDataDefn :: (GHC.HsDataDefn GHC.RdrName) -> AP ()
 annotateHsDataDefn (GHC.HsDataDefn nOrD ctx mtyp mkind cons mderivs) = do
   mapM_ annotateLConDecl cons
@@ -1205,6 +1475,24 @@ annotateLConDecl (GHC.L l (GHC.ConDecl ln exp qvars ctx dets res _ _)) = do
     mc = getListAnnInfo l ghcIsVbar (const False) cs toksIn
   leaveAST (AnnConDecl mc)
 -}
+-- ---------------------------------------------------------------------
+
+getHsLocalBindsSrcSpan :: (GHC.HsLocalBinds GHC.RdrName) -> Maybe GHC.SrcSpan
+getHsLocalBindsSrcSpan(GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = r
+  where
+    r = end (GHC.bagToList binds) sigs
+
+    end [] [] = Nothing
+    end [] ys = Just $ GHC.getLoc (last ys)
+    end xs [] = Just $ GHC.getLoc (last xs)
+    end xs ys = if GHC.getLoc (last xs) < GHC.getLoc (last ys)
+                  then Just $ GHC.getLoc (last ys)
+                  else Just $ GHC.getLoc (last xs)
+
+getHsLocalBindsSrcSpan (GHC.HsValBinds _) = Nothing
+getHsLocalBindsSrcSpan (GHC.HsIPBinds vb) = Nothing
+getHsLocalBindsSrcSpan (GHC.EmptyLocalBinds) = Nothing
+
 -- ---------------------------------------------------------------------
 
 getListSpan :: [GHC.Located e] -> [Span]
@@ -1558,7 +1846,7 @@ ghcCommentText (GHC.L _ (GHC.ITdocSection _ s))    = s
 ghcCommentText (GHC.L _ (GHC.ITdocOptions s))      = s
 ghcCommentText (GHC.L _ (GHC.ITdocOptionsOld s))   = s
 ghcCommentText (GHC.L _ (GHC.ITlineComment s))     = s
-ghcCommentText (GHC.L _ (GHC.ITblockComment s))    = s ++ "-}"
+ghcCommentText (GHC.L _ (GHC.ITblockComment s))    = "{-" ++ s ++ "-}"
 ghcCommentText (GHC.L _ _)                         = ""
 
 ghcIsBlank :: PosToken -> Bool
@@ -1692,6 +1980,19 @@ showGhc x = GHC.showPpr GHC.unsafeGlobalDynFlags x
 showGhc x = GHC.showSDoc GHC.tracingDynFlags $ GHC.ppr x
 #else
 showGhc x = GHC.showSDoc                     $ GHC.ppr x
+#endif
+#endif
+
+
+-- |Show a GHC API structure
+showGhcDebug :: (GHC.Outputable a) => a -> String
+#if __GLASGOW_HASKELL__ > 706
+showGhcDebug x = GHC.showSDocDebug GHC.unsafeGlobalDynFlags (GHC.ppr x)
+#else
+#if __GLASGOW_HASKELL__ > 704
+showGhcDebug x = GHC.showSDoc GHC.tracingDynFlags $ GHC.ppr x
+#else
+showGhcDebug x = GHC.showSDoc                     $ GHC.ppr x
 #endif
 #endif
 
