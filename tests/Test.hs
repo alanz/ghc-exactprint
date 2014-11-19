@@ -62,7 +62,7 @@ manipulateAstTest sources = do
     -- printed = exactPrint parsed comments toks
     -- ann = annotate parsed comments toks
     ann = annotate parsed comments toks ghcAnns
-      `debug` ("toks:" ++ show toks)
+      -- `debug` ("toks:" ++ show toks)
       -- `debug` ("ghcAnns:" ++ showGhc ghcAnns)
       -- `debug` ("ann:" ++ (show $ snd ann))
       -- `debug` ("comments:toks" ++ show (take 10 toks))
@@ -117,7 +117,7 @@ parsedFileGhc fileName = do
         let dflags' = foldl GHC.xopt_set dflags
                            [GHC.Opt_Cpp, GHC.Opt_ImplicitPrelude, GHC.Opt_MagicHash]
 
-            dflags'' = dflags' { GHC.importPaths = ["./test/testdata/","../test/testdata/"] }
+            dflags'' = dflags' { GHC.importPaths = ["./tests/examples/","../tests/examples/"] }
 
             dflags''' = dflags'' { GHC.hscTarget = GHC.HscInterpreted,
                                    GHC.ghcLink =  GHC.LinkInMemory }

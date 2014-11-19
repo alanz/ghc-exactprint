@@ -30,6 +30,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , AnnHsExports(..)
   , AnnIe(..)
   , AnnImportDecl(..)
+  , AnnImportSpec(..)
   , AnnTypeSig(..)
   , AnnHsBind(..)
   , AnnGRHS(..)
@@ -139,14 +140,18 @@ IEDocNamed String
 data AnnImportDecl =
   AnnImportDecl
      { id_import    :: !DeltaPos
-     , id_source    :: !(Maybe DeltaPos)
+     , id_source    :: !(Maybe (DeltaPos,DeltaPos)) -- {-# SOURCE #-}
      , id_safe      :: !(Maybe DeltaPos)
      , id_qualified :: !(Maybe DeltaPos)
      , id_as        :: !(Maybe DeltaPos)
-     , id_as_pos    :: !(Maybe DeltaPos)
      , id_hiding    :: !(Maybe DeltaPos)
-     , id_op        :: !(Maybe DeltaPos)
-     , id_cp        :: !(Maybe DeltaPos)
+     }
+  deriving (Show,Typeable,Eq)
+
+data AnnImportSpec =
+  AnnImportSpec
+     { is_op        :: !DeltaPos
+     , is_cp        :: !DeltaPos
      }
   deriving (Show,Typeable,Eq)
 

@@ -253,7 +253,7 @@ mPrintComments p = do
             printComment multi str
             setPos e
             mPrintComments p
-         ) `debug` ("mPrintComments:(s,p):" ++ show (s,p))
+         ) -- `debug` ("mPrintComments:(s,p):" ++ show (s,p))
 
 printComment :: Bool -> String -> EP ()
 printComment b str
@@ -335,7 +335,7 @@ loadInitialComments = do
 exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC a@(GHC.L l ast) =
  -- let p = pos l
-    do setSrcSpan l  `debug` ("exactPC entered for:" ++ showGhc l)
+    do setSrcSpan l -- `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAnnotation a
        (off@(DP (r,c)),cs) <- case ma of
          Nothing -> return ((DP (0,0)),[])
@@ -530,7 +530,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
         return ()
       Nothing -> return ()
     printStringAtMaybeDelta mw "where"
-    -- exactP limps
+    exactP limps
 
     -- printSeq $ map (pos . ann &&& exactPC) decls
 
@@ -560,13 +560,14 @@ instance ExactP [GHC.LIE GHC.RdrName] where
 
 instance ExactP [GHC.LImportDecl GHC.RdrName] where
   exactP imps = mapM_ exactPC imps
+  -- Trailing semis?
 
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.IE GHC.RdrName) where
   exactP (GHC.IEVar (GHC.L l n)) = do
     Just (AnnIEVar mp vp mc) <- getAnnValue
-    return () `debug` ("exactP.IEVar:" ++ show (AnnIEVar mp vp mc))
+    return () -- `debug` ("exactP.IEVar:" ++ show (AnnIEVar mp vp mc))
     printStringAtMaybeDelta mp "pattern"
     printStringAtDelta vp (rdrName2String n)
     printStringAtMaybeDelta mc ","
@@ -610,21 +611,20 @@ instance ExactP (GHC.IE GHC.RdrName) where
 instance ExactP (GHC.ImportDecl GHC.RdrName) where
   exactP imp = do
     Just an <- getAnnValue :: EP (Maybe AnnImportDecl)
-    -- let Just [(Ann cs _ an)] = ma
-    p <- getPos
     printString "import"
-    printStringAtMaybeDeltaP p (id_qualified an) "qualified"
-    exactPC (GHC.ideclName imp)
-    printStringAtMaybeDeltaP p (id_as an) "as"
-    case GHC.ideclAs imp of
+    case id_source an of
       Nothing -> return ()
-      Just mn -> printStringAtMaybeDeltaP p (id_as_pos an) (GHC.moduleNameString mn)
-    printStringAtMaybeDeltaP p (id_hiding an) "hiding"
-    printStringAtMaybeDeltaP p (id_op an) "("
+      Just (od,cd) -> do
+        printStringAtDelta od "{-# SOURCE"
+        printStringAtDelta cd "#-}"
+
+    printStringAtMaybeDelta (id_safe an) "safe"
+    printStringAtMaybeDelta (id_qualified an) "qualified"
+    exactPC (GHC.ideclName imp)
+    printStringAtMaybeDelta(id_as an) "as"
     case GHC.ideclHiding imp of
       Nothing -> return ()
-      Just (_,GHC.L li ies) -> mapM_ exactPC ies
-    printStringAtMaybeDelta (id_cp an) ")"
+      Just (isHiding,lie) -> exactPC lie
 
 -- ---------------------------------------------------------------------
 

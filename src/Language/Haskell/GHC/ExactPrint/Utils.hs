@@ -302,9 +302,9 @@ class (Typeable ast) => AnnotateP ast where
 -- |First move to the given location, then call exactP
 annotatePC :: (AnnotateP ast) => GHC.Located ast -> AP ()
 annotatePC a@(GHC.L l ast) = do
-  enterAST a `debug` ("annotatePC:entering " ++ showGhc l)
+  enterAST a -- `debug` ("annotatePC:entering " ++ showGhc l)
   end <- annotateP l ast
-  leaveAST end `debug` ("annotatePC:leaving " ++ showGhc (l,end))
+  leaveAST end -- `debug` ("annotatePC:leaving " ++ showGhc (l,end))
 
 
 annotateMaybe :: (AnnotateP ast) => Maybe (GHC.Located ast) -> AP ()
@@ -331,8 +331,8 @@ addFinalComments = do
   let (dcs,_) = localComments ((1,1),(1,1)) cs []
   pushSrcSpan (GHC.L GHC.noSrcSpan ())
   addAnnotationsAP (Ann dcs (DP (0,0)))
-    `debug` ("leaveAST:dcs=" ++ show dcs)
-  return () `debug` ("addFinalComments:dcs=" ++ show dcs)
+   -- `debug` ("leaveAST:dcs=" ++ show dcs)
+  return () -- `debug` ("addFinalComments:dcs=" ++ show dcs)
 
 -- ---------------------------------------------------------------------
 
@@ -363,7 +363,7 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
         annotatePC exp
         popPriorEnd
 
-    -- annotateList imps
+    annotateList imps
 
     addAnnValue (AnnHsModule pm pn pw lpo) -- `debug` ("annotateP.HsModule:adding ann")
 
@@ -398,7 +398,7 @@ instance AnnotateP (GHC.IE GHC.RdrName) where
   annotateP l ie = do
     ma <- getAnnotationAP l GHC.AnnComma
     -- let ma = Nothing
-              `debug` ("annotateP.IE entered for:" ++ showGhc l)
+            --  `debug` ("annotateP.IE entered for:" ++ showGhc l)
     let mc = deltaFromMaybeSrcSpans [l] ma
     annSpecific <- case ie of
       -- This receives the toks for the entire exports section.
@@ -440,7 +440,7 @@ instance AnnotateP (GHC.IE GHC.RdrName) where
 
         x -> error $ "annotateP.IE: notimplemented for " ++ showGhc x
 
-    let annSpecific' = annSpecific `debug` ("annotateP.IE:annSpecific=" ++ show annSpecific)
+    let annSpecific' = annSpecific -- `debug` ("annotateP.IE:annSpecific=" ++ show annSpecific)
     addAnnValue annSpecific'
     return (Just (maybeL l ma)) -- `debug` ("annotateP.IE:annSpecific=" ++ show ma)
 
@@ -455,82 +455,73 @@ instance AnnotateP GHC.RdrName where
 
 -- ---------------------------------------------------------------------
 {-
-annotateImportDecl :: GHC.LImportDecl GHC.RdrName -> AP ()
-annotateImportDecl (GHC.L l (GHC.ImportDecl (GHC.L ln _) _pkg _src _safe qual _impl as hiding)) = do
-  enterAST l
-  toksIn <- getToks
-  let
-    p = ss2pos l
-    (_,toks,_) = splitToksForSpan l toksIn
-    impPos = findPrecedingDelta ghcIsImport ln toks p
+ImportDecl
 
-    mqual = if qual
-              then Just (findPrecedingDelta ghcIsQualified ln toks p)
-              else Nothing
-
-    (mas,maspos) = case as of
-      Nothing -> (Nothing,Nothing)
-      Just _  -> (Just (findDelta ghcIsAs l toks p),asp)
-        where
-           (_,middle,_) = splitToksForSpan l toks
-           asp = case filter ghcIsAnyConid (reverse middle) of
-             [] -> Nothing
-             (t:_) -> Just (ss2delta (ss2pos l) $ tokenSpan t)
-
-    mhiding = case hiding of
-      Nothing -> Nothing
-      Just (True, _)  -> Just (findDelta ghcIsHiding l toks p)
-      Just (False,_)  -> Nothing
-
-    (ies,opPos,cpPos) = case hiding of
-      Nothing -> ([],Nothing,Nothing)
-      Just (_,ies') -> (ies',opPos',cpPos')
-        where
-          opTok = head $ filter ghcIsOParen toks
-          cpTok = head $ filter ghcIsCParen toks
-          opPos' = Just $ ss2delta p     $ tokenSpan opTok
-          cpPos' = Just $ ss2delta cpRel $ tokenSpan cpTok
-          (_toksI,_toksRest,cpRel) = case ies of
-            [] -> (toks,toks,ss2posEnd $ tokenSpan opTok)
-            _ -> let (_,etoks,ts) = splitToks (GHC.getLoc (head ies),
-                                               GHC.getLoc (last ies)) toks
-                 in (etoks,ts,ss2posEnd $ GHC.getLoc (last ies))
-
-  mapM_ annotateLIE ies
-
-  leaveAST $ AnnImportDecl impPos Nothing Nothing mqual mas maspos mhiding opPos cpPos
-
-
-{-
-ideclName :: Located ModuleName
+  ideclName :: Located ModuleName
     Module name.
 
-ideclPkgQual :: Maybe FastString
+  ideclPkgQual :: Maybe FastString
     Package qualifier.
 
-ideclSource :: Bool
+  ideclSource :: Bool
     True = {--} import
 
-ideclSafe :: Bool
+  ideclSafe :: Bool
     True => safe import
 
-ideclQualified :: Bool
+  ideclQualified :: Bool
     True => qualified
 
-ideclImplicit :: Bool
+  ideclImplicit :: Bool
     True => implicit import (of Prelude)
 
-ideclAs :: Maybe ModuleName
+  ideclAs :: Maybe ModuleName
     as Module
 
-ideclHiding :: Maybe (Bool, [LIE name])
-    (True => hiding, names)
+  ideclHiding :: Maybe (Bool, Located [LIE name])
+
 
 -}
+instance AnnotateP (GHC.ImportDecl GHC.RdrName) where
+  annotateP l (GHC.ImportDecl (GHC.L ln _) _pkg _src _safe qual _impl as hiding) = do
+  ma <- getAnnotationAP l GHC.AnnSemi
+  let ms = deltaFromMaybeSrcSpans [l] ma
+  addAnnValue (AnnListItem ms)
+  [ip] <- getAnnotationAP l GHC.AnnImport
+  mss  <- getAnnotationAP l GHC.AnnOpen
+  mse  <- getAnnotationAP l GHC.AnnClose
+  ms   <- getAnnotationAP l GHC.AnnSafe
+  mq   <- getAnnotationAP l GHC.AnnQualified
+  mas  <- getAnnotationAP l GHC.AnnAs
+  mp   <- getAnnotationAP l GHC.AnnPackageName
+
+  -- 'import' maybe_src maybe_safe optqualified maybe_pkg modid maybeas maybeimpspec
+
+  let impPos = DP (0,0) -- deltaFromSrcSpans l ip
+      mSrcStart = deltaFromMaybeSrcSpans [ip] mss
+      mSrcEnd   = deltaFromMaybeSrcSpans mss mse
+      mSrcPos = case (mSrcStart,mSrcEnd) of
+                 (Just s,Just e) -> Just (s,e)
+                 _ -> Nothing
+      mSafePos = deltaFromLastSrcSpan ([ip] ++ mse) ms
+      mQualPos = deltaFromLastSrcSpan ([ip] ++ mse ++ ms) mq
+      mAsPos   = deltaFromLastSrcSpan ([ip] ++ mse ++ ms ++ mq) mas
+
+
+  mHidingPos <- case hiding of
+    Nothing -> return Nothing
+    Just (isHiding,lie@(GHC.L lh _)) -> do
+      mh   <- getAnnotationAP lh GHC.AnnHiding
+      annotatePC lie
+      return (deltaFromLastSrcSpan ([ip] ++ mse ++ ms ++ mq ++ mas) mh)
+
+  addAnnValue (AnnImportDecl impPos mSrcPos mSafePos mQualPos mAsPos mHidingPos)
+    `debug` ("annotateP.ImportDecl:a=" ++ show (AnnImportDecl impPos mSrcPos mSafePos mQualPos mAsPos mHidingPos))
+  return Nothing
 
 -- =====================================================================
 -- ---------------------------------------------------------------------
-
+{-
 
 getListAnnInfo :: GHC.SrcSpan
   -> (PosToken -> Bool) -> (PosToken -> Bool)
@@ -698,7 +689,7 @@ instance AnnotateP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
     mEqPos    <- getAnnotationAP l GHC.AnnEqual
     mWherePos <- getAnnotationAP l GHC.AnnWhere
     let eqPos = deltaFromMaybeSrcSpans [ss] mEqPos
-    return () `debug` ("annotateP.Match:(ss,mEqPos,eqPos)=" ++ show (ss2span ss,fmap ss2span mEqPos,eqPos))
+    return () -- `debug` ("annotateP.Match:(ss,mEqPos,eqPos)=" ++ show (ss2span ss,fmap ss2span mEqPos,eqPos))
 
     case mEqPos of
       [] -> return ()
@@ -794,7 +785,7 @@ gdrh :: { LGRHS RdrName }
 instance AnnotateP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   annotateP l (GHC.GRHS guards expr) = do
     ss <- getPriorEnd
-    return () `debug` ("annotateP.GRHS:" ++ showGhc (l,ss))
+    return () -- `debug` ("annotateP.GRHS:" ++ showGhc (l,ss))
     mvbar <- getAnnotationAP l GHC.AnnVbar
     meq   <- getAnnotationAP l GHC.AnnEqual
     let mgp = deltaFromMaybeSrcSpans [l] mvbar
@@ -804,7 +795,7 @@ instance AnnotateP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
         mep = deltaFromMaybeSrcSpans eg meq
     annotatePC expr
     addAnnValue (AnnGRHS mgp mep)
-      `debug` ("annotateP.GRHS:(ss,mgp,eg,mep)=" ++ show (ss2span ss,mgp,fmap ss2span eg,mep))
+     -- `debug` ("annotateP.GRHS:(ss,mgp,eg,mep)=" ++ show (ss2span ss,mgp,fmap ss2span eg,mep))
     return Nothing
 
 {-
@@ -1118,7 +1109,7 @@ findTokenWrtPriorF mspan toksIn = eqPos
 
 instance AnnotateP (GHC.Pat GHC.RdrName) where
   annotateP l p = do
-    return () `debug` ("annotateP.Pat:" ++ showGhc (l,p))
+    return () -- `debug` ("annotateP.Pat:" ++ showGhc (l,p))
     return Nothing
 
 {-
@@ -1438,7 +1429,7 @@ instance AnnotateP (GHC.HsTupArg GHC.RdrName) where
 
 instance AnnotateP (GHC.TyClDecl GHC.RdrName) where
   annotateP l x = do
-    return () `debug` ("annotateP.TyClDecl:unimplemented for " ++ showGhc x)
+    return () -- `debug` ("annotateP.TyClDecl:unimplemented for " ++ showGhc x)
     return (Just l)
 
 {-
@@ -1865,6 +1856,10 @@ maybeSrcSpan _ = []
 deltaFromMaybeSrcSpans :: [GHC.SrcSpan] -> [GHC.SrcSpan] -> Maybe DeltaPos
 deltaFromMaybeSrcSpans [ss1] [ss2] = Just (deltaFromSrcSpans ss1 ss2)
 deltaFromMaybeSrcSpans _ _ = Nothing
+
+deltaFromLastSrcSpan :: [GHC.SrcSpan] -> [GHC.SrcSpan] -> Maybe DeltaPos
+deltaFromLastSrcSpan [] _ = error $ "deltaFromLastSrcSpan: no last SrcSpan"
+deltaFromLastSrcSpan sss ms = deltaFromMaybeSrcSpans [last sss] ms
 
 -- | Create a delta covering the gap between the end of the first
 -- @SrcSpan@ and the start of the second.
