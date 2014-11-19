@@ -43,8 +43,9 @@ Test-Suite test
                        filepath,
                        directory,
                        syb,
+                       ghc-syb-utils,
                        ghc,
                        ghc-paths,
-                       HUnit,
-                       text
+                       HUnit
+--                       text
 

@@ -181,12 +181,9 @@ popPriorEnd = AP (\ls ss (p:pe) cs ga -> ((),ls,ss,  pe,cs,ga,([],[])))
 
 -- -------------------------------------
 
-getAnnotationAP :: GHC.SrcSpan -> GHC.Ann -> AP (Maybe GHC.SrcSpan)
+getAnnotationAP :: GHC.SrcSpan -> GHC.AnnKeywordId -> AP [GHC.SrcSpan]
 getAnnotationAP sp an = AP (\l ss pe cs ga
     -> (GHC.getAnnotation ga sp an, l,ss,pe,cs,ga,([],[])))
--- getAnnotationAP sp an = AP (\st
- --   -> (GHC.getAnnotation (sAnns st) sp an, st, ([],[])))
---  -> (GHC.getAnnotation (sAnns st) sp an, st, ([],[])))
 
 
 -- -------------------------------------
@@ -196,7 +193,7 @@ getCommentsForSpan s = AP (\l ss pe cs ga ->
   let
     gcs = GHC.getAnnotationComments ga s
     cs = reverse $ map tokComment gcs
-    tokComment :: GHC.Located GHC.Token -> Comment
+    tokComment :: GHC.Located GHC.AnnotationComment -> Comment
     tokComment t@(GHC.L l _) = Comment (ghcIsMultiLine t) (ss2span l) (ghcCommentText t)
   in (cs,l,ss,pe,cs,ga,([],[])))
 
@@ -344,18 +341,15 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
     pushPriorEnd lm
     am <- getAnnotationAP lm GHC.AnnModule
     aw <- getAnnotationAP lm GHC.AnnWhere
-    let pm = deltaFromMaybeSrcSpans (Just lm) am
+    let pm = deltaFromMaybeSrcSpans [lm] am
         pn = deltaFromMaybeSrcSpans am (maybeSrcSpan mmn)
         po = deltaFromMaybeSrcSpans (maybeSrcSpan mmn) (maybeSrcSpan mexp)
             -- `debug` ("annotateLHsModule:(po,mmn,mexp)=" ++ show (po,maybeSrcSpan mmn,maybeSrcSpan mexp))
             -- `debug` ("annotateLHsModule:(pc,mEndExps,mCp)=" ++ show (pc,mEndExps,mCp))
 
     mCp <- case mexp of
-      Nothing -> return Nothing
-      Just (GHC.L le es) -> do
-        let
-        Just cp <- getAnnotationAP le GHC.AnnClose
-        return (Just cp)
+      Nothing            -> return []
+      Just (GHC.L le es) -> getAnnotationAP le GHC.AnnClose
 
     let
         pw = deltaFromMaybeSrcSpans mCp aw
@@ -369,8 +363,8 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
         annotatePC exp
         popPriorEnd
 
-    -- annotateList (GHC.unLoc imps)
-    -- annotatePC imps
+    -- annotateList imps
+
     addAnnValue (AnnHsModule pm pn pw lpo) -- `debug` ("annotateP.HsModule:adding ann")
 
     mapM_ annotatePC decs
@@ -383,8 +377,8 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
 instance AnnotateP [GHC.LIE GHC.RdrName] where
    annotateP l ls = do
      ss <- getPriorEnd
-     Just op <- getAnnotationAP l GHC.AnnOpen
-     Just cp <- getAnnotationAP l GHC.AnnClose
+     [op] <- getAnnotationAP l GHC.AnnOpen
+     [cp] <- getAnnotationAP l GHC.AnnClose
      let
        ee = if null ls
                then GHC.mkSrcSpan (GHC.srcSpanStart l) (GHC.srcSpanStart l)
@@ -405,23 +399,23 @@ instance AnnotateP (GHC.IE GHC.RdrName) where
     ma <- getAnnotationAP l GHC.AnnComma
     -- let ma = Nothing
               `debug` ("annotateP.IE entered for:" ++ showGhc l)
-    let mc = deltaFromMaybeSrcSpans (Just l) ma
+    let mc = deltaFromMaybeSrcSpans [l] ma
     annSpecific <- case ie of
       -- This receives the toks for the entire exports section.
       -- So it can scan for the separating comma if required
         (GHC.IEVar (GHC.L ln _)) -> do
           mpattern <- getAnnotationAP l GHC.AnnPattern
           let vp = case mpattern of
-                Nothing -> DP (0,0)
-                Just pp -> deltaFromSrcSpans pp ln
-          let mp = deltaFromMaybeSrcSpans (Just l) mpattern
+                [] -> DP (0,0)
+                [pp] -> deltaFromSrcSpans pp ln
+          let mp = deltaFromMaybeSrcSpans [l] mpattern
           return (AnnIEVar mp vp mc)
 
         (GHC.IEThingAbs _) -> return (AnnIEThingAbs mc)
 
         (GHC.IEThingWith (GHC.L ln n) ns) -> do
-           Just o <- getAnnotationAP l GHC.AnnOpen
-           Just c <- getAnnotationAP l GHC.AnnClose
+           [o] <- getAnnotationAP l GHC.AnnOpen
+           [c] <- getAnnotationAP l GHC.AnnClose
            let op = deltaFromSrcSpans ln o
            pushPriorEnd o
            mapM_ annotatePC ns
@@ -431,16 +425,16 @@ instance AnnotateP (GHC.IE GHC.RdrName) where
            return (AnnIEThingWith op cp mc)
 
         (GHC.IEThingAll (GHC.L ln n)) -> do
-           Just o  <- getAnnotationAP l GHC.AnnOpen
-           Just dd <- getAnnotationAP l GHC.AnnDotdot
-           Just c  <- getAnnotationAP l GHC.AnnClose
+           [o]  <- getAnnotationAP l GHC.AnnOpen
+           [dd] <- getAnnotationAP l GHC.AnnDotdot
+           [c]  <- getAnnotationAP l GHC.AnnClose
            let op = deltaFromSrcSpans ln o
            let dp = deltaFromSrcSpans o  dd
            let cp = deltaFromSrcSpans dd c
            return (AnnIEThingAll op dp cp mc)
 
         (GHC.IEModuleContents (GHC.L lm n)) -> do
-           Just m  <- getAnnotationAP l GHC.AnnModule
+           [m]  <- getAnnotationAP l GHC.AnnModule
            let mp = deltaFromSrcSpans m lm
            return (AnnIEModuleContents mp mc)
 
@@ -448,16 +442,16 @@ instance AnnotateP (GHC.IE GHC.RdrName) where
 
     let annSpecific' = annSpecific `debug` ("annotateP.IE:annSpecific=" ++ show annSpecific)
     addAnnValue annSpecific'
-    return (Just (maybe l id ma)) -- `debug` ("annotateP.IE:annSpecific=" ++ show ma)
+    return (Just (maybeL l ma)) -- `debug` ("annotateP.IE:annSpecific=" ++ show ma)
 
 -- ---------------------------------------------------------------------
 
 instance AnnotateP GHC.RdrName where
   annotateP l n = do
     ma <- getAnnotationAP l GHC.AnnComma
-    let mc = deltaFromMaybeSrcSpans (Just l) ma
+    let mc = deltaFromMaybeSrcSpans [l] ma
     addAnnValue (AnnListItem mc)
-    return (Just (maybe l id ma))
+    return (Just (maybeL l ma))
 
 -- ---------------------------------------------------------------------
 {-
@@ -703,23 +697,23 @@ instance AnnotateP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
     ss <- getPriorEnd
     mEqPos    <- getAnnotationAP l GHC.AnnEqual
     mWherePos <- getAnnotationAP l GHC.AnnWhere
-    let eqPos = deltaFromMaybeSrcSpans (Just ss) mEqPos
+    let eqPos = deltaFromMaybeSrcSpans [ss] mEqPos
     return () `debug` ("annotateP.Match:(ss,mEqPos,eqPos)=" ++ show (ss2span ss,fmap ss2span mEqPos,eqPos))
 
     case mEqPos of
-      Nothing -> return ()
-      Just pp -> pushPriorEnd pp
+      [] -> return ()
+      [pp] -> pushPriorEnd pp
 
     mapM_ annotatePC pats
     mapM_ annotatePC grhs
     annotateHsLocalBinds lb
 
     ss2 <- getPriorEnd
-    let wherePos = deltaFromMaybeSrcSpans (Just ss2) mWherePos
+    let wherePos = deltaFromMaybeSrcSpans [ss2] mWherePos
 
     case mEqPos of
-      Nothing -> return ()
-      Just _pp -> popPriorEnd
+      [] -> return ()
+      [_pp] -> popPriorEnd
 
     addAnnValue (AnnMatch eqPos wherePos)
     return (Just l)
@@ -803,10 +797,10 @@ instance AnnotateP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
     return () `debug` ("annotateP.GRHS:" ++ showGhc (l,ss))
     mvbar <- getAnnotationAP l GHC.AnnVbar
     meq   <- getAnnotationAP l GHC.AnnEqual
-    let mgp = deltaFromMaybeSrcSpans (Just l) mvbar
+    let mgp = deltaFromMaybeSrcSpans [l] mvbar
         eg = case guards of
                [] -> mvbar
-               _  -> Just (head $ getListSrcSpan guards)
+               _  -> [(head $ getListSrcSpan guards)]
         mep = deltaFromMaybeSrcSpans eg meq
     annotatePC expr
     addAnnValue (AnnGRHS mgp mep)
@@ -1230,8 +1224,8 @@ instance AnnotateP (GHC.HsExpr GHC.RdrName) where
 
   annotateP l (GHC.NegApp e _) = annotatePC e >> return (Just l)
   annotateP l (GHC.HsPar e@(GHC.L le _)) = do
-    Just op <- getAnnotationAP l GHC.AnnOpen
-    Just cp <- getAnnotationAP l GHC.AnnClose
+    [op] <- getAnnotationAP l GHC.AnnOpen
+    [cp] <- getAnnotationAP l GHC.AnnClose
 
     pushPriorEnd op
     annotatePC e
@@ -1254,8 +1248,8 @@ instance AnnotateP (GHC.HsExpr GHC.RdrName) where
     return (Just l)
 
   annotateP l (GHC.ExplicitTuple args boxity) = do
-    Just op <- getAnnotationAP l GHC.AnnOpen
-    Just cp <- getAnnotationAP l GHC.AnnClose
+    [op] <- getAnnotationAP l GHC.AnnOpen
+    [cp] <- getAnnotationAP l GHC.AnnClose
     ss <- getPriorEnd
     pushPriorEnd op
     mapM_ annotatePC args
@@ -1287,8 +1281,8 @@ instance AnnotateP (GHC.HsExpr GHC.RdrName) where
   annotateP l (GHC.HsMultiIf _ rhs) = mapM_ annotatePC rhs >> return (Just l)
 
   annotateP l (GHC.HsLet binds e) = do
-    Just lp <- getAnnotationAP l GHC.AnnLet
-    Just ip <- getAnnotationAP l GHC.AnnIn
+    [lp] <- getAnnotationAP l GHC.AnnLet
+    [ip] <- getAnnotationAP l GHC.AnnIn
     annotateHsLocalBinds binds
     annotatePC e
     let ld = deltaFromSrcSpans l lp
@@ -1318,7 +1312,7 @@ instance AnnotateP (GHC.HsExpr GHC.RdrName) where
     return (Just l)
 
   annotateP l (GHC.ExprWithTySigOut e typ) = do
-    Just dd <- getAnnotationAP l GHC.AnnDotdot
+    [dd] <- getAnnotationAP l GHC.AnnDotdot
     annotatePC e
     annotatePC typ
     addAnnValue (AnnExprWithTySig (deltaFromSrcSpans (GHC.getLoc e) dd))
@@ -1430,15 +1424,15 @@ instance AnnotateP (GHC.HsTupArg GHC.RdrName) where
   annotateP l (GHC.Present e@(GHC.L le _)) = do
     annotatePC e
     mcp <- getAnnotationAP l GHC.AnnComma
-    let commaPos = deltaFromMaybeSrcSpans (Just le) mcp
+    let commaPos = deltaFromMaybeSrcSpans [le] mcp
     addAnnValue (AnnListItem commaPos)
-    return (Just $ maybe l id mcp)
+    return (Just $ maybeL l mcp)
 
   annotateP l (GHC.Missing _) = do
     mcp <- getAnnotationAP l GHC.AnnComma
-    let commaPos = deltaFromMaybeSrcSpans (Just l) mcp
+    let commaPos = deltaFromMaybeSrcSpans [l] mcp
     addAnnValue (AnnListItem commaPos)
-    return (Just $ maybe l id mcp)
+    return (Just $ maybeL l mcp)
 
 -- ---------------------------------------------------------------------
 
@@ -1809,8 +1803,8 @@ ghcIsVbar t = ghcIsTok t GHC.ITvbar
 
 ghcIsInteger :: PosToken -> Bool
 ghcIsInteger ((GHC.L _ t),_)  = case t of
-      GHC.ITinteger _ -> True
-      _               -> False
+      GHC.ITinteger _ _ -> True
+      _                 -> False
 
 ghcIsRational :: PosToken -> Bool
 ghcIsRational ((GHC.L _ t),_) = case t of
@@ -1832,27 +1826,27 @@ ghcIsComment ((GHC.L _ (GHC.ITlineComment _)),_s)     = True
 ghcIsComment ((GHC.L _ (GHC.ITblockComment _)),_s)    = True
 ghcIsComment ((GHC.L _ _),_s)                         = False
 
-ghcIsMultiLine :: GHC.Located GHC.Token -> Bool
-ghcIsMultiLine (GHC.L _ (GHC.ITdocCommentNext _))  = False
-ghcIsMultiLine (GHC.L _ (GHC.ITdocCommentPrev _))  = False
-ghcIsMultiLine (GHC.L _ (GHC.ITdocCommentNamed _)) = False
-ghcIsMultiLine (GHC.L _ (GHC.ITdocSection _ _))    = False
-ghcIsMultiLine (GHC.L _ (GHC.ITdocOptions _))      = False
-ghcIsMultiLine (GHC.L _ (GHC.ITdocOptionsOld _))   = False
-ghcIsMultiLine (GHC.L _ (GHC.ITlineComment _))     = False
-ghcIsMultiLine (GHC.L _ (GHC.ITblockComment _))    = True
+ghcIsMultiLine :: GHC.Located GHC.AnnotationComment -> Bool
+ghcIsMultiLine (GHC.L _ (GHC.AnnDocCommentNext _))  = False
+ghcIsMultiLine (GHC.L _ (GHC.AnnDocCommentPrev _))  = False
+ghcIsMultiLine (GHC.L _ (GHC.AnnDocCommentNamed _)) = False
+ghcIsMultiLine (GHC.L _ (GHC.AnnDocSection _ _))    = False
+ghcIsMultiLine (GHC.L _ (GHC.AnnDocOptions _))      = False
+ghcIsMultiLine (GHC.L _ (GHC.AnnDocOptionsOld _))   = False
+ghcIsMultiLine (GHC.L _ (GHC.AnnLineComment _))     = False
+ghcIsMultiLine (GHC.L _ (GHC.AnnBlockComment _))    = True
 ghcIsMultiLine (GHC.L _ _)                         = False
 
-ghcCommentText :: GHC.Located GHC.Token -> String
-ghcCommentText (GHC.L _ (GHC.ITdocCommentNext s))  = s
-ghcCommentText (GHC.L _ (GHC.ITdocCommentPrev s))  = s
-ghcCommentText (GHC.L _ (GHC.ITdocCommentNamed s)) = s
-ghcCommentText (GHC.L _ (GHC.ITdocSection _ s))    = s
-ghcCommentText (GHC.L _ (GHC.ITdocOptions s))      = s
-ghcCommentText (GHC.L _ (GHC.ITdocOptionsOld s))   = s
-ghcCommentText (GHC.L _ (GHC.ITlineComment s))     = s
-ghcCommentText (GHC.L _ (GHC.ITblockComment s))    = "{-" ++ s ++ "-}"
-ghcCommentText (GHC.L _ _)                         = ""
+ghcCommentText :: GHC.Located GHC.AnnotationComment -> String
+ghcCommentText (GHC.L _ (GHC.AnnDocCommentNext s))  = s
+ghcCommentText (GHC.L _ (GHC.AnnDocCommentPrev s))  = s
+ghcCommentText (GHC.L _ (GHC.AnnDocCommentNamed s)) = s
+ghcCommentText (GHC.L _ (GHC.AnnDocSection _ s))    = s
+ghcCommentText (GHC.L _ (GHC.AnnDocOptions s))      = s
+ghcCommentText (GHC.L _ (GHC.AnnDocOptionsOld s))   = s
+ghcCommentText (GHC.L _ (GHC.AnnLineComment s))     = s
+ghcCommentText (GHC.L _ (GHC.AnnBlockComment s))    = "{-" ++ s ++ "-}"
+ghcCommentText (GHC.L _ _)                          = ""
 
 ghcIsBlank :: PosToken -> Bool
 ghcIsBlank (_,s)  = s == ""
@@ -1862,12 +1856,14 @@ ghcIsBlankOrComment t = ghcIsBlank t || ghcIsComment t
 
 -- ---------------------------------------------------------------------
 
-maybeSrcSpan :: Maybe (GHC.Located a) -> Maybe GHC.SrcSpan
-maybeSrcSpan (Just (GHC.L ss _)) = Just ss
-maybeSrcSpan _ = Nothing
+-- | The '[SrcSpan]' should have zero or one element
+maybeSrcSpan :: Maybe (GHC.Located a) -> [GHC.SrcSpan]
+maybeSrcSpan (Just (GHC.L ss _)) = [ss]
+maybeSrcSpan _ = []
 
-deltaFromMaybeSrcSpans :: Maybe GHC.SrcSpan -> Maybe GHC.SrcSpan -> Maybe DeltaPos
-deltaFromMaybeSrcSpans (Just ss1) (Just ss2) = Just (deltaFromSrcSpans ss1 ss2)
+-- | The '[SrcSpan]' should have zero or one element
+deltaFromMaybeSrcSpans :: [GHC.SrcSpan] -> [GHC.SrcSpan] -> Maybe DeltaPos
+deltaFromMaybeSrcSpans [ss1] [ss2] = Just (deltaFromSrcSpans ss1 ss2)
 deltaFromMaybeSrcSpans _ _ = Nothing
 
 -- | Create a delta covering the gap between the end of the first
@@ -2050,3 +2046,7 @@ mergeBy cmp (allx@(x:xs)) (ally@(y:ys))
     | otherwise = y : mergeBy cmp allx ys
 
 
+maybeL :: Show a => a -> [a] -> a
+maybeL def [] = def
+maybeL _ [x] = x
+maybeL def xs = error $ "maybeL " ++ show (def,xs)

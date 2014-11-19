@@ -530,7 +530,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
         return ()
       Nothing -> return ()
     printStringAtMaybeDelta mw "where"
-    -- exactPC limps
+    -- exactP limps
 
     -- printSeq $ map (pos . ann &&& exactPC) decls
 
@@ -623,7 +623,7 @@ instance ExactP (GHC.ImportDecl GHC.RdrName) where
     printStringAtMaybeDeltaP p (id_op an) "("
     case GHC.ideclHiding imp of
       Nothing -> return ()
-      Just (_,ies) -> mapM_ exactPC ies
+      Just (_,GHC.L li ies) -> mapM_ exactPC ies
     printStringAtMaybeDelta (id_cp an) ")"
 
 -- ---------------------------------------------------------------------
@@ -974,19 +974,19 @@ instance ExactP (GHC.HsOverLit GHC.RdrName) where
 -- ++AZ++ TODO: rework when D412 is accepted
 instance ExactP GHC.HsLit where
   exactP lit = case lit of
-    GHC.HsChar       rw -> printString ('\'':rw:"\'")
-    x                   -> printString (showGhc x)
-{-
-    String     _ _ rw -> printString ('\"':rw ++ "\"")
-    Int        _ _ rw -> printString (rw)
-    Frac       _ _ rw -> printString (rw)
-    PrimInt    _ _ rw -> printString (rw ++ "#" )
-    PrimWord   _ _ rw -> printString (rw ++ "##")
-    PrimFloat  _ _ rw -> printString (rw ++ "#" )
-    PrimDouble _ _ rw -> printString (rw ++ "##")
-    PrimChar   _ _ rw -> printString ('\'':rw ++ "\'#" )
-    PrimString _ _ rw -> printString ('\"':rw ++ "\"#" )
--}
+    GHC.HsChar       src _   -> printString src
+    GHC.HsCharPrim   src _   -> printString src
+    GHC.HsString     src _   -> printString src
+    GHC.HsStringPrim src _   -> printString src
+    GHC.HsInt        src _   -> printString src
+    GHC.HsIntPrim    src _   -> printString src
+    GHC.HsWordPrim   src _   -> printString src
+    GHC.HsInt64Prim  src _   -> printString src
+    GHC.HsWord64Prim src _   -> printString src
+    GHC.HsInteger    src _ _ -> printString src
+    GHC.HsRat        (GHC.FL src _) _ -> printString src
+    GHC.HsFloatPrim  (GHC.FL src _)   -> printString src
+    GHC.HsDoublePrim (GHC.FL src _)   -> printString src
 
 {-
 data HsLit
@@ -1013,7 +1013,6 @@ data HsLit
 
 
 instance ExactP (GHC.TyClDecl GHC.RdrName) where
-  exactP (GHC.ForeignType _ _)    = printString "ForeignType"
   exactP (GHC.FamDecl  _)         = printString "FamDecl"
   exactP (GHC.SynDecl  _ _ _ _)   = printString "SynDecl"
 
@@ -1051,7 +1050,7 @@ instance ExactP (GHC.ConDecl GHC.RdrName) where
   exactP (GHC.ConDecl ln exp qvars ctx dets res _ _) = do
     Just (AnnConDecl mp) <- getAnnValue :: EP (Maybe AnnTyClDecl)
     -- let [(Ann lcs _ (AnnConDecl mp))] = getAnn isAnnConDecl ma "ConDecl"
-    exactPC ln
+    mapM_ exactPC ln
     printStringAtMaybeDelta mp "|"
 
 

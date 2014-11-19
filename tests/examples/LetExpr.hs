@@ -22,7 +22,7 @@ import qualified Data.Map as {- blah -}  Foo.Map
 import Control.Monad  (   )
 import Data.Word (Word8)
 import Data.Tree hiding  (  drawTree   )
-import qualified Data.Text as T hiding    ( pack  , unpack  )
+import qualified Data.Maybe as M hiding    ( maybe  , isJust  )
 
 -- comment
 foo = let x = 1

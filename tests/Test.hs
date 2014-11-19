@@ -12,6 +12,8 @@ import qualified FastString    as GHC
 import qualified DynFlags      as GHC
 import qualified GHC           as GHC
 
+import qualified GHC.SYB.Utils as SYB
+
 import System.FilePath
 import System.IO
 import System.Directory
@@ -52,15 +54,15 @@ manipulateAstTest sources = do
   (ghcAnns,t,toks) <- parsedFileGhc file
   let
     parsed@(GHC.L l hsmod) = GHC.pm_parsed_source $ GHC.tm_parsed_module t
-    -- parsedAST = SYB.showData SYB.Parser 0 parsed
-    parsedAST = showGhc parsed
+    parsedAST = SYB.showData SYB.Parser 0 parsed
+    -- parsedAST = showGhc parsed
     comments = toksToComments toks
        -- `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
     -- try to pretty-print; summarize the test result
     -- printed = exactPrint parsed comments toks
     -- ann = annotate parsed comments toks
     ann = annotate parsed comments toks ghcAnns
-      -- `debug` ("toks:" ++ show toks)
+      `debug` ("toks:" ++ show toks)
       -- `debug` ("ghcAnns:" ++ showGhc ghcAnns)
       -- `debug` ("ann:" ++ (show $ snd ann))
       -- `debug` ("comments:toks" ++ show (take 10 toks))
