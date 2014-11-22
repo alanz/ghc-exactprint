@@ -22,14 +22,13 @@
 --
 -----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint
-        ( annotate
+        ( annotateAST
         , exactPrintAnnotated
         , exactPrintAnnotation
 
         , exactPrint
         , ExactP
 
-        , toksToComments
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Types
@@ -120,10 +119,6 @@ isNullSpan ss = spanSize ss == (0,0)
 spanSize :: GHC.SrcSpan -> (Int, Int)
 spanSize ss = (srcSpanEndLine ss - srcSpanStartLine ss,
                max 0 (srcSpanEndColumn ss - srcSpanStartColumn ss))
-
-toksToComments :: [PosToken] -> [Comment]
-toksToComments toks = []
-
 
 ------------------------------------------------------
 -- The EP monad and basic combinators
@@ -311,24 +306,25 @@ exactPrint ast@(GHC.L l _) cs toks = runEP (exactPC ast) l cs (Map.empty,Map.emp
 
 
 exactPrintAnnotated ::
-     GHC.Located (GHC.HsModule GHC.RdrName)
-  -> [Comment] -> [PosToken] -> GHC.ApiAnns -> String
-exactPrintAnnotated ast@(GHC.L l _) cs toks ghcAnns = runEP (loadInitialComments >> exactPC ast) l [] ann
+     GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns -> String
+exactPrintAnnotated ast@(GHC.L l _) ghcAnns = runEP (loadInitialComments >> exactPC ast) l [] ann
   where
-    ann = annotateLHsModule ast cs toks ghcAnns
+    ann = annotateLHsModule ast ghcAnns
 
 exactPrintAnnotation :: ExactP ast =>
   GHC.Located ast -> [Comment] -> Anns -> String
 exactPrintAnnotation ast@(GHC.L l _) cs ann = runEP (loadInitialComments >> exactPC ast) l cs ann
   -- `debug` ("exactPrintAnnotation:ann=" ++ (concatMap (\(l,a) -> show (ss2span l,a)) $ Map.toList ann ))
 
-annotate :: GHC.Located (GHC.HsModule GHC.RdrName) -> [Comment] -> [PosToken] -> GHC.ApiAnns -> Anns
-annotate ast cs toks ghcAnns = annotateLHsModule ast cs toks ghcAnns
+annotateAST :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns -> Anns
+annotateAST ast ghcAnns = annotateLHsModule ast ghcAnns
 
 loadInitialComments :: EP ()
 loadInitialComments = do
+  return () `debug` ("loadInitialComments entered")
   Just (Ann cs _) <- getAnnotation (GHC.L GHC.noSrcSpan ())
-  mergeComments cs
+  mergeComments cs `debug` ("loadInitialComments cs=" ++ show cs)
+  return () `debug` ("loadInitialComments exited")
   return ()
 
 -- |First move to the given location, then call exactP
@@ -530,6 +526,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
         return ()
       Nothing -> return ()
     printStringAtMaybeDelta mw "where"
+{- ++AZ++ debug start
     exactP limps
 
     -- printSeq $ map (pos . ann &&& exactPC) decls
@@ -538,6 +535,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
     pe <- getPos
     padUntil (undelta pe ep) `debug` ("exactP.HsModule:(pe,ep)=" ++ show (pe,ep))
     printString ""
+++AZ++ debug end -}
 
 -- ---------------------------------------------------------------------
 

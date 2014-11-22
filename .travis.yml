@@ -1,0 +1,9 @@
+language: haskell
+
+ghc:
+  - HEAD
+
+install:
+ - cabal update
+ - cabal install --only-dependencies --enable-tests
+

@@ -84,7 +84,7 @@ debug = flip trace
 --    - the matching sets of enclosed SrcSpans per entry in the first,
 --    - the comment stream that has not yet been allocated to
 --      annotations,
---    - the annotations provided by GH
+--    - the annotations provided by GHC
 
 {- -}
 newtype AP x = AP ([(GHC.SrcSpan,TypeRep)] -> [[GHC.SrcSpan]] -> [GHC.SrcSpan] -> [Comment] -> GHC.ApiAnns
@@ -131,9 +131,9 @@ instance Monad AP where
   --   in (b, st2, s1 <> s2)
   --      `debug` (">>= : " ++ show (st1,st2,s1 <> s2))
 
-runAP :: AP () -> [Comment] -> GHC.ApiAnns -> Anns
-runAP (AP f) cs ga
- = let (_,_,_,_,_,_,(se,su)) = f [] [] [GHC.noSrcSpan] cs ga
+runAP :: AP () -> GHC.ApiAnns -> Anns
+runAP (AP f) ga
+ = let (_,_,_,_,_,_,(se,su)) = f [] [] [GHC.noSrcSpan] [] ga
  -- = let -- st = S [] [] cs ga
  --       (_,st',(se,su)) = f (S [] [] cs ga) -- `debug` ("runAP:initial state=" ++ show st)
    in (Map.fromList se,Map.fromList su)
@@ -266,6 +266,7 @@ addAnnValue v = AP (\l (h:r)                pe cs ga ->
 -- | Enter a new AST element. Maintain SrcSpan stack
 enterAST :: (Typeable a) => GHC.Located a -> AP ()
 enterAST lss = do
+  return () `debug` ("enterAST entered")
   pushSrcSpan lss
   return ()
 
@@ -302,9 +303,9 @@ class (Typeable ast) => AnnotateP ast where
 -- |First move to the given location, then call exactP
 annotatePC :: (AnnotateP ast) => GHC.Located ast -> AP ()
 annotatePC a@(GHC.L l ast) = do
-  enterAST a -- `debug` ("annotatePC:entering " ++ showGhc l)
+  enterAST a `debug` ("annotatePC:entering " ++ showGhc l)
   end <- annotateP l ast
-  leaveAST end -- `debug` ("annotatePC:leaving " ++ showGhc (l,end))
+  leaveAST end `debug` ("annotatePC:leaving " ++ showGhc (l))
 
 
 annotateMaybe :: (AnnotateP ast) => Maybe (GHC.Located ast) -> AP ()
@@ -319,11 +320,10 @@ annotateList xs = mapM_ annotatePC xs
 
 -- ---------------------------------------------------------------------
 
-annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName)
-  -> [Comment] -> [PosToken] -> GHC.ApiAnns
-  -> Anns
-annotateLHsModule modu cs toks ghcAnns
-   = runAP (annotatePC modu >> addFinalComments) cs ghcAnns
+annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns
+                  -> Anns
+annotateLHsModule modu ghcAnns
+   = runAP (annotatePC modu >> addFinalComments) ghcAnns
 
 addFinalComments :: AP ()
 addFinalComments = do
@@ -338,14 +338,13 @@ addFinalComments = do
 
 instance AnnotateP (GHC.HsModule GHC.RdrName) where
   annotateP lm (GHC.HsModule mmn mexp imps decs _depr _haddock) = do
+    return () `debug` ("annotateP.HsModule entered")
     pushPriorEnd lm
     am <- getAnnotationAP lm GHC.AnnModule
     aw <- getAnnotationAP lm GHC.AnnWhere
     let pm = deltaFromMaybeSrcSpans [lm] am
         pn = deltaFromMaybeSrcSpans am (maybeSrcSpan mmn)
         po = deltaFromMaybeSrcSpans (maybeSrcSpan mmn) (maybeSrcSpan mexp)
-            -- `debug` ("annotateLHsModule:(po,mmn,mexp)=" ++ show (po,maybeSrcSpan mmn,maybeSrcSpan mexp))
-            -- `debug` ("annotateLHsModule:(pc,mEndExps,mCp)=" ++ show (pc,mEndExps,mCp))
 
     mCp <- case mexp of
       Nothing            -> return []
@@ -363,11 +362,11 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
         annotatePC exp
         popPriorEnd
 
-    annotateList imps
+    -- annotateList imps
 
     addAnnValue (AnnHsModule pm pn pw lpo) -- `debug` ("annotateP.HsModule:adding ann")
 
-    mapM_ annotatePC decs
+    -- mapM_ annotatePC decs
 
     return (Just lm)
 -- 'module' mmn '(' mexp  ')' 'where'
@@ -483,7 +482,7 @@ ImportDecl
 
 -}
 instance AnnotateP (GHC.ImportDecl GHC.RdrName) where
-  annotateP l (GHC.ImportDecl (GHC.L ln _) _pkg _src _safe qual _impl as hiding) = do
+ annotateP l (GHC.ImportDecl (GHC.L ln _) _pkg _src _safe qual _impl as hiding) = do
   ma <- getAnnotationAP l GHC.AnnSemi
   let ms = deltaFromMaybeSrcSpans [l] ma
   addAnnValue (AnnListItem ms)
@@ -1826,7 +1825,6 @@ ghcIsMultiLine (GHC.L _ (GHC.AnnDocOptions _))      = False
 ghcIsMultiLine (GHC.L _ (GHC.AnnDocOptionsOld _))   = False
 ghcIsMultiLine (GHC.L _ (GHC.AnnLineComment _))     = False
 ghcIsMultiLine (GHC.L _ (GHC.AnnBlockComment _))    = True
-ghcIsMultiLine (GHC.L _ _)                         = False
 
 ghcCommentText :: GHC.Located GHC.AnnotationComment -> String
 ghcCommentText (GHC.L _ (GHC.AnnDocCommentNext s))  = s
@@ -1837,7 +1835,6 @@ ghcCommentText (GHC.L _ (GHC.AnnDocOptions s))      = s
 ghcCommentText (GHC.L _ (GHC.AnnDocOptionsOld s))   = s
 ghcCommentText (GHC.L _ (GHC.AnnLineComment s))     = s
 ghcCommentText (GHC.L _ (GHC.AnnBlockComment s))    = "{-" ++ s ++ "-}"
-ghcCommentText (GHC.L _ _)                          = ""
 
 ghcIsBlank :: PosToken -> Bool
 ghcIsBlank (_,s)  = s == ""

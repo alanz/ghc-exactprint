@@ -11,6 +11,7 @@ import GHC.Paths ( libdir )
 import qualified FastString    as GHC
 import qualified DynFlags      as GHC
 import qualified GHC           as GHC
+import qualified Outputable    as GHC
 
 import qualified GHC.SYB.Utils as SYB
 
@@ -56,16 +57,12 @@ manipulateAstTest sources = do
     parsed@(GHC.L l hsmod) = GHC.pm_parsed_source $ GHC.tm_parsed_module t
     parsedAST = SYB.showData SYB.Parser 0 parsed
     -- parsedAST = showGhc parsed
-    comments = toksToComments toks
        -- `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
     -- try to pretty-print; summarize the test result
-    -- printed = exactPrint parsed comments toks
-    -- ann = annotate parsed comments toks
-    ann = annotate parsed comments toks ghcAnns
-      -- `debug` ("toks:" ++ show toks)
+    ann = annotateAST parsed ghcAnns
       -- `debug` ("ghcAnns:" ++ showGhc ghcAnns)
       -- `debug` ("ann:" ++ (show $ snd ann))
-      -- `debug` ("comments:toks" ++ show (take 10 toks))
+      -- `debug` ("ann:" ++ (show $ fst ann))
 
     Just (GHC.L le exps) = GHC.hsmodExports hsmod
     secondExp@(GHC.L l2 _) = head $ tail exps
@@ -76,8 +73,6 @@ manipulateAstTest sources = do
     -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (init exps) }))
 
     -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (GHC.L le (head exps:(head $ tail exps):tail exps)) }))
-    -- printed = exactPrintAnnotation parsed' comments ann
-    -- printed = exactPrintAnnotation parsed' [] ann
     -- ((16,9),(16,27))
     ss = GHC.mkSrcSpan (GHC.mkSrcLoc (GHC.mkFastString "examples/PatBind.hs") 16 9)
                        (GHC.mkSrcLoc (GHC.mkFastString "examples/PatBind.hs") 16 27)
@@ -87,17 +82,25 @@ manipulateAstTest sources = do
     printed = exactPrintAnnotation parsed [] ann -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
        -- `debug` ("ann=" ++ (show (snd ann)))
        -- `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
-
     result =
             if printed == contents
               then "Match\n"
               else printed ++ "\n==============\n"
                     ++ "lengths:" ++ show (length printed,length contents) ++ "\n"
                     ++ parsedAST
-  -- putStrLn $ "Test:ann=" ++ show ann
+  -- putStrLn $ "Test:parsed=" ++ parsedAST
+  -- putStrLn $ "Test:ghcAnns:fst=" ++ show (fst ghcAnns)
+  -- putStrLn $ "Test:ghcAnns:snd=" ++ showGhc (snd ghcAnns)
+  -- putStrLn $ "Test2:empty ann=" ++ show ((Map.empty,Map.empty) :: Anns)
+  -- putStrLn $ "Test2:ann=[" ++ show (annotateAST parsed ghcAnns) ++ "]"
+  putStrLn $ "Test3:ann=[" ++ show ann ++ "]"
   writeFile out $ result
   return ()
 -- }}}
+
+instance GHC.Outputable GHC.AnnotationComment where
+  ppr x = GHC.text (show x)
+
 
 -- ---------------------------------------------------------------------
 -- |Result of parsing a Haskell source file. It is simply the
