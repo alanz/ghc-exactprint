@@ -93,13 +93,10 @@ manipulateAstTest sources = do
   -- putStrLn $ "Test:ghcAnns:snd=" ++ showGhc (snd ghcAnns)
   -- putStrLn $ "Test2:empty ann=" ++ show ((Map.empty,Map.empty) :: Anns)
   -- putStrLn $ "Test2:ann=[" ++ show (annotateAST parsed ghcAnns) ++ "]"
-  putStrLn $ "Test3:ann=[" ++ show ann ++ "]"
+  -- putStrLn $ "Test3:ann=[" ++ show ann ++ "]"
   writeFile out $ result
   return ()
 -- }}}
-
-instance GHC.Outputable GHC.AnnotationComment where
-  ppr x = GHC.text (show x)
 
 
 -- ---------------------------------------------------------------------

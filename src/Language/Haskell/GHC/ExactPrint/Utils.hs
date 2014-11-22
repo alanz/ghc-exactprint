@@ -293,7 +293,7 @@ leaveAST end = do
   let dp = deltaFromSrcSpans priorEnd ss
   addAnnotationsAP (Ann lcs dp)
   popSrcSpan
-  return () -- `debug` ("leaveAST:1")
+  return () `debug` ("leaveAST:dp=" ++ show dp)
 
 -- ---------------------------------------------------------------------
 
@@ -340,8 +340,8 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
   annotateP lm (GHC.HsModule mmn mexp imps decs _depr _haddock) = do
     return () `debug` ("annotateP.HsModule entered")
     pushPriorEnd lm
-    am <- getAnnotationAP lm GHC.AnnModule
-    aw <- getAnnotationAP lm GHC.AnnWhere
+    am   <- getAnnotationAP lm GHC.AnnModule
+    [aw] <- getAnnotationAP lm GHC.AnnWhere
     let pm = deltaFromMaybeSrcSpans [lm] am
         pn = deltaFromMaybeSrcSpans am (maybeSrcSpan mmn)
         po = deltaFromMaybeSrcSpans (maybeSrcSpan mmn) (maybeSrcSpan mexp)
@@ -351,7 +351,7 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
       Just (GHC.L le es) -> getAnnotationAP le GHC.AnnClose
 
     let
-        pw = deltaFromMaybeSrcSpans mCp aw
+        pw = deltaFromMaybeSrcSpans mCp [aw]
 
     let lpo = deltaFromSrcSpans lm lm
     case mexp of
@@ -362,13 +362,13 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
         annotatePC exp
         popPriorEnd
 
-    -- annotateList imps
+    annotateList imps
 
     addAnnValue (AnnHsModule pm pn pw lpo) -- `debug` ("annotateP.HsModule:adding ann")
 
     -- mapM_ annotatePC decs
 
-    return (Just lm)
+    return (Just aw) `debug` ("annotateP.HsModule: returning " ++ show (Just (ss2span aw)))
 -- 'module' mmn '(' mexp  ')' 'where'
 
 -- ---------------------------------------------------------------------
@@ -487,12 +487,16 @@ instance AnnotateP (GHC.ImportDecl GHC.RdrName) where
   let ms = deltaFromMaybeSrcSpans [l] ma
   addAnnValue (AnnListItem ms)
   [ip] <- getAnnotationAP l GHC.AnnImport
+
+  -- "{-# SOURCE" and "#-}"
   mss  <- getAnnotationAP l GHC.AnnOpen
   mse  <- getAnnotationAP l GHC.AnnClose
+
   ms   <- getAnnotationAP l GHC.AnnSafe
   mq   <- getAnnotationAP l GHC.AnnQualified
-  mas  <- getAnnotationAP l GHC.AnnAs
   mp   <- getAnnotationAP l GHC.AnnPackageName
+  mas  <- getAnnotationAP l GHC.AnnAs
+  masn <- getAnnotationAP l GHC.AnnVal
 
   -- 'import' maybe_src maybe_safe optqualified maybe_pkg modid maybeas maybeimpspec
 
@@ -504,8 +508,13 @@ instance AnnotateP (GHC.ImportDecl GHC.RdrName) where
                  _ -> Nothing
       mSafePos = deltaFromLastSrcSpan ([ip] ++ mse) ms
       mQualPos = deltaFromLastSrcSpan ([ip] ++ mse ++ ms) mq
-      mAsPos   = deltaFromLastSrcSpan ([ip] ++ mse ++ ms ++ mq) mas
-
+      mpPos    =  deltaFromLastSrcSpan ([ip] ++ mse ++ ms ++ mq) mp
+      mnPos = deltaFromSrcSpans ip ln
+      mAsPos   = case (mas,masn) of
+        ([ap],[np]) ->
+          Just ( deltaFromSrcSpans ln ap
+               , deltaFromSrcSpans ap np)
+        _ -> Nothing
 
   mHidingPos <- case hiding of
     Nothing -> return Nothing
@@ -514,8 +523,7 @@ instance AnnotateP (GHC.ImportDecl GHC.RdrName) where
       annotatePC lie
       return (deltaFromLastSrcSpan ([ip] ++ mse ++ ms ++ mq ++ mas) mh)
 
-  addAnnValue (AnnImportDecl impPos mSrcPos mSafePos mQualPos mAsPos mHidingPos)
-    `debug` ("annotateP.ImportDecl:a=" ++ show (AnnImportDecl impPos mSrcPos mSafePos mQualPos mAsPos mHidingPos))
+  addAnnValue (AnnImportDecl impPos mSrcPos mSafePos mQualPos mpPos mnPos mAsPos mHidingPos)
   return Nothing
 
 -- =====================================================================

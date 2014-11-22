@@ -139,12 +139,14 @@ IEDocNamed String
 
 data AnnImportDecl =
   AnnImportDecl
-     { id_import    :: !DeltaPos
-     , id_source    :: !(Maybe (DeltaPos,DeltaPos)) -- {-# SOURCE #-}
-     , id_safe      :: !(Maybe DeltaPos)
-     , id_qualified :: !(Maybe DeltaPos)
-     , id_as        :: !(Maybe DeltaPos)
-     , id_hiding    :: !(Maybe DeltaPos)
+     { id_import     :: !DeltaPos
+     , id_source     :: !(Maybe (DeltaPos,DeltaPos)) -- {-# SOURCE #-}
+     , id_safe       :: !(Maybe DeltaPos)
+     , id_qualified  :: !(Maybe DeltaPos)
+     , id_pkg        :: !(Maybe DeltaPos)
+     , id_modulename :: !DeltaPos
+     , id_as         :: !(Maybe (DeltaPos,DeltaPos))
+     , id_hiding     :: !(Maybe DeltaPos)
      }
   deriving (Show,Typeable,Eq)
 

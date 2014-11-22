@@ -321,17 +321,17 @@ annotateAST ast ghcAnns = annotateLHsModule ast ghcAnns
 
 loadInitialComments :: EP ()
 loadInitialComments = do
-  return () `debug` ("loadInitialComments entered")
+  -- return () `debug` ("loadInitialComments entered")
   Just (Ann cs _) <- getAnnotation (GHC.L GHC.noSrcSpan ())
-  mergeComments cs `debug` ("loadInitialComments cs=" ++ show cs)
-  return () `debug` ("loadInitialComments exited")
+  mergeComments cs -- `debug` ("loadInitialComments cs=" ++ show cs)
+  -- return () `debug` ("loadInitialComments exited")
   return ()
 
 -- |First move to the given location, then call exactP
 exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC a@(GHC.L l ast) =
  -- let p = pos l
-    do setSrcSpan l -- `debug` ("exactPC entered for:" ++ showGhc l)
+    do setSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAnnotation a
        (off@(DP (r,c)),cs) <- case ma of
          Nothing -> return ((DP (0,0)),[])
@@ -343,7 +343,7 @@ exactPC a@(GHC.L l ast) =
                  dp = ann_delta ann
        pe <- getPos
        let p = undelta pe off
-       mPrintComments p `debug` ("exactPC:(p,off)=" ++ show (p,off))
+       mPrintComments p -- `debug` ("exactPC:(p,off)=" ++ show (p,off))
        padUntil p
        mergeComments cs
 
@@ -526,7 +526,6 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
         return ()
       Nothing -> return ()
     printStringAtMaybeDelta mw "where"
-{- ++AZ++ debug start
     exactP limps
 
     -- printSeq $ map (pos . ann &&& exactPC) decls
@@ -535,7 +534,6 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
     pe <- getPos
     padUntil (undelta pe ep) `debug` ("exactP.HsModule:(pe,ep)=" ++ show (pe,ep))
     printString ""
-++AZ++ debug end -}
 
 -- ---------------------------------------------------------------------
 
@@ -553,12 +551,6 @@ instance ExactP [GHC.LIE GHC.RdrName] where
     p <- getPos
     return () `debug` ("exactP.[LIE]:(p,ann)" ++ show (p,AnnHsExports cp))
     printStringAtDelta cp ")"
-
--- ---------------------------------------------------------------------
-
-instance ExactP [GHC.LImportDecl GHC.RdrName] where
-  exactP imps = mapM_ exactPC imps
-  -- Trailing semis?
 
 -- ---------------------------------------------------------------------
 
@@ -606,10 +598,16 @@ instance ExactP (GHC.IE GHC.RdrName) where
 
 -- ---------------------------------------------------------------------
 
+instance ExactP [GHC.LImportDecl GHC.RdrName] where
+  exactP imps = mapM_ exactPC imps
+  -- Trailing semis?
+
+-- ---------------------------------------------------------------------
+
 instance ExactP (GHC.ImportDecl GHC.RdrName) where
   exactP imp = do
     Just an <- getAnnValue :: EP (Maybe AnnImportDecl)
-    printString "import"
+    printString "import" `debug` ("exactP.ImportDecl: an=" ++ show an)
     case id_source an of
       Nothing -> return ()
       Just (od,cd) -> do
@@ -618,8 +616,15 @@ instance ExactP (GHC.ImportDecl GHC.RdrName) where
 
     printStringAtMaybeDelta (id_safe an) "safe"
     printStringAtMaybeDelta (id_qualified an) "qualified"
+    printStringAtDelta (id_modulename an) ""
     exactPC (GHC.ideclName imp)
-    printStringAtMaybeDelta(id_as an) "as"
+    case id_as an of
+      Just (ap,np) -> do
+        printStringAtDelta ap "as"
+        printStringAtDelta np ""
+        exactPC (GHC.ideclName imp)
+
+      Nothing -> return ()
     case GHC.ideclHiding imp of
       Nothing -> return ()
       Just (isHiding,lie) -> exactPC lie
