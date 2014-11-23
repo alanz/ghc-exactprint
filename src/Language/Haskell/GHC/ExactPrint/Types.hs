@@ -96,9 +96,12 @@ data Annotation = Ann
 -- Specific annotation types
 
 data AnnHsModule = AnnHsModule
-    { m_module :: !(Maybe DeltaPos) -- module
-    , m_n      :: !(Maybe DeltaPos) -- name
-    , m_where  :: !(Maybe DeltaPos) -- where
+    { m_module  :: !(Maybe DeltaPos) -- module
+    , m_n       :: !(Maybe DeltaPos) -- name
+    , m_where   :: !(Maybe DeltaPos) -- where
+    , m_obrace  :: !(Maybe DeltaPos) -- '{'
+    , m_semi    :: !(Maybe DeltaPos) -- ';'
+    , m_cbrace  :: !(Maybe DeltaPos) -- '}'
     , m_fileEnd :: !DeltaPos
     }
   deriving (Show,Typeable,Eq)
@@ -148,6 +151,7 @@ data AnnImportDecl =
      , id_modulename :: !DeltaPos
      , id_as         :: !(Maybe (DeltaPos,DeltaPos))
      , id_hiding     :: !(Maybe DeltaPos)
+     , id_semi       :: !(Maybe DeltaPos) -- Trailing semi, if present
      }
   deriving (Show,Typeable,Eq)
 

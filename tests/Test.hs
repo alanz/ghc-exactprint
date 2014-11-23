@@ -35,7 +35,8 @@ debug = flip trace
 main :: IO ()
 main = do
     putStrLn "hello"
-    manipulateAstTest ["examples/LetExpr.hs"]
+    -- manipulateAstTest ["examples/LetExpr.hs"]
+    manipulateAstTest ["examples/LetExprSemi.hs"]
     -- manipulateAstTest ["examples/Tuple.hs"]
     putStrLn "done"
 

@@ -342,9 +342,14 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
     pushPriorEnd lm
     am   <- getAnnotationAP lm GHC.AnnModule
     [aw] <- getAnnotationAP lm GHC.AnnWhere
+    mob  <- getAnnotationAP lm GHC.AnnOpen
+    ms   <- getAnnotationAP lm GHC.AnnSemi
+    mcb  <- getAnnotationAP lm GHC.AnnClose
+
     let pm = deltaFromMaybeSrcSpans [lm] am
         pn = deltaFromMaybeSrcSpans am (maybeSrcSpan mmn)
         po = deltaFromMaybeSrcSpans (maybeSrcSpan mmn) (maybeSrcSpan mexp)
+        pob = deltaFromMaybeSrcSpans [aw] mob
 
     mCp <- case mexp of
       Nothing            -> return []
@@ -362,13 +367,18 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
         annotatePC exp
         popPriorEnd
 
-    pushPriorEnd aw
+    pushPriorEnd (last (aw:mob))
     annotateList imps
+    ss <- getPriorEnd
+    let ps = deltaFromMaybeSrcSpans [ss] ms
     popPriorEnd
 
-    addAnnValue (AnnHsModule pm pn pw lpo) -- `debug` ("annotateP.HsModule:adding ann")
 
     -- mapM_ annotatePC decs
+    ss2 <- getPriorEnd
+    let pcb = deltaFromMaybeSrcSpans [ss2] mcb
+
+    addAnnValue (AnnHsModule pm pn pw pob ps pcb lpo) -- `debug` ("annotateP.HsModule:adding ann")
     return (Just aw) `debug` ("annotateP.HsModule: returning " ++ show (Just (ss2span aw)))
 -- 'module' mmn '(' mexp  ')' 'where'
 

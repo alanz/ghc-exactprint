@@ -502,7 +502,7 @@ class (Typeable ast) => ExactP ast where
 
 instance ExactP (GHC.HsModule GHC.RdrName) where
   exactP (GHC.HsModule Nothing exps imps decls deprecs haddock) = do
-    Just (AnnHsModule mm mn mw ep) <- getAnnValue :: EP (Maybe AnnHsModule)
+    Just (AnnHsModule mm mn mw mob ms mcb ep) <- getAnnValue :: EP (Maybe AnnHsModule)
     -- let Just [Ann _ _ (AnnHsModule mm mn mo mc mw ep)] = ma
     printSeq $ map (pos . ann &&& exactPC) decls
 
@@ -514,7 +514,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
   exactP (GHC.HsModule (Just lmn@(GHC.L l mn)) mexp limps decls deprecs haddock) = do
     ss <- getSrcSpan
     return () `debug` ("exactP.HsModule:ss=" ++ showGhc ss)
-    Just (AnnHsModule mm mn mw ep) <- getAnnValue :: EP (Maybe AnnHsModule)
+    Just (AnnHsModule mm mn mw mob ms mcb ep) <- getAnnValue :: EP (Maybe AnnHsModule)
     mAnn <- getAnnotation (GHC.L l ())
     let p = (1,1)
     printStringAtMaybeDelta mm "module" -- `debug` ("exactP.HsModule:cs=" ++ show cs)
@@ -526,9 +526,14 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
         return ()
       Nothing -> return ()
     printStringAtMaybeDelta mw "where"
+    printStringAtMaybeDelta mob "{"
     exactP limps
 
+    printStringAtMaybeDelta ms ";"
+
     -- printSeq $ map (pos . ann &&& exactPC) decls
+
+    printStringAtMaybeDelta mcb "}"
 
     -- put the end of file whitespace in
     pe <- getPos
