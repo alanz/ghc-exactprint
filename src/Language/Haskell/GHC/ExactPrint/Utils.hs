@@ -177,8 +177,8 @@ pushPriorEnd :: GHC.SrcSpan -> AP ()
 pushPriorEnd s = AP (\ls ss pe cs ga  -> ((),ls,ss,s:pe,cs,ga,([],[])))
 
 popPriorEnd :: AP ()
-popPriorEnd = AP (\ls ss (p:pe) cs ga -> ((),ls,ss,  pe,cs,ga,([],[])))
-
+popPriorEnd = AP (\ls ss (p:pe) cs ga -> ((),ls,ss,  pe,cs,ga,([],[]))
+ `debug` ("popPriorEnd: old stack :" ++ showGhc (p:pe)))
 -- -------------------------------------
 
 getAnnotationAP :: GHC.SrcSpan -> GHC.AnnKeywordId -> AP [GHC.SrcSpan]
@@ -266,7 +266,7 @@ addAnnValue v = AP (\l (h:r)                pe cs ga ->
 -- | Enter a new AST element. Maintain SrcSpan stack
 enterAST :: (Typeable a) => GHC.Located a -> AP ()
 enterAST lss = do
-  return () `debug` ("enterAST entered")
+  return () `debug` ("enterAST entered for " ++ show (ss2span $ GHC.getLoc lss))
   pushSrcSpan lss
   return ()
 
@@ -283,7 +283,7 @@ leaveAST end = do
   priorEnd <- getPriorEnd
   popPriorEnd
   case end of
-    Nothing -> pushPriorEnd priorEnd -- keep it?
+    Nothing -> pushPriorEnd ss -- use SrcSpan
     Just pe -> pushPriorEnd pe
 
   newCs <- getCommentsForSpan ss
@@ -293,7 +293,7 @@ leaveAST end = do
   let dp = deltaFromSrcSpans priorEnd ss
   addAnnotationsAP (Ann lcs dp)
   popSrcSpan
-  return () `debug` ("leaveAST:dp=" ++ show dp)
+  return () `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
 
 -- ---------------------------------------------------------------------
 
@@ -362,12 +362,13 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
         annotatePC exp
         popPriorEnd
 
+    pushPriorEnd aw
     annotateList imps
+    popPriorEnd
 
     addAnnValue (AnnHsModule pm pn pw lpo) -- `debug` ("annotateP.HsModule:adding ann")
 
     -- mapM_ annotatePC decs
-
     return (Just aw) `debug` ("annotateP.HsModule: returning " ++ show (Just (ss2span aw)))
 -- 'module' mmn '(' mexp  ')' 'where'
 
@@ -375,21 +376,24 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
 
 instance AnnotateP [GHC.LIE GHC.RdrName] where
    annotateP l ls = do
-     ss <- getPriorEnd
      [op] <- getAnnotationAP l GHC.AnnOpen
      [cp] <- getAnnotationAP l GHC.AnnClose
      let
        ee = if null ls
-               then GHC.mkSrcSpan (GHC.srcSpanStart l) (GHC.srcSpanStart l)
+               then op
                else GHC.getLoc (last ls)
 
-     let pc = deltaFromSrcSpans ee cp
+     ss <- getPriorEnd
+     let po = if GHC.srcSpanStart ss >= GHC.srcSpanStart l
+                then deltaFromSrcSpans ss op
+                else DP (0,0)
+         pc = deltaFromSrcSpans ee cp
 
      pushPriorEnd op
      mapM_ annotatePC ls
      popPriorEnd
 
-     addAnnValue (AnnHsExports pc)
+     addAnnValue (AnnHsExports po pc)
 
      return (Just l)
 
@@ -486,6 +490,7 @@ instance AnnotateP (GHC.ImportDecl GHC.RdrName) where
   ma <- getAnnotationAP l GHC.AnnSemi
   let ms = deltaFromMaybeSrcSpans [l] ma
   addAnnValue (AnnListItem ms)
+
   [ip] <- getAnnotationAP l GHC.AnnImport
 
   -- "{-# SOURCE" and "#-}"
@@ -500,17 +505,17 @@ instance AnnotateP (GHC.ImportDecl GHC.RdrName) where
 
   -- 'import' maybe_src maybe_safe optqualified maybe_pkg modid maybeas maybeimpspec
 
-  let impPos = DP (0,0) -- deltaFromSrcSpans l ip
+  let impPos = deltaFromSrcSpans l ip
       mSrcStart = deltaFromMaybeSrcSpans [ip] mss
       mSrcEnd   = deltaFromMaybeSrcSpans mss mse
       mSrcPos = case (mSrcStart,mSrcEnd) of
                  (Just s,Just e) -> Just (s,e)
                  _ -> Nothing
-      mSafePos = deltaFromLastSrcSpan ([ip] ++ mse) ms
-      mQualPos = deltaFromLastSrcSpan ([ip] ++ mse ++ ms) mq
-      mpPos    =  deltaFromLastSrcSpan ([ip] ++ mse ++ ms ++ mq) mp
-      mnPos = deltaFromSrcSpans ip ln
-      mAsPos   = case (mas,masn) of
+      mSafePos  = deltaFromLastSrcSpan ([ip] ++ mse) ms
+      mQualPos  = deltaFromLastSrcSpan ([ip] ++ mse ++ ms) mq
+      mpPos     = deltaFromLastSrcSpan ([ip] ++ mse ++ ms ++ mq) mp
+      Just nPos = deltaFromLastSrcSpan ([ip] ++ mse ++ ms ++ mq ++ mp) [ln]
+      mAsPos    = case (mas,masn) of
         ([ap],[np]) ->
           Just ( deltaFromSrcSpans ln ap
                , deltaFromSrcSpans ap np)
@@ -519,12 +524,14 @@ instance AnnotateP (GHC.ImportDecl GHC.RdrName) where
   mHidingPos <- case hiding of
     Nothing -> return Nothing
     Just (isHiding,lie@(GHC.L lh _)) -> do
-      mh   <- getAnnotationAP lh GHC.AnnHiding
+      mh <- getAnnotationAP lh GHC.AnnHiding
+      pushPriorEnd (last (ln:mas++masn++mh))
       annotatePC lie
-      return (deltaFromLastSrcSpan ([ip] ++ mse ++ ms ++ mq ++ mas) mh)
+      popPriorEnd
+      return (deltaFromLastSrcSpan (ln:mas++masn) mh)
 
-  addAnnValue (AnnImportDecl impPos mSrcPos mSafePos mQualPos mpPos mnPos mAsPos mHidingPos)
-  return Nothing
+  addAnnValue (AnnImportDecl impPos mSrcPos mSafePos mQualPos mpPos nPos mAsPos mHidingPos)
+  return (Just l)
 
 -- =====================================================================
 -- ---------------------------------------------------------------------

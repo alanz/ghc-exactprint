@@ -545,11 +545,11 @@ instance ExactP (GHC.ModuleName) where
 
 instance ExactP [GHC.LIE GHC.RdrName] where
   exactP ies = do
-    Just (AnnHsExports cp) <- getAnnValue
-    printString "("
+    Just (AnnHsExports op cp) <- getAnnValue
+    printStringAtDelta op "("
     mapM_ exactPC ies
     p <- getPos
-    return () `debug` ("exactP.[LIE]:(p,ann)" ++ show (p,AnnHsExports cp))
+    return () `debug` ("exactP.[LIE]:(p,ann)" ++ show (p,AnnHsExports op cp))
     printStringAtDelta cp ")"
 
 -- ---------------------------------------------------------------------
@@ -622,12 +622,14 @@ instance ExactP (GHC.ImportDecl GHC.RdrName) where
       Just (ap,np) -> do
         printStringAtDelta ap "as"
         printStringAtDelta np ""
-        exactPC (GHC.ideclName imp)
+        exactP (fromJust $ GHC.ideclAs imp)
 
       Nothing -> return ()
     case GHC.ideclHiding imp of
       Nothing -> return ()
-      Just (isHiding,lie) -> exactPC lie
+      Just (isHiding,lie) -> do
+        printStringAtMaybeDelta (id_hiding an) "hiding"
+        exactPC lie
 
 -- ---------------------------------------------------------------------
 

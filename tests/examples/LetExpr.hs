@@ -19,15 +19,16 @@
 
 import Data.List
 -- A comment in the middle
-{-
 import {-# SOURCE #-} BootImport ( Foo(..) )
-import {-# SOURCE #-} safe qualified BootImport as BI
+import {-# SOURCE  #-} safe   qualified  BootImport   as    BI
 import qualified Data.Map as {- blah -}  Foo.Map
+
 import Control.Monad  (   )
 import Data.Word (Word8)
 import Data.Tree hiding  (  drawTree   )
+
 import qualified Data.Maybe as M hiding    ( maybe  , isJust  )
--}
+
 
 -- comment
 foo = let x = 1
