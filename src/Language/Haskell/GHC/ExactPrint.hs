@@ -171,12 +171,20 @@ setSrcSpan :: GHC.SrcSpan -> EP ()
 setSrcSpan ss = EP (\l dp _ cs an -> ((),l,dp,ss,cs,an,id))
 
 getAnnotation :: (Typeable a) => GHC.Located a -> EP (Maybe Annotation)
-getAnnotation a@(GHC.L ss _) = EP (\l dp s cs an -> (getAnnotationEP (fst an) a
+getAnnotation a@(GHC.L ss _) = EP (\l dp s cs an -> (getAnnotationEP (anEP an) a
                        ,l,dp,s,cs,an,id))
 
 getAnnValue :: (Typeable b) => EP (Maybe b)
-getAnnValue = EP (\l dp s cs an -> (getAnnotationValue (snd an) s
+getAnnValue = EP (\l dp s cs an -> (getAnnotationValue (anU an) s
                   ,l,dp,s,cs,an,id))
+
+getAnnFinal :: GHC.AnnKeywordId -> EP [DeltaPos]
+getAnnFinal kw = EP (\l dp s cs an ->
+     let
+       r = case Map.lookup (s,kw) (anF an) of
+             Nothing -> []
+             Just ds -> ds
+     in (r         ,l,dp,s,cs,an,id))
 
 
 
@@ -286,6 +294,20 @@ printStringAtMaybeDelta mc s =
       p <- getPos
       printStringAt (undelta p cl) s
 
+printStringAtLsDelta :: [DeltaPos] -> String -> EP ()
+printStringAtLsDelta mc s =
+  case mc of
+    [cl] -> do
+      p <- getPos
+      printStringAt (undelta p cl) s
+    _ -> return ()
+
+
+printStringAtMaybeAnn :: GHC.AnnKeywordId -> String -> EP ()
+printStringAtMaybeAnn ann str = do
+  ma <- getAnnFinal ann
+  printStringAtLsDelta ma str
+
 printStringAtMaybeDeltaP :: Pos -> Maybe DeltaPos -> String -> EP ()
 printStringAtMaybeDeltaP p mc s =
   case mc of
@@ -302,7 +324,7 @@ errorEP = fail
 -- | Print an AST exactly as specified by the annotations on the nodes in the tree.
 -- exactPrint :: (ExactP ast) => ast -> [Comment] -> String
 exactPrint :: (ExactP ast) => GHC.Located ast -> [Comment] -> [PosToken] -> String
-exactPrint ast@(GHC.L l _) cs toks = runEP (exactPC ast) l cs (Map.empty,Map.empty)
+exactPrint ast@(GHC.L l _) cs toks = runEP (exactPC ast) l cs (Map.empty,Map.empty,Map.empty)
 
 
 exactPrintAnnotated ::
@@ -514,31 +536,32 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
   exactP (GHC.HsModule (Just lmn@(GHC.L l mn)) mexp limps decls deprecs haddock) = do
     ss <- getSrcSpan
     return () `debug` ("exactP.HsModule:ss=" ++ showGhc ss)
-    Just (AnnHsModule mm mn mw mob ms mcb ep) <- getAnnValue :: EP (Maybe AnnHsModule)
-    mAnn <- getAnnotation (GHC.L l ())
-    let p = (1,1)
-    printStringAtMaybeDelta mm "module" -- `debug` ("exactP.HsModule:cs=" ++ show cs)
-    printStringAtMaybeDelta mn ""
-    exactPC lmn
+
+    printStringAtMaybeAnn GHC.AnnModule "module" -- `debug` ("exactP.HsModule:cs=" ++ show cs)
+    printStringAtMaybeAnn GHC.AnnVal (GHC.moduleNameString mn)
+
     case mexp of
       Just lexps -> do
         exactPC lexps
         return ()
       Nothing -> return ()
-    printStringAtMaybeDelta mw "where"
-    printStringAtMaybeDelta mob "{"
+
+    printStringAtMaybeAnn GHC.AnnWhere "where"
+    printStringAtMaybeAnn GHC.AnnOpen  "{"
     exactP limps
 
-    printStringAtMaybeDelta ms ";"
+    printStringAtMaybeAnn GHC.AnnSemi ";"
 
     -- printSeq $ map (pos . ann &&& exactPC) decls
 
-    printStringAtMaybeDelta mcb "}"
+    printStringAtMaybeAnn GHC.AnnClose "}"
 
     -- put the end of file whitespace in
+{-
     pe <- getPos
     padUntil (undelta pe ep) `debug` ("exactP.HsModule:(pe,ep)=" ++ show (pe,ep))
     printString ""
+-}
 
 -- ---------------------------------------------------------------------
 
@@ -550,54 +573,42 @@ instance ExactP (GHC.ModuleName) where
 
 instance ExactP [GHC.LIE GHC.RdrName] where
   exactP ies = do
-    Just (AnnHsExports op cp) <- getAnnValue
-    printStringAtDelta op "("
+    printStringAtMaybeAnn GHC.AnnOpen "("
     mapM_ exactPC ies
-    p <- getPos
-    return () `debug` ("exactP.[LIE]:(p,ann)" ++ show (p,AnnHsExports op cp))
-    printStringAtDelta cp ")"
+    printStringAtMaybeAnn GHC.AnnClose ")"
 
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.IE GHC.RdrName) where
   exactP (GHC.IEVar (GHC.L l n)) = do
-    Just (AnnIEVar mp vp mc) <- getAnnValue
-    return () -- `debug` ("exactP.IEVar:" ++ show (AnnIEVar mp vp mc))
-    printStringAtMaybeDelta mp "pattern"
-    printStringAtDelta vp (rdrName2String n)
-    printStringAtMaybeDelta mc ","
-    return ()
+    printStringAtMaybeAnn GHC.AnnPattern "pattern"
+    printStringAtMaybeAnn GHC.AnnType    "type"
+    printStringAtMaybeAnn GHC.AnnVal     (rdrName2String n)
+    printStringAtMaybeAnn GHC.AnnComma   ","
 
   exactP (GHC.IEThingAbs n) = do
-    Just (AnnIEThingAbs mc) <- getAnnValue
-    printString (rdrName2String n)
-    printStringAtMaybeDelta mc ","
-    return ()
+    printStringAtMaybeAnn GHC.AnnType    "type"
+    printStringAtMaybeAnn GHC.AnnVal     (rdrName2String n)
+    printStringAtMaybeAnn GHC.AnnComma   ","
 
   exactP (GHC.IEThingWith (GHC.L _ n) ns) = do
-    Just (AnnIEThingWith op cp mc) <- getAnnValue
-    printString (rdrName2String n)
-    printStringAtDelta op "("
+    printStringAtMaybeAnn GHC.AnnVal     (rdrName2String n)
+    printStringAtMaybeAnn GHC.AnnOpen    "("
     mapM_ exactPC ns
-    printStringAtDelta cp ")"
-
-    printStringAtMaybeDelta mc ","
+    printStringAtMaybeAnn GHC.AnnClose   "("
+    printStringAtMaybeAnn GHC.AnnComma   ","
 
   exactP (GHC.IEThingAll (GHC.L _ n)) = do
-    Just (AnnIEThingAll op dp cp mc) <- getAnnValue
-    printString (rdrName2String n)
-    printStringAtDelta op "("
-    printStringAtDelta dp ".."
-    printStringAtDelta cp ")"
+    printStringAtMaybeAnn GHC.AnnVal     (rdrName2String n)
+    printStringAtMaybeAnn GHC.AnnOpen    "("
+    printStringAtMaybeAnn GHC.AnnDotdot  ".."
+    printStringAtMaybeAnn GHC.AnnClose   "("
+    printStringAtMaybeAnn GHC.AnnComma   ","
 
-    printStringAtMaybeDelta mc ","
-
-  exactP (GHC.IEModuleContents (GHC.L lm n)) = do
-    Just (AnnIEModuleContents mp mc) <- getAnnValue
-    printString "module"
-    printStringAtDelta mp (GHC.moduleNameString n)
-
-    printStringAtMaybeDelta mc ","
+  exactP (GHC.IEModuleContents (GHC.L _ mn)) = do
+    printStringAtMaybeAnn GHC.AnnModule  "module"
+    printStringAtMaybeAnn GHC.AnnVal     (GHC.moduleNameString mn)
+    printStringAtMaybeAnn GHC.AnnComma   ","
 
   exactP x = printString ("no exactP.IE for " ++ showGhc (x))
 

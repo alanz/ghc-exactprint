@@ -10,12 +10,13 @@ module Language.Haskell.GHC.ExactPrint.Types
   , DeltaPos(..)
   , Annotation(..)
   , annNone
-  , Anns(..)
+  , Anns(..),anEP,anU,anF
   , AnnsEP(..)
   , AnnsUser(..)
 
   , Value(..)
   , AnnKey
+  , AnnKeyF
   , newValue
   , typeValue
   , fromValue
@@ -279,7 +280,10 @@ instance Show GHC.RdrName where
   show n = "(a RdrName)"
 
 
-type Anns = (AnnsEP,AnnsUser)
+type Anns = (AnnsEP,AnnsUser,AnnsFinal)
+anEP (e,_,_) = e
+anU  (_,u,_) = u
+anF  (_,_,f) = f
 
 -- | For every @Located a@, use the @SrcSpan@ and TypeRep of a as the
 -- key, to store the standard annotation.
@@ -288,6 +292,8 @@ type AnnsEP = Map.Map (GHC.SrcSpan,TypeRep) Annotation
 -- | For every SrcSpan, store an annotation as a value where the
 -- TypeRep is of the item wrapped in the Value
 type AnnsUser = Map.Map (GHC.SrcSpan,TypeRep) Value
+
+type AnnsFinal = Map.Map (GHC.SrcSpan,GHC.AnnKeywordId) [DeltaPos]
 
 -- ---------------------------------------------------------------------
 {-
@@ -306,7 +312,8 @@ another for the user annotation.
 -}
 
 
-type AnnKey = (GHC.SrcSpan, TypeRep)
+type AnnKey  = (GHC.SrcSpan, TypeRep)
+type AnnKeyF = (GHC.SrcSpan, GHC.AnnKeywordId)
 
 mkAnnKeyEP :: (Typeable a) => GHC.Located a -> AnnKey
 mkAnnKeyEP (GHC.L l a) = (l,typeOf a)

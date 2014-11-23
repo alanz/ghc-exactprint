@@ -18,6 +18,7 @@
     where
 {
 import Data.List
+{-
 -- A comment in the middle
 ; import {-# SOURCE #-} BootImport ( Foo(..) ) ;
 import {-# SOURCE  #-} safe   qualified  BootImport   as    BI
@@ -28,6 +29,7 @@ import Data.Word (Word8);
 import Data.Tree hiding  (  drawTree   ) ;
 
   ; import qualified Data.Maybe as M hiding    ( maybe  , isJust  )
+-}
 ;
 
 -- comment
@@ -60,4 +62,5 @@ pattern Bar a <- RealBar a
 ;
 data Thing = RealFoo Thing | RealBar Int
 }
+
 
