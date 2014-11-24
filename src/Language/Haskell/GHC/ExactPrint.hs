@@ -305,17 +305,23 @@ printStringAtMaybeDelta mc s =
 printStringAtLsDelta :: [DeltaPos] -> String -> EP ()
 printStringAtLsDelta mc s =
   case mc of
-    [cl] -> do
+    (cl:_) -> do
       p <- getPos
       printStringAt (undelta p cl) s
     _ -> return ()
-
 
 printStringAtMaybeAnn :: GHC.AnnKeywordId -> String -> EP ()
 printStringAtMaybeAnn ann str = do
   ma <- getAnnFinal ann
   ss <- getSrcSpan
   printStringAtLsDelta ma str
+    `debug` ("printStringAtMaybeAnn:(ss,ann,ma,str)=" ++ show (ss2span ss,ann,ma,str))
+
+printStringAtMaybeAnnLs :: GHC.AnnKeywordId -> Int -> String -> EP ()
+printStringAtMaybeAnnLs ann off str = do
+  ma <- getAnnFinal ann
+  ss <- getSrcSpan
+  printStringAtLsDelta (drop off ma) str
     `debug` ("printStringAtMaybeAnn:(ss,ann,ma,str)=" ++ show (ss2span ss,ann,ma,str))
 
 printStringAtMaybeDeltaP :: Pos -> Maybe DeltaPos -> String -> EP ()
@@ -633,29 +639,25 @@ instance ExactP [GHC.LImportDecl GHC.RdrName] where
 
 instance ExactP (GHC.ImportDecl GHC.RdrName) where
   exactP imp = do
-    Just an <- getAnnValue :: EP (Maybe AnnImportDecl)
-    printString "import" `debug` ("exactP.ImportDecl: an=" ++ show an)
-    case id_source an of
-      Nothing -> return ()
-      Just (od,cd) -> do
-        printStringAtDelta od "{-# SOURCE"
-        printStringAtDelta cd "#-}"
+    printStringAtMaybeAnn GHC.AnnImport "import"
 
-    printStringAtMaybeDelta (id_safe an) "safe"
-    printStringAtMaybeDelta (id_qualified an) "qualified"
-    printStringAtDelta (id_modulename an) ""
-    exactPC (GHC.ideclName imp)
-    case id_as an of
-      Just (ap,np) -> do
-        printStringAtDelta ap "as"
-        printStringAtDelta np ""
-        exactP (fromJust $ GHC.ideclAs imp)
+    printStringAtMaybeAnn GHC.AnnOpen  "{-# SOURCE"
+    printStringAtMaybeAnn GHC.AnnClose  "#-}"
 
+    printStringAtMaybeAnn GHC.AnnSafe      "safe"
+    printStringAtMaybeAnn GHC.AnnQualified "qualified"
+    printStringAtMaybeAnnLs GHC.AnnVal 0 (GHC.moduleNameString $ GHC.unLoc $ GHC.ideclName imp)
+
+    case GHC.ideclAs imp of
       Nothing -> return ()
+      Just mn -> do
+        printStringAtMaybeAnn   GHC.AnnAs "as"
+        printStringAtMaybeAnnLs GHC.AnnVal 1 (GHC.moduleNameString mn)
+
     case GHC.ideclHiding imp of
       Nothing -> return ()
-      Just (isHiding,lie) -> do
-        printStringAtMaybeDelta (id_hiding an) "hiding"
+      Just (_,lie) -> do
+        printStringAtMaybeAnn GHC.AnnHiding "hiding"
         exactPC lie
 
 -- ---------------------------------------------------------------------

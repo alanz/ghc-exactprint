@@ -297,14 +297,6 @@ annotateList :: (AnnotateP ast) => [GHC.Located ast] -> AP ()
 annotateList xs = mapM_ annotatePC xs
 
 -- ---------------------------------------------------------------------
--- Start of application specific part
-
--- ---------------------------------------------------------------------
-
-annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns
-                  -> Anns
-annotateLHsModule modu ghcAnns
-   = runAP (annotatePC modu >> addFinalComments) ghcAnns
 
 addFinalComments :: AP ()
 addFinalComments = do
@@ -339,6 +331,16 @@ addDeltaAnnotationExt s ann = do
   let p = deltaFromSrcSpans pe s
   addAnnDeltaPos (ss,ann) p
   pushPriorEnd s
+
+-- ---------------------------------------------------------------------
+-- Start of application specific part
+
+-- ---------------------------------------------------------------------
+
+annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns
+                  -> Anns
+annotateLHsModule modu ghcAnns
+   = runAP (annotatePC modu >> addFinalComments) ghcAnns
 
 -- ---------------------------------------------------------------------
 
@@ -455,53 +457,30 @@ ImportDecl
 -}
 instance AnnotateP (GHC.ImportDecl GHC.RdrName) where
  annotateP l (GHC.ImportDecl (GHC.L ln _) _pkg _src _safe qual _impl as hiding) = do
-  ma <- getAnnotationAP l GHC.AnnSemi
-  let ms = deltaFromMaybeSrcSpans [l] ma
-  addAnnValue (AnnListItem ms)
 
-  [ip] <- getAnnotationAP l GHC.AnnImport
+   -- 'import' maybe_src maybe_safe optqualified maybe_pkg modid maybeas maybeimpspec
+   addDeltaAnnotation GHC.AnnImport
 
-  -- "{-# SOURCE" and "#-}"
-  mss  <- getAnnotationAP l GHC.AnnOpen
-  mse  <- getAnnotationAP l GHC.AnnClose
+   -- "{-# SOURCE" and "#-}"
+   addDeltaAnnotation GHC.AnnOpen
+   addDeltaAnnotation GHC.AnnClose
+   addDeltaAnnotation GHC.AnnSafe
+   addDeltaAnnotation GHC.AnnQualified
+   addDeltaAnnotation GHC.AnnPackageName
 
-  ms   <- getAnnotationAP l GHC.AnnSafe
-  mq   <- getAnnotationAP l GHC.AnnQualified
-  mp   <- getAnnotationAP l GHC.AnnPackageName
-  mas  <- getAnnotationAP l GHC.AnnAs
-  masn <- getAnnotationAP l GHC.AnnVal
+   addDeltaAnnotationExt ln GHC.AnnVal -- modid
 
-  -- 'import' maybe_src maybe_safe optqualified maybe_pkg modid maybeas maybeimpspec
+   addDeltaAnnotation GHC.AnnAs
+   addDeltaAnnotation GHC.AnnVal -- as modid
 
-  let impPos = deltaFromSrcSpans l ip
-      mSrcStart = deltaFromMaybeSrcSpans [ip] mss
-      mSrcEnd   = deltaFromMaybeSrcSpans mss mse
-      mSrcPos = case (mSrcStart,mSrcEnd) of
-                 (Just s,Just e) -> Just (s,e)
-                 _ -> Nothing
-      mSafePos  = deltaFromLastSrcSpan ([ip] ++ mse) ms
-      mQualPos  = deltaFromLastSrcSpan ([ip] ++ mse ++ ms) mq
-      mpPos     = deltaFromLastSrcSpan ([ip] ++ mse ++ ms ++ mq) mp
-      Just nPos = deltaFromLastSrcSpan ([ip] ++ mse ++ ms ++ mq ++ mp) [ln]
-      mAsPos    = case (mas,masn) of
-        ([ap],[np]) ->
-          Just ( deltaFromSrcSpans ln ap
-               , deltaFromSrcSpans ap np)
-        _ -> Nothing
+   case hiding of
+     Nothing -> return ()
+     Just (_isHiding,lie) -> do
+       addDeltaAnnotation GHC.AnnHiding
+       annotatePC lie
 
-  mHidingPos <- case hiding of
-    Nothing -> return Nothing
-    Just (isHiding,lie@(GHC.L lh _)) -> do
-      mh <- getAnnotationAP lh GHC.AnnHiding
-      pushPriorEnd (last (ln:mas++masn++mh))
-      annotatePC lie
-      popPriorEnd
-      return (deltaFromLastSrcSpan (ln:mas++masn) mh)
-
-  let mSemiPos = Nothing
-
-  addAnnValue (AnnImportDecl impPos mSrcPos mSafePos mQualPos mpPos nPos mAsPos mHidingPos mSemiPos)
-  return (Just l)
+   addAnnValue GHC.AnnSemi
+   return Nothing
 
 -- =====================================================================
 -- ---------------------------------------------------------------------
