@@ -126,8 +126,8 @@ spanSize ss = (srcSpanEndLine ss - srcSpanStartLine ss,
 pos :: (SrcInfo loc) => loc -> Pos
 pos ss = (startLine ss, startColumn ss)
 
-newtype EP x = EP (Pos -> DeltaPos -> GHC.SrcSpan -> [Comment] -> Anns
-            -> (x, Pos,   DeltaPos,   GHC.SrcSpan,   [Comment],   Anns, ShowS))
+newtype EP x = EP (Pos -> DeltaPos -> [GHC.SrcSpan] -> [Comment] -> Anns
+            -> (x, Pos,   DeltaPos,   [GHC.SrcSpan],   [Comment],   Anns, ShowS))
 
 instance Functor EP where
   fmap = liftM
@@ -146,7 +146,7 @@ instance Monad EP where
     in (b, l2, ss2, dp2, c2, an2, s1 . s2)
 
 runEP :: EP () -> GHC.SrcSpan -> [Comment] -> Anns -> String
-runEP (EP f) ss cs ans = let (_,_,_,_,_,_,s) = f (1,1) (DP (0,0)) ss cs ans in s ""
+runEP (EP f) ss cs ans = let (_,_,_,_,_,_,s) = f (1,1) (DP (0,0)) [ss] cs ans in s ""
 
 getPos :: EP Pos
 getPos = EP (\l dp s cs an -> (l,l,dp,s,cs,an,id))
@@ -165,26 +165,34 @@ setOffset :: DeltaPos -> EP ()
 setOffset dp = EP (\l _ s cs an -> ((),l,dp,s,cs,an,id))
 
 getSrcSpan :: EP GHC.SrcSpan
-getSrcSpan = EP (\l dp s cs an -> (s,l,dp,s,cs,an,id))
+getSrcSpan = EP (\l dp (s:ss) cs an -> (s,l,dp,(s:ss),cs,an,id))
 
+-- | Replace the current head value
 setSrcSpan :: GHC.SrcSpan -> EP ()
-setSrcSpan ss = EP (\l dp _ cs an -> ((),l,dp,ss,cs,an,id))
+setSrcSpan ss = EP (\l dp (s:sss) cs an -> ((),l,dp,(ss:sss),cs,an,id))
+
+pushSrcSpan :: GHC.SrcSpan -> EP ()
+pushSrcSpan ss = EP (\l dp sss cs an -> ((),l,dp,(ss:sss),cs,an,id))
+
+popSrcSpan :: EP ()
+popSrcSpan = EP (\l dp (_:sss) cs an -> ((),l,dp,sss,cs,an,id))
+
 
 getAnnotation :: (Typeable a) => GHC.Located a -> EP (Maybe Annotation)
 getAnnotation a@(GHC.L ss _) = EP (\l dp s cs an -> (getAnnotationEP (anEP an) a
                        ,l,dp,s,cs,an,id))
 
 getAnnValue :: (Typeable b) => EP (Maybe b)
-getAnnValue = EP (\l dp s cs an -> (getAnnotationValue (anU an) s
-                  ,l,dp,s,cs,an,id))
+getAnnValue = EP (\l dp (s:ss) cs an -> (getAnnotationValue (anU an) s
+                  ,l,dp,(s:ss),cs,an,id))
 
 getAnnFinal :: GHC.AnnKeywordId -> EP [DeltaPos]
-getAnnFinal kw = EP (\l dp s cs an ->
+getAnnFinal kw = EP (\l dp (s:ss) cs an ->
      let
        r = case Map.lookup (s,kw) (anF an) of
              Nothing -> []
              Just ds -> ds
-     in (r         ,l,dp,s,cs,an,id))
+     in (r         ,l,dp,(s:ss),cs,an,id))
 
 
 
@@ -306,7 +314,9 @@ printStringAtLsDelta mc s =
 printStringAtMaybeAnn :: GHC.AnnKeywordId -> String -> EP ()
 printStringAtMaybeAnn ann str = do
   ma <- getAnnFinal ann
+  ss <- getSrcSpan
   printStringAtLsDelta ma str
+    `debug` ("printStringAtMaybeAnn:(ss,ann,ma,str)=" ++ show (ss2span ss,ann,ma,str))
 
 printStringAtMaybeDeltaP :: Pos -> Maybe DeltaPos -> String -> EP ()
 printStringAtMaybeDeltaP p mc s =
@@ -353,7 +363,7 @@ loadInitialComments = do
 exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC a@(GHC.L l ast) =
  -- let p = pos l
-    do setSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
+    do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAnnotation a
        (off@(DP (r,c)),cs) <- case ma of
          Nothing -> return ((DP (0,0)),[])
@@ -365,14 +375,15 @@ exactPC a@(GHC.L l ast) =
                  dp = ann_delta ann
        pe <- getPos
        let p = undelta pe off
-       mPrintComments p -- `debug` ("exactPC:(p,off)=" ++ show (p,off))
-       padUntil p
+       -- mPrintComments p -- `debug` ("exactPC:(p,off)=" ++ show (p,off))
+       -- padUntil p
        mergeComments cs
 
        let negOff = DP (-r,-c)
        -- addOffset off `debug` ("addOffset:push:" ++ show (ss2span l,off))
        exactP ast
        -- addOffset negOff `debug` ("addOffset:pop:" ++ show (ss2span l,negOff))
+       popSrcSpan
 
 {-
 
@@ -595,14 +606,14 @@ instance ExactP (GHC.IE GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnVal     (rdrName2String n)
     printStringAtMaybeAnn GHC.AnnOpen    "("
     mapM_ exactPC ns
-    printStringAtMaybeAnn GHC.AnnClose   "("
+    printStringAtMaybeAnn GHC.AnnClose   ")"
     printStringAtMaybeAnn GHC.AnnComma   ","
 
   exactP (GHC.IEThingAll (GHC.L _ n)) = do
     printStringAtMaybeAnn GHC.AnnVal     (rdrName2String n)
     printStringAtMaybeAnn GHC.AnnOpen    "("
     printStringAtMaybeAnn GHC.AnnDotdot  ".."
-    printStringAtMaybeAnn GHC.AnnClose   "("
+    printStringAtMaybeAnn GHC.AnnClose   ")"
     printStringAtMaybeAnn GHC.AnnComma   ","
 
   exactP (GHC.IEModuleContents (GHC.L _ mn)) = do

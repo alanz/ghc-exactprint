@@ -31,7 +31,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , runAP
   -- , APState(..)
   , AP(..)
-  , getSrcSpanAP, pushSrcSpan, popSrcSpan
+  , getSrcSpanAP, pushSrcSpanAP, popSrcSpanAP
   , getSubSpans
   , getAnnotationAP
   , getComments
@@ -159,11 +159,11 @@ runAP (AP f) ga
 getSrcSpanAP :: AP GHC.SrcSpan
 getSrcSpanAP = AP (\l ss pe cs ga -> (fst $ head l,l,ss,pe,cs,ga,([],[],[])))
 
-pushSrcSpan :: (Typeable a) => (GHC.Located a) -> AP ()
-pushSrcSpan (GHC.L l a) = AP (\ls ss pe cs ga -> ((),(l,typeOf a):ls,[]:ss,pe,cs,ga,([],[],[])))
+pushSrcSpanAP :: (Typeable a) => (GHC.Located a) -> AP ()
+pushSrcSpanAP (GHC.L l a) = AP (\ls ss pe cs ga -> ((),(l,typeOf a):ls,[]:ss,pe,cs,ga,([],[],[])))
 
-popSrcSpan :: AP ()
-popSrcSpan = AP (\(l:ls) (s:ss) pe cs ga -> ((),ls,ss,pe,cs,ga,([],[],[])))
+popSrcSpanAP :: AP ()
+popSrcSpanAP = AP (\(l:ls) (s:ss) pe cs ga -> ((),ls,ss,pe,cs,ga,([],[],[])))
 
 getSubSpans :: AP [Span]
 getSubSpans= AP (\l (s:ss) pe cs ga -> (map ss2span s,l,s:ss,pe,cs,ga,([],[],[])))
@@ -253,7 +253,7 @@ addAnnDeltaPos (s,kw) dp = AP (\l ss pe cs ga -> ( (),
 enterAST :: (Typeable a) => GHC.Located a -> AP ()
 enterAST lss = do
   return () `debug` ("enterAST entered for " ++ show (ss2span $ GHC.getLoc lss))
-  pushSrcSpan lss
+  pushSrcSpanAP lss
   return ()
 
 
@@ -273,7 +273,7 @@ leaveAST end = do
 
   let dp = deltaFromSrcSpans priorEnd ss
   addAnnotationsAP (Ann lcs dp)
-  popSrcSpan
+  popSrcSpanAP
   return () `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
 
 -- ---------------------------------------------------------------------
@@ -310,7 +310,7 @@ addFinalComments :: AP ()
 addFinalComments = do
   cs <- getCommentsForSpan GHC.noSrcSpan
   let (dcs,_) = localComments ((1,1),(1,1)) cs []
-  pushSrcSpan (GHC.L GHC.noSrcSpan ())
+  pushSrcSpanAP (GHC.L GHC.noSrcSpan ())
   addAnnotationsAP (Ann dcs (DP (0,0)))
    -- `debug` ("leaveAST:dcs=" ++ show dcs)
   return () -- `debug` ("addFinalComments:dcs=" ++ show dcs)
@@ -328,6 +328,7 @@ addDeltaAnnotation ann = do
       let p = deltaFromSrcSpans pe ap
       addAnnDeltaPos (ss,ann) p
       pushPriorEnd ap
+        `debug` ("addDeltaAnnotation:(ss,pe,ma,p)=" ++ show (ss2span ss,ss2span pe,fmap ss2span ma,p,ann))
 
 -- | Add a Delta annotation at the current position, and advance the
 -- position to the end of the annotation
@@ -358,18 +359,16 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
       Just exp -> annotatePC exp
 
     addDeltaAnnotation GHC.AnnWhere
-    addDeltaAnnotation GHC.AnnOpen -- Possible '{'
-
-    case mexp of
-      Nothing -> return ()
-      Just exp -> do
-        annotatePC exp
-
-    addDeltaAnnotation GHC.AnnSemi -- Possible ';'
+    -- addDeltaAnnotation GHC.AnnOpen -- Possible '{'
 
     annotateList imps
 
-    addDeltaAnnotation GHC.AnnClose -- Possible '}'
+
+    -- addDeltaAnnotation GHC.AnnSemi -- Possible ';'
+
+    -- annotateList decs
+
+    -- addDeltaAnnotation GHC.AnnClose -- Possible '}'
 
     return Nothing
 
