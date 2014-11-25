@@ -322,6 +322,24 @@ addDeltaAnnotation ann = do
       pushPriorEnd ap
         `debug` ("addDeltaAnnotation:(ss,pe,ma,p)=" ++ show (ss2span ss,ss2span pe,fmap ss2span ma,p,ann))
 
+-- | Look up and add possibly multiple Delta annotation at the current
+-- position, and advance the position to the end of the annotations
+addDeltaAnnotations :: GHC.AnnKeywordId -> AP ()
+addDeltaAnnotations ann = do
+  ss <- getSrcSpanAP
+  ma <- getAnnotationAP ss ann
+  let do_one ap' = do
+        pe <- getPriorEnd
+        let p = deltaFromSrcSpans pe ap'
+        addAnnDeltaPos (ss,ann) p
+        pushPriorEnd ap'
+          `debug` ("addDeltaAnnotations:(ss,pe,ma,p)=" ++ show (ss2span ss,ss2span pe,fmap ss2span ma,p,ann))
+  case ma of
+    [] -> return ()
+    [ap] -> do_one ap
+    as -> do
+      mapM_ do_one (sort as)
+
 -- | Add a Delta annotation at the current position, and advance the
 -- position to the end of the annotation
 addDeltaAnnotationExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> AP ()
@@ -331,6 +349,18 @@ addDeltaAnnotationExt s ann = do
   let p = deltaFromSrcSpans pe s
   addAnnDeltaPos (ss,ann) p
   pushPriorEnd s
+
+addEofAnnotation :: AP ()
+addEofAnnotation = do
+  pe <- getPriorEnd
+  ss <- getSrcSpanAP
+  ma <- getAnnotationAP GHC.noSrcSpan GHC.AnnEofPos
+  case ma of
+    [] -> return ()
+    [ap] -> do
+      let p = deltaFromSrcSpans pe ap
+      addAnnDeltaPos (ss,GHC.AnnEofPos) p
+      pushPriorEnd ap
 
 -- ---------------------------------------------------------------------
 -- Start of application specific part
@@ -361,16 +391,17 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
       Just exp -> annotatePC exp
 
     addDeltaAnnotation GHC.AnnWhere
-    -- addDeltaAnnotation GHC.AnnOpen -- Possible '{'
+    addDeltaAnnotation GHC.AnnOpen -- Possible '{'
 
-    annotateList imps
+    mapM_ annotatePC imps
 
-
-    -- addDeltaAnnotation GHC.AnnSemi -- Possible ';'
+    addDeltaAnnotation GHC.AnnSemi -- Possible ';'
 
     -- annotateList decs
 
-    -- addDeltaAnnotation GHC.AnnClose -- Possible '}'
+    addDeltaAnnotation GHC.AnnClose -- Possible '}'
+
+    addEofAnnotation
 
     return Nothing
 
@@ -478,7 +509,9 @@ instance AnnotateP (GHC.ImportDecl GHC.RdrName) where
        addDeltaAnnotation GHC.AnnHiding
        annotatePC lie
 
-   addAnnValue GHC.AnnSemi
+   -- There may be multiple ';'s
+   addDeltaAnnotations GHC.AnnSemi
+
    return Nothing
 
 -- =====================================================================
