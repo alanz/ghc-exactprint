@@ -223,9 +223,10 @@ dropComment = EP $ \l dp s cs an ->
 
 mergeComments :: [DComment] -> EP ()
 mergeComments dcs = EP $ \l dp s cs an ->
-    let acs = map (undeltaComment l) dcs
+    let ll = ss2pos $ head s
+        acs = map (undeltaComment ll) dcs
         cs' = merge acs cs
-    in ((), l, dp, s, cs', an, id) -- `debug` ("mergeComments:(l,acs,dcs)=" ++ show (l,acs,dcs))
+    in ((), l, dp, s, cs', an, id) `debug` ("mergeComments:(l,acs,dcs)=" ++ show (l,acs,dcs))
 
 newLine :: EP ()
 newLine = do
@@ -371,19 +372,14 @@ exactPC a@(GHC.L l ast) =
  -- let p = pos l
     do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAnnotation a
-       (off@(DP (r,c)),cs) <- case ma of
-         Nothing -> return ((DP (0,0)),[])
+       off@(DP (r,c)) <- case ma of
+         Nothing -> return (DP (0,0))
            `debug` ("exactPC:no annotation for " ++ show (ss2span l,typeOf ast))
-         Just ann -> do
-             -- mergeComments lcs
-             return (dp,lcs)
-           where lcs = ann_comments ann
-                 dp = ann_delta ann
+         Just (Ann lcs dp) -> do
+             mergeComments lcs
+             return dp
        pe <- getPos
        let p = undelta pe off
-       -- mPrintComments p -- `debug` ("exactPC:(p,off)=" ++ show (p,off))
-       -- padUntil p
-       mergeComments cs
 
        let negOff = DP (-r,-c)
        -- addOffset off `debug` ("addOffset:push:" ++ show (ss2span l,off))
@@ -559,6 +555,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
 
     case mexp of
       Just lexps -> do
+        return () `debug` ("about to exactPC lexps")
         exactPC lexps
         return ()
       Nothing -> return ()
@@ -947,12 +944,8 @@ instance ExactP (GHC.HsRecField GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 
 instance ExactP GHC.RdrName where
   exactP n = do
-    printString (rdrName2String n)
-    ma <- getAnnValue
-    case ma of
-      Just (AnnListItem mc) ->
-        printStringAtMaybeDelta mc ","
-      Nothing -> return ()
+    printStringAtMaybeAnn GHC.AnnVal     (rdrName2String n)
+    printStringAtMaybeAnn GHC.AnnComma   ","
 
 instance ExactP GHC.HsIPName where
   exactP (GHC.HsIPName n) = do

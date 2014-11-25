@@ -421,10 +421,9 @@ instance AnnotateP (GHC.IE GHC.RdrName) where
 
 instance AnnotateP GHC.RdrName where
   annotateP l n = do
-    ma <- getAnnotationAP l GHC.AnnComma
-    let mc = deltaFromMaybeSrcSpans [l] ma
-    addAnnValue (AnnListItem mc)
-    return (Just (maybeL l ma))
+    addDeltaAnnotationExt l GHC.AnnVal
+    addDeltaAnnotation GHC.AnnComma
+    return Nothing
 
 -- ---------------------------------------------------------------------
 {-
@@ -1476,6 +1475,7 @@ dcommentPos (DComment _ p _) = p
 localComments :: Span -> [Comment] -> [Span] -> ([DComment],[Comment])
 localComments pin cs ds = r
   -- `debug` ("localComments:(p,ds,r):" ++ show ((p,e),ds,map commentPos matches,map dcommentPos (fst r)))
+  `debug` ("localComments:(p,ds,r):" ++ show ((p,e),ds,r))
   where
     r = (map (\c -> deltaComment p c) matches,misses ++ missesRest)
     (p,e) = if pin == ((1,1),(1,1))
