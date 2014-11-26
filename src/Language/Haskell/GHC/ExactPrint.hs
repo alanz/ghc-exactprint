@@ -322,8 +322,14 @@ printStringAtMaybeAnnLs :: GHC.AnnKeywordId -> Int -> String -> EP ()
 printStringAtMaybeAnnLs ann off str = do
   ma <- getAnnFinal ann
   ss <- getSrcSpan
-  printStringAtLsDelta (drop off ma) str
+  printStringAtLsDelta (drop off (reverse ma)) str
     `debug` ("printStringAtMaybeAnn:(ss,ann,ma,str)=" ++ show (ss2span ss,ann,ma,str))
+
+printStringAtMaybeAnnAll :: GHC.AnnKeywordId -> String -> EP ()
+printStringAtMaybeAnnAll ann str = do
+  ma <- getAnnFinal ann
+  mapM_ (\d -> printStringAtLsDelta [d] str) (reverse ma)
+    `debug` ("printStringAtMaybeAnnAll:ma=" ++ show (ma))
 
 printStringAtMaybeDeltaP :: Pos -> Maybe DeltaPos -> String -> EP ()
 printStringAtMaybeDeltaP p mc s =
@@ -612,7 +618,6 @@ instance ExactP (GHC.IE GHC.RdrName) where
 
 instance ExactP [GHC.LImportDecl GHC.RdrName] where
   exactP imps = mapM_ exactPC imps
-  -- Trailing semis?
 
 -- ---------------------------------------------------------------------
 
@@ -638,6 +643,8 @@ instance ExactP (GHC.ImportDecl GHC.RdrName) where
       Just (_,lie) -> do
         printStringAtMaybeAnn GHC.AnnHiding "hiding"
         exactPC lie
+
+    printStringAtMaybeAnnAll GHC.AnnSemi ";"
 
 -- ---------------------------------------------------------------------
 
