@@ -27,11 +27,6 @@ module Language.Haskell.GHC.ExactPrint.Types
   , putAnnotationValue
 
   -- * Specific annotation
-  , AnnHsModule(..)
-  , AnnHsExports(..)
-  , AnnIe(..)
-  , AnnImportDecl(..)
-  , AnnImportSpec(..)
   , AnnTypeSig(..)
   , AnnHsBind(..)
   , AnnGRHS(..)
@@ -93,76 +88,6 @@ data Annotation = Ann
   , ann_delta    :: !DeltaPos -- Do we need this? Yes indeed.
   -- , ann_specific :: !Value
   } deriving (Show,Typeable)
-
--- Specific annotation types
-
-data AnnHsModule = AnnHsModule
-    { m_module  :: !(Maybe DeltaPos) -- module
-    , m_n       :: !(Maybe DeltaPos) -- name
-    , m_where   :: !(Maybe DeltaPos) -- where
-    , m_obrace  :: !(Maybe DeltaPos) -- '{'
-    , m_semi    :: !(Maybe DeltaPos) -- ';'
-    , m_cbrace  :: !(Maybe DeltaPos) -- '}'
-    , m_fileEnd :: !DeltaPos
-    }
-  deriving (Show,Typeable,Eq)
-
-data AnnHsExports = AnnHsExports
-    { e_op     :: !DeltaPos -- '('
-    , e_cp     :: !DeltaPos -- ')'
-    }
-  deriving (Show,Typeable,Eq)
-
-data AnnIe =
-  -- IE variants, *trailing* comma
-    AnnIEVar      { ie_pattern :: !(Maybe DeltaPos)
-                  , ie_var     :: !DeltaPos
-                  , ie_comma   :: !(Maybe DeltaPos) }
-  | AnnIEThingAbs { ie_comma :: !(Maybe DeltaPos) }
-  | AnnIEThingAll  { ie_op, ie_dotdot, ie_cp :: !DeltaPos
-                   , ie_comma :: !(Maybe DeltaPos) }
-  | AnnIEThingWith { ie_op, ie_cp :: !DeltaPos, ie_comma :: !(Maybe DeltaPos) }
-  | AnnIEModuleContents { ie_module :: !DeltaPos
-                        , ie_comma :: !(Maybe DeltaPos) }
-  | AnnIEGroup
-  | AnnIEDoc
-  | AnnIEDocNamed
-  deriving (Show,Typeable,Eq)
-
-{-
-IEVar name
-IEThingAbs name
-IEThingAll name
-IEThingWith name [name]
-IEModuleContents ModuleName
-IEGroup Int HsDocString
-IEDoc HsDocString
-IEDocNamed String
-
-
--}
-
-data AnnImportDecl =
-  AnnImportDecl
-     { id_import     :: !DeltaPos
-     , id_source     :: !(Maybe (DeltaPos,DeltaPos)) -- {-# SOURCE #-}
-     , id_safe       :: !(Maybe DeltaPos)
-     , id_qualified  :: !(Maybe DeltaPos)
-     , id_pkg        :: !(Maybe DeltaPos)
-     , id_modulename :: !DeltaPos
-     , id_as         :: !(Maybe (DeltaPos,DeltaPos))
-     , id_hiding     :: !(Maybe DeltaPos)
-     , id_semi       :: !(Maybe DeltaPos) -- Trailing semi, if present
-     }
-  deriving (Show,Typeable,Eq)
-
-data AnnImportSpec =
-  AnnImportSpec
-     { is_op        :: !DeltaPos
-     , is_cp        :: !DeltaPos
-     }
-  deriving (Show,Typeable,Eq)
-
 
   -- Sig
 data AnnTypeSig =
