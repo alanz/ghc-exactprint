@@ -305,7 +305,7 @@ printStringAtMaybeDelta mc s =
 
 printStringAtLsDelta :: [DeltaPos] -> String -> EP ()
 printStringAtLsDelta mc s =
-  case mc of
+  case reverse mc of
     (cl:_) -> do
       p <- getPos
       printStringAt (undelta p cl) s
@@ -532,18 +532,13 @@ class (Typeable ast) => ExactP ast where
   exactP :: ast -> EP ()
 
 instance ExactP (GHC.HsModule GHC.RdrName) where
-  exactP (GHC.HsModule Nothing exps imps decls deprecs haddock) = do
-    -- printSeq $ map (pos . ann &&& exactPC) decls
+  exactP (GHC.HsModule mmn mexp limps decls deprecs haddock) = do
 
-    -- put the end of file whitespace in
-    printStringAtMaybeAnn GHC.AnnEofPos ""
-
-  exactP (GHC.HsModule (Just lmn@(GHC.L l mn)) mexp limps decls deprecs haddock) = do
-    ss <- getSrcSpan
-    return () `debug` ("exactP.HsModule:ss=" ++ showGhc ss)
-
-    printStringAtMaybeAnn GHC.AnnModule "module" -- `debug` ("exactP.HsModule:cs=" ++ show cs)
-    printStringAtMaybeAnn GHC.AnnVal (GHC.moduleNameString mn)
+    case mmn of
+      Just lmn@(GHC.L l mn) -> do
+        printStringAtMaybeAnn GHC.AnnModule "module" -- `debug` ("exactP.HsModule:cs=" ++ show cs)
+        printStringAtMaybeAnn GHC.AnnVal (GHC.moduleNameString mn)
+      Nothing -> return ()
 
     case mexp of
       Just lexps -> do
@@ -559,6 +554,7 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnSemi ";"
 
     -- printSeq $ map (pos . ann &&& exactPC) decls
+    mapM_ exactPC decls
 
     printStringAtMaybeAnn GHC.AnnClose "}"
 
@@ -674,9 +670,8 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
 
 instance ExactP (GHC.HsBind GHC.RdrName) where
   exactP (GHC.FunBind n _  (GHC.MG matches _ _ _) _fun_co_fn _fvs _tick) = do
-    Just (AnnFunBind eqPos) <- getAnnValue
-    printString (showGhc (GHC.unLoc n))
-    printStringAtMaybeDelta eqPos "="
+    printStringAtMaybeAnn GHC.AnnFunId (showGhc (GHC.unLoc n))
+    printStringAtMaybeAnn GHC.AnnEqual "="
     mapM_ exactPC matches
 
   exactP (GHC.PatBind lhs (GHC.GRHSs grhs lb) _ty _fvs _ticks) = do
@@ -693,7 +688,6 @@ instance ExactP (GHC.HsBind GHC.RdrName) where
 
 instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP (GHC.Match pats typ (GHC.GRHSs grhs lb)) = do
-    (Just (AnnMatch {- nPos n isInfix -} eqPos wherePos)) <- getAnnValue
 {-
     if isInfix
       then do
@@ -706,12 +700,14 @@ instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
         printStringAtDelta nPos (rdrName2String n)
         mapM_ exactPC pats
 -}
-    printStringAtMaybeDelta eqPos "="
+    printStringAtMaybeAnn GHC.AnnEqual "="
     -- doMaybe typ exactPC
     mapM_ exactPC typ
     mapM_ exactPC grhs
-    printStringAtMaybeDelta wherePos "where"
+    printStringAtMaybeAnn GHC.AnnWhere "where"
+    printStringAtMaybeAnn GHC.AnnOpen "{"
     exactP lb
+    printStringAtMaybeAnn GHC.AnnClose "}"
 
 instance ExactP (GHC.Pat GHC.RdrName) where
   exactP (GHC.VarPat n)     = printString (rdrName2String n)
@@ -815,15 +811,13 @@ instance ExactP (GHC.HsContext GHC.RdrName) where
 
 instance ExactP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP (GHC.GRHS guards expr) = do
-    Just (AnnGRHS guardPos eqPos) <- getAnnValue
-    printStringAtMaybeDelta guardPos "|"
+    printStringAtMaybeAnn GHC.AnnVbar "|"
     mapM_ exactPC guards
-    printStringAtMaybeDelta eqPos "="
+    printStringAtMaybeAnn GHC.AnnEqual "="
     exactPC expr
 
 instance ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP (GHC.BodyStmt e _ _ _) = do
-    Just an <- getAnnValue :: EP (Maybe AnnStmt)
     -- let [(Ann lcs _ an)] = getAnn isAnnStmtLR ma "StmtLR"
     exactPC e
 
@@ -1034,11 +1028,10 @@ instance ExactP (GHC.TyClDecl GHC.RdrName) where
   exactP (GHC.SynDecl  _ _ _ _)   = printString "SynDecl"
 
   exactP (GHC.DataDecl ln (GHC.HsQTvs ns tyVars) defn _) = do
-    Just (AnnDataDecl eqDelta) <- getAnnValue :: EP (Maybe AnnTyClDecl)
-    -- let [(Ann lcs _ (AnnDataDecl eqDelta))] = getAnn isAnnDataDecl ma "DataDecl"
-    printString "data"
+    printStringAtMaybeAnn GHC.AnnData     "data"
+    printStringAtMaybeAnn GHC.AnnNewtype "newtype"
     exactPC ln
-    printStringAtDelta eqDelta "="
+    printStringAtMaybeAnn GHC.AnnEqual "="
     mapM_ exactPC tyVars
     exactP defn
 
@@ -1065,10 +1058,8 @@ instance ExactP [GHC.LConDecl GHC.RdrName] where
 
 instance ExactP (GHC.ConDecl GHC.RdrName) where
   exactP (GHC.ConDecl ln exp qvars ctx dets res _ _) = do
-    Just (AnnConDecl mp) <- getAnnValue :: EP (Maybe AnnTyClDecl)
-    -- let [(Ann lcs _ (AnnConDecl mp))] = getAnn isAnnConDecl ma "ConDecl"
     mapM_ exactPC ln
-    printStringAtMaybeDelta mp "|"
+    printStringAtMaybeAnn GHC.AnnVbar "|"
 
 
 -- ---------------------------------------------------------------------
