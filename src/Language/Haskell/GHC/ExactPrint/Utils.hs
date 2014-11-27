@@ -472,7 +472,7 @@ instance AnnotateP (GHC.HsDecl GHC.RdrName) where
 
 instance AnnotateP (GHC.HsBind GHC.RdrName) where
   annotateP l (GHC.FunBind (GHC.L ln n) isInfix (GHC.MG matches _ _ _) _ _ _) = do
-    addDeltaAnnotation GHC.AnnEqual
+    -- addDeltaAnnotation GHC.AnnEqual
     mapM_ annotatePC matches
     return Nothing
 
@@ -494,6 +494,8 @@ instance AnnotateP (GHC.HsBind GHC.RdrName) where
 
 instance AnnotateP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   annotateP l (GHC.Match pats _typ grhss@(GHC.GRHSs grhs lb)) = do
+
+    addDeltaAnnotation GHC.AnnFunId
 
     mapM_ annotatePC pats
 

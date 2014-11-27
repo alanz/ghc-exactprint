@@ -61,7 +61,7 @@ manipulateAstTest sources = do
        -- `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
     -- try to pretty-print; summarize the test result
     ann = annotateAST parsed ghcAnns
-      `debug` ("ghcAnns:" ++ showGhc ghcAnns)
+      -- `debug` ("ghcAnns:" ++ showGhc ghcAnns)
       -- `debug` ("ann:" ++ (show $ snd ann))
       -- `debug` ("ann:" ++ (show $ fst ann))
 

@@ -126,8 +126,8 @@ spanSize ss = (srcSpanEndLine ss - srcSpanStartLine ss,
 pos :: (SrcInfo loc) => loc -> Pos
 pos ss = (startLine ss, startColumn ss)
 
-newtype EP x = EP (Pos -> DeltaPos -> [GHC.SrcSpan] -> [Comment] -> Anns
-            -> (x, Pos,   DeltaPos,   [GHC.SrcSpan],   [Comment],   Anns, ShowS))
+newtype EP x = EP (Pos -> DeltaPos -> [GHC.SrcSpan] -> [Comment] -> String -> Anns
+            -> (x, Pos,   DeltaPos,   [GHC.SrcSpan],   [Comment],   String,   Anns, ShowS))
 
 instance Functor EP where
   fmap = liftM
@@ -137,62 +137,62 @@ instance Applicative EP where
   (<*>) = ap
 
 instance Monad EP where
-  return x = EP $ \l dp s cs an -> (x, l, dp, s, cs, an, id)
+  return x = EP $ \l dp s cs st an -> (x, l, dp, s, cs, st, an, id)
 
-  EP m >>= k = EP $ \l0 ss0 dp0 c0 an0 -> let
-        (a, l1, ss1, dp1, c1, an1, s1) = m l0 ss0 dp0 c0 an0
+  EP m >>= k = EP $ \l0 ss0 dp0 c0 st0 an0 -> let
+        (a, l1, ss1, dp1, c1, st1, an1, s1) = m l0 ss0 dp0 c0 st0 an0
         EP f = k a
-        (b, l2, ss2, dp2, c2, an2, s2) = f l1 ss1 dp1 c1 an1
-    in (b, l2, ss2, dp2, c2, an2, s1 . s2)
+        (b, l2, ss2, dp2, c2, st2, an2, s2) = f l1 ss1 dp1 c1 st1 an1
+    in (b, l2, ss2, dp2, c2, st2, an2, s1 . s2)
 
 runEP :: EP () -> GHC.SrcSpan -> [Comment] -> Anns -> String
-runEP (EP f) ss cs ans = let (_,_,_,_,_,_,s) = f (1,1) (DP (0,0)) [ss] cs ans in s ""
+runEP (EP f) ss cs ans = let (_,_,_,_,_,_,_,s) = f (1,1) (DP (0,0)) [ss] cs "" ans in s ""
 
 getPos :: EP Pos
-getPos = EP (\l dp s cs an -> (l,l,dp,s,cs,an,id))
+getPos = EP (\l dp s cs st an -> (l,l,dp,s,cs,st,an,id))
 
 setPos :: Pos -> EP ()
-setPos l = EP (\_ dp s cs an -> ((),l,dp,s,cs,an,id))
+setPos l = EP (\_ dp s cs st an -> ((),l,dp,s,cs,st,an,id))
 
 
 getOffset :: EP DeltaPos
-getOffset = EP (\l dp s cs an -> (dp,l,dp,s,cs,an,id))
+getOffset = EP (\l dp s cs st an -> (dp,l,dp,s,cs,st,an,id))
 
 addOffset :: DeltaPos -> EP ()
-addOffset (DP (r,c)) = EP (\l (DP (ro,co)) s cs an -> ((),l,(DP (r+ro,c+co)),s,cs,an,id))
+addOffset (DP (r,c)) = EP (\l (DP (ro,co)) s cs st an -> ((),l,(DP (r+ro,c+co)),s,cs,st,an,id))
 
 setOffset :: DeltaPos -> EP ()
-setOffset dp = EP (\l _ s cs an -> ((),l,dp,s,cs,an,id))
+setOffset dp = EP (\l _ s cs st an -> ((),l,dp,s,cs,st,an,id))
 
 getSrcSpan :: EP GHC.SrcSpan
-getSrcSpan = EP (\l dp (s:ss) cs an -> (s,l,dp,(s:ss),cs,an,id))
+getSrcSpan = EP (\l dp (s:ss) cs st an -> (s,l,dp,(s:ss),cs,st,an,id))
 
 -- | Replace the current head value
 setSrcSpan :: GHC.SrcSpan -> EP ()
-setSrcSpan ss = EP (\l dp (s:sss) cs an -> ((),l,dp,(ss:sss),cs,an,id))
+setSrcSpan ss = EP (\l dp (s:sss) cs st an -> ((),l,dp,(ss:sss),cs,st,an,id))
 
 pushSrcSpan :: GHC.SrcSpan -> EP ()
-pushSrcSpan ss = EP (\l dp sss cs an -> ((),l,dp,(ss:sss),cs,an,id))
+pushSrcSpan ss = EP (\l dp sss cs st an -> ((),l,dp,(ss:sss),cs,st,an,id))
 
 popSrcSpan :: EP ()
-popSrcSpan = EP (\l dp (_:sss) cs an -> ((),l,dp,sss,cs,an,id))
+popSrcSpan = EP (\l dp (_:sss) cs st an -> ((),l,dp,sss,cs,st,an,id))
 
 
 getAnnotation :: (Typeable a) => GHC.Located a -> EP (Maybe Annotation)
-getAnnotation a@(GHC.L ss _) = EP (\l dp s cs an -> (getAnnotationEP (anEP an) a
-                       ,l,dp,s,cs,an,id))
+getAnnotation a@(GHC.L ss _) = EP (\l dp s cs st an -> (getAnnotationEP (anEP an) a
+                       ,l,dp,s,cs,st,an,id))
 
 getAnnValue :: (Typeable b) => EP (Maybe b)
-getAnnValue = EP (\l dp (s:ss) cs an -> (getAnnotationValue (anU an) s
-                  ,l,dp,(s:ss),cs,an,id))
+getAnnValue = EP (\l dp (s:ss) cs st an -> (getAnnotationValue (anU an) s
+                  ,l,dp,(s:ss),cs,st,an,id))
 
 getAnnFinal :: GHC.AnnKeywordId -> EP [DeltaPos]
-getAnnFinal kw = EP (\l dp (s:ss) cs an ->
+getAnnFinal kw = EP (\l dp (s:ss) cs st an ->
      let
        r = case Map.lookup (s,kw) (anF an) of
              Nothing -> []
              Just ds -> ds
-     in (r         ,l,dp,(s:ss),cs,an,id))
+     in (r         ,l,dp,(s:ss),cs,st,an,id))
 
 
 
@@ -204,29 +204,36 @@ putAnnotation ss anns = EP (\l dp cs an ->
   in ((),l,dp, cs,an',id))
 -}
 
+getStr :: EP String
+getStr = EP (\l dp s cs st an -> (st,l,dp,s,cs,st,an,id))
+
+setStr :: String -> EP ()
+setStr st = EP (\l dp s cs _ an -> ((),l,dp,s,cs,st,an,id))
+
+
 printString :: String -> EP ()
-printString str = EP (\(l,c) dp s cs an -> ((), (l,c+length str), dp, s, cs, an, showString str))
+printString str = EP (\(l,c) dp s cs st an -> ((), (l,c+length str), dp, s, cs, st, an, showString str))
 
 getComment :: EP (Maybe Comment)
-getComment = EP $ \l dp s cs an ->
+getComment = EP $ \l dp s cs st an ->
     let x = case cs of
              c:_ -> Just c
              _   -> Nothing
-     in (x, l, dp, s, cs, an, id)
+     in (x, l, dp, s, cs, st, an, id)
 
 dropComment :: EP ()
-dropComment = EP $ \l dp s cs an ->
+dropComment = EP $ \l dp s cs st an ->
     let cs' = case cs of
                (_:cs) -> cs
                _      -> cs
-     in ((), l, dp, s, cs', an, id)
+     in ((), l, dp, s, cs', st, an, id)
 
 mergeComments :: [DComment] -> EP ()
-mergeComments dcs = EP $ \l dp s cs an ->
+mergeComments dcs = EP $ \l dp s cs st an ->
     let ll = ss2pos $ head s
         acs = map (undeltaComment ll) dcs
         cs' = merge acs cs
-    in ((), l, dp, s, cs', an, id) `debug` ("mergeComments:(l,acs,dcs)=" ++ show (l,acs,dcs))
+    in ((), l, dp, s, cs', st, an, id) `debug` ("mergeComments:(l,acs,dcs)=" ++ show (l,acs,dcs))
 
 newLine :: EP ()
 newLine = do
@@ -670,8 +677,8 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
 
 instance ExactP (GHC.HsBind GHC.RdrName) where
   exactP (GHC.FunBind n _  (GHC.MG matches _ _ _) _fun_co_fn _fvs _tick) = do
-    printStringAtMaybeAnn GHC.AnnFunId (showGhc (GHC.unLoc n))
-    printStringAtMaybeAnn GHC.AnnEqual "="
+    -- printStringAtMaybeAnn GHC.AnnFunId (showGhc (GHC.unLoc n))
+    setStr (showGhc (GHC.unLoc n))
     mapM_ exactPC matches
 
   exactP (GHC.PatBind lhs (GHC.GRHSs grhs lb) _ty _fvs _ticks) = do
@@ -700,6 +707,8 @@ instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
         printStringAtDelta nPos (rdrName2String n)
         mapM_ exactPC pats
 -}
+    funid <- getStr
+    printStringAtMaybeAnn GHC.AnnFunId funid
     printStringAtMaybeAnn GHC.AnnEqual "="
     -- doMaybe typ exactPC
     mapM_ exactPC typ
