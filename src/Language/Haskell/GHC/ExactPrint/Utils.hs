@@ -409,6 +409,7 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
 
 instance AnnotateP [GHC.LIE GHC.RdrName] where
    annotateP l ls = do
+     addDeltaAnnotation GHC.AnnHiding -- in an import decl
      addDeltaAnnotation GHC.AnnOpen -- '('
      mapM_ annotatePC ls
      addDeltaAnnotation GHC.AnnClose -- ')'

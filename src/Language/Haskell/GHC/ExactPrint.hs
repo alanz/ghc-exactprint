@@ -575,6 +575,7 @@ instance ExactP (GHC.ModuleName) where
 
 instance ExactP [GHC.LIE GHC.RdrName] where
   exactP ies = do
+    printStringAtMaybeAnn GHC.AnnHiding "hiding"
     printStringAtMaybeAnn GHC.AnnOpen "("
     mapM_ exactPC ies
     printStringAtMaybeAnn GHC.AnnClose ")"
@@ -641,7 +642,7 @@ instance ExactP (GHC.ImportDecl GHC.RdrName) where
     case GHC.ideclHiding imp of
       Nothing -> return ()
       Just (_,lie) -> do
-        printStringAtMaybeAnn GHC.AnnHiding "hiding"
+        -- printStringAtMaybeAnn GHC.AnnHiding "hiding"
         exactPC lie
 
     printStringAtMaybeAnnAll GHC.AnnSemi ";"
