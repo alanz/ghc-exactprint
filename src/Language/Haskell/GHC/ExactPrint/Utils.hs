@@ -32,10 +32,10 @@ module Language.Haskell.GHC.ExactPrint.Utils
   -- , APState(..)
   , AP(..)
   , getSrcSpanAP, pushSrcSpanAP, popSrcSpanAP
-  , getSubSpans
+ -- , getSubSpans
   , getAnnotationAP
-  , getComments
-  , setComments
+ -- , getComments
+ -- , setComments
   -- , getS
   , addAnnotationsAP, addAnnValue
 
@@ -88,36 +88,10 @@ debug = flip trace
 --    - the annotations provided by GHC
 
 {- -}
-newtype AP x = AP ([(GHC.SrcSpan,TypeRep)] -> [[GHC.SrcSpan]] -> GHC.SrcSpan -> [Comment] -> GHC.ApiAnns
-            -> (x, [(GHC.SrcSpan,TypeRep)],   [[GHC.SrcSpan]],   GHC.SrcSpan,   [Comment],   GHC.ApiAnns,
+newtype AP x = AP ([(GHC.SrcSpan,TypeRep)] -> [[GHC.SrcSpan]] -> GHC.SrcSpan -> GHC.ApiAnns
+            -> (x, [(GHC.SrcSpan,TypeRep)],   [[GHC.SrcSpan]],   GHC.SrcSpan,   GHC.ApiAnns,
                   ([(AnnKey,Annotation)],[(AnnKey,Value)],[(AnnKeyF,[DeltaPos])])
                  ))
-{- -}
-
-{-
-
-TODO: use discrete annotations as per GHC
-
-      use a single prior position field
-
-      automatically (via a monadic call) calculate the delta and
-        update the prior pos
-
--}
-
-{-
-newtype AP x = AP (APState
-            -> (x, APState,
-                  ([(AnnKey,Annotation)],[(AnnKey,Value)])
-                 ))
-
-data APState = S
-  { sCrumbs   :: ![(GHC.SrcSpan,TypeRep)]
-  , sEnclosed :: ![[GHC.SrcSpan]]
-  , sComments :: ![Comment]
-  , sAnns     :: !GHC.ApiAnns
-  } deriving Show
--}
 
 instance Functor AP where
   fmap = liftM
@@ -127,123 +101,100 @@ instance Applicative AP where
   (<*>) = ap
 
 instance Monad AP where
-  return x = AP $ \l ss pe cs ga -> (x, l, ss, pe, cs, ga, ([],[],[]))
-  -- return x = AP $ \st -> (x, st, ([],[]) )
+  return x = AP $ \l ss pe ga -> (x, l, ss, pe, ga, ([],[],[]))
 
-  AP m >>= k = AP $ \l0 ss0 p0 c0 ga0 -> let
-        (a, l1, ss1, p1, c1, ga1, s1) = m l0 ss0 p0 c0 ga0
+  AP m >>= k = AP $ \l0 ss0 p0 ga0 -> let
+        (a, l1, ss1, p1, ga1, s1) = m l0 ss0 p0 ga0
         AP f = k a
-        (b, l2, ss2, p2, c2, ga2, s2) = f l1 ss1 p1 c1 ga1
-    in (b, l2, ss2, p2, c2, ga2, s1 <> s2)
+        (b, l2, ss2, p2, ga2, s2) = f l1 ss1 p1 ga1
+    in (b, l2, ss2, p2, ga2, s1 <> s2)
 
-  -- AP m >>= k = AP $ \st0 -> let
-  --       (a, st1, s1) = m st0
-  --       AP f = k a
-  --       (b, st2, s2) = f st1
-  --   in (b, st2, s1 <> s2)
-  --      `debug` (">>= : " ++ show (st1,st2,s1 <> s2))
 
 runAP :: AP () -> GHC.ApiAnns -> Anns
 runAP (AP f) ga
- = let (_,_,_,_,_,_,(se,su,sa)) = f [] [] GHC.noSrcSpan [] ga
- -- = let -- st = S [] [] cs ga
- --       (_,st',(se,su)) = f (S [] [] cs ga) -- `debug` ("runAP:initial state=" ++ show st)
+ = let (_,_,_,_,_,(se,su,sa)) = f [] [] GHC.noSrcSpan ga
    in (Map.fromList se,Map.fromList su,Map.fromListWith (++) sa)
-      -- `debug` ("runAP done" ++ (show (se,su)))
-      -- `debug` ("runAP done")
-      -- `debug` ("runAP:final state=" ++ show st')
 
 -- -------------------------------------
 
 -- |Note: assumes the SrcSpan stack is nonempty
 getSrcSpanAP :: AP GHC.SrcSpan
-getSrcSpanAP = AP (\l ss pe cs ga -> (fst $ head l,l,ss,pe,cs,ga,([],[],[])))
+getSrcSpanAP = AP (\l ss pe ga -> (fst $ head l,l,ss,pe,ga,([],[],[])))
 
 pushSrcSpanAP :: (Typeable a) => (GHC.Located a) -> AP ()
-pushSrcSpanAP (GHC.L l a) = AP (\ls ss pe cs ga -> ((),(l,typeOf a):ls,[]:ss,pe,cs,ga,([],[],[])))
+pushSrcSpanAP (GHC.L l a) = AP (\ls ss pe ga -> ((),(l,typeOf a):ls,[]:ss,pe,ga,([],[],[])))
 
 popSrcSpanAP :: AP ()
-popSrcSpanAP = AP (\(l:ls) (s:ss) pe cs ga -> ((),ls,ss,pe,cs,ga,([],[],[])))
+popSrcSpanAP = AP (\(l:ls) (s:ss) pe ga -> ((),ls,ss,pe,ga,([],[],[])))
 
-getSubSpans :: AP [Span]
-getSubSpans= AP (\l (s:ss) pe cs ga -> (map ss2span s,l,s:ss,pe,cs,ga,([],[],[])))
-
+-- getSubSpans :: AP [Span]
+-- getSubSpans= AP (\l (s:ss) pe ga -> (map ss2span s,l,s:ss,pe,ga,([],[],[])))
 
 -- ---------------------------------------------------------------------
 
 -- |Note: assumes the prior end SrcSpan stack is nonempty
 getPriorEnd :: AP GHC.SrcSpan
-getPriorEnd = AP (\l ss pe cs ga -> (pe, l,ss,pe,cs,ga,([],[],[])))
+getPriorEnd = AP (\l ss pe ga -> (pe, l,ss,pe,ga,([],[],[])))
 
 pushPriorEnd :: GHC.SrcSpan -> AP ()
-pushPriorEnd pe = AP (\ls ss _ cs ga  -> ((),ls,ss,pe,cs,ga,([],[],[])))
+pushPriorEnd pe = AP (\ls ss _ ga  -> ((),ls,ss,pe,ga,([],[],[])))
 
+-- Deprecated, remove
 popPriorEnd :: AP ()
-popPriorEnd = AP (\ls ss pe cs ga -> ((),ls,ss,  pe,cs,ga,([],[],[]))
+popPriorEnd = AP (\ls ss pe ga -> ((),ls,ss,  pe,ga,([],[],[]))
  `debug` ("popPriorEnd: old stack :" ++ showGhc pe))
 -- -------------------------------------
 
 getAnnotationAP :: GHC.SrcSpan -> GHC.AnnKeywordId -> AP [GHC.SrcSpan]
-getAnnotationAP sp an = AP (\l ss pe cs ga
-    -> (GHC.getAnnotation ga sp an, l,ss,pe,cs,ga,([],[],[])))
+getAnnotationAP sp an = AP (\l ss pe ga
+    -> (GHC.getAnnotation ga sp an, l,ss,pe,ga,([],[],[])))
 
 
 -- -------------------------------------
 
 getCommentsForSpan :: GHC.SrcSpan -> AP [Comment]
-getCommentsForSpan s = AP (\l ss pe cs ga ->
+getCommentsForSpan s = AP (\l ss pe ga ->
   let
     gcs = GHC.getAnnotationComments ga s
     cs = reverse $ map tokComment gcs
     tokComment :: GHC.Located GHC.AnnotationComment -> Comment
     tokComment t@(GHC.L l _) = Comment (ghcIsMultiLine t) (ss2span l) (ghcCommentText t)
-  in (cs,l,ss,pe,cs,ga,([],[],[])))
+  in (cs,l,ss,pe,ga,([],[],[])))
 
-getComments :: AP [Comment]
-getComments = AP (\l ss pe cs ga -> (cs,l,ss,pe,cs,ga,([],[],[])))
+-- getComments :: AP [Comment]
+-- getComments = AP (\l ss pe ga -> (cs,l,ss,pe,ga,([],[],[])))
 
-setComments :: [Comment] -> AP ()
-setComments cs = AP (\l ss pe _ ga -> ((),l,ss,pe,cs,ga,([],[],[])))
+-- setComments :: [Comment] -> AP ()
+-- setComments cs = AP (\l ss pe ga -> ((),l,ss,pe,ga,([],[],[])))
 
+{-
 addComments  :: [Comment] -> AP ()
-addComments acs = AP (\l ss pe cs           ga ->
-                   ((),l,ss,pe,merge acs cs,ga,([],[],[])))
+addComments acs = AP (\l ss pe ga ->
+                   ((),l,ss,pe,ga,([],[],[])))
+-}
 
 -- -------------------------------------
-
-getToks :: AP [PosToken]
-getToks = AP (\l ss pe cs ga -> ([],l,ss,pe,cs,ga,([],[],[])))
-
-setToks :: [PosToken] -> AP ()
-setToks toks = AP (\l ss pe cs ga -> ((),l,ss,pe,cs,ga,([],[],[])))
-
--- -------------------------------------
-
--- getS :: AP APState
--- getS = AP (\st -> (st,st,([],[])))
-
--- -------------------------------------
-
+-- xxxxxxxxxxxxxxxxxxxxxxx
 -- |Add some annotation to the currently active SrcSpan
 addAnnotationsAP :: Annotation -> AP ()
-addAnnotationsAP ann = AP (\l (h:r)                pe cs ga ->
-                       ( (),l,((fst $ head l):h):r,pe,cs,ga,
+addAnnotationsAP ann = AP (\l (h:r)                pe ga ->
+                       ( (),l,((fst $ head l):h):r,pe,ga,
                  ([((head l),ann)],[],[])))
 
 -- -------------------------------------
-
--- |Add some annotation to the currently active SrcSpan
+-- xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+-- Deprecated, delete later
 addAnnValue :: (Typeable a,Show a,Eq a) => a -> AP ()
-addAnnValue v = AP (\l (h:r)                pe cs ga ->
-                ( (),l,((fst $ head l):h):r,pe,cs,ga,
+addAnnValue v = AP (\l (h:r)                pe ga ->
+                ( (),l,((fst $ head l):h):r,pe,ga,
                  ([],[( ((fst $ head l),typeOf (Just v)),newValue v)],[])))
 
 
 -- -------------------------------------
 
 addAnnDeltaPos :: (GHC.SrcSpan,GHC.AnnKeywordId) -> DeltaPos -> AP ()
-addAnnDeltaPos (s,kw) dp = AP (\l ss pe cs ga -> ( (),
-                                 l,ss,pe,cs,ga,
+addAnnDeltaPos (s,kw) dp = AP (\l ss pe ga -> ( (),
+                                 l,ss,pe,ga,
                                ([],[],
                                [ ((s,kw),[dp]) ])  ))
 
@@ -458,34 +409,7 @@ instance AnnotateP GHC.RdrName where
     return Nothing
 
 -- ---------------------------------------------------------------------
-{-
-ImportDecl
 
-  ideclName :: Located ModuleName
-    Module name.
-
-  ideclPkgQual :: Maybe FastString
-    Package qualifier.
-
-  ideclSource :: Bool
-    True = {--} import
-
-  ideclSafe :: Bool
-    True => safe import
-
-  ideclQualified :: Bool
-    True => qualified
-
-  ideclImplicit :: Bool
-    True => implicit import (of Prelude)
-
-  ideclAs :: Maybe ModuleName
-    as Module
-
-  ideclHiding :: Maybe (Bool, Located [LIE name])
-
-
--}
 instance AnnotateP (GHC.ImportDecl GHC.RdrName) where
  annotateP l (GHC.ImportDecl (GHC.L ln _) _pkg _src _safe qual _impl as hiding) = do
 
