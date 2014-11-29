@@ -751,8 +751,9 @@ instance ExactP (GHC.HsType GHC.Name) where
 
 
 instance ExactP (GHC.HsType GHC.RdrName) where
--- HsForAllTy HsExplicitFlag (LHsTyVarBndrs name) (LHsContext name) (LHsType name)
-  exactP (GHC.HsForAllTy f bndrs ctx typ) = do
+-- HsForAllTy HsExplicitFlag                 (LHsTyVarBndrs name) (LHsContext name) (LHsType name)
+-- HsForAllTy HsExplicitFlag (Maybe SrcSpan) (LHsTyVarBndrs name) (LHsContext name) (LHsType name)
+  exactP (GHC.HsForAllTy f mwc bndrs ctx typ) = do
     Just (AnnHsForAllTy opPos darrowPos cpPos) <- getAnnValue :: EP (Maybe AnnHsType)
     -- let [(Ann _ _ (AnnHsForAllTy opPos darrowPos cpPos))] = getAnn isAnnHsForAllTy ma "HsForAllTy"
     printStringAtMaybeDelta opPos "("
@@ -898,7 +899,7 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
   exactP (GHC.ExplicitPArr _ es)   = mapM_ exactPC es
   exactP (GHC.RecordCon _ _ (GHC.HsRecFields fs _)) = mapM_ exactPC fs
   exactP (GHC.RecordUpd e (GHC.HsRecFields fs _) cons _ _)  = exactPC e >> mapM_ exactPC fs
-  exactP (GHC.ExprWithTySig e typ) = exactPC e >> exactPC typ
+  exactP (GHC.ExprWithTySig e typ _) = exactPC e >> exactPC typ
   exactP (GHC.ExprWithTySigOut e typ) = exactPC e >> exactPC typ
 
   exactP (GHC.ArithSeq _ _ seqInfo) = do
@@ -974,7 +975,7 @@ instance ExactP (GHC.HsLocalBinds GHC.RdrName) where
 
 
 instance ExactP (GHC.Sig GHC.RdrName) where
-  exactP (GHC.TypeSig lns typ) = do
+  exactP (GHC.TypeSig lns typ _) = do
     Just (AnnTypeSig dc) <- getAnnValue :: EP (Maybe AnnTypeSig)
     -- let [(Ann _ _ (AnnTypeSig dc))] = getAnn isAnnTypeSig ma "TypeSig"
     mapM_ exactPC lns

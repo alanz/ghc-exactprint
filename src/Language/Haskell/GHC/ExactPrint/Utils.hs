@@ -159,7 +159,7 @@ addAnnotationsAP ann = AP (\l pe ga ->
                  ([((head l),ann)],[],[])))
 
 -- -------------------------------------
--- xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
 -- Deprecated, delete later
 addAnnValue :: (Typeable a,Show a,Eq a) => a -> AP ()
 addAnnValue v = AP (\l                 pe ga ->
@@ -415,38 +415,6 @@ instance AnnotateP (GHC.ImportDecl GHC.RdrName) where
 
    return Nothing
 
--- =====================================================================
--- ---------------------------------------------------------------------
-{-
-
-getListAnnInfo :: GHC.SrcSpan
-  -> (PosToken -> Bool) -> (PosToken -> Bool)
-  -> [Comment] -> [PosToken]
-  -> Maybe DeltaPos
-getListAnnInfo l isSeparator isTerminator cs toks = mc
-  where mc = calcListOffsets isSeparator isTerminator l toks
-
-isCommaOrCParen :: PosToken -> Bool
-isCommaOrCParen t = ghcIsComma t || ghcIsCParen t
-
--- ---------------------------------------------------------------------
-
-calcListOffsets :: (PosToken -> Bool) -> (PosToken -> Bool)
-  -> GHC.SrcSpan
-  -> [PosToken]
-  -> Maybe DeltaPos
-calcListOffsets isSeparator isTerminator l toks = mc
-  where
-    mc = case findTrailing isToken l toks of
-      Nothing -> Nothing
-      Just t  -> mc'
-        where mc' = if isSeparator t
-                      then Just (ss2delta (ss2posEnd l) (tokenSpan t))
-                      else Nothing
-
-    isToken t = isSeparator t || isTerminator t
-
--}
 -- ---------------------------------------------------------------------
 
 instance AnnotateP (GHC.HsDecl GHC.RdrName) where
@@ -535,57 +503,119 @@ instance AnnotateP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
     annotatePC expr
     return Nothing
 
-{-
-annotateLGRHS :: GHC.LGRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> AP ()
-annotateLGRHS (GHC.L l (GHC.GRHS guards expr)) = do
-  enterAST l
-
-  toksIn <- getToks
-  let
-    (guardPos,eqPos) = case guards of
-             [] -> (Nothing,Nothing)
-             _  -> (Just $ findDelta ghcIsVbar l toksIn (ss2pos l)
-                   , findTokenWrtPrior ghcIsEqual l toksIn)
-
-
-  mapM_ annotateLStmt guards
-  annotateLHsExpr expr
-
-  leaveAST (AnnGRHS guardPos eqPos)
--}
 -- ---------------------------------------------------------------------
 
 instance AnnotateP (GHC.Sig GHC.RdrName) where
-  annotateP l s = do
-    return () `debug` ("annotateP.Sig:" ++ showGhc (l,s))
+
+
+  annotateP l (GHC.TypeSig lns typ _) = do
+    mapM_ annotatePC lns
+    addDeltaAnnotation GHC.AnnDotdot
+    annotatePC typ
+    addDeltaAnnotation GHC.AnnComma
     return Nothing
 
-{-
-annotateLSig :: GHC.LSig GHC.RdrName -> AP ()
-annotateLSig (GHC.L l (GHC.TypeSig lns typ)) = do
-  enterAST l
+  -- PatSynSig (Located name) (HsExplicitFlag, LHsTyVarBndrs name)
+  --           (LHsContext name) (LHsContext name) (LHsType name)
+  annotateP l (GHC.PatSynSig (GHC.L ln _) (_,GHC.HsQTvs _ns bndrs) ctx1 ctx2 typ) = do
+    addDeltaAnnotation GHC.AnnPattern
+    addDeltaAnnotationExt ln GHC.AnnVal
+    addDeltaAnnotation GHC.AnnDotdot
 
-  toks <- getToks
-  let [ls] = getListSrcSpan lns
+    -- Note: The 'forall' bndrs '.' may occur multiple times
+    addDeltaAnnotation GHC.AnnForall
+    mapM_ annotatePC bndrs
+    addDeltaAnnotation GHC.AnnDot
 
-{-
-  let [ls] = getListSrcSpan lns
-  let (_,ltoks,_) = splitToksForSpan ls toks
-  mapM_ (annotateListItem ltoks noOp) lns
--}
-  annotateListItems lns noOp
+    annotatePC ctx1
+    addDeltaAnnotation GHC.AnnDarrow
+    annotatePC ctx2
+    addDeltaAnnotation GHC.AnnDarrow
+    annotatePC typ
+    addDeltaAnnotation GHC.AnnComma
+    return Nothing
 
-  let dcolonPos = findDelta ghcIsDcolon l toks (ss2posEnd ls)
 
-  annotateLHsType typ
+  -- GenericSig [Located name] (LHsType name)
+  annotateP l (GHC.GenericSig ns typ) = do
+    addDeltaAnnotation GHC.AnnDefault
+    mapM_ annotatePC ns
+    addDeltaAnnotation GHC.AnnDcolon
+    annotatePC typ
+    addDeltaAnnotation GHC.AnnComma
+    return Nothing
 
-  leaveAST (AnnTypeSig dcolonPos)
+
+  -- FixSig (FixitySig name)
+  annotateP l (GHC.FixSig (GHC.FixitySig lns (GHC.Fixity v fdir))) = do
+    addDeltaAnnotation GHC.AnnInfix
+    mapM_ annotatePC lns
+    addDeltaAnnotation GHC.AnnVal
+    addDeltaAnnotation GHC.AnnComma
+    return Nothing
+
+  -- InlineSig (Located name) InlinePragma
+  -- '{-# INLINE' activation qvar '#-}'
+  annotateP l (GHC.InlineSig (GHC.L ln _) inl) = do
+    addDeltaAnnotations GHC.AnnOpen -- '{-# INLINE', '['
+    addDeltaAnnotation GHC.AnnTilde -- ~
+    addDeltaAnnotation GHC.AnnVal   -- e.g. 34
+    addDeltaAnnotation GHC.AnnClose -- ']'
+    addDeltaAnnotationExt ln GHC.AnnVal
+    addDeltaAnnotation GHC.AnnClose -- '#-}'
+
+    addDeltaAnnotation GHC.AnnComma
+    return Nothing
+
+  -- SpecSig (Located name) [LHsType name] InlinePragma
+  annotateP l (GHC.SpecSig (GHC.L ln _) typs inl) = do
+    addDeltaAnnotations GHC.AnnOpen -- '{-# SPECIALISE', '['
+    addDeltaAnnotation GHC.AnnTilde -- ~
+    addDeltaAnnotation GHC.AnnVal   -- e.g. 34
+    addDeltaAnnotation GHC.AnnClose -- ']'
+    addDeltaAnnotationExt ln GHC.AnnVal
+    addDeltaAnnotation GHC.AnnDcolon -- '::'
+    mapM_ annotatePC typs
+    addDeltaAnnotation GHC.AnnClose -- '#-}'
+
+    addDeltaAnnotation GHC.AnnComma
+    return Nothing
+
+  -- SpecInstSig (LHsType name)
+  -- '{-# SPECIALISE' 'instance' inst_type '#-}'
+  annotateP l (GHC.SpecInstSig typ) = do
+    addDeltaAnnotation GHC.AnnOpen -- '{-# SPECIALISE'
+    addDeltaAnnotation GHC.AnnInstance
+    annotatePC typ
+    addDeltaAnnotation GHC.AnnClose -- '#-}'
+
+    addDeltaAnnotation GHC.AnnComma
+    return Nothing
+
+  -- MinimalSig (BooleanFormula (Located name))
+  annotateP l (GHC.MinimalSig formula) = do
+    addDeltaAnnotation GHC.AnnOpen -- '{-# MINIMAL'
+    annotatePC formula
+    addDeltaAnnotation GHC.AnnClose -- '#-}'
+
+    addDeltaAnnotation GHC.AnnComma
+    return Nothing
+
+  annotateP l s = do
+    return () `debug` ("annotateP.Sig:" ++ showGhc (l,s))
+    addDeltaAnnotation GHC.AnnComma
+    return Nothing
 
 -- ---------------------------------------------------------------------
 
-noOp :: a -> AP ()
-noOp _ = return ()
--}
+instance AnnotateP (GHC.HsTyVarBndr GHC.RdrName) where
+  annotateP = assert False undefined
+
+-- ---------------------------------------------------------------------
+
+instance AnnotateP (GHC.HsContext GHC.RdrName) where
+  annotateP = assert False undefined
+
 -- ---------------------------------------------------------------------
 
 -- TODO ++AZ++: parameterise over id
@@ -1034,7 +1064,7 @@ instance AnnotateP (GHC.HsExpr GHC.RdrName) where
     -- annotatePC cons
     return (Just l)
 
-  annotateP l (GHC.ExprWithTySig e typ) = do
+  annotateP l (GHC.ExprWithTySig e typ _) = do
     annotatePC e
     annotatePC typ
     return (Just l)
