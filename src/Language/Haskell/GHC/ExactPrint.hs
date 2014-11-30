@@ -37,6 +37,7 @@ import Language.Haskell.GHC.ExactPrint.Utils
 import Control.Monad (when, liftM, ap)
 import Control.Applicative (Applicative(..))
 import Control.Arrow ((***), (&&&))
+import Control.Exception
 import Data.Data
 import Data.List (intersperse)
 -- import Data.List.Utils
@@ -751,69 +752,130 @@ instance ExactP (GHC.HsType GHC.Name) where
 
 
 instance ExactP (GHC.HsType GHC.RdrName) where
--- HsForAllTy HsExplicitFlag                 (LHsTyVarBndrs name) (LHsContext name) (LHsType name)
--- HsForAllTy HsExplicitFlag (Maybe SrcSpan) (LHsTyVarBndrs name) (LHsContext name) (LHsType name)
+  -- HsForAllTy HsExplicitFlag (Maybe SrcSpan) (LHsTyVarBndrs name) (LHsContext name) (LHsType name)
   exactP (GHC.HsForAllTy f mwc bndrs ctx typ) = do
-    Just (AnnHsForAllTy opPos darrowPos cpPos) <- getAnnValue :: EP (Maybe AnnHsType)
-    -- let [(Ann _ _ (AnnHsForAllTy opPos darrowPos cpPos))] = getAnn isAnnHsForAllTy ma "HsForAllTy"
-    printStringAtMaybeDelta opPos "("
     exactPC ctx
-    printStringAtMaybeDelta cpPos ")"
-    printStringAtMaybeDelta darrowPos "=>"
+    printStringAtMaybeAnn GHC.AnnVal    "_"
+    printStringAtMaybeAnn GHC.AnnDarrow "=>"
     exactPC typ
 
-  exactP (GHC.HsTyVar n) = printString (rdrName2String n)
+  exactP (GHC.HsTyVar n) = printStringAtMaybeAnn GHC.AnnVal (rdrName2String n)
 
   exactP (GHC.HsAppTy t1 t2) = exactPC t1 >> exactPC t2
 
   exactP (GHC.HsFunTy t1 t2) = do
-    Just (AnnHsFunTy rarrowPos) <- getAnnValue :: EP (Maybe AnnHsType)
-    -- let [(Ann _ _ (AnnHsFunTy rarrowPos))] = getAnn isAnnHsFunTy ma "HsFunTy"
     exactPC t1
-    printStringAtDelta rarrowPos "->"
+    printStringAtMaybeAnn GHC.AnnRarrow "->"
     exactPC t2
 
-  exactP (GHC.HsParTy t1) = do
-    Just (AnnHsParTy opPos cpPos) <- getAnnValue :: EP (Maybe AnnHsType)
-    -- let [(Ann _ _ (AnnHsParTy opPos cpPos))] = getAnn isAnnHsParTy ma "HsParTy"
-    printStringAtDelta opPos "("
-    exactPC t1
-    printStringAtDelta cpPos ")"
+  exactP (GHC.HsListTy t) = do
+    printStringAtMaybeAnn GHC.AnnOpen  "["
+    exactPC t
+    printStringAtMaybeAnn GHC.AnnClose "]"
+
+  exactP (GHC.HsPArrTy t) = do
+    printStringAtMaybeAnn GHC.AnnOpen  "[:"
+    exactPC t
+    printStringAtMaybeAnn GHC.AnnClose ":]"
 
   exactP (GHC.HsTupleTy sort ts) = do
-    Just (AnnHsTupleTy opPos cpPos) <- getAnnValue :: EP (Maybe AnnHsType)
-    -- let [(Ann _ _ (AnnHsTupleTy opPos cpPos))] = getAnn isAnnHsTupleTy ma "HsTupleTy"
     let (ostr,cstr) = case sort of
           GHC.HsUnboxedTuple -> ("(#","#)")
           _ -> ("(",")")
-    printStringAtDelta opPos ostr
+    printStringAtMaybeAnn GHC.AnnOpen  ostr
     mapM_ exactPC ts
-    printStringAtDelta cpPos cstr
+    printStringAtMaybeAnn GHC.AnnClose cstr
+
+  exactP (GHC.HsOpTy t1 (_,GHC.L _ op) t2) = do
+    exactPC t1
+    printStringAtMaybeAnn GHC.AnnVal (rdrName2String op)
+    exactPC t2
+
+  exactP (GHC.HsParTy t1) = do
+    printStringAtMaybeAnn GHC.AnnOpen  "("
+    exactPC t1
+    printStringAtMaybeAnn GHC.AnnClose ")"
+
+  exactP (GHC.HsIParamTy (GHC.HsIPName n) t) = do
+    printStringAtMaybeAnn GHC.AnnVal ("?" ++ (GHC.unpackFS n))
+    printStringAtMaybeAnn GHC.AnnDcolon "::"
+    exactPC t
+
+  exactP (GHC.HsEqTy t1 t2) = do
+    exactPC t1
+    printStringAtMaybeAnn GHC.AnnTilde "~"
+    exactPC t2
+
+  exactP (GHC.HsKindSig t k) = do
+    printStringAtMaybeAnn GHC.AnnOpen  "("
+    exactPC t
+    printStringAtMaybeAnn GHC.AnnDcolon "::"
+    exactPC k
+    printStringAtMaybeAnn GHC.AnnClose ")"
+
+  exactP (GHC.HsQuasiQuoteTy (GHC.HsQuasiQuote _id _ss q)) = do
+    printStringAtMaybeAnn GHC.AnnVal (GHC.unpackFS q)
+
+  exactP (GHC.HsSpliceTy (GHC.HsSplice _is e) _) = do
+    printStringAtMaybeAnn GHC.AnnOpen  "$("
+    exactPC e
+    printStringAtMaybeAnn GHC.AnnClose ")"
+
+  exactP (GHC.HsDocTy t d) = do
+    exactPC t
+    exactPC d
+
+  exactP (GHC.HsBangTy b t) = do
+    case b of
+      (GHC.HsUserBang (Just True) _) -> do
+        printStringAtMaybeAnn GHC.AnnOpen  "{-# UNPACK"
+        printStringAtMaybeAnn GHC.AnnClose "#-}"
+        printStringAtMaybeAnn GHC.AnnBang  "!"
+      (GHC.HsUserBang (Just False) _) -> do
+        printStringAtMaybeAnn GHC.AnnOpen  "{-# NOUNPACK"
+        printStringAtMaybeAnn GHC.AnnClose "#-}"
+        printStringAtMaybeAnn GHC.AnnBang  "!"
+      _ -> do
+        printStringAtMaybeAnn GHC.AnnBang  "!"
+    exactPC t
+
+  exactP (GHC.HsRecTy cons) = do
+    printStringAtMaybeAnn GHC.AnnOpen  "{"
+    mapM_ exactPC cons
+    printStringAtMaybeAnn GHC.AnnClose "}"
+
+  exactP (GHC.HsCoreTy _t) = return ()
+
+  exactP (GHC.HsExplicitListTy _ ts) = do
+    printStringAtMaybeAnn GHC.AnnOpen  "'["
+    mapM_ exactPC ts
+    printStringAtMaybeAnn GHC.AnnClose "]"
+
+  exactP (GHC.HsExplicitTupleTy _ ts) = do
+    printStringAtMaybeAnn GHC.AnnOpen  "'("
+    mapM_ exactPC ts
+    printStringAtMaybeAnn GHC.AnnClose ")"
+
+  exactP (GHC.HsTyLit lit) = do
+    case lit of
+      (GHC.HsNumTy s _) -> printStringAtMaybeAnn GHC.AnnVal s
+      (GHC.HsStrTy s _) -> printStringAtMaybeAnn GHC.AnnVal s
+
+  exactP (GHC.HsWrapTy _ _) = return ()
+
+  exactP GHC.HsWildcardTy = do
+    printStringAtMaybeAnn GHC.AnnVal "_"
+
+  exactP (GHC.HsNamedWildcardTy n) = do
+    printStringAtMaybeAnn GHC.AnnVal (rdrName2String n)
 
 
+instance ExactP GHC.HsDocString where
+  exactP (GHC.HsDocString s) = do
+    printStringAtMaybeAnn GHC.AnnVal (GHC.unpackFS s)
 
-{-
-HsListTy (LHsType name)	 
-HsPArrTy (LHsType name)	 
-HsTupleTy HsTupleSort [LHsType name]	 
-HsOpTy (LHsType name) (LHsTyOp name) (LHsType name)	 
-HsIParamTy HsIPName (LHsType name)	 
-HsEqTy (LHsType name) (LHsType name)	 
-HsKindSig (LHsType name) (LHsKind name)	 
-HsQuasiQuoteTy (HsQuasiQuote name)	 
-HsSpliceTy (HsSplice name) PostTcKind	 
-HsDocTy (LHsType name) LHsDocString	 
-HsBangTy HsBang (LHsType name)	 
-HsRecTy [ConDeclField name]	 
-HsCoreTy Type	 
-HsExplicitListTy PostTcKind [LHsType name]	 
-HsExplicitTupleTy [PostTcKind] [LHsType name]	 
-HsTyLit HsTyLit	 
-HsWrapTy HsTyWrapper (HsType name)
--}
-
-  exactP t = printString "HsType" `debug` ("exactP.LHSType:ignoring " ++ (showGhc t))
-
+instance ExactP (GHC.ConDeclField GHC.RdrName) where
+  exactP = assert False undefined
 
 instance ExactP (GHC.HsContext GHC.RdrName) where
   exactP typs = do
@@ -976,11 +1038,10 @@ instance ExactP (GHC.HsLocalBinds GHC.RdrName) where
 
 instance ExactP (GHC.Sig GHC.RdrName) where
   exactP (GHC.TypeSig lns typ _) = do
-    Just (AnnTypeSig dc) <- getAnnValue :: EP (Maybe AnnTypeSig)
-    -- let [(Ann _ _ (AnnTypeSig dc))] = getAnn isAnnTypeSig ma "TypeSig"
     mapM_ exactPC lns
-    printStringAtDelta dc "::"
+    printStringAtMaybeAnn GHC.AnnDcolon "::"
     exactPC typ
+    printStringAtMaybeAnn GHC.AnnComma ","
 
   exactP _ = printString "Sig"
 

@@ -37,7 +37,8 @@ main = do
     putStrLn "hello"
     -- manipulateAstTest ["examples/LetExpr.hs"]
     -- manipulateAstTest ["examples/LetExprSemi.hs"]
-    manipulateAstTest ["examples/Tuple.hs"]
+    -- manipulateAstTest ["examples/Tuple.hs"]
+    manipulateAstTest ["examples/Sigs.hs"]
     putStrLn "done"
 
 -- | Where all the tests are to be found
