@@ -636,15 +636,28 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
 
 -- ---------------------------------------------------------------------
 
+-- data BooleanFormula a = Var a | And [BooleanFormula a] | Or [BooleanFormula a]
+--  deriving (Eq, Data, Typeable, Functor, Foldable, Traversable)
+
 annotateBooleanFormula :: (Typeable name,GHC.OutputableBndr name) =>
                              GHC.BooleanFormula (GHC.Located name) -> AP ()
 annotateBooleanFormula = assert False undefined
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name) =>
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
                      AnnotateP (GHC.HsTyVarBndr name) where
-  annotateP = assert False undefined
+  annotateP l (GHC.UserTyVar n) = do
+    addDeltaAnnotationExt l GHC.AnnVal
+    return Nothing
+
+  annotateP l (GHC.KindedTyVar n ty) = do
+    addDeltaAnnotation GHC.AnnOpen -- '('
+    addDeltaAnnotationExt l GHC.AnnVal -- n
+    addDeltaAnnotation GHC.AnnDcolon -- '::'
+    annotatePC ty
+    addDeltaAnnotation GHC.AnnClose -- '('
+    return Nothing
 
 -- ---------------------------------------------------------------------
 
@@ -663,6 +676,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     case mwc of
       Nothing -> return ()
       Just wcs -> addDeltaAnnotationExt wcs GHC.AnnVal -- '_' location
+    addDeltaAnnotation GHC.AnnDot
     addDeltaAnnotation GHC.AnnDarrow
     annotatePC typ
     return Nothing
@@ -806,9 +820,14 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name) =>
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
                              AnnotateP (GHC.ConDeclField name) where
-  annotateP l s = assert False undefined
+  annotateP l (GHC.ConDeclField ns ty mdoc) = do
+    mapM_ annotatePC ns
+    addDeltaAnnotation GHC.AnnDcolon
+    annotatePC ty
+    annotateMaybe mdoc
+    return Nothing
 
 -- ---------------------------------------------------------------------
 
@@ -912,16 +931,16 @@ annotateMatchGroup (GHC.MG matches _ _ _)
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
                                AnnotateP (GHC.HsExpr name) where
   annotateP l (GHC.HsVar _)           = addDeltaAnnotationExt l GHC.AnnVal >> return Nothing
-  annotateP l (GHC.HsIPVar _)         = return Nothing
-  annotateP l (GHC.HsOverLit ov)      = return Nothing
-  annotateP l (GHC.HsLit _)           = return Nothing
-  annotateP l (GHC.HsLam match)       = annotateMatchGroup match >> return (Just l)
-  annotateP l (GHC.HsLamCase _ match) = annotateMatchGroup match >> return (Just l)
+  annotateP l (GHC.HsIPVar _)         = addDeltaAnnotationExt l GHC.AnnVal >> return Nothing
+  annotateP l (GHC.HsOverLit ov)      = addDeltaAnnotationExt l GHC.AnnVal >> return Nothing
+  annotateP l (GHC.HsLit _)           = addDeltaAnnotationExt l GHC.AnnVal >> return Nothing
+  annotateP l (GHC.HsLam match)       = annotateMatchGroup match >> return Nothing
+  annotateP l (GHC.HsLamCase _ match) = annotateMatchGroup match >> return Nothing
 
   annotateP l (GHC.HsApp e1 e2) = do
     annotatePC e1
     annotatePC e2
-    return (Just l)
+    return Nothing
 
   annotateP l (GHC.OpApp e1 e2 _ e3) = do
     annotatePC e1
@@ -929,78 +948,80 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     annotatePC e3
     return (Just l)
 
-  annotateP l (GHC.NegApp e _) = annotatePC e >> return (Just l)
-  annotateP l (GHC.HsPar e@(GHC.L le _)) = do
-    [op] <- getAnnotationAP l GHC.AnnOpen
-    [cp] <- getAnnotationAP l GHC.AnnClose
-
-    setPriorEnd op
+  annotateP l (GHC.NegApp e _) = do
+    addDeltaAnnotation GHC.AnnMinus
     annotatePC e
-    popPriorEnd
+    return Nothing
 
-    let od = DP (0,0)
-        cd = deltaFromSrcSpans le cp
-    addAnnValue (AnnHsPar od cd)
-
-    return (Just l)
+  annotateP l (GHC.HsPar e) = do
+    addDeltaAnnotation GHC.AnnOpen
+    annotatePC e
+    addDeltaAnnotation GHC.AnnClose
+    return Nothing
 
   annotateP l (GHC.SectionL e1 e2) = do
     annotatePC e1
     annotatePC e2
-    return (Just l)
+    return Nothing
 
   annotateP l (GHC.SectionR e1 e2) = do
     annotatePC e1
     annotatePC e2
-    return (Just l)
+    return Nothing
 
   annotateP l (GHC.ExplicitTuple args boxity) = do
-    [op] <- getAnnotationAP l GHC.AnnOpen
-    [cp] <- getAnnotationAP l GHC.AnnClose
-    ss <- getPriorEnd
-    setPriorEnd op
+    addDeltaAnnotation GHC.AnnOpen
     mapM_ annotatePC args
-    -- ss' <- getPriorEnd
-    -- popPriorEnd
-    --  `debug` ("annotateP.ExplicitTuple:ss,ss'=" ++ showGhc (ss,ss'))
-    let
-      opPos = deltaFromSrcSpans ss op
-      ep = case args of
-             [] -> l
-             cs -> (head $ getListSrcSpan args)
-      cpPos = deltaFromSrcSpans ep cp
-    addAnnValue (AnnExplicitTuple opPos cpPos)
-      `debug` ("annotateP.ExplicitTuple:(ss,l,op,opPos)=" ++ show (ss2span ss,ss2span l,ss2span op,opPos))
-    return (Just l) `debug` ("annotateP.ExplicitTuple")
+    addDeltaAnnotation GHC.AnnClose
+    return Nothing
 
   annotateP l (GHC.HsCase e1 matches) = do
+    addDeltaAnnotation GHC.AnnCase
     annotatePC e1
+    addDeltaAnnotation GHC.AnnOf
+    addDeltaAnnotation GHC.AnnOpen
     annotateMatchGroup matches
-    return (Just l)
-
+    addDeltaAnnotation GHC.AnnClose
+    return Nothing
 
   annotateP l (GHC.HsIf _ e1 e2 e3) = do
+    addDeltaAnnotation GHC.AnnIf
     annotatePC e1
+    addDeltaAnnotationLs GHC.AnnSemi 0
+    addDeltaAnnotation GHC.AnnThen
     annotatePC e2
+    addDeltaAnnotationLs GHC.AnnSemi 1
+    addDeltaAnnotation GHC.AnnElse
     annotatePC e3
-    return (Just l)
+    return Nothing
 
-  annotateP l (GHC.HsMultiIf _ rhs) = mapM_ annotatePC rhs >> return (Just l)
+  annotateP l (GHC.HsMultiIf _ rhs) = do
+    addDeltaAnnotation GHC.AnnIf
+    mapM_ annotatePC rhs
+    return Nothing
 
   annotateP l (GHC.HsLet binds e) = do
-    [lp] <- getAnnotationAP l GHC.AnnLet
-    [ip] <- getAnnotationAP l GHC.AnnIn
+    addDeltaAnnotation GHC.AnnLet
+    addDeltaAnnotation GHC.AnnOpen
     annotateHsLocalBinds binds
+    addDeltaAnnotation GHC.AnnClose
+    addDeltaAnnotation GHC.AnnIn
     annotatePC e
-    let ld = deltaFromSrcSpans l lp
-    let id = case getHsLocalBindsSrcSpan binds of
-               Just lb -> deltaFromSrcSpans lb ip
-               Nothing -> deltaFromSrcSpans lp ip
-    addAnnValue (AnnHsLet (Just ld) (Just id))
-    return (Just l)
+    return Nothing
 
-  annotateP l (GHC.HsDo _ es _)         = mapM_ annotatePC es >> return (Just l)
-  annotateP l (GHC.ExplicitList _ _ es) = mapM_ annotatePC es >> return (Just l)
+  annotateP l (GHC.HsDo _ es _)         = do
+    addDeltaAnnotation GHC.AnnDo
+    addDeltaAnnotation GHC.AnnOpen
+    mapM_ annotatePC es
+    addDeltaAnnotation GHC.AnnClose
+    return Nothing
+
+  annotateP l (GHC.ExplicitList _ _ es) = do
+    addDeltaAnnotation GHC.AnnOpen
+    mapM_ annotatePC es
+    addDeltaAnnotation GHC.AnnClose
+    return Nothing
+
   annotateP l (GHC.ExplicitPArr _ es)   = mapM_ annotatePC es >> return (Just l)
 
   annotateP l (GHC.RecordCon _ _ (GHC.HsRecFields fs _)) = do

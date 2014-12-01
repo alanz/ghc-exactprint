@@ -754,8 +754,10 @@ instance ExactP (GHC.HsType GHC.Name) where
 instance ExactP (GHC.HsType GHC.RdrName) where
   -- HsForAllTy HsExplicitFlag (Maybe SrcSpan) (LHsTyVarBndrs name) (LHsContext name) (LHsType name)
   exactP (GHC.HsForAllTy f mwc bndrs ctx typ) = do
+    printStringAtMaybeAnn GHC.AnnForall "forall"
     exactPC ctx
     printStringAtMaybeAnn GHC.AnnVal    "_"
+    printStringAtMaybeAnn GHC.AnnDot    "."
     printStringAtMaybeAnn GHC.AnnDarrow "=>"
     exactPC typ
 
@@ -875,7 +877,13 @@ instance ExactP GHC.HsDocString where
     printStringAtMaybeAnn GHC.AnnVal (GHC.unpackFS s)
 
 instance ExactP (GHC.ConDeclField GHC.RdrName) where
-  exactP = assert False undefined
+  exactP (GHC.ConDeclField ns ty mdoc) = do
+    mapM_ exactPC ns
+    printStringAtMaybeAnn GHC.AnnDcolon "::"
+    exactPC ty
+    case mdoc of
+      Just doc -> exactPC doc
+      Nothing -> return ()
 
 instance ExactP (GHC.HsContext GHC.RdrName) where
   exactP typs = do
@@ -907,22 +915,24 @@ instance ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsExpr GHC.RdrName)) w
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.HsExpr GHC.RdrName) where
-  exactP (GHC.HsVar v)           = exactP v
-  exactP (GHC.HsIPVar v)         = exactP v
+  exactP (GHC.HsVar v)              = printStringAtMaybeAnn GHC.AnnVal (rdrName2String v)
+  exactP (GHC.HsIPVar (GHC.HsIPName v)) = do
+    printStringAtMaybeAnn GHC.AnnVal ("?" ++ GHC.unpackFS v)
   exactP (GHC.HsOverLit lit)     = exactP lit
   exactP (GHC.HsLit lit)         = exactP lit
   exactP (GHC.HsLam match)       = exactPMatchGroup match
   exactP (GHC.HsLamCase _ match) = exactPMatchGroup match
   exactP (GHC.HsApp e1 e2)       = exactPC e1 >> exactPC e2
   exactP (GHC.OpApp e1 op _f e2) = exactPC e1 >> exactPC op >> exactPC e2
-  exactP (GHC.NegApp e _)        = exactPC e
+
+  exactP (GHC.NegApp e _)        = do
+    printStringAtMaybeAnn GHC.AnnMinus "-"
+    exactPC e
 
   exactP (GHC.HsPar e) = do
-    Just (AnnHsPar od cd) <- getAnnValue
-
-    printStringAtDelta od "("
+    printStringAtMaybeAnn GHC.AnnOpen  "("
     exactPC e
-    printStringAtDelta cd ")"
+    printStringAtMaybeAnn GHC.AnnClose ")"
 
   exactP (GHC.SectionL e1 e2)    = exactPC e1 >> exactPC e2
   exactP (GHC.SectionR e1 e2)    = exactPC e1 >> exactPC e2
@@ -930,34 +940,55 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
   exactP (GHC.ExplicitTuple args b) = do
     Just (AnnExplicitTuple op cp) <- getAnnValue
     return () `debug` ("exactP.ExplicitTuple:" ++ show (AnnExplicitTuple op cp))
-    if b == GHC.Boxed then printStringAtDelta op "("
-                      else printStringAtDelta op "(#"
+    if b == GHC.Boxed then printStringAtMaybeAnn GHC.AnnOpen "("
+                      else printStringAtMaybeAnn GHC.AnnOpen "(#"
 
     mapM_ exactPC args `debug` ("exactP.ExplicitTuple")
 
-    if b == GHC.Boxed then printStringAtDelta cp ")"
-                      else printStringAtDelta cp "#)"
+    if b == GHC.Boxed then printStringAtMaybeAnn GHC.AnnClose ")"
+                      else printStringAtMaybeAnn GHC.AnnClose "#)"
 
-  exactP (GHC.HsCase e1 matches) = exactPC e1 >> exactPMatchGroup matches
-  exactP (GHC.HsIf _ e1 e2 e3)   = exactPC e1 >> exactPC e2 >> exactPC e3
-  exactP (GHC.HsMultiIf _ rhs)   = mapM_ exactPC rhs
+  exactP (GHC.HsCase e1 matches) = do
+    printStringAtMaybeAnn GHC.AnnCase "case"
+    exactPC e1
+    printStringAtMaybeAnn GHC.AnnOf "of"
+    printStringAtMaybeAnn GHC.AnnOpen "{"
+    exactPMatchGroup matches
+    printStringAtMaybeAnn GHC.AnnClose "}"
+
+  exactP (GHC.HsIf _ e1 e2 e3)   = do
+    printStringAtMaybeAnn GHC.AnnIf "if"
+    exactPC e1
+    printStringAtMaybeAnnLs GHC.AnnSemi 0 ";"
+    printStringAtMaybeAnn GHC.AnnThen "then"
+    exactPC e2
+    printStringAtMaybeAnnLs GHC.AnnSemi 1 ";"
+    printStringAtMaybeAnn GHC.AnnThen "else"
+    exactPC e3
+
+  exactP (GHC.HsMultiIf _ rhs)   = do
+    printStringAtMaybeAnn GHC.AnnIf "if"
+    mapM_ exactPC rhs
 
   exactP (GHC.HsLet lb e)    = do
-    Just an <- getAnnValue :: EP (Maybe AnnHsExpr)
-    -- let [(Ann lcs _ an)] = getAnn isAnnHsLet ma "HsLet"
-    p <- getPos
-    printStringAtMaybeDelta (hsl_let an) "let" `debug` ("exactP.HsLet:an=" ++ show an)
+    printStringAtMaybeAnn GHC.AnnLet "let"
+    printStringAtMaybeAnn GHC.AnnOpen "{"
     exactP lb
-    printStringAtMaybeDeltaP p (hsl_in an) "in"
+    printStringAtMaybeAnn GHC.AnnClose "}"
+    printStringAtMaybeAnn GHC.AnnIn "in"
     exactPC e
 
   exactP (GHC.HsDo cts stmts _typ)    = do
-    Just an <- getAnnValue :: EP (Maybe AnnHsExpr)
-    -- let [(Ann lcs _ an)] = getAnn isAnnHsDo ma "HsDo"
-    printStringAtMaybeDelta (hsd_do an) "do" `debug` ("exactP.HsDo:an=" ++ show an)
+    printStringAtMaybeAnn GHC.AnnDo "do"
+    printStringAtMaybeAnn GHC.AnnOpen "{"
     mapM_ exactPC stmts
+    printStringAtMaybeAnn GHC.AnnClose "}"
 
-  exactP (GHC.ExplicitList _ _ es) = mapM_ exactPC es
+  exactP (GHC.ExplicitList _ _ es) = do
+    printStringAtMaybeAnn GHC.AnnOpen "["
+    mapM_ exactPC es
+    printStringAtMaybeAnn GHC.AnnClose "]"
+
   exactP (GHC.ExplicitPArr _ es)   = mapM_ exactPC es
   exactP (GHC.RecordCon _ _ (GHC.HsRecFields fs _)) = mapM_ exactPC fs
   exactP (GHC.RecordUpd e (GHC.HsRecFields fs _) cons _ _)  = exactPC e >> mapM_ exactPC fs
@@ -1112,7 +1143,13 @@ instance ExactP (GHC.TyClDecl GHC.RdrName) where
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.HsTyVarBndr GHC.RdrName) where
-  exactP _ = printString "HsTyVarBndr"
+  exactP (GHC.UserTyVar n) = printStringAtMaybeAnn GHC.AnnVal (rdrName2String n)
+  exactP (GHC.KindedTyVar n ty) = do
+    printStringAtMaybeAnn GHC.AnnOpen "("
+    printStringAtMaybeAnn GHC.AnnVal (rdrName2String n)
+    printStringAtMaybeAnn GHC.AnnDcolon "::"
+    exactPC ty
+    printStringAtMaybeAnn GHC.AnnClose ")"
 
 -- ---------------------------------------------------------------------
 
