@@ -339,6 +339,11 @@ printStringAtMaybeAnnAll ann str = do
   mapM_ (\d -> printStringAtLsDelta [d] str) (reverse ma)
     `debug` ("printStringAtMaybeAnnAll:ma=" ++ show (ma))
 
+countAnns :: GHC.AnnKeywordId -> EP Int
+countAnns ann = do
+  ma <- getAnnFinal ann
+  return (length ma)
+
 printStringAtMaybeDeltaP :: Pos -> Maybe DeltaPos -> String -> EP ()
 printStringAtMaybeDeltaP p mc s =
   case mc of
@@ -929,6 +934,9 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnMinus "-"
     exactPC e
 
+  -- TODO: sort this out
+  -- Note: HsSCC and HsTickPragma show up here if there respective
+  -- features are inactive
   exactP (GHC.HsPar e) = do
     printStringAtMaybeAnn GHC.AnnOpen  "("
     exactPC e
@@ -989,35 +997,136 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     mapM_ exactPC es
     printStringAtMaybeAnn GHC.AnnClose "]"
 
-  exactP (GHC.ExplicitPArr _ es)   = mapM_ exactPC es
-  exactP (GHC.RecordCon _ _ (GHC.HsRecFields fs _)) = mapM_ exactPC fs
-  exactP (GHC.RecordUpd e (GHC.HsRecFields fs _) cons _ _)  = exactPC e >> mapM_ exactPC fs
-  exactP (GHC.ExprWithTySig e typ _) = exactPC e >> exactPC typ
-  exactP (GHC.ExprWithTySigOut e typ) = exactPC e >> exactPC typ
+  exactP (GHC.ExplicitPArr _ es)   = do
+    printStringAtMaybeAnn GHC.AnnOpen "[:"
+    mapM_ exactPC es
+    printStringAtMaybeAnn GHC.AnnClose ":]"
+
+  exactP (GHC.RecordCon (GHC.L _ n) _ (GHC.HsRecFields fs _)) = do
+    printStringAtMaybeAnn GHC.AnnVal (rdrName2String n)
+    printStringAtMaybeAnn GHC.AnnOpen "{"
+    printStringAtMaybeAnn GHC.AnnDotdot ".."
+    mapM_ exactPC fs
+    printStringAtMaybeAnn GHC.AnnClose "}"
+
+  exactP (GHC.RecordUpd e (GHC.HsRecFields fs _) cons _ _)  = do
+    exactPC e
+    printStringAtMaybeAnn GHC.AnnOpen "{"
+    printStringAtMaybeAnn GHC.AnnDotdot ".."
+    mapM_ exactPC fs
+    printStringAtMaybeAnn GHC.AnnClose "}"
+
+  exactP (GHC.ExprWithTySig e typ _) = do
+    exactPC e
+    printStringAtMaybeAnn GHC.AnnDcolon "::"
+    exactPC typ
+
+  exactP (GHC.ExprWithTySigOut e typ) = do
+    exactPC e
+    printStringAtMaybeAnn GHC.AnnDcolon "::"
+    exactPC typ
 
   exactP (GHC.ArithSeq _ _ seqInfo) = do
-    Just (AnnArithSeq obPos mcPos ddPos cbPos) <- getAnnValue
-    -- let [(Ann lcs _ (AnnArithSeq obPos mcPos ddPos cbPos))] = getAnn isAnnArithSeq ma "ArithSeq"
-    printStringAtDelta obPos "["
+    printStringAtMaybeAnn GHC.AnnOpen "["
     case seqInfo of
-      GHC.From e1 -> exactPC e1 >> printStringAtDelta ddPos ".."
+      GHC.From e1 -> exactPC e1 >> printStringAtMaybeAnn GHC.AnnDotdot ".."
       GHC.FromTo e1 e2 -> do
         exactPC e1
-        printStringAtDelta ddPos ".."
+        printStringAtMaybeAnn GHC.AnnDotdot ".."
         exactPC e2
       GHC.FromThen e1 e2 -> do
         exactPC e1
-        printStringAtMaybeDelta mcPos ","
+        printStringAtMaybeAnn GHC.AnnComma ","
         exactPC e2
-        printStringAtDelta ddPos ".."
+        printStringAtMaybeAnn GHC.AnnDotdot ".."
       GHC.FromThenTo e1 e2 e3 -> do
         exactPC e1
-        printStringAtMaybeDelta mcPos ","
+        printStringAtMaybeAnn GHC.AnnComma ","
         exactPC e2
-        printStringAtDelta ddPos ".."
+        printStringAtMaybeAnn GHC.AnnDotdot ".."
         exactPC e3
+    printStringAtMaybeAnn GHC.AnnClose "]"
 
-    printStringAtDelta cbPos "]"
+  exactP (GHC.PArrSeq _ seqInfo) = do
+    printStringAtMaybeAnn GHC.AnnOpen "[:"
+    case seqInfo of
+      GHC.From e1 -> exactPC e1 >> printStringAtMaybeAnn GHC.AnnDotdot ".."
+      GHC.FromTo e1 e2 -> do
+        exactPC e1
+        printStringAtMaybeAnn GHC.AnnDotdot ".."
+        exactPC e2
+      GHC.FromThen e1 e2 -> do
+        exactPC e1
+        printStringAtMaybeAnn GHC.AnnComma ","
+        exactPC e2
+        printStringAtMaybeAnn GHC.AnnDotdot ".."
+      GHC.FromThenTo e1 e2 e3 -> do
+        exactPC e1
+        printStringAtMaybeAnn GHC.AnnComma ","
+        exactPC e2
+        printStringAtMaybeAnn GHC.AnnDotdot ".."
+        exactPC e3
+    printStringAtMaybeAnn GHC.AnnClose ":]"
+
+  exactP (GHC.HsSCC str e) = do
+    printStringAtMaybeAnn GHC.AnnOpen "{-# SCC"
+    printStringAtMaybeAnn GHC.AnnVal (GHC.unpackFS str)
+    printStringAtMaybeAnn GHC.AnnClose "#-}"
+    exactPC e
+
+  exactP (GHC.HsCoreAnn str e) = do
+    printStringAtMaybeAnn GHC.AnnOpen "{-# CORE"
+    printStringAtMaybeAnn GHC.AnnVal (GHC.unpackFS str)
+    printStringAtMaybeAnn GHC.AnnClose "#-}"
+    exactPC e
+
+  exactP (GHC.HsBracket (GHC.VarBr single v)) = do
+    if single then printStringAtMaybeAnn GHC.AnnVal ("'"  ++ rdrName2String v)
+              else printStringAtMaybeAnn GHC.AnnVal ("''" ++ rdrName2String v)
+  exactP (GHC.HsBracket (GHC.DecBrL ds)) = do
+    cnt <- countAnns GHC.AnnOpen
+    case cnt of
+      1 -> do
+        printStringAtMaybeAnn GHC.AnnOpen  "[d|"
+        mapM_ exactPC ds
+        printStringAtMaybeAnn GHC.AnnClose "|]"
+      _ -> do
+        printStringAtMaybeAnnLs GHC.AnnOpen 0  "[d|"
+        printStringAtMaybeAnnLs GHC.AnnOpen 1  "{"
+        mapM_ exactPC ds
+        printStringAtMaybeAnnLs GHC.AnnClose 0 "}"
+        printStringAtMaybeAnnLs GHC.AnnClose 1 "|]"
+  exactP (GHC.HsBracket (GHC.ExpBr e)) = do
+        printStringAtMaybeAnn GHC.AnnOpen  "[|"
+        exactPC e
+        printStringAtMaybeAnn GHC.AnnClose "|]"
+  exactP (GHC.HsBracket (GHC.TExpBr e)) = do
+        printStringAtMaybeAnn GHC.AnnOpen  "[||"
+        exactPC e
+        printStringAtMaybeAnn GHC.AnnClose "||]"
+  exactP (GHC.HsBracket (GHC.TypBr e)) = do
+        printStringAtMaybeAnn GHC.AnnOpen  "[t|"
+        exactPC e
+        printStringAtMaybeAnn GHC.AnnClose "|]"
+  exactP (GHC.HsBracket (GHC.PatBr e)) = do
+        printStringAtMaybeAnn GHC.AnnOpen  "[p|"
+        exactPC e
+        printStringAtMaybeAnn GHC.AnnClose "|]"
+
+  exactP (GHC.HsRnBracketOut _ _) = return ()
+  exactP (GHC.HsTcBracketOut _ _) = return ()
+
+  exactP (GHC.HsSpliceE False (GHC.HsSplice _ e)) = do
+    printStringAtMaybeAnn GHC.AnnOpen "$("
+    exactPC e
+    printStringAtMaybeAnn GHC.AnnClose ")"
+  exactP (GHC.HsSpliceE True (GHC.HsSplice _ e)) = do
+    printStringAtMaybeAnn GHC.AnnOpen "$$("
+    exactPC e
+    printStringAtMaybeAnn GHC.AnnClose ")"
+
+  exactP (GHC.HsQuasiQuoteE (GHC.HsQuasiQuote _ _ str)) = do
+    printStringAtMaybeAnn GHC.AnnVal (GHC.unpackFS str)
 
   exactP e = printString "HsExpr"
     `debug` ("exactP.HsExpr:not processing " ++ (showGhc e) )

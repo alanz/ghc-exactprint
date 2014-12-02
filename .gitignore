@@ -8,3 +8,5 @@
 /tags
 /tests/examples/LetExprSemi.hs.exactprinter.out
 /tests/examples/Sigs.hs.exactprinter.out
+/tests/examples/ExprPragmas.hs.exactprinter.out
+/tests/examples/LetExpr.hs.1
