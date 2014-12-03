@@ -1113,6 +1113,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
   annotateP l (GHC.HsSCC csFStr e) = do
     addDeltaAnnotation GHC.AnnOpen -- '{-# SCC'
     addDeltaAnnotation GHC.AnnVal
+    addDeltaAnnotation GHC.AnnValStr
     addDeltaAnnotation GHC.AnnClose -- '#-}'
     annotatePC e
     return Nothing

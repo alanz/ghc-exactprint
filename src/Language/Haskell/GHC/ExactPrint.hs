@@ -1068,6 +1068,7 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
   exactP (GHC.HsSCC str e) = do
     printStringAtMaybeAnn GHC.AnnOpen "{-# SCC"
     printStringAtMaybeAnn GHC.AnnVal (GHC.unpackFS str)
+    printStringAtMaybeAnn GHC.AnnValStr ("\"" ++ GHC.unpackFS str ++ "\"")
     printStringAtMaybeAnn GHC.AnnClose "#-}"
     exactPC e
 
@@ -1154,7 +1155,7 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
   exactP (GHC.HsTickPragma (str,(v1,v2),(v3,v4)) e) = do
     -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
     printStringAtMaybeAnn GHC.AnnOpen  "{-# GENERATED"
-    printStringAtMaybeAnnLs GHC.AnnVal   0 (GHC.unpackFS str)
+    printStringAtMaybeAnnLs GHC.AnnVal   0 (show $ GHC.unpackFS str)
     printStringAtMaybeAnnLs GHC.AnnVal   1 (show v1)
     printStringAtMaybeAnnLs GHC.AnnColon 0 ":"
     printStringAtMaybeAnnLs GHC.AnnVal   2 (show v2)
@@ -1253,10 +1254,11 @@ instance ExactP (GHC.Sig GHC.RdrName) where
   exactP _ = printString "Sig"
 
 instance ExactP (GHC.HsOverLit GHC.RdrName) where
-  -- exactP (Just [(Ann cs p an)]) _ = printString (ol_str an)
-  exactP  l = do
-    -- Just an <- getAnnValue :: EP (Maybe AnnOverLit)
-    printString (showGhc l) -- ++AZ temporary until D412
+  exactP ol = do
+    case GHC.ol_val ol of
+      GHC.HsIntegral src _ -> printStringAtMaybeAnn GHC.AnnVal src
+      GHC.HsFractional l   -> printStringAtMaybeAnn GHC.AnnVal (GHC.fl_text l)
+      GHC.HsIsString src _ -> printStringAtMaybeAnn GHC.AnnVal src
 
 -- ---------------------------------------------------------------------
 
