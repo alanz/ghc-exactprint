@@ -934,9 +934,6 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnMinus "-"
     exactPC e
 
-  -- TODO: sort this out
-  -- Note: HsSCC and HsTickPragma show up here if there respective
-  -- features are inactive
   exactP (GHC.HsPar e) = do
     printStringAtMaybeAnn GHC.AnnOpen  "("
     exactPC e
@@ -1128,6 +1125,66 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
   exactP (GHC.HsQuasiQuoteE (GHC.HsQuasiQuote _ _ str)) = do
     printStringAtMaybeAnn GHC.AnnVal (GHC.unpackFS str)
 
+
+  exactP (GHC.HsProc p c) = do
+    printStringAtMaybeAnn GHC.AnnProc "proc"
+    exactPC p
+    printStringAtMaybeAnn GHC.AnnRarrow "->"
+    exactPC c
+
+  exactP (GHC.HsArrApp e1 e2 _ _ _) = do
+    exactPC e1
+    -- only one of the next 4 will be resent
+    printStringAtMaybeAnn GHC.Annlarrowtail "-<"
+    printStringAtMaybeAnn GHC.Annrarrowtail ">-"
+    printStringAtMaybeAnn GHC.AnnLarrowtail "-<<"
+    printStringAtMaybeAnn GHC.AnnRarrowtail ">>-"
+
+    exactPC e1
+
+  exactP (GHC.HsArrForm e _ cs) = do
+    printStringAtMaybeAnn GHC.AnnOpen "(|"
+    exactPC e
+    mapM_ exactPC cs
+    printStringAtMaybeAnn GHC.AnnClose  "|)"
+
+  exactP (GHC.HsTick _ _) = return ()
+  exactP (GHC.HsBinTick _ _ _) = return ()
+
+  exactP (GHC.HsTickPragma (str,(v1,v2),(v3,v4)) e) = do
+    -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
+    printStringAtMaybeAnn GHC.AnnOpen  "{-# GENERATED"
+    printStringAtMaybeAnnLs GHC.AnnVal   0 (GHC.unpackFS str)
+    printStringAtMaybeAnnLs GHC.AnnVal   1 (show v1)
+    printStringAtMaybeAnnLs GHC.AnnColon 0 ":"
+    printStringAtMaybeAnnLs GHC.AnnVal   2 (show v2)
+    printStringAtMaybeAnn   GHC.AnnMinus   "-"
+    printStringAtMaybeAnnLs GHC.AnnVal   3 (show v3)
+    printStringAtMaybeAnnLs GHC.AnnColon 1 ":"
+    printStringAtMaybeAnnLs GHC.AnnVal   4 (show v4)
+    printStringAtMaybeAnn   GHC.AnnClose "#-}"
+    exactPC e
+
+  exactP (GHC.EWildPat) = printStringAtMaybeAnn GHC.AnnVal "_"
+
+  exactP (GHC.EAsPat (GHC.L _ n) e) = do
+    printStringAtMaybeAnn GHC.AnnVal (rdrName2String n)
+    printStringAtMaybeAnn GHC.AnnAt "@"
+    exactPC e
+
+  exactP (GHC.EViewPat e1 e2) = do
+    exactPC e1
+    printStringAtMaybeAnn GHC.AnnRarrow "->"
+    exactPC e2
+
+  exactP (GHC.ELazyPat e) = do
+    printStringAtMaybeAnn GHC.AnnTilde "~"
+    exactPC e
+
+  exactP (GHC.HsType ty) = exactPC ty
+  exactP (GHC.HsWrap _ _) = return ()
+  exactP (GHC.HsUnboundVar _) = return ()
+
   exactP e = printString "HsExpr"
     `debug` ("exactP.HsExpr:not processing " ++ (showGhc e) )
 
@@ -1135,6 +1192,16 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
 
 instance ExactP (GHC.HsRecField GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP (GHC.HsRecField _ e _) = exactPC e
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.HsCmdTop GHC.RdrName) where
+  exactP (GHC.HsCmdTop cmd _ _ _) = exactPC cmd
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.HsCmd GHC.RdrName) where
+  exactP = assert False undefined
 
 -- ---------------------------------------------------------------------
 

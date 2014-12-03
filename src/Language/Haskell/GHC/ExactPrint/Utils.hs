@@ -959,20 +959,10 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     annotatePC e
     return Nothing
 
-  -- TODO: sort this out
-  -- Note: HsSCC and HsTickPragma show up here if there respective
-  -- features are inactive
   annotateP l (GHC.HsPar e) = do
-    c <- countAnnsAP GHC.AnnVal
-    case c of
-      0 -> do -- actual HsPar
-        addDeltaAnnotation GHC.AnnOpen -- '('
-        annotatePC e
-        addDeltaAnnotation GHC.AnnClose -- ')'
-      1 -> do -- inactive HsSCC
-        addDeltaAnnotation GHC.AnnOpen -- '{-# SCC'
-        addDeltaAnnotation GHC.AnnClose -- '#-}'
-        annotatePC e
+    addDeltaAnnotation GHC.AnnOpen -- '('
+    annotatePC e
+    addDeltaAnnotation GHC.AnnClose -- ')'
     return Nothing
 
   annotateP l (GHC.SectionL e1 e2) = do
@@ -1163,9 +1153,75 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     addDeltaAnnotationExt l GHC.AnnVal
     return Nothing
 
-  annotateP l e = do
-    return () `debug` ("annotateP.HsExpr:" ++ showGhcDebug (l,e))
+  annotateP l (GHC.HsProc p c) = do
+    addDeltaAnnotation GHC.AnnProc
+    annotatePC p
+    addDeltaAnnotation GHC.AnnRarrow
+    annotatePC c
     return Nothing
+
+  annotateP l (GHC.HsArrApp e1 e2 _ _ _) = do
+    annotatePC e1
+    -- only one of the next 4 will be resent
+    addDeltaAnnotation GHC.Annlarrowtail
+    addDeltaAnnotation GHC.Annrarrowtail
+    addDeltaAnnotation GHC.AnnLarrowtail
+    addDeltaAnnotation GHC.AnnRarrowtail
+
+    annotatePC e1
+    return Nothing
+
+  annotateP l (GHC.HsArrForm e _ cs) = do
+    addDeltaAnnotation GHC.AnnOpen -- '(|'
+    annotatePC e
+    mapM_ annotatePC cs
+    addDeltaAnnotation GHC.AnnClose -- '|)'
+    return Nothing
+
+  annotateP l (GHC.HsTick _ _) = return Nothing
+  annotateP l (GHC.HsBinTick _ _ _) = return Nothing
+
+  annotateP l (GHC.HsTickPragma (str,(v1,v2),(v3,v4)) e) = do
+    -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
+    addDeltaAnnotation GHC.AnnOpen      -- '{-# GENERATED'
+    addDeltaAnnotationLs GHC.AnnVal   0 -- STRING
+    addDeltaAnnotationLs GHC.AnnVal   1 -- INTEGER
+    addDeltaAnnotationLs GHC.AnnColon 0 -- ':'
+    addDeltaAnnotationLs GHC.AnnVal   2 -- INTEGER
+    addDeltaAnnotation   GHC.AnnMinus   -- '-'
+    addDeltaAnnotationLs GHC.AnnVal   3 -- INTEGER
+    addDeltaAnnotationLs GHC.AnnColon 1 -- ':'
+    addDeltaAnnotationLs GHC.AnnVal   4 -- INTEGER
+    addDeltaAnnotation GHC.AnnClose -- '#-}'
+    annotatePC e
+    return Nothing
+
+  annotateP l (GHC.EWildPat) = do
+    addDeltaAnnotationExt l GHC.AnnVal
+    return Nothing
+
+  annotateP l (GHC.EAsPat (GHC.L ln _) e) = do
+    addDeltaAnnotationExt ln GHC.AnnVal
+    addDeltaAnnotation GHC.AnnAt
+    annotatePC e
+    return Nothing
+
+  annotateP l (GHC.EViewPat e1 e2) = do
+    annotatePC e1
+    addDeltaAnnotation GHC.AnnRarrow
+    annotatePC e2
+    return Nothing
+
+  annotateP l (GHC.ELazyPat e) = do
+    addDeltaAnnotation GHC.AnnTilde
+    annotatePC e
+    return Nothing
+
+  annotateP l (GHC.HsType ty) = annotatePC ty >> return Nothing
+
+  annotateP l (GHC.HsWrap _ _) = return Nothing
+  annotateP l (GHC.HsUnboundVar _) = return Nothing
+
 
 -- ---------------------------------------------------------------------
 
@@ -1183,6 +1239,11 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     let commaPos = deltaFromMaybeSrcSpans [l] mcp
     addAnnValue (AnnListItem commaPos)
     return (Just $ maybeL l mcp)
+
+-- ---------------------------------------------------------------------
+
+instance (Typeable name) => AnnotateP (GHC.HsCmdTop name) where
+  annotateP = assert False undefined
 
 -- ---------------------------------------------------------------------
 
