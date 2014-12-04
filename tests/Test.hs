@@ -38,8 +38,8 @@ main = do
     -- manipulateAstTest ["examples/LetExpr.hs"]
     -- manipulateAstTest ["examples/LetExprSemi.hs"]
     -- manipulateAstTest ["examples/Tuple.hs"]
-    -- manipulateAstTest ["examples/Sigs.hs"]
-    manipulateAstTest ["examples/ExprPragmas.hs"]
+    manipulateAstTest ["examples/Sigs.hs"]
+    -- manipulateAstTest ["examples/ExprPragmas.hs"]
     putStrLn "done"
 
 -- | Where all the tests are to be found
@@ -63,7 +63,7 @@ manipulateAstTest sources = do
        -- `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
     -- try to pretty-print; summarize the test result
     ann = annotateAST parsed ghcAnns
-      -- `debug` ("ghcAnns:" ++ showGhc ghcAnns)
+      `debug` ("ghcAnns:" ++ showGhc ghcAnns)
       -- `debug` ("ann:" ++ (show $ snd ann))
       -- `debug` ("ann:" ++ (show $ fst ann))
 

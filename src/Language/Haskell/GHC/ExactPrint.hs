@@ -330,8 +330,8 @@ printStringAtMaybeAnnLs :: GHC.AnnKeywordId -> Int -> String -> EP ()
 printStringAtMaybeAnnLs ann off str = do
   ma <- getAnnFinal ann
   ss <- getSrcSpan
-  printStringAtLsDelta (drop off (reverse ma)) str
-    `debug` ("printStringAtMaybeAnn:(ss,ann,ma,str)=" ++ show (ss2span ss,ann,ma,str))
+  printStringAtLsDelta (reverse $ drop off (reverse ma)) str
+    `debug` ("printStringAtMaybeAnnLs:(ss,ann,off,ma,str)=" ++ show (ss2span ss,ann,off,reverse ma,str))
 
 printStringAtMaybeAnnAll :: GHC.AnnKeywordId -> String -> EP ()
 printStringAtMaybeAnnAll ann str = do
@@ -1154,7 +1154,7 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
 
   exactP (GHC.HsTickPragma (str,(v1,v2),(v3,v4)) e) = do
     -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
-    printStringAtMaybeAnn GHC.AnnOpen  "{-# GENERATED"
+    printStringAtMaybeAnn   GHC.AnnOpen  "{-# GENERATED"
     printStringAtMaybeAnnLs GHC.AnnVal   0 (show $ GHC.unpackFS str)
     printStringAtMaybeAnnLs GHC.AnnVal   1 (show v1)
     printStringAtMaybeAnnLs GHC.AnnColon 0 ":"
@@ -1243,6 +1243,7 @@ instance ExactP (GHC.HsLocalBinds GHC.RdrName) where
   exactP (GHC.HsIPBinds binds) = printString "HsIPBinds"
   exactP (GHC.EmptyLocalBinds) = return ()
 
+-- ---------------------------------------------------------------------
 
 instance ExactP (GHC.Sig GHC.RdrName) where
   exactP (GHC.TypeSig lns typ _) = do
@@ -1251,7 +1252,81 @@ instance ExactP (GHC.Sig GHC.RdrName) where
     exactPC typ
     printStringAtMaybeAnn GHC.AnnComma ","
 
+  exactP (GHC.PatSynSig (GHC.L _ n) (_,GHC.HsQTvs _ns bndrs) ctx1 ctx2 typ) = do
+    printStringAtMaybeAnn GHC.AnnPattern "pattern"
+    printStringAtMaybeAnn GHC.AnnVal (rdrName2String n)
+    printStringAtMaybeAnn GHC.AnnDcolon "::"
+
+    -- Note: The 'forall' bndrs '.' may occur multiple times
+    printStringAtMaybeAnn GHC.AnnForall "forall"
+    mapM_ exactPC bndrs
+    printStringAtMaybeAnn GHC.AnnDot "."
+
+    exactPC ctx1
+    printStringAtMaybeAnnLs GHC.AnnDarrow 0 "=>"
+    exactPC ctx2
+    printStringAtMaybeAnnLs GHC.AnnDarrow 1 "=>"
+    exactPC typ
+    printStringAtMaybeAnn   GHC.AnnComma ","
+
+  exactP (GHC.GenericSig ns typ) = do
+    printStringAtMaybeAnn GHC.AnnDefault "default"
+    mapM_ exactPC ns
+    printStringAtMaybeAnn GHC.AnnDcolon "::"
+    exactPC typ
+    printStringAtMaybeAnn GHC.AnnComma ","
+
+  exactP (GHC.IdSig _) = return ()
+
+  exactP (GHC.FixSig (GHC.FixitySig lns (GHC.Fixity v fdir))) = do
+    printStringAtMaybeAnn GHC.AnnInfix "infix"
+    mapM_ exactPC lns
+    printStringAtMaybeAnn GHC.AnnVal (show v)
+    printStringAtMaybeAnn GHC.AnnComma ","
+
+  exactP (GHC.InlineSig (GHC.L _ n) inl) = do
+    cnt <- countAnns GHC.AnnOpen
+    case cnt of
+      2 -> do
+        printStringAtMaybeAnnLs GHC.AnnOpen 0 "{-# INLINE"
+        printStringAtMaybeAnnLs GHC.AnnOpen 1 "["
+        printStringAtMaybeAnn   GHC.AnnTilde "~"
+        printStringAtMaybeAnn   GHC.AnnVal "TODO:finish this"
+        printStringAtMaybeAnnLs GHC.AnnClose 0 "]"
+        printStringAtMaybeAnn   GHC.AnnVal (rdrName2String n)
+        printStringAtMaybeAnnLs GHC.AnnClose 1 "#-}"
+      _ -> do
+        printStringAtMaybeAnnLs GHC.AnnOpen 0 "{-# INLINE"
+        printStringAtMaybeAnn   GHC.AnnVal (rdrName2String n)
+        printStringAtMaybeAnnLs GHC.AnnClose 0 "#-}"
+
+    printStringAtMaybeAnn GHC.AnnComma ","
+
+  exactP (GHC.SpecSig (GHC.L _ n) typs inl) = do
+    cnt <- countAnns GHC.AnnOpen
+    case cnt of
+      2 -> do
+        printStringAtMaybeAnnLs GHC.AnnOpen  0 "{-# SPECIALISE"
+        printStringAtMaybeAnnLs GHC.AnnOpen  1 "["
+        printStringAtMaybeAnn   GHC.AnnTilde  "~"
+        printStringAtMaybeAnnLs GHC.AnnVal   0 "TODO:what here?" -- e.g. 34
+        printStringAtMaybeAnnLs GHC.AnnClose 0 "]"
+        printStringAtMaybeAnnLs GHC.AnnVal   1 (rdrName2String n)
+        printStringAtMaybeAnn   GHC.AnnDcolon "::"
+        mapM_ exactPC typs
+        printStringAtMaybeAnnLs GHC.AnnClose 1 "#-}"
+      _ -> do
+        printStringAtMaybeAnnLs GHC.AnnOpen  0 "{-# SPECIALISE"
+        printStringAtMaybeAnnLs GHC.AnnVal   0 (rdrName2String n)
+        printStringAtMaybeAnn   GHC.AnnDcolon  "::"
+        mapM_ exactPC typs
+        printStringAtMaybeAnnLs GHC.AnnClose 0 "#-}"
+
+    printStringAtMaybeAnn GHC.AnnComma ","
+
   exactP _ = printString "Sig"
+
+-- ---------------------------------------------------------------------
 
 instance ExactP (GHC.HsOverLit GHC.RdrName) where
   exactP ol = do
