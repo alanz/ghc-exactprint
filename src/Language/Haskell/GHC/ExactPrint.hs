@@ -697,7 +697,29 @@ instance ExactP (GHC.HsBind GHC.RdrName) where
 
   exactP (GHC.VarBind var_id var_rhs var_inline ) = printString "VarBind"
   exactP (GHC.AbsBinds abs_tvs abs_ev_vars abs_exports abs_ev_binds abs_binds) = printString "AbsBinds"
-  exactP (GHC.PatSynBind (GHC.PSB patsyn_id bind_fvs patsyn_args patsyn_def patsyn_dir)) = printString "PatSynBind"
+
+  exactP (GHC.PatSynBind (GHC.PSB (GHC.L _ n) fvs args def dir)) = do
+    printStringAtMaybeAnn GHC.AnnPattern "pattern"
+    printStringAtMaybeAnnLs GHC.AnnVal 0  (rdrName2String n)
+    case args of
+      GHC.InfixPatSyn (GHC.L _ na) (GHC.L _ nb) -> do
+        printStringAtMaybeAnnLs GHC.AnnVal 1 (rdrName2String na)
+        printStringAtMaybeAnnLs GHC.AnnVal 2 (rdrName2String nb)
+      GHC.PrefixPatSyn ns -> do
+        mapM_ (\(GHC.L _ n,o) -> printStringAtMaybeAnnLs GHC.AnnVal o (rdrName2String n)) $ zip ns [1..]
+
+    printStringAtMaybeAnn GHC.AnnEqual   "="
+    printStringAtMaybeAnn GHC.AnnLarrow  "<-"
+
+    exactPC def
+    case dir of
+      GHC.Unidirectional           -> return ()
+      GHC.ImplicitBidirectional    -> return ()
+      GHC.ExplicitBidirectional mg -> exactPMatchGroup mg
+
+    printStringAtMaybeAnn GHC.AnnWhere   "where"
+    printStringAtMaybeAnn GHC.AnnOpen    "{"
+    printStringAtMaybeAnn GHC.AnnClose   "}"
 
 instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP (GHC.Match pats typ (GHC.GRHSs grhs lb)) = do
@@ -724,26 +746,55 @@ instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
     exactP lb
     printStringAtMaybeAnn GHC.AnnClose "}"
 
+-- ---------------------------------------------------------------------
+
 instance ExactP (GHC.Pat GHC.RdrName) where
-  exactP (GHC.VarPat n)     = printString (rdrName2String n)
-  exactP (GHC.NPat ol _ _)  = exactP ol
-  exactP (GHC.ConPatIn e _) = exactPC e
-  exactP (GHC.WildPat _)    = printString "_"
-  exactP (GHC.AsPat n p) = do
-    Just (AnnAsPat asPos) <- getAnnValue :: EP (Maybe AnnPat)
-    -- let [(Ann _ _ (AnnAsPat asPos))] = getAnn isAnnAsPat ma "AsPat"
-    exactPC n
-    printStringAtDelta asPos "@"
+
+  exactP (GHC.WildPat _) = printStringAtMaybeAnn GHC.AnnVal "_"
+
+  exactP (GHC.VarPat n) = printStringAtMaybeAnn GHC.AnnVal (rdrName2String n)
+
+  exactP (GHC.LazyPat p)    = do
+    printStringAtMaybeAnn GHC.AnnTilde "~"
     exactPC p
 
+  exactP (GHC.AsPat n p) = do
+    exactPC n
+    printStringAtMaybeAnn GHC.AnnAt "@"
+    exactPC p
+
+  exactP (GHC.ParPat p) = do
+    printStringAtMaybeAnn GHC.AnnOpen "("
+    exactPC p
+    printStringAtMaybeAnn GHC.AnnClose ")"
+
+  exactP (GHC.BangPat p) = do
+    printStringAtMaybeAnn GHC.AnnBang "!"
+    exactPC p
+
+  exactP (GHC.ListPat ps _ _) = do
+    printStringAtMaybeAnn GHC.AnnOpen "["
+    mapM_ exactPC ps
+    printStringAtMaybeAnn GHC.AnnClose "]"
+
   exactP (GHC.TuplePat pats b _) = do
-    Just (AnnTuplePat opPos cpPos) <- getAnnValue :: EP (Maybe AnnPat)
-    -- let [(Ann _ _ (AnnTuplePat opPos cpPos))] = getAnn isAnnTuplePat ma "TuplePat"
-    if b == GHC.Boxed then printStringAtDelta opPos "("
-                      else printStringAtDelta opPos "(#"
+    if b == GHC.Boxed then printStringAtMaybeAnn GHC.AnnOpen "("
+                      else printStringAtMaybeAnn GHC.AnnOpen "(#"
     mapM_ exactPC pats
-    if b == GHC.Boxed then printStringAtDelta cpPos ")"
-                      else printStringAtDelta cpPos "#)"
+    if b == GHC.Boxed then printStringAtMaybeAnn GHC.AnnClose ")"
+                      else printStringAtMaybeAnn GHC.AnnClose "#)"
+
+  exactP (GHC.PArrPat ps _) = do
+    printStringAtMaybeAnn GHC.AnnOpen "[:"
+    mapM_ exactPC ps
+    printStringAtMaybeAnn GHC.AnnClose ":]"
+
+  exactP (GHC.ConPatIn n dets) = do
+    exactPC n
+    -- error $ "ConPatIn unfinished"
+    `debug` "ConPatIn unfinished ExactPrint"
+
+  exactP (GHC.NPat ol _ _)  = exactP ol
 
   exactP p = printString "Pat"
    `debug` ("exactP.Pat:ignoring " ++ (showGhc p))
@@ -834,12 +885,12 @@ instance ExactP (GHC.HsType GHC.RdrName) where
 
   exactP (GHC.HsBangTy b t) = do
     case b of
-      (GHC.HsUserBang (Just True) _) -> do
-        printStringAtMaybeAnn GHC.AnnOpen  "{-# UNPACK"
+      (GHC.HsUserBang ms (Just True) _) -> do
+        printStringAtMaybeAnn GHC.AnnOpen  (maybe "{-# UNPACK" id ms)
         printStringAtMaybeAnn GHC.AnnClose "#-}"
         printStringAtMaybeAnn GHC.AnnBang  "!"
-      (GHC.HsUserBang (Just False) _) -> do
-        printStringAtMaybeAnn GHC.AnnOpen  "{-# NOUNPACK"
+      (GHC.HsUserBang ms (Just False) _) -> do
+        printStringAtMaybeAnn GHC.AnnOpen  (maybe "{-# NOUNPACK" id ms)
         printStringAtMaybeAnn GHC.AnnClose "#-}"
         printStringAtMaybeAnn GHC.AnnBang  "!"
       _ -> do
@@ -892,6 +943,7 @@ instance ExactP (GHC.ConDeclField GHC.RdrName) where
 
 instance ExactP (GHC.HsContext GHC.RdrName) where
   exactP typs = do
+    printStringAtMaybeAnn GHC.AnnUnit "()"
     mapM_ exactPC typs
 
 instance ExactP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
@@ -1065,15 +1117,15 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
         exactPC e3
     printStringAtMaybeAnn GHC.AnnClose ":]"
 
-  exactP (GHC.HsSCC str e) = do
-    printStringAtMaybeAnn GHC.AnnOpen "{-# SCC"
+  exactP (GHC.HsSCC src str e) = do
+    printStringAtMaybeAnn GHC.AnnOpen src -- "{-# SCC"
     printStringAtMaybeAnn GHC.AnnVal (GHC.unpackFS str)
     printStringAtMaybeAnn GHC.AnnValStr ("\"" ++ GHC.unpackFS str ++ "\"")
     printStringAtMaybeAnn GHC.AnnClose "#-}"
     exactPC e
 
-  exactP (GHC.HsCoreAnn str e) = do
-    printStringAtMaybeAnn GHC.AnnOpen "{-# CORE"
+  exactP (GHC.HsCoreAnn src str e) = do
+    printStringAtMaybeAnn GHC.AnnOpen src -- "{-# CORE"
     printStringAtMaybeAnn GHC.AnnVal (GHC.unpackFS str)
     printStringAtMaybeAnn GHC.AnnClose "#-}"
     exactPC e
@@ -1152,9 +1204,9 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
   exactP (GHC.HsTick _ _) = return ()
   exactP (GHC.HsBinTick _ _ _) = return ()
 
-  exactP (GHC.HsTickPragma (str,(v1,v2),(v3,v4)) e) = do
+  exactP (GHC.HsTickPragma src (str,(v1,v2),(v3,v4)) e) = do
     -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
-    printStringAtMaybeAnn   GHC.AnnOpen  "{-# GENERATED"
+    printStringAtMaybeAnn   GHC.AnnOpen  src -- "{-# GENERATED"
     printStringAtMaybeAnnLs GHC.AnnVal   0 (show $ GHC.unpackFS str)
     printStringAtMaybeAnnLs GHC.AnnVal   1 (show v1)
     printStringAtMaybeAnnLs GHC.AnnColon 0 ":"
@@ -1280,23 +1332,27 @@ instance ExactP (GHC.Sig GHC.RdrName) where
 
   exactP (GHC.FixSig (GHC.FixitySig lns (GHC.Fixity v fdir))) = do
     printStringAtMaybeAnn GHC.AnnInfix "infix"
-    mapM_ exactPC lns
     printStringAtMaybeAnn GHC.AnnVal (show v)
+    mapM_ exactPC lns
     printStringAtMaybeAnn GHC.AnnComma ","
 
   exactP (GHC.InlineSig (GHC.L _ n) inl) = do
     cnt <- countAnns GHC.AnnOpen
     case cnt of
       2 -> do
-        printStringAtMaybeAnnLs GHC.AnnOpen 0 "{-# INLINE"
+        let actStr = case GHC.inl_act inl of
+              GHC.AlwaysActive -> ""
+              GHC.ActiveBefore n -> show n
+              GHC.ActiveAfter  n -> show n
+        printStringAtMaybeAnnLs GHC.AnnOpen 0 (GHC.inl_src inl) -- "{-# INLINE"
         printStringAtMaybeAnnLs GHC.AnnOpen 1 "["
         printStringAtMaybeAnn   GHC.AnnTilde "~"
-        printStringAtMaybeAnn   GHC.AnnVal "TODO:finish this"
+        printStringAtMaybeAnnLs GHC.AnnVal   0 actStr
         printStringAtMaybeAnnLs GHC.AnnClose 0 "]"
-        printStringAtMaybeAnn   GHC.AnnVal (rdrName2String n)
+        printStringAtMaybeAnnLs GHC.AnnVal   1 (rdrName2String n)
         printStringAtMaybeAnnLs GHC.AnnClose 1 "#-}"
       _ -> do
-        printStringAtMaybeAnnLs GHC.AnnOpen 0 "{-# INLINE"
+        printStringAtMaybeAnnLs GHC.AnnOpen 0 (GHC.inl_src inl) -- "{-# INLINE"
         printStringAtMaybeAnn   GHC.AnnVal (rdrName2String n)
         printStringAtMaybeAnnLs GHC.AnnClose 0 "#-}"
 
@@ -1306,7 +1362,7 @@ instance ExactP (GHC.Sig GHC.RdrName) where
     cnt <- countAnns GHC.AnnOpen
     case cnt of
       2 -> do
-        printStringAtMaybeAnnLs GHC.AnnOpen  0 "{-# SPECIALISE"
+        printStringAtMaybeAnnLs GHC.AnnOpen  0 (GHC.inl_src inl) -- "{-# SPECIALISE"
         printStringAtMaybeAnnLs GHC.AnnOpen  1 "["
         printStringAtMaybeAnn   GHC.AnnTilde  "~"
         printStringAtMaybeAnnLs GHC.AnnVal   0 "TODO:what here?" -- e.g. 34
@@ -1316,7 +1372,7 @@ instance ExactP (GHC.Sig GHC.RdrName) where
         mapM_ exactPC typs
         printStringAtMaybeAnnLs GHC.AnnClose 1 "#-}"
       _ -> do
-        printStringAtMaybeAnnLs GHC.AnnOpen  0 "{-# SPECIALISE"
+        printStringAtMaybeAnnLs GHC.AnnOpen  0 (GHC.inl_src inl) -- "{-# SPECIALISE"
         printStringAtMaybeAnnLs GHC.AnnVal   0 (rdrName2String n)
         printStringAtMaybeAnn   GHC.AnnDcolon  "::"
         mapM_ exactPC typs
