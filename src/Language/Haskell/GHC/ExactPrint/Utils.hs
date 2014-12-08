@@ -21,6 +21,8 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , rdrName2String
   , isSymbolRdrName
 
+  , isListComp
+
   , showGhc
 
   , merge
@@ -259,7 +261,7 @@ addDeltaAnnotation ann = do
   case ma of
     [] -> return ()
     [ap] -> addAnnotationWorker ann ap
-    _ -> error $ "addDeltaAnnotation:(ann,ma)=" ++ showGhc (ann,ma)
+    _ -> error $ "addDeltaAnnotation:(ss,ann,ma)=" ++ showGhc (ss,ann,ma)
 
 -- | Look up and add a Delta annotation at the current position, and
 -- advance the position to the end of the annotation
@@ -871,7 +873,11 @@ instance (Typeable name,AnnotateP name,GHC.OutputableBndr name) => AnnotateP (GH
     annotatePC n
     case dets of
       GHC.PrefixCon args -> mapM_ annotatePC args
-      GHC.RecCon (GHC.HsRecFields fs _) -> mapM_ annotatePC fs
+      GHC.RecCon (GHC.HsRecFields fs _) -> do
+         addDeltaAnnotation GHC.AnnOpen -- '{'
+         mapM_ annotatePC fs
+         addDeltaAnnotation GHC.AnnDotdot
+         addDeltaAnnotation GHC.AnnClose -- '}'
       GHC.InfixCon a1 a2 -> annotatePC a1 >> annotatePC a2
 
   annotateP l (GHC.ConPatOut {}) = return ()
@@ -928,10 +934,67 @@ instance (Typeable name,Typeable arg,AnnotateP arg)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name) =>
-                            AnnotateP (GHC.Stmt name (GHC.LHsExpr name)) where
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,Typeable body,AnnotateP body) =>
+                            AnnotateP (GHC.Stmt name (GHC.Located body)) where
+
+  -- LastStmt body (SyntaxExpr idR)
+  annotateP l (GHC.LastStmt body _) = annotatePC body
+
+  -- BindStmt (LPat idL) body (SyntaxExpr idR) (SyntaxExpr idR)
+  annotateP l (GHC.BindStmt pat body _ _) = do
+    annotatePC pat
+    addDeltaAnnotation GHC.AnnLarrow
+    annotatePC body
+    addDeltaAnnotation GHC.AnnVbar -- possible in list comprehension
+    addDeltaAnnotation GHC.AnnComma -- possible in list comprehension
+
+  -- BodyStmt body (SyntaxExpr idR) (SyntaxExpr idR) (PostTc idR Type)
+  annotateP l (GHC.BodyStmt body _ _ _) = do
+    annotatePC body
+
+  -- LetStmt (HsLocalBindsLR idL idR)
+  annotateP l (GHC.LetStmt lb) = do
+    addDeltaAnnotation GHC.AnnLet
+    addDeltaAnnotation GHC.AnnOpen -- '{'
+    annotateHsLocalBinds lb
+    addDeltaAnnotation GHC.AnnClose -- '}'
+
+  -- ParStmt [ParStmtBlock idL idR] (SyntaxExpr idR) (SyntaxExpr idR)
+  annotateP l (GHC.ParStmt pbs _ _) = do
+    mapM_ annotateParStmtBlock pbs
+
+  annotateP l (GHC.TransStmt form stmts _b using by _ _ _) = do
+    addDeltaAnnotation GHC.AnnThen
+    -- addDeltaAnnotation GHC.AnnGroup
+    -- addDeltaAnnotation GHC.AnnBy
+    -- addDeltaAnnotation GHC.AnnUsing
+    mapM_ annotatePC stmts
+    {-
+    annotatePC using
+    case by of
+      Just b -> annotatePC b
+      Nothing -> return ()
+    -}
+{-
+TransStmt
+  trS_form :: TransForm
+  trS_stmts :: [ExprLStmt idL]  -------- xxxxxxxxxxxxxxx
+  trS_bndrs :: [(idR, idR)]
+  trS_using :: LHsExpr idR     ---------
+  trS_by :: Maybe (LHsExpr idR)
+  trS_ret :: SyntaxExpr idR
+  trS_bind :: SyntaxExpr idR
+  trS_fmap :: SyntaxExpr idR
+-}
+
   annotateP l stmt = do
-    return () `debug` ("annotateP.Stmt:not implemented for " ++ (showGhc (l,stmt)))
+    return () `debug` ("annotateP.Stmt:not implemented for ")
+
+-- ---------------------------------------------------------------------
+
+annotateParStmtBlock :: (GHC.OutputableBndr name, AnnotateP name) =>  GHC.ParStmtBlock name name -> AP ()
+annotateParStmtBlock (GHC.ParStmtBlock stmts ns _) = do
+  mapM_ annotatePC stmts
 
 -- ---------------------------------------------------------------------
 
@@ -1025,10 +1088,16 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     addDeltaAnnotation GHC.AnnIn
     annotatePC e
 
-  annotateP l (GHC.HsDo _ es _)         = do
+  annotateP l (GHC.HsDo cts es _) = do
     addDeltaAnnotation GHC.AnnDo
     addDeltaAnnotation GHC.AnnOpen
-    mapM_ annotatePC es
+    if isListComp cts
+      then do
+        annotatePC (last es)
+        addDeltaAnnotation GHC.AnnVbar
+        mapM_ annotatePC (init es)
+      else do
+        mapM_ annotatePC es
     addDeltaAnnotation GHC.AnnClose
 
   annotateP l (GHC.ExplicitList _ _ es) = do
@@ -1760,6 +1829,23 @@ splitToksForSpan ss toks =
       (toks21,toks22) = break (\t -> tokenPos t >= srcSpanEnd   ss) toks2
   in
     (toks1,toks21,toks22)
+
+-- ---------------------------------------------------------------------
+
+isListComp :: GHC.HsStmtContext name -> Bool
+isListComp cts = case cts of
+          GHC.ListComp  -> True
+          GHC.MonadComp -> True
+          GHC.PArrComp  -> True
+
+          GHC.DoExpr       -> False
+          GHC.MDoExpr      -> False
+          GHC.ArrowExpr    -> False
+          GHC.GhciStmtCtxt -> False
+
+          GHC.PatGuard {}      -> False
+          GHC.ParStmtCtxt {}   -> False
+          GHC.TransStmtCtxt {} -> False
 
 -- ---------------------------------------------------------------------
 

@@ -10,3 +10,5 @@
 /tests/examples/Sigs.hs.exactprinter.out
 /tests/examples/ExprPragmas.hs.exactprinter.out
 /tests/examples/LetExpr.hs.1
+/tests/examples/ListComprehensions.hs.exactprinter.out
+/tests/examples/MonadComprehensions.hs.exactprinter.out

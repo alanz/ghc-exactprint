@@ -783,7 +783,11 @@ instance ExactP (GHC.Pat GHC.RdrName) where
     exactPC n
     case dets of
       GHC.PrefixCon args -> mapM_ exactPC args
-      GHC.RecCon (GHC.HsRecFields fs _) -> mapM_ exactPC fs
+      GHC.RecCon (GHC.HsRecFields fs _) -> do
+        printStringAtMaybeAnn GHC.AnnOpen "{"
+        mapM_ exactPC fs
+        printStringAtMaybeAnn GHC.AnnDotdot ".."
+        printStringAtMaybeAnn GHC.AnnClose "}"
       GHC.InfixCon a1 a2 -> exactPC a1 >> exactPC a2
 
   exactP (GHC.ConPatOut {}) = return ()
@@ -974,17 +978,50 @@ instance ExactP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
     exactPC expr
 
 instance ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
+
+  exactP (GHC.LastStmt body _) = exactPC body
+    `debug` ("exactP.LastStmt")
+
+  exactP (GHC.BindStmt pat body _ _) = do
+    exactPC pat
+    printStringAtMaybeAnn GHC.AnnLarrow "<-"
+    exactPC body
+    printStringAtMaybeAnn GHC.AnnVbar  "|" -- possible in list comprehension
+    printStringAtMaybeAnn GHC.AnnComma "," -- possible in list comprehension
+
   exactP (GHC.BodyStmt e _ _ _) = do
-    -- let [(Ann lcs _ an)] = getAnn isAnnStmtLR ma "StmtLR"
     exactPC e
 
   exactP (GHC.LetStmt lb) = do
     printStringAtMaybeAnn GHC.AnnLet "let"
+    printStringAtMaybeAnn GHC.AnnOpen "{"
     exactP lb
-    printStringAtMaybeAnn GHC.AnnIn "in"
+    printStringAtMaybeAnn GHC.AnnClose "}"
 
+  exactP (GHC.ParStmt pbs _ _) = do
+    mapM_ exactPParStmtBlock pbs
 
-  exactP _ = printString "StmtLR"
+  exactP (GHC.TransStmt form stmts _b using by _ _ _) = do
+    printStringAtMaybeAnn GHC.AnnThen "then"
+    -- printStringAtMaybeAnn GHC.AnnGroup "group"
+    -- printStringAtMaybeAnn GHC.AnnBy "by"
+    -- printStringAtMaybeAnn GHC.AnnUsing "using"
+    mapM_ exactPC stmts
+    {-
+    exactPC using
+    case by of
+      Just b -> exactPC b
+      Nothing -> return ()
+    -}
+
+  exactP (GHC.RecStmt {}) = do
+    printString "RecStmt"
+
+-- ---------------------------------------------------------------------
+
+exactPParStmtBlock :: GHC.ParStmtBlock GHC.RdrName GHC.RdrName -> EP ()
+exactPParStmtBlock (GHC.ParStmtBlock stmts ns _) = do
+  mapM_ exactPC stmts
 
 -- ---------------------------------------------------------------------
 
@@ -1052,9 +1089,19 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
 
   exactP (GHC.HsDo cts stmts _typ)    = do
     printStringAtMaybeAnn GHC.AnnDo "do"
-    printStringAtMaybeAnn GHC.AnnOpen "{"
-    mapM_ exactPC stmts
-    printStringAtMaybeAnn GHC.AnnClose "}"
+    let (ostr,cstr,isComp) =
+          if isListComp cts then ("[","]",True)
+                            else ("{","}",False)
+
+    printStringAtMaybeAnn GHC.AnnOpen ostr
+    if isComp
+      then do
+        exactPC(last stmts)
+        printStringAtMaybeAnn GHC.AnnVbar "|"
+        mapM_ exactPC (init stmts)
+      else do
+        mapM_ exactPC stmts
+    printStringAtMaybeAnn GHC.AnnClose cstr
 
   exactP (GHC.ExplicitList _ _ es) = do
     printStringAtMaybeAnn GHC.AnnOpen "["

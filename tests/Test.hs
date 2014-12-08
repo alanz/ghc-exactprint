@@ -34,13 +34,14 @@ debug = flip trace
 
 main :: IO ()
 main = do
-    putStrLn "hello"
-    manipulateAstTest ["examples/LetExpr.hs"]
+    -- manipulateAstTest ["examples/LetExpr.hs"]
     -- manipulateAstTest ["examples/LetExprSemi.hs"]
     -- manipulateAstTest ["examples/Tuple.hs"]
     -- manipulateAstTest ["examples/Sigs.hs"]
     -- manipulateAstTest ["examples/ExprPragmas.hs"]
-    putStrLn "done"
+    manipulateAstTest ["examples/ListComprehensions.hs"]
+    -- manipulateAstTest ["examples/MonadComprehensions.hs"]
+
 
 -- | Where all the tests are to be found
 examplesDir :: FilePath
@@ -63,7 +64,7 @@ manipulateAstTest sources = do
        -- `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
     -- try to pretty-print; summarize the test result
     ann = annotateAST parsed ghcAnns
-      -- `debug` ("ghcAnns:" ++ showGhc ghcAnns)
+      `debug` ("ghcAnns:" ++ showGhc ghcAnns)
 
     Just (GHC.L le exps) = GHC.hsmodExports hsmod
     secondExp@(GHC.L l2 _) = head $ tail exps
