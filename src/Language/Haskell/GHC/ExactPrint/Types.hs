@@ -10,7 +10,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , DeltaPos(..)
   , Annotation(..)
   , annNone
-  , Anns(..),anEP,anU,anF
+  , Anns(..),anEP,anF
   , AnnsEP(..)
   , AnnsUser(..)
 
@@ -205,10 +205,9 @@ instance Show GHC.RdrName where
   show n = "(a RdrName)"
 
 
-type Anns = (AnnsEP,AnnsUser,AnnsFinal)
-anEP (e,_,_) = e
-anU  (_,u,_) = u
-anF  (_,_,f) = f
+type Anns = (AnnsEP,AnnsFinal)
+anEP (e,_) = e
+anF  (_,f) = f
 
 -- | For every @Located a@, use the @SrcSpan@ and TypeRep of a as the
 -- key, to store the standard annotation.

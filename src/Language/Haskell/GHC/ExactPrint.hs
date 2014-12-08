@@ -185,10 +185,6 @@ getAnnotation :: (Typeable a) => GHC.Located a -> EP (Maybe Annotation)
 getAnnotation a@(GHC.L ss _) = EP (\l dp s cs st an -> (getAnnotationEP (anEP an) a
                        ,l,dp,s,cs,st,an,id))
 
-getAnnValue :: (Typeable b) => EP (Maybe b)
-getAnnValue = EP (\l dp (s:ss) cs st an -> (getAnnotationValue (anU an) s
-                  ,l,dp,(s:ss),cs,st,an,id))
-
 getAnnFinal :: GHC.AnnKeywordId -> EP [DeltaPos]
 getAnnFinal kw = EP (\l dp (s:ss) cs st an ->
      let
@@ -358,7 +354,7 @@ errorEP = fail
 -- | Print an AST exactly as specified by the annotations on the nodes in the tree.
 -- exactPrint :: (ExactP ast) => ast -> [Comment] -> String
 exactPrint :: (ExactP ast) => GHC.Located ast -> [Comment] -> [PosToken] -> String
-exactPrint ast@(GHC.L l _) cs toks = runEP (exactPC ast) l cs (Map.empty,Map.empty,Map.empty)
+exactPrint ast@(GHC.L l _) cs toks = runEP (exactPC ast) l cs (Map.empty,Map.empty)
 
 
 exactPrintAnnotated ::
@@ -686,11 +682,10 @@ instance ExactP (GHC.HsBind GHC.RdrName) where
     mapM_ exactPC matches
 
   exactP (GHC.PatBind lhs (GHC.GRHSs grhs lb) _ty _fvs _ticks) = do
-    Just (AnnPatBind eqPos wherePos) <- getAnnValue
     exactPC lhs
-    printStringAtMaybeDelta eqPos "="
+    printStringAtMaybeAnn GHC.AnnEqual "="
     mapM_ exactPC grhs
-    printStringAtMaybeDelta wherePos "where"
+    printStringAtMaybeAnn GHC.AnnWhere "where"
     exactP lb
 
   exactP (GHC.VarBind var_id var_rhs var_inline ) = printString "VarBind"
@@ -984,12 +979,9 @@ instance ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsExpr GHC.RdrName)) w
     exactPC e
 
   exactP (GHC.LetStmt lb) = do
-    Just an <- getAnnValue :: EP (Maybe AnnStmt)
-    -- let [(Ann lcs _ an)] = getAnn isAnnLetStmt ma "LetStmt"
-    p <- getPos
-    printStringAtMaybeDelta (ls_let an) "let" `debug` ("exactP.LetStmt:an=" ++ show an)
+    printStringAtMaybeAnn GHC.AnnLet "let"
     exactP lb
-    printStringAtMaybeDeltaP p (ls_in an) "in"
+    printStringAtMaybeAnn GHC.AnnIn "in"
 
 
   exactP _ = printString "StmtLR"
@@ -1020,8 +1012,6 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
   exactP (GHC.SectionR e1 e2)    = exactPC e1 >> exactPC e2
 
   exactP (GHC.ExplicitTuple args b) = do
-    Just (AnnExplicitTuple op cp) <- getAnnValue
-    return () `debug` ("exactP.ExplicitTuple:" ++ show (AnnExplicitTuple op cp))
     if b == GHC.Boxed then printStringAtMaybeAnn GHC.AnnOpen "("
                       else printStringAtMaybeAnn GHC.AnnOpen "(#"
 
@@ -1291,13 +1281,12 @@ instance ExactP GHC.RdrName where
     printStringAtMaybeAnn GHC.AnnOpen "("
     printStringAtMaybeAnn GHC.AnnVal     (rdrName2String n)
     printStringAtMaybeAnn GHC.AnnClose ")"
-    printStringAtMaybeAnn GHC.AnnComma   ","
+    -- printStringAtMaybeAnn GHC.AnnComma   ","
 
 instance ExactP GHC.HsIPName where
   exactP (GHC.HsIPName n) = do
     printString (GHC.unpackFS n)
-    Just (AnnListItem mc) <- getAnnValue
-    printStringAtMaybeDelta mc ","
+    -- printStringAtMaybeAnn GHC.AnnComma ","
 
 -- ---------------------------------------------------------------------
 
@@ -1310,13 +1299,11 @@ exactPMatchGroup (GHC.MG matches _ _ _)
 
 instance ExactP (GHC.HsTupArg GHC.RdrName) where
   exactP (GHC.Missing _) = do
-    Just (AnnListItem cPos) <- getAnnValue
-    printStringAtMaybeDelta cPos ","
+    printStringAtMaybeAnn GHC.AnnComma ","
     return ()
   exactP (GHC.Present e) = do
-    Just (AnnListItem cPos) <- getAnnValue
     exactPC e
-    printStringAtMaybeDelta cPos ","
+    printStringAtMaybeAnn GHC.AnnComma ","
 
 instance ExactP (GHC.HsLocalBinds GHC.RdrName) where
   exactP (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do

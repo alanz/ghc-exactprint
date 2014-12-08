@@ -35,10 +35,10 @@ debug = flip trace
 main :: IO ()
 main = do
     putStrLn "hello"
-    -- manipulateAstTest ["examples/LetExpr.hs"]
+    manipulateAstTest ["examples/LetExpr.hs"]
     -- manipulateAstTest ["examples/LetExprSemi.hs"]
     -- manipulateAstTest ["examples/Tuple.hs"]
-    manipulateAstTest ["examples/Sigs.hs"]
+    -- manipulateAstTest ["examples/Sigs.hs"]
     -- manipulateAstTest ["examples/ExprPragmas.hs"]
     putStrLn "done"
 
@@ -63,9 +63,7 @@ manipulateAstTest sources = do
        -- `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
     -- try to pretty-print; summarize the test result
     ann = annotateAST parsed ghcAnns
-      `debug` ("ghcAnns:" ++ showGhc ghcAnns)
-      -- `debug` ("ann:" ++ (show $ snd ann))
-      -- `debug` ("ann:" ++ (show $ fst ann))
+      -- `debug` ("ghcAnns:" ++ showGhc ghcAnns)
 
     Just (GHC.L le exps) = GHC.hsmodExports hsmod
     secondExp@(GHC.L l2 _) = head $ tail exps
@@ -96,8 +94,8 @@ manipulateAstTest sources = do
   -- putStrLn $ "Test:ghcAnns:snd=" ++ showGhc (snd ghcAnns)
   -- putStrLn $ "Test2:empty ann=" ++ show ((Map.empty,Map.empty) :: Anns)
   -- putStrLn $ "Test2:ann=[" ++ show (annotateAST parsed ghcAnns) ++ "]"
-  -- putStrLn $ "Test3:ann=[" ++ show ann ++ "]"
   writeFile out $ result
+  -- putStrLn $ "Test3:ann=[" ++ show (snd ann) ++ "]"
   return ()
 -- }}}
 

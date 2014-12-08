@@ -82,7 +82,7 @@ debug = flip trace
 {- -}
 newtype AP x = AP ([(GHC.SrcSpan,TypeRep)] -> GHC.SrcSpan -> Extra -> GHC.ApiAnns
             -> (x, [(GHC.SrcSpan,TypeRep)],   GHC.SrcSpan,   Extra,   GHC.ApiAnns,
-                  ([(AnnKey,Annotation)],[(AnnKey,Value)],[(AnnKeyF,[DeltaPos])])
+                  ([(AnnKey,Annotation)],[(AnnKeyF,[DeltaPos])])
                  ))
 
 type Extra = Bool -- isInfix for a FunBind
@@ -106,8 +106,8 @@ instance Monad AP where
 
 runAP :: AP () -> GHC.ApiAnns -> Anns
 runAP (AP f) ga
- = let (_,_,_,_,_,(se,su,sa)) = f [] GHC.noSrcSpan False ga
-   in (Map.fromList se,Map.fromList su,Map.fromListWith (++) sa)
+ = let (_,_,_,_,_,(se,sa)) = f [] GHC.noSrcSpan False ga
+   in (Map.fromList se,Map.fromListWith (++) sa)
 
 -- -------------------------------------
 
@@ -158,14 +158,14 @@ getCommentsForSpan s = AP (\l pe e ga ->
 addAnnotationsAP :: Annotation -> AP ()
 addAnnotationsAP ann = AP (\l pe e ga ->
                        ( (),l,pe,e,ga,
-                 ([((head l),ann)],[],[])))
+                 ([((head l),ann)],[])))
 
 -- -------------------------------------
 
 addAnnDeltaPos :: (GHC.SrcSpan,GHC.AnnKeywordId) -> DeltaPos -> AP ()
 addAnnDeltaPos (s,kw) dp = AP (\l pe e ga -> ( (),
                                 l,pe,e,ga,
-                               ([],[],
+                               ([],
                                [ ((s,kw),[dp]) ])  ))
 
 -- -------------------------------------
@@ -236,6 +236,19 @@ addFinalComments = do
    -- `debug` ("leaveAST:dcs=" ++ show dcs)
   return () -- `debug` ("addFinalComments:dcs=" ++ show dcs)
 
+addAnnotationWorker ann ap = do
+  if not (isPointSrcSpan ap)
+    then do
+      pe <- getPriorEnd
+      ss <- getSrcSpanAP
+      let p = deltaFromSrcSpans pe ap
+      addAnnDeltaPos (ss,ann) p
+      setPriorEnd ap
+          `debug` ("addDeltaAnnotationWorker:(ss,pe,ap,p,ann)=" ++ show (ss2span ss,ss2span pe,ss2span ap,p,ann))
+    else do
+      return ()
+          `debug` ("addDeltaAnnotationWorker::point span:(ss,ma,ann)=" ++ show (ss2span ap,ann))
+
 -- | Look up and add a Delta annotation at the current position, and
 -- advance the position to the end of the annotation
 addDeltaAnnotation :: GHC.AnnKeywordId -> AP ()
@@ -245,11 +258,7 @@ addDeltaAnnotation ann = do
   ma <- getAnnotationAP ss ann
   case ma of
     [] -> return ()
-    [ap] -> do
-      let p = deltaFromSrcSpans pe ap
-      addAnnDeltaPos (ss,ann) p
-      setPriorEnd ap
-        `debug` ("addDeltaAnnotation:(ss,pe,ma,p)=" ++ show (ss2span ss,ss2span pe,fmap ss2span ma,p,ann))
+    [ap] -> addAnnotationWorker ann ap
     _ -> error $ "addDeltaAnnotation:(ann,ma)=" ++ showGhc (ann,ma)
 
 -- | Look up and add a Delta annotation at the current position, and
@@ -262,11 +271,7 @@ addDeltaAnnotationLs ann off = do
   case (drop off ma) of
     [] -> return ()
         `debug` ("addDeltaAnnotationLs:missed:(off,pe,ann,ma)=" ++ show (off,ss2span pe,ann,fmap ss2span ma))
-    (ap:_) -> do
-      let p = deltaFromSrcSpans pe ap
-      addAnnDeltaPos (ss,ann) p
-      setPriorEnd ap
-        `debug` ("addDeltaAnnotationLs:(off,pe,ap,p,ann,ma)=" ++ show (off,ss2span pe,ss2span ap,p,ann,fmap ss2span ma))
+    (ap:_) -> addAnnotationWorker ann ap
 
 -- | Look up and add possibly multiple Delta annotation at the current
 -- position, and advance the position to the end of the annotations
@@ -274,12 +279,8 @@ addDeltaAnnotations :: GHC.AnnKeywordId -> AP ()
 addDeltaAnnotations ann = do
   ss <- getSrcSpanAP
   ma <- getAnnotationAP ss ann
-  let do_one ap' = do
-        pe <- getPriorEnd
-        let p = deltaFromSrcSpans pe ap'
-        addAnnDeltaPos (ss,ann) p
-        setPriorEnd ap'
-          `debug` ("addDeltaAnnotations:(ss,pe,ma,p)=" ++ show (ss2span ss,ss2span pe,fmap ss2span ma,p,ann))
+  let do_one ap' = addAnnotationWorker ann ap'
+
   case ma of
     [] -> return ()
     [ap] -> do_one ap
@@ -385,8 +386,8 @@ instance AnnotateP (GHC.IE GHC.RdrName) where
           addDeltaAnnotation GHC.AnnClose
 
         (GHC.IEThingAll ln) -> do
-          annotatePC ln
           addDeltaAnnotation GHC.AnnOpen
+          annotatePC ln
           addDeltaAnnotation GHC.AnnDotdot
           addDeltaAnnotation GHC.AnnClose
 
@@ -405,7 +406,7 @@ instance AnnotateP GHC.RdrName where
     addDeltaAnnotation GHC.AnnOpen -- possible '('
     addDeltaAnnotationExt l GHC.AnnVal
     addDeltaAnnotation GHC.AnnClose -- possible ')'
-    addDeltaAnnotation GHC.AnnComma
+    -- addDeltaAnnotation GHC.AnnComma
 
 -- ---------------------------------------------------------------------
 
@@ -1722,6 +1723,11 @@ srcSpanStartLine _ = 0
 
 nullSpan :: Span
 nullSpan = ((0,0),(0,0))
+
+-- ---------------------------------------------------------------------
+
+isPointSrcSpan :: GHC.SrcSpan -> Bool
+isPointSrcSpan ss = s == e where (s,e) = ss2span ss
 
 -- ---------------------------------------------------------------------
 
