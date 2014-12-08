@@ -30,7 +30,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , AP(..)
   , getSrcSpanAP, pushSrcSpanAP, popSrcSpanAP
   , getAnnotationAP
-  , addAnnotationsAP, addAnnValue
+  , addAnnotationsAP
 
   ) where
 
@@ -76,13 +76,16 @@ debug = flip trace
 --    - the current SrcSpan and the TypeRep of the thing it encloses
 --      as a stack to the root of the AST as it is traversed,
 --    - the srcspan of the last thing annotated, to calculate delta's from
+--    - extra data needing to be stored in the monad
 --    - the annotations provided by GHC
 
 {- -}
-newtype AP x = AP ([(GHC.SrcSpan,TypeRep)] -> GHC.SrcSpan -> GHC.ApiAnns
-            -> (x, [(GHC.SrcSpan,TypeRep)],   GHC.SrcSpan,   GHC.ApiAnns,
+newtype AP x = AP ([(GHC.SrcSpan,TypeRep)] -> GHC.SrcSpan -> Extra -> GHC.ApiAnns
+            -> (x, [(GHC.SrcSpan,TypeRep)],   GHC.SrcSpan,   Extra,   GHC.ApiAnns,
                   ([(AnnKey,Annotation)],[(AnnKey,Value)],[(AnnKeyF,[DeltaPos])])
                  ))
+
+type Extra = Bool -- isInfix for a FunBind
 
 instance Functor AP where
   fmap = liftM
@@ -92,86 +95,86 @@ instance Applicative AP where
   (<*>) = ap
 
 instance Monad AP where
-  return x = AP $ \l pe ga -> (x, l, pe, ga, ([],[],[]))
+  return x = AP $ \l pe e ga -> (x, l, pe, e, ga, mempty)
 
-  AP m >>= k = AP $ \l0 p0 ga0 -> let
-        (a, l1, p1, ga1, s1) = m l0 p0 ga0
+  AP m >>= k = AP $ \l0 p0 e0 ga0 -> let
+        (a, l1, p1, e1, ga1, s1) = m l0 p0 e0 ga0
         AP f = k a
-        (b, l2, p2, ga2, s2) = f l1 p1 ga1
-    in (b, l2, p2, ga2, s1 <> s2)
+        (b, l2, p2, e2, ga2, s2) = f l1 p1 e1 ga1
+    in (b, l2, p2, e2, ga2, s1 <> s2)
 
 
 runAP :: AP () -> GHC.ApiAnns -> Anns
 runAP (AP f) ga
- = let (_,_,_,_,(se,su,sa)) = f [] GHC.noSrcSpan ga
+ = let (_,_,_,_,_,(se,su,sa)) = f [] GHC.noSrcSpan False ga
    in (Map.fromList se,Map.fromList su,Map.fromListWith (++) sa)
 
 -- -------------------------------------
 
 -- |Note: assumes the SrcSpan stack is nonempty
 getSrcSpanAP :: AP GHC.SrcSpan
-getSrcSpanAP = AP (\l pe ga -> (fst $ head l,l,pe,ga,([],[],[])))
+getSrcSpanAP = AP (\l pe e ga -> (fst $ head l,l,pe,e,ga,mempty))
 
 pushSrcSpanAP :: (Typeable a) => (GHC.Located a) -> AP ()
-pushSrcSpanAP (GHC.L l a) = AP (\ls pe ga -> ((),(l,typeOf a):ls,pe,ga,([],[],[])))
+pushSrcSpanAP (GHC.L l a) = AP (\ls pe e ga -> ((),(l,typeOf a):ls,pe,e,ga,mempty))
 
 popSrcSpanAP :: AP ()
-popSrcSpanAP = AP (\(l:ls) pe ga -> ((),ls,pe,ga,([],[],[])))
+popSrcSpanAP = AP (\(l:ls) pe e ga -> ((),ls,pe,e,ga,mempty))
 
 -- ---------------------------------------------------------------------
 
 -- |Note: assumes the prior end SrcSpan stack is nonempty
 getPriorEnd :: AP GHC.SrcSpan
-getPriorEnd = AP (\l pe ga -> (pe,l,pe,ga,([],[],[])))
+getPriorEnd = AP (\l pe e ga -> (pe,l,pe,e,ga,mempty))
 
 setPriorEnd :: GHC.SrcSpan -> AP ()
-setPriorEnd pe = AP (\ls _ ga  -> ((),ls,pe,ga,([],[],[])))
+setPriorEnd pe = AP (\ls _ e ga  -> ((),ls,pe,e,ga,mempty))
 
 -- Deprecated, remove
 popPriorEnd :: AP ()
-popPriorEnd = AP (\ls pe ga -> ((),ls,pe,ga,([],[],[]))
+popPriorEnd = AP (\ls pe e ga -> ((),ls,pe,e,ga,mempty)
  `debug` ("popPriorEnd: old stack :" ++ showGhc pe))
 -- -------------------------------------
 
 getAnnotationAP :: GHC.SrcSpan -> GHC.AnnKeywordId -> AP [GHC.SrcSpan]
-getAnnotationAP sp an = AP (\l pe ga
-    -> (GHC.getAnnotation ga sp an, l,pe,ga,([],[],[])))
+getAnnotationAP sp an = AP (\l pe e ga
+    -> (GHC.getAnnotation ga sp an, l,pe,e,ga,mempty))
 
 
 -- -------------------------------------
 
 getCommentsForSpan :: GHC.SrcSpan -> AP [Comment]
-getCommentsForSpan s = AP (\l pe ga ->
+getCommentsForSpan s = AP (\l pe e ga ->
   let
     gcs = GHC.getAnnotationComments ga s
     cs = reverse $ map tokComment gcs
     tokComment :: GHC.Located GHC.AnnotationComment -> Comment
     tokComment t@(GHC.L l _) = Comment (ghcIsMultiLine t) (ss2span l) (ghcCommentText t)
-  in (cs,l,pe,ga,([],[],[])))
+  in (cs,l,pe,e,ga,mempty))
 
 -- -------------------------------------
 
 -- |Add some annotation to the currently active SrcSpan
 addAnnotationsAP :: Annotation -> AP ()
-addAnnotationsAP ann = AP (\l pe ga ->
-                       ( (),l,pe,ga,
+addAnnotationsAP ann = AP (\l pe e ga ->
+                       ( (),l,pe,e,ga,
                  ([((head l),ann)],[],[])))
 
 -- -------------------------------------
 
--- Deprecated, delete later
-addAnnValue :: (Typeable a,Show a,Eq a) => a -> AP ()
-addAnnValue v = AP (\l                 pe ga ->
-                ( (),l,pe,ga,
-                 ([],[( ((fst $ head l),typeOf (Just v)),newValue v)],[])))
+addAnnDeltaPos :: (GHC.SrcSpan,GHC.AnnKeywordId) -> DeltaPos -> AP ()
+addAnnDeltaPos (s,kw) dp = AP (\l pe e ga -> ( (),
+                                l,pe,e,ga,
+                               ([],[],
+                               [ ((s,kw),[dp]) ])  ))
 
 -- -------------------------------------
 
-addAnnDeltaPos :: (GHC.SrcSpan,GHC.AnnKeywordId) -> DeltaPos -> AP ()
-addAnnDeltaPos (s,kw) dp = AP (\l pe ga -> ( (),
-                                 l,pe,ga,
-                               ([],[],
-                               [ ((s,kw),[dp]) ])  ))
+setFunIsInfix :: Bool -> AP ()
+setFunIsInfix e = AP (\l pe _ ga -> ((),l,pe,e,ga,mempty))
+
+getFunIsInfix :: AP Bool
+getFunIsInfix = AP (\l pe e ga -> (e,l,pe,e,ga,mempty))
 
 -- -------------------------------------
 
@@ -466,6 +469,7 @@ instance (GHC.OutputableBndr name,AnnotateP name) => AnnotateP (GHC.HsDecl name)
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
                                               AnnotateP (GHC.HsBind name) where
   annotateP l (GHC.FunBind (GHC.L ln n) isInfix (GHC.MG matches _ _ _) _ _ _) = do
+    setFunIsInfix isInfix
     mapM_ annotatePC matches
 
   annotateP l (GHC.PatBind lhs@(GHC.L ll _) grhss@(GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
@@ -505,10 +509,15 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
                           AnnotateP (GHC.Match name (GHC.LHsExpr name)) where
   annotateP l (GHC.Match pats _typ grhss@(GHC.GRHSs grhs lb)) = do
-
-    addDeltaAnnotation GHC.AnnFunId
-
-    mapM_ annotatePC pats
+    isInfix <- getFunIsInfix
+    case (isInfix,pats) of
+      (True,[a,b]) -> do
+        annotatePC a
+        addDeltaAnnotation GHC.AnnFunId
+        annotatePC b
+      _ -> do
+        addDeltaAnnotation GHC.AnnFunId
+        mapM_ annotatePC pats
 
     addDeltaAnnotation GHC.AnnEqual
 
@@ -1206,14 +1215,10 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
                              AnnotateP (GHC.HsTupArg name) where
   annotateP l (GHC.Present e@(GHC.L le _)) = do
     annotatePC e
-    mcp <- getAnnotationAP l GHC.AnnComma
-    let commaPos = deltaFromMaybeSrcSpans [le] mcp
-    addAnnValue (AnnListItem commaPos)
+    addDeltaAnnotation GHC.AnnComma
 
   annotateP l (GHC.Missing _) = do
-    mcp <- getAnnotationAP l GHC.AnnComma
-    let commaPos = deltaFromMaybeSrcSpans [l] mcp
-    addAnnValue (AnnListItem commaPos)
+    addDeltaAnnotation GHC.AnnComma
 
 -- ---------------------------------------------------------------------
 

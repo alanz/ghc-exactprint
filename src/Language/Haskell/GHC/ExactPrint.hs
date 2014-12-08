@@ -127,8 +127,10 @@ spanSize ss = (srcSpanEndLine ss - srcSpanStartLine ss,
 pos :: (SrcInfo loc) => loc -> Pos
 pos ss = (startLine ss, startColumn ss)
 
-newtype EP x = EP (Pos -> DeltaPos -> [GHC.SrcSpan] -> [Comment] -> String -> Anns
-            -> (x, Pos,   DeltaPos,   [GHC.SrcSpan],   [Comment],   String,   Anns, ShowS))
+newtype EP x = EP (Pos -> DeltaPos -> [GHC.SrcSpan] -> [Comment] -> Extra -> Anns
+            -> (x, Pos,   DeltaPos,   [GHC.SrcSpan],   [Comment],   Extra,   Anns, ShowS))
+
+type Extra = (String,Bool)
 
 instance Functor EP where
   fmap = liftM
@@ -147,7 +149,7 @@ instance Monad EP where
     in (b, l2, ss2, dp2, c2, st2, an2, s1 . s2)
 
 runEP :: EP () -> GHC.SrcSpan -> [Comment] -> Anns -> String
-runEP (EP f) ss cs ans = let (_,_,_,_,_,_,_,s) = f (1,1) (DP (0,0)) [ss] cs "" ans in s ""
+runEP (EP f) ss cs ans = let (_,_,_,_,_,_,_,s) = f (1,1) (DP (0,0)) [ss] cs ("",False) ans in s ""
 
 getPos :: EP Pos
 getPos = EP (\l dp s cs st an -> (l,l,dp,s,cs,st,an,id))
@@ -195,21 +197,17 @@ getAnnFinal kw = EP (\l dp (s:ss) cs st an ->
              Just ds -> ds
      in (r         ,l,dp,(s:ss),cs,st,an,id))
 
-
-
-{- Should not be needed anymore due to storing TypeRep
-putAnnotation :: GHC.SrcSpan -> (Annotation,Value) -> EP ()
-putAnnotation ss anns = EP (\l dp cs an ->
-  let
-    an' = putAnnotationValue an ss anns
-  in ((),l,dp, cs,an',id))
--}
-
 getStr :: EP String
-getStr = EP (\l dp s cs st an -> (st,l,dp,s,cs,st,an,id))
+getStr = EP (\l dp s cs st an -> (fst st,l,dp,s,cs,st,an,id))
 
 setStr :: String -> EP ()
-setStr st = EP (\l dp s cs _ an -> ((),l,dp,s,cs,st,an,id))
+setStr st = EP (\l dp s cs (_,b) an -> ((),l,dp,s,cs,(st,b),an,id))
+
+getFunIsInfix :: EP Bool
+getFunIsInfix = EP (\l dp s cs (st,b) an -> (b,l,dp,s,cs,(st,b),an,id))
+
+setFunIsInfix :: Bool -> EP ()
+setFunIsInfix b = EP (\l dp s cs (st,_) an -> ((),l,dp,s,cs,(st,b),an,id))
 
 
 printString :: String -> EP ()
@@ -682,9 +680,9 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
     GHC.RoleAnnotD d -> printString "RoleAnnotD"
 
 instance ExactP (GHC.HsBind GHC.RdrName) where
-  exactP (GHC.FunBind n _  (GHC.MG matches _ _ _) _fun_co_fn _fvs _tick) = do
-    -- printStringAtMaybeAnn GHC.AnnFunId (showGhc (GHC.unLoc n))
-    setStr (showGhc (GHC.unLoc n))
+  exactP (GHC.FunBind n isInfix  (GHC.MG matches _ _ _) _fun_co_fn _fvs _tick) = do
+    setStr (rdrName2String (GHC.unLoc n))
+    setFunIsInfix isInfix
     mapM_ exactPC matches
 
   exactP (GHC.PatBind lhs (GHC.GRHSs grhs lb) _ty _fvs _ticks) = do
@@ -724,8 +722,15 @@ instance ExactP (GHC.HsBind GHC.RdrName) where
 instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP (GHC.Match pats typ (GHC.GRHSs grhs lb)) = do
     funid <- getStr
-    printStringAtMaybeAnn GHC.AnnFunId funid
-    mapM_ exactPC pats
+    isInfix <- getFunIsInfix
+    case (isInfix,pats) of
+      (True,[a,b]) -> do
+        exactPC a
+        printStringAtMaybeAnn GHC.AnnFunId funid
+        exactPC b
+      _ -> do
+        printStringAtMaybeAnn GHC.AnnFunId funid
+        mapM_ exactPC pats
     printStringAtMaybeAnn GHC.AnnEqual "="
     -- doMaybe typ exactPC
     mapM_ exactPC typ
