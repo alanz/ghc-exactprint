@@ -130,7 +130,11 @@ pos ss = (startLine ss, startColumn ss)
 newtype EP x = EP (Pos -> DeltaPos -> [GHC.SrcSpan] -> [Comment] -> Extra -> Anns
             -> (x, Pos,   DeltaPos,   [GHC.SrcSpan],   [Comment],   Extra,   Anns, ShowS))
 
-type Extra = (String,Bool)
+data Extra = E { eFunId :: String
+               , eFunIsInfix :: Bool
+               , eInhibitTrailing :: Bool
+               }
+initExtra = E "" False False
 
 instance Functor EP where
   fmap = liftM
@@ -149,7 +153,7 @@ instance Monad EP where
     in (b, l2, ss2, dp2, c2, st2, an2, s1 . s2)
 
 runEP :: EP () -> GHC.SrcSpan -> [Comment] -> Anns -> String
-runEP (EP f) ss cs ans = let (_,_,_,_,_,_,_,s) = f (1,1) (DP (0,0)) [ss] cs ("",False) ans in s ""
+runEP (EP f) ss cs ans = let (_,_,_,_,_,_,_,s) = f (1,1) (DP (0,0)) [ss] cs initExtra ans in s ""
 
 getPos :: EP Pos
 getPos = EP (\l dp s cs st an -> (l,l,dp,s,cs,st,an,id))
@@ -194,17 +198,29 @@ getAnnFinal kw = EP (\l dp (s:ss) cs st an ->
      in (r         ,l,dp,(s:ss),cs,st,an,id))
 
 getStr :: EP String
-getStr = EP (\l dp s cs st an -> (fst st,l,dp,s,cs,st,an,id))
+getStr = EP (\l dp s cs st an -> (eFunId st,l,dp,s,cs,st,an,id))
 
 setStr :: String -> EP ()
-setStr st = EP (\l dp s cs (_,b) an -> ((),l,dp,s,cs,(st,b),an,id))
+setStr st = EP (\l dp s cs e an -> ((),l,dp,s,cs,e { eFunId = st},an,id))
 
 getFunIsInfix :: EP Bool
-getFunIsInfix = EP (\l dp s cs (st,b) an -> (b,l,dp,s,cs,(st,b),an,id))
+getFunIsInfix = EP (\l dp s cs e an -> (eFunIsInfix e,l,dp,s,cs,e,an,id))
 
 setFunIsInfix :: Bool -> EP ()
-setFunIsInfix b = EP (\l dp s cs (st,_) an -> ((),l,dp,s,cs,(st,b),an,id))
+setFunIsInfix b = EP (\l dp s cs e an -> ((),l,dp,s,cs,e { eFunIsInfix = b},an,id))
 
+-- ---------------------------------------------------------------------
+
+inhibitTrailing :: EP ()
+inhibitTrailing = EP (\l dp s cs e an -> ((),l,dp,s,cs,e { eInhibitTrailing = True},an,id))
+
+resetTrailing :: EP ()
+resetTrailing = EP (\l dp s cs e an -> ((),l,dp,s,cs,e { eInhibitTrailing = False},an,id))
+
+trailingInhibited :: EP Bool
+trailingInhibited = EP (\l dp s cs e an -> (eInhibitTrailing e,l,dp,s,cs,e,an,id))
+
+-- ---------------------------------------------------------------------
 
 printString :: String -> EP ()
 printString str = EP (\(l,c) dp s cs st an -> ((), (l,c+length str), dp, s, cs, st, an, showString str))
@@ -382,7 +398,6 @@ loadInitialComments = do
 -- |First move to the given location, then call exactP
 exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC a@(GHC.L l ast) =
- -- let p = pos l
     do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAnnotation a
        off@(DP (r,c)) <- case ma of
@@ -397,24 +412,17 @@ exactPC a@(GHC.L l ast) =
        let negOff = DP (-r,-c)
        -- addOffset off `debug` ("addOffset:push:" ++ show (ss2span l,off))
        exactP ast
+       inhibit <- trailingInhibited
+       if inhibit
+         then do return ()
+         else do
+           -- automatically print any trailing commas or semis
+           printStringAtMaybeAnn GHC.AnnComma ","
+           printStringAtMaybeAnn GHC.AnnSemi  ";"
+       resetTrailing
+
        -- addOffset negOff `debug` ("addOffset:pop:" ++ show (ss2span l,negOff))
        popSrcSpan
-
-{-
-
-Two approaches:
-
-getAnn2 anns span = res
-  where res = case  Map.lookup (span,typeOf res) anns of
-                       Nothing -> Nothing
-                       Just d -> fromDynamic d
-
-Or:
-
-getAnn2 :: forall a. Map.Map (SrcSpan,TypeRep) Dynamic -> SrcSpan -> Maybe a
-... typeOf (undefined :: a) ...
-
--}
 
 
 
@@ -590,31 +598,31 @@ instance ExactP (GHC.IE GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnPattern "pattern"
     printStringAtMaybeAnn GHC.AnnType    "type"
     exactPC ln
-    printStringAtMaybeAnn GHC.AnnComma   ","
+    -- printStringAtMaybeAnn GHC.AnnComma   ","
 
   exactP (GHC.IEThingAbs n) = do
     printStringAtMaybeAnn GHC.AnnType    "type"
     printStringAtMaybeAnn GHC.AnnVal     (rdrName2String n)
-    printStringAtMaybeAnn GHC.AnnComma   ","
+    -- printStringAtMaybeAnn GHC.AnnComma   ","
 
   exactP (GHC.IEThingWith n ns) = do
     exactPC n
     printStringAtMaybeAnn GHC.AnnOpen    "("
     mapM_ exactPC ns
     printStringAtMaybeAnn GHC.AnnClose   ")"
-    printStringAtMaybeAnn GHC.AnnComma   ","
+    -- printStringAtMaybeAnn GHC.AnnComma   ","
 
   exactP (GHC.IEThingAll n) = do
     exactPC n
     printStringAtMaybeAnn GHC.AnnOpen    "("
     printStringAtMaybeAnn GHC.AnnDotdot  ".."
     printStringAtMaybeAnn GHC.AnnClose   ")"
-    printStringAtMaybeAnn GHC.AnnComma   ","
+    -- printStringAtMaybeAnn GHC.AnnComma   ","
 
   exactP (GHC.IEModuleContents (GHC.L _ mn)) = do
     printStringAtMaybeAnn GHC.AnnModule  "module"
     printStringAtMaybeAnn GHC.AnnVal     (GHC.moduleNameString mn)
-    printStringAtMaybeAnn GHC.AnnComma   ","
+    -- printStringAtMaybeAnn GHC.AnnComma   ","
 
   exactP x = printString ("no exactP.IE for " ++ showGhc (x))
 
@@ -987,7 +995,7 @@ instance ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsExpr GHC.RdrName)) w
     printStringAtMaybeAnn GHC.AnnLarrow "<-"
     exactPC body
     printStringAtMaybeAnn GHC.AnnVbar  "|" -- possible in list comprehension
-    printStringAtMaybeAnn GHC.AnnComma "," -- possible in list comprehension
+    -- printStringAtMaybeAnn GHC.AnnComma "," -- possible in list comprehension
 
   exactP (GHC.BodyStmt e _ _ _) = do
     exactPC e
@@ -1353,11 +1361,14 @@ exactPMatchGroup (GHC.MG matches _ _ _)
 
 instance ExactP (GHC.HsTupArg GHC.RdrName) where
   exactP (GHC.Missing _) = do
-    printStringAtMaybeAnn GHC.AnnComma ","
+    -- printStringAtMaybeAnn GHC.AnnComma ","
+    -- inhibitTrailing
     return ()
   exactP (GHC.Present e) = do
+    inhibitTrailing
     exactPC e
-    printStringAtMaybeAnn GHC.AnnComma ","
+    inhibitTrailing
+    -- printStringAtMaybeAnn GHC.AnnComma ","
 
 instance ExactP (GHC.HsLocalBinds GHC.RdrName) where
   exactP (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
@@ -1373,7 +1384,7 @@ instance ExactP (GHC.Sig GHC.RdrName) where
     mapM_ exactPC lns
     printStringAtMaybeAnn GHC.AnnDcolon "::"
     exactPC typ
-    printStringAtMaybeAnn GHC.AnnComma ","
+    -- printStringAtMaybeAnn GHC.AnnComma ","
 
   exactP (GHC.PatSynSig n (_,GHC.HsQTvs _ns bndrs) ctx1 ctx2 typ) = do
     printStringAtMaybeAnn GHC.AnnPattern "pattern"
@@ -1390,14 +1401,14 @@ instance ExactP (GHC.Sig GHC.RdrName) where
     exactPC ctx2
     printStringAtMaybeAnnLs GHC.AnnDarrow 1 "=>"
     exactPC typ
-    printStringAtMaybeAnn   GHC.AnnComma ","
+    -- printStringAtMaybeAnn   GHC.AnnComma ","
 
   exactP (GHC.GenericSig ns typ) = do
     printStringAtMaybeAnn GHC.AnnDefault "default"
     mapM_ exactPC ns
     printStringAtMaybeAnn GHC.AnnDcolon "::"
     exactPC typ
-    printStringAtMaybeAnn GHC.AnnComma ","
+    -- printStringAtMaybeAnn GHC.AnnComma ","
 
   exactP (GHC.IdSig _) = return ()
 
@@ -1409,7 +1420,7 @@ instance ExactP (GHC.Sig GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnInfix fixstr
     printStringAtMaybeAnn GHC.AnnVal (show v)
     mapM_ exactPC lns
-    printStringAtMaybeAnn GHC.AnnComma ","
+    -- printStringAtMaybeAnn GHC.AnnComma ","
 
   exactP (GHC.InlineSig n inl) = do
     cnt <- countAnns GHC.AnnOpen
@@ -1431,7 +1442,7 @@ instance ExactP (GHC.Sig GHC.RdrName) where
         exactPC n
         printStringAtMaybeAnnLs GHC.AnnClose 0 "#-}"
 
-    printStringAtMaybeAnn GHC.AnnComma ","
+    -- printStringAtMaybeAnn GHC.AnnComma ","
 
   exactP (GHC.SpecSig n typs inl) = do
     cnt <- countAnns GHC.AnnOpen
@@ -1453,7 +1464,7 @@ instance ExactP (GHC.Sig GHC.RdrName) where
         mapM_ exactPC typs
         printStringAtMaybeAnnLs GHC.AnnClose 0 "#-}"
 
-    printStringAtMaybeAnn GHC.AnnComma ","
+    -- printStringAtMaybeAnn GHC.AnnComma ","
 
   exactP _ = printString "Sig"
 
