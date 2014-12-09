@@ -964,17 +964,24 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,Typeable body,Ann
     mapM_ annotateParStmtBlock pbs
 
   annotateP l (GHC.TransStmt form stmts _b using by _ _ _) = do
-    addDeltaAnnotation GHC.AnnThen
-    -- addDeltaAnnotation GHC.AnnGroup
-    -- addDeltaAnnotation GHC.AnnBy
-    -- addDeltaAnnotation GHC.AnnUsing
     mapM_ annotatePC stmts
-    {-
-    annotatePC using
-    case by of
-      Just b -> annotatePC b
-      Nothing -> return ()
-    -}
+    case form of
+      GHC.ThenForm -> do
+        addDeltaAnnotation GHC.AnnThen
+        annotatePC using
+        addDeltaAnnotation GHC.AnnBy
+        case by of
+          Just b -> annotatePC b
+          Nothing -> return ()
+      GHC.GroupForm -> do
+        addDeltaAnnotation GHC.AnnThen
+        addDeltaAnnotation GHC.AnnGroup
+        addDeltaAnnotation GHC.AnnBy
+        case by of
+          Just b -> annotatePC b
+          Nothing -> return ()
+        addDeltaAnnotation GHC.AnnUsing
+        annotatePC using
 {-
 TransStmt
   trS_form :: TransForm

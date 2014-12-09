@@ -1002,17 +1002,24 @@ instance ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsExpr GHC.RdrName)) w
     mapM_ exactPParStmtBlock pbs
 
   exactP (GHC.TransStmt form stmts _b using by _ _ _) = do
-    printStringAtMaybeAnn GHC.AnnThen "then"
-    -- printStringAtMaybeAnn GHC.AnnGroup "group"
-    -- printStringAtMaybeAnn GHC.AnnBy "by"
-    -- printStringAtMaybeAnn GHC.AnnUsing "using"
     mapM_ exactPC stmts
-    {-
-    exactPC using
-    case by of
-      Just b -> exactPC b
-      Nothing -> return ()
-    -}
+    case form of
+      GHC.ThenForm -> do
+        printStringAtMaybeAnn GHC.AnnThen "then"
+        exactPC using
+        printStringAtMaybeAnn GHC.AnnBy "by"
+        case by of
+          Just b -> exactPC b
+          Nothing -> return ()
+      GHC.GroupForm -> do
+        printStringAtMaybeAnn GHC.AnnThen "then"
+        printStringAtMaybeAnn GHC.AnnGroup "group"
+        printStringAtMaybeAnn GHC.AnnBy "by"
+        case by of
+          Just b -> exactPC b
+          Nothing -> return ()
+        printStringAtMaybeAnn GHC.AnnUsing "using"
+        exactPC using
 
   exactP (GHC.RecStmt {}) = do
     printString "RecStmt"
@@ -1462,7 +1469,7 @@ instance ExactP (GHC.HsOverLit GHC.RdrName) where
 -- ---------------------------------------------------------------------
 
 instance ExactP GHC.HsLit where
-  exactP lit = printString (hsLit2String lit)
+  exactP lit = printStringAtMaybeAnn GHC.AnnVal (hsLit2String lit)
 
 hsLit2String lit =
   case lit of
