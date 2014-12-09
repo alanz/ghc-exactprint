@@ -233,6 +233,8 @@ annotateList xs = mapM_ annotatePC xs
 
 -- ---------------------------------------------------------------------
 
+isGoodDelta (DP (ro,co)) = ro >= 0 && co >= 0
+
 addFinalComments :: AP ()
 addFinalComments = do
   cs <- getCommentsForSpan GHC.noSrcSpan
@@ -248,9 +250,12 @@ addAnnotationWorker ann ap = do
       pe <- getPriorEnd
       ss <- getSrcSpanAP
       let p = deltaFromSrcSpans pe ap
-      addAnnDeltaPos (ss,ann) p
-      setPriorEnd ap
-          `debug` ("addDeltaAnnotationWorker:(ss,pe,ap,p,ann)=" ++ show (ss2span ss,ss2span pe,ss2span ap,p,ann))
+      case (ann,isGoodDelta p) of
+        (GHC.AnnComma,False) -> return () `debug`  ("addDeltaAnnotationWorker::bad delta:(ss,ma,p,ann)=" ++ show (ss2span ss,ss2span ap,p,ann))
+        _ -> do
+          addAnnDeltaPos (ss,ann) p
+          setPriorEnd ap
+              `debug` ("addDeltaAnnotationWorker:(ss,pe,ap,p,ann)=" ++ show (ss2span ss,ss2span pe,ss2span ap,p,ann))
     else do
       return ()
           `debug` ("addDeltaAnnotationWorker::point span:(ss,ma,ann)=" ++ show (ss2span ap,ann))
@@ -403,7 +408,6 @@ instance AnnotateP (GHC.IE GHC.RdrName) where
 
         x -> error $ "annotateP.IE: notimplemented for " ++ showGhc x
 
-    -- addDeltaAnnotation GHC.AnnComma
 
 -- ---------------------------------------------------------------------
 
@@ -412,14 +416,12 @@ instance AnnotateP GHC.RdrName where
     addDeltaAnnotation GHC.AnnOpen -- possible '('
     addDeltaAnnotationExt l GHC.AnnVal
     addDeltaAnnotation GHC.AnnClose -- possible ')'
-    -- addDeltaAnnotation GHC.AnnComma
 
 -- ---------------------------------------------------------------------
 
 instance AnnotateP GHC.Name where
   annotateP l n = do
     addDeltaAnnotationExt l GHC.AnnVal
-    -- addDeltaAnnotation GHC.AnnComma
 
 -- ---------------------------------------------------------------------
 
@@ -570,7 +572,6 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     mapM_ annotatePC lns
     addDeltaAnnotation GHC.AnnDcolon
     annotatePC typ
-    -- addDeltaAnnotation GHC.AnnComma
 
   -- PatSynSig (Located name) (HsExplicitFlag, LHsTyVarBndrs name)
   --           (LHsContext name) (LHsContext name) (LHsType name)
@@ -589,7 +590,6 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     annotatePC ctx2
     addDeltaAnnotationLs GHC.AnnDarrow 1
     annotatePC typ
-    -- addDeltaAnnotation GHC.AnnComma
 
 
   -- GenericSig [Located name] (LHsType name)
@@ -598,7 +598,6 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     mapM_ annotatePC ns
     addDeltaAnnotation GHC.AnnDcolon
     annotatePC typ
-    -- addDeltaAnnotation GHC.AnnComma
 
   annotateP l (GHC.IdSig _) = return ()
 
@@ -607,7 +606,6 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     addDeltaAnnotation GHC.AnnInfix
     addDeltaAnnotation GHC.AnnVal
     mapM_ annotatePC lns
-    -- addDeltaAnnotation GHC.AnnComma
 
   -- InlineSig (Located name) InlinePragma
   -- '{-# INLINE' activation qvar '#-}'
@@ -625,7 +623,6 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
         annotatePC ln
         addDeltaAnnotationLs GHC.AnnClose  0 -- '#-}'
 
-    -- addDeltaAnnotation GHC.AnnComma
 
   -- SpecSig (Located name) [LHsType name] InlinePragma
   annotateP l (GHC.SpecSig ln typs inl) = do
@@ -638,7 +635,6 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     mapM_ annotatePC typs
     addDeltaAnnotation GHC.AnnClose -- '#-}'
 
-    -- addDeltaAnnotation GHC.AnnComma
 
   -- SpecInstSig (LHsType name)
   -- '{-# SPECIALISE' 'instance' inst_type '#-}'
@@ -648,7 +644,6 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     annotatePC typ
     addDeltaAnnotation GHC.AnnClose -- '#-}'
 
-    -- addDeltaAnnotation GHC.AnnComma
 
   -- MinimalSig (BooleanFormula (Located name))
   annotateP l (GHC.MinimalSig _ formula) = do
@@ -656,7 +651,6 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     annotateBooleanFormula formula
     addDeltaAnnotation GHC.AnnClose -- '#-}'
 
-    -- addDeltaAnnotation GHC.AnnComma
 
 -- ---------------------------------------------------------------------
 
@@ -950,7 +944,6 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,Typeable body,Ann
     addDeltaAnnotation GHC.AnnLarrow
     annotatePC body
     addDeltaAnnotation GHC.AnnVbar -- possible in list comprehension
-    -- addDeltaAnnotation GHC.AnnComma -- possible in list comprehension
 
   -- BodyStmt body (SyntaxExpr idR) (SyntaxExpr idR) (PostTc idR Type)
   annotateP l (GHC.BodyStmt body _ _ _) = do
@@ -1296,10 +1289,8 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
                              AnnotateP (GHC.HsTupArg name) where
   annotateP l (GHC.Present e@(GHC.L le _)) = do
     annotatePC e
-    -- addDeltaAnnotation GHC.AnnComma
 
   annotateP l (GHC.Missing _) = do
-    -- addDeltaAnnotation GHC.AnnComma
     return ()
 
 -- ---------------------------------------------------------------------

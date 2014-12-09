@@ -189,6 +189,7 @@ getAnnotation :: (Typeable a) => GHC.Located a -> EP (Maybe Annotation)
 getAnnotation a@(GHC.L ss _) = EP (\l dp s cs st an -> (getAnnotationEP (anEP an) a
                        ,l,dp,s,cs,st,an,id))
 
+{-
 getAnnFinal :: GHC.AnnKeywordId -> EP [DeltaPos]
 getAnnFinal kw = EP (\l dp (s:ss) cs st an ->
      let
@@ -196,6 +197,19 @@ getAnnFinal kw = EP (\l dp (s:ss) cs st an ->
              Nothing -> []
              Just ds -> ds
      in (r         ,l,dp,(s:ss),cs,st,an,id))
+-}
+-- |destructive get, hence use an annotation once only
+getAnnFinal :: GHC.AnnKeywordId -> EP [DeltaPos]
+getAnnFinal kw = EP (\l dp (s:ss) cs st (ane,anf) ->
+     let
+       (r,anf') = case Map.lookup (s,kw) anf of
+             Nothing -> ([],anf)
+             Just ds -> ([d],f')
+               where
+                 (d,f') = case reverse ds of
+                   [h]   -> (h,Map.delete (s,kw) anf)
+                   (h:t) -> (h,Map.insert (s,kw) (reverse t) anf)
+     in (r         ,l,dp,(s:ss),cs,st,(ane,anf'),id))
 
 getStr :: EP String
 getStr = EP (\l dp s cs st an -> (eFunId st,l,dp,s,cs,st,an,id))
@@ -321,6 +335,8 @@ printStringAtMaybeDelta mc s =
       p <- getPos
       printStringAt (undelta p cl) s
 
+-- ---------------------------------------------------------------------
+
 printStringAtLsDelta :: [DeltaPos] -> String -> EP ()
 printStringAtLsDelta mc s =
   case reverse mc of
@@ -338,16 +354,21 @@ printStringAtMaybeAnn ann str = do
 
 printStringAtMaybeAnnLs :: GHC.AnnKeywordId -> Int -> String -> EP ()
 printStringAtMaybeAnnLs ann off str = do
+  printStringAtMaybeAnn ann str
+{-
   ma <- getAnnFinal ann
   ss <- getSrcSpan
   printStringAtLsDelta (reverse $ drop off (reverse ma)) str
     `debug` ("printStringAtMaybeAnnLs:(ss,ann,off,ma,str)=" ++ show (ss2span ss,ann,off,reverse ma,str))
+-}
 
 printStringAtMaybeAnnAll :: GHC.AnnKeywordId -> String -> EP ()
 printStringAtMaybeAnnAll ann str = do
   ma <- getAnnFinal ann
   mapM_ (\d -> printStringAtLsDelta [d] str) (reverse ma)
     `debug` ("printStringAtMaybeAnnAll:ma=" ++ show (ma))
+
+-- ---------------------------------------------------------------------
 
 countAnns :: GHC.AnnKeywordId -> EP Int
 countAnns ann = do
@@ -412,14 +433,9 @@ exactPC a@(GHC.L l ast) =
        let negOff = DP (-r,-c)
        -- addOffset off `debug` ("addOffset:push:" ++ show (ss2span l,off))
        exactP ast
-       inhibit <- trailingInhibited
-       if inhibit
-         then do return ()
-         else do
-           -- automatically print any trailing commas or semis
-           printStringAtMaybeAnn GHC.AnnComma ","
-           printStringAtMaybeAnn GHC.AnnSemi  ";"
-       resetTrailing
+       -- automatically print any trailing commas or semis
+       printStringAtMaybeAnn GHC.AnnComma ","
+       printStringAtMaybeAnn GHC.AnnSemi  ";"
 
        -- addOffset negOff `debug` ("addOffset:pop:" ++ show (ss2span l,negOff))
        popSrcSpan
@@ -598,31 +614,26 @@ instance ExactP (GHC.IE GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnPattern "pattern"
     printStringAtMaybeAnn GHC.AnnType    "type"
     exactPC ln
-    -- printStringAtMaybeAnn GHC.AnnComma   ","
 
   exactP (GHC.IEThingAbs n) = do
     printStringAtMaybeAnn GHC.AnnType    "type"
     printStringAtMaybeAnn GHC.AnnVal     (rdrName2String n)
-    -- printStringAtMaybeAnn GHC.AnnComma   ","
 
   exactP (GHC.IEThingWith n ns) = do
     exactPC n
     printStringAtMaybeAnn GHC.AnnOpen    "("
     mapM_ exactPC ns
     printStringAtMaybeAnn GHC.AnnClose   ")"
-    -- printStringAtMaybeAnn GHC.AnnComma   ","
 
   exactP (GHC.IEThingAll n) = do
     exactPC n
     printStringAtMaybeAnn GHC.AnnOpen    "("
     printStringAtMaybeAnn GHC.AnnDotdot  ".."
     printStringAtMaybeAnn GHC.AnnClose   ")"
-    -- printStringAtMaybeAnn GHC.AnnComma   ","
 
   exactP (GHC.IEModuleContents (GHC.L _ mn)) = do
     printStringAtMaybeAnn GHC.AnnModule  "module"
     printStringAtMaybeAnn GHC.AnnVal     (GHC.moduleNameString mn)
-    -- printStringAtMaybeAnn GHC.AnnComma   ","
 
   exactP x = printString ("no exactP.IE for " ++ showGhc (x))
 
@@ -995,7 +1006,6 @@ instance ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsExpr GHC.RdrName)) w
     printStringAtMaybeAnn GHC.AnnLarrow "<-"
     exactPC body
     printStringAtMaybeAnn GHC.AnnVbar  "|" -- possible in list comprehension
-    -- printStringAtMaybeAnn GHC.AnnComma "," -- possible in list comprehension
 
   exactP (GHC.BodyStmt e _ _ _) = do
     exactPC e
@@ -1343,12 +1353,10 @@ instance ExactP GHC.RdrName where
     printStringAtMaybeAnn GHC.AnnOpen "("
     printStringAtMaybeAnn GHC.AnnVal     (rdrName2String n)
     printStringAtMaybeAnn GHC.AnnClose ")"
-    -- printStringAtMaybeAnn GHC.AnnComma   ","
 
 instance ExactP GHC.HsIPName where
   exactP (GHC.HsIPName n) = do
     printString (GHC.unpackFS n)
-    -- printStringAtMaybeAnn GHC.AnnComma ","
 
 -- ---------------------------------------------------------------------
 
@@ -1361,14 +1369,11 @@ exactPMatchGroup (GHC.MG matches _ _ _)
 
 instance ExactP (GHC.HsTupArg GHC.RdrName) where
   exactP (GHC.Missing _) = do
-    -- printStringAtMaybeAnn GHC.AnnComma ","
-    -- inhibitTrailing
+    printStringAtMaybeAnn GHC.AnnComma ","
     return ()
   exactP (GHC.Present e) = do
-    inhibitTrailing
     exactPC e
-    inhibitTrailing
-    -- printStringAtMaybeAnn GHC.AnnComma ","
+    printStringAtMaybeAnn GHC.AnnComma ","
 
 instance ExactP (GHC.HsLocalBinds GHC.RdrName) where
   exactP (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
@@ -1384,7 +1389,6 @@ instance ExactP (GHC.Sig GHC.RdrName) where
     mapM_ exactPC lns
     printStringAtMaybeAnn GHC.AnnDcolon "::"
     exactPC typ
-    -- printStringAtMaybeAnn GHC.AnnComma ","
 
   exactP (GHC.PatSynSig n (_,GHC.HsQTvs _ns bndrs) ctx1 ctx2 typ) = do
     printStringAtMaybeAnn GHC.AnnPattern "pattern"
@@ -1401,14 +1405,12 @@ instance ExactP (GHC.Sig GHC.RdrName) where
     exactPC ctx2
     printStringAtMaybeAnnLs GHC.AnnDarrow 1 "=>"
     exactPC typ
-    -- printStringAtMaybeAnn   GHC.AnnComma ","
 
   exactP (GHC.GenericSig ns typ) = do
     printStringAtMaybeAnn GHC.AnnDefault "default"
     mapM_ exactPC ns
     printStringAtMaybeAnn GHC.AnnDcolon "::"
     exactPC typ
-    -- printStringAtMaybeAnn GHC.AnnComma ","
 
   exactP (GHC.IdSig _) = return ()
 
@@ -1420,7 +1422,6 @@ instance ExactP (GHC.Sig GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnInfix fixstr
     printStringAtMaybeAnn GHC.AnnVal (show v)
     mapM_ exactPC lns
-    -- printStringAtMaybeAnn GHC.AnnComma ","
 
   exactP (GHC.InlineSig n inl) = do
     cnt <- countAnns GHC.AnnOpen
@@ -1442,7 +1443,6 @@ instance ExactP (GHC.Sig GHC.RdrName) where
         exactPC n
         printStringAtMaybeAnnLs GHC.AnnClose 0 "#-}"
 
-    -- printStringAtMaybeAnn GHC.AnnComma ","
 
   exactP (GHC.SpecSig n typs inl) = do
     cnt <- countAnns GHC.AnnOpen
@@ -1464,7 +1464,6 @@ instance ExactP (GHC.Sig GHC.RdrName) where
         mapM_ exactPC typs
         printStringAtMaybeAnnLs GHC.AnnClose 0 "#-}"
 
-    -- printStringAtMaybeAnn GHC.AnnComma ","
 
   exactP _ = printString "Sig"
 
