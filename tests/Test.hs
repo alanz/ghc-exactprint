@@ -34,13 +34,13 @@ debug = flip trace
 
 main :: IO ()
 main = do
-    manipulateAstTest ["examples/LetExpr.hs"]
-    manipulateAstTest ["examples/LetExprSemi.hs"]
-    manipulateAstTest ["examples/Tuple.hs"]
-    manipulateAstTest ["examples/Sigs.hs"]
-    manipulateAstTest ["examples/ExprPragmas.hs"]
+    -- manipulateAstTest ["examples/LetExpr.hs"]
+    -- manipulateAstTest ["examples/LetExprSemi.hs"]
+    -- manipulateAstTest ["examples/Tuple.hs"]
+    -- manipulateAstTest ["examples/Sigs.hs"]
+    -- manipulateAstTest ["examples/ExprPragmas.hs"]
     manipulateAstTest ["examples/ListComprehensions.hs"]
-    manipulateAstTest ["examples/MonadComprehensions.hs"]
+    -- manipulateAstTest ["examples/MonadComprehensions.hs"]
 
 
 -- | Where all the tests are to be found

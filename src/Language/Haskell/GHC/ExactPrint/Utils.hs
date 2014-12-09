@@ -49,6 +49,7 @@ import Language.Haskell.GHC.ExactPrint.Types
 import qualified Bag            as GHC
 import qualified BasicTypes     as GHC
 import qualified BooleanFormula as GHC
+import qualified Class          as GHC
 import qualified DynFlags       as GHC
 import qualified FastString     as GHC
 import qualified ForeignCall    as GHC
@@ -979,20 +980,10 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,Typeable body,Ann
           Nothing -> return ()
         addDeltaAnnotation GHC.AnnUsing
         annotatePC using
-{-
-TransStmt
-  trS_form :: TransForm
-  trS_stmts :: [ExprLStmt idL]  -------- xxxxxxxxxxxxxxx
-  trS_bndrs :: [(idR, idR)]
-  trS_using :: LHsExpr idR     ---------
-  trS_by :: Maybe (LHsExpr idR)
-  trS_ret :: SyntaxExpr idR
-  trS_bind :: SyntaxExpr idR
-  trS_fmap :: SyntaxExpr idR
--}
 
-  annotateP l stmt = do
-    return () `debug` ("annotateP.Stmt:not implemented for ")
+  annotateP l (GHC.RecStmt stmts _ _ _ _ _ _ _ _) = do
+    addDeltaAnnotation GHC.AnnRec
+    mapM_ annotatePC stmts
 
 -- ---------------------------------------------------------------------
 
@@ -1296,53 +1287,119 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
 -- ---------------------------------------------------------------------
 
 instance (Typeable name) => AnnotateP (GHC.HsCmdTop name) where
+  annotateP l (GHC.HsCmdTop cmd _ _ _) = annotatePC cmd
+
+instance (Typeable name) => AnnotateP (GHC.HsCmd name) where
   annotateP = assert False undefined
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name) => AnnotateP (GHC.TyClDecl name) where
-  annotateP l x = do
-    return () -- `debug` ("annotateP.TyClDecl:unimplemented for " ++ showGhc x)
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+     => AnnotateP (GHC.TyClDecl name) where
+
+  annotateP l (GHC.FamDecl (GHC.FamilyDecl info ln (GHC.HsQTvs _ tyvars) mkind)) = do
+    addDeltaAnnotation GHC.AnnType
+    addDeltaAnnotation GHC.AnnData
+    addDeltaAnnotation GHC.AnnFamily
+    annotatePC ln
+    annotateMaybe mkind
+    addDeltaAnnotation GHC.AnnWhere
+    addDeltaAnnotation GHC.AnnOpen -- {
+    mapM_ annotatePC tyvars
+    case info of
+      GHC.ClosedTypeFamily eqns -> mapM_ annotatePC eqns
+      _ -> return ()
+    case info of
+      GHC.ClosedTypeFamily eqns -> mapM_ annotatePC eqns
+      _ -> return ()
+    addDeltaAnnotation GHC.AnnClose -- }
+
+  annotateP l (GHC.SynDecl ln (GHC.HsQTvs _ tyvars) typ _) = do
+    addDeltaAnnotation GHC.AnnType
+    annotatePC ln
+    mapM_ annotatePC tyvars
+    addDeltaAnnotation GHC.AnnEqual
+    annotatePC typ
+
+  annotateP l (GHC.DataDecl ln (GHC.HsQTvs ns tyVars) defn _) = do
+    addDeltaAnnotation GHC.AnnData
+    addDeltaAnnotation GHC.AnnNewtype
+    annotatePC ln
+    addDeltaAnnotation GHC.AnnEqual
+    mapM_ annotatePC tyVars
+    addDeltaAnnotation GHC.AnnWhere
+    annotateDataDefn l defn
+
+  annotateP l (GHC.ClassDecl ctx ln (GHC.HsQTvs ns tyVars) fds
+                          sigs meths ats atdefs docs _) = do
+    addDeltaAnnotation GHC.AnnClass
+    annotatePC ctx
+    annotatePC ln
+    mapM_ annotatePC tyVars
+    mapM_ annotatePC fds
+    addDeltaAnnotation GHC.AnnWhere
+
+    -- will have to interleave all the different pieces
+    assert False undefined
+
 
 {-
-annotateLTyClDecl :: GHC.LTyClDecl GHC.RdrName -> AP ()
-annotateLTyClDecl (GHC.L l (GHC.DataDecl _ln (GHC.HsQTvs _ns _tyVars) defn _)) = do
-  enterAST l
-  toksIn <- getToks
-  let
-    Just eqPos = findTokenWrtPrior ghcIsEqual l toksIn
+ClassDecl
 
-  annotateHsDataDefn defn
-  leaveAST (AnnDataDecl eqPos)
+    AnnKeywordId : AnnClass, AnnWhere,AnnOpen, AnnClose
+    The tcdFDs will have AnnVbar, AnnComma AnnRarrow
+
+tcdCtxt :: LHsContext name
+
+    Context...
+tcdLName :: Located name
+
+    Type constructor
+tcdTyVars :: LHsTyVarBndrs name
+
+    Type variables; for an associated type these include outer binders
+tcdFDs :: [Located (FunDep name)]
+
+    Functional deps
+tcdSigs :: [LSig name]
+
+    Methods' signatures
+tcdMeths :: LHsBinds name
+
+    Default methods
+tcdATs :: [LFamilyDecl name]
+
+    Associated types; ie
+tcdATDefs :: [LTyFamDefltEqn name]
+
+    Associated type defaults
+tcdDocs :: [LDocDecl]
+
+    Haddock docs
+tcdFVs :: PostRn name NameSet
 -}
+
 -- ---------------------------------------------------------------------
-{-
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
-              AnnotateP (GHC.HsRecField name (GHC.LHsExpr name)) where
-  annotateP l (GHC.HsRecField _ e _) = annotatePC e
--}
+
+instance (Typeable name) => AnnotateP (GHC.TyFamInstEqn name) where
+  annotateP = assert False undefined
+
+-- ---------------------------------------------------------------------
+
+annotateDataDefn :: GHC.SrcSpan -> GHC.HsDataDefn name -> AP ()
+annotateDataDefn = assert False undefined
+
+-- ---------------------------------------------------------------------
 
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,AnnotateP a) =>
               AnnotateP (GHC.HsRecField name (GHC.Located a)) where
   annotateP l (GHC.HsRecField _ e _) = annotatePC e
 
 -- ---------------------------------------------------------------------
-{-
-annotateHsDataDefn :: (GHC.HsDataDefn GHC.RdrName) -> AP ()
-annotateHsDataDefn (GHC.HsDataDefn nOrD ctx mtyp mkind cons mderivs) = do
-  mapM_ annotateLConDecl cons
 
--- ---------------------------------------------------------------------
+instance (Typeable name) => AnnotateP (GHC.FunDep (GHC.Located name)) where
+  annotateP = assert False undefined
 
-annotateLConDecl :: (GHC.LConDecl GHC.RdrName) -> AP ()
-annotateLConDecl (GHC.L l (GHC.ConDecl ln exp qvars ctx dets res _ _)) = do
-  enterAST l
-  toksIn <- getToks
-  cs <- getComments
-  let
-    mc = getListAnnInfo l ghcIsVbar (const False) cs toksIn
-  leaveAST (AnnConDecl mc)
--}
 -- ---------------------------------------------------------------------
 
 getHsLocalBindsSrcSpan :: (GHC.HsLocalBinds name) -> Maybe GHC.SrcSpan
@@ -1408,139 +1465,6 @@ localComments pin cs ds = r
       = parents <= subs && parente >= sube
 
 -- ---------------------------------------------------------------------
-{-
-findTokenSrcSpan :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe GHC.SrcSpan
-findTokenSrcSpan isToken ss toks =
-  case findToken isToken ss toks of
-      Nothing -> Nothing
-      Just t  -> Just (tokenSpan t)
--}
--- ---------------------------------------------------------------------
-{-
-findTokenSrcSpanReverse :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe GHC.SrcSpan
-findTokenSrcSpanReverse isToken ss toks =
-  case findTokenReverse isToken ss toks of
-      Nothing -> Nothing
-      Just t  -> Just (tokenSpan t)
--}
--- ---------------------------------------------------------------------
-{-
-findToken :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe PosToken
-findToken isToken ss toks = r
-  where
-    (_,middle,_) = splitToksForSpan ss toks
-    r = case filter isToken middle of
-      [] -> Nothing
-      (t:_) -> Just t
--}
--- ---------------------------------------------------------------------
-{-
-findTokenReverse :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe PosToken
-findTokenReverse isToken ss toks = r
-  -- `debug` ("findTokenReverse:(ss,r,middle):" ++ show (ss2span ss,r,middle))
-  where
-    (_,middle,_) = splitToksForSpan ss toks
-    r = case filter isToken (reverse middle) of
-      [] -> Nothing
-      (t:_) -> Just t
--}
--- ---------------------------------------------------------------------
-{-
-findPreceding :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe GHC.SrcSpan
-findPreceding isToken ss toks = r
-  where
-    (toksBefore,_,_) = splitToksForSpan ss toks
-    r = case filter isToken (reverse toksBefore) of
-      [] -> Nothing
-      (t:_) -> Just (tokenSpan t)
--}
--- ---------------------------------------------------------------------
-{-
-findPrecedingMaybeDelta :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken]
- -> Pos -> Maybe DeltaPos
-findPrecedingMaybeDelta isToken ln toks p =
-  case findPreceding isToken ln toks of
-    Nothing -> Nothing
-    Just ss -> Just (ss2delta p ss)
--}
--- ---------------------------------------------------------------------
-{-
-findPrecedingDelta :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken]
- -> Pos -> DeltaPos
-findPrecedingDelta isToken ln toks p =
-  case findPrecedingMaybeDelta isToken ln toks p of
-    Nothing -> error $ "findPrecedingDelta: No matching token preceding :" ++ show (ss2span ln)
-    Just d  -> d
--}
--- ---------------------------------------------------------------------
-{-
-findTrailingMaybeDelta :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken]
- -> Pos -> Maybe DeltaPos
-findTrailingMaybeDelta isToken ln toks p =
-  case findTrailing isToken ln toks of
-    Nothing -> Nothing
-    Just t -> Just (ss2delta p (tokenSpan t))
--}
--- ---------------------------------------------------------------------
-{-
-findTrailingDelta :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken]
- -> Pos -> DeltaPos
-findTrailingDelta isToken ln toks p =
-  case findTrailingMaybeDelta isToken ln toks p of
-    Nothing -> error $ "findTrailingDelta: No matching token trailing :" ++ show (ss2span ln)
-    Just d -> d
--}
--- ---------------------------------------------------------------------
-{-
-findDelta :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken]
- -> Pos -> DeltaPos
-findDelta isToken ln toks p =
-  case findTokenSrcSpan isToken ln toks of
-    Nothing -> error $ "findPrecedingDelta: No matching token preceding :" ++ show (ss2span ln)
-    Just ss -> ss2delta p ss
--}
--- ---------------------------------------------------------------------
-{-
-findDeltaReverse :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken]
- -> Pos -> DeltaPos
-findDeltaReverse isToken ln toks p =
-  case findTokenSrcSpanReverse isToken ln toks of
-    Nothing -> error $ "findPrecedingDelta: No matching token preceding :" ++ show (ss2span ln)
-    Just ss -> ss2delta p ss
--}
--- ---------------------------------------------------------------------
-{-
-findTrailingComma :: GHC.SrcSpan -> [PosToken] -> Maybe DeltaPos
-findTrailingComma ss toks = r
-  where
-    (_,_,toksAfter) = splitToksForSpan ss toks
-    r = case filter ghcIsComma toksAfter of
-      [] -> Nothing
-      (t:_) -> Just (ss2delta (ss2posEnd ss) $ tokenSpan t)
--}
-
--- ---------------------------------------------------------------------
-{-
-findTrailingSrcSpan :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe GHC.SrcSpan
-findTrailingSrcSpan isToken ss toks = r
-  where
-    (_,_,toksAfter) = splitToksForSpan ss toks
-    r = case filter isToken toksAfter of
-      [] -> Nothing
-      (t:_) -> Just (tokenSpan t)
--}
--- ---------------------------------------------------------------------
-{-
-findTrailing :: (PosToken -> Bool) -> GHC.SrcSpan -> [PosToken] -> Maybe PosToken
-findTrailing isToken ss toks = r
-  where
-    (_,_,toksAfter) = splitToksForSpan ss toks
-    r = case filter isToken toksAfter of
-      [] -> Nothing
-      (t:_) -> Just t
--}
-
--- ---------------------------------------------------------------------
 
 undeltaComment :: Pos -> DComment -> Comment
 undeltaComment l (DComment b (dps,dpe) s) = Comment b ((undelta l dps),(undelta l dpe)) s
@@ -1552,136 +1476,6 @@ deltaComment l (Comment b (s,e) str)
 -- ---------------------------------------------------------------------
 
 deriving instance Eq GHC.Token
-{-
-ghcIsTok :: PosToken -> GHC.Token -> Bool
-ghcIsTok ((GHC.L _ t),_s) tp = t == tp
-
-ghcIsModule :: PosToken -> Bool
-ghcIsModule t = ghcIsTok t GHC.ITmodule
-
-ghcIsLet :: PosToken -> Bool
-ghcIsLet t = ghcIsTok t GHC.ITlet
-
-ghcIsAt :: PosToken -> Bool
-ghcIsAt t = ghcIsTok t GHC.ITat
-
-ghcIsElse :: PosToken -> Bool
-ghcIsElse t = ghcIsTok t GHC.ITelse
-
-ghcIsThen :: PosToken -> Bool
-ghcIsThen t = ghcIsTok t GHC.ITthen
-
-ghcIsOf :: PosToken -> Bool
-ghcIsOf t = ghcIsTok t GHC.ITof
-
-ghcIsDo :: PosToken -> Bool
-ghcIsDo t = ghcIsTok t GHC.ITdo
-
-ghcIsIn :: PosToken -> Bool
-ghcIsIn t = ghcIsTok t GHC.ITin
-
-ghcIsOParen :: PosToken -> Bool
-ghcIsOParen t = ghcIsTok t GHC.IToparen
-
-ghcIsCParen :: PosToken -> Bool
-ghcIsCParen t = ghcIsTok t GHC.ITcparen
-
-ghcIsOBrack :: PosToken -> Bool
-ghcIsOBrack t = ghcIsTok t GHC.ITobrack
-
-ghcIsCBrack :: PosToken -> Bool
-ghcIsCBrack t = ghcIsTok t GHC.ITcbrack
-
-ghcIsOubxparen :: PosToken -> Bool
-ghcIsOubxparen t = ghcIsTok t GHC.IToubxparen
-
-ghcIsCubxparen :: PosToken -> Bool
-ghcIsCubxparen t = ghcIsTok t GHC.ITcubxparen
-
-ghcIsComma :: PosToken -> Bool
-ghcIsComma t = ghcIsTok t GHC.ITcomma
-
-ghcIsImport :: PosToken -> Bool
-ghcIsImport t = ghcIsTok t GHC.ITimport
-
-ghcIsQualified :: PosToken -> Bool
-ghcIsQualified t = ghcIsTok t GHC.ITqualified
-
-ghcIsAs :: PosToken -> Bool
-ghcIsAs t = ghcIsTok t GHC.ITas
-
-ghcIsDcolon :: PosToken -> Bool
-ghcIsDcolon t = ghcIsTok t GHC.ITdcolon
-
-ghcIsTilde :: PosToken -> Bool
-ghcIsTilde t = ghcIsTok t GHC.ITtilde
-
-ghcIsBang :: PosToken -> Bool
-ghcIsBang t = ghcIsTok t GHC.ITbang
-
-ghcIsRarrow :: PosToken -> Bool
-ghcIsRarrow t = ghcIsTok t GHC.ITrarrow
-
-ghcIsDarrow :: PosToken -> Bool
-ghcIsDarrow t = ghcIsTok t GHC.ITdarrow
-
-ghcIsDotdot :: PosToken -> Bool
-ghcIsDotdot t = ghcIsTok t GHC.ITdotdot
-
-ghcIsConid :: PosToken -> Bool
-ghcIsConid ((GHC.L _ t),_) = case t of
-       GHC.ITconid _ -> True
-       _             -> False
-
-ghcIsQConid :: PosToken -> Bool
-ghcIsQConid((GHC.L _ t),_) = case t of
-       GHC.ITqconid _ -> True
-       _              -> False
-
-ghcIsVarid :: PosToken -> Bool
-ghcIsVarid ((GHC.L _ t),_) = case t of
-       GHC.ITvarid _ -> True
-       _             -> False
-
-ghcIsVarsym :: PosToken -> Bool
-ghcIsVarsym ((GHC.L _ t),_) = case t of
-       GHC.ITvarsym _ -> True
-       _              -> False
-
-ghcIsBackquote :: PosToken -> Bool
-ghcIsBackquote t = ghcIsTok t GHC.ITbackquote
-
-ghcIsFunName :: PosToken -> Bool
-ghcIsFunName t = ghcIsVarid t || ghcIsVarsym t || ghcIsBackquote t
-
-ghcIsAnyConid :: PosToken -> Bool
-ghcIsAnyConid t = ghcIsConid t || ghcIsQConid t
-
-
-ghcIsHiding :: PosToken -> Bool
-ghcIsHiding t = ghcIsTok t GHC.IThiding
-
-ghcIsEqual :: PosToken -> Bool
-ghcIsEqual t = ghcIsTok t GHC.ITequal
-
-ghcIsVbar :: PosToken -> Bool
-ghcIsVbar t = ghcIsTok t GHC.ITvbar
-
-
-ghcIsInteger :: PosToken -> Bool
-ghcIsInteger ((GHC.L _ t),_)  = case t of
-      GHC.ITinteger _ _ -> True
-      _                 -> False
-
-ghcIsRational :: PosToken -> Bool
-ghcIsRational ((GHC.L _ t),_) = case t of
-      GHC.ITrational _ -> True
-      _                -> False
-
-ghcIsOverLit :: PosToken -> Bool
-ghcIsOverLit t = ghcIsInteger t || ghcIsRational t
--}
-
 
 ghcIsComment :: PosToken -> Bool
 ghcIsComment ((GHC.L _ (GHC.ITdocCommentNext _)),_s)  = True

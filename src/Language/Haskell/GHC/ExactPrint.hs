@@ -45,6 +45,7 @@ import Data.Maybe
 
 import qualified Bag           as GHC
 import qualified BasicTypes    as GHC
+import qualified Class         as GHC
 import qualified DynFlags      as GHC
 import qualified FastString    as GHC
 import qualified ForeignCall   as GHC
@@ -189,15 +190,6 @@ getAnnotation :: (Typeable a) => GHC.Located a -> EP (Maybe Annotation)
 getAnnotation a@(GHC.L ss _) = EP (\l dp s cs st an -> (getAnnotationEP (anEP an) a
                        ,l,dp,s,cs,st,an,id))
 
-{-
-getAnnFinal :: GHC.AnnKeywordId -> EP [DeltaPos]
-getAnnFinal kw = EP (\l dp (s:ss) cs st an ->
-     let
-       r = case Map.lookup (s,kw) (anF an) of
-             Nothing -> []
-             Just ds -> ds
-     in (r         ,l,dp,(s:ss),cs,st,an,id))
--}
 -- |destructive get, hence use an annotation once only
 getAnnFinal :: GHC.AnnKeywordId -> EP [DeltaPos]
 getAnnFinal kw = EP (\l dp (s:ss) cs st (ane,anf) ->
@@ -352,16 +344,6 @@ printStringAtMaybeAnn ann str = do
   printStringAtLsDelta ma str
     `debug` ("printStringAtMaybeAnn:(ss,ann,ma,str)=" ++ show (ss2span ss,ann,ma,str))
 
-printStringAtMaybeAnnLs :: GHC.AnnKeywordId -> Int -> String -> EP ()
-printStringAtMaybeAnnLs ann off str = do
-  printStringAtMaybeAnn ann str
-{-
-  ma <- getAnnFinal ann
-  ss <- getSrcSpan
-  printStringAtLsDelta (reverse $ drop off (reverse ma)) str
-    `debug` ("printStringAtMaybeAnnLs:(ss,ann,off,ma,str)=" ++ show (ss2span ss,ann,off,reverse ma,str))
--}
-
 printStringAtMaybeAnnAll :: GHC.AnnKeywordId -> String -> EP ()
 printStringAtMaybeAnnAll ann str = do
   ma <- getAnnFinal ann
@@ -452,7 +434,8 @@ printStrs = printSeq . map (pos *** printString)
 printPoints :: SrcSpanInfo -> [String] -> EP ()
 printPoints l = printStrs . zip (srcInfoPoints l)
 
-printInterleaved :: (Annotated ast, SrcInfo loc, ExactP ast) => [(loc, String)] -> [ast] -> EP ()
+printInterleaved :: (Annotated ast, SrcInfo loc, ExactP ast)
+                 => [(loc, String)] -> [ast] -> EP ()
 printInterleaved sistrs asts = printSeq $
     interleave (map (pos *** printString ) sistrs)
                (map (pos . ann &&& exactP) asts)
@@ -653,13 +636,13 @@ instance ExactP (GHC.ImportDecl GHC.RdrName) where
 
     printStringAtMaybeAnn GHC.AnnSafe      "safe"
     printStringAtMaybeAnn GHC.AnnQualified "qualified"
-    printStringAtMaybeAnnLs GHC.AnnVal 0 (GHC.moduleNameString $ GHC.unLoc $ GHC.ideclName imp)
+    printStringAtMaybeAnn GHC.AnnVal (GHC.moduleNameString $ GHC.unLoc $ GHC.ideclName imp)
 
     case GHC.ideclAs imp of
       Nothing -> return ()
       Just mn -> do
-        printStringAtMaybeAnn   GHC.AnnAs "as"
-        printStringAtMaybeAnnLs GHC.AnnVal 1 (GHC.moduleNameString mn)
+        printStringAtMaybeAnn GHC.AnnAs "as"
+        printStringAtMaybeAnn GHC.AnnVal (GHC.moduleNameString mn)
 
     case GHC.ideclHiding imp of
       Nothing -> return ()
@@ -1039,8 +1022,9 @@ instance ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsExpr GHC.RdrName)) w
         printStringAtMaybeAnn GHC.AnnUsing "using"
         exactPC using
 
-  exactP (GHC.RecStmt {}) = do
-    printString "RecStmt"
+  exactP (GHC.RecStmt stmts _ _ _ _ _ _ _ _) = do
+    printStringAtMaybeAnn GHC.AnnRec "rec"
+    mapM_ exactPC stmts
 
 -- ---------------------------------------------------------------------
 
@@ -1093,10 +1077,10 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
   exactP (GHC.HsIf _ e1 e2 e3)   = do
     printStringAtMaybeAnn GHC.AnnIf "if"
     exactPC e1
-    printStringAtMaybeAnnLs GHC.AnnSemi 0 ";"
+    printStringAtMaybeAnn GHC.AnnSemi ";"
     printStringAtMaybeAnn GHC.AnnThen "then"
     exactPC e2
-    printStringAtMaybeAnnLs GHC.AnnSemi 1 ";"
+    printStringAtMaybeAnn GHC.AnnSemi ";"
     printStringAtMaybeAnn GHC.AnnThen "else"
     exactPC e3
 
@@ -1228,11 +1212,11 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
         mapM_ exactPC ds
         printStringAtMaybeAnn GHC.AnnClose "|]"
       _ -> do
-        printStringAtMaybeAnnLs GHC.AnnOpen 0  "[d|"
-        printStringAtMaybeAnnLs GHC.AnnOpen 1  "{"
+        printStringAtMaybeAnn GHC.AnnOpen  "[d|"
+        printStringAtMaybeAnn GHC.AnnOpen  "{"
         mapM_ exactPC ds
-        printStringAtMaybeAnnLs GHC.AnnClose 0 "}"
-        printStringAtMaybeAnnLs GHC.AnnClose 1 "|]"
+        printStringAtMaybeAnn GHC.AnnClose "}"
+        printStringAtMaybeAnn GHC.AnnClose "|]"
   exactP (GHC.HsBracket (GHC.ExpBr e)) = do
         printStringAtMaybeAnn GHC.AnnOpen  "[|"
         exactPC e
@@ -1293,16 +1277,16 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
 
   exactP (GHC.HsTickPragma src (str,(v1,v2),(v3,v4)) e) = do
     -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
-    printStringAtMaybeAnn   GHC.AnnOpen  src -- "{-# GENERATED"
-    printStringAtMaybeAnnLs GHC.AnnVal   0 (show $ GHC.unpackFS str)
-    printStringAtMaybeAnnLs GHC.AnnVal   1 (show v1)
-    printStringAtMaybeAnnLs GHC.AnnColon 0 ":"
-    printStringAtMaybeAnnLs GHC.AnnVal   2 (show v2)
-    printStringAtMaybeAnn   GHC.AnnMinus   "-"
-    printStringAtMaybeAnnLs GHC.AnnVal   3 (show v3)
-    printStringAtMaybeAnnLs GHC.AnnColon 1 ":"
-    printStringAtMaybeAnnLs GHC.AnnVal   4 (show v4)
-    printStringAtMaybeAnn   GHC.AnnClose "#-}"
+    printStringAtMaybeAnn GHC.AnnOpen  src -- "{-# GENERATED"
+    printStringAtMaybeAnn GHC.AnnVal   (show $ GHC.unpackFS str)
+    printStringAtMaybeAnn GHC.AnnVal   (show v1)
+    printStringAtMaybeAnn GHC.AnnColon ":"
+    printStringAtMaybeAnn GHC.AnnVal   (show v2)
+    printStringAtMaybeAnn GHC.AnnMinus "-"
+    printStringAtMaybeAnn GHC.AnnVal   (show v3)
+    printStringAtMaybeAnn GHC.AnnColon ":"
+    printStringAtMaybeAnn GHC.AnnVal   (show v4)
+    printStringAtMaybeAnn GHC.AnnClose "#-}"
     exactPC e
 
   exactP (GHC.EWildPat) = printStringAtMaybeAnn GHC.AnnVal "_"
@@ -1401,9 +1385,9 @@ instance ExactP (GHC.Sig GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnDot "."
 
     exactPC ctx1
-    printStringAtMaybeAnnLs GHC.AnnDarrow 0 "=>"
+    printStringAtMaybeAnn GHC.AnnDarrow "=>"
     exactPC ctx2
-    printStringAtMaybeAnnLs GHC.AnnDarrow 1 "=>"
+    printStringAtMaybeAnn GHC.AnnDarrow "=>"
     exactPC typ
 
   exactP (GHC.GenericSig ns typ) = do
@@ -1431,38 +1415,38 @@ instance ExactP (GHC.Sig GHC.RdrName) where
               GHC.AlwaysActive -> ""
               GHC.ActiveBefore np -> show np
               GHC.ActiveAfter  np -> show np
-        printStringAtMaybeAnnLs GHC.AnnOpen 0 (GHC.inl_src inl) -- "{-# INLINE"
-        printStringAtMaybeAnnLs GHC.AnnOpen 1 "["
-        printStringAtMaybeAnn   GHC.AnnTilde "~"
-        printStringAtMaybeAnn   GHC.AnnVal   actStr
-        printStringAtMaybeAnnLs GHC.AnnClose 0 "]"
+        printStringAtMaybeAnn GHC.AnnOpen (GHC.inl_src inl) -- "{-# INLINE"
+        printStringAtMaybeAnn GHC.AnnOpen  "["
+        printStringAtMaybeAnn GHC.AnnTilde "~"
+        printStringAtMaybeAnn GHC.AnnVal   actStr
+        printStringAtMaybeAnn GHC.AnnClose "]"
         exactPC n
-        printStringAtMaybeAnnLs GHC.AnnClose 1 "#-}"
+        printStringAtMaybeAnn GHC.AnnClose "#-}"
       _ -> do
-        printStringAtMaybeAnnLs GHC.AnnOpen 0 (GHC.inl_src inl) -- "{-# INLINE"
+        printStringAtMaybeAnn GHC.AnnOpen (GHC.inl_src inl) -- "{-# INLINE"
         exactPC n
-        printStringAtMaybeAnnLs GHC.AnnClose 0 "#-}"
+        printStringAtMaybeAnn GHC.AnnClose "#-}"
 
 
   exactP (GHC.SpecSig n typs inl) = do
     cnt <- countAnns GHC.AnnOpen
     case cnt of
       2 -> do
-        printStringAtMaybeAnnLs GHC.AnnOpen  0 (GHC.inl_src inl) -- "{-# SPECIALISE"
-        printStringAtMaybeAnnLs GHC.AnnOpen  1 "["
-        printStringAtMaybeAnn   GHC.AnnTilde  "~"
-        printStringAtMaybeAnnLs GHC.AnnVal   0 "TODO:what here?" -- e.g. 34
-        printStringAtMaybeAnnLs GHC.AnnClose 0 "]"
+        printStringAtMaybeAnn GHC.AnnOpen  (GHC.inl_src inl) -- "{-# SPECIALISE"
+        printStringAtMaybeAnn GHC.AnnOpen  "["
+        printStringAtMaybeAnn GHC.AnnTilde  "~"
+        printStringAtMaybeAnn GHC.AnnVal   "TODO:what here?" -- e.g. 34
+        printStringAtMaybeAnn GHC.AnnClose "]"
         exactPC n
-        printStringAtMaybeAnn   GHC.AnnDcolon "::"
+        printStringAtMaybeAnn GHC.AnnDcolon "::"
         mapM_ exactPC typs
-        printStringAtMaybeAnnLs GHC.AnnClose 1 "#-}"
+        printStringAtMaybeAnn GHC.AnnClose "#-}"
       _ -> do
-        printStringAtMaybeAnnLs GHC.AnnOpen  0 (GHC.inl_src inl) -- "{-# SPECIALISE"
+        printStringAtMaybeAnn GHC.AnnOpen  (GHC.inl_src inl) -- "{-# SPECIALISE"
         exactPC n
-        printStringAtMaybeAnn   GHC.AnnDcolon  "::"
+        printStringAtMaybeAnn GHC.AnnDcolon "::"
         mapM_ exactPC typs
-        printStringAtMaybeAnnLs GHC.AnnClose 0 "#-}"
+        printStringAtMaybeAnn GHC.AnnClose "#-}"
 
 
   exactP _ = printString "Sig"
@@ -1501,8 +1485,28 @@ hsLit2String lit =
 
 
 instance ExactP (GHC.TyClDecl GHC.RdrName) where
-  exactP (GHC.FamDecl  _)         = printString "FamDecl"
-  exactP (GHC.SynDecl  _ _ _ _)   = printString "SynDecl"
+  exactP (GHC.FamDecl (GHC.FamilyDecl info ln (GHC.HsQTvs _ tyvars) mkind)) = do
+    printStringAtMaybeAnn GHC.AnnType   "type"
+    printStringAtMaybeAnn GHC.AnnData   "data"
+    printStringAtMaybeAnn GHC.AnnFamily "family"
+    exactPC ln
+    case mkind of
+      Nothing -> return ()
+      Just k -> exactPC k
+    printStringAtMaybeAnn GHC.AnnWhere "where"
+    printStringAtMaybeAnn GHC.AnnOpen "{"
+    mapM_ exactPC tyvars
+    case info of
+      GHC.ClosedTypeFamily eqns -> mapM_ exactPC eqns
+      _ -> return ()
+    printStringAtMaybeAnn GHC.AnnClose "}"
+
+  exactP (GHC.SynDecl ln (GHC.HsQTvs _ tyvars) typ _) = do
+    printStringAtMaybeAnn GHC.AnnType "type"
+    exactPC ln
+    mapM_ exactPC tyvars
+    printStringAtMaybeAnn GHC.AnnEqual "="
+    exactPC typ
 
   exactP (GHC.DataDecl ln (GHC.HsQTvs ns tyVars) defn _) = do
     printStringAtMaybeAnn GHC.AnnData     "data"
@@ -1510,10 +1514,28 @@ instance ExactP (GHC.TyClDecl GHC.RdrName) where
     exactPC ln
     printStringAtMaybeAnn GHC.AnnEqual "="
     mapM_ exactPC tyVars
+    printStringAtMaybeAnn GHC.AnnWhere "where"
     exactP defn
 
+  exactP (GHC.ClassDecl ctx ln (GHC.HsQTvs ns tyVars) fds
+                          sigs meths ats atdefs docs _) = do
+    printStringAtMaybeAnn GHC.AnnClass "class"
+    exactPC ctx
+    exactPC ln
+    mapM_ exactPC tyVars
+    mapM_ exactPC fds
+    printStringAtMaybeAnn GHC.AnnWhere "where"
+    assert False undefined
 
-  exactP (GHC.ClassDecl  _ _ _ _ _ _ _ _ _ _) = printString "ClassDecl"
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.TyFamInstEqn GHC.RdrName) where
+  exactP = assert False undefined
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.FunDep (GHC.Located GHC.RdrName)) where
+  exactP = assert False undefined
 
 -- ---------------------------------------------------------------------
 
