@@ -870,14 +870,7 @@ instance (Typeable name,AnnotateP name,GHC.OutputableBndr name) => AnnotateP (GH
 
   annotateP l (GHC.ConPatIn n dets) = do
     annotatePC n
-    case dets of
-      GHC.PrefixCon args -> mapM_ annotatePC args
-      GHC.RecCon (GHC.HsRecFields fs _) -> do
-         addDeltaAnnotation GHC.AnnOpen -- '{'
-         mapM_ annotatePC fs
-         addDeltaAnnotation GHC.AnnDotdot
-         addDeltaAnnotation GHC.AnnClose -- '}'
-      GHC.InfixCon a1 a2 -> annotatePC a1 >> annotatePC a2
+    annotateHsConPatDetails dets
 
   annotateP l (GHC.ConPatOut {}) = return ()
 
@@ -919,6 +912,41 @@ instance (Typeable name,AnnotateP name,GHC.OutputableBndr name) => AnnotateP (GH
 
   -- CoPat HsWrapper (Pat id) Type
   annotateP l (GHC.CoPat {}) = return ()
+
+-- ---------------------------------------------------------------------
+
+-- type HsConPatDetails  id   = HsConDetails (LPat id)        (HsRecFields id (LPat id))
+-- type HsConDeclDetails name = HsConDetails (LBangType name) [LConDeclField name]
+
+annotateHsConPatDetails :: (GHC.OutputableBndr name,AnnotateP name)
+                      => GHC.HsConPatDetails name -> AP ()
+annotateHsConPatDetails dets = do
+  case dets of
+    GHC.PrefixCon args -> mapM_ annotatePC args
+    GHC.RecCon (GHC.HsRecFields fs _) -> do
+       addDeltaAnnotation GHC.AnnOpen -- '{'
+       mapM_ annotatePC fs
+       addDeltaAnnotation GHC.AnnDotdot
+       addDeltaAnnotation GHC.AnnClose -- '}'
+    GHC.InfixCon a1 a2 -> annotatePC a1 >> annotatePC a2
+
+annotateHsConDeclDetails :: (GHC.OutputableBndr name,AnnotateP name)
+                    =>  GHC.HsConDeclDetails name -> AP ()
+annotateHsConDeclDetails dets = do
+  case dets of
+    GHC.PrefixCon args -> mapM_ annotatePC args
+    GHC.RecCon fs -> annotatePC fs
+    GHC.InfixCon a1 a2 -> annotatePC a1 >> annotatePC a2
+
+-- ---------------------------------------------------------------------
+
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+   => AnnotateP [GHC.LConDeclField name] where
+  annotateP l fs = do
+       addDeltaAnnotation GHC.AnnOpen -- '{'
+       mapM_ annotatePC fs
+       addDeltaAnnotation GHC.AnnDotdot
+       addDeltaAnnotation GHC.AnnClose -- '}'
 
 -- ---------------------------------------------------------------------
 
@@ -1342,43 +1370,6 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
     -- will have to interleave all the different pieces
     assert False undefined
 
-
-{-
-ClassDecl
-
-    AnnKeywordId : AnnClass, AnnWhere,AnnOpen, AnnClose
-    The tcdFDs will have AnnVbar, AnnComma AnnRarrow
-
-tcdCtxt :: LHsContext name
-
-    Context...
-tcdLName :: Located name
-
-    Type constructor
-tcdTyVars :: LHsTyVarBndrs name
-
-    Type variables; for an associated type these include outer binders
-tcdFDs :: [Located (FunDep name)]
-
-    Functional deps
-tcdSigs :: [LSig name]
-
-    Methods' signatures
-tcdMeths :: LHsBinds name
-
-    Default methods
-tcdATs :: [LFamilyDecl name]
-
-    Associated types; ie
-tcdATDefs :: [LTyFamDefltEqn name]
-
-    Associated type defaults
-tcdDocs :: [LDocDecl]
-
-    Haddock docs
-tcdFVs :: PostRn name NameSet
--}
-
 -- ---------------------------------------------------------------------
 
 instance (Typeable name) => AnnotateP (GHC.TyFamInstEqn name) where
@@ -1386,8 +1377,71 @@ instance (Typeable name) => AnnotateP (GHC.TyFamInstEqn name) where
 
 -- ---------------------------------------------------------------------
 
-annotateDataDefn :: GHC.SrcSpan -> GHC.HsDataDefn name -> AP ()
-annotateDataDefn = assert False undefined
+annotateDataDefn :: (GHC.OutputableBndr name,AnnotateP name) => GHC.SrcSpan -> GHC.HsDataDefn name -> AP ()
+annotateDataDefn l (GHC.HsDataDefn _ ctx typ mk cons mderivs) = do
+  annotatePC ctx
+  annotateMaybe typ
+  annotateMaybe mk
+  mapM_ annotatePC cons
+  case mderivs of
+    Nothing -> return ()
+    Just d -> annotatePC d
+{-
+  addDeltaAnnotation GHC.AnnDeriving
+  addDeltaAnnotation GHC.AnnOpen
+  addDeltaAnnotation GHC.AnnClose
+-}
+
+{-
+data HsDataDefn name
+
+Constructors
+HsDataDefn
+
+dd_ND :: NewOrData
+dd_ctxt :: LHsContext name
+
+    Context
+dd_cType :: Maybe (Located CType)
+dd_kindSig :: Maybe (LHsKind name)
+
+    Optional kind signature.
+
+    (Just k) for a GADT-style data, or data instance decl, with explicit kind sig
+
+    Always Nothing for H98-syntax decls
+dd_cons :: [LConDecl name]
+
+    Data constructors
+
+    For data T a = T1 | T2 a the LConDecls all have ResTyH98. For data T a where { T1 :: T a } the LConDecls all have ResTyGADT.
+dd_derivs :: Maybe (Located [LHsType name])
+
+    Derivings; Nothing => not specified, Just [] => derive exactly what is asked
+
+    These "types" must be of form forall ab. C ty1 ty2 Typically the foralls and ty args are empty, but they are non-empty for the newtype-deriving case
+
+        AnnKeywordId : AnnDeriving, AnnOpen,AnnClose
+-}
+
+-- ---------------------------------------------------------------------
+
+instance (Typeable name,AnnotateP name,GHC.OutputableBndr name)
+      => AnnotateP (GHC.ConDecl name) where
+  annotateP l (GHC.ConDecl lns exp (GHC.HsQTvs _ns bndrs) ctx
+                         dets _res _ _) = do
+    mapM_ annotatePC lns
+
+    addDeltaAnnotation GHC.AnnForall
+    mapM_ annotatePC bndrs
+    addDeltaAnnotation GHC.AnnDot
+
+    annotatePC ctx
+    addDeltaAnnotationLs GHC.AnnDarrow 0
+
+    annotateHsConDeclDetails dets
+
+    addDeltaAnnotation GHC.AnnVbar
 
 -- ---------------------------------------------------------------------
 
@@ -1399,6 +1453,11 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,AnnotateP a) =>
 
 instance (Typeable name) => AnnotateP (GHC.FunDep (GHC.Located name)) where
   annotateP = assert False undefined
+
+-- ---------------------------------------------------------------------
+
+instance AnnotateP (GHC.CType) where
+  annotateP l _ = addDeltaAnnotationExt l GHC.AnnVal
 
 -- ---------------------------------------------------------------------
 
