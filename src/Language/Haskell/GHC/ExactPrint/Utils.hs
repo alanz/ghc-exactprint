@@ -593,7 +593,6 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     annotatePC typ
 
 
-  -- GenericSig [Located name] (LHsType name)
   annotateP l (GHC.GenericSig ns typ) = do
     addDeltaAnnotation GHC.AnnDefault
     mapM_ annotatePC ns
@@ -625,7 +624,6 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
         addDeltaAnnotationLs GHC.AnnClose  0 -- '#-}'
 
 
-  -- SpecSig (Located name) [LHsType name] InlinePragma
   annotateP l (GHC.SpecSig ln typs inl) = do
     addDeltaAnnotations GHC.AnnOpen -- '{-# SPECIALISE', '['
     addDeltaAnnotation  GHC.AnnTilde -- ~
@@ -637,7 +635,6 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     addDeltaAnnotation GHC.AnnClose -- '#-}'
 
 
-  -- SpecInstSig (LHsType name)
   -- '{-# SPECIALISE' 'instance' inst_type '#-}'
   annotateP l (GHC.SpecInstSig _ typ) = do
     addDeltaAnnotation GHC.AnnOpen -- '{-# SPECIALISE'
@@ -675,14 +672,6 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     addDeltaAnnotation GHC.AnnDcolon -- '::'
     annotatePC ty
     addDeltaAnnotation GHC.AnnClose -- '('
-
--- ---------------------------------------------------------------------
-
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
-                           AnnotateP (GHC.HsContext name) where
-  annotateP l ts = do
-    addDeltaAnnotation GHC.AnnUnit
-    mapM_ annotatePC ts >> return ()
 
 -- ---------------------------------------------------------------------
 
@@ -737,19 +726,16 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     annotatePC t
     addDeltaAnnotation GHC.AnnClose -- ')'
 
-  -- HsIParamTy HsIPName (LHsType name)
   annotateP l (GHC.HsIParamTy n t) = do
     addDeltaAnnotation GHC.AnnVal
     addDeltaAnnotation GHC.AnnDcolon
     annotatePC t
 
-  -- HsEqTy (LHsType name) (LHsType name)
   annotateP l (GHC.HsEqTy t1 t2) = do
     annotatePC t1
     addDeltaAnnotation GHC.AnnTilde
     annotatePC t2
 
-  -- HsKindSig (LHsType name) (LHsKind name)
   annotateP l (GHC.HsKindSig t k) = do
     addDeltaAnnotation GHC.AnnOpen  -- '('
     annotatePC t
@@ -767,12 +753,10 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     annotatePC e
     addDeltaAnnotation GHC.AnnClose -- ')'
 
-  -- HsDocTy (LHsType name) LHsDocString
   annotateP l (GHC.HsDocTy t ds) = do
     annotatePC t
     annotatePC ds
 
-  -- HsBangTy HsBang (LHsType name)
   annotateP l (GHC.HsBangTy _b t) = do
     addDeltaAnnotation GHC.AnnOpen  -- '{-# UNPACK' or '{-# NOUNPACK'
     addDeltaAnnotation GHC.AnnClose -- '#-}'
@@ -788,14 +772,12 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
   -- HsCoreTy Type
   annotateP l (GHC.HsCoreTy _t) = return ()
 
-  -- HsExplicitListTy (PostTc name Kind) [LHsType name]
   annotateP l (GHC.HsExplicitListTy _ ts) = do
     -- TODO: what about SIMPLEQUOTE?
     addDeltaAnnotation GHC.AnnOpen  -- "'["
     mapM_ annotatePC ts
     addDeltaAnnotation GHC.AnnClose -- ']'
 
-  -- HsExplicitTupleTy [PostTc name Kind] [LHsType name]
   annotateP l (GHC.HsExplicitTupleTy _ ts) = do
     addDeltaAnnotation GHC.AnnOpen  -- "'("
     mapM_ annotatePC ts
@@ -902,7 +884,6 @@ instance (Typeable name,AnnotateP name,GHC.OutputableBndr name) => AnnotateP (GH
     addDeltaAnnotation GHC.AnnVal -- "+"
     annotatePC ol
 
-  -- SigPatIn (LPat id) (HsWithBndrs id (LHsType id))
   annotateP l (GHC.SigPatIn pat ty) = do
     annotatePC pat
     addDeltaAnnotation GHC.AnnDcolon
@@ -1364,11 +1345,12 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
     annotatePC ctx
     annotatePC ln
     mapM_ annotatePC tyVars
+    addDeltaAnnotation GHC.AnnVbar
     mapM_ annotatePC fds
     addDeltaAnnotation GHC.AnnWhere
 
     -- will have to interleave all the different pieces
-    assert False undefined
+    -- assert False undefined
 
 -- ---------------------------------------------------------------------
 
@@ -1386,43 +1368,19 @@ annotateDataDefn l (GHC.HsDataDefn _ ctx typ mk cons mderivs) = do
   case mderivs of
     Nothing -> return ()
     Just d -> annotatePC d
-{-
-  addDeltaAnnotation GHC.AnnDeriving
-  addDeltaAnnotation GHC.AnnOpen
-  addDeltaAnnotation GHC.AnnClose
--}
 
-{-
-data HsDataDefn name
+-- ---------------------------------------------------------------------
 
-Constructors
-HsDataDefn
+-- Note: GHC.HsContext name aliases to here too
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+     => AnnotateP [GHC.LHsType name] where
+  annotateP l ts = do
+    addDeltaAnnotation GHC.AnnUnit -- For HsContext
 
-dd_ND :: NewOrData
-dd_ctxt :: LHsContext name
-
-    Context
-dd_cType :: Maybe (Located CType)
-dd_kindSig :: Maybe (LHsKind name)
-
-    Optional kind signature.
-
-    (Just k) for a GADT-style data, or data instance decl, with explicit kind sig
-
-    Always Nothing for H98-syntax decls
-dd_cons :: [LConDecl name]
-
-    Data constructors
-
-    For data T a = T1 | T2 a the LConDecls all have ResTyH98. For data T a where { T1 :: T a } the LConDecls all have ResTyGADT.
-dd_derivs :: Maybe (Located [LHsType name])
-
-    Derivings; Nothing => not specified, Just [] => derive exactly what is asked
-
-    These "types" must be of form forall ab. C ty1 ty2 Typically the foralls and ty args are empty, but they are non-empty for the newtype-deriving case
-
-        AnnKeywordId : AnnDeriving, AnnOpen,AnnClose
--}
+    addDeltaAnnotation GHC.AnnDeriving
+    addDeltaAnnotation GHC.AnnOpen
+    mapM_ annotatePC ts
+    addDeltaAnnotation GHC.AnnClose
 
 -- ---------------------------------------------------------------------
 
@@ -1451,8 +1409,13 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,AnnotateP a) =>
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name) => AnnotateP (GHC.FunDep (GHC.Located name)) where
-  annotateP = assert False undefined
+instance (Typeable name,AnnotateP name)
+    => AnnotateP (GHC.FunDep (GHC.Located name)) where
+
+  annotateP l (ls,rs) = do
+    mapM_ annotatePC ls
+    addDeltaAnnotation GHC.AnnRarrow
+    mapM_ annotatePC rs
 
 -- ---------------------------------------------------------------------
 

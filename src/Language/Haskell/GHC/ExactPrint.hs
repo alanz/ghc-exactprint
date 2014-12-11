@@ -729,7 +729,6 @@ instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
         printStringAtMaybeAnn GHC.AnnFunId funid
         mapM_ exactPC pats
     printStringAtMaybeAnn GHC.AnnEqual "="
-    -- doMaybe typ exactPC
     mapM_ exactPC typ
     mapM_ exactPC grhs
     printStringAtMaybeAnn GHC.AnnWhere "where"
@@ -831,14 +830,24 @@ instance ExactP (GHC.HsType GHC.Name) where
   exactP typ = do
     return () `debug` ("exactP.HsType not implemented for " ++ showGhc (typ))
     printString "HsType.Name"
+    assert False undefined
 
+-- ---------------------------------------------------------------------
+
+hstylit2str :: GHC.HsTyLit -> String
+hstylit2str (GHC.HsNumTy src _) = src
+hstylit2str (GHC.HsStrTy src _) = src
+
+-- ---------------------------------------------------------------------
 
 instance ExactP (GHC.HsType GHC.RdrName) where
   -- HsForAllTy HsExplicitFlag (Maybe SrcSpan) (LHsTyVarBndrs name) (LHsContext name) (LHsType name)
   exactP (GHC.HsForAllTy f mwc bndrs ctx typ) = do
     printStringAtMaybeAnn GHC.AnnForall "forall"
     exactPC ctx
-    printStringAtMaybeAnn GHC.AnnVal    "_"
+    case mwc of
+      Nothing -> return ()
+      Just _  -> printStringAtMaybeAnn GHC.AnnVal "_"
     printStringAtMaybeAnn GHC.AnnDot    "."
     printStringAtMaybeAnn GHC.AnnDarrow "=>"
     exactPC typ
@@ -967,10 +976,15 @@ instance ExactP (GHC.ConDeclField GHC.RdrName) where
       Just doc -> exactPC doc
       Nothing -> return ()
 
+-- Note: GHC.HsContext GHC.RdrName aliases to here too
 instance ExactP (GHC.HsContext GHC.RdrName) where
   exactP typs = do
     printStringAtMaybeAnn GHC.AnnUnit "()"
+
+    printStringAtMaybeAnn GHC.AnnDeriving "deriving"
+    printStringAtMaybeAnn GHC.AnnOpen "("
     mapM_ exactPC typs
+    printStringAtMaybeAnn GHC.AnnClose ")"
 
 instance ExactP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP (GHC.GRHS guards expr) = do
@@ -1523,9 +1537,10 @@ instance ExactP (GHC.TyClDecl GHC.RdrName) where
     exactPC ctx
     exactPC ln
     mapM_ exactPC tyVars
+    printStringAtMaybeAnn GHC.AnnVbar "|"
     mapM_ exactPC fds
     printStringAtMaybeAnn GHC.AnnWhere "where"
-    assert False undefined
+    -- assert False undefined
 
 -- ---------------------------------------------------------------------
 
@@ -1535,7 +1550,10 @@ instance ExactP (GHC.TyFamInstEqn GHC.RdrName) where
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.FunDep (GHC.Located GHC.RdrName)) where
-  exactP = assert False undefined
+  exactP (ls,rs) = do
+    mapM_ exactPC ls
+    printStringAtMaybeAnn GHC.AnnRarrow "->"
+    mapM_ exactPC rs
 
 -- ---------------------------------------------------------------------
 
@@ -1556,7 +1574,7 @@ instance ExactP (GHC.HsDataDefn GHC.RdrName) where
     doMaybe exactPC mtyp
     doMaybe exactPC mkind
     mapM_ exactPC cons
-    doMaybe exactPC  mderivs
+    doMaybe exactPC mderivs
 
 -- ---------------------------------------------------------------------
 

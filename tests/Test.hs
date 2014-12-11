@@ -39,8 +39,9 @@ main = do
     -- manipulateAstTest ["examples/Tuple.hs"]
     -- manipulateAstTest ["examples/Sigs.hs"]
     -- manipulateAstTest ["examples/ExprPragmas.hs"]
-    manipulateAstTest ["examples/ListComprehensions.hs"]
+    -- manipulateAstTest ["examples/ListComprehensions.hs"]
     -- manipulateAstTest ["examples/MonadComprehensions.hs"]
+    manipulateAstTest ["examples/FunDeps.hs"]
 
 
 -- | Where all the tests are to be found

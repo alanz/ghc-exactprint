@@ -1,0 +1,83 @@
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE FunctionalDependencies #-}
+
+-- FunDeps example
+class Foo a b c | a b -> c where
+
+
+
+==============
+lengths:(135,155)
+
+(L {examples/FunDeps.hs:1:1} 
+ (HsModule 
+  (Nothing) 
+  (Nothing) 
+  [] 
+  [
+   (L {examples/FunDeps.hs:(5,1)-(6,20)} 
+    (TyClD 
+     (ClassDecl 
+      (L {<no location info>} 
+       []) 
+      (L {examples/FunDeps.hs:5:7-9} 
+       (Unqual {OccName: Foo})) 
+      (HsQTvs 
+       [] 
+       [
+        (L {examples/FunDeps.hs:5:11} 
+         (UserTyVar 
+          (Unqual {OccName: a}))),
+        (L {examples/FunDeps.hs:5:13} 
+         (UserTyVar 
+          (Unqual {OccName: b}))),
+        (L {examples/FunDeps.hs:5:15} 
+         (UserTyVar 
+          (Unqual {OccName: c})))]) 
+      [
+       (L {examples/FunDeps.hs:5:19-26} 
+        ((,) 
+         [
+          (L {examples/FunDeps.hs:5:19} 
+           (Unqual {OccName: a})),
+          (L {examples/FunDeps.hs:5:21} 
+           (Unqual {OccName: b}))] 
+         [
+          (L {examples/FunDeps.hs:5:26} 
+           (Unqual {OccName: c}))]))] 
+      [
+       (L {examples/FunDeps.hs:6:3-20} 
+        (TypeSig 
+         [
+          (L {examples/FunDeps.hs:6:3-5} 
+           (Unqual {OccName: bar}))] 
+         (L {examples/FunDeps.hs:6:10-20} 
+          (HsForAllTy 
+           (Implicit) 
+           (Nothing) 
+           (HsQTvs 
+            [] 
+            []) 
+           (L {<no location info>} 
+            []) 
+           (L {examples/FunDeps.hs:6:10-20} 
+            (HsFunTy 
+             (L {examples/FunDeps.hs:6:10} 
+              (HsTyVar 
+               (Unqual {OccName: a}))) 
+             (L {examples/FunDeps.hs:6:15-20} 
+              (HsFunTy 
+               (L {examples/FunDeps.hs:6:15} 
+                (HsTyVar 
+                 (Unqual {OccName: b}))) 
+               (L {examples/FunDeps.hs:6:20} 
+                (HsTyVar 
+                 (Unqual {OccName: c}))))))))) 
+         (PlaceHolder)))] {Bag(Located (HsBind RdrName)): 
+      []} 
+      [] 
+      [] 
+      [] 
+      (PlaceHolder))))] 
+  (Nothing) 
+  (Nothing)))
