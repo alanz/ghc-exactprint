@@ -12,3 +12,4 @@
 /tests/examples/LetExpr.hs.1
 /tests/examples/ListComprehensions.hs.exactprinter.out
 /tests/examples/MonadComprehensions.hs.exactprinter.out
+/tests/examples/FunDeps.hs.exactprinter.out

@@ -8,20 +8,23 @@ import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
 import GHC.Paths ( libdir )
-import qualified FastString    as GHC
+
 import qualified DynFlags      as GHC
+import qualified FastString    as GHC
 import qualified GHC           as GHC
+import qualified MonadUtils    as GHC
 import qualified Outputable    as GHC
 
 import qualified GHC.SYB.Utils as SYB
 
-import System.FilePath
-import System.IO
-import System.Directory
+import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans
-import Control.Applicative
 import Data.Generics
+import Data.List
+import System.Directory
+import System.FilePath
+import System.IO
 
 import Test.HUnit
 
@@ -34,14 +37,14 @@ debug = flip trace
 
 main :: IO ()
 main = do
-    -- manipulateAstTest ["examples/LetExpr.hs"]
-    -- manipulateAstTest ["examples/LetExprSemi.hs"]
-    -- manipulateAstTest ["examples/Tuple.hs"]
-    -- manipulateAstTest ["examples/Sigs.hs"]
-    -- manipulateAstTest ["examples/ExprPragmas.hs"]
-    -- manipulateAstTest ["examples/ListComprehensions.hs"]
+    -- manipulateAstTest "examples/LetExpr.hs"     "LetExpr"
+    -- manipulateAstTest "examples/LetExprSemi.hs" "LetExprSemi"
+    -- manipulateAstTest "examples/Tuple.hs"       "Main"
+    -- manipulateAstTest "examples/Sigs.hs" "Sigs"
+    -- manipulateAstTest "examples/ExprPragmas.hs" "ExprPragmas"
+    manipulateAstTest "examples/ListComprehensions.hs" "Main"
     -- manipulateAstTest ["examples/MonadComprehensions.hs"]
-    manipulateAstTest ["examples/FunDeps.hs"]
+    -- manipulateAstTest ["examples/FunDeps.hs"]
 
 
 -- | Where all the tests are to be found
@@ -51,13 +54,12 @@ examplesDir = "tests" </> "examples"
 examplesDir2 :: FilePath
 examplesDir2 = "examples"
 
-manipulateAstTest :: [FilePath] -> IO ()
-manipulateAstTest sources = do
-  let file = head sources
+manipulateAstTest :: FilePath -> String -> IO ()
+manipulateAstTest file modname = do
   let out    = file <.> "exactprinter" <.> "out"
 
   contents <- readUTF8File file
-  (ghcAnns,t,toks) <- parsedFileGhc file
+  (ghcAnns,t,toks) <- parsedFileGhc file modname
   let
     parsed@(GHC.L l hsmod) = GHC.pm_parsed_source $ GHC.tm_parsed_module t
     parsedAST = SYB.showData SYB.Parser 0 parsed
@@ -107,8 +109,8 @@ manipulateAstTest sources = do
 -- TypeCheckedModule produced by GHC.
 type ParseResult = GHC.TypecheckedModule
 
-parsedFileGhc :: String -> IO (GHC.ApiAnns,ParseResult,[(GHC.Located GHC.Token, String)])
-parsedFileGhc fileName = do
+parsedFileGhc :: String -> String -> IO (GHC.ApiAnns,ParseResult,[(GHC.Located GHC.Token, String)])
+parsedFileGhc fileName modname = do
     putStrLn $ "parsedFileGhc:" ++ show fileName
 #if __GLASGOW_HASKELL__ > 704
     GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
@@ -137,14 +139,15 @@ parsedFileGhc fileName = do
 
         target <- GHC.guessTarget fileName Nothing
         GHC.setTargets [target]
-        -- GHC.liftIO $ putStrLn $ "targets set"
+        GHC.liftIO $ putStrLn $ "target set:" ++ showGhc (GHC.targetId target)
         void $ GHC.load GHC.LoadAllTargets -- Loads and compiles, much as calling make
         -- GHC.liftIO $ putStrLn $ "targets loaded"
         g <- GHC.getModuleGraph
         let showStuff ms = show (GHC.moduleNameString $ GHC.moduleName $ GHC.ms_mod ms,GHC.ms_location ms)
-        -- GHC.liftIO $ putStrLn $ "module graph:" ++ (intercalate "," (map showStuff g))
-        -- modSum <- GHC.getModSummary $ GHC.mkModuleName "BCpp"
-        let modSum = head g
+        GHC.liftIO $ putStrLn $ "module graph:" ++ (intercalate "," (map showStuff g))
+
+        modSum <- GHC.getModSummary $ GHC.mkModuleName modname
+        -- let modSum = head g
         p <- GHC.parseModule modSum
         t <- GHC.typecheckModule p
         -- GHC.liftIO $ putStrLn $ "parsed"

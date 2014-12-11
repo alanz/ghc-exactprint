@@ -131,11 +131,11 @@ pos ss = (startLine ss, startColumn ss)
 newtype EP x = EP (Pos -> DeltaPos -> [GHC.SrcSpan] -> [Comment] -> Extra -> Anns
             -> (x, Pos,   DeltaPos,   [GHC.SrcSpan],   [Comment],   Extra,   Anns, ShowS))
 
-data Extra = E { eFunId :: String
+data Extra = E { eFunId :: (Bool,String) -- (isSymbol,name)
                , eFunIsInfix :: Bool
                , eInhibitTrailing :: Bool
                }
-initExtra = E "" False False
+initExtra = E (False,"") False False
 
 instance Functor EP where
   fmap = liftM
@@ -203,11 +203,20 @@ getAnnFinal kw = EP (\l dp (s:ss) cs st (ane,anf) ->
                    (h:t) -> (h,Map.insert (s,kw) (reverse t) anf)
      in (r         ,l,dp,(s:ss),cs,st,(ane,anf'),id))
 
-getStr :: EP String
-getStr = EP (\l dp s cs st an -> (eFunId st,l,dp,s,cs,st,an,id))
+-- |non-destructive get, hence use an annotation once only
+peekAnnFinal :: GHC.AnnKeywordId -> EP [DeltaPos]
+peekAnnFinal kw = EP (\l dp (s:ss) cs st (ane,anf) ->
+     let
+       r = case Map.lookup (s,kw) anf of
+             Nothing -> []
+             Just ds -> ds
+     in (r         ,l,dp,(s:ss),cs,st,(ane,anf),id))
 
-setStr :: String -> EP ()
-setStr st = EP (\l dp s cs e an -> ((),l,dp,s,cs,e { eFunId = st},an,id))
+getFunId :: EP (Bool,String)
+getFunId = EP (\l dp s cs st an -> (eFunId st,l,dp,s,cs,st,an,id))
+
+setFunId :: (Bool,String) -> EP ()
+setFunId st = EP (\l dp s cs e an -> ((),l,dp,s,cs,e { eFunId = st},an,id))
 
 getFunIsInfix :: EP Bool
 getFunIsInfix = EP (\l dp s cs e an -> (eFunIsInfix e,l,dp,s,cs,e,an,id))
@@ -345,16 +354,19 @@ printStringAtMaybeAnn ann str = do
     `debug` ("printStringAtMaybeAnn:(ss,ann,ma,str)=" ++ show (ss2span ss,ann,ma,str))
 
 printStringAtMaybeAnnAll :: GHC.AnnKeywordId -> String -> EP ()
-printStringAtMaybeAnnAll ann str = do
-  ma <- getAnnFinal ann
-  mapM_ (\d -> printStringAtLsDelta [d] str) (reverse ma)
-    `debug` ("printStringAtMaybeAnnAll:ma=" ++ show (ma))
+printStringAtMaybeAnnAll ann str = go
+  where
+    go = do
+      ma <- getAnnFinal ann
+      case ma of
+        [] -> return ()
+        [d]  -> printStringAtLsDelta [d] str >> go
 
 -- ---------------------------------------------------------------------
 
 countAnns :: GHC.AnnKeywordId -> EP Int
 countAnns ann = do
-  ma <- getAnnFinal ann
+  ma <- peekAnnFinal ann
   return (length ma)
 
 printStringAtMaybeDeltaP :: Pos -> Maybe DeltaPos -> String -> EP ()
@@ -417,7 +429,7 @@ exactPC a@(GHC.L l ast) =
        exactP ast
        -- automatically print any trailing commas or semis
        printStringAtMaybeAnn GHC.AnnComma ","
-       printStringAtMaybeAnn GHC.AnnSemi  ";"
+       printStringAtMaybeAnnAll GHC.AnnSemi ";"
 
        -- addOffset negOff `debug` ("addOffset:pop:" ++ show (ss2span l,negOff))
        popSrcSpan
@@ -650,8 +662,6 @@ instance ExactP (GHC.ImportDecl GHC.RdrName) where
         -- printStringAtMaybeAnn GHC.AnnHiding "hiding"
         exactPC lie
 
-    printStringAtMaybeAnnAll GHC.AnnSemi ";"
-
 -- ---------------------------------------------------------------------
 
 doMaybe :: (Monad m) => (a -> m ()) -> Maybe a -> m ()
@@ -678,8 +688,8 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
     GHC.RoleAnnotD d -> printString "RoleAnnotD"
 
 instance ExactP (GHC.HsBind GHC.RdrName) where
-  exactP (GHC.FunBind n isInfix  (GHC.MG matches _ _ _) _fun_co_fn _fvs _tick) = do
-    setStr (rdrName2String (GHC.unLoc n))
+  exactP (GHC.FunBind (GHC.L _ n) isInfix  (GHC.MG matches _ _ _) _ _ _) = do
+    setFunId (isSymbolRdrName n,rdrName2String n)
     setFunIsInfix isInfix
     mapM_ exactPC matches
 
@@ -718,12 +728,14 @@ instance ExactP (GHC.HsBind GHC.RdrName) where
 
 instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP (GHC.Match pats typ (GHC.GRHSs grhs lb)) = do
-    funid <- getStr
+    (isSym,funid) <- getFunId
     isInfix <- getFunIsInfix
     case (isInfix,pats) of
       (True,[a,b]) -> do
         exactPC a
-        printStringAtMaybeAnn GHC.AnnFunId funid
+        if isSym
+          then printStringAtMaybeAnn GHC.AnnFunId funid
+          else printStringAtMaybeAnn GHC.AnnFunId ("`"++ funid ++ "`")
         exactPC b
       _ -> do
         printStringAtMaybeAnn GHC.AnnFunId funid
@@ -841,7 +853,6 @@ hstylit2str (GHC.HsStrTy src _) = src
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.HsType GHC.RdrName) where
-  -- HsForAllTy HsExplicitFlag (Maybe SrcSpan) (LHsTyVarBndrs name) (LHsContext name) (LHsType name)
   exactP (GHC.HsForAllTy f mwc bndrs ctx typ) = do
     printStringAtMaybeAnn GHC.AnnForall "forall"
     exactPC ctx
@@ -976,10 +987,9 @@ instance ExactP (GHC.ConDeclField GHC.RdrName) where
       Just doc -> exactPC doc
       Nothing -> return ()
 
--- Note: GHC.HsContext GHC.RdrName aliases to here too
 instance ExactP (GHC.HsContext GHC.RdrName) where
   exactP typs = do
-    printStringAtMaybeAnn GHC.AnnUnit "()"
+    -- printStringAtMaybeAnn GHC.AnnUnit "()"
 
     printStringAtMaybeAnn GHC.AnnDeriving "deriving"
     printStringAtMaybeAnn GHC.AnnOpen "("
@@ -1348,9 +1358,22 @@ instance ExactP (GHC.HsCmd GHC.RdrName) where
 
 instance ExactP GHC.RdrName where
   exactP n = do
-    printStringAtMaybeAnn GHC.AnnOpen "("
-    printStringAtMaybeAnn GHC.AnnVal     (rdrName2String n)
-    printStringAtMaybeAnn GHC.AnnClose ")"
+    case rdrName2String n of
+      "[]" -> do
+        printStringAtMaybeAnn GHC.AnnOpen "["
+        printStringAtMaybeAnn GHC.AnnClose "]"
+      "()" -> do
+        printStringAtMaybeAnn GHC.AnnOpen "("
+        printStringAtMaybeAnn GHC.AnnClose ")"
+      str ->  do
+        printStringAtMaybeAnn GHC.AnnType      "type"
+        printStringAtMaybeAnn GHC.AnnOpen      "("
+        printStringAtMaybeAnn GHC.AnnBackquote  "`"
+        printStringAtMaybeAnn GHC.AnnTildehsh  "~#"
+        printStringAtMaybeAnn GHC.AnnTilde     "~"
+        printStringAtMaybeAnn GHC.AnnVal       str
+        printStringAtMaybeAnn GHC.AnnBackquote "`"
+        printStringAtMaybeAnn GHC.AnnClose     ")"
 
 instance ExactP GHC.HsIPName where
   exactP (GHC.HsIPName n) = do
@@ -1423,6 +1446,7 @@ instance ExactP (GHC.Sig GHC.RdrName) where
 
   exactP (GHC.InlineSig n inl) = do
     cnt <- countAnns GHC.AnnOpen
+    return () `debug` ("exactP.InlineSig:cnt=" ++ show cnt)
     case cnt of
       2 -> do
         let actStr = case GHC.inl_act inl of
@@ -1437,6 +1461,7 @@ instance ExactP (GHC.Sig GHC.RdrName) where
         exactPC n
         printStringAtMaybeAnn GHC.AnnClose "#-}"
       _ -> do
+        return () `debug` ("exactP.InlineSig.2:cnt=" ++ show cnt)
         printStringAtMaybeAnn GHC.AnnOpen (GHC.inl_src inl) -- "{-# INLINE"
         exactPC n
         printStringAtMaybeAnn GHC.AnnClose "#-}"
@@ -1540,11 +1565,32 @@ instance ExactP (GHC.TyClDecl GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnVbar "|"
     mapM_ exactPC fds
     printStringAtMaybeAnn GHC.AnnWhere "where"
-    -- assert False undefined
+
+    -- but first make sure we can do each one individually
+    mapM_ exactPC sigs
+    mapM_ exactPC (GHC.bagToList meths)
+    mapM_ exactPC ats
+    mapM_ exactPC atdefs
+    mapM_ exactPC docs
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.FamilyDecl GHC.RdrName) where
+   exactP = assert False undefined
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.TyFamDefltEqn GHC.RdrName) where
+   exactP = assert False undefined
 
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.TyFamInstEqn GHC.RdrName) where
+  exactP = assert False undefined
+
+-- ---------------------------------------------------------------------
+
+instance ExactP GHC.DocDecl where
   exactP = assert False undefined
 
 -- ---------------------------------------------------------------------

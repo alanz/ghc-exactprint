@@ -41,8 +41,10 @@ bbb x
  | otherwise = ()
 
 
-aaa [] _    = 0
+aaa [ ] _   = 0
 aaa x  _unk = 1
+
+aba () = 0
 
 x `ccc` 1 = x + 1
 x `ccc` y = x + y
