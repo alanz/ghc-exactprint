@@ -13,3 +13,5 @@
 /tests/examples/ListComprehensions.hs.exactprinter.out
 /tests/examples/MonadComprehensions.hs.exactprinter.out
 /tests/examples/FunDeps.hs.exactprinter.out
+/tests/examples/ImplicitParams.hs.exactprinter.out
+/tests/examples/RecursiveDo.hs.exactprinter.out

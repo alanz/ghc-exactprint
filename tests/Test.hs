@@ -35,17 +35,22 @@ import Debug.Trace
 debug :: c -> String -> c
 debug = flip trace
 
+
 main :: IO ()
 main = do
-    -- manipulateAstTest "examples/LetExpr.hs"     "LetExpr"
-    -- manipulateAstTest "examples/LetExprSemi.hs" "LetExprSemi"
-    -- manipulateAstTest "examples/Tuple.hs"       "Main"
-    -- manipulateAstTest "examples/Sigs.hs" "Sigs"
-    -- manipulateAstTest "examples/ExprPragmas.hs" "ExprPragmas"
-    manipulateAstTest "examples/ListComprehensions.hs" "Main"
-    -- manipulateAstTest ["examples/MonadComprehensions.hs"]
-    -- manipulateAstTest ["examples/FunDeps.hs"]
-
+  {-
+    manipulateAstTest "examples/LetStmt.hs"              "Layout.LetStmt"
+    manipulateAstTest "examples/LetExpr.hs"             "LetExpr"
+    manipulateAstTest "examples/LetExprSemi.hs"         "LetExprSemi"
+    manipulateAstTest "examples/Tuple.hs"               "Main"
+    manipulateAstTest "examples/Sigs.hs"                "Sigs"
+    manipulateAstTest "examples/ExprPragmas.hs"         "ExprPragmas"
+    manipulateAstTest "examples/ListComprehensions.hs"  "Main"
+    manipulateAstTest "examples/MonadComprehensions.hs" "Main"
+    manipulateAstTest "examples/FunDeps.hs"             "Main"
+    manipulateAstTest "examples/ImplicitParams.hs"      "Main"
+-}
+    manipulateAstTest "examples/RecursiveDo.hs"         "Main"
 
 -- | Where all the tests are to be found
 examplesDir :: FilePath

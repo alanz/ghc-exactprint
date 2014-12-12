@@ -687,6 +687,8 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
     GHC.QuasiQuoteD d -> printString "QuasiQuoteD"
     GHC.RoleAnnotD d -> printString "RoleAnnotD"
 
+-- ---------------------------------------------------------------------
+
 instance ExactP (GHC.HsBind GHC.RdrName) where
   exactP (GHC.FunBind (GHC.L _ n) isInfix  (GHC.MG matches _ _ _) _ _ _) = do
     setFunId (isSymbolRdrName n,rdrName2String n)
@@ -726,6 +728,18 @@ instance ExactP (GHC.HsBind GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnOpen    "{"
     printStringAtMaybeAnn GHC.AnnClose   "}"
 
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.IPBind GHC.RdrName) where
+  exactP (GHC.IPBind en e) = do
+    case en of
+      Left n -> exactPC n
+      Right i -> error $ "annotateP.IPBind:should not happen"
+    printStringAtMaybeAnn GHC.AnnEqual "="
+    exactPC e
+
+-- ---------------------------------------------------------------------
+
 instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   exactP (GHC.Match pats typ (GHC.GRHSs grhs lb)) = do
     (isSym,funid) <- getFunId
@@ -740,7 +754,8 @@ instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
       _ -> do
         printStringAtMaybeAnn GHC.AnnFunId funid
         mapM_ exactPC pats
-    printStringAtMaybeAnn GHC.AnnEqual "="
+    printStringAtMaybeAnn GHC.AnnEqual  "="
+    printStringAtMaybeAnn GHC.AnnRarrow "->" -- for HsLam
     mapM_ exactPC typ
     mapM_ exactPC grhs
     printStringAtMaybeAnn GHC.AnnWhere "where"
@@ -1064,7 +1079,9 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnVal ("?" ++ GHC.unpackFS v)
   exactP (GHC.HsOverLit lit)     = exactP lit
   exactP (GHC.HsLit lit)         = exactP lit
-  exactP (GHC.HsLam match)       = exactPMatchGroup match
+  exactP (GHC.HsLam match)       = do
+    printStringAtMaybeAnn GHC.AnnLam "\\"
+    exactPMatchGroup match
   exactP (GHC.HsLamCase _ match) = exactPMatchGroup match
   exactP (GHC.HsApp e1 e2)       = exactPC e1 >> exactPC e2
   exactP (GHC.OpApp e1 op _f e2) = exactPC e1 >> exactPC op >> exactPC e2
@@ -1105,7 +1122,7 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnThen "then"
     exactPC e2
     printStringAtMaybeAnn GHC.AnnSemi ";"
-    printStringAtMaybeAnn GHC.AnnThen "else"
+    printStringAtMaybeAnn GHC.AnnElse "else"
     exactPC e3
 
   exactP (GHC.HsMultiIf _ rhs)   = do
@@ -1377,7 +1394,7 @@ instance ExactP GHC.RdrName where
 
 instance ExactP GHC.HsIPName where
   exactP (GHC.HsIPName n) = do
-    printString (GHC.unpackFS n)
+    printStringAtMaybeAnn GHC.AnnVal ("?" ++ GHC.unpackFS n)
 
 -- ---------------------------------------------------------------------
 
@@ -1400,7 +1417,7 @@ instance ExactP (GHC.HsLocalBinds GHC.RdrName) where
   exactP (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
     printMerged (GHC.bagToList binds) sigs
   exactP (GHC.HsValBinds (GHC.ValBindsOut binds sigs)) = printString "ValBindsOut"
-  exactP (GHC.HsIPBinds binds) = printString "HsIPBinds"
+  exactP (GHC.HsIPBinds (GHC.IPBinds binds _)) = mapM_ exactPC binds
   exactP (GHC.EmptyLocalBinds) = return ()
 
 -- ---------------------------------------------------------------------

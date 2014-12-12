@@ -533,6 +533,22 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
 
 -- ---------------------------------------------------------------------
 
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+    => AnnotateP (GHC.IPBind name) where
+  annotateP l (GHC.IPBind en e) = do
+    case en of
+      Left n -> annotatePC n
+      Right i -> error $ "annotateP.IPBind:should not happen"
+    addDeltaAnnotation GHC.AnnEqual
+    annotatePC e
+
+-- ---------------------------------------------------------------------
+
+instance AnnotateP GHC.HsIPName where
+  annotateP l _ = addDeltaAnnotationExt l GHC.AnnVal
+
+-- ---------------------------------------------------------------------
+
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
                           AnnotateP (GHC.Match name (GHC.LHsExpr name)) where
   annotateP l (GHC.Match pats _typ grhss@(GHC.GRHSs grhs lb)) = do
@@ -549,6 +565,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
         mapM_ annotatePC pats
 
     addDeltaAnnotation GHC.AnnEqual
+    addDeltaAnnotation GHC.AnnRarrow -- For HsLam
 
     mapM_ annotatePC grhs
 
@@ -1028,7 +1045,7 @@ annotateHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
     mapM_ annotatePC sigs
 
 annotateHsLocalBinds (GHC.HsValBinds _) = assert False undefined
-annotateHsLocalBinds (GHC.HsIPBinds vb) = assert False undefined
+annotateHsLocalBinds (GHC.HsIPBinds (GHC.IPBinds binds _)) = mapM_ annotatePC binds
 annotateHsLocalBinds (GHC.EmptyLocalBinds) = return ()
 
 -- ---------------------------------------------------------------------
@@ -1047,7 +1064,10 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
   annotateP l (GHC.HsIPVar _)         = addDeltaAnnotationExt l GHC.AnnVal
   annotateP l (GHC.HsOverLit ov)      = addDeltaAnnotationExt l GHC.AnnVal
   annotateP l (GHC.HsLit _)           = addDeltaAnnotationExt l GHC.AnnVal
-  annotateP l (GHC.HsLam match)       = annotateMatchGroup match
+  annotateP l (GHC.HsLam match)       = do
+    addDeltaAnnotation GHC.AnnLam
+    annotateMatchGroup match
+
   annotateP l (GHC.HsLamCase _ match) = annotateMatchGroup match
 
   annotateP l (GHC.HsApp e1 e2) = do
@@ -1714,7 +1734,11 @@ rdrName2String :: GHC.RdrName -> String
 rdrName2String r =
   case GHC.isExact_maybe r of
     Just n  -> name2String n
-    Nothing ->  GHC.occNameString $ GHC.rdrNameOcc r
+    Nothing ->
+      case r of
+        GHC.Unqual occ -> GHC.occNameString $ GHC.rdrNameOcc r
+        GHC.Qual modname occ -> GHC.moduleNameString modname ++ "."
+                            ++ (GHC.occNameString $ GHC.rdrNameOcc r)
 
 name2String :: GHC.Name -> String
 name2String name = showGhc name
