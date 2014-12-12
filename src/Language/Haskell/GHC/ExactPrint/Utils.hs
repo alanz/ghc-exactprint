@@ -501,7 +501,9 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
 
   annotateP l (GHC.PatBind lhs@(GHC.L ll _) grhss@(GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
     annotatePC lhs
+    addDeltaAnnotation GHC.AnnEqual
     mapM_ annotatePC grhs
+    addDeltaAnnotation GHC.AnnWhere
     annotateHsLocalBinds lb
 
   annotateP l (GHC.VarBind n rhse _) = do
@@ -714,9 +716,9 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
                                       AnnotateP (GHC.HsType name) where
 
-  annotateP l (GHC.HsForAllTy f mwc bndrs ctx@(GHC.L lc cc) typ) = do
+  annotateP l (GHC.HsForAllTy f mwc bndrs ctx typ) = do
     addDeltaAnnotation GHC.AnnForall
-    mapM_ annotatePC cc
+    annotatePC ctx
     case mwc of
       Nothing -> return ()
       Just wcs -> addDeltaAnnotationExt wcs GHC.AnnVal -- '_' location
@@ -1041,12 +1043,18 @@ annotateParStmtBlock (GHC.ParStmtBlock stmts ns _) = do
 annotateHsLocalBinds :: (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
                                       (GHC.HsLocalBinds name) -> AP ()
 annotateHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
-    mapM_ annotatePC (GHC.bagToList binds)
-    mapM_ annotatePC sigs
+    let lbs = map (\b@(GHC.L l _) -> (l,annotatePC b)) (GHC.bagToList binds)
+        lss = map (\b@(GHC.L l _) -> (l,annotatePC b)) sigs
+
+    -- TODO: use interleave
+    mapM_ (\(_,b) -> b) $ sortBy (\(a,_) (b,_) -> compare a b)  lss ++ lbs
 
 annotateHsLocalBinds (GHC.HsValBinds _) = assert False undefined
 annotateHsLocalBinds (GHC.HsIPBinds (GHC.IPBinds binds _)) = mapM_ annotatePC binds
 annotateHsLocalBinds (GHC.EmptyLocalBinds) = return ()
+
+-- ---------------------------------------------------------------------
+
 
 -- ---------------------------------------------------------------------
 
@@ -1373,8 +1381,8 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
     addDeltaAnnotation GHC.AnnData
     addDeltaAnnotation GHC.AnnNewtype
     annotatePC ln
-    addDeltaAnnotation GHC.AnnEqual
     mapM_ annotatePC tyVars
+    addDeltaAnnotation GHC.AnnEqual
     addDeltaAnnotation GHC.AnnWhere
     annotateDataDefn l defn
 

@@ -1568,8 +1568,8 @@ instance ExactP (GHC.TyClDecl GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnData    "data"
     printStringAtMaybeAnn GHC.AnnNewtype "newtype"
     exactPC ln
-    printStringAtMaybeAnn GHC.AnnEqual "="
     mapM_ exactPC tyVars
+    printStringAtMaybeAnn GHC.AnnEqual "="
     printStringAtMaybeAnn GHC.AnnWhere "where"
     exactP defn
 
