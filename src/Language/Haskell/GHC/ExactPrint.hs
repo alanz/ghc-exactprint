@@ -612,7 +612,7 @@ instance ExactP (GHC.IE GHC.RdrName) where
 
   exactP (GHC.IEThingAbs n) = do
     printStringAtMaybeAnn GHC.AnnType    "type"
-    printStringAtMaybeAnn GHC.AnnVal     (rdrName2String n)
+    exactPC n
 
   exactP (GHC.IEThingWith n ns) = do
     exactPC n

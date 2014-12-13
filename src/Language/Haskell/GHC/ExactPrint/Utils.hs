@@ -391,9 +391,9 @@ instance AnnotateP (GHC.IE GHC.RdrName) where
           addDeltaAnnotation GHC.AnnType
           annotatePC ln
 
-        (GHC.IEThingAbs _) -> do
+        (GHC.IEThingAbs ln) -> do
           addDeltaAnnotation GHC.AnnType
-          addDeltaAnnotation GHC.AnnVal
+          annotatePC ln
 
         (GHC.IEThingWith ln ns) -> do
           annotatePC ln
@@ -429,7 +429,11 @@ instance AnnotateP GHC.RdrName where
         addDeltaAnnotation GHC.AnnType
         addDeltaAnnotation GHC.AnnOpen -- '('
         addDeltaAnnotation GHC.AnnBackquote
-        addDeltaAnnotation GHC.AnnVal
+        cnt <- countAnnsAP GHC.AnnVal
+        case cnt of
+          0 -> addDeltaAnnotationExt l GHC.AnnVal
+          1 -> addDeltaAnnotation GHC.AnnVal
+          x -> error $ "annotateP.RdrName: too many AnnVal :" ++ showGhc (l,x)
         addDeltaAnnotation GHC.AnnTildehsh
         addDeltaAnnotation GHC.AnnTilde
         addDeltaAnnotation GHC.AnnBackquote
