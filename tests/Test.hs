@@ -50,6 +50,7 @@ main = do
     manipulateAstTest "examples/FunDeps.hs"             "Main"
     manipulateAstTest "examples/ImplicitParams.hs"      "Main"
     manipulateAstTest "examples/RecursiveDo.hs"         "Main"
+    manipulateAstTest "examples/TypeFamilies.hs"        "Main"
 
 -- | Where all the tests are to be found
 examplesDir :: FilePath
