@@ -19,3 +19,4 @@
 /tests/examples/DataFamilies.hs.exactprinter.out
 /tests/examples/Deriving.hs.exactprinter.out
 /tests/examples/Default.hs.exactprinter.out
+/tests/examples/ForeignDecl.hs.exactprinter.out

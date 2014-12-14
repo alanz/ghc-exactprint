@@ -495,7 +495,7 @@ instance (GHC.OutputableBndr name,AnnotateP name) => AnnotateP (GHC.HsDecl name)
       GHC.ValD d -> annotateP l d
       GHC.SigD d -> annotateP l d
       GHC.DefD d -> annotateP l d
-      GHC.ForD d -> error $ "annotateLHsDecl:unimplemented " ++ "ForD"
+      GHC.ForD d -> annotateP l d
       GHC.WarningD d -> error $ "annotateLHsDecl:unimplemented " ++ "WarningD"
       GHC.AnnD d -> error $ "annotateLHsDecl:unimplemented " ++ "AnnD"
       GHC.RuleD d -> error $ "annotateLHsDecl:unimplemented " ++ "RuleD"
@@ -504,6 +504,51 @@ instance (GHC.OutputableBndr name,AnnotateP name) => AnnotateP (GHC.HsDecl name)
       GHC.DocD d -> error $ "annotateLHsDecl:unimplemented " ++ "DocD"
       GHC.QuasiQuoteD d -> error $ "annotateLHsDecl:unimplemented " ++ "QuasiQuoteD"
       GHC.RoleAnnotD d -> error $ "annotateLHsDecl:unimplemented " ++ "RoleAnnotD"
+
+-- ---------------------------------------------------------------------
+
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+   => AnnotateP (GHC.ForeignDecl name) where
+
+  annotateP l (GHC.ForeignImport ln typ _
+               (GHC.CImport cconv safety@(GHC.L ll _) mh imp (GHC.L ls src))) = do
+    addDeltaAnnotation GHC.AnnForeign
+    addDeltaAnnotation GHC.AnnImport
+    annotatePC cconv
+    if ll == GHC.noSrcSpan
+      then return ()
+      else annotatePC safety
+    -- annotateMaybe mh
+    addDeltaAnnotationExt ls GHC.AnnVal
+    annotatePC ln
+    addDeltaAnnotation GHC.AnnDcolon
+    annotatePC typ
+
+
+  annotateP l (GHC.ForeignExport ln typ _ (GHC.CExport spec (GHC.L ls src))) = do
+    addDeltaAnnotation GHC.AnnForeign
+    addDeltaAnnotation GHC.AnnExport
+    annotatePC spec
+    addDeltaAnnotationExt ls GHC.AnnVal
+    annotatePC ln
+    addDeltaAnnotation GHC.AnnDcolon
+    annotatePC typ
+
+
+-- ---------------------------------------------------------------------
+
+instance (AnnotateP GHC.CExportSpec) where
+  annotateP l (GHC.CExportStatic _ cconv) = annotateP l cconv
+
+-- ---------------------------------------------------------------------
+
+instance (AnnotateP GHC.CCallConv) where
+  annotateP l _ = addDeltaAnnotationExt l GHC.AnnVal
+
+-- ---------------------------------------------------------------------
+
+instance (AnnotateP GHC.Safety) where
+  annotateP l _ = addDeltaAnnotationExt l GHC.AnnVal
 
 -- ---------------------------------------------------------------------
 

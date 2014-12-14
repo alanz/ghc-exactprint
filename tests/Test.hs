@@ -54,8 +54,13 @@ main = do
     manipulateAstTest "examples/MultiParamTypeClasses.hs" "Main"
     manipulateAstTest "examples/DataFamilies.hs"          "DataFamilies"
     manipulateAstTest "examples/Deriving.hs"              "Main"
--}
     manipulateAstTest "examples/Default.hs"               "Main"
+-}
+    manipulateAstTest "examples/ForeignDecl.hs"           "ForeignDecl"
+{-
+    manipulateAstTest "examples/Mixed.hs"                 "Main"
+    manipulateAstTest "examples/EmptyMostly.hs"           "EmptyMostly"
+-}
 
 -- | Where all the tests are to be found
 examplesDir :: FilePath
@@ -134,7 +139,8 @@ parsedFileGhc fileName modname = do
 
             dflags'' = dflags' { GHC.importPaths = ["./tests/examples/","../tests/examples/"] }
 
-            dflags''' = dflags'' { GHC.hscTarget = GHC.HscInterpreted,
+            dflags''' = dflags'' { -- GHC.hscTarget = GHC.HscInterpreted,
+                                   GHC.hscTarget = GHC.HscNothing, -- allows FFI
                                    GHC.ghcLink =  GHC.LinkInMemory }
 
             dflags4 = if True -- useHaddock

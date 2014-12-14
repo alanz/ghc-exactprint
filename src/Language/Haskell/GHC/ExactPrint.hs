@@ -685,7 +685,7 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
     GHC.ValD d -> exactP d
     GHC.SigD d -> exactP d
     GHC.DefD d -> exactP d
-    GHC.ForD d -> printString "ForD"
+    GHC.ForD d -> exactP d
     GHC.WarningD d -> printString "WarningD"
     GHC.AnnD d -> printString "AnnD"
     GHC.RuleD d -> printString "RuleD"
@@ -694,6 +694,56 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
     GHC.DocD d -> printString "DocD"
     GHC.QuasiQuoteD d -> printString "QuasiQuoteD"
     GHC.RoleAnnotD d -> printString "RoleAnnotD"
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.ForeignDecl GHC.RdrName) where
+  exactP (GHC.ForeignImport ln typ _
+               (GHC.CImport cconv safety@(GHC.L ll _) mh imp (GHC.L ls src))) = do
+    printStringAtMaybeAnn GHC.AnnForeign "foreign"
+    printStringAtMaybeAnn GHC.AnnImport "import"
+
+    exactPC cconv
+
+    if ll == GHC.noSrcSpan
+      then return ()
+      else exactPC safety
+
+    printStringAtMaybeAnn GHC.AnnVal ("\"" ++ src ++ "\"")
+    exactPC ln
+    printStringAtMaybeAnn GHC.AnnDcolon "::"
+    exactPC typ
+
+  exactP (GHC.ForeignExport ln typ _ (GHC.CExport spec (GHC.L ls src))) = do
+    printStringAtMaybeAnn GHC.AnnForeign "foreign"
+    printStringAtMaybeAnn GHC.AnnExport "export"
+    exactPC spec
+    printStringAtMaybeAnn GHC.AnnVal ("\"" ++ src ++ "\"")
+    exactPC ln
+    printStringAtMaybeAnn GHC.AnnDcolon "::"
+    exactPC typ
+
+-- ---------------------------------------------------------------------
+
+instance (ExactP GHC.CExportSpec) where
+  exactP (GHC.CExportStatic _ cconv) = exactP cconv
+
+-- ---------------------------------------------------------------------
+
+instance ExactP GHC.CCallConv where
+  exactP GHC.StdCallConv        = printStringAtMaybeAnn GHC.AnnVal "stdcall"
+  exactP GHC.CCallConv          = printStringAtMaybeAnn GHC.AnnVal "ccall"
+  exactP GHC.CApiConv           = printStringAtMaybeAnn GHC.AnnVal "capi"
+  exactP GHC.PrimCallConv       = printStringAtMaybeAnn GHC.AnnVal "prim"
+  exactP GHC.JavaScriptCallConv = printStringAtMaybeAnn GHC.AnnVal "javascript"
+
+-- ---------------------------------------------------------------------
+
+instance ExactP GHC.Safety where
+  exactP GHC.PlayRisky         = printStringAtMaybeAnn GHC.AnnVal "unsafe"
+  exactP GHC.PlaySafe          = printStringAtMaybeAnn GHC.AnnVal "safe"
+  exactP GHC.PlayInterruptible = printStringAtMaybeAnn GHC.AnnVal "interruptible"
+
 
 -- ---------------------------------------------------------------------
 
