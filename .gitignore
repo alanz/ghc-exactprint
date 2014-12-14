@@ -20,3 +20,6 @@
 /tests/examples/Deriving.hs.exactprinter.out
 /tests/examples/Default.hs.exactprinter.out
 /tests/examples/ForeignDecl.hs.exactprinter.out
+/tests/examples/Deprecation.hs.exactprinter.out
+/tests/examples/Infix.hs.exactprinter.out
+/tests/examples/Mixed.hs.exactprinter.out

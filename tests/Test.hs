@@ -55,9 +55,11 @@ main = do
     manipulateAstTest "examples/DataFamilies.hs"          "DataFamilies"
     manipulateAstTest "examples/Deriving.hs"              "Main"
     manipulateAstTest "examples/Default.hs"               "Main"
--}
     manipulateAstTest "examples/ForeignDecl.hs"           "ForeignDecl"
+-}
+    manipulateAstTest "examples/Deprecation.hs"           "Deprecation"
 {-
+    manipulateAstTest "examples/Infix.hs"                 "Main"
     manipulateAstTest "examples/Mixed.hs"                 "Main"
     manipulateAstTest "examples/EmptyMostly.hs"           "EmptyMostly"
 -}

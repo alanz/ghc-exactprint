@@ -1,10 +1,9 @@
-{-# LANGUAGE DatatypeContexts #-}
 
 import Data.List  ()
 import Data.List  hiding ()
 
 infixl 1 `f`
-infixr 2 \\\
+-- infixr 2 `\\\`
 infix  3 :==>
 infix  4 `MkFoo`
 
@@ -45,19 +44,5 @@ instance Foo1 Int where
 ff = ff where g = g where
 type T = Int
 
--- ---------------------------------------------------------------------
-
-data () => Foo2 a = Foo2 a
-
-newtype () => Bar = Bar Int
-
-f2 :: () => Int -> Int
-f2 = (+1)
-
-
-class () => Fob a where
-
-instance () => Fob Int where
-instance () => Fob Float
 
 

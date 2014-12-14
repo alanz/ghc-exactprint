@@ -686,7 +686,7 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
     GHC.SigD d -> exactP d
     GHC.DefD d -> exactP d
     GHC.ForD d -> exactP d
-    GHC.WarningD d -> printString "WarningD"
+    GHC.WarningD d -> exactP d
     GHC.AnnD d -> printString "AnnD"
     GHC.RuleD d -> printString "RuleD"
     GHC.VectD d -> printString "VectD"
@@ -694,6 +694,29 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
     GHC.DocD d -> printString "DocD"
     GHC.QuasiQuoteD d -> printString "QuasiQuoteD"
     GHC.RoleAnnotD d -> printString "RoleAnnotD"
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.WarnDecls GHC.RdrName) where
+  exactP (GHC.Warnings src warns) = do
+    printStringAtMaybeAnn GHC.AnnOpen src
+    mapM_ exactPC warns
+    printStringAtMaybeAnn GHC.AnnClose "#-}"
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.WarnDecl GHC.RdrName) where
+  exactP (GHC.Warning lns txt) = do
+     mapM_ exactPC lns
+     printStringAtMaybeAnn GHC.AnnOpen "["
+     case txt of
+       GHC.WarningTxt    src ls -> mapM_ exactPC ls
+       GHC.DeprecatedTxt src ls -> mapM_ exactPC ls
+     printStringAtMaybeAnn GHC.AnnClose "]"
+
+
+instance ExactP GHC.FastString where
+  exactP fs = printStringAtMaybeAnn GHC.AnnVal ("\"" ++ GHC.unpackFS fs ++ "\"")
 
 -- ---------------------------------------------------------------------
 
@@ -1880,7 +1903,9 @@ instance ExactP [GHC.LConDecl GHC.RdrName] where
 
 instance ExactP (GHC.ConDecl GHC.RdrName) where
   exactP (GHC.ConDecl lns exp (GHC.HsQTvs _ns bndrs) ctx dets res _ _) = do
-    mapM_ exactPC lns
+    case dets of
+      GHC.InfixCon _ _ -> return ()
+      _ -> mapM_ exactPC lns
 
     printStringAtMaybeAnn GHC.AnnForall "forall"
     mapM_ exactPC bndrs
@@ -1891,7 +1916,10 @@ instance ExactP (GHC.ConDecl GHC.RdrName) where
     case dets of
       GHC.PrefixCon args -> mapM_ exactPC args
       GHC.RecCon fs -> exactPC fs
-      GHC.InfixCon a1 a2 -> exactPC a1 >> exactPC a2
+      GHC.InfixCon a1 a2 -> do
+        exactPC a1
+        mapM_ exactPC lns
+        exactPC a2
 
 
     printStringAtMaybeAnn GHC.AnnVbar "|"

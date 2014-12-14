@@ -438,7 +438,7 @@ instance AnnotateP GHC.RdrName where
       _ ->  do
         addDeltaAnnotation GHC.AnnType
         addDeltaAnnotation GHC.AnnOpen -- '('
-        addDeltaAnnotation GHC.AnnBackquote
+        addDeltaAnnotationLs GHC.AnnBackquote 0
         cnt <- countAnnsAP GHC.AnnVal
         case cnt of
           0 -> addDeltaAnnotationExt l GHC.AnnVal
@@ -446,7 +446,7 @@ instance AnnotateP GHC.RdrName where
           x -> error $ "annotateP.RdrName: too many AnnVal :" ++ showGhc (l,x)
         addDeltaAnnotation GHC.AnnTildehsh
         addDeltaAnnotation GHC.AnnTilde
-        addDeltaAnnotation GHC.AnnBackquote
+        addDeltaAnnotationLs GHC.AnnBackquote 1
         addDeltaAnnotation GHC.AnnClose -- ')'
 
 -- ---------------------------------------------------------------------
@@ -496,7 +496,7 @@ instance (GHC.OutputableBndr name,AnnotateP name) => AnnotateP (GHC.HsDecl name)
       GHC.SigD d -> annotateP l d
       GHC.DefD d -> annotateP l d
       GHC.ForD d -> annotateP l d
-      GHC.WarningD d -> error $ "annotateLHsDecl:unimplemented " ++ "WarningD"
+      GHC.WarningD d -> annotateP l d
       GHC.AnnD d -> error $ "annotateLHsDecl:unimplemented " ++ "AnnD"
       GHC.RuleD d -> error $ "annotateLHsDecl:unimplemented " ++ "RuleD"
       GHC.VectD d -> error $ "annotateLHsDecl:unimplemented " ++ "VectD"
@@ -504,6 +504,30 @@ instance (GHC.OutputableBndr name,AnnotateP name) => AnnotateP (GHC.HsDecl name)
       GHC.DocD d -> error $ "annotateLHsDecl:unimplemented " ++ "DocD"
       GHC.QuasiQuoteD d -> error $ "annotateLHsDecl:unimplemented " ++ "QuasiQuoteD"
       GHC.RoleAnnotD d -> error $ "annotateLHsDecl:unimplemented " ++ "RoleAnnotD"
+
+-- ---------------------------------------------------------------------
+
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+   => AnnotateP (GHC.WarnDecls name) where
+   annotateP l (GHC.Warnings src warns) = do
+     addDeltaAnnotation GHC.AnnOpen
+     mapM_ annotatePC warns
+     addDeltaAnnotation GHC.AnnClose
+
+-- ---------------------------------------------------------------------
+
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+   => AnnotateP (GHC.WarnDecl name) where
+   annotateP l (GHC.Warning lns txt) = do
+     mapM_ annotatePC lns
+     addDeltaAnnotation GHC.AnnOpen -- "["
+     case txt of
+       GHC.WarningTxt    src ls -> mapM_ annotatePC ls
+       GHC.DeprecatedTxt src ls -> mapM_ annotatePC ls
+     addDeltaAnnotation GHC.AnnClose -- "]"
+
+instance AnnotateP GHC.FastString where
+  annotateP l _ = addDeltaAnnotationExt l GHC.AnnVal
 
 -- ---------------------------------------------------------------------
 
@@ -1093,12 +1117,15 @@ annotateHsConPatDetails dets = do
     GHC.InfixCon a1 a2 -> annotatePC a1 >> annotatePC a2
 
 annotateHsConDeclDetails :: (GHC.OutputableBndr name,AnnotateP name)
-                    =>  GHC.HsConDeclDetails name -> AP ()
-annotateHsConDeclDetails dets = do
+                    =>  [GHC.Located name] -> GHC.HsConDeclDetails name -> AP ()
+annotateHsConDeclDetails lns dets = do
   case dets of
     GHC.PrefixCon args -> mapM_ annotatePC args
     GHC.RecCon fs -> annotatePC fs
-    GHC.InfixCon a1 a2 -> annotatePC a1 >> annotatePC a2
+    GHC.InfixCon a1 a2 -> do
+      annotatePC a1
+      mapM_ annotatePC lns
+      annotatePC a2
 
 -- ---------------------------------------------------------------------
 
@@ -1682,7 +1709,9 @@ instance (Typeable name,AnnotateP name,GHC.OutputableBndr name)
       => AnnotateP (GHC.ConDecl name) where
   annotateP l (GHC.ConDecl lns exp (GHC.HsQTvs _ns bndrs) ctx
                          dets _res _ _) = do
-    mapM_ annotatePC lns
+    case dets of
+      GHC.InfixCon _ _ -> return ()
+      _ -> mapM_ annotatePC lns
 
     addDeltaAnnotation GHC.AnnForall
     mapM_ annotatePC bndrs
@@ -1691,7 +1720,7 @@ instance (Typeable name,AnnotateP name,GHC.OutputableBndr name)
     annotatePC ctx
     addDeltaAnnotationLs GHC.AnnDarrow 0
 
-    annotateHsConDeclDetails dets
+    annotateHsConDeclDetails lns dets
 
     addDeltaAnnotation GHC.AnnVbar
 
