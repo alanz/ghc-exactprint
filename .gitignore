@@ -18,3 +18,4 @@
 /tests/examples/TypeFamilies.hs.exactprinter.out
 /tests/examples/DataFamilies.hs.exactprinter.out
 /tests/examples/Deriving.hs.exactprinter.out
+/tests/examples/Default.hs.exactprinter.out

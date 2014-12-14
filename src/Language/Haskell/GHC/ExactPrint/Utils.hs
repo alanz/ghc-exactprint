@@ -494,7 +494,7 @@ instance (GHC.OutputableBndr name,AnnotateP name) => AnnotateP (GHC.HsDecl name)
       GHC.DerivD d -> annotateP l d
       GHC.ValD d -> annotateP l d
       GHC.SigD d -> annotateP l d
-      GHC.DefD d -> error $ "annotateLHsDecl:unimplemented " ++ "DefD"
+      GHC.DefD d -> annotateP l d
       GHC.ForD d -> error $ "annotateLHsDecl:unimplemented " ++ "ForD"
       GHC.WarningD d -> error $ "annotateLHsDecl:unimplemented " ++ "WarningD"
       GHC.AnnD d -> error $ "annotateLHsDecl:unimplemented " ++ "AnnD"
@@ -516,15 +516,17 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
     annotateMaybe mov
     annotatePC typ
 
-{-
-DerivDecl
+-- ---------------------------------------------------------------------
 
-deriv_type :: LHsType name
-deriv_overlap_mode :: Maybe (Located OverlapMode)
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+   => AnnotateP (GHC.DefaultDecl name) where
 
-        AnnKeywordId : AnnOpen, AnnClose, AnnDeriving, AnnInstance,
+  annotateP l (GHC.DefaultDecl typs) = do
+    addDeltaAnnotation GHC.AnnDefault
+    addDeltaAnnotation GHC.AnnOpen -- '('
+    mapM_ annotatePC typs
+    addDeltaAnnotation GHC.AnnClose -- ')'
 
--}
 -- ---------------------------------------------------------------------
 
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)

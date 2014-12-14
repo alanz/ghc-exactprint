@@ -684,7 +684,7 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
     GHC.DerivD d -> exactP d
     GHC.ValD d -> exactP d
     GHC.SigD d -> exactP d
-    GHC.DefD d -> printString "DefD"
+    GHC.DefD d -> exactP d
     GHC.ForD d -> printString "ForD"
     GHC.WarningD d -> printString "WarningD"
     GHC.AnnD d -> printString "AnnD"
@@ -705,6 +705,15 @@ instance ExactP (GHC.DerivDecl GHC.RdrName) where
       Nothing -> return ()
       Just ov -> exactPC ov
     exactPC typ
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.DefaultDecl GHC.RdrName) where
+  exactP (GHC.DefaultDecl typs) = do
+    printStringAtMaybeAnn GHC.AnnDefault "default"
+    printStringAtMaybeAnn GHC.AnnOpen "("
+    mapM_ exactPC typs
+    printStringAtMaybeAnn GHC.AnnClose ")"
 
 -- ---------------------------------------------------------------------
 

@@ -53,8 +53,9 @@ main = do
     manipulateAstTest "examples/TypeFamilies.hs"          "Main"
     manipulateAstTest "examples/MultiParamTypeClasses.hs" "Main"
     manipulateAstTest "examples/DataFamilies.hs"          "DataFamilies"
--}
     manipulateAstTest "examples/Deriving.hs"              "Main"
+-}
+    manipulateAstTest "examples/Default.hs"               "Main"
 
 -- | Where all the tests are to be found
 examplesDir :: FilePath
