@@ -16,3 +16,4 @@
 /tests/examples/ImplicitParams.hs.exactprinter.out
 /tests/examples/RecursiveDo.hs.exactprinter.out
 /tests/examples/TypeFamilies.hs.exactprinter.out
+/tests/examples/DataFamilies.hs.exactprinter.out

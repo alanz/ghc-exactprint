@@ -509,45 +509,10 @@ instance (GHC.OutputableBndr name,AnnotateP name) => AnnotateP (GHC.HsDecl name)
 
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.InstDecl name) where
-  annotateP l (GHC.ClsInstD (GHC.ClsInstDecl poly binds sigs tyfams datafams mov)) = do
-    addDeltaAnnotation GHC.AnnInstance
-    annotateMaybe mov
-    annotatePC poly
-    addDeltaAnnotation GHC.AnnWhere
 
-    -- must merge all the rest
-    {-
-    let lbinds    = map (\b@(GHC.L l _) -> (l,annotatePC b)) (GHC.bagToList binds)
-        lsigs     = map (\b@(GHC.L l _) -> (l,annotatePC b)) sigs
-        ltyfams   = map (\b@(GHC.L l _) -> (l,annotatePC b)) tyfams
-        ldatafams = map (\b@(GHC.L l _) -> (l,annotatePC b)) datafams
-
-    mapM_ (\(_,b) -> b) $ sortBy (\(a,_) (b,_) -> compare a b) (lbinds ++ lsigs ++ ltyfams ++ ldatafams)
-    -}
-    applyListAnnotations (prepareListAnnotation (GHC.bagToList binds)
-                       ++ prepareListAnnotation sigs
-                       ++ prepareListAnnotation tyfams
-                       ++ prepareListAnnotation datafams
-                         )
-
-  annotateP l (GHC.DataFamInstD _) = assert False undefined
-
-  annotateP l (GHC.TyFamInstD _) = assert False undefined
-{-
-
-ClsInstDecl
-
-    AnnKeywordId : AnnInstance, AnnWhere, AnnOpen,AnnClose,
-
-cid_poly_ty :: LHsType name
-cid_binds :: LHsBinds name
-cid_sigs :: [LSig name]
-cid_tyfam_insts :: [LTyFamInstDecl name]
-cid_datafam_insts :: [LDataFamInstDecl name]
-cid_overlap_mode :: Maybe (Located OverlapMode)
-
-        AnnKeywordId : AnnOpen, AnnClose,
--}
+  annotateP l (GHC.ClsInstD      cid) = annotateP l  cid
+  annotateP l (GHC.DataFamInstD dfid) = annotateP l dfid
+  annotateP l (GHC.TyFamInstD   tfid) = annotateP l tfid
 
 -- ---------------------------------------------------------------------
 
@@ -559,40 +524,47 @@ instance AnnotateP (GHC.OverlapMode) where
 -- ---------------------------------------------------------------------
 
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+   => AnnotateP (GHC.ClsInstDecl name) where
+
+  annotateP l (GHC.ClsInstDecl poly binds sigs tyfams datafams mov) = do
+    addDeltaAnnotation GHC.AnnInstance
+    annotateMaybe mov
+    annotatePC poly
+    addDeltaAnnotation GHC.AnnWhere
+    addDeltaAnnotation GHC.AnnOpen -- '{'
+
+    -- must merge all the rest
+    applyListAnnotations (prepareListAnnotation (GHC.bagToList binds)
+                       ++ prepareListAnnotation sigs
+                       ++ prepareListAnnotation tyfams
+                       ++ prepareListAnnotation datafams
+                         )
+
+    addDeltaAnnotation GHC.AnnClose -- '}'
+
+-- ---------------------------------------------------------------------
+
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.TyFamInstDecl name) where
 
   annotateP l (GHC.TyFamInstDecl eqn _) = do
     addDeltaAnnotation GHC.AnnType
     addDeltaAnnotation GHC.AnnInstance
     annotatePC eqn
-{-
-        (L {examples/TypeFamilies.hs:50:3-28} 
-         (TyFamInstDecl 
-          (L {examples/TypeFamilies.hs:50:8-28} 
-           (TyFamEqn 
-            (L {examples/TypeFamilies.hs:50:8-17} 
-             (Unqual {OccName: StoreMonad})) 
-            (HsWB 
-             [
-              (L {examples/TypeFamilies.hs:50:19-22} 
-               (HsTyVar 
-                (Unqual {OccName: TVar})))] 
-             (PlaceHolder) 
-             (PlaceHolder) 
-             (PlaceHolder)) 
-            (L {examples/TypeFamilies.hs:50:26-28} 
-             (HsTyVar 
-              (Unqual {OccName: STM}))))) 
-          (PlaceHolder)))] 
-
--}
 
 -- ---------------------------------------------------------------------
 
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.DataFamInstDecl name) where
 
-  annotateP = assert False undefined
+  annotateP l (GHC.DataFamInstDecl ln (GHC.HsWB pats _ _ _) defn _) = do
+    addDeltaAnnotation GHC.AnnData
+    addDeltaAnnotation GHC.AnnNewtype
+    addDeltaAnnotation GHC.AnnInstance
+    annotatePC ln
+    mapM_ annotatePC pats
+    addDeltaAnnotation GHC.AnnEqual
+    annotateDataDefn l defn
 
 -- ---------------------------------------------------------------------
 
@@ -654,8 +626,13 @@ instance AnnotateP GHC.HsIPName where
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
-                          AnnotateP (GHC.Match name (GHC.LHsExpr name)) where
+-- instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+--   => AnnotateP (GHC.Match name (GHC.LHsExpr name)) where
+
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,
+          Typeable body,                        AnnotateP body)
+  => AnnotateP (GHC.Match name (GHC.Located body)) where
+
   annotateP l (GHC.Match pats _typ grhss@(GHC.GRHSs grhs lb)) = do
     isInfix <- getFunIsInfix
     case (isInfix,pats) of
@@ -683,8 +660,12 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
-                        AnnotateP (GHC.GRHS name (GHC.LHsExpr name)) where
+-- instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+--   => AnnotateP (GHC.GRHS name (GHC.LHsExpr name)) where
+
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,
+          Typeable body,                        AnnotateP body)
+  => AnnotateP (GHC.GRHS name (GHC.Located body)) where
   annotateP l (GHC.GRHS guards expr) = do
 
     addDeltaAnnotation GHC.AnnVbar
@@ -1135,35 +1116,38 @@ annotateParStmtBlock (GHC.ParStmtBlock stmts ns _) = do
 
 -- ---------------------------------------------------------------------
 
-annotateHsLocalBinds :: (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
-                                      (GHC.HsLocalBinds name) -> AP ()
+annotateHsLocalBinds :: (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+                     => (GHC.HsLocalBinds name) -> AP ()
 annotateHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
-    {-
-    let lbs = map (\b@(GHC.L l _) -> (l,annotatePC b)) (GHC.bagToList binds)
-        lss = map (\b@(GHC.L l _) -> (l,annotatePC b)) sigs
-
-    -- TODO: use interleave
-    mapM_ (\(_,b) -> b) $ sortBy (\(a,_) (b,_) -> compare a b)  lss ++ lbs
-    -}
     applyListAnnotations (prepareListAnnotation (GHC.bagToList binds)
                        ++ prepareListAnnotation sigs
                          )
+annotateHsLocalBinds (GHC.HsValBinds (GHC.ValBindsOut {}))
+   = error $ "annotateHsLocalBinds: only valid after type checking"
 
-annotateHsLocalBinds (GHC.HsValBinds _) = assert False undefined
 annotateHsLocalBinds (GHC.HsIPBinds (GHC.IPBinds binds _)) = mapM_ annotatePC binds
 annotateHsLocalBinds (GHC.EmptyLocalBinds) = return ()
 
 -- ---------------------------------------------------------------------
 
-
--- ---------------------------------------------------------------------
-
-annotateMatchGroup :: (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
-                      (GHC.MatchGroup name (GHC.LHsExpr name))
+-- annotateMatchGroup :: (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+--                    =>   (GHC.MatchGroup name (GHC.LHsExpr name))
+--                    -> AP ()
+annotateMatchGroup :: (Typeable name,GHC.OutputableBndr name,AnnotateP name,
+                       Typeable body,                        AnnotateP body)
+                   =>   (GHC.MatchGroup name (GHC.Located body))
                    -> AP ()
 annotateMatchGroup (GHC.MG matches _ _ _)
   = mapM_ annotatePC matches
 
+-- ---------------------------------------------------------------------
+{-
+annotateCmdMatchGroup :: (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
+                      (GHC.MatchGroup name (GHC.LHsCmd name))
+                   -> AP ()
+annotateCmdMatchGroup (GHC.MG matches _ _ _)
+  = mapM_ annotatePC matches
+-}
 -- ---------------------------------------------------------------------
 
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
@@ -1172,6 +1156,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
   annotateP l (GHC.HsIPVar _)         = addDeltaAnnotationExt l GHC.AnnVal
   annotateP l (GHC.HsOverLit ov)      = addDeltaAnnotationExt l GHC.AnnVal
   annotateP l (GHC.HsLit _)           = addDeltaAnnotationExt l GHC.AnnVal
+
   annotateP l (GHC.HsLam match)       = do
     addDeltaAnnotation GHC.AnnLam
     annotateMatchGroup match
@@ -1442,11 +1427,75 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name) => AnnotateP (GHC.HsCmdTop name) where
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+  => AnnotateP (GHC.HsCmdTop name) where
   annotateP l (GHC.HsCmdTop cmd _ _ _) = annotatePC cmd
 
-instance (Typeable name) => AnnotateP (GHC.HsCmd name) where
-  annotateP = assert False undefined
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+   => AnnotateP (GHC.HsCmd name) where
+  annotateP l (GHC.HsCmdArrApp e1 e2 _ _ _) = do
+    annotatePC e1
+    -- only one of the next 4 will be resent
+    addDeltaAnnotation GHC.Annlarrowtail
+    addDeltaAnnotation GHC.Annrarrowtail
+    addDeltaAnnotation GHC.AnnLarrowtail
+    addDeltaAnnotation GHC.AnnRarrowtail
+
+    annotatePC e1
+
+  annotateP l (GHC.HsCmdArrForm e mf cs) = do
+    addDeltaAnnotation GHC.AnnOpen -- '(|'
+    annotatePC e
+    mapM_ annotatePC cs
+    addDeltaAnnotation GHC.AnnClose -- '|)'
+
+  annotateP l (GHC.HsCmdApp e1 e2) = do
+    annotatePC e1
+    annotatePC e2
+
+  annotateP l (GHC.HsCmdLam match) = do
+    addDeltaAnnotation GHC.AnnLam
+    annotateMatchGroup match
+
+  annotateP l (GHC.HsCmdPar e) = do
+    addDeltaAnnotation GHC.AnnOpen -- '('
+    annotatePC e
+    addDeltaAnnotation GHC.AnnClose -- ')'
+
+  annotateP l (GHC.HsCmdCase e1 matches) = do
+    addDeltaAnnotation GHC.AnnCase
+    annotatePC e1
+    addDeltaAnnotation GHC.AnnOf
+    addDeltaAnnotation GHC.AnnOpen
+    annotateMatchGroup matches
+    addDeltaAnnotation GHC.AnnClose
+
+  annotateP l (GHC.HsCmdIf _ e1 e2 e3) = do
+    addDeltaAnnotation GHC.AnnIf
+    annotatePC e1
+    addDeltaAnnotationLs GHC.AnnSemi 0
+    addDeltaAnnotation GHC.AnnThen
+    annotatePC e2
+    addDeltaAnnotationLs GHC.AnnSemi 1
+    addDeltaAnnotation GHC.AnnElse
+    annotatePC e3
+
+  annotateP l (GHC.HsCmdLet binds e) = do
+    addDeltaAnnotation GHC.AnnLet
+    addDeltaAnnotation GHC.AnnOpen
+    annotateHsLocalBinds binds
+    addDeltaAnnotation GHC.AnnClose
+    addDeltaAnnotation GHC.AnnIn
+    annotatePC e
+
+  annotateP l (GHC.HsCmdDo es _) = do
+    addDeltaAnnotation GHC.AnnDo
+    addDeltaAnnotation GHC.AnnOpen
+    mapM_ annotatePC es
+    addDeltaAnnotation GHC.AnnClose
+
+  annotateP l (GHC.HsCmdCast {}) = error $ "annotateP.HsCmdCast: only valid after type checker"
+
 
 -- ---------------------------------------------------------------------
 
@@ -1480,22 +1529,14 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
     addDeltaAnnotation GHC.AnnVbar
     mapM_ annotatePC fds
     addDeltaAnnotation GHC.AnnWhere
-
-    {-
-    -- will have to interleave all the different pieces
-    -- but first make sure we can do each one individually
-    mapM_ annotatePC sigs
-    mapM_ annotatePC (GHC.bagToList meths)
-    mapM_ annotatePC ats
-    mapM_ annotatePC atdefs
-    mapM_ annotatePC docs
-    -}
+    addDeltaAnnotation GHC.AnnOpen -- '{'
     applyListAnnotations (prepareListAnnotation sigs
                        ++ prepareListAnnotation (GHC.bagToList meths)
                        ++ prepareListAnnotation ats
                        ++ prepareListAnnotation atdefs
                        ++ prepareListAnnotation docs
                          )
+    addDeltaAnnotation GHC.AnnClose -- '}'
 
 -- ---------------------------------------------------------------------
 
@@ -1519,36 +1560,6 @@ instance (Typeable name,AnnotateP name, GHC.OutputableBndr name)
       _ -> return ()
     addDeltaAnnotation GHC.AnnClose -- }
 
-{-
-FamilyDecl
-
-fdInfo :: FamilyInfo name
-fdLName :: Located name
-fdTyVars :: LHsTyVarBndrs name
-fdKindSig :: Maybe (LHsKind name)
-
-
--}
-
--- ---------------------------------------------------------------------
-{-
-instance (Typeable name,Typeable pats)
-   => AnnotateP (GHC.TyFamEqn name pats) where
-   annotateP l (GHC.TyFamEqn ln pats typ) = do
-     annotatePC ln
-     annotatePC pats
-     addDeltaAnnotation GHC.AnnEqual
-     annotatePC typ
--}
-{-
-TyFamEqn
-       { tfe_tycon :: Located name
-       , tfe_pats  :: pats
-       , tfe_rhs   :: LHsType name }
-    -- ^
-    --  - 'ApiAnnotation.AnnKeywordId' : 'ApiAnnotation.AnnEqual'
--}
-
 -- ---------------------------------------------------------------------
 
 instance (Typeable name,AnnotateP name,GHC.OutputableBndr name)
@@ -1570,11 +1581,6 @@ instance (Typeable name,AnnotateP name,GHC.OutputableBndr name)
     addDeltaAnnotation GHC.AnnEqual
     annotatePC typ
 
--- ---------------------------------------------------------------------
-{-
-instance (Typeable name) => AnnotateP (GHC.TyFamEqn name) where
-  annotateP = assert False undefined
--}
 -- ---------------------------------------------------------------------
 
 instance AnnotateP GHC.DocDecl where
@@ -1598,8 +1604,6 @@ annotateDataDefn l (GHC.HsDataDefn _ ctx typ mk cons mderivs) = do
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
      => AnnotateP [GHC.LHsType name] where
   annotateP l ts = do
-    -- addDeltaAnnotation GHC.AnnUnit -- For HsContext
-
     addDeltaAnnotation GHC.AnnDeriving
     addDeltaAnnotation GHC.AnnOpen
     mapM_ annotatePC ts
