@@ -566,13 +566,17 @@ class (Typeable ast) => ExactP ast where
   exactP :: ast -> EP ()
 
 instance ExactP (GHC.HsModule GHC.RdrName) where
-  exactP (GHC.HsModule mmn mexp limps decls deprecs haddock) = do
+  exactP (GHC.HsModule mmn mexp limps decls mdepr haddock) = do
 
     case mmn of
       Just lmn@(GHC.L l mn) -> do
         printStringAtMaybeAnn GHC.AnnModule "module" -- `debug` ("exactP.HsModule:cs=" ++ show cs)
         printStringAtMaybeAnn GHC.AnnVal (GHC.moduleNameString mn)
       Nothing -> return ()
+
+    case mdepr of
+      Nothing -> return ()
+      Just depr -> exactPC depr
 
     case mexp of
       Just lexps -> do
@@ -594,6 +598,23 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
 
     -- put the end of file whitespace in
     printStringAtMaybeAnn GHC.AnnEofPos ""
+
+-- ---------------------------------------------------------------------
+
+instance ExactP GHC.WarningTxt where
+  exactP (GHC.WarningTxt (GHC.L _ ls) lss) = do
+    printStringAtMaybeAnn GHC.AnnOpen ls
+    printStringAtMaybeAnn GHC.AnnOpen "["
+    mapM_ exactPC lss
+    printStringAtMaybeAnn GHC.AnnClose "]"
+    printStringAtMaybeAnn GHC.AnnClose "#-}"
+
+  exactP (GHC.DeprecatedTxt (GHC.L _ ls) lss) = do
+    printStringAtMaybeAnn GHC.AnnOpen ls
+    printStringAtMaybeAnn GHC.AnnOpen "["
+    mapM_ exactPC lss
+    printStringAtMaybeAnn GHC.AnnClose "]"
+    printStringAtMaybeAnn GHC.AnnClose "#-}"
 
 -- ---------------------------------------------------------------------
 

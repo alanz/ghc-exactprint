@@ -23,3 +23,4 @@
 /tests/examples/Deprecation.hs.exactprinter.out
 /tests/examples/Infix.hs.exactprinter.out
 /tests/examples/Mixed.hs.exactprinter.out
+/tests/examples/Warning.hs.exactprinter.out

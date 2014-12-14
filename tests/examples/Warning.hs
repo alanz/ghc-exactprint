@@ -1,14 +1,16 @@
 
-module Deprecation
-{-# Deprecated ["This is a module deprecation",
+module Warning
+{-# WARNINg ["This is a module warning",
              "multi-line"] #-}
-   ( foo )
- where
+  where
 
-{-# DEPRECATEd   foo
+{-# Warning   foo ,  bar
          ["This is a multi-line",
           "deprecation message",
           "for foo"] #-}
 foo :: Int
 foo = 4
+
+bar :: Char
+bar = 'c'
 

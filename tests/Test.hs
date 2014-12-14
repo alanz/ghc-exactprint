@@ -56,6 +56,7 @@ main = do
     manipulateAstTest "examples/Deriving.hs"              "Main"
     manipulateAstTest "examples/Default.hs"               "Main"
     manipulateAstTest "examples/ForeignDecl.hs"           "ForeignDecl"
+    manipulateAstTest "examples/Warning.hs"               "Warning"
 -}
     manipulateAstTest "examples/Deprecation.hs"           "Deprecation"
 {-

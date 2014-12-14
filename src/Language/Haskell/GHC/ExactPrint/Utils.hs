@@ -354,7 +354,7 @@ annotateLHsModule modu ghcAnns
 -- ---------------------------------------------------------------------
 
 instance AnnotateP (GHC.HsModule GHC.RdrName) where
-  annotateP lm (GHC.HsModule mmn mexp imps decs _depr _haddock) = do
+  annotateP lm (GHC.HsModule mmn mexp imps decs mdepr _haddock) = do
     return () `debug` ("annotateP.HsModule entered")
     setPriorEnd lm
 
@@ -364,6 +364,8 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
     case mmn of
       Nothing -> return ()
       Just (GHC.L ln _) -> addDeltaAnnotationExt ln GHC.AnnVal
+
+    annotateMaybe mdepr
 
     case mexp of
       Nothing -> return ()
@@ -382,6 +384,21 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
 
     addEofAnnotation
 
+
+-- ---------------------------------------------------------------------
+
+instance AnnotateP GHC.WarningTxt where
+  annotateP l (GHC.WarningTxt (GHC.L ls _) lss) = do
+    addDeltaAnnotationExt ls GHC.AnnOpen
+    addDeltaAnnotationLs GHC.AnnOpen 1
+    mapM_ annotatePC lss
+    addDeltaAnnotations GHC.AnnClose
+
+  annotateP l (GHC.DeprecatedTxt (GHC.L ls _) lss) = do
+    addDeltaAnnotationExt ls GHC.AnnOpen
+    addDeltaAnnotationLs GHC.AnnOpen 1
+    mapM_ annotatePC lss
+    addDeltaAnnotations GHC.AnnClose
 
 -- ---------------------------------------------------------------------
 
