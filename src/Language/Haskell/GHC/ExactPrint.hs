@@ -681,7 +681,7 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
   exactP decl = case decl of
     GHC.TyClD d -> exactP d
     GHC.InstD d -> exactP d
-    GHC.DerivD d -> printString "DerivD"
+    GHC.DerivD d -> exactP d
     GHC.ValD d -> exactP d
     GHC.SigD d -> exactP d
     GHC.DefD d -> printString "DefD"
@@ -694,6 +694,17 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
     GHC.DocD d -> printString "DocD"
     GHC.QuasiQuoteD d -> printString "QuasiQuoteD"
     GHC.RoleAnnotD d -> printString "RoleAnnotD"
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.DerivDecl GHC.RdrName) where
+  exactP (GHC.DerivDecl typ mov) = do
+    printStringAtMaybeAnn GHC.AnnDeriving "deriving"
+    printStringAtMaybeAnn GHC.AnnInstance "instance"
+    case mov of
+      Nothing -> return ()
+      Just ov -> exactPC ov
+    exactPC typ
 
 -- ---------------------------------------------------------------------
 

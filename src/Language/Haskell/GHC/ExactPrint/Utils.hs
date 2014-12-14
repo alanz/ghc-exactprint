@@ -491,7 +491,7 @@ instance (GHC.OutputableBndr name,AnnotateP name) => AnnotateP (GHC.HsDecl name)
     case decl of
       GHC.TyClD d -> annotateP l d
       GHC.InstD d -> annotateP l d
-      GHC.DerivD d -> error $ "annotateLHsDecl:unimplemented " ++ "DerivD"
+      GHC.DerivD d -> annotateP l d
       GHC.ValD d -> annotateP l d
       GHC.SigD d -> annotateP l d
       GHC.DefD d -> error $ "annotateLHsDecl:unimplemented " ++ "DefD"
@@ -505,6 +505,26 @@ instance (GHC.OutputableBndr name,AnnotateP name) => AnnotateP (GHC.HsDecl name)
       GHC.QuasiQuoteD d -> error $ "annotateLHsDecl:unimplemented " ++ "QuasiQuoteD"
       GHC.RoleAnnotD d -> error $ "annotateLHsDecl:unimplemented " ++ "RoleAnnotD"
 
+-- ---------------------------------------------------------------------
+
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+   => AnnotateP (GHC.DerivDecl name) where
+
+  annotateP l (GHC.DerivDecl typ mov) = do
+    addDeltaAnnotation GHC.AnnDeriving
+    addDeltaAnnotation GHC.AnnInstance
+    annotateMaybe mov
+    annotatePC typ
+
+{-
+DerivDecl
+
+deriv_type :: LHsType name
+deriv_overlap_mode :: Maybe (Located OverlapMode)
+
+        AnnKeywordId : AnnOpen, AnnClose, AnnDeriving, AnnInstance,
+
+-}
 -- ---------------------------------------------------------------------
 
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
