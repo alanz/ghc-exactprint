@@ -700,21 +700,76 @@ doMaybe f ma = case ma of
 
 instance ExactP (GHC.HsDecl GHC.RdrName) where
   exactP decl = case decl of
-    GHC.TyClD d -> exactP d
-    GHC.InstD d -> exactP d
-    GHC.DerivD d -> exactP d
-    GHC.ValD d -> exactP d
-    GHC.SigD d -> exactP d
-    GHC.DefD d -> exactP d
-    GHC.ForD d -> exactP d
-    GHC.WarningD d -> exactP d
-    GHC.AnnD d -> printString "AnnD"
-    GHC.RuleD d -> printString "RuleD"
-    GHC.VectD d -> printString "VectD"
-    GHC.SpliceD d -> printString "SpliceD"
-    GHC.DocD d -> printString "DocD"
+    GHC.TyClD d       -> exactP d
+    GHC.InstD d       -> exactP d
+    GHC.DerivD d      -> exactP d
+    GHC.ValD d        -> exactP d
+    GHC.SigD d        -> exactP d
+    GHC.DefD d        -> exactP d
+    GHC.ForD d        -> exactP d
+    GHC.WarningD d    -> exactP d
+    GHC.AnnD d        -> exactP d
+    GHC.RuleD d       -> exactP d
+    GHC.VectD d       -> printString "VectD"
+    GHC.SpliceD d     -> printString "SpliceD"
+    GHC.DocD d        -> printString "DocD"
     GHC.QuasiQuoteD d -> printString "QuasiQuoteD"
-    GHC.RoleAnnotD d -> printString "RoleAnnotD"
+    GHC.RoleAnnotD d  -> printString "RoleAnnotD"
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.RuleDecls GHC.RdrName) where
+  exactP (GHC.HsRules src rules) = do
+    printStringAtMaybeAnn GHC.AnnOpen src
+    mapM_ exactPC rules
+    printStringAtMaybeAnn GHC.AnnClose "#-}"
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.AnnDecl GHC.RdrName) where
+  exactP (GHC.HsAnnotation src prov e) = do
+    printStringAtMaybeAnn GHC.AnnOpen src
+    printStringAtMaybeAnn GHC.AnnType "type"
+    printStringAtMaybeAnn GHC.AnnModule "module"
+    case prov of
+      (GHC.ValueAnnProvenance n) -> exactPC n
+      (GHC.TypeAnnProvenance n) -> exactPC n
+      (GHC.ModuleAnnProvenance) -> return ()
+    exactPC e
+    printStringAtMaybeAnn GHC.AnnClose "#-}"
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.RuleDecl GHC.RdrName) where
+  exactP (GHC.HsRule ln act bndrs lhs _ rhs _) = do
+    exactPC ln
+    -- activation
+    printStringAtMaybeAnn GHC.AnnOpen "["
+    printStringAtMaybeAnn GHC.AnnTilde "~"
+    case act of
+      GHC.ActiveBefore n -> printStringAtMaybeAnn GHC.AnnVal (show n)
+      GHC.ActiveAfter n  -> printStringAtMaybeAnn GHC.AnnVal (show n)
+      _                  -> return ()
+    printStringAtMaybeAnn GHC.AnnClose "]"
+
+    printStringAtMaybeAnn GHC.AnnForall "forall"
+    mapM_ exactPC bndrs
+    printStringAtMaybeAnn GHC.AnnDot "."
+
+    exactPC lhs
+    printStringAtMaybeAnn GHC.AnnEqual "="
+    exactPC rhs
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.RuleBndr GHC.RdrName) where
+  exactP (GHC.RuleBndr ln) = exactPC ln
+  exactP (GHC.RuleBndrSig ln (GHC.HsWB thing _ _ _)) = do
+    printStringAtMaybeAnn GHC.AnnOpen "("
+    exactPC ln
+    printStringAtMaybeAnn GHC.AnnDcolon "::"
+    exactPC thing
+    printStringAtMaybeAnn GHC.AnnClose ")"
 
 -- ---------------------------------------------------------------------
 
@@ -1000,15 +1055,20 @@ instance ExactP (GHC.Pat GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnClose ":]"
 
   exactP (GHC.ConPatIn n dets) = do
-    exactPC n
     case dets of
-      GHC.PrefixCon args -> mapM_ exactPC args
+      GHC.PrefixCon args -> do
+        exactPC n
+        mapM_ exactPC args
       GHC.RecCon (GHC.HsRecFields fs _) -> do
+        exactPC n
         printStringAtMaybeAnn GHC.AnnOpen "{"
         mapM_ exactPC fs
         printStringAtMaybeAnn GHC.AnnDotdot ".."
         printStringAtMaybeAnn GHC.AnnClose "}"
-      GHC.InfixCon a1 a2 -> exactPC a1 >> exactPC a2
+      GHC.InfixCon a1 a2 -> do
+        exactPC a1
+        exactPC n
+        exactPC a2
 
   exactP (GHC.ConPatOut {}) = return ()
 

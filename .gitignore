@@ -24,3 +24,5 @@
 /tests/examples/Infix.hs.exactprinter.out
 /tests/examples/Mixed.hs.exactprinter.out
 /tests/examples/Warning.hs.exactprinter.out
+/tests/examples/Annotations.hs.exactprinter.out
+/tests/examples/Rules.hs.exactprinter.out

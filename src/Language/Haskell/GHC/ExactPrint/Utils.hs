@@ -514,13 +514,70 @@ instance (GHC.OutputableBndr name,AnnotateP name) => AnnotateP (GHC.HsDecl name)
       GHC.DefD d -> annotateP l d
       GHC.ForD d -> annotateP l d
       GHC.WarningD d -> annotateP l d
-      GHC.AnnD d -> error $ "annotateLHsDecl:unimplemented " ++ "AnnD"
-      GHC.RuleD d -> error $ "annotateLHsDecl:unimplemented " ++ "RuleD"
+      GHC.AnnD d -> annotateP l d
+      GHC.RuleD d -> annotateP l d
       GHC.VectD d -> error $ "annotateLHsDecl:unimplemented " ++ "VectD"
       GHC.SpliceD d -> error $ "annotateLHsDecl:unimplemented " ++ "SpliceD"
       GHC.DocD d -> error $ "annotateLHsDecl:unimplemented " ++ "DocD"
       GHC.QuasiQuoteD d -> error $ "annotateLHsDecl:unimplemented " ++ "QuasiQuoteD"
       GHC.RoleAnnotD d -> error $ "annotateLHsDecl:unimplemented " ++ "RoleAnnotD"
+
+-- ---------------------------------------------------------------------
+
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+   => AnnotateP (GHC.RuleDecls name) where
+   annotateP l (GHC.HsRules src rules) = do
+     addDeltaAnnotation GHC.AnnOpen
+     mapM_ annotatePC rules
+     addDeltaAnnotation GHC.AnnClose
+
+-- ---------------------------------------------------------------------
+
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+   => AnnotateP (GHC.RuleDecl name) where
+  annotateP l (GHC.HsRule ln act bndrs lhs _ rhs _) = do
+    annotatePC ln
+    -- activation
+    addDeltaAnnotation GHC.AnnOpen -- "["
+    addDeltaAnnotation GHC.AnnTilde
+    addDeltaAnnotation GHC.AnnVal
+    addDeltaAnnotation GHC.AnnClose -- "]"
+
+    addDeltaAnnotation GHC.AnnForall
+    mapM_ annotatePC bndrs
+    addDeltaAnnotation GHC.AnnDot
+
+    annotatePC lhs
+    addDeltaAnnotation GHC.AnnEqual
+    annotatePC rhs
+
+-- ---------------------------------------------------------------------
+
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+   => AnnotateP (GHC.RuleBndr name) where
+  annotateP l (GHC.RuleBndr ln) = annotatePC ln
+  annotateP l (GHC.RuleBndrSig ln (GHC.HsWB thing _ _ _)) = do
+    addDeltaAnnotation GHC.AnnOpen -- "("
+    annotatePC ln
+    addDeltaAnnotation GHC.AnnDcolon
+    annotatePC thing
+    addDeltaAnnotation GHC.AnnClose -- ")"
+
+-- ---------------------------------------------------------------------
+
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+   => AnnotateP (GHC.AnnDecl name) where
+   annotateP l (GHC.HsAnnotation src prov e) = do
+     addDeltaAnnotation GHC.AnnOpen -- "{-# Ann"
+     addDeltaAnnotation GHC.AnnType
+     addDeltaAnnotation GHC.AnnModule
+     case prov of
+       (GHC.ValueAnnProvenance n) -> annotatePC n
+       (GHC.TypeAnnProvenance n) -> annotatePC n
+       (GHC.ModuleAnnProvenance) -> return ()
+
+     annotatePC e
+     addDeltaAnnotation GHC.AnnClose
 
 -- ---------------------------------------------------------------------
 
@@ -1073,8 +1130,7 @@ instance (Typeable name,AnnotateP name,GHC.OutputableBndr name) => AnnotateP (GH
     addDeltaAnnotation GHC.AnnClose
 
   annotateP l (GHC.ConPatIn n dets) = do
-    annotatePC n
-    annotateHsConPatDetails dets
+    annotateHsConPatDetails n dets
 
   annotateP l (GHC.ConPatOut {}) = return ()
 
@@ -1118,20 +1174,23 @@ instance (Typeable name,AnnotateP name,GHC.OutputableBndr name) => AnnotateP (GH
 
 -- ---------------------------------------------------------------------
 
--- type HsConPatDetails  id   = HsConDetails (LPat id)        (HsRecFields id (LPat id))
--- type HsConDeclDetails name = HsConDetails (LBangType name) [LConDeclField name]
-
 annotateHsConPatDetails :: (GHC.OutputableBndr name,AnnotateP name)
-                      => GHC.HsConPatDetails name -> AP ()
-annotateHsConPatDetails dets = do
+                      => GHC.Located name -> GHC.HsConPatDetails name -> AP ()
+annotateHsConPatDetails ln dets = do
   case dets of
-    GHC.PrefixCon args -> mapM_ annotatePC args
+    GHC.PrefixCon args -> do
+      annotatePC ln
+      mapM_ annotatePC args
     GHC.RecCon (GHC.HsRecFields fs _) -> do
-       addDeltaAnnotation GHC.AnnOpen -- '{'
-       mapM_ annotatePC fs
-       addDeltaAnnotation GHC.AnnDotdot
-       addDeltaAnnotation GHC.AnnClose -- '}'
-    GHC.InfixCon a1 a2 -> annotatePC a1 >> annotatePC a2
+      annotatePC ln
+      addDeltaAnnotation GHC.AnnOpen -- '{'
+      mapM_ annotatePC fs
+      addDeltaAnnotation GHC.AnnDotdot
+      addDeltaAnnotation GHC.AnnClose -- '}'
+    GHC.InfixCon a1 a2 -> do
+      annotatePC a1
+      annotatePC ln
+      annotatePC a2
 
 annotateHsConDeclDetails :: (GHC.OutputableBndr name,AnnotateP name)
                     =>  [GHC.Located name] -> GHC.HsConDeclDetails name -> AP ()
