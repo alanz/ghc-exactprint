@@ -60,9 +60,12 @@ main = do
     manipulateAstTest "examples/Deprecation.hs"           "Deprecation"
     manipulateAstTest "examples/Infix.hs"                 "Main"
     manipulateAstTest "examples/Annotations.hs"           "Annotations"
-    manipulateAstTest "examples/Rules.hs"                  "Rules"
--}
+    manipulateAstTest "examples/Rules.hs"                 "Rules"
     manipulateAstTest "examples/Vect.hs"                  "Vect"
+    manipulateAstTest "examples/Splice.hs"                "Splice"
+    manipulateAstTest "examples/DocDecls.hs"              "DocDecls"
+-}
+    manipulateAstTestTH "examples/QuasiQuote.hs"            "QuasiQuote"
 {-
     manipulateAstTest "examples/Mixed.hs"                 "Main"
     manipulateAstTest "examples/EmptyMostly.hs"           "EmptyMostly"
@@ -76,11 +79,17 @@ examplesDir2 :: FilePath
 examplesDir2 = "examples"
 
 manipulateAstTest :: FilePath -> String -> IO ()
-manipulateAstTest file modname = do
+manipulateAstTest file modname = manipulateAstTest' False file modname
+
+manipulateAstTestTH :: FilePath -> String -> IO ()
+manipulateAstTestTH file modname = manipulateAstTest' True file modname
+
+manipulateAstTest' :: Bool -> FilePath -> String -> IO ()
+manipulateAstTest' useTH file modname = do
   let out    = file <.> "exactprinter" <.> "out"
 
   contents <- readUTF8File file
-  (ghcAnns,t,toks) <- parsedFileGhc file modname
+  (ghcAnns,t,toks) <- parsedFileGhc file modname useTH
   let
     parsed@(GHC.L l hsmod) = GHC.pm_parsed_source $ GHC.tm_parsed_module t
     parsedAST = SYB.showData SYB.Parser 0 parsed
@@ -130,8 +139,8 @@ manipulateAstTest file modname = do
 -- TypeCheckedModule produced by GHC.
 type ParseResult = GHC.TypecheckedModule
 
-parsedFileGhc :: String -> String -> IO (GHC.ApiAnns,ParseResult,[(GHC.Located GHC.Token, String)])
-parsedFileGhc fileName modname = do
+parsedFileGhc :: String -> String -> Bool -> IO (GHC.ApiAnns,ParseResult,[(GHC.Located GHC.Token, String)])
+parsedFileGhc fileName modname useTH = do
     putStrLn $ "parsedFileGhc:" ++ show fileName
 #if __GLASGOW_HASKELL__ > 704
     GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
@@ -145,16 +154,18 @@ parsedFileGhc fileName modname = do
 
             dflags'' = dflags' { GHC.importPaths = ["./tests/examples/","../tests/examples/"] }
 
-            dflags''' = dflags'' { -- GHC.hscTarget = GHC.HscInterpreted,
-                                   GHC.hscTarget = GHC.HscNothing, -- allows FFI
+            tgt = if useTH then GHC.HscInterpreted
+                           else GHC.HscNothing -- allows FFI
+            dflags''' = dflags'' { GHC.hscTarget = tgt,
                                    GHC.ghcLink =  GHC.LinkInMemory }
 
-            dflags4 = if True -- useHaddock
-                        -- then GHC.gopt_set (GHC.gopt_set dflags''' GHC.Opt_Haddock)
-                        then GHC.gopt_set dflags'''
+            dflags4 = if False -- useHaddock
+                        then GHC.gopt_set (GHC.gopt_set dflags''' GHC.Opt_Haddock)
                                        GHC.Opt_KeepRawTokenStream
-                        else GHC.gopt_set (GHC.gopt_unset dflags''' GHC.Opt_Haddock)
+                        else GHC.gopt_set dflags'''
                                        GHC.Opt_KeepRawTokenStream
+                        -- else GHC.gopt_set (GHC.gopt_unset dflags''' GHC.Opt_Haddock)
+                        --               GHC.Opt_KeepRawTokenStream
 
         void $ GHC.setSessionDynFlags dflags4
         -- GHC.liftIO $ putStrLn $ "dflags set"

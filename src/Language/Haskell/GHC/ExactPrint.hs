@@ -711,10 +711,27 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
     GHC.AnnD d        -> exactP d
     GHC.RuleD d       -> exactP d
     GHC.VectD d       -> exactP d
-    GHC.SpliceD d     -> printString "SpliceD"
-    GHC.DocD d        -> printString "DocD"
-    GHC.QuasiQuoteD d -> printString "QuasiQuoteD"
+    GHC.SpliceD d     -> exactP d
+    GHC.DocD d        -> exactP d
+    GHC.QuasiQuoteD d -> exactP d
     GHC.RoleAnnotD d  -> printString "RoleAnnotD"
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.HsQuasiQuote GHC.RdrName) where
+  exactP = assert False undefined
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.SpliceDecl GHC.RdrName) where
+  exactP (GHC.SpliceDecl (GHC.L ls (GHC.HsSplice n e)) flag) = do
+    case flag of
+      GHC.ExplicitSplice ->
+        printStringAtMaybeAnn GHC.AnnOpen "$("
+      GHC.ImplicitSplice ->
+        printStringAtMaybeAnn GHC.AnnOpen "$$("
+    exactPC e
+    printStringAtMaybeAnn GHC.AnnClose ")"
 
 -- ---------------------------------------------------------------------
 
@@ -1986,7 +2003,21 @@ instance ExactP (GHC.TyFamInstEqn GHC.RdrName) where
 -- ---------------------------------------------------------------------
 
 instance ExactP GHC.DocDecl where
-  exactP = assert False undefined
+  exactP (GHC.DocCommentNext (GHC.HsDocString fs))
+    = printStringAtMaybeAnn GHC.AnnVal (GHC.unpackFS fs)
+  exactP (GHC.DocCommentPrev (GHC.HsDocString fs))
+    = printStringAtMaybeAnn GHC.AnnVal (GHC.unpackFS fs)
+  exactP (GHC.DocCommentNamed s (GHC.HsDocString fs))
+    = printStringAtMaybeAnn GHC.AnnVal (GHC.unpackFS fs)
+  exactP (GHC.DocGroup i (GHC.HsDocString fs))
+    = printStringAtMaybeAnn GHC.AnnVal (GHC.unpackFS fs)
+
+{-
+DocCommentNext HsDocString
+DocCommentPrev HsDocString
+DocCommentNamed String HsDocString
+DocGroup Int HsDocString
+-}
 
 -- ---------------------------------------------------------------------
 

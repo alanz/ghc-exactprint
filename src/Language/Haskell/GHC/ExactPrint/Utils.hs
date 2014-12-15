@@ -517,10 +517,26 @@ instance (GHC.OutputableBndr name,AnnotateP name) => AnnotateP (GHC.HsDecl name)
       GHC.AnnD d        -> annotateP l d
       GHC.RuleD d       -> annotateP l d
       GHC.VectD d       -> annotateP l d
-      GHC.SpliceD d     -> error $ "annotateLHsDecl:unimplemented " ++ "SpliceD"
-      GHC.DocD d        -> error $ "annotateLHsDecl:unimplemented " ++ "DocD"
-      GHC.QuasiQuoteD d -> error $ "annotateLHsDecl:unimplemented " ++ "QuasiQuoteD"
+      GHC.SpliceD d     -> annotateP l d
+      GHC.DocD d        -> annotateP l d
+      GHC.QuasiQuoteD d -> annotateP l d
       GHC.RoleAnnotD d  -> error $ "annotateLHsDecl:unimplemented " ++ "RoleAnnotD"
+
+-- ---------------------------------------------------------------------
+
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+   => AnnotateP (GHC.HsQuasiQuote name) where
+  annotateP l (GHC.HsQuasiQuote n ss fs) = assert False undefined
+
+-- HsQuasiQuote id SrcSpan FastString
+-- ---------------------------------------------------------------------
+
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+   => AnnotateP (GHC.SpliceDecl name) where
+  annotateP l (GHC.SpliceDecl (GHC.L ls (GHC.HsSplice n e)) _flag) = do
+    addDeltaAnnotation GHC.AnnOpen -- "$(" or "$$("
+    annotatePC e
+    addDeltaAnnotation GHC.AnnClose -- ")"
 
 -- ---------------------------------------------------------------------
 
@@ -1543,9 +1559,21 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     mapM_ annotatePC ds
     addDeltaAnnotationLs GHC.AnnClose 0
     addDeltaAnnotationLs GHC.AnnClose 1
-  annotateP l (GHC.HsBracket _) = do
+  annotateP l (GHC.HsBracket (GHC.ExpBr e)) = do
     addDeltaAnnotation GHC.AnnOpen
-    addDeltaAnnotationExt l GHC.AnnVal
+    annotatePC e
+    addDeltaAnnotation GHC.AnnClose
+  annotateP l (GHC.HsBracket (GHC.TExpBr e)) = do
+    addDeltaAnnotation GHC.AnnOpen
+    annotatePC e
+    addDeltaAnnotation GHC.AnnClose
+  annotateP l (GHC.HsBracket (GHC.TypBr e)) = do
+    addDeltaAnnotation GHC.AnnOpen
+    annotatePC e
+    addDeltaAnnotation GHC.AnnClose
+  annotateP l (GHC.HsBracket (GHC.PatBr e)) = do
+    addDeltaAnnotation GHC.AnnOpen
+    annotatePC e
     addDeltaAnnotation GHC.AnnClose
 
   annotateP l (GHC.HsRnBracketOut _ _) = return ()
@@ -1789,8 +1817,9 @@ instance (Typeable name,AnnotateP name,GHC.OutputableBndr name)
 
 -- ---------------------------------------------------------------------
 
+-- TODO: modify lexer etc, in the meantime to not set haddock flag
 instance AnnotateP GHC.DocDecl where
-  annotateP = assert False undefined
+  annotateP l _ = addDeltaAnnotationExt l GHC.AnnVal
 
 -- ---------------------------------------------------------------------
 

@@ -27,3 +27,6 @@
 /tests/examples/Annotations.hs.exactprinter.out
 /tests/examples/Rules.hs.exactprinter.out
 /tests/examples/Vect.hs.exactprinter.out
+/tests/examples/DocDecls.hs.exactprinter.out
+/tests/examples/QuasiQuote.hs.exactprinter.out
+/tests/examples/Splice.hs.exactprinter.out
