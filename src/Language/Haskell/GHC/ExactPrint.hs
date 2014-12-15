@@ -710,11 +710,49 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
     GHC.WarningD d    -> exactP d
     GHC.AnnD d        -> exactP d
     GHC.RuleD d       -> exactP d
-    GHC.VectD d       -> printString "VectD"
+    GHC.VectD d       -> exactP d
     GHC.SpliceD d     -> printString "SpliceD"
     GHC.DocD d        -> printString "DocD"
     GHC.QuasiQuoteD d -> printString "QuasiQuoteD"
     GHC.RoleAnnotD d  -> printString "RoleAnnotD"
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.VectDecl GHC.RdrName) where
+  exactP (GHC.HsVect src ln e) = do
+    printStringAtMaybeAnn GHC.AnnOpen src -- "{-# VECTORISE"
+    exactPC ln
+    printStringAtMaybeAnn GHC.AnnEqual "="
+    exactPC e
+    printStringAtMaybeAnn GHC.AnnClose "#-}"
+
+  exactP (GHC.HsNoVect src ln) = do
+    printStringAtMaybeAnn GHC.AnnOpen src -- "{-# NOVECTORISE"
+    exactPC ln
+    printStringAtMaybeAnn GHC.AnnClose "#-}"
+
+  exactP (GHC.HsVectTypeIn src b ln mln) = do
+    printStringAtMaybeAnn GHC.AnnOpen src -- "{-# VECTORISE" or "{-# VECTORISE SCALAR"
+    printStringAtMaybeAnn GHC.AnnType "type"
+    exactPC ln
+    printStringAtMaybeAnn GHC.AnnEqual "="
+    case mln of
+      Nothing -> return ()
+      Just n -> exactPC n
+    printStringAtMaybeAnn GHC.AnnClose "#-}"
+
+  exactP (GHC.HsVectTypeOut {}) = error $ "exactP.HsVectTypeOut: only valid after type checker"
+
+  exactP (GHC.HsVectClassIn src ln) = do
+    printStringAtMaybeAnn GHC.AnnOpen src -- "{-# VECTORISE"
+    printStringAtMaybeAnn GHC.AnnClass "class"
+    exactPC ln
+    printStringAtMaybeAnn GHC.AnnClose "#-}"
+
+  exactP (GHC.HsVectClassOut {}) = error $ "exactP.HsVectClassOut: only valid after type checker"
+  exactP (GHC.HsVectInstIn {})   = error $ "exactP.HsVectInstIn: not supported?"
+  exactP (GHC.HsVectInstOut {})  = error $ "exactP.HsVectInstOut: not supported?"
+
 
 -- ---------------------------------------------------------------------
 
@@ -1275,6 +1313,7 @@ instance ExactP (GHC.HsContext GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnOpen "("
     mapM_ exactPC typs
     printStringAtMaybeAnn GHC.AnnClose ")"
+    printStringAtMaybeAnn GHC.AnnDarrow "=>"
 
 -- instance ExactP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 instance (ExactP body) => ExactP (GHC.GRHS GHC.RdrName (GHC.Located body)) where
@@ -1408,8 +1447,11 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
   exactP (GHC.HsDo cts stmts _typ)    = do
     printStringAtMaybeAnn GHC.AnnDo "do"
     let (ostr,cstr,isComp) =
-          if isListComp cts then ("[","]",True)
-                            else ("{","}",False)
+          if isListComp cts
+            then case cts of
+                   GHC.PArrComp -> ("[:",":]",True)
+                   _            -> ("[",  "]",True)
+            else ("{","}",False)
 
     printStringAtMaybeAnn GHC.AnnOpen ostr
     if isComp

@@ -506,21 +506,57 @@ instance AnnotateP (GHC.ImportDecl GHC.RdrName) where
 instance (GHC.OutputableBndr name,AnnotateP name) => AnnotateP (GHC.HsDecl name) where
   annotateP l decl = do
     case decl of
-      GHC.TyClD d -> annotateP l d
-      GHC.InstD d -> annotateP l d
-      GHC.DerivD d -> annotateP l d
-      GHC.ValD d -> annotateP l d
-      GHC.SigD d -> annotateP l d
-      GHC.DefD d -> annotateP l d
-      GHC.ForD d -> annotateP l d
-      GHC.WarningD d -> annotateP l d
-      GHC.AnnD d -> annotateP l d
-      GHC.RuleD d -> annotateP l d
-      GHC.VectD d -> error $ "annotateLHsDecl:unimplemented " ++ "VectD"
-      GHC.SpliceD d -> error $ "annotateLHsDecl:unimplemented " ++ "SpliceD"
-      GHC.DocD d -> error $ "annotateLHsDecl:unimplemented " ++ "DocD"
+      GHC.TyClD d       -> annotateP l d
+      GHC.InstD d       -> annotateP l d
+      GHC.DerivD d      -> annotateP l d
+      GHC.ValD d        -> annotateP l d
+      GHC.SigD d        -> annotateP l d
+      GHC.DefD d        -> annotateP l d
+      GHC.ForD d        -> annotateP l d
+      GHC.WarningD d    -> annotateP l d
+      GHC.AnnD d        -> annotateP l d
+      GHC.RuleD d       -> annotateP l d
+      GHC.VectD d       -> annotateP l d
+      GHC.SpliceD d     -> error $ "annotateLHsDecl:unimplemented " ++ "SpliceD"
+      GHC.DocD d        -> error $ "annotateLHsDecl:unimplemented " ++ "DocD"
       GHC.QuasiQuoteD d -> error $ "annotateLHsDecl:unimplemented " ++ "QuasiQuoteD"
-      GHC.RoleAnnotD d -> error $ "annotateLHsDecl:unimplemented " ++ "RoleAnnotD"
+      GHC.RoleAnnotD d  -> error $ "annotateLHsDecl:unimplemented " ++ "RoleAnnotD"
+
+-- ---------------------------------------------------------------------
+
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+   => AnnotateP (GHC.VectDecl name) where
+  annotateP l (GHC.HsVect src ln e) = do
+    addDeltaAnnotation GHC.AnnOpen -- "{-# VECTORISE"
+    annotatePC ln
+    addDeltaAnnotation GHC.AnnEqual
+    annotatePC e
+    addDeltaAnnotation GHC.AnnClose -- "#-}"
+
+  annotateP l (GHC.HsNoVect src ln) = do
+    addDeltaAnnotation GHC.AnnOpen -- "{-# NOVECTORISE"
+    annotatePC ln
+    addDeltaAnnotation GHC.AnnClose -- "#-}"
+
+  annotateP l (GHC.HsVectTypeIn src b ln mln) = do
+    addDeltaAnnotation GHC.AnnOpen -- "{-# VECTORISE" or "{-# VECTORISE SCALAR"
+    addDeltaAnnotation GHC.AnnType
+    annotatePC ln
+    addDeltaAnnotation GHC.AnnEqual
+    annotateMaybe mln
+    addDeltaAnnotation GHC.AnnClose -- "#-}"
+
+  annotateP l (GHC.HsVectTypeOut {}) = error $ "annotateP.HsVectTypeOut: only valid after type checker"
+
+  annotateP l (GHC.HsVectClassIn src ln) = do
+    addDeltaAnnotation GHC.AnnOpen -- "{-# VECTORISE"
+    addDeltaAnnotation GHC.AnnClass
+    annotatePC ln
+    addDeltaAnnotation GHC.AnnClose -- "#-}"
+
+  annotateP l (GHC.HsVectClassOut {}) = error $ "annotateP.HsVectClassOut: only valid after type checker"
+  annotateP l (GHC.HsVectInstIn {})   = error $ "annotateP.HsVectInstIn: not supported?"
+  annotateP l (GHC.HsVectInstOut {})   = error $ "annotateP.HsVectInstOut: not supported?"
 
 -- ---------------------------------------------------------------------
 
@@ -1778,6 +1814,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
     addDeltaAnnotation GHC.AnnOpen
     mapM_ annotatePC ts
     addDeltaAnnotation GHC.AnnClose
+    addDeltaAnnotation GHC.AnnDarrow
 
 -- ---------------------------------------------------------------------
 

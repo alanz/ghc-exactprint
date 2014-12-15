@@ -38,7 +38,7 @@ debug = flip trace
 
 main :: IO ()
 main = do
-
+{-
     manipulateAstTest "examples/LetStmt.hs"               "Layout.LetStmt"
     manipulateAstTest "examples/LetExpr.hs"               "LetExpr"
     manipulateAstTest "examples/LetExprSemi.hs"           "LetExprSemi"
@@ -60,8 +60,9 @@ main = do
     manipulateAstTest "examples/Deprecation.hs"           "Deprecation"
     manipulateAstTest "examples/Infix.hs"                 "Main"
     manipulateAstTest "examples/Annotations.hs"           "Annotations"
-
-    manipulateAstTest "examples/Rules.hs"           "Rules"
+    manipulateAstTest "examples/Rules.hs"                  "Rules"
+-}
+    manipulateAstTest "examples/Vect.hs"                  "Vect"
 {-
     manipulateAstTest "examples/Mixed.hs"                 "Main"
     manipulateAstTest "examples/EmptyMostly.hs"           "EmptyMostly"
