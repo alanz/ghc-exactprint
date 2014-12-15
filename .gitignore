@@ -30,3 +30,4 @@
 /tests/examples/DocDecls.hs.exactprinter.out
 /tests/examples/QuasiQuote.hs.exactprinter.out
 /tests/examples/Splice.hs.exactprinter.out
+/tests/examples/Roles.hs.exactprinter.out

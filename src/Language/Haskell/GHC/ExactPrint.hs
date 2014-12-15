@@ -714,7 +714,20 @@ instance ExactP (GHC.HsDecl GHC.RdrName) where
     GHC.SpliceD d     -> exactP d
     GHC.DocD d        -> exactP d
     GHC.QuasiQuoteD d -> exactP d
-    GHC.RoleAnnotD d  -> printString "RoleAnnotD"
+    GHC.RoleAnnotD d  -> exactP d
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (GHC.RoleAnnotDecl GHC.RdrName) where
+  exactP (GHC.RoleAnnotDecl ln mr) = do
+    printStringAtMaybeAnn GHC.AnnType "type"
+    printStringAtMaybeAnn GHC.AnnRole "role"
+    exactPC ln
+{-
+    case mr of
+      Nothing -> return ()
+      Just r -> exactPC r
+-}
 
 -- ---------------------------------------------------------------------
 

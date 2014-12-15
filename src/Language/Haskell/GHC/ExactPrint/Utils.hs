@@ -520,7 +520,22 @@ instance (GHC.OutputableBndr name,AnnotateP name) => AnnotateP (GHC.HsDecl name)
       GHC.SpliceD d     -> annotateP l d
       GHC.DocD d        -> annotateP l d
       GHC.QuasiQuoteD d -> annotateP l d
-      GHC.RoleAnnotD d  -> error $ "annotateLHsDecl:unimplemented " ++ "RoleAnnotD"
+      GHC.RoleAnnotD d  -> annotateP l d
+
+-- ---------------------------------------------------------------------
+
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+   => AnnotateP (GHC.RoleAnnotDecl name) where
+  annotateP l (GHC.RoleAnnotDecl ln mr) = do
+    addDeltaAnnotation GHC.AnnType
+    addDeltaAnnotation GHC.AnnRole
+    annotatePC ln
+    -- mapM_ annotateMaybe mr
+
+{-
+RoleAnnotDecl (Located name) [Located (Maybe Role)]	
+    AnnKeywordId : AnnType, AnnRole
+-}
 
 -- ---------------------------------------------------------------------
 
