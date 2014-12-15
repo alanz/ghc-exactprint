@@ -1200,7 +1200,7 @@ instance (Typeable name,AnnotateP name,GHC.OutputableBndr name) => AnnotateP (GH
 
   -- QuasiQuotePat (HsQuasiQuote id)
   annotateP l (GHC.QuasiQuotePat (GHC.HsQuasiQuote _ _ _)) = do
-    addDeltaAnnotation GHC.AnnVal
+    addDeltaAnnotationExt l GHC.AnnVal
 
   -- LitPat HsLit
   annotateP l (GHC.LitPat lp) = addDeltaAnnotationExt l GHC.AnnVal

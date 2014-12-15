@@ -1137,8 +1137,9 @@ instance ExactP (GHC.Pat GHC.RdrName) where
     exactPC e
     printStringAtMaybeAnn GHC.AnnClose ")"
 
-  exactP (GHC.QuasiQuotePat (GHC.HsQuasiQuote _ _ fs)) = do
-    printStringAtMaybeAnn GHC.AnnVal (GHC.unpackFS fs)
+  exactP (GHC.QuasiQuotePat (GHC.HsQuasiQuote n _ q)) = do
+    printStringAtMaybeAnn GHC.AnnVal
+                    ("[" ++ (rdrName2String n) ++ "|" ++ (GHC.unpackFS q) ++ "|]")
 
   exactP (GHC.LitPat lp) = do
     printStringAtMaybeAnn GHC.AnnVal (hsLit2String lp)
@@ -1248,8 +1249,9 @@ instance ExactP (GHC.HsType GHC.RdrName) where
     exactPC k
     printStringAtMaybeAnn GHC.AnnClose ")"
 
-  exactP (GHC.HsQuasiQuoteTy (GHC.HsQuasiQuote _id _ss q)) = do
-    printStringAtMaybeAnn GHC.AnnVal (GHC.unpackFS q)
+  exactP (GHC.HsQuasiQuoteTy (GHC.HsQuasiQuote n _ss q)) = do
+    printStringAtMaybeAnn GHC.AnnVal
+                    ("[" ++ (rdrName2String n) ++ "|" ++ (GHC.unpackFS q) ++ "|]")
 
   exactP (GHC.HsSpliceTy (GHC.HsSplice _is e) _) = do
     printStringAtMaybeAnn GHC.AnnOpen  "$("
@@ -1614,9 +1616,9 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     exactPC e
     printStringAtMaybeAnn GHC.AnnClose ")"
 
-  exactP (GHC.HsQuasiQuoteE (GHC.HsQuasiQuote _ _ str)) = do
-    printStringAtMaybeAnn GHC.AnnVal (GHC.unpackFS str)
-
+  exactP (GHC.HsQuasiQuoteE (GHC.HsQuasiQuote n _ str)) = do
+    printStringAtMaybeAnn GHC.AnnVal
+          ("[" ++ (rdrName2String n) ++ "|" ++ (GHC.unpackFS str) ++ "|]")
 
   exactP (GHC.HsProc p c) = do
     printStringAtMaybeAnn GHC.AnnProc "proc"
