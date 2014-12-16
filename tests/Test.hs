@@ -58,15 +58,15 @@ main = do
     manipulateAstTest "examples/ForeignDecl.hs"           "ForeignDecl"
     manipulateAstTest "examples/Warning.hs"               "Warning"
     manipulateAstTest "examples/Deprecation.hs"           "Deprecation"
-    manipulateAstTest "examples/Infix.hs"                 "Main"
     manipulateAstTest "examples/Annotations.hs"           "Annotations"
     manipulateAstTest "examples/Rules.hs"                 "Rules"
     manipulateAstTest "examples/Vect.hs"                  "Vect"
     manipulateAstTest "examples/Splice.hs"                "Splice"
     manipulateAstTest "examples/DocDecls.hs"              "DocDecls"
     manipulateAstTestTH "examples/QuasiQuote.hs"            "QuasiQuote"
--}
     manipulateAstTest "examples/Roles.hs"            "Roles"
+-}
+    manipulateAstTest "examples/Infix.hs"                 "Main"
 {-
     manipulateAstTest "examples/Mixed.hs"                 "Main"
     manipulateAstTest "examples/EmptyMostly.hs"           "EmptyMostly"

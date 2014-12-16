@@ -870,15 +870,23 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,
 
   annotateP l (GHC.Match mln pats _typ grhss@(GHC.GRHSs grhs lb)) = do
     isInfix <- getFunIsInfix
-    case (isInfix,pats) of
+    let
+      get_infix Nothing = isInfix
+      get_infix (Just (_,f)) = f
+    case (get_infix mln,pats) of
       (True,[a,b]) -> do
         annotatePC a
-        addDeltaAnnotation GHC.AnnOpen -- possible '`'
-        addDeltaAnnotation GHC.AnnFunId
-        addDeltaAnnotation GHC.AnnClose -- possible '`'
+        case mln of
+          Nothing -> do
+            addDeltaAnnotation GHC.AnnOpen -- possible '`'
+            addDeltaAnnotation GHC.AnnFunId
+            addDeltaAnnotation GHC.AnnClose -- possible '`'
+          Just (n,_) -> annotatePC n
         annotatePC b
       _ -> do
-        addDeltaAnnotation GHC.AnnFunId
+        case mln of
+          Nothing -> addDeltaAnnotation GHC.AnnFunId
+          Just (n,_) -> annotatePC n
         mapM_ annotatePC pats
 
     addDeltaAnnotation GHC.AnnEqual
@@ -890,8 +898,6 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,
     addDeltaAnnotation GHC.AnnOpen -- '{'
     annotateHsLocalBinds lb
     addDeltaAnnotation GHC.AnnClose -- '}'
-
-
 
 -- ---------------------------------------------------------------------
 

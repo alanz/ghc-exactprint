@@ -1055,20 +1055,27 @@ instance ExactP (GHC.IPBind GHC.RdrName) where
 
 -- ---------------------------------------------------------------------
 
--- instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 instance (ExactP body) => ExactP (GHC.Match GHC.RdrName (GHC.Located body)) where
   exactP (GHC.Match mln pats typ (GHC.GRHSs grhs lb)) = do
     (isSym,funid) <- getFunId
     isInfix <- getFunIsInfix
-    case (isInfix,pats) of
+    let
+      get_infix Nothing = isInfix
+      get_infix (Just (_,f)) = f
+    case (get_infix mln,pats) of
       (True,[a,b]) -> do
         exactPC a
-        if isSym
-          then printStringAtMaybeAnn GHC.AnnFunId funid
-          else printStringAtMaybeAnn GHC.AnnFunId ("`"++ funid ++ "`")
+        case mln of
+          Nothing -> do
+            if isSym
+              then printStringAtMaybeAnn GHC.AnnFunId funid
+              else printStringAtMaybeAnn GHC.AnnFunId ("`"++ funid ++ "`")
+          Just (n,_) -> exactPC n
         exactPC b
       _ -> do
-        printStringAtMaybeAnn GHC.AnnFunId funid
+        case mln of
+          Nothing -> printStringAtMaybeAnn GHC.AnnFunId funid
+          Just (n,_)  -> exactPC n
         mapM_ exactPC pats
     printStringAtMaybeAnn GHC.AnnEqual  "="
     printStringAtMaybeAnn GHC.AnnRarrow "->" -- for HsLam
