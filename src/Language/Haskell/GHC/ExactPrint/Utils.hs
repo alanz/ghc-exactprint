@@ -764,6 +764,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
     annotatePC poly
     addDeltaAnnotation GHC.AnnWhere
     addDeltaAnnotation GHC.AnnOpen -- '{'
+    addDeltaAnnotations GHC.AnnSemi
 
     -- must merge all the rest
     applyListAnnotations (prepareListAnnotation (GHC.bagToList binds)
@@ -858,9 +859,6 @@ instance AnnotateP GHC.HsIPName where
 
 -- ---------------------------------------------------------------------
 
--- instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
---   => AnnotateP (GHC.Match name (GHC.LHsExpr name)) where
-
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,
           Typeable body,                        AnnotateP body)
   => AnnotateP (GHC.Match name (GHC.Located body)) where
@@ -893,6 +891,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,
 
     addDeltaAnnotation GHC.AnnWhere
     addDeltaAnnotation GHC.AnnOpen -- '{'
+    addDeltaAnnotations GHC.AnnSemi
     annotateHsLocalBinds lb
     addDeltaAnnotation GHC.AnnClose -- '}'
 
@@ -1793,6 +1792,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
     mapM_ annotatePC fds
     addDeltaAnnotation GHC.AnnWhere
     addDeltaAnnotation GHC.AnnOpen -- '{'
+    addDeltaAnnotations GHC.AnnSemi
     applyListAnnotations (prepareListAnnotation sigs
                        ++ prepareListAnnotation (GHC.bagToList meths)
                        ++ prepareListAnnotation ats

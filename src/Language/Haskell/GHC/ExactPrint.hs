@@ -973,7 +973,8 @@ instance ExactP (GHC.ClsInstDecl GHC.RdrName) where
     exactPC poly
     printStringAtMaybeAnn GHC.AnnWhere "where"
     printStringAtMaybeAnn GHC.AnnOpen "{"
-    -- must merge all the rest
+    printStringAtMaybeAnnAll GHC.AnnSemi ";"
+
     applyListPrint (prepareListPrint (GHC.bagToList binds)
                  ++ prepareListPrint sigs
                  ++ prepareListPrint tyfams
@@ -1081,6 +1082,7 @@ instance (ExactP body) => ExactP (GHC.Match GHC.RdrName (GHC.Located body)) wher
     mapM_ exactPC grhs
     printStringAtMaybeAnn GHC.AnnWhere "where"
     printStringAtMaybeAnn GHC.AnnOpen "{"
+    printStringAtMaybeAnnAll GHC.AnnSemi ";"
     exactP lb
     printStringAtMaybeAnn GHC.AnnClose "}"
 
@@ -1353,7 +1355,6 @@ instance ExactP (GHC.HsContext GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnClose ")"
     printStringAtMaybeAnn GHC.AnnDarrow "=>"
 
--- instance ExactP (GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 instance (ExactP body) => ExactP (GHC.GRHS GHC.RdrName (GHC.Located body)) where
   exactP (GHC.GRHS guards expr) = do
     printStringAtMaybeAnn GHC.AnnVbar "|"
@@ -1809,8 +1810,6 @@ instance ExactP GHC.HsIPName where
 
 -- ---------------------------------------------------------------------
 
--- exactPMatchGroup :: (GHC.MatchGroup GHC.RdrName (GHC.LHsExpr GHC.RdrName))
---                    -> EP ()
 exactPMatchGroup :: (ExactP body) => (GHC.MatchGroup GHC.RdrName (GHC.Located body))
                    -> EP ()
 exactPMatchGroup (GHC.MG matches _ _ _)
@@ -1982,6 +1981,7 @@ instance ExactP (GHC.TyClDecl GHC.RdrName) where
     mapM_ exactPC fds
     printStringAtMaybeAnn GHC.AnnWhere "where"
     printStringAtMaybeAnn GHC.AnnOpen  "{"
+    printStringAtMaybeAnnAll GHC.AnnSemi ";"
 
     applyListPrint (prepareListPrint sigs
                  ++ prepareListPrint (GHC.bagToList meths)

@@ -8,4 +8,6 @@ module EmptyMostly where
   (--<>--) _ _ = 2 ; -- empty decl at the end.
 };
 ;;;;;;;;;;;;
+foo = a where {;;;;;;;;;;;;;;;;;;;;;;;a=1;;;;;;;;}
+;;
    }
