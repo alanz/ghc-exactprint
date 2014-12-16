@@ -41,7 +41,6 @@ main = do
 {-
     manipulateAstTest "examples/LetStmt.hs"               "Layout.LetStmt"
     manipulateAstTest "examples/LetExpr.hs"               "LetExpr"
-    manipulateAstTest "examples/LetExprSemi.hs"           "LetExprSemi"
     manipulateAstTest "examples/Tuple.hs"                 "Main"
     manipulateAstTest "examples/Sigs.hs"                  "Sigs"
     manipulateAstTest "examples/ExprPragmas.hs"           "ExprPragmas"
@@ -61,15 +60,19 @@ main = do
     manipulateAstTest "examples/Annotations.hs"           "Annotations"
     manipulateAstTest "examples/Rules.hs"                 "Rules"
     manipulateAstTest "examples/Vect.hs"                  "Vect"
-    manipulateAstTest "examples/Splice.hs"                "Splice"
     manipulateAstTest "examples/DocDecls.hs"              "DocDecls"
-    manipulateAstTestTH "examples/QuasiQuote.hs"            "QuasiQuote"
-    manipulateAstTest "examples/Roles.hs"            "Roles"
--}
+    manipulateAstTestTH "examples/QuasiQuote.hs"          "QuasiQuote"
+    manipulateAstTest "examples/Roles.hs"                 "Roles"
     manipulateAstTest "examples/Infix.hs"                 "Main"
-{-
+    manipulateAstTest "examples/Splice.hs"                "Splice"
+    manipulateAstTest "examples/ImportsSemi.hs"           "ImportsSemi"
+    manipulateAstTest "examples/Stmts.hs"                 "Stmts"
+    manipulateAstTest "examples/LetExprSemi.hs"           "LetExprSemi"
     manipulateAstTest "examples/Mixed.hs"                 "Main"
+-}
+    -- manipulateAstTest "examples/Foo.hs"                   "Main"
     manipulateAstTest "examples/EmptyMostly.hs"           "EmptyMostly"
+{-
 -}
 
 -- | Where all the tests are to be found
@@ -101,7 +104,7 @@ manipulateAstTest' useTH file modname = do
       `debug` ("ghcAnns:" ++ showGhc ghcAnns)
 
     Just (GHC.L le exps) = GHC.hsmodExports hsmod
-    secondExp@(GHC.L l2 _) = head $ tail exps
+    secondExp@(GHC.L l2 _) = ghead "foo" $ tail exps
     -- Just [(Ann cs ll (AnnIEVar mc))] = Map.lookup l2 ann
     -- ann' = Map.insert l2 [(Ann cs ll (AnnIEVar Nothing))] ann
     -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (tail exps) }))
@@ -181,12 +184,16 @@ parsedFileGhc fileName modname useTH = do
         GHC.liftIO $ putStrLn $ "module graph:" ++ (intercalate "," (map showStuff g))
 
         modSum <- GHC.getModSummary $ GHC.mkModuleName modname
+        GHC.liftIO $ putStrLn $ "got modSum"
         -- let modSum = head g
         p <- GHC.parseModule modSum
+        GHC.liftIO $ putStrLn $ "got parsedModule"
         t <- GHC.typecheckModule p
-        -- GHC.liftIO $ putStrLn $ "parsed"
+        GHC.liftIO $ putStrLn $ "typechecked"
         toks <- GHC.getRichTokenStream (GHC.ms_mod modSum)
+        GHC.liftIO $ putStrLn $ "toks"
         let anns = GHC.pm_annotations p
+        GHC.liftIO $ putStrLn $ "anns"
         return (anns,t,toks)
 
 readUTF8File :: FilePath -> IO String

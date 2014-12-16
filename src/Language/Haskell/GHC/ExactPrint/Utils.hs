@@ -34,6 +34,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , getAnnotationAP
   , addAnnotationsAP
 
+  , ghead
   ) where
 
 import Control.Applicative (Applicative(..))
@@ -117,7 +118,7 @@ runAP (AP f) ga
 
 -- |Note: assumes the SrcSpan stack is nonempty
 getSrcSpanAP :: AP GHC.SrcSpan
-getSrcSpanAP = AP (\l pe e ga -> (fst $ head l,l,pe,e,ga,mempty))
+getSrcSpanAP = AP (\l pe e ga -> (fst $ ghead "getSrcSpanAP" l,l,pe,e,ga,mempty))
 
 pushSrcSpanAP :: (Typeable a) => (GHC.Located a) -> AP ()
 pushSrcSpanAP (GHC.L l a) = AP (\ls pe e ga -> ((),(l,typeOf a):ls,pe,e,ga,mempty))
@@ -162,7 +163,7 @@ getCommentsForSpan s = AP (\l pe e ga ->
 addAnnotationsAP :: Annotation -> AP ()
 addAnnotationsAP ann = AP (\l pe e ga ->
                        ( (),l,pe,e,ga,
-                 ([((head l),ann)],[])))
+                 ([((ghead "addAnnotationsAP" l),ann)],[])))
 
 -- -------------------------------------
 
@@ -278,7 +279,7 @@ addDeltaAnnotation ann = do
   ss <- getSrcSpanAP
   ma <- getAnnotationAP ss ann
   case ma of
-    [] -> return ()
+    [] -> return () `debug` ("addDeltaAnnotation empty ma")
     [ap] -> addAnnotationWorker ann ap
     _ -> error $ "addDeltaAnnotation:(ss,ann,ma)=" ++ showGhc (ss,ann,ma)
 
@@ -356,10 +357,8 @@ annotateLHsModule modu ghcAnns
 
 instance AnnotateP (GHC.HsModule GHC.RdrName) where
   annotateP lm (GHC.HsModule mmn mexp imps decs mdepr _haddock) = do
-    return () `debug` ("annotateP.HsModule entered")
     setPriorEnd lm
 
-   -- 'module' modid maybemodwarning maybeexports 'where' header_body
     addDeltaAnnotation GHC.AnnModule
 
     case mmn of
@@ -374,10 +373,8 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
 
     addDeltaAnnotation GHC.AnnWhere
     addDeltaAnnotation GHC.AnnOpen -- Possible '{'
-
+    addDeltaAnnotations GHC.AnnSemi -- possible leading semis
     mapM_ annotatePC imps
-
-    addDeltaAnnotation GHC.AnnSemi -- Possible ';'
 
     annotateList decs
 
@@ -978,11 +975,19 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     addDeltaAnnotations GHC.AnnOpen -- '{-# SPECIALISE', '['
     addDeltaAnnotation  GHC.AnnTilde -- ~
     addDeltaAnnotation  GHC.AnnVal   -- e.g. 34
-    addDeltaAnnotation  GHC.AnnClose -- ']'
-    annotatePC ln
-    addDeltaAnnotation GHC.AnnDcolon -- '::'
-    mapM_ annotatePC typs
-    addDeltaAnnotation GHC.AnnClose -- '#-}'
+    cnt <- countAnnsAP GHC.AnnClose
+    case cnt of
+      2 -> do
+        addDeltaAnnotationLs GHC.AnnClose 0 -- ']'
+        annotatePC ln
+        addDeltaAnnotation GHC.AnnDcolon -- '::'
+        mapM_ annotatePC typs
+        addDeltaAnnotationLs GHC.AnnClose 1 -- '#-}'
+      _ -> do
+        annotatePC ln
+        addDeltaAnnotation GHC.AnnDcolon -- '::'
+        mapM_ annotatePC typs
+        addDeltaAnnotation GHC.AnnClose -- '#-}'
 
 
   -- '{-# SPECIALISE' 'instance' inst_type '#-}'
@@ -1305,28 +1310,23 @@ instance (Typeable name,Typeable arg,AnnotateP arg)
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,Typeable body,AnnotateP body) =>
                             AnnotateP (GHC.Stmt name (GHC.Located body)) where
 
-  -- LastStmt body (SyntaxExpr idR)
   annotateP l (GHC.LastStmt body _) = annotatePC body
 
-  -- BindStmt (LPat idL) body (SyntaxExpr idR) (SyntaxExpr idR)
   annotateP l (GHC.BindStmt pat body _ _) = do
     annotatePC pat
     addDeltaAnnotation GHC.AnnLarrow
     annotatePC body
     addDeltaAnnotation GHC.AnnVbar -- possible in list comprehension
 
-  -- BodyStmt body (SyntaxExpr idR) (SyntaxExpr idR) (PostTc idR Type)
   annotateP l (GHC.BodyStmt body _ _ _) = do
     annotatePC body
 
-  -- LetStmt (HsLocalBindsLR idL idR)
   annotateP l (GHC.LetStmt lb) = do
     addDeltaAnnotation GHC.AnnLet
     addDeltaAnnotation GHC.AnnOpen -- '{'
     annotateHsLocalBinds lb
     addDeltaAnnotation GHC.AnnClose -- '}'
 
-  -- ParStmt [ParStmtBlock idL idR] (SyntaxExpr idR) (SyntaxExpr idR)
   annotateP l (GHC.ParStmt pbs _ _) = do
     mapM_ annotateParStmtBlock pbs
 
@@ -1352,7 +1352,10 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,Typeable body,Ann
 
   annotateP l (GHC.RecStmt stmts _ _ _ _ _ _ _ _) = do
     addDeltaAnnotation GHC.AnnRec
+    addDeltaAnnotation GHC.AnnOpen
+    addDeltaAnnotations GHC.AnnSemi
     mapM_ annotatePC stmts
+    addDeltaAnnotation GHC.AnnClose
 
 -- ---------------------------------------------------------------------
 
@@ -1398,7 +1401,7 @@ annotateCmdMatchGroup (GHC.MG matches _ _ _)
 
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
                                AnnotateP (GHC.HsExpr name) where
-  annotateP l (GHC.HsVar _)           = addDeltaAnnotationExt l GHC.AnnVal
+  annotateP l (GHC.HsVar n)           = annotateP l n
   annotateP l (GHC.HsIPVar _)         = addDeltaAnnotationExt l GHC.AnnVal
   annotateP l (GHC.HsOverLit ov)      = addDeltaAnnotationExt l GHC.AnnVal
   annotateP l (GHC.HsLit _)           = addDeltaAnnotationExt l GHC.AnnVal
@@ -1465,6 +1468,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
   annotateP l (GHC.HsLet binds e) = do
     addDeltaAnnotation GHC.AnnLet
     addDeltaAnnotation GHC.AnnOpen
+    addDeltaAnnotations GHC.AnnSemi
     annotateHsLocalBinds binds
     addDeltaAnnotation GHC.AnnClose
     addDeltaAnnotation GHC.AnnIn
@@ -1473,6 +1477,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
   annotateP l (GHC.HsDo cts es _) = do
     addDeltaAnnotation GHC.AnnDo
     addDeltaAnnotation GHC.AnnOpen
+    addDeltaAnnotations GHC.AnnSemi
     if isListComp cts
       then do
         annotatePC (last es)
@@ -1936,8 +1941,8 @@ getListSpan xs = map ss2span $ getListSrcSpan xs
 
 getListSrcSpan :: [GHC.Located e] -> [GHC.SrcSpan]
 getListSrcSpan [] = []
-getListSrcSpan xs = [GHC.mkSrcSpan (GHC.srcSpanStart (GHC.getLoc (head xs)))
-                                   (GHC.srcSpanEnd   (GHC.getLoc (last xs)))
+getListSrcSpan xs = [GHC.mkSrcSpan (GHC.srcSpanStart (GHC.getLoc (ghead "getListSrcSpan" xs)))
+                                   (GHC.srcSpanEnd   (GHC.getLoc (glast "getListSrcSpan" xs)))
                     ]
 
 getListSpans :: [GHC.Located e] -> [Span]
@@ -2206,6 +2211,25 @@ instance Show (GHC.GenLocated GHC.SrcSpan GHC.Token) where
 -- ---------------------------------------------------------------------
 
 pp a = GHC.showPpr GHC.unsafeGlobalDynFlags a
+
+-- ---------------------------------------------------------------------
+-- Putting these here for the time being, to avoid import loops
+
+ghead :: String -> [a] -> a
+ghead  info []    = error $ "ghead "++info++" []"
+ghead _info (h:_) = h
+
+glast :: String -> [a] -> a
+glast  info []    = error $ "glast " ++ info ++ " []"
+glast _info h     = last h
+
+gtail :: String -> [a] -> [a]
+gtail  info []   = error $ "gtail " ++ info ++ " []"
+gtail _info h    = tail h
+
+gfromJust :: [Char] -> Maybe a -> a
+gfromJust _info (Just h) = h
+gfromJust  info Nothing = error $ "gfromJust " ++ info ++ " Nothing"
 
 -- -------------------------------------------------------------------..
 -- Copied from MissingH, does not compile with HEAD

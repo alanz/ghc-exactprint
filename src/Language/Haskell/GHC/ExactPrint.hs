@@ -567,7 +567,7 @@ class (Typeable ast) => ExactP ast where
   exactP :: ast -> EP ()
 
 instance ExactP (GHC.HsModule GHC.RdrName) where
-  exactP (GHC.HsModule mmn mexp limps decls mdepr haddock) = do
+  exactP (GHC.HsModule mmn mexp imps decls mdepr haddock) = do
 
     case mmn of
       Just lmn@(GHC.L l mn) -> do
@@ -588,11 +588,9 @@ instance ExactP (GHC.HsModule GHC.RdrName) where
 
     printStringAtMaybeAnn GHC.AnnWhere "where"
     printStringAtMaybeAnn GHC.AnnOpen  "{"
-    exactP limps
+    printStringAtMaybeAnnAll GHC.AnnSemi ";" -- possible leading semis
+    exactP imps
 
-    printStringAtMaybeAnn GHC.AnnSemi ";"
-
-    -- printSeq $ map (pos . ann &&& exactPC) decls
     mapM_ exactPC decls
 
     printStringAtMaybeAnn GHC.AnnClose "}"
@@ -1363,9 +1361,8 @@ instance (ExactP body) => ExactP (GHC.GRHS GHC.RdrName (GHC.Located body)) where
     printStringAtMaybeAnn GHC.AnnEqual "="
     exactPC expr
 
--- instance ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 instance (ExactP body)
-  => ExactP (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.Located body)) where
+  => ExactP (GHC.Stmt GHC.RdrName (GHC.Located body)) where
 
   exactP (GHC.LastStmt body _) = exactPC body
     `debug` ("exactP.LastStmt")
@@ -1410,7 +1407,10 @@ instance (ExactP body)
 
   exactP (GHC.RecStmt stmts _ _ _ _ _ _ _ _) = do
     printStringAtMaybeAnn GHC.AnnRec "rec"
+    printStringAtMaybeAnn GHC.AnnOpen "{"
+    printStringAtMaybeAnnAll GHC.AnnSemi ";"
     mapM_ exactPC stmts
+    printStringAtMaybeAnn GHC.AnnClose "}"
 
 -- ---------------------------------------------------------------------
 
@@ -1421,7 +1421,7 @@ exactPParStmtBlock (GHC.ParStmtBlock stmts ns _) = do
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.HsExpr GHC.RdrName) where
-  exactP (GHC.HsVar v)              = printStringAtMaybeAnn GHC.AnnVal (rdrName2String v)
+  exactP (GHC.HsVar v)  = exactP v
   exactP (GHC.HsIPVar (GHC.HsIPName v)) = do
     printStringAtMaybeAnn GHC.AnnVal ("?" ++ GHC.unpackFS v)
   exactP (GHC.HsOverLit lit)     = exactP lit
@@ -1479,6 +1479,7 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
   exactP (GHC.HsLet lb e)    = do
     printStringAtMaybeAnn GHC.AnnLet "let"
     printStringAtMaybeAnn GHC.AnnOpen "{"
+    printStringAtMaybeAnnAll GHC.AnnSemi ";"
     exactP lb
     printStringAtMaybeAnn GHC.AnnClose "}"
     printStringAtMaybeAnn GHC.AnnIn "in"
@@ -1494,6 +1495,7 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
             else ("{","}",False)
 
     printStringAtMaybeAnn GHC.AnnOpen ostr
+    printStringAtMaybeAnnAll GHC.AnnSemi ";"
     if isComp
       then do
         exactPC(last stmts)

@@ -31,3 +31,6 @@
 /tests/examples/QuasiQuote.hs.exactprinter.out
 /tests/examples/Splice.hs.exactprinter.out
 /tests/examples/Roles.hs.exactprinter.out
+/tests/examples/EmptyMostly.hs.exactprinter.out
+/tests/examples/ImportsSemi.hs.exactprinter.out
+/tests/examples/Stmts.hs.exactprinter.out

@@ -36,7 +36,7 @@ class Foo1 a where
 
 class Foz a
 
-x = 2 where 
+x = 2 where
 y = 3
 
 instance Foo1 Int where
