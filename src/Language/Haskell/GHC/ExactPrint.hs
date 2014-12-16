@@ -46,6 +46,7 @@ import Data.Maybe
 import qualified Bag           as GHC
 import qualified BasicTypes    as GHC
 import qualified Class         as GHC
+import qualified CoAxiom        as GHC
 import qualified DynFlags      as GHC
 import qualified FastString    as GHC
 import qualified ForeignCall   as GHC
@@ -723,11 +724,11 @@ instance ExactP (GHC.RoleAnnotDecl GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnType "type"
     printStringAtMaybeAnn GHC.AnnRole "role"
     exactPC ln
-{-
-    case mr of
-      Nothing -> return ()
-      Just r -> exactPC r
--}
+    mapM_ exactPC mr
+
+instance ExactP (Maybe GHC.Role) where
+  exactP Nothing  = printStringAtMaybeAnn GHC.AnnVal "_"
+  exactP (Just r) = printStringAtMaybeAnn GHC.AnnVal (GHC.unpackFS $ GHC.fsFromRole r)
 
 -- ---------------------------------------------------------------------
 
@@ -1056,7 +1057,7 @@ instance ExactP (GHC.IPBind GHC.RdrName) where
 
 -- instance ExactP (GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 instance (ExactP body) => ExactP (GHC.Match GHC.RdrName (GHC.Located body)) where
-  exactP (GHC.Match pats typ (GHC.GRHSs grhs lb)) = do
+  exactP (GHC.Match mln pats typ (GHC.GRHSs grhs lb)) = do
     (isSym,funid) <- getFunId
     isInfix <- getFunIsInfix
     case (isInfix,pats) of
@@ -2048,7 +2049,7 @@ instance ExactP (GHC.HsTyVarBndr GHC.RdrName) where
   exactP (GHC.UserTyVar n) = printStringAtMaybeAnn GHC.AnnVal (rdrName2String n)
   exactP (GHC.KindedTyVar n ty) = do
     printStringAtMaybeAnn GHC.AnnOpen "("
-    printStringAtMaybeAnn GHC.AnnVal (rdrName2String n)
+    exactPC n
     printStringAtMaybeAnn GHC.AnnDcolon "::"
     exactPC ty
     printStringAtMaybeAnn GHC.AnnClose ")"

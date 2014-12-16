@@ -50,6 +50,7 @@ import qualified Bag            as GHC
 import qualified BasicTypes     as GHC
 import qualified BooleanFormula as GHC
 import qualified Class          as GHC
+import qualified CoAxiom        as GHC
 import qualified DynFlags       as GHC
 import qualified FastString     as GHC
 import qualified ForeignCall    as GHC
@@ -530,12 +531,14 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
     addDeltaAnnotation GHC.AnnType
     addDeltaAnnotation GHC.AnnRole
     annotatePC ln
-    -- mapM_ annotateMaybe mr
+    mapM_ annotatePC mr
 
 {-
 RoleAnnotDecl (Located name) [Located (Maybe Role)]	
     AnnKeywordId : AnnType, AnnRole
 -}
+instance AnnotateP (Maybe GHC.Role) where
+  annotateP l _ = addDeltaAnnotationExt l GHC.AnnVal
 
 -- ---------------------------------------------------------------------
 
@@ -865,7 +868,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,
           Typeable body,                        AnnotateP body)
   => AnnotateP (GHC.Match name (GHC.Located body)) where
 
-  annotateP l (GHC.Match pats _typ grhss@(GHC.GRHSs grhs lb)) = do
+  annotateP l (GHC.Match mln pats _typ grhss@(GHC.GRHSs grhs lb)) = do
     isInfix <- getFunIsInfix
     case (isInfix,pats) of
       (True,[a,b]) -> do
@@ -1009,7 +1012,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
 
   annotateP l (GHC.KindedTyVar n ty) = do
     addDeltaAnnotation GHC.AnnOpen -- '('
-    addDeltaAnnotationExt l GHC.AnnVal -- n
+    annotatePC n
     addDeltaAnnotation GHC.AnnDcolon -- '::'
     annotatePC ty
     addDeltaAnnotation GHC.AnnClose -- '('
