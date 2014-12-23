@@ -1032,13 +1032,14 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.HsType name) where
 
-  annotateP l (GHC.HsForAllTy f mwc bndrs ctx typ) = do
+  annotateP l (GHC.HsForAllTy f mwc (GHC.HsQTvs kvs tvs) ctx typ) = do
     addDeltaAnnotation GHC.AnnForall
+    mapM_ annotatePC tvs
+    addDeltaAnnotation GHC.AnnDot
     annotatePC ctx
     case mwc of
       Nothing -> return ()
       Just wcs -> addDeltaAnnotationExt wcs GHC.AnnVal -- '_' location
-    addDeltaAnnotation GHC.AnnDot
     addDeltaAnnotation GHC.AnnDarrow
     annotatePC typ
 
@@ -1868,6 +1869,7 @@ annotateDataDefn l (GHC.HsDataDefn _ ctx typ mk cons mderivs) = do
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
      => AnnotateP [GHC.LHsType name] where
   annotateP l ts = do
+    return () `debug` ("annotateP.HsContext:l=" ++ showGhc l)
     addDeltaAnnotation GHC.AnnDeriving
     addDeltaAnnotation GHC.AnnOpen
     mapM_ annotatePC ts
@@ -1899,7 +1901,10 @@ instance (Typeable name,AnnotateP name,GHC.OutputableBndr name)
 
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,AnnotateP a) =>
               AnnotateP (GHC.HsRecField name (GHC.Located a)) where
-  annotateP l (GHC.HsRecField _ e _) = annotatePC e
+  annotateP l (GHC.HsRecField n e _) = do
+    annotatePC n
+    addDeltaAnnotation GHC.AnnEqual
+    annotatePC e
 
 -- ---------------------------------------------------------------------
 

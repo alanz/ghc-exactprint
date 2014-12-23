@@ -1197,13 +1197,14 @@ hstylit2str (GHC.HsStrTy src _) = src
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.HsType GHC.RdrName) where
-  exactP (GHC.HsForAllTy f mwc bndrs ctx typ) = do
+  exactP (GHC.HsForAllTy f mwc (GHC.HsQTvs kvs tvs) ctx typ) = do
     printStringAtMaybeAnn GHC.AnnForall "forall"
+    mapM_ exactPC tvs
+    printStringAtMaybeAnn GHC.AnnDot    "."
     exactPC ctx
     case mwc of
       Nothing -> return ()
       Just _  -> printStringAtMaybeAnn GHC.AnnVal "_"
-    printStringAtMaybeAnn GHC.AnnDot    "."
     printStringAtMaybeAnn GHC.AnnDarrow "=>"
     exactPC typ
 
@@ -1712,7 +1713,10 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
 --   exactP (GHC.HsRecField _ e _) = exactPC e
 
 instance (ExactP arg) => ExactP (GHC.HsRecField GHC.RdrName (GHC.Located arg)) where
-  exactP (GHC.HsRecField _ e _) = exactPC e
+  exactP (GHC.HsRecField n e _) = do
+    exactPC n
+    printStringAtMaybeAnn GHC.AnnEqual "="
+    exactPC e
 
 -- ---------------------------------------------------------------------
 

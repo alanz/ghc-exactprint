@@ -36,3 +36,5 @@
 /tests/examples/Stmts.hs.exactprinter.out
 /tests/examples/EmptyMostly2.hs.exactprinter.out
 /tests/examples/EmptyMostlyInst.hs.exactprinter.out
+/tests/examples/ForAll.hs.exactprinter.out
+/tests/examples/PatSynBind.hs.exactprinter.out

@@ -70,8 +70,10 @@ main = do
     manipulateAstTest "examples/LetExprSemi.hs"           "LetExprSemi"
     manipulateAstTest "examples/Mixed.hs"                 "Main"
     manipulateAstTest "examples/EmptyMostly.hs"           "EmptyMostly"
--}
     manipulateAstTest "examples/Arrow.hs"                 "Arrow"
+    manipulateAstTest "examples/PatSynBind.hs"            "Main"
+-}
+    manipulateAstTest "examples/ForAll.hs"                "ForAll"
 {-
     manipulateAstTest "examples/EmptyMostlyInst.hs"           "EmptyMostlyInst"
     -- manipulateAstTest "examples/Foo.hs"                   "Main"
