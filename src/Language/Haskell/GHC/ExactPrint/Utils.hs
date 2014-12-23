@@ -1703,7 +1703,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
     addDeltaAnnotation GHC.AnnLarrowtail
     addDeltaAnnotation GHC.AnnRarrowtail
 
-    annotatePC e1
+    annotatePC e2
 
   annotateP l (GHC.HsCmdArrForm e mf cs) = do
     addDeltaAnnotation GHC.AnnOpen -- '(|'

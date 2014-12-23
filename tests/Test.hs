@@ -38,7 +38,7 @@ debug = flip trace
 
 main :: IO ()
 main = do
-
+{-
     manipulateAstTest "examples/LetStmt.hs"               "Layout.LetStmt"
     manipulateAstTest "examples/LetExpr.hs"               "LetExpr"
     manipulateAstTest "examples/Tuple.hs"                 "Main"
@@ -70,11 +70,12 @@ main = do
     manipulateAstTest "examples/LetExprSemi.hs"           "LetExprSemi"
     manipulateAstTest "examples/Mixed.hs"                 "Main"
     manipulateAstTest "examples/EmptyMostly.hs"           "EmptyMostly"
-
+-}
+    manipulateAstTest "examples/Arrow.hs"                 "Arrow"
+{-
     manipulateAstTest "examples/EmptyMostlyInst.hs"           "EmptyMostlyInst"
     -- manipulateAstTest "examples/Foo.hs"                   "Main"
     manipulateAstTest "examples/EmptyMostly2.hs"          "EmptyMostly2"
-{-
 -}
 
 -- | Where all the tests are to be found

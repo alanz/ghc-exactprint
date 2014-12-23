@@ -1730,7 +1730,7 @@ instance ExactP (GHC.HsCmd GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnLarrowtail "-<<"
     printStringAtMaybeAnn GHC.AnnRarrowtail ">>-"
 
-    exactPC e1
+    exactPC e2
 
   exactP (GHC.HsCmdArrForm e _ cs) = do
     printStringAtMaybeAnn GHC.AnnOpen "(|"
