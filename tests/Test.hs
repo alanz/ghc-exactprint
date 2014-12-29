@@ -77,9 +77,11 @@ main = do
     manipulateAstTest "examples/ForAll.hs"                "ForAll"
     manipulateAstTest "examples/PArr.hs"                  "PArr"
     manipulateAstTest "examples/Associated.hs"            "Main"
-    manipulateAstTest "examples/DataDecl.hs"          "Main"
--}
+    manipulateAstTest "examples/DataDecl.hs"              "Main"
     manipulateAstTest "examples/ViewPatterns.hs"          "Main"
+-}
+    manipulateAstTest "examples/BangPatterns.hs"          "Main"
+
 {-
     manipulateAstTest "examples/EmptyMostlyInst.hs"           "EmptyMostlyInst"
     -- manipulateAstTest "examples/Foo.hs"                   "Main"

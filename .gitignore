@@ -46,3 +46,4 @@
 /tests/examples/DataDecl.hs.exactprinter.out
 /tests/examples/PArr.hs.exactprinter.out
 /tests/examples/ViewPatterns.hs.exactprinter.out
+/tests/examples/BangPatterns.hs.exactprinter.out
