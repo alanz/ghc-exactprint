@@ -999,6 +999,7 @@ instance ExactP (GHC.DataFamInstDecl GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnInstance "instance"
     exactPC ln
     mapM_ exactPC pats
+    printStringAtMaybeAnn GHC.AnnWhere "where"
     printStringAtMaybeAnn GHC.AnnEqual "="
     exactP defn
 -- ---------------------------------------------------------------------
@@ -1182,17 +1183,18 @@ instance ExactP (GHC.Pat GHC.RdrName) where
 
 -- ---------------------------------------------------------------------
 
+hstylit2str :: GHC.HsTyLit -> String
+hstylit2str (GHC.HsNumTy src _) = src
+hstylit2str (GHC.HsStrTy src _) = src
+
+-- ---------------------------------------------------------------------
+
 instance ExactP (GHC.HsType GHC.Name) where
   exactP typ = do
     return () `debug` ("exactP.HsType not implemented for " ++ showGhc (typ))
     printString "HsType.Name"
+    -- Note: This should never appear, only the one for GHC.RdrName
     assert False undefined
-
--- ---------------------------------------------------------------------
-
-hstylit2str :: GHC.HsTyLit -> String
-hstylit2str (GHC.HsNumTy src _) = src
-hstylit2str (GHC.HsStrTy src _) = src
 
 -- ---------------------------------------------------------------------
 
@@ -1361,6 +1363,7 @@ instance (ExactP body) => ExactP (GHC.GRHS GHC.RdrName (GHC.Located body)) where
     printStringAtMaybeAnn GHC.AnnVbar "|"
     mapM_ exactPC guards
     printStringAtMaybeAnn GHC.AnnEqual "="
+    printStringAtMaybeAnn GHC.AnnRarrow "->" -- in a case
     exactPC expr
 
 instance (ExactP body)
@@ -2104,6 +2107,11 @@ instance ExactP (GHC.ConDecl GHC.RdrName) where
         mapM_ exactPC lns
         exactPC a2
 
+    case res of
+      GHC.ResTyH98 -> return ()
+      GHC.ResTyGADT ty -> do
+        printStringAtMaybeAnn GHC.AnnDcolon "::"
+        exactPC ty
 
     printStringAtMaybeAnn GHC.AnnVbar "|"
 

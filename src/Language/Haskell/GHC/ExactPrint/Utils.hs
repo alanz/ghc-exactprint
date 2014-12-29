@@ -809,6 +809,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
     addDeltaAnnotation GHC.AnnInstance
     annotatePC ln
     mapM_ annotatePC pats
+    addDeltaAnnotation GHC.AnnWhere
     addDeltaAnnotation GHC.AnnEqual
     annotateDataDefn l defn
 
@@ -921,6 +922,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,
     addDeltaAnnotation GHC.AnnVbar
     mapM_ annotatePC guards
     addDeltaAnnotation GHC.AnnEqual
+    addDeltaAnnotation GHC.AnnRarrow -- in case alts
     annotatePC expr
 
 -- ---------------------------------------------------------------------
@@ -1894,7 +1896,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 instance (Typeable name,AnnotateP name,GHC.OutputableBndr name)
       => AnnotateP (GHC.ConDecl name) where
   annotateP l (GHC.ConDecl lns exp (GHC.HsQTvs _ns bndrs) ctx
-                         dets _res _ _) = do
+                         dets res _ _) = do
     case dets of
       GHC.InfixCon _ _ -> return ()
       _ -> mapM_ annotatePC lns
@@ -1904,9 +1906,17 @@ instance (Typeable name,AnnotateP name,GHC.OutputableBndr name)
     addDeltaAnnotation GHC.AnnDot
 
     annotatePC ctx
-    addDeltaAnnotationLs GHC.AnnDarrow 0
+    -- addDeltaAnnotationLs GHC.AnnDarrow 0
+    addDeltaAnnotation GHC.AnnDarrow
 
     annotateHsConDeclDetails lns dets
+
+    case res of
+      GHC.ResTyH98 -> return ()
+      GHC.ResTyGADT ty -> do
+        addDeltaAnnotation GHC.AnnDcolon
+        annotatePC ty
+
 
     addDeltaAnnotation GHC.AnnVbar
 

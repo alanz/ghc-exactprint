@@ -42,3 +42,7 @@
 /tests/examples/HsDo.hs.exactprinter.out
 /tests/examples/Move1.hs.exactprinter.out
 /tests/examples/MultiParamTypeClasses.hs.exactprinter.out
+/tests/examples/Associated.hs.exactprinter.out
+/tests/examples/DataDecl.hs.exactprinter.out
+/tests/examples/PArr.hs.exactprinter.out
+/tests/examples/ViewPatterns.hs.exactprinter.out

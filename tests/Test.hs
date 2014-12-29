@@ -38,7 +38,7 @@ debug = flip trace
 
 main :: IO ()
 main = do
-
+{-
     manipulateAstTest "examples/LetStmt.hs"               "Layout.LetStmt"
     manipulateAstTest "examples/LetExpr.hs"               "LetExpr"
     manipulateAstTest "examples/Tuple.hs"                 "Main"
@@ -74,8 +74,12 @@ main = do
     manipulateAstTest "examples/PatSynBind.hs"            "Main"
     manipulateAstTest "examples/HsDo.hs"                  "HsDo"
     manipulateAstTest "examples/Move1.hs"                  "Move1"
-
     manipulateAstTest "examples/ForAll.hs"                "ForAll"
+    manipulateAstTest "examples/PArr.hs"                  "PArr"
+    manipulateAstTest "examples/Associated.hs"            "Main"
+    manipulateAstTest "examples/DataDecl.hs"          "Main"
+-}
+    manipulateAstTest "examples/ViewPatterns.hs"          "Main"
 {-
     manipulateAstTest "examples/EmptyMostlyInst.hs"           "EmptyMostlyInst"
     -- manipulateAstTest "examples/Foo.hs"                   "Main"
@@ -134,7 +138,7 @@ manipulateAstTest' useTH file modname = do
               else printed ++ "\n==============\n"
                     ++ "lengths:" ++ show (length printed,length contents) ++ "\n"
                     ++ parsedAST
-  -- putStrLn $ "Test:parsed=" ++ parsedAST
+  putStrLn $ "Test:parsed=" ++ parsedAST
   -- putStrLn $ "Test:ghcAnns:fst=" ++ show (fst ghcAnns)
   -- putStrLn $ "Test:ghcAnns:snd=" ++ showGhc (snd ghcAnns)
   -- putStrLn $ "Test2:empty ann=" ++ show ((Map.empty,Map.empty) :: Anns)
@@ -163,12 +167,15 @@ parsedFileGhc fileName modname useTH = do
         let dflags' = foldl GHC.xopt_set dflags
                            [GHC.Opt_Cpp, GHC.Opt_ImplicitPrelude, GHC.Opt_MagicHash]
 
-            dflags'' = dflags' { GHC.importPaths = ["./tests/examples/","../tests/examples/"] }
+            dflags'' = dflags' { GHC.importPaths = ["./tests/examples/","../tests/examples/",
+                                                    "./src/","../src/"] }
 
             tgt = if useTH then GHC.HscInterpreted
                            else GHC.HscNothing -- allows FFI
             dflags''' = dflags'' { GHC.hscTarget = tgt,
-                                   GHC.ghcLink =  GHC.LinkInMemory }
+                                   GHC.ghcLink =  GHC.LinkInMemory
+                                  , GHC.packageFlags = [GHC.ExposePackage (GHC.PackageArg "ghc") (GHC.ModRenaming False [])]
+                                 }
 
             dflags4 = if False -- useHaddock
                         then GHC.gopt_set (GHC.gopt_set dflags''' GHC.Opt_Haddock)
