@@ -147,15 +147,26 @@ getAnnotationAP sp an = AP (\l pe e ga
 
 
 -- -------------------------------------
+-- |Retrieve the comments allocated to the current 'SrcSpan', and
+-- remove them from the annotations
+getAndRemoveAnnotationComments :: GHC.ApiAnns -> GHC.SrcSpan
+                               -> ([GHC.Located GHC.AnnotationComment],GHC.ApiAnns)
+getAndRemoveAnnotationComments (anns,canns) span =
+  (case Map.lookup span canns of
+    Just cs -> (cs,(anns,Map.delete span canns))
+    Nothing -> ([],(anns,canns)))
+     `debug` ("getAndRemoveAnnotationComments:span=" ++ showGhc span)
+
+----------------------------------------
 
 getCommentsForSpan :: GHC.SrcSpan -> AP [Comment]
 getCommentsForSpan s = AP (\l pe e ga ->
   let
-    gcs = GHC.getAnnotationComments ga s
+    (gcs,ga1) = getAndRemoveAnnotationComments ga s
     cs = reverse $ map tokComment gcs
     tokComment :: GHC.Located GHC.AnnotationComment -> Comment
     tokComment t@(GHC.L l _) = Comment (ghcIsMultiLine t) (ss2span l) (ghcCommentText t)
-  in (cs,l,pe,e,ga,mempty))
+  in (cs,l,pe,e,ga1,mempty))
 
 -- -------------------------------------
 
@@ -240,12 +251,13 @@ isGoodDelta (DP (ro,co)) = ro >= 0 && co >= 0
 
 addFinalComments :: AP ()
 addFinalComments = do
+  return () `debug` ("addFinalComments:entering=")
   cs <- getCommentsForSpan GHC.noSrcSpan
   let (dcs,_) = localComments ((1,1),(1,1)) cs []
   pushSrcSpanAP (GHC.L GHC.noSrcSpan ())
   addAnnotationsAP (Ann dcs (DP (0,0)))
    -- `debug` ("leaveAST:dcs=" ++ show dcs)
-  return () -- `debug` ("addFinalComments:dcs=" ++ show dcs)
+  return () `debug` ("addFinalComments:dcs=" ++ show dcs)
 
 addAnnotationWorker :: GHC.AnnKeywordId -> GHC.SrcSpan -> AP ()
 addAnnotationWorker ann ap = do
@@ -351,7 +363,8 @@ applyListAnnotations ls
 annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns
                   -> Anns
 annotateLHsModule modu ghcAnns
-   = runAP (annotatePC modu >> addFinalComments) ghcAnns
+   -- = runAP (annotatePC modu >> addFinalComments) ghcAnns
+   = runAP (addFinalComments >> annotatePC modu) ghcAnns
 
 -- ---------------------------------------------------------------------
 
@@ -1968,7 +1981,6 @@ dcommentPos (DComment _ p _) = p
 -- them to be DComments relative to @p@
 localComments :: Span -> [Comment] -> [Span] -> ([DComment],[Comment])
 localComments pin cs ds = r
-  -- `debug` ("localComments:(p,ds,r):" ++ show ((p,e),ds,map commentPos matches,map dcommentPos (fst r)))
   `debug` ("localComments:(p,ds,r):" ++ show ((p,e),ds,r))
   where
     r = (map (\c -> deltaComment p c) matches,misses ++ missesRest)

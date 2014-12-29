@@ -38,3 +38,7 @@
 /tests/examples/EmptyMostlyInst.hs.exactprinter.out
 /tests/examples/ForAll.hs.exactprinter.out
 /tests/examples/PatSynBind.hs.exactprinter.out
+/tests/examples/Arrow.hs.exactprinter.out
+/tests/examples/HsDo.hs.exactprinter.out
+/tests/examples/Move1.hs.exactprinter.out
+/tests/examples/MultiParamTypeClasses.hs.exactprinter.out
