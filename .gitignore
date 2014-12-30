@@ -47,3 +47,5 @@
 /tests/examples/PArr.hs.exactprinter.out
 /tests/examples/ViewPatterns.hs.exactprinter.out
 /tests/examples/BangPatterns.hs.exactprinter.out
+/tests/examples/RebindableSyntax.hs.exactprinter.out
+/tests/examples/TypeOperators.hs.exactprinter.out

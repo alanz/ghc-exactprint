@@ -38,7 +38,7 @@ debug = flip trace
 
 main :: IO ()
 main = do
-{-
+
     manipulateAstTest "examples/LetStmt.hs"               "Layout.LetStmt"
     manipulateAstTest "examples/LetExpr.hs"               "LetExpr"
     manipulateAstTest "examples/Tuple.hs"                 "Main"
@@ -58,12 +58,10 @@ main = do
     manipulateAstTest "examples/Warning.hs"               "Warning"
     manipulateAstTest "examples/Deprecation.hs"           "Deprecation"
     manipulateAstTest "examples/Annotations.hs"           "Annotations"
-    manipulateAstTest "examples/Rules.hs"                 "Rules"
     manipulateAstTest "examples/Vect.hs"                  "Vect"
     manipulateAstTest "examples/DocDecls.hs"              "DocDecls"
     manipulateAstTestTH "examples/QuasiQuote.hs"          "QuasiQuote"
     manipulateAstTest "examples/Roles.hs"                 "Roles"
-    manipulateAstTest "examples/Infix.hs"                 "Main"
     manipulateAstTest "examples/Splice.hs"                "Splice"
     manipulateAstTest "examples/ImportsSemi.hs"           "ImportsSemi"
     manipulateAstTest "examples/Stmts.hs"                 "Stmts"
@@ -73,16 +71,19 @@ main = do
     manipulateAstTest "examples/Arrow.hs"                 "Arrow"
     manipulateAstTest "examples/PatSynBind.hs"            "Main"
     manipulateAstTest "examples/HsDo.hs"                  "HsDo"
-    manipulateAstTest "examples/Move1.hs"                  "Move1"
     manipulateAstTest "examples/ForAll.hs"                "ForAll"
     manipulateAstTest "examples/PArr.hs"                  "PArr"
-    manipulateAstTest "examples/Associated.hs"            "Main"
     manipulateAstTest "examples/DataDecl.hs"              "Main"
     manipulateAstTest "examples/ViewPatterns.hs"          "Main"
--}
     manipulateAstTest "examples/BangPatterns.hs"          "Main"
-
+    manipulateAstTest "examples/RebindableSyntax.hs"      "Main"
+    manipulateAstTest "examples/Associated.hs"            "Main"
+    manipulateAstTest "examples/Infix.hs"                 "Main"
+    manipulateAstTest "examples/Move1.hs"                 "Move1"
+    manipulateAstTest "examples/Rules.hs"                 "Rules"
 {-
+    manipulateAstTest "examples/TypeOperators.hs"         "Main"
+
     manipulateAstTest "examples/EmptyMostlyInst.hs"           "EmptyMostlyInst"
     -- manipulateAstTest "examples/Foo.hs"                   "Main"
     manipulateAstTest "examples/EmptyMostly2.hs"          "EmptyMostly2"
