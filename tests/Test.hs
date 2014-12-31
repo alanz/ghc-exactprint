@@ -89,9 +89,11 @@ main = do
     manipulateAstTest "examples/OverloadedStrings.hs"     "Main"
     manipulateAstTest "examples/RankNTypes.hs"            "Main"
     manipulateAstTest "examples/Existential.hs"           "Main"
-    manipulateAstTest "examples/ScopedTypeVariables.hs"    "Main"
+    manipulateAstTest "examples/ScopedTypeVariables.hs"   "Main"
+    manipulateAstTest "examples/Arrows.hs"                "Main"
+    manipulateAstTest "examples/TH.hs"                    "Main"
 -}
-    manipulateAstTest "examples/Arrows.hs"    "Main"
+    manipulateAstTest "examples/StaticPointers.hs"        "Main"
 {-
     manipulateAstTest "examples/EmptyMostlyInst.hs"           "EmptyMostlyInst"
     -- manipulateAstTest "examples/Foo.hs"                   "Main"

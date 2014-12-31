@@ -1672,6 +1672,10 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnRarrow "->"
     exactPC c
 
+  exactP (GHC.HsStatic e) = do
+    printStringAtMaybeAnn GHC.AnnStatic "static"
+    exactPC e
+
   exactP (GHC.HsArrApp e1 e2 _ _ _) = do
     exactPC e1
     -- only one of the next 4 will be resent

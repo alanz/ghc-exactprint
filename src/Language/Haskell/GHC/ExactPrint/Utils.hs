@@ -1641,6 +1641,10 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     addDeltaAnnotation GHC.AnnRarrow
     annotatePC c
 
+  annotateP l (GHC.HsStatic e) = do
+    addDeltaAnnotation GHC.AnnStatic
+    annotatePC e
+
   annotateP l (GHC.HsArrApp e1 e2 _ _ _) = do
     annotatePC e1
     -- only one of the next 4 will be resent

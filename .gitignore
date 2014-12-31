@@ -58,3 +58,5 @@
 /tests/examples/OverloadedStrings.hs.exactprinter.out
 /tests/examples/RankNTypes.hs.exactprinter.out
 /tests/examples/ScopedTypeVariables.hs.exactprinter.out
+/tests/examples/StaticPointers.hs.exactprinter.out
+/tests/examples/TH.hs.exactprinter.out
