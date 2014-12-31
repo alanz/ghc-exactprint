@@ -995,15 +995,23 @@ instance ExactP (GHC.TyFamInstDecl GHC.RdrName) where
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.DataFamInstDecl GHC.RdrName) where
-   exactP (GHC.DataFamInstDecl ln (GHC.HsWB pats _ _ _) defn _) = do
+   exactP (GHC.DataFamInstDecl ln (GHC.HsWB pats _ _ _)
+            (GHC.HsDataDefn _nOrD ctx mtyp mkind cons mderivs) _) = do
     printStringAtMaybeAnn GHC.AnnData     "data"
     printStringAtMaybeAnn GHC.AnnNewtype  "newtype"
     printStringAtMaybeAnn GHC.AnnInstance "instance"
     exactPC ln
     mapM_ exactPC pats
+
+    printStringAtMaybeAnn GHC.AnnDcolon "::"
+    doMaybe exactPC mkind
+
     printStringAtMaybeAnn GHC.AnnWhere "where"
     printStringAtMaybeAnn GHC.AnnEqual "="
-    exactP defn
+
+    mapM_ exactPC cons
+    doMaybe exactPC mderivs
+
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.HsBind GHC.RdrName) where
@@ -1962,13 +1970,17 @@ instance ExactP (GHC.TyClDecl GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnEqual "="
     exactPC typ
 
-  exactP (GHC.DataDecl ln (GHC.HsQTvs ns tyVars) defn _) = do
+  exactP (GHC.DataDecl ln (GHC.HsQTvs ns tyVars)
+           (GHC.HsDataDefn _nOrD ctx mtyp mkind cons mderivs) _) = do
     printStringAtMaybeAnn GHC.AnnData    "data"
     printStringAtMaybeAnn GHC.AnnNewtype "newtype"
     printTyClass ln tyVars
+    printStringAtMaybeAnn GHC.AnnDcolon "::"
+    doMaybe exactPC mkind
     printStringAtMaybeAnn GHC.AnnEqual "="
     printStringAtMaybeAnn GHC.AnnWhere "where"
-    exactP defn
+    mapM_ exactPC cons
+    doMaybe exactPC mderivs
 
   exactP (GHC.ClassDecl ctx ln (GHC.HsQTvs ns tyVars) fds
                           sigs meths ats atdefs docs _) = do
@@ -2072,7 +2084,7 @@ instance ExactP (GHC.HsTyVarBndr GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnCloseP ")"
 
 -- ---------------------------------------------------------------------
-
+{-
 instance ExactP (GHC.HsDataDefn GHC.RdrName) where
   exactP (GHC.HsDataDefn nOrD ctx mtyp mkind cons mderivs) = do
     exactPC ctx
@@ -2080,7 +2092,7 @@ instance ExactP (GHC.HsDataDefn GHC.RdrName) where
     doMaybe exactPC mkind
     mapM_ exactPC cons
     doMaybe exactPC mderivs
-
+-}
 -- ---------------------------------------------------------------------
 
 instance ExactP [GHC.LConDecl GHC.RdrName] where
@@ -2090,13 +2102,13 @@ instance ExactP [GHC.LConDecl GHC.RdrName] where
 
 instance ExactP (GHC.ConDecl GHC.RdrName) where
   exactP (GHC.ConDecl lns exp (GHC.HsQTvs _ns bndrs) ctx dets res _ _) = do
-    case dets of
-      GHC.InfixCon _ _ -> return ()
-      _ -> mapM_ exactPC lns
-
     printStringAtMaybeAnn GHC.AnnForall "forall"
     mapM_ exactPC bndrs
     printStringAtMaybeAnn GHC.AnnDot "."
+
+    case dets of
+      GHC.InfixCon _ _ -> return ()
+      _ -> mapM_ exactPC lns
 
     exactPC ctx
 

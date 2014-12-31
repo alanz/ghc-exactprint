@@ -46,6 +46,7 @@ Test-Suite test
                        ghc-syb-utils,
                        ghc,
                        ghc-paths,
-                       HUnit
+                       HUnit,
+                       random
 --                       text
 

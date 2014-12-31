@@ -1793,21 +1793,17 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
     addDeltaAnnotation GHC.AnnEqual
     annotatePC typ
 
-  annotateP l (GHC.DataDecl ln (GHC.HsQTvs ns tyVars) defn _) = do
+  annotateP l (GHC.DataDecl ln (GHC.HsQTvs ns tyVars)
+                (GHC.HsDataDefn _ ctx typ mk cons mderivs) _) = do
     addDeltaAnnotation GHC.AnnData
     addDeltaAnnotation GHC.AnnNewtype
-{-
-    addDeltaAnnotations GHC.AnnOpen
-    applyListAnnotations (prepareListAnnotation [ln]
-                      ++ prepareListAnnotation (take 2 tyVars))
-    addDeltaAnnotations GHC.AnnClose
-    mapM_ annotatePC (drop 2 tyVars)
--}
     annotateTyClass ln tyVars
-
+    addDeltaAnnotation GHC.AnnDcolon
+    annotateMaybe mk
     addDeltaAnnotation GHC.AnnEqual
     addDeltaAnnotation GHC.AnnWhere
-    annotateDataDefn l defn
+    mapM_ annotatePC cons
+    annotateMaybe mderivs
 
   annotateP l (GHC.ClassDecl ctx ln (GHC.HsQTvs ns tyVars) fds
                           sigs meths ats atdefs docs _) = do
@@ -1918,13 +1914,14 @@ instance (Typeable name,AnnotateP name,GHC.OutputableBndr name)
       => AnnotateP (GHC.ConDecl name) where
   annotateP l (GHC.ConDecl lns exp (GHC.HsQTvs _ns bndrs) ctx
                          dets res _ _) = do
+    addDeltaAnnotation GHC.AnnForall
+    mapM_ annotatePC bndrs
+    addDeltaAnnotation GHC.AnnDot
+
     case dets of
       GHC.InfixCon _ _ -> return ()
       _ -> mapM_ annotatePC lns
 
-    addDeltaAnnotation GHC.AnnForall
-    mapM_ annotatePC bndrs
-    addDeltaAnnotation GHC.AnnDot
 
     annotatePC ctx
     -- addDeltaAnnotationLs GHC.AnnDarrow 0

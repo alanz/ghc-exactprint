@@ -49,3 +49,12 @@
 /tests/examples/BangPatterns.hs.exactprinter.out
 /tests/examples/RebindableSyntax.hs.exactprinter.out
 /tests/examples/TypeOperators.hs.exactprinter.out
+/tests/examples/Arrows.hs.exactprinter.out
+/tests/examples/DerivingOC.hs.exactprinter.out
+/tests/examples/Existential.hs.exactprinter.out
+/tests/examples/FunctionalDeps.hs.exactprinter.out
+/tests/examples/GenericDeriving.hs.exactprinter.out
+/tests/examples/NullaryTypeClasses.hs.exactprinter.out
+/tests/examples/OverloadedStrings.hs.exactprinter.out
+/tests/examples/RankNTypes.hs.exactprinter.out
+/tests/examples/ScopedTypeVariables.hs.exactprinter.out
