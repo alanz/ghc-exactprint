@@ -92,8 +92,9 @@ main = do
     manipulateAstTest "examples/ScopedTypeVariables.hs"   "Main"
     manipulateAstTest "examples/Arrows.hs"                "Main"
     manipulateAstTest "examples/TH.hs"                    "Main"
--}
     manipulateAstTest "examples/StaticPointers.hs"        "Main"
+-}
+    manipulateAstTest "examples/DataDecl.hs"              "Main"
 {-
     manipulateAstTest "examples/EmptyMostlyInst.hs"           "EmptyMostlyInst"
     -- manipulateAstTest "examples/Foo.hs"                   "Main"

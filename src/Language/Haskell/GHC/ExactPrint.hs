@@ -1975,9 +1975,12 @@ instance ExactP (GHC.TyClDecl GHC.RdrName) where
     exactPC typ
 
   exactP (GHC.DataDecl ln (GHC.HsQTvs ns tyVars)
-           (GHC.HsDataDefn _nOrD ctx mtyp mkind cons mderivs) _) = do
+           (GHC.HsDataDefn _nOrD ctx mctyp mkind cons mderivs) _) = do
     printStringAtMaybeAnn GHC.AnnData    "data"
     printStringAtMaybeAnn GHC.AnnNewtype "newtype"
+    doMaybe exactPC mctyp
+    exactPC ctx
+    printStringAtMaybeAnn GHC.AnnDarrow "=>"
     printTyClass ln tyVars
     printStringAtMaybeAnn GHC.AnnDcolon "::"
     doMaybe exactPC mkind
@@ -2110,11 +2113,13 @@ instance ExactP (GHC.ConDecl GHC.RdrName) where
     mapM_ exactPC bndrs
     printStringAtMaybeAnn GHC.AnnDot "."
 
+    exactPC ctx
+    printStringAtMaybeAnn GHC.AnnDarrow "=>"
+
     case dets of
       GHC.InfixCon _ _ -> return ()
       _ -> mapM_ exactPC lns
 
-    exactPC ctx
 
     case dets of
       GHC.PrefixCon args -> mapM_ exactPC args
@@ -2144,7 +2149,14 @@ instance ExactP [GHC.LConDeclField GHC.RdrName] where
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.CType) where
-  exactP (GHC.CType src _ _) = printStringAtMaybeAnn GHC.AnnVal src
+  exactP (GHC.CType src mh f) = do
+    printStringAtMaybeAnn GHC.AnnOpen src
+    case mh of
+      Nothing -> return ()
+      Just (GHC.Header h) ->
+         printStringAtMaybeAnn GHC.AnnHeader ("\"" ++ GHC.unpackFS h ++ "\"")
+    printStringAtMaybeAnn GHC.AnnVal ("\"" ++ GHC.unpackFS f ++ "\"")
+    printStringAtMaybeAnn GHC.AnnClose "#-}"
 
 -- ---------------------------------------------------------------------
 
