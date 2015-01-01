@@ -2123,11 +2123,15 @@ instance ExactP (GHC.ConDecl GHC.RdrName) where
 
     case dets of
       GHC.PrefixCon args -> mapM_ exactPC args
-      GHC.RecCon fs -> exactPC fs
+      GHC.RecCon fs -> do
+        printStringAtMaybeAnn GHC.AnnOpenC "{"
+        exactPC fs
+        printStringAtMaybeAnn GHC.AnnCloseC "}"
       GHC.InfixCon a1 a2 -> do
         exactPC a1
         mapM_ exactPC lns
         exactPC a2
+
 
     case res of
       GHC.ResTyH98 -> return ()

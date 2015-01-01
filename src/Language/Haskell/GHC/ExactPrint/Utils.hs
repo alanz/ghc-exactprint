@@ -1291,7 +1291,10 @@ annotateHsConDeclDetails :: (GHC.OutputableBndr name,AnnotateP name)
 annotateHsConDeclDetails lns dets = do
   case dets of
     GHC.PrefixCon args -> mapM_ annotatePC args
-    GHC.RecCon fs -> annotatePC fs
+    GHC.RecCon fs -> do
+      addDeltaAnnotation GHC.AnnOpenC
+      annotatePC fs
+      addDeltaAnnotation GHC.AnnCloseC
     GHC.InfixCon a1 a2 -> do
       annotatePC a1
       mapM_ annotatePC lns
