@@ -1831,6 +1831,7 @@ instance ExactP GHC.RdrName where
         printStringAtMaybeAnn GHC.AnnTilde     "~"
         printStringAtMaybeAnn GHC.AnnVal       str
         printStringAtMaybeAnn GHC.AnnBackquote "`"
+        printStringAtMaybeAnnAll GHC.AnnComma "," -- For '(,,,)'
         printStringAtMaybeAnn GHC.AnnCloseP    ")"
 
 instance ExactP GHC.HsIPName where

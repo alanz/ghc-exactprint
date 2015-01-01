@@ -478,6 +478,7 @@ instance AnnotateP GHC.RdrName where
         addDeltaAnnotation GHC.AnnTildehsh
         addDeltaAnnotation GHC.AnnTilde
         addDeltaAnnotationLs GHC.AnnBackquote 1
+        addDeltaAnnotations GHC.AnnComma -- For '(,,,)'
         addDeltaAnnotation GHC.AnnCloseP -- ')'
 
 -- ---------------------------------------------------------------------

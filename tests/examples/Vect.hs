@@ -11,6 +11,8 @@ module Vect where
 
 {-# VECTORISE SCALAR type Int  #-}
 {-# VECTORISE        type Char #-}
+{-# VECTORISE        type ( ) #-}
+{-# VECTORISE        type (# #) #-}
 
 {-# VECTORISE SCALAR type Integer = Int #-}
 {-# VECTORISE        type Bool    = String  #-}

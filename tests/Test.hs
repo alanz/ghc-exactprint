@@ -93,10 +93,13 @@ main = do
     manipulateAstTest "examples/Arrows.hs"                "Main"
     manipulateAstTest "examples/TH.hs"                    "Main"
     manipulateAstTest "examples/StaticPointers.hs"        "Main"
--}
     manipulateAstTest "examples/DataDecl.hs"              "Main"
+-}
+    manipulateAstTest "examples/Guards.hs"                "Main"
+
 {-
-    manipulateAstTest "examples/EmptyMostlyInst.hs"           "EmptyMostlyInst"
+    manipulateAstTest "examples/RdrNames.hs"              "RdrNames"
+    manipulateAstTest "examples/EmptyMostlyInst.hs"       "EmptyMostlyInst"
     -- manipulateAstTest "examples/Foo.hs"                   "Main"
     manipulateAstTest "examples/EmptyMostly2.hs"          "EmptyMostly2"
 -}

@@ -60,3 +60,5 @@
 /tests/examples/ScopedTypeVariables.hs.exactprinter.out
 /tests/examples/StaticPointers.hs.exactprinter.out
 /tests/examples/TH.hs.exactprinter.out
+/tests/examples/Guards.hs.exactprinter.out
+/tests/examples/RdrNames.hs.exactprinter.out
