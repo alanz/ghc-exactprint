@@ -212,7 +212,7 @@ enterAST lss = do
 leaveAST :: AP ()
 leaveAST = do
   -- Automatically add any trailing comma or semi
-  addDeltaAnnotation GHC.AnnComma
+  addDeltaAnnotationAfter GHC.AnnComma
   addDeltaAnnotations GHC.AnnSemi
 
   ss <- getSrcSpanAP
@@ -292,6 +292,20 @@ addDeltaAnnotation ann = do
   ss <- getSrcSpanAP
   ma <- getAnnotationAP ss ann
   case ma of
+    [] -> return () `debug` ("addDeltaAnnotation empty ma for:" ++ show ann)
+    [ap] -> addAnnotationWorker ann ap
+    _ -> error $ "addDeltaAnnotation:(ss,ann,ma)=" ++ showGhc (ss,ann,ma)
+
+-- | Look up and add a Delta annotation appearing beyond the current
+-- SrcSpan at the current position, and advance the position to the
+-- end of the annotation
+addDeltaAnnotationAfter :: GHC.AnnKeywordId -> AP ()
+addDeltaAnnotationAfter ann = do
+  pe <- getPriorEnd
+  ss <- getSrcSpanAP
+  ma <- getAnnotationAP ss ann
+  let ma' = filter (\s -> not (GHC.isSubspanOf s ss)) ma
+  case ma' of
     [] -> return () `debug` ("addDeltaAnnotation empty ma")
     [ap] -> addAnnotationWorker ann ap
     _ -> error $ "addDeltaAnnotation:(ss,ann,ma)=" ++ showGhc (ss,ann,ma)
@@ -317,6 +331,19 @@ addDeltaAnnotations ann = do
   let do_one ap' = addAnnotationWorker ann ap'
                     `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
   mapM_ do_one (sort ma)
+
+{-
+-- | Look up and add possibly multiple Delta annotations enclosed by
+-- the current SrcSpan at the current position, and advance the
+-- position to the end of the annotations
+addDeltaAnnotationsInside :: GHC.AnnKeywordId -> AP ()
+addDeltaAnnotationsInside ann = do
+  ss <- getSrcSpanAP
+  ma <- getAnnotationAP ss ann
+  let do_one ap' = addAnnotationWorker ann ap'
+                    `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
+  mapM_ do_one (sort $ filter (\s -> GHC.isSubspanOf s ss) ma)
+-}
 
 -- | Add a Delta annotation at the current position, and advance the
 -- position to the end of the annotation
@@ -466,19 +493,28 @@ instance AnnotateP GHC.RdrName where
       "()" -> do
         addDeltaAnnotation GHC.AnnOpenP -- '('
         addDeltaAnnotation GHC.AnnCloseP -- ')'
+      "(##)" -> do
+        addDeltaAnnotation GHC.AnnOpen -- '(#'
+        addDeltaAnnotation GHC.AnnClose -- '#)'
+      "[::]" -> do
+        addDeltaAnnotation GHC.AnnOpen -- '[:'
+        addDeltaAnnotation GHC.AnnClose -- ':]'
       _ ->  do
         addDeltaAnnotation GHC.AnnType
         addDeltaAnnotation GHC.AnnOpenP -- '('
         addDeltaAnnotationLs GHC.AnnBackquote 0
+        addDeltaAnnotations GHC.AnnCommaTuple -- For '(,,,)'
         cnt <- countAnnsAP GHC.AnnVal
+        cntT <- countAnnsAP GHC.AnnCommaTuple
+        cntR <- countAnnsAP GHC.AnnRarrow
         case cnt of
-          0 -> addDeltaAnnotationExt l GHC.AnnVal
+          0 -> if cntT >0 || cntR >0 then return () else addDeltaAnnotationExt l GHC.AnnVal
           1 -> addDeltaAnnotation GHC.AnnVal
           x -> error $ "annotateP.RdrName: too many AnnVal :" ++ showGhc (l,x)
         addDeltaAnnotation GHC.AnnTildehsh
         addDeltaAnnotation GHC.AnnTilde
+        addDeltaAnnotation GHC.AnnRarrow
         addDeltaAnnotationLs GHC.AnnBackquote 1
-        addDeltaAnnotations GHC.AnnComma -- For '(,,,)'
         addDeltaAnnotation GHC.AnnCloseP -- ')'
 
 -- ---------------------------------------------------------------------
@@ -1055,7 +1091,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 
   annotateP l (GHC.HsTyVar n) = do
     addDeltaAnnotation GHC.AnnDcolon -- for HsKind, alias for HsType
-    addDeltaAnnotationExt l GHC.AnnVal
+    annotateP l n
 
   annotateP l (GHC.HsAppTy t1 t2) = do
     addDeltaAnnotation GHC.AnnDcolon -- for HsKind, alias for HsType
@@ -1713,6 +1749,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
     annotatePC e
 
   annotateP l (GHC.Missing _) = do
+    addDeltaAnnotation GHC.AnnComma
     return ()
 
 -- ---------------------------------------------------------------------

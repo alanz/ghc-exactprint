@@ -1224,7 +1224,7 @@ instance ExactP (GHC.HsType GHC.RdrName) where
 
   exactP (GHC.HsTyVar n) = do
     printStringAtMaybeAnn GHC.AnnDcolon "::" -- for HsKind, aliased to HsType
-    printStringAtMaybeAnn GHC.AnnVal (rdrName2String n)
+    exactP n
 
   exactP (GHC.HsAppTy t1 t2) = do
     printStringAtMaybeAnn GHC.AnnDcolon "::" -- for HsKind, aliased to HsType
@@ -1823,16 +1823,24 @@ instance ExactP GHC.RdrName where
       "()" -> do
         printStringAtMaybeAnn GHC.AnnOpenP "("
         printStringAtMaybeAnn GHC.AnnCloseP ")"
+      "(##)" -> do
+        printStringAtMaybeAnn GHC.AnnOpen "(#"
+        printStringAtMaybeAnn GHC.AnnClose "#)"
+      "[::]" -> do
+        printStringAtMaybeAnn GHC.AnnOpen "[:"
+        printStringAtMaybeAnn GHC.AnnClose ":]"
       str ->  do
         printStringAtMaybeAnn GHC.AnnType      "type"
         printStringAtMaybeAnn GHC.AnnOpenP     "("
         printStringAtMaybeAnn GHC.AnnBackquote  "`"
         printStringAtMaybeAnn GHC.AnnTildehsh  "~#"
         printStringAtMaybeAnn GHC.AnnTilde     "~"
+        printStringAtMaybeAnn GHC.AnnRarrow    "->"
         printStringAtMaybeAnn GHC.AnnVal       str
         printStringAtMaybeAnn GHC.AnnBackquote "`"
-        printStringAtMaybeAnnAll GHC.AnnComma "," -- For '(,,,)'
+        printStringAtMaybeAnnAll GHC.AnnCommaTuple "," -- For '(,,,)'
         printStringAtMaybeAnn GHC.AnnCloseP    ")"
+        return () `debug` ("exactP.RdrName:n=" ++ str)
 
 instance ExactP GHC.HsIPName where
   exactP (GHC.HsIPName n) = do

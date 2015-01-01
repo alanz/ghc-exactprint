@@ -1,5 +1,6 @@
 {-# LANGUAGE ParallelArrays #-}
 {-# OPTIONS_GHC -fvectorise #-}
+{-# LANGUAGE UnboxedTuples #-}
 
 module Vect where
 

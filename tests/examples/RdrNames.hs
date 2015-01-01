@@ -1,4 +1,5 @@
 {-# LANGUAGE ParallelListComp #-}
+{-# LANGUAGE TypeFamilies #-}
 module RdrNames where
 
 import Data.Monoid
@@ -62,7 +63,7 @@ vvq = "a" `  Data.Monoid.mappend ` "b"
 --        | '(' commas ')'        {% ams (sLL $1 $> $ getRdrName (tupleTyCon BoxedTuple
 --                                                        (snd $2 + 1)))
 --                                       (mo $1:mc $3:(mcommas (fst $2))) }
-ng :: (,,,) Int Int Int Int
+ng :: (, , ,) Int Int Int Int
 ng = undefined
 
 -- ---------------------------------------------------------------------
@@ -77,8 +78,12 @@ ng = undefined
 --        | '(' '->' ')'          {% ams (sLL $1 $> $ getRdrName funTyCon)
 --                                       [mo $1,mj AnnRarrow $2,mc $3] }
 
-ft :: ( -> ) a b
+ft :: (->) a b
 ft = undefined
+
+type family F a :: * -> * -> *
+type instance F Int = (->)
+type instance F Char = ( ,  )
 
 -- ---------------------------------------------------------------------
 
