@@ -1076,15 +1076,16 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
 instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.HsType name) where
 
-  annotateP l (GHC.HsForAllTy f mwc (GHC.HsQTvs kvs tvs) ctx typ) = do
+  annotateP l (GHC.HsForAllTy f mwc (GHC.HsQTvs kvs tvs) ctx@(GHC.L lc ctxs) typ) = do
     addDeltaAnnotation GHC.AnnOpenP -- "("
     addDeltaAnnotation GHC.AnnForall
     mapM_ annotatePC tvs
     addDeltaAnnotation GHC.AnnDot
-    annotatePC ctx
+
     case mwc of
-      Nothing -> return ()
-      Just wcs -> addDeltaAnnotationExt wcs GHC.AnnVal -- '_' location
+      Nothing -> annotatePC ctx
+      Just lwc -> annotatePC (GHC.L lc (GHC.sortLocated ((GHC.L lwc GHC.HsWildcardTy):ctxs)))
+
     addDeltaAnnotation GHC.AnnDarrow
     annotatePC typ
     addDeltaAnnotation GHC.AnnCloseP -- ")"
@@ -1200,6 +1201,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 
   annotateP l (GHC.HsWildcardTy) = do
     addDeltaAnnotationExt l GHC.AnnVal
+    addDeltaAnnotation GHC.AnnDarrow -- if only part of a partial type signature context
 
   annotateP l (GHC.HsNamedWildcardTy n) = do
     addDeltaAnnotationExt l GHC.AnnVal
@@ -1953,6 +1955,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
     addDeltaAnnotation GHC.AnnDeriving
     addDeltaAnnotation GHC.AnnOpenP
     mapM_ annotatePC ts
+    addDeltaAnnotation GHC.AnnUnit -- for empty context
     addDeltaAnnotation GHC.AnnCloseP
     addDeltaAnnotation GHC.AnnDarrow
 

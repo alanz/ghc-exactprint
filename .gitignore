@@ -62,3 +62,4 @@
 /tests/examples/TH.hs.exactprinter.out
 /tests/examples/Guards.hs.exactprinter.out
 /tests/examples/RdrNames.hs.exactprinter.out
+/tests/examples/ExtraConstraints1.hs.exactprinter.out

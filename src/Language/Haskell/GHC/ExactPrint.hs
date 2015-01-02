@@ -1209,15 +1209,16 @@ instance ExactP (GHC.HsType GHC.Name) where
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.HsType GHC.RdrName) where
-  exactP (GHC.HsForAllTy f mwc (GHC.HsQTvs kvs tvs) ctx typ) = do
+  exactP (GHC.HsForAllTy f mwc (GHC.HsQTvs kvs tvs) ctx@(GHC.L lc ctxs) typ) = do
     printStringAtMaybeAnn GHC.AnnOpenP   "("
     printStringAtMaybeAnn GHC.AnnForall "forall"
     mapM_ exactPC tvs
     printStringAtMaybeAnn GHC.AnnDot    "."
-    exactPC ctx
+
     case mwc of
-      Nothing -> return ()
-      Just _  -> printStringAtMaybeAnn GHC.AnnVal "_"
+      Nothing -> exactPC ctx
+      Just lwc  -> exactPC (GHC.L lc (GHC.sortLocated ((GHC.L lwc GHC.HsWildcardTy):ctxs)))
+
     printStringAtMaybeAnn GHC.AnnDarrow "=>"
     exactPC typ
     printStringAtMaybeAnn GHC.AnnCloseP  ")"
@@ -1343,6 +1344,7 @@ instance ExactP (GHC.HsType GHC.RdrName) where
 
   exactP GHC.HsWildcardTy = do
     printStringAtMaybeAnn GHC.AnnVal "_"
+    printStringAtMaybeAnn GHC.AnnDarrow "=>" -- if only part of a partial type signature context
 
   exactP (GHC.HsNamedWildcardTy n) = do
     printStringAtMaybeAnn GHC.AnnVal (rdrName2String n)
@@ -1369,6 +1371,7 @@ instance ExactP (GHC.HsContext GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnDeriving "deriving"
     printStringAtMaybeAnn GHC.AnnOpenP "("
     mapM_ exactPC typs
+    printStringAtMaybeAnn GHC.AnnUnit "()"
     printStringAtMaybeAnn GHC.AnnCloseP ")"
     printStringAtMaybeAnn GHC.AnnDarrow "=>"
 
