@@ -63,3 +63,13 @@
 /tests/examples/Guards.hs.exactprinter.out
 /tests/examples/RdrNames.hs.exactprinter.out
 /tests/examples/ExtraConstraints1.hs.exactprinter.out
+/tests/examples/AddAndOr3.hs.exactprinter.out
+/tests/examples/Ann01.hs.exactprinter.out
+/tests/examples/Cg008.hs.exactprinter.out
+/tests/examples/Dead1.hs.exactprinter.out
+/tests/examples/ParensAroundContext.hs.exactprinter.out
+/tests/examples/Stream.hs.exactprinter.out
+/tests/examples/StrictLet.hs.exactprinter.out
+/tests/examples/T2388.hs.exactprinter.out
+/tests/examples/T3132.hs.exactprinter.out
+/tests/examples/Trit.hs.exactprinter.out

@@ -354,7 +354,7 @@ printStringAtMaybeAnn ann str = do
   ma <- getAnnFinal ann
   ss <- getSrcSpan
   printStringAtLsDelta ma str
-    `debug` ("printStringAtMaybeAnn:(ss,ann,ma,str)=" ++ show (ss2span ss,ann,ma,str))
+    -- `debug` ("printStringAtMaybeAnn:(ss,ann,ma,str)=" ++ show (ss2span ss,ann,ma,str))
 
 printStringAtMaybeAnnAll :: GHC.AnnKeywordId -> String -> EP ()
 printStringAtMaybeAnnAll ann str = go
@@ -1176,7 +1176,9 @@ instance ExactP (GHC.Pat GHC.RdrName) where
   exactP (GHC.LitPat lp) = do
     printStringAtMaybeAnn GHC.AnnVal (hsLit2String lp)
 
-  exactP (GHC.NPat ol _ _)  = exactP ol
+  exactP (GHC.NPat ol _ _)  = do
+    printStringAtMaybeAnn GHC.AnnMinus "-"
+    exactPC ol
 
   exactP (GHC.NPlusKPat ln ol _ _) = do
     exactPC ln
@@ -1371,7 +1373,7 @@ instance ExactP (GHC.HsContext GHC.RdrName) where
     printStringAtMaybeAnn GHC.AnnDeriving "deriving"
     printStringAtMaybeAnn GHC.AnnOpenP "("
     mapM_ exactPC typs
-    printStringAtMaybeAnn GHC.AnnUnit "()"
+    -- printStringAtMaybeAnn GHC.AnnUnit "()"
     printStringAtMaybeAnn GHC.AnnCloseP ")"
     printStringAtMaybeAnn GHC.AnnDarrow "=>"
 

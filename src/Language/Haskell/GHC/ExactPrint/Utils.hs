@@ -291,7 +291,7 @@ addDeltaAnnotation ann = do
   pe <- getPriorEnd
   ss <- getSrcSpanAP
   ma <- getAnnotationAP ss ann
-  case ma of
+  case nub ma of -- ++AZ++ TODO: get rid of duplicates earlier
     [] -> return () `debug` ("addDeltaAnnotation empty ma for:" ++ show ann)
     [ap] -> addAnnotationWorker ann ap
     _ -> error $ "addDeltaAnnotation:(ss,ann,ma)=" ++ showGhc (ss,ann,ma)
@@ -1287,7 +1287,10 @@ instance (Typeable name,AnnotateP name,GHC.OutputableBndr name) => AnnotateP (GH
   annotateP l (GHC.LitPat lp) = addDeltaAnnotationExt l GHC.AnnVal
 
   -- NPat (HsOverLit id) (Maybe (SyntaxExpr id)) (SyntaxExpr id)
-  annotateP l (GHC.NPat ol _ _) = addDeltaAnnotationExt l GHC.AnnVal
+  annotateP l (GHC.NPat ol _ _) = do
+    addDeltaAnnotation GHC.AnnMinus
+    -- addDeltaAnnotationExt l GHC.AnnVal
+    annotatePC ol
 
   -- NPlusKPat (Located id) (HsOverLit id) (SyntaxExpr id) (SyntaxExpr id)
   annotateP l (GHC.NPlusKPat ln ol _ _) = do
@@ -1955,7 +1958,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
     addDeltaAnnotation GHC.AnnDeriving
     addDeltaAnnotation GHC.AnnOpenP
     mapM_ annotatePC ts
-    addDeltaAnnotation GHC.AnnUnit -- for empty context
+    -- addDeltaAnnotation GHC.AnnUnit -- for empty context
     addDeltaAnnotation GHC.AnnCloseP
     addDeltaAnnotation GHC.AnnDarrow
 

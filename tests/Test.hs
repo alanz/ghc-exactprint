@@ -38,10 +38,9 @@ debug = flip trace
 
 main :: IO ()
 main = do
-{-
+
     manipulateAstTest "examples/LetStmt.hs"               "Layout.LetStmt"
     manipulateAstTest "examples/LetExpr.hs"               "LetExpr"
-    manipulateAstTest "examples/Sigs.hs"                  "Sigs"
     manipulateAstTest "examples/ExprPragmas.hs"           "ExprPragmas"
     manipulateAstTest "examples/ListComprehensions.hs"    "Main"
     manipulateAstTest "examples/MonadComprehensions.hs"   "Main"
@@ -96,10 +95,21 @@ main = do
     manipulateAstTest "examples/RdrNames.hs"              "RdrNames"
     manipulateAstTest "examples/Vect.hs"                  "Vect"
     manipulateAstTest "examples/Tuple.hs"                 "Main"
--}
-    manipulateAstTest "examples/ExtraConstraints1.hs"                 "ExtraConstraints1"
+    manipulateAstTest "examples/ExtraConstraints1.hs"     "ExtraConstraints1"
+    manipulateAstTest "examples/AddAndOr3.hs"             "AddAndOr3"
+    manipulateAstTest "examples/Ann01.hs"                 "Ann01"
+    manipulateAstTest "examples/StrictLet.hs"             "Main"
+    manipulateAstTest "examples/Cg008.hs"                 "Cg008"
+    manipulateAstTest "examples/T2388.hs"                 "T2388"
+    manipulateAstTest "examples/T3132.hs"                 "T3132"
+    manipulateAstTest "examples/Stream.hs"                "Stream"
+    manipulateAstTest "examples/Trit.hs"                  "Trit"
+    manipulateAstTest "examples/Dead1.hs"                 "Dead1"
+
+    manipulateAstTest "examples/Sigs.hs"                  "Sigs"
 
 {-
+    manipulateAstTest "examples/ParensAroundContext.hs"   "ParensAroundContext"
     manipulateAstTest "examples/EmptyMostlyInst.hs"       "EmptyMostlyInst"
     -- manipulateAstTest "examples/Foo.hs"                   "Main"
     manipulateAstTest "examples/EmptyMostly2.hs"          "EmptyMostly2"
@@ -157,7 +167,7 @@ manipulateAstTest' useTH file modname = do
               else printed ++ "\n==============\n"
                     ++ "lengths:" ++ show (length printed,length contents) ++ "\n"
                     ++ parsedAST
-  putStrLn $ "Test:parsed=" ++ parsedAST
+  -- putStrLn $ "Test:parsed=" ++ parsedAST
   -- putStrLn $ "Test:ghcAnns:fst=" ++ show (fst ghcAnns)
   -- putStrLn $ "Test:ghcAnns:snd=" ++ showGhc (snd ghcAnns)
   -- putStrLn $ "Test2:empty ann=" ++ show ((Map.empty,Map.empty) :: Anns)
