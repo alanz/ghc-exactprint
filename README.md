@@ -23,3 +23,10 @@ of the ParsedSource.
 
 The original GHC Api Annotations are dumped to stdout in ghci at the
 start of the run.
+
+Current Limitations
+-------------------
+
+* Does not process CPP properly
+* Does not process Lhs files properly
+

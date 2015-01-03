@@ -38,7 +38,7 @@ debug = flip trace
 
 main :: IO ()
 main = do
-
+{-
     manipulateAstTest "examples/LetStmt.hs"               "Layout.LetStmt"
     manipulateAstTest "examples/LetExpr.hs"               "LetExpr"
     manipulateAstTest "examples/ExprPragmas.hs"           "ExprPragmas"
@@ -105,8 +105,10 @@ main = do
     manipulateAstTest "examples/Stream.hs"                "Stream"
     manipulateAstTest "examples/Trit.hs"                  "Trit"
     manipulateAstTest "examples/Dead1.hs"                 "Dead1"
-
     manipulateAstTest "examples/Sigs.hs"                  "Sigs"
+    manipulateAstTest "examples/Cpp.hs"                   "Main"
+-}
+    manipulateAstTest "examples/Lhs.lhs"                  "Main"
 
 {-
     manipulateAstTest "examples/ParensAroundContext.hs"   "ParensAroundContext"
@@ -133,7 +135,7 @@ manipulateAstTest' useTH file modname = do
   let out    = file <.> "exactprinter" <.> "out"
 
   contents <- readUTF8File file
-  (ghcAnns,t,toks) <- parsedFileGhc file modname useTH
+  (ghcAnns,t) <- parsedFileGhc file modname useTH
   let
     parsed@(GHC.L l hsmod) = GHC.pm_parsed_source $ GHC.tm_parsed_module t
     parsedAST = SYB.showData SYB.Parser 0 parsed
@@ -183,7 +185,7 @@ manipulateAstTest' useTH file modname = do
 -- TypeCheckedModule produced by GHC.
 type ParseResult = GHC.TypecheckedModule
 
-parsedFileGhc :: String -> String -> Bool -> IO (GHC.ApiAnns,ParseResult,[(GHC.Located GHC.Token, String)])
+parsedFileGhc :: String -> String -> Bool -> IO (GHC.ApiAnns,ParseResult)
 parsedFileGhc fileName modname useTH = do
     putStrLn $ "parsedFileGhc:" ++ show fileName
 #if __GLASGOW_HASKELL__ > 704
@@ -233,11 +235,11 @@ parsedFileGhc fileName modname useTH = do
         GHC.liftIO $ putStrLn $ "got parsedModule"
         t <- GHC.typecheckModule p
         GHC.liftIO $ putStrLn $ "typechecked"
-        toks <- GHC.getRichTokenStream (GHC.ms_mod modSum)
-        GHC.liftIO $ putStrLn $ "toks"
+        -- toks <- GHC.getRichTokenStream (GHC.ms_mod modSum)
+        -- GHC.liftIO $ putStrLn $ "toks"
         let anns = GHC.pm_annotations p
         GHC.liftIO $ putStrLn $ "anns"
-        return (anns,t,toks)
+        return (anns,t)
 
 readUTF8File :: FilePath -> IO String
 readUTF8File fp = openFile fp ReadMode >>= \h -> do

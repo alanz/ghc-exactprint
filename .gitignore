@@ -73,3 +73,5 @@
 /tests/examples/T2388.hs.exactprinter.out
 /tests/examples/T3132.hs.exactprinter.out
 /tests/examples/Trit.hs.exactprinter.out
+/tests/examples/Cpp.hs.exactprinter.out
+/tests/examples/Lhs.lhs.exactprinter.out
