@@ -105,12 +105,12 @@ main = do
     manipulateAstTest "examples/Stream.hs"                "Stream"
     manipulateAstTest "examples/Trit.hs"                  "Trit"
     manipulateAstTest "examples/Dead1.hs"                 "Dead1"
-    manipulateAstTest "examples/Sigs.hs"                  "Sigs"
-    manipulateAstTest "examples/Cpp.hs"                   "Main"
 -}
-    manipulateAstTest "examples/Lhs.lhs"                  "Main"
+    manipulateAstTest "examples/Sigs.hs"                  "Sigs"
 
 {-
+    manipulateAstTest "examples/Cpp.hs"                   "Main"
+    manipulateAstTest "examples/Lhs.lhs"                  "Main"
     manipulateAstTest "examples/ParensAroundContext.hs"   "ParensAroundContext"
     manipulateAstTest "examples/EmptyMostlyInst.hs"       "EmptyMostlyInst"
     -- manipulateAstTest "examples/Foo.hs"                   "Main"

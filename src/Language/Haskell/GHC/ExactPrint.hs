@@ -23,6 +23,7 @@
 -----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint
         ( annotateAST
+        , Anns(..)
         , exactPrintAnnotated
         , exactPrintAnnotation
 

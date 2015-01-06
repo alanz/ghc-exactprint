@@ -36,6 +36,9 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , addAnnotationsAP
 
   , ghead
+  , glast
+  , gtail
+  , gfromJust
   ) where
 
 import Control.Applicative (Applicative(..))
@@ -2284,12 +2287,10 @@ name2String name = showGhc name
 showGhc :: (GHC.Outputable a) => a -> String
 #if __GLASGOW_HASKELL__ > 706
 showGhc x = GHC.showPpr GHC.unsafeGlobalDynFlags x
-#else
-#if __GLASGOW_HASKELL__ > 704
+#elif __GLASGOW_HASKELL__ > 704
 showGhc x = GHC.showSDoc GHC.tracingDynFlags $ GHC.ppr x
 #else
 showGhc x = GHC.showSDoc                     $ GHC.ppr x
-#endif
 #endif
 
 
