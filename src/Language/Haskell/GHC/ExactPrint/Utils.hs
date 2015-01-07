@@ -170,7 +170,9 @@ getCommentsForSpan s = AP (\l pe e ga ->
     cs = reverse $ map tokComment gcs
     tokComment :: GHC.Located GHC.AnnotationComment -> Comment
     tokComment t@(GHC.L l _) = Comment (ghcIsMultiLine t) (ss2span l) (ghcCommentText t)
-  in (cs,l,pe,e,ga1,mempty))
+  in (cs,l,pe,e,ga1,mempty)
+      `debug` ("getCommentsForSpan:(s,cs)" ++ show (s,cs))
+     )
 
 -- -------------------------------------
 
@@ -225,7 +227,7 @@ leaveAST = do
   let (lcs,_) = localComments (ss2span ss) newCs []
 
   let dp = deltaFromSrcSpans priorEnd ss
-  addAnnotationsAP (Ann lcs dp)
+  addAnnotationsAP (Ann lcs dp) `debug` ("leaveAST:(ss,lcs)=" ++ show (showGhc ss,lcs))
   popSrcSpanAP
   return () `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
 
@@ -260,7 +262,7 @@ addFinalComments = do
   let (dcs,_) = localComments ((1,1),(1,1)) cs []
   pushSrcSpanAP (GHC.L GHC.noSrcSpan ())
   addAnnotationsAP (Ann dcs (DP (0,0)))
-   -- `debug` ("leaveAST:dcs=" ++ show dcs)
+    -- `debug` ("leaveAST:dcs=" ++ show dcs)
   return () `debug` ("addFinalComments:dcs=" ++ show dcs)
 
 addAnnotationWorker :: GHC.AnnKeywordId -> GHC.SrcSpan -> AP ()
