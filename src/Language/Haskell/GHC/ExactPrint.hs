@@ -2123,38 +2123,78 @@ instance ExactP [GHC.LConDecl GHC.RdrName] where
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.ConDecl GHC.RdrName) where
-  exactP (GHC.ConDecl lns exp (GHC.HsQTvs _ns bndrs) ctx dets res _ _) = do
-    printStringAtMaybeAnn GHC.AnnForall "forall"
-    mapM_ exactPC bndrs
-    printStringAtMaybeAnn GHC.AnnDot "."
-
-    exactPC ctx
-    printStringAtMaybeAnn GHC.AnnDarrow "=>"
-
-    case dets of
-      GHC.InfixCon _ _ -> return ()
-      _ -> mapM_ exactPC lns
-
-
-    case dets of
-      GHC.PrefixCon args -> mapM_ exactPC args
-      GHC.RecCon fs -> do
-        printStringAtMaybeAnn GHC.AnnOpenC "{"
-        exactPC fs
-        printStringAtMaybeAnn GHC.AnnCloseC "}"
-      GHC.InfixCon a1 a2 -> do
-        exactPC a1
-        mapM_ exactPC lns
-        exactPC a2
-
-
+  exactP (GHC.ConDecl lns exp b@(GHC.HsQTvs _ns bndrs) ctx dets res _ _) = do
     case res of
-      GHC.ResTyH98 -> return ()
-      GHC.ResTyGADT ty -> do
+      GHC.ResTyH98 -> do
+        printStringAtMaybeAnn GHC.AnnForall "forall"
+        mapM_ exactPC bndrs
+        printStringAtMaybeAnn GHC.AnnDot "."
+
+        exactPC ctx
+        printStringAtMaybeAnn GHC.AnnDarrow "=>"
+
+        -- only do names if not infix
+        case dets of
+          GHC.InfixCon _ _ -> return ()
+          _ -> mapM_ exactPC lns
+
+        case dets of
+          GHC.PrefixCon args -> mapM_ exactPC args
+          GHC.RecCon fs -> do
+            printStringAtMaybeAnn GHC.AnnOpenC "{"
+            exactPC fs
+            printStringAtMaybeAnn GHC.AnnCloseC "}"
+          GHC.InfixCon a1 a2 -> do
+            exactPC a1
+            mapM_ exactPC lns
+            exactPC a2
+
+
+      GHC.ResTyGADT ls ty -> do
+        -- only do names if not infix
+        case dets of
+          GHC.InfixCon _ _ -> return ()
+          _ -> mapM_ exactPC lns
+
+        case dets of
+          GHC.PrefixCon args -> mapM_ exactPC args
+          GHC.RecCon fs -> do
+            printStringAtMaybeAnn GHC.AnnOpenC "{"
+            exactPC fs
+            printStringAtMaybeAnn GHC.AnnCloseC "}"
+          GHC.InfixCon a1 a2 -> do
+            exactPC a1
+            mapM_ exactPC lns
+            exactPC a2
+
         printStringAtMaybeAnn GHC.AnnDcolon "::"
+
+        exactPC (GHC.L ls (ResTyGADTHook bndrs))
+        {-
+        printStringAtMaybeAnn GHC.AnnForall "forall"
+        mapM_ exactPC bndrs
+        printStringAtMaybeAnn GHC.AnnDot "."
+        -}
+
+        exactPC ctx
+        printStringAtMaybeAnn GHC.AnnDarrow "=>"
+{-
+        case dets of
+          GHC.InfixCon _ _ -> return ()
+          _ -> mapM_ exactPC lns
+
+-}
         exactPC ty
 
     printStringAtMaybeAnn GHC.AnnVbar "|"
+
+-- ---------------------------------------------------------------------
+
+instance ExactP (ResTyGADTHook GHC.RdrName) where
+  exactP (ResTyGADTHook bndrs) = do
+    printStringAtMaybeAnn GHC.AnnForall "forall"
+    mapM_ exactPC bndrs
+    printStringAtMaybeAnn GHC.AnnDot "."
 
 -- ---------------------------------------------------------------------
 

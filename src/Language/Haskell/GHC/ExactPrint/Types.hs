@@ -10,9 +10,11 @@ module Language.Haskell.GHC.ExactPrint.Types
   , DeltaPos(..)
   , Annotation(..)
   , annNone
-  , Anns(..),anEP,anF
-  , AnnsEP(..)
-  , AnnsUser(..)
+  , Anns,anEP,anF
+  , AnnsEP
+  , AnnsUser
+
+  , ResTyGADTHook(..)
 
   , Value(..)
   , AnnKey
@@ -26,19 +28,6 @@ module Language.Haskell.GHC.ExactPrint.Types
   , getAnnotationValue
   , putAnnotationValue
 
-  -- * Specific annotation
-  , AnnTypeSig(..)
-  , AnnHsBind(..)
-  , AnnGRHS(..)
-  , AnnMatch(..)
-  , AnnOverLit(..)
-  , AnnHsExpr(..)
-  , AnnStmt(..)
-  , AnnTyClDecl(..)
-  , AnnHsType(..)
-  , AnnPat(..)
-  , AnnListItem(..)
-  , AnnNone(..)
   ) where
 
 import Data.Data
@@ -89,117 +78,6 @@ data Annotation = Ann
   -- , ann_specific :: !Value
   } deriving (Show,Typeable)
 
-  -- Sig
-data AnnTypeSig =
-    AnnTypeSig { st_dcolon :: !DeltaPos }
-  deriving (Show,Typeable,Eq)
-
-data AnnHsBind
-  -- HsBindLR
-  = AnnFunBind { fb_equal :: !(Maybe DeltaPos) }
-  | AnnPatBind
-     { pb_equal :: !(Maybe DeltaPos)
-     , pb_where :: !(Maybe DeltaPos) }
-
-  -- AnnVarBind {} not needed, only introduced by type checker
-  -- AnnAbsBind {} only used after renamer
-  | AnnPatSynBind {}
-  deriving (Show,Typeable,Eq)
-
-data AnnGRHS
-  = AnnGRHS
-    { grhs_guard :: !(Maybe DeltaPos) --  track the '|'
-    , grhs_eq    :: !(Maybe DeltaPos)
-    }
-  deriving (Show,Typeable,Eq)
-
-data AnnMatch
-  = AnnMatch
-     { -- match_npos  :: !DeltaPos -- location of the function name
-     -- , match_n     :: !GHC.RdrName
-     -- , match_infix :: !Bool  -- if the function is infix
-       match_eq    :: !(Maybe DeltaPos)
-     , match_where :: !(Maybe DeltaPos)
-     }
-  deriving (Show,Typeable,Eq)
-
-  -- HsOverLit, must keep the exact original string used
-data AnnOverLit
-  = AnnOverLit { ol_str :: !String }
-  deriving (Show,Typeable,Eq)
-
-
-  -- HsExpr
-data AnnHsExpr
-  = AnnHsLet
-      { hsl_let :: !(Maybe DeltaPos)
-      , hsl_in  :: !(Maybe DeltaPos)
-      }
-  | AnnHsDo
-      { hsd_do :: !(Maybe DeltaPos)
-      }
-  | AnnExplicitTuple
-       { et_opos :: !DeltaPos,  et_cpos :: !DeltaPos }
-  | AnnExprWithTySig { ets_dotdot :: !DeltaPos }
-  | AnnArithSeq
-      { as_ob     :: !DeltaPos
-      , as_comma  :: !(Maybe DeltaPos)
-      , as_dotdot :: !DeltaPos
-      , as_cb     :: !DeltaPos
-      }
-  | AnnHsPar { hp_op, hp_cp :: !DeltaPos }
-  deriving (Show,Typeable,Eq)
-
-  -- StmtLR
-data AnnStmt
-  = AnnStmtLR {}
-  | AnnLetStmt
-      { ls_let :: !(Maybe DeltaPos)
-      , ls_in  :: !(Maybe DeltaPos)
-      }
-  deriving (Show,Typeable,Eq)
-
-  -- TyClDecl
-  --  Data declarations
-data AnnTyClDecl
-  = AnnDataDecl { dd_equal :: !DeltaPos }
-  | AnnConDecl  { cs_mvbar :: !(Maybe DeltaPos) }
-  deriving (Show,Typeable,Eq)
-
-  -- HsType
-data AnnHsType
-  = AnnHsForAllTy
-      { fa_oparen :: !(Maybe DeltaPos)
-      , fa_darrow :: !(Maybe DeltaPos)
-      , fa_cparen :: !(Maybe DeltaPos)
-      }
-  | AnnHsFunTy { ft_rarrow :: !DeltaPos }
-  | AnnHsParTy { pt_opos :: !DeltaPos,  pt_cpos :: !DeltaPos }
-  | AnnHsTupleTy { t_opos :: !DeltaPos,  t_cpos :: !DeltaPos }
-  | AnnHsIParamTy { ipt_dcolon :: !DeltaPos }
-  | AnnHsEqTy { ipt_tilde :: !DeltaPos }
-  | AnnHsKindSig
-      { ks_op :: !DeltaPos, ks_dcolon :: !DeltaPos, ks_cp :: !DeltaPos }
-  | AnnHsBangTy { b_bang :: !DeltaPos }
-  | AnnHsExplicitListTy
-       { el_opos :: !DeltaPos,  el_cpos :: !DeltaPos }
-  | AnnHsExplicitTupleTy
-       { ett_opos :: !DeltaPos,  ett_cpos :: !DeltaPos }
-  deriving (Show,Typeable,Eq)
-
-  -- Pat
-data AnnPat
-  = AnnAsPat { ap_as :: !DeltaPos }
-  | AnnTuplePat { tp_opPos :: !DeltaPos, tp_cpPos :: !DeltaPos }
-  deriving (Show,Typeable,Eq)
-
-  -- Basics
-data AnnListItem
-  = AnnListItem { li_comma :: !(Maybe DeltaPos) }
-  deriving (Show,Typeable,Eq)
-
-data  AnnNone = AnnNone
-  deriving (Show,Typeable,Eq)
 
 instance Show GHC.RdrName where
   show n = "(a RdrName)"
@@ -218,6 +96,13 @@ type AnnsEP = Map.Map (GHC.SrcSpan,TypeRep) Annotation
 type AnnsUser = Map.Map (GHC.SrcSpan,TypeRep) Value
 
 type AnnsFinal = Map.Map (GHC.SrcSpan,GHC.AnnKeywordId) [DeltaPos]
+
+-- ---------------------------------------------------------------------
+
+-- ResTyGADT has a SrcSpan for the original sigtype, we need to create
+-- a type for exactPC and annotatePC
+data ResTyGADTHook name = ResTyGADTHook [GHC.LHsTyVarBndr name]
+                   deriving (Typeable)
 
 -- ---------------------------------------------------------------------
 {-
@@ -280,10 +165,3 @@ putAnnotationValue anns span v
   = Map.insert (span,typeOf (Just v)) (newValue v) anns
 
 
-{-
-addAnnotation :: (Typeable a,Outputable a,Show a,Eq a) => SrcSpan -> a -> P ()
-addAnnotation l v = P $ \s -> POk s {
-annotations = (AK l (typeOf (Just v)), newValue v) : annotations s
-} ()
-
--}

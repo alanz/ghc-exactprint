@@ -70,7 +70,6 @@ main = do
     manipulateAstTest "examples/HsDo.hs"                  "HsDo"
     manipulateAstTest "examples/ForAll.hs"                "ForAll"
     manipulateAstTest "examples/PArr.hs"                  "PArr"
-    manipulateAstTest "examples/DataDecl.hs"              "Main"
     manipulateAstTest "examples/ViewPatterns.hs"          "Main"
     manipulateAstTest "examples/BangPatterns.hs"          "Main"
     manipulateAstTest "examples/Associated.hs"            "Main"
@@ -105,8 +104,10 @@ main = do
     manipulateAstTest "examples/Stream.hs"                "Stream"
     manipulateAstTest "examples/Trit.hs"                  "Trit"
     manipulateAstTest "examples/Dead1.hs"                 "Dead1"
--}
     manipulateAstTest "examples/Sigs.hs"                  "Sigs"
+    manipulateAstTest "examples/DataDecl.hs"              "Main"
+-}
+    manipulateAstTest "examples/Zipper.hs"                "Zipper"
 
 {-
     manipulateAstTest "examples/Cpp.hs"                   "Main"

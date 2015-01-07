@@ -1971,28 +1971,55 @@ instance (Typeable name,AnnotateP name,GHC.OutputableBndr name)
       => AnnotateP (GHC.ConDecl name) where
   annotateP l (GHC.ConDecl lns exp (GHC.HsQTvs _ns bndrs) ctx
                          dets res _ _) = do
+    case res of
+      GHC.ResTyH98 -> do
+        addDeltaAnnotation GHC.AnnForall
+        mapM_ annotatePC bndrs
+        addDeltaAnnotation GHC.AnnDot
+
+        annotatePC ctx
+        addDeltaAnnotation GHC.AnnDarrow
+
+        case dets of
+          GHC.InfixCon _ _ -> return ()
+          _ -> mapM_ annotatePC lns
+
+        annotateHsConDeclDetails lns dets
+
+      GHC.ResTyGADT ls ty -> do
+        -- only print names if not infix
+        case dets of
+          GHC.InfixCon _ _ -> return ()
+          _ -> mapM_ annotatePC lns
+
+        annotateHsConDeclDetails lns dets
+
+        addDeltaAnnotation GHC.AnnDcolon
+
+        annotatePC (GHC.L ls (ResTyGADTHook bndrs))
+        {-
+        addDeltaAnnotation GHC.AnnForall
+        mapM_ annotatePC bndrs
+        addDeltaAnnotation GHC.AnnDot
+        -}
+
+        annotatePC ctx
+        addDeltaAnnotation GHC.AnnDarrow
+
+        annotatePC ty
+
+        -- annotateHsConDeclDetails lns dets
+
+    addDeltaAnnotation GHC.AnnVbar
+
+-- ---------------------------------------------------------------------
+
+instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
+              AnnotateP (ResTyGADTHook name) where
+  annotateP _ (ResTyGADTHook bndrs) = do
     addDeltaAnnotation GHC.AnnForall
     mapM_ annotatePC bndrs
     addDeltaAnnotation GHC.AnnDot
-
-    annotatePC ctx
-    addDeltaAnnotation GHC.AnnDarrow
-
-    case dets of
-      GHC.InfixCon _ _ -> return ()
-      _ -> mapM_ annotatePC lns
-
-
-    annotateHsConDeclDetails lns dets
-
-    case res of
-      GHC.ResTyH98 -> return ()
-      GHC.ResTyGADT ty -> do
-        addDeltaAnnotation GHC.AnnDcolon
-        annotatePC ty
-
-
-    addDeltaAnnotation GHC.AnnVbar
 
 -- ---------------------------------------------------------------------
 
