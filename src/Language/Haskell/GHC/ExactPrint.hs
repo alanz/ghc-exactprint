@@ -66,11 +66,6 @@ import qualified Var           as GHC
 
 import qualified Data.Map as Map
 
-import Debug.Trace
-
-debug :: c -> String -> c
-debug = flip trace
-
 -- ---------------------------------------------------------------------
 
 -- Compatibiity types, from HSE
@@ -189,8 +184,16 @@ popSrcSpan = EP (\l dp (_:sss) cs st an -> ((),l,dp,sss,cs,st,an,id))
 
 
 getAnnotation :: (Typeable a) => GHC.Located a -> EP (Maybe Annotation)
-getAnnotation a@(GHC.L ss _) = EP (\l dp s cs st an -> (getAnnotationEP (anEP an) a
+getAnnotation a  = EP (\l dp s cs st an -> (getAnnotationEP (anEP an) a
                        ,l,dp,s,cs,st,an,id))
+
+getAndRemoveAnnotation :: (Typeable a) => GHC.Located a -> EP (Maybe Annotation)
+getAndRemoveAnnotation a = EP (\l dp s cs st (ane,anf) ->
+  let
+    (r,ane') = getAndRemoveAnnotationEP ane a
+  in
+    (r,  l,dp,s,cs,st,(ane',anf),id))
+
 
 -- |destructive get, hence use an annotation once only
 getAnnFinal :: GHC.AnnKeywordId -> EP [DeltaPos]
@@ -418,24 +421,20 @@ loadInitialComments = do
 exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC a@(GHC.L l ast) =
     do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
-       ma <- getAnnotation a
-       off@(DP (r,c)) <- case ma of
-         Nothing -> return (DP (0,0))
+       -- ma <- getAnnotation a
+       ma <- getAndRemoveAnnotation a
+       case ma of
+         Nothing -> return ()
            `debug` ("exactPC:no annotation for " ++ show (ss2span l,typeOf ast))
          Just (Ann lcs dp) -> do
-             mergeComments lcs
-             return dp
-       pe <- getPos
-       let p = undelta pe off
+             mergeComments lcs `debug` ("exactPC:(l,lcs,dp):" ++ show (showGhc l,lcs,dp))
+             return ()
 
-       let negOff = DP (-r,-c)
-       -- addOffset off `debug` ("addOffset:push:" ++ show (ss2span l,off))
        exactP ast
-       -- automatically print any trailing commas or semis
+
        printStringAtMaybeAnn GHC.AnnComma ","
        printStringAtMaybeAnnAll GHC.AnnSemi ";"
 
-       -- addOffset negOff `debug` ("addOffset:pop:" ++ show (ss2span l,negOff))
        popSrcSpan
 
 
@@ -1306,11 +1305,11 @@ instance ExactP (GHC.HsType GHC.RdrName) where
 
   exactP (GHC.HsBangTy b t) = do
     case b of
-      (GHC.HsUserBang ms (Just True) _) -> do
+      (GHC.HsSrcBang ms (Just True) _) -> do
         printStringAtMaybeAnn GHC.AnnOpen  (maybe "{-# UNPACK" id ms)
         printStringAtMaybeAnn GHC.AnnClose "#-}"
         printStringAtMaybeAnn GHC.AnnBang  "!"
-      (GHC.HsUserBang ms (Just False) _) -> do
+      (GHC.HsSrcBang ms (Just False) _) -> do
         printStringAtMaybeAnn GHC.AnnOpen  (maybe "{-# NOUNPACK" id ms)
         printStringAtMaybeAnn GHC.AnnClose "#-}"
         printStringAtMaybeAnn GHC.AnnBang  "!"

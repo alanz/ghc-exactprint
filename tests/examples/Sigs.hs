@@ -32,3 +32,9 @@ a /// b = 2*a - 3*b
 {-# INLINE [~34] f #-}
 
 -- Specialise signature
+
+-- Multiple sigs
+x,y,z :: Int
+x = 0
+y = 0
+z = 0

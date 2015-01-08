@@ -75,3 +75,8 @@
 /tests/examples/Trit.hs.exactprinter.out
 /tests/examples/Cpp.hs.exactprinter.out
 /tests/examples/Lhs.lhs.exactprinter.out
+/src/Language/Haskell/GHC/ExactPrint.refactored.hs
+/src/Language/Haskell/GHC/ExactPrint/Utils.hs.exactprinter.out
+/tests/examples/FromUtils.hs.exactprinter.out
+/tests/examples/Sigs.refactored.hs
+/tests/examples/Zipper.hs.exactprinter.out

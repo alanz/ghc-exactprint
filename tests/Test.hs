@@ -30,15 +30,10 @@ import Test.HUnit
 
 import qualified Data.Map as Map
 
-import Debug.Trace
-
-debug :: c -> String -> c
-debug = flip trace
-
 
 main :: IO ()
 main = do
-{-
+
     manipulateAstTest "examples/LetStmt.hs"               "Layout.LetStmt"
     manipulateAstTest "examples/LetExpr.hs"               "LetExpr"
     manipulateAstTest "examples/ExprPragmas.hs"           "ExprPragmas"
@@ -104,12 +99,13 @@ main = do
     manipulateAstTest "examples/Stream.hs"                "Stream"
     manipulateAstTest "examples/Trit.hs"                  "Trit"
     manipulateAstTest "examples/Dead1.hs"                 "Dead1"
-    manipulateAstTest "examples/Sigs.hs"                  "Sigs"
     manipulateAstTest "examples/DataDecl.hs"              "Main"
--}
     manipulateAstTest "examples/Zipper.hs"                "Zipper"
+    manipulateAstTest "examples/Sigs.hs"                  "Sigs"
 
 {-
+    manipulateAstTest "../src/Language/Haskell/GHC/ExactPrint/Utils.hs"    "Language.Haskell.GHC.ExactPrint.Utils"
+    manipulateAstTest "examples/FromUtils.hs"             "Main"
     manipulateAstTest "examples/Cpp.hs"                   "Main"
     manipulateAstTest "examples/Lhs.lhs"                  "Main"
     manipulateAstTest "examples/ParensAroundContext.hs"   "ParensAroundContext"
@@ -217,7 +213,9 @@ parsedFileGhc fileName modname useTH = do
                         -- else GHC.gopt_set (GHC.gopt_unset dflags''' GHC.Opt_Haddock)
                         --               GHC.Opt_KeepRawTokenStream
 
-        void $ GHC.setSessionDynFlags dflags4
+        (dflags5,args,warns) <- GHC.parseDynamicFlagsCmdLine dflags4 [GHC.noLoc "-package ghc"]
+        GHC.liftIO $ putStrLn $ "dflags set:(args,warns)" ++ show (map GHC.unLoc args,map GHC.unLoc warns)
+        void $ GHC.setSessionDynFlags dflags5
         -- GHC.liftIO $ putStrLn $ "dflags set"
 
         target <- GHC.guessTarget fileName Nothing

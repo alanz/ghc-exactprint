@@ -29,6 +29,8 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , merge
 
   -- * For tests
+  , debug
+
   , runAP
   , AP(..)
   , getSrcSpanAP, pushSrcSpanAP, popSrcSpanAP
@@ -77,7 +79,8 @@ import qualified Data.Map as Map
 import Debug.Trace
 
 debug :: c -> String -> c
-debug = flip trace
+-- debug = flip trace
+debug c _ = c
 
 -- ---------------------------------------------------------------------
 
@@ -116,7 +119,11 @@ instance Monad AP where
 runAP :: AP () -> GHC.ApiAnns -> Anns
 runAP (AP f) ga
  = let (_,_,_,_,_,(se,sa)) = f [] GHC.noSrcSpan False ga
-   in (Map.fromList se,Map.fromListWith (++) sa)
+   in (Map.fromListWith combineAnns se,Map.fromListWith (++) sa)
+        --  `debug` ("runAP:se=" ++ show se)
+
+combineAnns :: Annotation -> Annotation -> Annotation
+combineAnns (Ann cs1 dp1) (Ann cs2 _) = Ann (cs1 ++ cs2) dp1
 
 -- -------------------------------------
 
@@ -171,7 +178,7 @@ getCommentsForSpan s = AP (\l pe e ga ->
     tokComment :: GHC.Located GHC.AnnotationComment -> Comment
     tokComment t@(GHC.L l _) = Comment (ghcIsMultiLine t) (ss2span l) (ghcCommentText t)
   in (cs,l,pe,e,ga1,mempty)
-      `debug` ("getCommentsForSpan:(s,cs)" ++ show (s,cs))
+      `debug` ("getCommentsForSpan:(s,cs)" ++ show (showGhc s,cs))
      )
 
 -- -------------------------------------
@@ -493,8 +500,8 @@ instance AnnotateP GHC.RdrName where
   annotateP l n = do
     case rdrName2String n of
       "[]" -> do
-        addDeltaAnnotation GHC.AnnOpenS -- '['
-        addDeltaAnnotation GHC.AnnCloseS -- ']'
+        addDeltaAnnotation GHC.AnnOpenS -- '[' nonBUG
+        addDeltaAnnotation GHC.AnnCloseS -- ']' BUG
       "()" -> do
         addDeltaAnnotation GHC.AnnOpenP -- '('
         addDeltaAnnotation GHC.AnnCloseP -- ')'
@@ -580,7 +587,7 @@ instance (GHC.OutputableBndr name,AnnotateP name) => AnnotateP (GHC.HsDecl name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (AnnotateP name)
    => AnnotateP (GHC.RoleAnnotDecl name) where
   annotateP l (GHC.RoleAnnotDecl ln mr) = do
     addDeltaAnnotation GHC.AnnType
@@ -597,14 +604,14 @@ instance AnnotateP (Maybe GHC.Role) where
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (AnnotateP name)
    => AnnotateP (GHC.HsQuasiQuote name) where
   annotateP l (GHC.HsQuasiQuote n ss fs) = assert False undefined
 
 -- HsQuasiQuote id SrcSpan FastString
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.SpliceDecl name) where
   annotateP l (GHC.SpliceDecl (GHC.L ls (GHC.HsSplice n e)) _flag) = do
     addDeltaAnnotation GHC.AnnOpen -- "$(" or "$$("
@@ -613,7 +620,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.VectDecl name) where
   annotateP l (GHC.HsVect src ln e) = do
     addDeltaAnnotation GHC.AnnOpen -- "{-# VECTORISE"
@@ -649,7 +656,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.RuleDecls name) where
    annotateP l (GHC.HsRules src rules) = do
      addDeltaAnnotation GHC.AnnOpen
@@ -658,7 +665,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.RuleDecl name) where
   annotateP l (GHC.HsRule ln act bndrs lhs _ rhs _) = do
     annotatePC ln
@@ -678,7 +685,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.RuleBndr name) where
   annotateP l (GHC.RuleBndr ln) = annotatePC ln
   annotateP l (GHC.RuleBndrSig ln (GHC.HsWB thing _ _ _)) = do
@@ -690,7 +697,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.AnnDecl name) where
    annotateP l (GHC.HsAnnotation src prov e) = do
      addDeltaAnnotation GHC.AnnOpen -- "{-# Ann"
@@ -706,7 +713,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (AnnotateP name)
    => AnnotateP (GHC.WarnDecls name) where
    annotateP l (GHC.Warnings src warns) = do
      addDeltaAnnotation GHC.AnnOpen
@@ -715,7 +722,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (AnnotateP name)
    => AnnotateP (GHC.WarnDecl name) where
    annotateP l (GHC.Warning lns txt) = do
      mapM_ annotatePC lns
@@ -730,7 +737,7 @@ instance AnnotateP GHC.FastString where
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.ForeignDecl name) where
 
   annotateP l (GHC.ForeignImport ln typ _
@@ -775,7 +782,7 @@ instance (AnnotateP GHC.Safety) where
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.DerivDecl name) where
 
   annotateP l (GHC.DerivDecl typ mov) = do
@@ -786,7 +793,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.DefaultDecl name) where
 
   annotateP l (GHC.DefaultDecl typs) = do
@@ -797,7 +804,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.InstDecl name) where
 
   annotateP l (GHC.ClsInstD      cid) = annotateP l  cid
@@ -813,7 +820,7 @@ instance AnnotateP (GHC.OverlapMode) where
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.ClsInstDecl name) where
 
   annotateP l (GHC.ClsInstDecl poly binds sigs tyfams datafams mov) = do
@@ -835,7 +842,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.TyFamInstDecl name) where
 
   annotateP l (GHC.TyFamInstDecl eqn _) = do
@@ -845,7 +852,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.DataFamInstDecl name) where
 
   annotateP l (GHC.DataFamInstDecl ln (GHC.HsWB pats _ _ _) defn _) = do
@@ -860,7 +867,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
+instance (GHC.OutputableBndr name,AnnotateP name) =>
                                               AnnotateP (GHC.HsBind name) where
   annotateP l (GHC.FunBind (GHC.L ln n) isInfix (GHC.MG matches _ _ _) _ _ _) = do
     setFunIsInfix isInfix
@@ -902,7 +909,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
     => AnnotateP (GHC.IPBind name) where
   annotateP l (GHC.IPBind en e) = do
     case en of
@@ -918,8 +925,8 @@ instance AnnotateP GHC.HsIPName where
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,
-          Typeable body,                        AnnotateP body)
+instance (GHC.OutputableBndr name,AnnotateP name,
+                                  AnnotateP body)
   => AnnotateP (GHC.Match name (GHC.Located body)) where
 
   annotateP l (GHC.Match mln pats _typ grhss@(GHC.GRHSs grhs lb)) = do
@@ -959,8 +966,8 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,
 -- instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 --   => AnnotateP (GHC.GRHS name (GHC.LHsExpr name)) where
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,
-          Typeable body,                        AnnotateP body)
+instance (GHC.OutputableBndr name,AnnotateP name,
+                                  AnnotateP body)
   => AnnotateP (GHC.GRHS name (GHC.Located body)) where
   annotateP l (GHC.GRHS guards expr) = do
 
@@ -972,7 +979,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
+instance (GHC.OutputableBndr name,AnnotateP name) =>
                                          AnnotateP (GHC.Sig name) where
 
   annotateP l (GHC.TypeSig lns typ _) = do
@@ -1058,13 +1065,12 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
 -- data BooleanFormula a = Var a | And [BooleanFormula a] | Or [BooleanFormula a]
 --  deriving (Eq, Data, Typeable, Functor, Foldable, Traversable)
 
-annotateBooleanFormula :: (Typeable name,GHC.OutputableBndr name) =>
-                             GHC.BooleanFormula (GHC.Located name) -> AP ()
+annotateBooleanFormula :: GHC.BooleanFormula (GHC.Located name) -> AP ()
 annotateBooleanFormula = assert False undefined
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
+instance (GHC.OutputableBndr name,AnnotateP name) =>
                      AnnotateP (GHC.HsTyVarBndr name) where
   annotateP l (GHC.UserTyVar n) = do
     addDeltaAnnotationExt l GHC.AnnVal
@@ -1078,7 +1084,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.HsType name) where
 
   annotateP l (GHC.HsForAllTy f mwc (GHC.HsQTvs kvs tvs) ctx@(GHC.L lc ctxs) typ) = do
@@ -1088,7 +1094,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
     addDeltaAnnotation GHC.AnnDot
 
     case mwc of
-      Nothing -> annotatePC ctx
+      Nothing -> if lc /= GHC.noSrcSpan then annotatePC ctx else return ()
       Just lwc -> annotatePC (GHC.L lc (GHC.sortLocated ((GHC.L lwc GHC.HsWildcardTy):ctxs)))
 
     addDeltaAnnotation GHC.AnnDarrow
@@ -1213,7 +1219,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
+instance (GHC.OutputableBndr name,AnnotateP name) =>
                              AnnotateP (GHC.ConDeclField name) where
   annotateP l (GHC.ConDeclField ns ty mdoc) = do
     mapM_ annotatePC ns
@@ -1229,7 +1235,7 @@ instance AnnotateP GHC.HsDocString where
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,AnnotateP name,GHC.OutputableBndr name) => AnnotateP (GHC.Pat name) where
+instance (AnnotateP name,GHC.OutputableBndr name) => AnnotateP (GHC.Pat name) where
   annotateP l (GHC.WildPat _) = addDeltaAnnotationExt l GHC.AnnVal
   annotateP l (GHC.VarPat _)  = addDeltaAnnotationExt l GHC.AnnVal
   annotateP l (GHC.LazyPat p) = do
@@ -1349,7 +1355,7 @@ annotateHsConDeclDetails lns dets = do
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP [GHC.LConDeclField name] where
   annotateP l fs = do
        addDeltaAnnotation GHC.AnnOpenC -- '{'
@@ -1364,13 +1370,13 @@ instance (Typeable name) => AnnotateP (GHC.HsOverLit name) where
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,Typeable arg,AnnotateP arg)
+instance (Typeable name,AnnotateP arg)
     => AnnotateP (GHC.HsWithBndrs name (GHC.Located arg)) where
   annotateP l (GHC.HsWB thing _ _ _) = annotatePC thing
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,Typeable body,AnnotateP body) =>
+instance (GHC.OutputableBndr name,AnnotateP name,AnnotateP body) =>
                             AnnotateP (GHC.Stmt name (GHC.Located body)) where
 
   annotateP l (GHC.LastStmt body _) = annotatePC body
@@ -1428,7 +1434,7 @@ annotateParStmtBlock (GHC.ParStmtBlock stmts ns _) = do
 
 -- ---------------------------------------------------------------------
 
-annotateHsLocalBinds :: (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+annotateHsLocalBinds :: (GHC.OutputableBndr name,AnnotateP name)
                      => (GHC.HsLocalBinds name) -> AP ()
 annotateHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
     applyListAnnotations (prepareListAnnotation (GHC.bagToList binds)
@@ -1445,8 +1451,8 @@ annotateHsLocalBinds (GHC.EmptyLocalBinds) = return ()
 -- annotateMatchGroup :: (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 --                    =>   (GHC.MatchGroup name (GHC.LHsExpr name))
 --                    -> AP ()
-annotateMatchGroup :: (Typeable name,GHC.OutputableBndr name,AnnotateP name,
-                       Typeable body,                        AnnotateP body)
+annotateMatchGroup :: (GHC.OutputableBndr name,AnnotateP name,
+                                               AnnotateP body)
                    =>   (GHC.MatchGroup name (GHC.Located body))
                    -> AP ()
 annotateMatchGroup (GHC.MG matches _ _ _)
@@ -1462,7 +1468,7 @@ annotateCmdMatchGroup (GHC.MG matches _ _ _)
 -}
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
+instance (GHC.OutputableBndr name,AnnotateP name) =>
                                AnnotateP (GHC.HsExpr name) where
   annotateP l (GHC.HsVar n)           = annotateP l n
   annotateP l (GHC.HsIPVar _)         = addDeltaAnnotationExt l GHC.AnnVal
@@ -1753,7 +1759,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
+instance (GHC.OutputableBndr name,AnnotateP name) =>
                              AnnotateP (GHC.HsTupArg name) where
   annotateP l (GHC.Present e@(GHC.L le _)) = do
     annotatePC e
@@ -1764,11 +1770,11 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
   => AnnotateP (GHC.HsCmdTop name) where
   annotateP l (GHC.HsCmdTop cmd _ _ _) = annotatePC cmd
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
    => AnnotateP (GHC.HsCmd name) where
   annotateP l (GHC.HsCmdArrApp e1 e2 _ _ _) = do
     annotatePC e1
@@ -1836,7 +1842,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
      => AnnotateP (GHC.TyClDecl name) where
 
   annotateP l (GHC.FamDecl famdecl) = annotateP l famdecl
@@ -1894,7 +1900,7 @@ annotateTyClass ln tyVars = do
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,AnnotateP name, GHC.OutputableBndr name)
+instance (AnnotateP name, GHC.OutputableBndr name)
    => AnnotateP (GHC.FamilyDecl name) where
   annotateP l (GHC.FamilyDecl info ln (GHC.HsQTvs _ tyvars) mkind) = do
     addDeltaAnnotation GHC.AnnType
@@ -1916,7 +1922,7 @@ instance (Typeable name,AnnotateP name, GHC.OutputableBndr name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,AnnotateP name,GHC.OutputableBndr name)
+instance (AnnotateP name,GHC.OutputableBndr name)
    => AnnotateP (GHC.TyFamInstEqn name) where
   annotateP l (GHC.TyFamEqn ln (GHC.HsWB pats _ _ _) typ) = do
     annotatePC ln
@@ -1927,7 +1933,7 @@ instance (Typeable name,AnnotateP name,GHC.OutputableBndr name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,AnnotateP name,GHC.OutputableBndr name)
+instance (AnnotateP name,GHC.OutputableBndr name)
   => AnnotateP (GHC.TyFamDefltEqn name) where
   annotateP l (GHC.TyFamEqn ln (GHC.HsQTvs ns bndrs) typ) = do
     annotatePC ln
@@ -1956,7 +1962,7 @@ annotateDataDefn l (GHC.HsDataDefn _ ctx typ mk cons mderivs) = do
 -- ---------------------------------------------------------------------
 
 -- Note: GHC.HsContext name aliases to here too
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
+instance (GHC.OutputableBndr name,AnnotateP name)
      => AnnotateP [GHC.LHsType name] where
   annotateP l ts = do
     return () `debug` ("annotateP.HsContext:l=" ++ showGhc l)
@@ -1969,7 +1975,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,AnnotateP name,GHC.OutputableBndr name)
+instance (AnnotateP name,GHC.OutputableBndr name)
       => AnnotateP (GHC.ConDecl name) where
   annotateP l (GHC.ConDecl lns exp (GHC.HsQTvs _ns bndrs) ctx
                          dets res _ _) = do
@@ -2016,7 +2022,7 @@ instance (Typeable name,AnnotateP name,GHC.OutputableBndr name)
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
+instance (GHC.OutputableBndr name,AnnotateP name) =>
               AnnotateP (ResTyGADTHook name) where
   annotateP _ (ResTyGADTHook bndrs) = do
     addDeltaAnnotation GHC.AnnForall
@@ -2025,7 +2031,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name) =>
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,AnnotateP a) =>
+instance (AnnotateP name,AnnotateP a) =>
               AnnotateP (GHC.HsRecField name (GHC.Located a)) where
   annotateP l (GHC.HsRecField n e _) = do
     annotatePC n
@@ -2034,7 +2040,7 @@ instance (Typeable name,GHC.OutputableBndr name,AnnotateP name,AnnotateP a) =>
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable name,AnnotateP name)
+instance (AnnotateP name)
     => AnnotateP (GHC.FunDep (GHC.Located name)) where
 
   annotateP l (ls,rs) = do

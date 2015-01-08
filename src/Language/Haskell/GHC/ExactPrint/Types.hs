@@ -25,6 +25,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , mkAnnKeyEP
   , mkAnnKeyV
   , getAnnotationEP
+  , getAndRemoveAnnotationEP
   , getAnnotationValue
   , putAnnotationValue
 
@@ -120,7 +121,6 @@ another for the user annotation.
 
 -}
 
-
 type AnnKey  = (GHC.SrcSpan, TypeRep)
 type AnnKeyF = (GHC.SrcSpan, GHC.AnnKeywordId)
 
@@ -151,6 +151,12 @@ fromValue (Value x) = fromMaybe (error errMsg) $ res
 
 getAnnotationEP :: (Typeable a) => AnnsEP -> GHC.Located a -> Maybe Annotation
 getAnnotationEP anns (GHC.L span a) = Map.lookup (span, (typeOf a)) anns
+
+getAndRemoveAnnotationEP :: (Typeable a) => AnnsEP -> GHC.Located a -> (Maybe Annotation,AnnsEP)
+getAndRemoveAnnotationEP anns (GHC.L span a)
+ = case Map.lookup (span, (typeOf a)) anns of
+     Nothing  -> (Nothing,anns)
+     Just ann -> (Just ann,Map.delete (span, (typeOf a)) anns)
 
 -- | Retrieve an annotation based on the SrcSpan of the annotated AST
 -- element, and the known type of the annotation.
