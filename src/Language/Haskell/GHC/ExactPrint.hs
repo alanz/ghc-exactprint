@@ -861,7 +861,7 @@ instance ExactP (GHC.WarnDecl GHC.RdrName) where
 
 
 instance ExactP GHC.FastString where
-  exactP fs = printStringAtMaybeAnn GHC.AnnVal ("\"" ++ GHC.unpackFS fs ++ "\"")
+  exactP fs = printStringAtMaybeAnn GHC.AnnVal (show (GHC.unpackFS fs))
 
 -- ---------------------------------------------------------------------
 
@@ -1483,6 +1483,7 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     exactPC e1
     printStringAtMaybeAnn GHC.AnnOf "of"
     printStringAtMaybeAnn GHC.AnnOpenC "{"
+    printStringAtMaybeAnnAll GHC.AnnSemi ";"
     exactPMatchGroup matches
     printStringAtMaybeAnn GHC.AnnCloseC "}"
 

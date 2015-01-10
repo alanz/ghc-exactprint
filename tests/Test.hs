@@ -33,7 +33,7 @@ import qualified Data.Map as Map
 
 main :: IO ()
 main = do
-
+{-
     manipulateAstTest "examples/LetStmt.hs"               "Layout.LetStmt"
     manipulateAstTest "examples/LetExpr.hs"               "LetExpr"
     manipulateAstTest "examples/ExprPragmas.hs"           "ExprPragmas"
@@ -49,7 +49,6 @@ main = do
     manipulateAstTest "examples/Default.hs"               "Main"
     manipulateAstTest "examples/ForeignDecl.hs"           "ForeignDecl"
     manipulateAstTest "examples/Warning.hs"               "Warning"
-    manipulateAstTest "examples/Deprecation.hs"           "Deprecation"
     manipulateAstTest "examples/Annotations.hs"           "Annotations"
     manipulateAstTest "examples/DocDecls.hs"              "DocDecls"
     manipulateAstTestTH "examples/QuasiQuote.hs"          "QuasiQuote"
@@ -102,9 +101,12 @@ main = do
     manipulateAstTest "examples/DataDecl.hs"              "Main"
     manipulateAstTest "examples/Zipper.hs"                "Zipper"
     manipulateAstTest "examples/Sigs.hs"                  "Sigs"
+    manipulateAstTest "examples/AltsSemis.hs"             "Main"
+    manipulateAstTest "examples/Utils2.hs"                "Utils2"
+-}
+    manipulateAstTest "examples/Deprecation.hs"           "Deprecation"
 
 {-
-    manipulateAstTest "../src/Language/Haskell/GHC/ExactPrint/Utils.hs"    "Language.Haskell.GHC.ExactPrint.Utils"
     manipulateAstTest "examples/FromUtils.hs"             "Main"
     manipulateAstTest "examples/Cpp.hs"                   "Main"
     manipulateAstTest "examples/Lhs.lhs"                  "Main"

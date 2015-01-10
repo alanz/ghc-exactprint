@@ -41,6 +41,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , glast
   , gtail
   , gfromJust
+
   ) where
 
 import Control.Applicative (Applicative(..))
@@ -79,8 +80,8 @@ import qualified Data.Map as Map
 import Debug.Trace
 
 debug :: c -> String -> c
--- debug = flip trace
-debug c _ = c
+debug = flip trace
+-- debug c _ = c
 
 -- ---------------------------------------------------------------------
 
@@ -1519,6 +1520,7 @@ instance (GHC.OutputableBndr name,AnnotateP name) =>
     annotatePC e1
     addDeltaAnnotation GHC.AnnOf
     addDeltaAnnotation GHC.AnnOpenC
+    addDeltaAnnotations GHC.AnnSemi
     annotateMatchGroup matches
     addDeltaAnnotation GHC.AnnCloseC
 

@@ -1,6 +1,6 @@
 
 module Deprecation
-{-# Deprecated ["This is a module deprecation",
+{-# Deprecated ["This is a module \"deprecation\"",
              "multi-line"] #-}
    ( foo )
  where

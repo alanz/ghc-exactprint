@@ -80,3 +80,5 @@
 /tests/examples/FromUtils.hs.exactprinter.out
 /tests/examples/Sigs.refactored.hs
 /tests/examples/Zipper.hs.exactprinter.out
+/tests/examples/AltsSemis.hs.exactprinter.out
+/tests/examples/Utils2.hs.exactprinter.out
