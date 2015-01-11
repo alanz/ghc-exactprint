@@ -62,7 +62,7 @@ data Annotation = Ann
 instance Show GHC.RdrName where
   show n = "(a RdrName)"
 
-
+-- first field carries the comments, second the offsets
 type Anns = (AnnsEP,AnnsFinal)
 anEP :: Anns -> AnnsEP
 anEP (e,_) = e
@@ -87,8 +87,16 @@ data KeywordId = G GHC.AnnKeywordId
                deriving (Eq,Show,Ord)
 
 instance GHC.Outputable KeywordId where
-  -- ppr (G k) = GHC.text "G" GHC.<+> ppr k
   ppr k     = GHC.text (show k)
+
+instance GHC.Outputable TypeRep where
+  ppr tr     = GHC.text (show tr)
+
+instance GHC.Outputable Annotation where
+  ppr a     = GHC.text (show a)
+
+instance GHC.Outputable DeltaPos where
+  ppr a     = GHC.text (show a)
 
 -- ---------------------------------------------------------------------
 

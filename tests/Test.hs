@@ -33,7 +33,7 @@ import qualified Data.Map as Map
 
 main :: IO ()
 main = do
-
+{-
     manipulateAstTest "examples/LetStmt.hs"               "Layout.LetStmt"
     manipulateAstTest "examples/LetExpr.hs"               "LetExpr"
     manipulateAstTest "examples/ExprPragmas.hs"           "ExprPragmas"
@@ -106,8 +106,9 @@ main = do
     manipulateAstTest "examples/EmptyMostlyNoSemis.hs"    "EmptyMostlyNoSemis"
     manipulateAstTest "examples/Dead1.hs"                 "Dead1"
     manipulateAstTest "examples/EmptyMostly.hs"           "EmptyMostly"
-
     manipulateAstTest "examples/FromUtils.hs"             "Main"
+-}
+    manipulateAstTest "examples/B.hs"                     "Main"
 {-
     manipulateAstTest "examples/Cpp.hs"                   "Main"
     manipulateAstTest "examples/Lhs.lhs"                  "Main"
@@ -168,13 +169,14 @@ manipulateAstTest' useTH file modname = do
               else printed ++ "\n==============\n"
                     ++ "lengths:" ++ show (length printed,length contents) ++ "\n"
                     ++ parsedAST
-  -- putStrLn $ "Test:parsed=" ++ parsedAST
+  putStrLn $ "Test:parsed=" ++ parsedAST
   -- putStrLn $ "Test:ghcAnns:fst=" ++ show (fst ghcAnns)
   -- putStrLn $ "Test:ghcAnns:snd=" ++ showGhc (snd ghcAnns)
   -- putStrLn $ "Test2:empty ann=" ++ show ((Map.empty,Map.empty) :: Anns)
   -- putStrLn $ "Test2:ann=[" ++ show (annotateAST parsed ghcAnns) ++ "]"
   writeFile out $ result
   -- putStrLn $ "Test3:ann=[" ++ show (snd ann) ++ "]"
+  putStrLn $ "Test:ann=" ++ showGhc ann
   return ()
 -- }}}
 
