@@ -982,7 +982,7 @@ instance ExactP (GHC.ClsInstDecl GHC.RdrName) where
                  ++ prepareListPrint tyfams
                  ++ prepareListPrint datafams
                     )
-    printStringAtMaybeAnn GHC.AnnClose "}"
+    printStringAtMaybeAnn GHC.AnnCloseC "}"
 
 -- ---------------------------------------------------------------------
 

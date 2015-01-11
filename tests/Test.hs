@@ -58,7 +58,6 @@ main = do
     manipulateAstTest "examples/Stmts.hs"                 "Stmts"
     manipulateAstTest "examples/LetExprSemi.hs"           "LetExprSemi"
     manipulateAstTest "examples/Mixed.hs"                 "Main"
-    manipulateAstTest "examples/EmptyMostly.hs"           "EmptyMostly"
     manipulateAstTest "examples/Arrow.hs"                 "Arrow"
     manipulateAstTest "examples/PatSynBind.hs"            "Main"
     manipulateAstTest "examples/HsDo.hs"                  "HsDo"
@@ -103,15 +102,16 @@ main = do
     manipulateAstTest "examples/Sigs.hs"                  "Sigs"
     manipulateAstTest "examples/AltsSemis.hs"             "Main"
     manipulateAstTest "examples/Utils2.hs"                "Utils2"
--}
     manipulateAstTest "examples/Deprecation.hs"           "Deprecation"
-
+    manipulateAstTest "examples/EmptyMostlyInst.hs"       "EmptyMostlyInst"
+    manipulateAstTest "examples/EmptyMostlyNoSemis.hs"           "EmptyMostlyNoSemis"
+-}
+    manipulateAstTest "examples/EmptyMostly.hs"           "EmptyMostly"
 {-
     manipulateAstTest "examples/FromUtils.hs"             "Main"
     manipulateAstTest "examples/Cpp.hs"                   "Main"
     manipulateAstTest "examples/Lhs.lhs"                  "Main"
     manipulateAstTest "examples/ParensAroundContext.hs"   "ParensAroundContext"
-    manipulateAstTest "examples/EmptyMostlyInst.hs"       "EmptyMostlyInst"
     -- manipulateAstTest "examples/Foo.hs"                   "Main"
     manipulateAstTest "examples/EmptyMostly2.hs"          "EmptyMostly2"
 -}

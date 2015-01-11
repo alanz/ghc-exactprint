@@ -226,7 +226,7 @@ leaveAST :: AP ()
 leaveAST = do
   -- Automatically add any trailing comma or semi
   addDeltaAnnotationAfter GHC.AnnComma
-  addDeltaAnnotations GHC.AnnSemi
+  addDeltaAnnotationsOutside GHC.AnnSemi
 
   ss <- getSrcSpanAP
   priorEnd <- getPriorEnd
@@ -345,7 +345,6 @@ addDeltaAnnotations ann = do
                     `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
   mapM_ do_one (sort ma)
 
-{-
 -- | Look up and add possibly multiple Delta annotations enclosed by
 -- the current SrcSpan at the current position, and advance the
 -- position to the end of the annotations
@@ -356,7 +355,17 @@ addDeltaAnnotationsInside ann = do
   let do_one ap' = addAnnotationWorker ann ap'
                     `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
   mapM_ do_one (sort $ filter (\s -> GHC.isSubspanOf s ss) ma)
--}
+
+-- | Look up and add possibly multiple Delta annotations not enclosed by
+-- the current SrcSpan at the current position, and advance the
+-- position to the end of the annotations
+addDeltaAnnotationsOutside :: GHC.AnnKeywordId -> AP ()
+addDeltaAnnotationsOutside ann = do
+  ss <- getSrcSpanAP
+  ma <- getAnnotationAP ss ann
+  let do_one ap' = addAnnotationWorker ann ap'
+                    `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
+  mapM_ do_one (sort $ filter (\s -> not (GHC.isSubspanOf s ss)) ma)
 
 -- | Add a Delta annotation at the current position, and advance the
 -- position to the end of the annotation
@@ -1871,6 +1880,8 @@ instance (GHC.OutputableBndr name,AnnotateP name)
     mapM_ annotatePC cons
     annotateMaybe mderivs
 
+  -- -----------------------------------
+
   annotateP l (GHC.ClassDecl ctx ln (GHC.HsQTvs ns tyVars) fds
                           sigs meths ats atdefs docs _) = do
     addDeltaAnnotation GHC.AnnClass
@@ -1882,7 +1893,7 @@ instance (GHC.OutputableBndr name,AnnotateP name)
     mapM_ annotatePC fds
     addDeltaAnnotation GHC.AnnWhere
     addDeltaAnnotation GHC.AnnOpenC -- '{'
-    addDeltaAnnotations GHC.AnnSemi
+    addDeltaAnnotationsInside GHC.AnnSemi
     applyListAnnotations (prepareListAnnotation sigs
                        ++ prepareListAnnotation (GHC.bagToList meths)
                        ++ prepareListAnnotation ats
