@@ -33,7 +33,7 @@ import qualified Data.Map as Map
 
 main :: IO ()
 main = do
-{-
+
     manipulateAstTest "examples/LetStmt.hs"               "Layout.LetStmt"
     manipulateAstTest "examples/LetExpr.hs"               "LetExpr"
     manipulateAstTest "examples/ExprPragmas.hs"           "ExprPragmas"
@@ -96,7 +96,6 @@ main = do
     manipulateAstTest "examples/T3132.hs"                 "T3132"
     manipulateAstTest "examples/Stream.hs"                "Stream"
     manipulateAstTest "examples/Trit.hs"                  "Trit"
-    manipulateAstTest "examples/Dead1.hs"                 "Dead1"
     manipulateAstTest "examples/DataDecl.hs"              "Main"
     manipulateAstTest "examples/Zipper.hs"                "Zipper"
     manipulateAstTest "examples/Sigs.hs"                  "Sigs"
@@ -104,11 +103,12 @@ main = do
     manipulateAstTest "examples/Utils2.hs"                "Utils2"
     manipulateAstTest "examples/Deprecation.hs"           "Deprecation"
     manipulateAstTest "examples/EmptyMostlyInst.hs"       "EmptyMostlyInst"
-    manipulateAstTest "examples/EmptyMostlyNoSemis.hs"           "EmptyMostlyNoSemis"
--}
+    manipulateAstTest "examples/EmptyMostlyNoSemis.hs"    "EmptyMostlyNoSemis"
+    manipulateAstTest "examples/Dead1.hs"                 "Dead1"
     manipulateAstTest "examples/EmptyMostly.hs"           "EmptyMostly"
-{-
+
     manipulateAstTest "examples/FromUtils.hs"             "Main"
+{-
     manipulateAstTest "examples/Cpp.hs"                   "Main"
     manipulateAstTest "examples/Lhs.lhs"                  "Main"
     manipulateAstTest "examples/ParensAroundContext.hs"   "ParensAroundContext"

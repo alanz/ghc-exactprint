@@ -12,46 +12,26 @@ module Language.Haskell.GHC.ExactPrint.Types
   , annNone
   , Anns,anEP,anF
   , AnnsEP
-  , AnnsUser
+  , KeywordId(..)
 
   , ResTyGADTHook(..)
 
-  , Value(..)
   , AnnKey
   , AnnKeyF
-  , newValue
-  , typeValue
-  , fromValue
   , mkAnnKeyEP
-  , mkAnnKeyV
   , getAnnotationEP
   , getAndRemoveAnnotationEP
-  , getAnnotationValue
-  , putAnnotationValue
 
   ) where
 
 import Data.Data
-import Data.Maybe
 
-import qualified Bag           as GHC
-import qualified DynFlags      as GHC
-import qualified FastString    as GHC
-import qualified ForeignCall   as GHC
 import qualified GHC           as GHC
-import qualified GHC.Paths     as GHC
-import qualified Lexer         as GHC
-import qualified Name          as GHC
-import qualified NameSet       as GHC
 import qualified Outputable    as GHC
-import qualified RdrName       as GHC
-import qualified SrcLoc        as GHC
-import qualified StringBuffer  as GHC
-import qualified UniqSet       as GHC
-import qualified Unique        as GHC
-import qualified Var           as GHC
 
 import qualified Data.Map as Map
+
+-- ---------------------------------------------------------------------
 
 -- | A Haskell comment. The 'Bool' is 'True' if the comment is multi-line, i.e. @{- -}@.
 data Comment = Comment Bool Span String
@@ -76,7 +56,6 @@ annNone = Ann [] (DP (0,0))
 data Annotation = Ann
   { ann_comments :: ![DComment]
   , ann_delta    :: !DeltaPos -- Do we need this? Yes indeed.
-  -- , ann_specific :: !Value
   } deriving (Show,Typeable)
 
 
@@ -85,7 +64,9 @@ instance Show GHC.RdrName where
 
 
 type Anns = (AnnsEP,AnnsFinal)
+anEP :: Anns -> AnnsEP
 anEP (e,_) = e
+anF :: Anns -> AnnsFinal
 anF  (_,f) = f
 
 -- | For every @Located a@, use the @SrcSpan@ and TypeRep of a as the
@@ -94,9 +75,20 @@ type AnnsEP = Map.Map (GHC.SrcSpan,TypeRep) Annotation
 
 -- | For every SrcSpan, store an annotation as a value where the
 -- TypeRep is of the item wrapped in the Value
-type AnnsUser = Map.Map (GHC.SrcSpan,TypeRep) Value
+-- type AnnsUser = Map.Map (GHC.SrcSpan,TypeRep) Value
 
-type AnnsFinal = Map.Map (GHC.SrcSpan,GHC.AnnKeywordId) [DeltaPos]
+type AnnsFinal = Map.Map (GHC.SrcSpan,KeywordId) [DeltaPos]
+
+-- We need our own version of keywordid to distinguish between a
+-- semi-colon appearing within an AST element and one separating AST
+-- elements in a list.
+data KeywordId = G GHC.AnnKeywordId
+               | AnnSemiSep
+               deriving (Eq,Show,Ord)
+
+instance GHC.Outputable KeywordId where
+  -- ppr (G k) = GHC.text "G" GHC.<+> ppr k
+  ppr k     = GHC.text (show k)
 
 -- ---------------------------------------------------------------------
 
@@ -122,52 +114,17 @@ another for the user annotation.
 -}
 
 type AnnKey  = (GHC.SrcSpan, TypeRep)
-type AnnKeyF = (GHC.SrcSpan, GHC.AnnKeywordId)
+type AnnKeyF = (GHC.SrcSpan, KeywordId)
 
 mkAnnKeyEP :: (Typeable a) => GHC.Located a -> AnnKey
 mkAnnKeyEP (GHC.L l a) = (l,typeOf a)
 
-mkAnnKeyV :: GHC.SrcSpan -> Value -> AnnKey
--- mkAnnKeyV l a = (l,typeOf (Just (typeValue a)))
-mkAnnKeyV l a = (l,typeValue a)
-
-data Value = forall a . (Eq a, Show a, Typeable a) => Value a
-
-instance Show (Value) where
-  show _ = "Value (..)"
-
-newValue :: (Eq a, Show a, Typeable a) => a -> Value
-newValue = Value
-
-typeValue :: Value -> TypeRep
-typeValue (Value x) = typeOf x
-
-fromValue :: Typeable a => Value -> a
-fromValue (Value x) = fromMaybe (error errMsg) $ res
-  where
-    res = cast x
-    errMsg = "fromValue, bad cast from " ++ show (typeOf x)
-                ++ " to " ++ show (typeOf res)
-
 getAnnotationEP :: (Typeable a) => AnnsEP -> GHC.Located a -> Maybe Annotation
-getAnnotationEP anns (GHC.L span a) = Map.lookup (span, (typeOf a)) anns
+getAnnotationEP anns (GHC.L ss a) = Map.lookup (ss, (typeOf a)) anns
 
 getAndRemoveAnnotationEP :: (Typeable a) => AnnsEP -> GHC.Located a -> (Maybe Annotation,AnnsEP)
-getAndRemoveAnnotationEP anns (GHC.L span a)
- = case Map.lookup (span, (typeOf a)) anns of
+getAndRemoveAnnotationEP anns (GHC.L ss a)
+ = case Map.lookup (ss, (typeOf a)) anns of
      Nothing  -> (Nothing,anns)
-     Just ann -> (Just ann,Map.delete (span, (typeOf a)) anns)
-
--- | Retrieve an annotation based on the SrcSpan of the annotated AST
--- element, and the known type of the annotation.
-getAnnotationValue :: (Typeable a) => AnnsUser -> GHC.SrcSpan -> Maybe a
-getAnnotationValue anns span = res
-  where res = case  Map.lookup (span, (typeOf res)) anns of
-                Nothing -> Nothing
-                Just d -> Just (fromValue d)
-
-putAnnotationValue :: (Typeable a,Show a,Eq a) => AnnsUser -> GHC.SrcSpan -> a -> AnnsUser
-putAnnotationValue anns span v
-  = Map.insert (span,typeOf (Just v)) (newValue v) anns
-
+     Just ann -> (Just ann,Map.delete (ss, (typeOf a)) anns)
 
