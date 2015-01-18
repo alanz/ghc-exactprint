@@ -33,7 +33,7 @@ import qualified Data.Map as Map
 
 main :: IO ()
 main = do
-{-
+
     manipulateAstTest "examples/LetStmt.hs"               "Layout.LetStmt"
     manipulateAstTest "examples/LetExpr.hs"               "LetExpr"
     manipulateAstTest "examples/ExprPragmas.hs"           "ExprPragmas"
@@ -107,7 +107,9 @@ main = do
     manipulateAstTest "examples/Dead1.hs"                 "Dead1"
     manipulateAstTest "examples/EmptyMostly.hs"           "EmptyMostly"
     manipulateAstTest "examples/FromUtils.hs"             "Main"
--}
+    manipulateAstTest "examples/DocDecls.hs"              "DocDecls"
+    -- manipulateAstTest "examples/Unicode.hs"               "Main"
+
     manipulateAstTest "examples/B.hs"                     "Main"
 {-
     manipulateAstTest "examples/Cpp.hs"                   "Main"

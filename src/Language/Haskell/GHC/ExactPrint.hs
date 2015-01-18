@@ -183,11 +183,11 @@ popSrcSpan :: EP ()
 popSrcSpan = EP (\l dp (_:sss) cs st an -> ((),l,dp,sss,cs,st,an,id))
 
 
-getAnnotation :: (Typeable a) => GHC.Located a -> EP (Maybe Annotation)
+getAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
 getAnnotation a  = EP (\l dp s cs st an -> (getAnnotationEP (anEP an) a
                        ,l,dp,s,cs,st,an,id))
 
-getAndRemoveAnnotation :: (Typeable a) => GHC.Located a -> EP (Maybe Annotation)
+getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
 getAndRemoveAnnotation a = EP (\l dp s cs st (ane,anf) ->
   let
     (r,ane') = getAndRemoveAnnotationEP ane a
@@ -418,7 +418,7 @@ loadInitialComments = do
   return ()
 
 -- |First move to the given location, then call exactP
-exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
+exactPC :: (Data ast,ExactP ast) => GHC.Located ast -> EP ()
 exactPC a@(GHC.L l ast) =
     do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
        -- ma <- getAnnotation a
@@ -563,7 +563,7 @@ getAnn isAnn ma str =
 --------------------------------------------------
 -- Exact printing for GHC
 
-class (Typeable ast) => ExactP ast where
+class (Data ast) => ExactP ast where
   -- | Print an AST fragment. The correct position in output is
   -- already established.
   exactP :: ast -> EP ()

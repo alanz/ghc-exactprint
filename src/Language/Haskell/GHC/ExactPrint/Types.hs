@@ -1,5 +1,8 @@
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE UndecidableInstances #-} -- for GHC.DataId
 module Language.Haskell.GHC.ExactPrint.Types
   (
     Comment(..)
@@ -13,6 +16,8 @@ module Language.Haskell.GHC.ExactPrint.Types
   , Anns,anEP,anF
   , AnnsEP
   , KeywordId(..)
+  , AnnConName
+  , annGetConstr
 
   , ResTyGADTHook(..)
 
@@ -69,9 +74,17 @@ anEP (e,_) = e
 anF :: Anns -> AnnsFinal
 anF  (_,f) = f
 
--- | For every @Located a@, use the @SrcSpan@ and TypeRep of a as the
+-- Holds the name of a constructor
+data AnnConName = CN String
+                 deriving (Eq,Show,Ord)
+
+annGetConstr :: (Data a) => a -> AnnConName
+annGetConstr a = CN (show $ toConstr a)
+
+
+-- | For every @Located a@, use the @SrcSpan@ and GHC.Generics conName of a as the
 -- key, to store the standard annotation.
-type AnnsEP = Map.Map (GHC.SrcSpan,TypeRep) Annotation
+type AnnsEP = Map.Map (GHC.SrcSpan,AnnConName) Annotation
 
 -- | For every SrcSpan, store an annotation as a value where the
 -- TypeRep is of the item wrapped in the Value
@@ -89,8 +102,13 @@ data KeywordId = G GHC.AnnKeywordId
 instance GHC.Outputable KeywordId where
   ppr k     = GHC.text (show k)
 
+instance GHC.Outputable (AnnConName) where
+  ppr tr     = GHC.text (show tr)
+
+{-
 instance GHC.Outputable TypeRep where
   ppr tr     = GHC.text (show tr)
+-}
 
 instance GHC.Outputable Annotation where
   ppr a     = GHC.text (show a)
@@ -104,6 +122,11 @@ instance GHC.Outputable DeltaPos where
 -- a type for exactPC and annotatePC
 data ResTyGADTHook name = ResTyGADTHook [GHC.LHsTyVarBndr name]
                    deriving (Typeable)
+deriving instance (GHC.DataId name) => Data (ResTyGADTHook name)
+deriving instance (Show (GHC.LHsTyVarBndr name)) => Show (ResTyGADTHook name)
+
+instance (GHC.OutputableBndr name) => GHC.Outputable (ResTyGADTHook name) where
+  ppr (ResTyGADTHook bs) = GHC.text "ResTyGADTHook" GHC.<+> GHC.ppr bs
 
 -- ---------------------------------------------------------------------
 {-
@@ -121,18 +144,18 @@ another for the user annotation.
 
 -}
 
-type AnnKey  = (GHC.SrcSpan, TypeRep)
+type AnnKey  = (GHC.SrcSpan, AnnConName)
 type AnnKeyF = (GHC.SrcSpan, KeywordId)
 
-mkAnnKeyEP :: (Typeable a) => GHC.Located a -> AnnKey
-mkAnnKeyEP (GHC.L l a) = (l,typeOf a)
+mkAnnKeyEP :: (Data a) => GHC.Located a -> AnnKey
+mkAnnKeyEP (GHC.L l a) = (l,annGetConstr a)
 
-getAnnotationEP :: (Typeable a) => AnnsEP -> GHC.Located a -> Maybe Annotation
-getAnnotationEP anns (GHC.L ss a) = Map.lookup (ss, (typeOf a)) anns
 
-getAndRemoveAnnotationEP :: (Typeable a) => AnnsEP -> GHC.Located a -> (Maybe Annotation,AnnsEP)
+getAnnotationEP :: (Data a) => AnnsEP -> GHC.Located a -> Maybe Annotation
+getAnnotationEP anns (GHC.L ss a) = Map.lookup (ss, annGetConstr a) anns
+
+getAndRemoveAnnotationEP :: (Data a) => AnnsEP -> GHC.Located a -> (Maybe Annotation,AnnsEP)
 getAndRemoveAnnotationEP anns (GHC.L ss a)
- = case Map.lookup (ss, (typeOf a)) anns of
+ = case Map.lookup (ss, annGetConstr a) anns of
      Nothing  -> (Nothing,anns)
-     Just ann -> (Just ann,Map.delete (ss, (typeOf a)) anns)
-
+     Just ann -> (Just ann,Map.delete (ss, annGetConstr a) anns)

@@ -84,3 +84,5 @@
 /tests/examples/Utils2.hs.exactprinter.out
 /tests/examples/EmptyMostlyNoSemis.hs.exactprinter.out
 /tests/examples/B.hs.exactprinter.out
+/tests/examples/Test.hs.exactprinter.out
+/tests/examples/Unicode.hs.exactprinter.out
