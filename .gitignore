@@ -86,3 +86,6 @@
 /tests/examples/B.hs.exactprinter.out
 /tests/examples/Test.hs.exactprinter.out
 /tests/examples/Unicode.hs.exactprinter.out
+/src/Language/Haskell/GHC/ExactPrint/Types.refactored.hs
+/src/Language/Haskell/GHC/ExactPrint/Utils.refactored.hs
+/tests/examples/RecordUpdate.hs.exactprinter.out

@@ -234,7 +234,8 @@ leaveAST = do
   newCs <- getCommentsForSpan ss
   let (lcs,_) = localComments (ss2span ss) newCs []
 
-  let dp = deltaFromSrcSpans priorEnd ss
+  -- let dp = deltaFromSrcSpans priorEnd ss
+  let dp = DP (0,0)
   addAnnotationsAP (Ann lcs dp) `debug` ("leaveAST:(ss,lcs)=" ++ show (showGhc ss,lcs))
   popSrcSpanAP
   return () `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
