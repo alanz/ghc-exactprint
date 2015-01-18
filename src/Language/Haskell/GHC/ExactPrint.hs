@@ -23,7 +23,7 @@
 -----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint
         ( annotateAST
-        , Anns(..)
+        , Anns
         , exactPrintAnnotated
         , exactPrintAnnotation
 
@@ -36,33 +36,19 @@ import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
 import Control.Monad (when, liftM, ap)
-import Control.Applicative (Applicative(..))
-import Control.Arrow ((***), (&&&))
 import Control.Exception
 import Data.Data
-import Data.List (intersperse,sortBy)
--- import Data.List.Utils
-import Data.Maybe
+import Data.List
+-- import Data.List.Utils -- TODO: Reinstate when available
 
 import qualified Bag           as GHC
 import qualified BasicTypes    as GHC
 import qualified Class         as GHC
 import qualified CoAxiom        as GHC
-import qualified DynFlags      as GHC
 import qualified FastString    as GHC
 import qualified ForeignCall   as GHC
 import qualified GHC           as GHC
-import qualified GHC.Paths     as GHC
-import qualified Lexer         as GHC
-import qualified Name          as GHC
-import qualified NameSet       as GHC
-import qualified Outputable    as GHC
-import qualified RdrName       as GHC
 import qualified SrcLoc        as GHC
-import qualified StringBuffer  as GHC
-import qualified UniqSet       as GHC
-import qualified Unique        as GHC
-import qualified Var           as GHC
 
 import qualified Data.Map as Map
 
@@ -110,29 +96,18 @@ class Annotated a where
 instance Annotated (GHC.Located a) where
   ann (GHC.L l _) = l
 
-
--- | Test if a given span starts and ends at the same location.
-isNullSpan :: GHC.SrcSpan -> Bool
-isNullSpan ss = spanSize ss == (0,0)
-
-spanSize :: GHC.SrcSpan -> (Int, Int)
-spanSize ss = (srcSpanEndLine ss - srcSpanStartLine ss,
-               max 0 (srcSpanEndColumn ss - srcSpanStartColumn ss))
-
 ------------------------------------------------------
 -- The EP monad and basic combinators
-
-pos :: (SrcInfo loc) => loc -> Pos
-pos ss = (startLine ss, startColumn ss)
 
 newtype EP x = EP (Pos -> DeltaPos -> [GHC.SrcSpan] -> [Comment] -> Extra -> Anns
             -> (x, Pos,   DeltaPos,   [GHC.SrcSpan],   [Comment],   Extra,   Anns, ShowS))
 
 data Extra = E { eFunId :: (Bool,String) -- (isSymbol,name)
                , eFunIsInfix :: Bool
-               , eInhibitTrailing :: Bool
                }
-initExtra = E (False,"") False False
+
+initExtra :: Extra
+initExtra = E (False,"") False
 
 instance Functor EP where
   fmap = liftM
@@ -162,19 +137,6 @@ setPos l = EP (\_ dp s cs st an -> ((),l,dp,s,cs,st,an,id))
 
 getOffset :: EP DeltaPos
 getOffset = EP (\l dp s cs st an -> (dp,l,dp,s,cs,st,an,id))
-
-addOffset :: DeltaPos -> EP ()
-addOffset (DP (r,c)) = EP (\l (DP (ro,co)) s cs st an -> ((),l,(DP (r+ro,c+co)),s,cs,st,an,id))
-
-setOffset :: DeltaPos -> EP ()
-setOffset dp = EP (\l _ s cs st an -> ((),l,dp,s,cs,st,an,id))
-
-getSrcSpan :: EP GHC.SrcSpan
-getSrcSpan = EP (\l dp (s:ss) cs st an -> (s,l,dp,(s:ss),cs,st,an,id))
-
--- | Replace the current head value
-setSrcSpan :: GHC.SrcSpan -> EP ()
-setSrcSpan ss = EP (\l dp (s:sss) cs st an -> ((),l,dp,(ss:sss),cs,st,an,id))
 
 pushSrcSpan :: GHC.SrcSpan -> EP ()
 pushSrcSpan ss = EP (\l dp sss cs st an -> ((),l,dp,(ss:sss),cs,st,an,id))
@@ -231,17 +193,6 @@ setFunIsInfix b = EP (\l dp s cs e an -> ((),l,dp,s,cs,e { eFunIsInfix = b},an,i
 
 -- ---------------------------------------------------------------------
 
-inhibitTrailing :: EP ()
-inhibitTrailing = EP (\l dp s cs e an -> ((),l,dp,s,cs,e { eInhibitTrailing = True},an,id))
-
-resetTrailing :: EP ()
-resetTrailing = EP (\l dp s cs e an -> ((),l,dp,s,cs,e { eInhibitTrailing = False},an,id))
-
-trailingInhibited :: EP Bool
-trailingInhibited = EP (\l dp s cs e an -> (eInhibitTrailing e,l,dp,s,cs,e,an,id))
-
--- ---------------------------------------------------------------------
-
 printString :: String -> EP ()
 printString str = EP (\(l,c) dp s cs st an -> ((), (l,c+length str), dp, s, cs, st, an, showString str))
 
@@ -255,8 +206,8 @@ getComment = EP $ \l dp s cs st an ->
 dropComment :: EP ()
 dropComment = EP $ \l dp s cs st an ->
     let cs' = case cs of
-               (_:cs) -> cs
-               _      -> cs
+               (_:csl) -> csl
+               _       -> cs
      in ((), l, dp, s, cs', st, an, id)
 
 mergeComments :: [DComment] -> EP ()
@@ -279,16 +230,6 @@ padUntil (l,c) = do
      _ {-()-} | l1 >= l && c1 <= c -> printString $ replicate (c - c1) ' '
               | l1 < l             -> newLine >> padUntil (l,c)
               | otherwise          -> return ()
-
-padDelta :: DeltaPos -> EP ()
-padDelta (DP (dl,dc)) = do
-    (l1,c1) <- getPos
-    let (l,c) = (l1+dl,c1+dc)
-    case  {- trace (show ((l,c), (l1,c1))) -} () of
-     _ {-()-} | l1 >= l && c1 <= c -> printString $ replicate (c - c1) ' '
-              | l1 < l             -> newLine >> padUntil (l,c)
-              | otherwise          -> return ()
-
 
 mPrintComments :: Pos -> EP ()
 mPrintComments p = do
@@ -320,27 +261,6 @@ printWhitespace (r,c) = do
 printStringAt :: Pos -> String -> EP ()
 printStringAt p str = printWhitespace p >> printString str
 
-printStringAtDelta :: DeltaPos -> String -> EP ()
-printStringAtDelta (DP (dl,dc)) str = do
-  (l1,c1) <- getPos
-  let (l,c) = if dl == 0 then (l1 + dl, c1 + dc)
-                         else (l1 + dl, dc)
-  printWhitespace (l,c) >> printString str
-
-printStringAtMaybe :: Maybe Pos -> String -> EP ()
-printStringAtMaybe mc s =
-  case mc of
-    Nothing -> return ()
-    Just cl -> printStringAt cl s
-
-printStringAtMaybeDelta :: Maybe DeltaPos -> String -> EP ()
-printStringAtMaybeDelta mc s =
-  case mc of
-    Nothing -> return ()
-    Just cl -> do
-      p <- getPos
-      printStringAt (undelta p cl) s
-
 -- ---------------------------------------------------------------------
 
 printStringAtLsDelta :: [DeltaPos] -> String -> EP ()
@@ -354,17 +274,16 @@ printStringAtLsDelta mc s =
     _ -> return ()
 
 printStringAtMaybeAnn :: KeywordId -> String -> EP ()
-printStringAtMaybeAnn ann str = do
-  ma <- getAnnFinal ann
-  ss <- getSrcSpan
+printStringAtMaybeAnn an str = do
+  ma <- getAnnFinal an
   printStringAtLsDelta ma str
-    -- `debug` ("printStringAtMaybeAnn:(ss,ann,ma,str)=" ++ show (ss2span ss,ann,ma,str))
+    -- `debug` ("printStringAtMaybeAnn:(ss,an,ma,str)=" ++ show (ss2span ss,an,ma,str))
 
 printStringAtMaybeAnnAll :: KeywordId -> String -> EP ()
-printStringAtMaybeAnnAll ann str = go
+printStringAtMaybeAnnAll an str = go
   where
     go = do
-      ma <- getAnnFinal ann
+      ma <- getAnnFinal an
       case ma of
         [] -> return ()
         [d]  -> printStringAtLsDelta [d] str >> go
@@ -372,39 +291,29 @@ printStringAtMaybeAnnAll ann str = go
 -- ---------------------------------------------------------------------
 
 countAnns :: KeywordId -> EP Int
-countAnns ann = do
-  ma <- peekAnnFinal ann
+countAnns an = do
+  ma <- peekAnnFinal an
   return (length ma)
-
-printStringAtMaybeDeltaP :: Pos -> Maybe DeltaPos -> String -> EP ()
-printStringAtMaybeDeltaP p mc s =
-  case mc of
-    Nothing -> return ()
-    Just cl -> do
-      printStringAt (undelta p cl) s
-
-errorEP :: String -> EP a
-errorEP = fail
 
 ------------------------------------------------------------------------------
 -- Printing of source elements
 
 -- | Print an AST exactly as specified by the annotations on the nodes in the tree.
 -- exactPrint :: (ExactP ast) => ast -> [Comment] -> String
-exactPrint :: (ExactP ast) => GHC.Located ast -> [Comment] -> [PosToken] -> String
-exactPrint ast@(GHC.L l _) cs toks = runEP (exactPC ast) l cs (Map.empty,Map.empty)
+exactPrint :: (ExactP ast) => GHC.Located ast -> [Comment] -> String
+exactPrint ast@(GHC.L l _) cs = runEP (exactPC ast) l cs (Map.empty,Map.empty)
 
 
 exactPrintAnnotated ::
      GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns -> String
-exactPrintAnnotated ast@(GHC.L l _) ghcAnns = runEP (loadInitialComments >> exactPC ast) l [] ann
+exactPrintAnnotated ast@(GHC.L l _) ghcAnns = runEP (loadInitialComments >> exactPC ast) l [] an
   where
-    ann = annotateLHsModule ast ghcAnns
+    an = annotateLHsModule ast ghcAnns
 
 exactPrintAnnotation :: ExactP ast =>
   GHC.Located ast -> [Comment] -> Anns -> String
-exactPrintAnnotation ast@(GHC.L l _) cs ann = runEP (loadInitialComments >> exactPC ast) l cs ann
-  -- `debug` ("exactPrintAnnotation:ann=" ++ (concatMap (\(l,a) -> show (ss2span l,a)) $ Map.toList ann ))
+exactPrintAnnotation ast@(GHC.L l _) cs an = runEP (loadInitialComments >> exactPC ast) l cs an
+  -- `debug` ("exactPrintAnnotation:an=" ++ (concatMap (\(l,a) -> show (ss2span l,a)) $ Map.toList an ))
 
 annotateAST :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns -> Anns
 annotateAST ast ghcAnns = annotateLHsModule ast ghcAnns
@@ -438,61 +347,6 @@ exactPC a@(GHC.L l ast) =
        popSrcSpan
 
 
-
-printSeq :: [(Pos, EP ())] -> EP ()
-printSeq [] = return ()
-printSeq ((p,pr):xs) = printWhitespace p >> pr >> printSeq xs
-
-printStrs :: SrcInfo loc => [(loc, String)] -> EP ()
-printStrs = printSeq . map (pos *** printString)
-
-printPoints :: SrcSpanInfo -> [String] -> EP ()
-printPoints l = printStrs . zip (srcInfoPoints l)
-
-printInterleaved :: (Annotated ast, SrcInfo loc, ExactP ast)
-                 => [(loc, String)] -> [ast] -> EP ()
-printInterleaved sistrs asts = printSeq $
-    interleave (map (pos *** printString ) sistrs)
-               (map (pos . ann &&& exactP) asts)
-
--- so, f ast = pos $ ann ast
---     g ast = exactP ast
-
-{-
-
-The default definition may be overridden with a more efficient version if desired.
-
-(***) :: a b c -> a b' c' -> a (b, b') (c, c') -- infixr 3
-  Split the input between the two argument arrows and combine their output.
-  Note that this is in general not a functor.
-f *** g = first f >>> second g
-
-
-(&&&) :: a b c -> a b c' -> a b (c, c') -- infixr 3
-  Fanout: send the input to both argument arrows and combine their output.
-f &&& g = arr (\b -> (b,b)) >>> f *** g
-
-
--- | Lift a function to an arrow.
-    arr :: (b -> c) -> a b c
-
--- | Send the first component of the input through the argument
-    --   arrow, and copy the rest unchanged to the output.
-    first :: a b c -> a (b,d) (c,d)
-
--}
-
-printInterleaved' sistrs (a:asts) = exactPC a >> printInterleaved sistrs asts
-printInterleaved' _ _ = internalError "printInterleaved'"
-
-printStreams :: [(Pos, EP ())] -> [(Pos, EP ())] -> EP ()
-printStreams [] ys = printSeq ys
-printStreams xs [] = printSeq xs
-printStreams (x@(p1,ep1):xs) (y@(p2,ep2):ys)
-    | p1 <= p2 = printWhitespace p1 >> ep1 >> printStreams xs (y:ys)
-    | otherwise = printWhitespace p2 >> ep2 >> printStreams (x:xs) ys
-
--- printMerged :: [a] -> [b] -> EP ()
 printMerged :: (ExactP a, ExactP b) => [GHC.Located a] -> [GHC.Located b] -> EP ()
 printMerged [] [] = return ()
 printMerged [] bs = mapM_ exactPC bs
@@ -502,65 +356,16 @@ printMerged (a@(GHC.L l1 _):as) (b@(GHC.L l2 _):bs) =
     then exactPC a >> printMerged    as (b:bs)
     else exactPC b >> printMerged (a:as)   bs
 
-interleave :: [a] -> [a] -> [a]
-interleave [] ys = ys
-interleave xs [] = xs
-interleave (x:xs) (y:ys) = x:y: interleave xs ys
-
 -- ---------------------------------------------------------------------
 
+prepareListPrint :: ExactP ast
+                 => [GHC.GenLocated GHC.SrcSpan ast] -> [(GHC.SrcSpan, EP ())]
 prepareListPrint ls = map (\b@(GHC.L l _) -> (l,exactPC b)) ls
 
+applyListPrint :: (Monad m, Ord a) => [(a, m b)] -> m ()
 applyListPrint ls = mapM_ (\(_,b) -> b) $ sortBy (\(a,_) (b,_) -> compare a b) ls
 
 -- ---------------------------------------------------------------------
-
-maybeEP :: (a -> EP ()) -> Maybe a -> EP ()
-maybeEP = maybe (return ())
-
--- bracketList :: (ExactP ast) => (String, String, String) -> [GHC.SrcSpan] -> [ast] -> EP ()
-bracketList :: (Annotated b1, SrcInfo b, ExactP b1) => (String, String, String) -> [b] -> [b1] -> EP ()
-bracketList (a,b,c) poss asts = printInterleaved (pList poss (a,b,c)) asts
-
-pList (p:ps) (a,b,c) = (p,a) : pList' ps (b,c)
-pList _ _ = internalError "pList"
-pList' [] _ = []
-pList' [p] (_,c) = [(p,c)]
-pList' (p:ps) (b,c) = (p, b) : pList' ps (b,c)
-
-parenList, squareList, curlyList, parenHashList :: (Annotated ast,ExactP ast) => [GHC.SrcSpan] -> [ast] -> EP ()
-parenList = bracketList ("(",",",")")
-squareList = bracketList ("[",",","]")
-curlyList = bracketList ("{",",","}")
-parenHashList = bracketList ("(#",",","#)")
-
--- layoutList :: (Functor ast, Show (ast ()), ExactP ast) => [GHC.SrcSpan] -> [ast] -> EP ()
-layoutList :: (Annotated ast, ExactP ast) => [GHC.SrcSpan] -> [ast] -> EP ()
-layoutList poss asts = printStreams
-        (map (pos *** printString) $ lList poss)
-        (map (pos . ann &&& exactP) asts)
-
-lList (p:ps) = (if isNullSpan p then (p,"") else (p,"{")) : lList' ps
-lList _ = internalError "lList"
-lList' [] = []
-lList' [p] = [if isNullSpan p then (p,"") else (p,"}")]
-lList' (p:ps) = (if isNullSpan p then (p,"") else (p,";")) : lList' ps
-
-printSemi :: GHC.SrcSpan -> EP ()
-printSemi p = do
-  printWhitespace (pos p)
-  when (not $ isNullSpan p) $ printString ";"
-
--- ---------------------------------------------------------------------
-
-getAnn :: (Annotation -> Bool) -> Maybe [Annotation] -> String -> [Annotation]
-getAnn isAnn ma str =
-  case ma of
-    Nothing -> error $ "getAnn expecting an annotation:" ++ str
-    Just as -> filter isAnn as
-
-
---------------------------------------------------
 -- Exact printing for GHC
 
 class (Data ast) => ExactP ast where
@@ -569,10 +374,10 @@ class (Data ast) => ExactP ast where
   exactP :: ast -> EP ()
 
 instance ExactP (GHC.HsModule GHC.RdrName) where
-  exactP (GHC.HsModule mmn mexp imps decls mdepr haddock) = do
+  exactP (GHC.HsModule mmn mexp imps decls mdepr _haddock) = do
 
     case mmn of
-      Just lmn@(GHC.L l mn) -> do
+      Just (GHC.L _ mn) -> do
         printStringAtMaybeAnn (G GHC.AnnModule) "module" -- `debug` ("exactP.HsModule:cs=" ++ show cs)
         printStringAtMaybeAnn (G GHC.AnnVal) (GHC.moduleNameString mn)
       Nothing -> return ()
@@ -738,7 +543,7 @@ instance ExactP (GHC.HsQuasiQuote GHC.RdrName) where
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.SpliceDecl GHC.RdrName) where
-  exactP (GHC.SpliceDecl (GHC.L ls (GHC.HsSplice n e)) flag) = do
+  exactP (GHC.SpliceDecl (GHC.L _ (GHC.HsSplice _n e)) flag) = do
     case flag of
       GHC.ExplicitSplice ->
         printStringAtMaybeAnn (G GHC.AnnOpen) "$("
@@ -762,7 +567,7 @@ instance ExactP (GHC.VectDecl GHC.RdrName) where
     exactPC ln
     printStringAtMaybeAnn (G GHC.AnnClose) "#-}"
 
-  exactP (GHC.HsVectTypeIn src b ln mln) = do
+  exactP (GHC.HsVectTypeIn src _b ln mln) = do
     printStringAtMaybeAnn (G GHC.AnnOpen) src -- "{-# VECTORISE" or "{-# VECTORISE SCALAR"
     printStringAtMaybeAnn (G GHC.AnnType) "type"
     exactPC ln
@@ -855,6 +660,7 @@ instance ExactP (GHC.WarnDecl GHC.RdrName) where
      mapM_ exactPC lns
      printStringAtMaybeAnn (G GHC.AnnOpenS) "["
      case txt of
+       -- TODO: AZ: why are we ignoring src?
        GHC.WarningTxt    src ls -> mapM_ exactPC ls
        GHC.DeprecatedTxt src ls -> mapM_ exactPC ls
      printStringAtMaybeAnn (G GHC.AnnCloseS) "]"
@@ -867,7 +673,7 @@ instance ExactP GHC.FastString where
 
 instance ExactP (GHC.ForeignDecl GHC.RdrName) where
   exactP (GHC.ForeignImport ln typ _
-               (GHC.CImport cconv safety@(GHC.L ll _) mh imp (GHC.L ls src))) = do
+               (GHC.CImport cconv safety@(GHC.L ll _) _mh _imp (GHC.L _ src))) = do
     printStringAtMaybeAnn (G GHC.AnnForeign) "foreign"
     printStringAtMaybeAnn (G GHC.AnnImport) "import"
 
@@ -882,7 +688,7 @@ instance ExactP (GHC.ForeignDecl GHC.RdrName) where
     printStringAtMaybeAnn (G GHC.AnnDcolon) "::"
     exactPC typ
 
-  exactP (GHC.ForeignExport ln typ _ (GHC.CExport spec (GHC.L ls src))) = do
+  exactP (GHC.ForeignExport ln typ _ (GHC.CExport spec (GHC.L _ src))) = do
     printStringAtMaybeAnn (G GHC.AnnForeign) "foreign"
     printStringAtMaybeAnn (G GHC.AnnExport) "export"
     exactPC spec
@@ -996,7 +802,7 @@ instance ExactP (GHC.TyFamInstDecl GHC.RdrName) where
 
 instance ExactP (GHC.DataFamInstDecl GHC.RdrName) where
    exactP (GHC.DataFamInstDecl ln (GHC.HsWB pats _ _ _)
-            (GHC.HsDataDefn _nOrD ctx mtyp mkind cons mderivs) _) = do
+            (GHC.HsDataDefn _nOrD _ctx _mtyp mkind cons mderivs) _) = do
     printStringAtMaybeAnn (G GHC.AnnData)     "data"
     printStringAtMaybeAnn (G GHC.AnnNewtype)  "newtype"
     printStringAtMaybeAnn (G GHC.AnnInstance) "instance"
@@ -1027,10 +833,10 @@ instance ExactP (GHC.HsBind GHC.RdrName) where
     printStringAtMaybeAnn (G GHC.AnnWhere) "where"
     exactP lb
 
-  exactP (GHC.VarBind var_id var_rhs var_inline ) = printString "VarBind"
-  exactP (GHC.AbsBinds abs_tvs abs_ev_vars abs_exports abs_ev_binds abs_binds) = printString "AbsBinds"
+  exactP (GHC.VarBind _var_id _var_rhs _var_inline ) = printString "VarBind"
+  exactP (GHC.AbsBinds _abs_tvs _abs_ev_vars _abs_exports _abs_ev_binds _abs_binds) = printString "AbsBinds"
 
-  exactP (GHC.PatSynBind (GHC.PSB n fvs args def dir)) = do
+  exactP (GHC.PatSynBind (GHC.PSB n _fvs args def dir)) = do
     printStringAtMaybeAnn (G GHC.AnnPattern) "pattern"
     exactPC n
     case args of
@@ -1059,7 +865,7 @@ instance ExactP (GHC.IPBind GHC.RdrName) where
   exactP (GHC.IPBind en e) = do
     case en of
       Left n -> exactPC n
-      Right i -> error $ "annotateP.IPBind:should not happen"
+      Right _i -> error $ "annotateP.IPBind:should not happen"
     printStringAtMaybeAnn (G GHC.AnnEqual) "="
     exactPC e
 
@@ -1195,12 +1001,6 @@ instance ExactP (GHC.Pat GHC.RdrName) where
 
 -- ---------------------------------------------------------------------
 
-hstylit2str :: GHC.HsTyLit -> String
-hstylit2str (GHC.HsNumTy src _) = src
-hstylit2str (GHC.HsStrTy src _) = src
-
--- ---------------------------------------------------------------------
-
 instance ExactP (GHC.HsType GHC.Name) where
   exactP typ = do
     return () `debug` ("exactP.HsType not implemented for " ++ showGhc (typ))
@@ -1211,7 +1011,7 @@ instance ExactP (GHC.HsType GHC.Name) where
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.HsType GHC.RdrName) where
-  exactP (GHC.HsForAllTy f mwc (GHC.HsQTvs kvs tvs) ctx@(GHC.L lc ctxs) typ) = do
+  exactP (GHC.HsForAllTy _f mwc (GHC.HsQTvs _kvs tvs) ctx@(GHC.L lc ctxs) typ) = do
     printStringAtMaybeAnn (G GHC.AnnOpenP)   "("
     printStringAtMaybeAnn (G GHC.AnnForall) "forall"
     mapM_ exactPC tvs
@@ -1251,11 +1051,8 @@ instance ExactP (GHC.HsType GHC.RdrName) where
     exactPC t
     printStringAtMaybeAnn (G GHC.AnnClose) ":]"
 
-  exactP (GHC.HsTupleTy sort ts) = do
+  exactP (GHC.HsTupleTy _tsort ts) = do
     printStringAtMaybeAnn (G GHC.AnnDcolon) "::" -- for HsKind, aliased to HsType
-    let (ostr,cstr) = case sort of
-          GHC.HsUnboxedTuple -> ("(#","#)")
-          _ -> ("(",")")
     printStringAtMaybeAnn (G GHC.AnnOpenP) "("
     printStringAtMaybeAnn (G GHC.AnnOpen)  "(#"
     mapM_ exactPC ts
@@ -1439,7 +1236,7 @@ instance (ExactP body)
 -- ---------------------------------------------------------------------
 
 exactPParStmtBlock :: GHC.ParStmtBlock GHC.RdrName GHC.RdrName -> EP ()
-exactPParStmtBlock (GHC.ParStmtBlock stmts ns _) = do
+exactPParStmtBlock (GHC.ParStmtBlock stmts _ns _) = do
   mapM_ exactPC stmts
 
 -- ---------------------------------------------------------------------
@@ -1551,6 +1348,7 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     mapM_ exactPC fs
     printStringAtMaybeAnn (G GHC.AnnCloseC) "}"
 
+  -- TODO: AZ: cons are not processed
   exactP (GHC.RecordUpd e (GHC.HsRecFields fs _) cons _ _)  = do
     exactPC e
     printStringAtMaybeAnn (G GHC.AnnOpenC) "{"
@@ -1690,7 +1488,7 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     printStringAtMaybeAnn (G GHC.AnnLarrowtail) "-<<"
     printStringAtMaybeAnn (G GHC.AnnRarrowtail) ">>-"
 
-    exactPC e1
+    exactPC e2
 
   exactP (GHC.HsArrForm e _ cs) = do
     printStringAtMaybeAnn (G GHC.AnnOpen) "(|"
@@ -1739,9 +1537,6 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     `debug` ("exactP.HsExpr:not processing " ++ (showGhc e) )
 
 -- ---------------------------------------------------------------------
-
--- instance ExactP (GHC.HsRecField GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
---   exactP (GHC.HsRecField _ e _) = exactPC e
 
 instance (ExactP arg) => ExactP (GHC.HsRecField GHC.RdrName (GHC.Located arg)) where
   exactP (GHC.HsRecField n e _) = do
@@ -1872,7 +1667,7 @@ instance ExactP (GHC.HsTupArg GHC.RdrName) where
 instance ExactP (GHC.HsLocalBinds GHC.RdrName) where
   exactP (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
     printMerged (GHC.bagToList binds) sigs
-  exactP (GHC.HsValBinds (GHC.ValBindsOut binds sigs)) = printString "ValBindsOut"
+  exactP (GHC.HsValBinds (GHC.ValBindsOut _binds _sigs)) = printString "ValBindsOut"
   exactP (GHC.HsIPBinds (GHC.IPBinds binds _)) = mapM_ exactPC binds
   exactP (GHC.EmptyLocalBinds) = return ()
 
@@ -1960,6 +1755,7 @@ instance ExactP (GHC.HsOverLit GHC.RdrName) where
 instance ExactP GHC.HsLit where
   exactP lit = printStringAtMaybeAnn (G GHC.AnnVal) (hsLit2String lit)
 
+hsLit2String :: GHC.HsLit -> GHC.SourceText
 hsLit2String lit =
   case lit of
     GHC.HsChar       src _   -> src
@@ -1989,7 +1785,7 @@ instance ExactP (GHC.TyClDecl GHC.RdrName) where
     printStringAtMaybeAnn (G GHC.AnnEqual) "="
     exactPC typ
 
-  exactP (GHC.DataDecl ln (GHC.HsQTvs ns tyVars)
+  exactP (GHC.DataDecl ln (GHC.HsQTvs _ns tyVars)
            (GHC.HsDataDefn _nOrD ctx mctyp mkind cons mderivs) _) = do
     printStringAtMaybeAnn (G GHC.AnnData)    "data"
     printStringAtMaybeAnn (G GHC.AnnNewtype) "newtype"
@@ -2004,7 +1800,7 @@ instance ExactP (GHC.TyClDecl GHC.RdrName) where
     mapM_ exactPC cons
     doMaybe exactPC mderivs
 
-  exactP (GHC.ClassDecl ctx ln (GHC.HsQTvs ns tyVars) fds
+  exactP (GHC.ClassDecl ctx ln (GHC.HsQTvs _ns tyVars) fds
                           sigs meths ats atdefs docs _) = do
     printStringAtMaybeAnn (G GHC.AnnClass) "class"
     exactPC ctx
@@ -2026,6 +1822,8 @@ instance ExactP (GHC.TyClDecl GHC.RdrName) where
 
 -- ---------------------------------------------------------------------
 
+printTyClass :: (ExactP ast, ExactP ast1)
+             => GHC.Located ast -> [GHC.Located ast1] -> EP ()
 printTyClass ln tyVars = do
     printStringAtMaybeAnnAll (G GHC.AnnOpenP) "("
     applyListPrint (prepareListPrint [ln]
@@ -2074,9 +1872,9 @@ instance ExactP GHC.DocDecl where
     = printStringAtMaybeAnn (G GHC.AnnVal) (GHC.unpackFS fs)
   exactP (GHC.DocCommentPrev (GHC.HsDocString fs))
     = printStringAtMaybeAnn (G GHC.AnnVal) (GHC.unpackFS fs)
-  exactP (GHC.DocCommentNamed s (GHC.HsDocString fs))
+  exactP (GHC.DocCommentNamed _s (GHC.HsDocString fs))
     = printStringAtMaybeAnn (G GHC.AnnVal) (GHC.unpackFS fs)
-  exactP (GHC.DocGroup i (GHC.HsDocString fs))
+  exactP (GHC.DocGroup _i (GHC.HsDocString fs))
     = printStringAtMaybeAnn (G GHC.AnnVal) (GHC.unpackFS fs)
 
 -- ---------------------------------------------------------------------
@@ -2099,16 +1897,6 @@ instance ExactP (GHC.HsTyVarBndr GHC.RdrName) where
     printStringAtMaybeAnn (G GHC.AnnCloseP) ")"
 
 -- ---------------------------------------------------------------------
-{-
-instance ExactP (GHC.HsDataDefn GHC.RdrName) where
-  exactP (GHC.HsDataDefn nOrD ctx mtyp mkind cons mderivs) = do
-    exactPC ctx
-    doMaybe exactPC mtyp
-    doMaybe exactPC mkind
-    mapM_ exactPC cons
-    doMaybe exactPC mderivs
--}
--- ---------------------------------------------------------------------
 
 instance ExactP [GHC.LConDecl GHC.RdrName] where
   exactP cons = mapM_ exactPC cons
@@ -2116,7 +1904,7 @@ instance ExactP [GHC.LConDecl GHC.RdrName] where
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.ConDecl GHC.RdrName) where
-  exactP (GHC.ConDecl lns exp b@(GHC.HsQTvs _ns bndrs) ctx dets res _ _) = do
+  exactP (GHC.ConDecl lns _exp (GHC.HsQTvs _ns bndrs) ctx dets res _ _) = do
     case res of
       GHC.ResTyH98 -> do
         printStringAtMaybeAnn (G GHC.AnnForall) "forall"
@@ -2163,20 +1951,9 @@ instance ExactP (GHC.ConDecl GHC.RdrName) where
         printStringAtMaybeAnn (G GHC.AnnDcolon) "::"
 
         exactPC (GHC.L ls (ResTyGADTHook bndrs))
-        {-
-        printStringAtMaybeAnn (G GHC.AnnForall "forall"
-        mapM_ exactPC bndrs
-        printStringAtMaybeAnn (G GHC.AnnDot "."
-        -}
 
         exactPC ctx
         printStringAtMaybeAnn (G GHC.AnnDarrow) "=>"
-{-
-        case dets of
-          GHC.InfixCon _ _ -> return ()
-          _ -> mapM_ exactPC lns
-
--}
         exactPC ty
 
     printStringAtMaybeAnn (G GHC.AnnVbar) "|"
@@ -2211,22 +1988,5 @@ instance ExactP (GHC.CType) where
     printStringAtMaybeAnn (G GHC.AnnClose) "#-}"
 
 -- ---------------------------------------------------------------------
-
--- Hopefully, this will never fire.
--- If it does, hopefully by that time https://github.com/sol/rewrite-with-location
--- will be implemented.
--- If not, then removing all calls to internalError should give a better
--- idea where the error comes from.
--- So far, it's necessary to eliminate non-exhaustive patterns warnings.
--- We don't want to turn them off, as we want unhandled AST nodes to be
--- reported.
-internalError :: String -> a
-internalError loc = error $ unlines
-    [ "haskell-src-exts: ExactPrint: internal error (non-exhaustive pattern)"
-    , "Location: " ++ loc
-    , "This is either caused by supplying incorrect location information or by"
-    , "a bug in haskell-src-exts. If this happens on an unmodified AST obtained"
-    , "by the haskell-src-exts Parser it is a bug, please it report it at"
-    , "https://github.com/haskell-suite/haskell-src-exts"]
 
 

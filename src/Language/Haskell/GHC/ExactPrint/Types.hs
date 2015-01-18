@@ -1,7 +1,7 @@
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-} -- for GHC.DataId
 module Language.Haskell.GHC.ExactPrint.Types
   (
@@ -82,17 +82,19 @@ annGetConstr :: (Data a) => a -> AnnConName
 annGetConstr a = CN (show $ toConstr a)
 
 
--- | For every @Located a@, use the @SrcSpan@ and GHC.Generics conName of a as the
--- key, to store the standard annotation.
+-- | For every @Located a@, use the @SrcSpan@ and constructor name of
+-- a as the key, to store the standard annotation.
+-- These are used to maintain context in the AP and EP monads
 type AnnsEP = Map.Map (GHC.SrcSpan,AnnConName) Annotation
 
--- | For every SrcSpan, store an annotation as a value where the
--- TypeRep is of the item wrapped in the Value
--- type AnnsUser = Map.Map (GHC.SrcSpan,TypeRep) Value
-
+-- | The offset values used for actually outputing the source. For a
+-- given @'SrcSpan'@, in a context managed by the AP or EP monads,
+-- store a list of offsets for a particular KeywordId. Mostly there
+-- will only be one, but in certain circumstances they are multiple,
+-- e.g. semi colons as separators, which can be repeated.
 type AnnsFinal = Map.Map (GHC.SrcSpan,KeywordId) [DeltaPos]
 
--- We need our own version of keywordid to distinguish between a
+-- |We need our own version of keywordid to distinguish between a
 -- semi-colon appearing within an AST element and one separating AST
 -- elements in a list.
 data KeywordId = G GHC.AnnKeywordId
@@ -104,11 +106,6 @@ instance GHC.Outputable KeywordId where
 
 instance GHC.Outputable (AnnConName) where
   ppr tr     = GHC.text (show tr)
-
-{-
-instance GHC.Outputable TypeRep where
-  ppr tr     = GHC.text (show tr)
--}
 
 instance GHC.Outputable Annotation where
   ppr a     = GHC.text (show a)
@@ -129,20 +126,6 @@ instance (GHC.OutputableBndr name) => GHC.Outputable (ResTyGADTHook name) where
   ppr (ResTyGADTHook bs) = GHC.text "ResTyGADTHook" GHC.<+> GHC.ppr bs
 
 -- ---------------------------------------------------------------------
-{-
-
-Rationale.
-
-We need an offset for every SrcSpan, as well as the comments
-associated with it.
-
-We also need optional other annotations for keywords etc.
-
-So perhaps one AnnKey based on the typeRep of a in (Located a), and
-another for the user annotation.
-
-
--}
 
 type AnnKey  = (GHC.SrcSpan, AnnConName)
 type AnnKeyF = (GHC.SrcSpan, KeywordId)
@@ -150,11 +133,11 @@ type AnnKeyF = (GHC.SrcSpan, KeywordId)
 mkAnnKeyEP :: (Data a) => GHC.Located a -> AnnKey
 mkAnnKeyEP (GHC.L l a) = (l,annGetConstr a)
 
-
 getAnnotationEP :: (Data a) => AnnsEP -> GHC.Located a -> Maybe Annotation
 getAnnotationEP anns (GHC.L ss a) = Map.lookup (ss, annGetConstr a) anns
 
-getAndRemoveAnnotationEP :: (Data a) => AnnsEP -> GHC.Located a -> (Maybe Annotation,AnnsEP)
+getAndRemoveAnnotationEP :: (Data a)
+                         => AnnsEP -> GHC.Located a -> (Maybe Annotation,AnnsEP)
 getAndRemoveAnnotationEP anns (GHC.L ss a)
  = case Map.lookup (ss, annGetConstr a) anns of
      Nothing  -> (Nothing,anns)

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-(cd ../ghc-syb/utils                && cabal clean && cabal install --allow-newer)
+#(cd ../ghc-syb/utils                && cabal clean && cabal install --allow-newer)
 #(cd ../hslogger                     && cabal clean && cabal install --allow-newer)
 #(cd ~/tmp/hackage/djinn-ghc-0.0.2.2 && cabal clean && cabal install --allow-newer)
 #(cd ../../DanielG/ghc-mod           && cabal clean && cabal install --allow-newer)
