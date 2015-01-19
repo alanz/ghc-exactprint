@@ -91,6 +91,7 @@ unConName (CN s) = s
 -- a as the key, to store the standard annotation.
 -- These are used to maintain context in the AP and EP monads
 type AnnsEP = Map.Map (GHC.SrcSpan,AnnConName) Annotation
+type AnnKey =         (GHC.SrcSpan,AnnConName)
 
 -- | The offset values used for actually outputing the source. For a
 -- given @'SrcSpan'@, in a context managed by the AP or EP monads,
@@ -98,6 +99,7 @@ type AnnsEP = Map.Map (GHC.SrcSpan,AnnConName) Annotation
 -- will only be one, but in certain circumstances they are multiple,
 -- e.g. semi colons as separators, which can be repeated.
 type AnnsFinal = Map.Map (GHC.SrcSpan,KeywordId) [DeltaPos]
+type AnnKeyF   =         (GHC.SrcSpan,KeywordId)
 
 -- |We need our own version of keywordid to distinguish between a
 -- semi-colon appearing within an AST element and one separating AST
@@ -105,6 +107,8 @@ type AnnsFinal = Map.Map (GHC.SrcSpan,KeywordId) [DeltaPos]
 data KeywordId = G GHC.AnnKeywordId
                | AnnSemiSep
                deriving (Eq,Show,Ord)
+
+-- ---------------------------------------------------------------------
 
 instance GHC.Outputable KeywordId where
   ppr k     = GHC.text (show k)
@@ -131,9 +135,6 @@ instance (GHC.OutputableBndr name) => GHC.Outputable (ResTyGADTHook name) where
   ppr (ResTyGADTHook bs) = GHC.text "ResTyGADTHook" GHC.<+> GHC.ppr bs
 
 -- ---------------------------------------------------------------------
-
-type AnnKey  = (GHC.SrcSpan, AnnConName)
-type AnnKeyF = (GHC.SrcSpan, KeywordId)
 
 mkAnnKeyEP :: (Data a) => GHC.Located a -> AnnKey
 mkAnnKeyEP (GHC.L l a) = (l,annGetConstr a)

@@ -8,6 +8,8 @@ module Language.Haskell.GHC.ExactPrint.Utils
   (
     annotateLHsModule
 
+  , organiseAnns
+
   , ghcIsComment
   , ghcIsMultiLine
 
@@ -2241,6 +2243,31 @@ instance Show (GHC.GenLocated GHC.SrcSpan GHC.Token) where
 
 pp :: GHC.Outputable a => a -> String
 pp a = GHC.showPpr GHC.unsafeGlobalDynFlags a
+
+-- ---------------------------------------------------------------------
+
+-- | Re-arrange the annotations to make it clearer for users how they
+-- hang together.
+organiseAnns :: Anns ->
+                Map.Map GHC.SrcSpan ([(AnnConName,Annotation)]
+                                    ,[(KeywordId, [DeltaPos])] )
+organiseAnns (anne,annf) = r
+  where
+    insertAnnE :: Map.Map GHC.SrcSpan ([(AnnConName,Annotation)]
+                                      ,[(KeywordId, [DeltaPos])] )
+               -> ((GHC.SrcSpan,AnnConName), Annotation)
+               -> Map.Map GHC.SrcSpan ([(AnnConName,Annotation)]
+                                      ,[(KeywordId, [DeltaPos])] )
+    insertAnnE m ((ss,conName),ann) =
+      case Map.lookup ss m of
+        Just (cas,kds) -> Map.insert ss ((conName,ann):cas,kds) m
+        Nothing        -> Map.insert ss ([(conName,ann)],  [])  m
+    insertAnnF m ((ss,kw),dps) =
+      case Map.lookup ss m of
+        Just (cas,kds) -> Map.insert ss (cas,(kw,dps):kds) m
+        Nothing        -> Map.insert ss ([], [(kw,dps)])   m
+    re = foldl insertAnnE Map.empty (Map.toList anne)
+    r  = foldl insertAnnF re        (Map.toList annf)
 
 -- ---------------------------------------------------------------------
 -- Putting these here for the time being, to avoid import loops

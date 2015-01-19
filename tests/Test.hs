@@ -33,7 +33,7 @@ import qualified Data.Map as Map
 
 main :: IO ()
 main = do
-
+{-
     manipulateAstTest "examples/LetStmt.hs"               "Layout.LetStmt"
     manipulateAstTest "examples/LetExpr.hs"               "LetExpr"
     manipulateAstTest "examples/ExprPragmas.hs"           "ExprPragmas"
@@ -110,7 +110,7 @@ main = do
     manipulateAstTest "examples/DocDecls.hs"              "DocDecls"
     manipulateAstTest "examples/RecordUpdate.hs"          "Main"
     -- manipulateAstTest "examples/Unicode.hs"               "Main"
-
+-}
     manipulateAstTest "examples/B.hs"                     "Main"
 
 {-
@@ -181,6 +181,7 @@ manipulateAstTest' useTH file modname = do
   writeFile out $ result
   -- putStrLn $ "Test3:ann=[" ++ show (snd ann) ++ "]"
   putStrLn $ "Test:ann=" ++ showGhc ann
+  putStrLn $ "Test:ann organised:" ++ showGhc (organiseAnns ann)
   return ()
 -- }}}
 
