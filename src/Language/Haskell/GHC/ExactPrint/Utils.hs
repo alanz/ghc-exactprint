@@ -77,8 +77,8 @@ import qualified Data.Map as Map
 import Debug.Trace
 
 debug :: c -> String -> c
--- debug = flip trace
-debug c _ = c
+debug = flip trace
+-- debug c _ = c
 
 -- ---------------------------------------------------------------------
 
@@ -2105,6 +2105,8 @@ localComments pin cs ds = r
 
 -- ---------------------------------------------------------------------
 
+-- | Apply the delta to the current position, taking into account the
+-- current column offset
 undeltaComment :: Pos -> Int -> DComment -> Comment
 undeltaComment l co (DComment b (dps,dpe) s)
   = Comment b ((undelta l dps co),(undelta l dpe co)) s
@@ -2165,6 +2167,8 @@ ss2deltaP (refl,refc) (l,c) = DP (lo,co)
     co = if lo == 0 then c - refc
                     else c
 
+-- | Apply the delta to the current position, taking into account the
+-- current column offset
 undelta :: Pos -> DeltaPos -> Int -> Pos
 undelta (l,c) (DP (dl,dc)) co = (fl,fc)
   where

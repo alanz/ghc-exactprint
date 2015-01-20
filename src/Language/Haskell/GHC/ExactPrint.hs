@@ -280,10 +280,17 @@ printStringAtLsDelta mc s =
     (cl:_) -> do
       p <- getPos
       DP (_,colOffset) <- getOffset
-      if isGoodDelta cl
+      -- if isGoodDelta cl
+      if isGoodDeltaWithOffset cl colOffset
         then printStringAt (undelta p cl colOffset) s
         else return () `debug` ("printStringAtLsDelta:bad delta for (mc,s):" ++ show (mc,s))
     _ -> return ()
+
+
+isGoodDeltaWithOffset :: DeltaPos -> Int -> Bool
+isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP (undelta (0,0) dp colOffset))
+
+-- ---------------------------------------------------------------------
 
 printStringAtMaybeAnn :: KeywordId -> String -> EP ()
 printStringAtMaybeAnn an str = do
