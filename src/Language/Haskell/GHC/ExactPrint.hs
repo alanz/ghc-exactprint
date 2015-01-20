@@ -99,8 +99,8 @@ instance Annotated (GHC.Located a) where
 ------------------------------------------------------
 -- The EP monad and basic combinators
 
-newtype EP x = EP (Pos -> DeltaPos -> [GHC.SrcSpan] -> [Comment] -> Extra -> Anns
-            -> (x, Pos,   DeltaPos,   [GHC.SrcSpan],   [Comment],   Extra,   Anns, ShowS))
+newtype EP x = EP (Pos -> [DeltaPos] -> [GHC.SrcSpan] -> [Comment] -> Extra -> Anns
+            -> (x, Pos,   [DeltaPos],   [GHC.SrcSpan],   [Comment],   Extra,   Anns, ShowS))
 
 data Extra = E { eFunId :: (Bool,String) -- (isSymbol,name)
                , eFunIsInfix :: Bool
@@ -126,7 +126,7 @@ instance Monad EP where
     in (b, l2, ss2, dp2, c2, st2, an2, s1 . s2)
 
 runEP :: EP () -> GHC.SrcSpan -> [Comment] -> Anns -> String
-runEP (EP f) ss cs ans = let (_,_,_,_,_,_,_,s) = f (1,1) (DP (0,0)) [ss] cs initExtra ans in s ""
+runEP (EP f) ss cs ans = let (_,_,_,_,_,_,_,s) = f (1,1) [DP (0,0)] [ss] cs initExtra ans in s ""
 
 getPos :: EP Pos
 getPos = EP (\l dp s cs st an -> (l,l,dp,s,cs,st,an,id))
@@ -134,9 +134,18 @@ getPos = EP (\l dp s cs st an -> (l,l,dp,s,cs,st,an,id))
 setPos :: Pos -> EP ()
 setPos l = EP (\_ dp s cs st an -> ((),l,dp,s,cs,st,an,id))
 
+-- ---------------------------------------------------------------------
 
 getOffset :: EP DeltaPos
-getOffset = EP (\l dp s cs st an -> (dp,l,dp,s,cs,st,an,id))
+getOffset = EP (\l (dp:dps) s cs st an -> (dp,l,dp:dps,s,cs,st,an,id))
+
+pushOffset :: DeltaPos -> EP ()
+pushOffset dp = EP (\l dps s cs st an -> ((),l,dp:dps,s,cs,st,an,id))
+
+popOffset :: EP ()
+popOffset = EP (\l (_:dp) s cs st an -> ((),l,dp,s,cs,st,an,id))
+
+-- ---------------------------------------------------------------------
 
 pushSrcSpan :: GHC.SrcSpan -> EP ()
 pushSrcSpan ss = EP (\l dp sss cs st an -> ((),l,dp,(ss:sss),cs,st,an,id))
@@ -211,11 +220,12 @@ dropComment = EP $ \l dp s cs st an ->
      in ((), l, dp, s, cs', st, an, id)
 
 mergeComments :: [DComment] -> EP ()
-mergeComments dcs = EP $ \l dp s cs st an ->
+mergeComments dcs = EP $ \l (dp:dps) s cs st an ->
     let ll = ss2pos $ head s
-        acs = map (undeltaComment ll) dcs
+        DP (_,co) = dp
+        acs = map (undeltaComment ll co) dcs
         cs' = merge acs cs
-    in ((), l, dp, s, cs', st, an, id) `debug` ("mergeComments:(l,acs,dcs)=" ++ show (l,acs,dcs))
+    in ((), l, (dp:dps), s, cs', st, an, id) `debug` ("mergeComments:(l,acs,dcs)=" ++ show (l,acs,dcs))
 
 newLine :: EP ()
 newLine = do
@@ -254,7 +264,8 @@ printComment b str
 -- Single point of delta application
 printWhitespace :: Pos -> EP ()
 printWhitespace (r,c) = do
-  DP (dr,dc)  <- getOffset
+  -- DP (dr,dc)  <- getOffset
+  let (dr,dc) = (0,0)
   let p = (r + dr, c + dc) -- `debug` ("printWhiteSpace:offset=" ++ (show (dr,dc)))
   mPrintComments p >> padUntil p
 
@@ -268,8 +279,9 @@ printStringAtLsDelta mc s =
   case reverse mc of
     (cl:_) -> do
       p <- getPos
+      DP (_,colOffset) <- getOffset
       if isGoodDelta cl
-        then printStringAt (undelta p cl) s
+        then printStringAt (undelta p cl colOffset) s
         else return () `debug` ("printStringAtLsDelta:bad delta for (mc,s):" ++ show (mc,s))
     _ -> return ()
 
@@ -277,7 +289,7 @@ printStringAtMaybeAnn :: KeywordId -> String -> EP ()
 printStringAtMaybeAnn an str = do
   ma <- getAnnFinal an
   printStringAtLsDelta ma str
-    -- `debug` ("printStringAtMaybeAnn:(ss,an,ma,str)=" ++ show (ss2span ss,an,ma,str))
+    `debug` ("printStringAtMaybeAnn:(an,ma,str)=" ++ show (an,ma,str))
 
 printStringAtMaybeAnnAll :: KeywordId -> String -> EP ()
 printStringAtMaybeAnnAll an str = go
@@ -332,14 +344,16 @@ exactPC a@(GHC.L l ast) =
     do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
        -- ma <- getAnnotation a
        ma <- getAndRemoveAnnotation a
-       case ma of
-         Nothing -> return ()
+       offset <- case ma of
+         Nothing -> return (DP (0,0))
            `debug` ("exactPC:no annotation for " ++ show (ss2span l,typeOf ast))
          Just (Ann lcs dp) -> do
              mergeComments lcs `debug` ("exactPC:(l,lcs,dp):" ++ show (showGhc l,lcs,dp))
-             return ()
+             return dp
 
+       pushOffset offset
        exactP ast
+       popOffset
 
        printStringAtMaybeAnn (G GHC.AnnComma) ","
        printStringAtMaybeAnnAll AnnSemiSep ";"

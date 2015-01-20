@@ -138,6 +138,35 @@ popSrcSpanAP = AP (\(_:ls) pe e ga -> ((),ls,pe,e,ga,mempty))
 
 -- ---------------------------------------------------------------------
 
+startGroupingOffsets :: AP ()
+startGroupingOffsets = do
+  return ()
+
+stopGroupingOffsets :: AP ()
+stopGroupingOffsets = do
+  return ()
+
+amendDeltaForGrouping :: DeltaPos -> AP DeltaPos
+amendDeltaForGrouping p = do
+  return p
+
+adjustDeltaForOffset :: DeltaPos -> AP DeltaPos
+adjustDeltaForOffset dp@(DP (0,_)) = return dp
+adjustDeltaForOffset (DP (l,c)) = do
+  colOffset <- getCurrentColOffset
+  let c' = c - colOffset
+  return (DP (l,c'))
+
+-- ---------------------------------------------------------------------
+
+-- | Get the current column offset
+getCurrentColOffset :: AP Int
+getCurrentColOffset = do
+  ss <- getSrcSpanAP
+  return (srcSpanStartColumn ss - 1)
+
+-- ---------------------------------------------------------------------
+
 -- |Note: assumes the prior end SrcSpan stack is nonempty
 getPriorEnd :: AP GHC.SrcSpan
 getPriorEnd = AP (\l pe e ga -> (pe,l,pe,e,ga,mempty))
@@ -237,7 +266,8 @@ leaveAST = do
   let (lcs,_) = localComments (ss2span ss) newCs []
 
   -- let dp = deltaFromSrcSpans priorEnd ss
-  let dp = DP (0,0)
+  colOffset <- getCurrentColOffset
+  let dp = DP (0,colOffset)
   addAnnotationsAP (Ann lcs dp) `debug` ("leaveAST:(ss,lcs)=" ++ show (showGhc ss,lcs))
   popSrcSpanAP
   return () `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
@@ -277,6 +307,8 @@ addFinalComments = do
     -- `debug` ("leaveAST:dcs=" ++ show dcs)
   return () `debug` ("addFinalComments:dcs=" ++ show dcs)
 
+-- ---------------------------------------------------------------------
+
 addAnnotationWorker :: KeywordId -> GHC.SrcSpan -> AP ()
 addAnnotationWorker ann pa = do
   if not (isPointSrcSpan pa)
@@ -294,12 +326,14 @@ addAnnotationWorker ann pa = do
         (G GHC.AnnClose,False) -> return ()
              `debug`  ("addDeltaAnnotationWorker::bad delta:(ss,ma,p,ann)=" ++ show (ss2span ss,ss2span pa,p,ann))
         _ -> do
-          addAnnDeltaPos (ss,ann) p
+          p' <- adjustDeltaForOffset p
+          addAnnDeltaPos (ss,ann) p'
           setPriorEnd pa
               `debug` ("addDeltaAnnotationWorker:(ss,pe,pa,p,ann)=" ++ show (ss2span ss,ss2span pe,ss2span pa,p,ann))
     else do
       return ()
           `debug` ("addDeltaAnnotationWorker::point span:(ss,ma,ann)=" ++ show (ss2span pa,ann))
+
 
 -- | Look up and add a Delta annotation at the current position, and
 -- advance the position to the end of the annotation
@@ -377,7 +411,8 @@ addDeltaAnnotationExt s ann = do
   pe <- getPriorEnd
   ss <- getSrcSpanAP
   let p = deltaFromSrcSpans pe s
-  addAnnDeltaPos (ss,G ann) p
+  p' <- adjustDeltaForOffset p
+  addAnnDeltaPos (ss,G ann) p'
   setPriorEnd s
 
 addEofAnnotation :: AP ()
@@ -1526,10 +1561,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
 
   annotateP _ (GHC.HsLet binds e) = do
     addDeltaAnnotation GHC.AnnLet
+    startGroupingOffsets
     addDeltaAnnotation GHC.AnnOpenC
     addDeltaAnnotationsInside GHC.AnnSemi
     annotateHsLocalBinds binds
     addDeltaAnnotation GHC.AnnCloseC
+    stopGroupingOffsets
     addDeltaAnnotation GHC.AnnIn
     annotatePC e
 
@@ -2068,8 +2105,9 @@ localComments pin cs ds = r
 
 -- ---------------------------------------------------------------------
 
-undeltaComment :: Pos -> DComment -> Comment
-undeltaComment l (DComment b (dps,dpe) s) = Comment b ((undelta l dps),(undelta l dpe)) s
+undeltaComment :: Pos -> Int -> DComment -> Comment
+undeltaComment l co (DComment b (dps,dpe) s)
+  = Comment b ((undelta l dps co),(undelta l dpe co)) s
 
 deltaComment :: Pos -> Comment -> DComment
 deltaComment l (Comment b (s,e) str)
@@ -2127,11 +2165,11 @@ ss2deltaP (refl,refc) (l,c) = DP (lo,co)
     co = if lo == 0 then c - refc
                     else c
 
-undelta :: Pos -> DeltaPos -> Pos
-undelta (l,c) (DP (dl,dc)) = (fl,fc)
+undelta :: Pos -> DeltaPos -> Int -> Pos
+undelta (l,c) (DP (dl,dc)) co = (fl,fc)
   where
     fl = l + dl
-    fc = if dl == 0 then c + dc else dc
+    fc = if dl == 0 then c + dc else co + dc
 
 -- prop_delta :: TODO
 

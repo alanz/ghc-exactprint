@@ -106,6 +106,8 @@ type AnnKeyF   =         (GHC.SrcSpan,KeywordId)
 -- elements in a list.
 data KeywordId = G GHC.AnnKeywordId
                | AnnSemiSep
+               -- Used for managing indentation
+               | AnnGroupOffset
                deriving (Eq,Show,Ord)
 
 -- ---------------------------------------------------------------------

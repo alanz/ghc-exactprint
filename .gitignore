@@ -89,3 +89,6 @@
 /src/Language/Haskell/GHC/ExactPrint/Types.refactored.hs
 /src/Language/Haskell/GHC/ExactPrint/Utils.refactored.hs
 /tests/examples/RecordUpdate.hs.exactprinter.out
+/tests/examples/BCase.hs.exactprinter.out
+/tests/examples/LayoutWhere.hs.exactprinter.out
+/tests/examples/LayoutLet.hs.exactprinter.out

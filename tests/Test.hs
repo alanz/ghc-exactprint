@@ -33,7 +33,7 @@ import qualified Data.Map as Map
 
 main :: IO ()
 main = do
-{-
+
     manipulateAstTest "examples/LetStmt.hs"               "Layout.LetStmt"
     manipulateAstTest "examples/LetExpr.hs"               "LetExpr"
     manipulateAstTest "examples/ExprPragmas.hs"           "ExprPragmas"
@@ -110,15 +110,17 @@ main = do
     manipulateAstTest "examples/DocDecls.hs"              "DocDecls"
     manipulateAstTest "examples/RecordUpdate.hs"          "Main"
     -- manipulateAstTest "examples/Unicode.hs"               "Main"
--}
     manipulateAstTest "examples/B.hs"                     "Main"
+    manipulateAstTest "examples/BCase.hs"                 "Main"
+    manipulateAstTest "examples/LayoutWhere.hs"           "Main"
 
+    manipulateAstTest "examples/LayoutLet.hs"             "Main"
 {-
     manipulateAstTest "examples/Cpp.hs"                   "Main"
     manipulateAstTest "examples/Lhs.lhs"                  "Main"
     manipulateAstTest "examples/ParensAroundContext.hs"   "ParensAroundContext"
-    -- manipulateAstTest "examples/Foo.hs"                   "Main"
     manipulateAstTest "examples/EmptyMostly2.hs"          "EmptyMostly2"
+    manipulateAstTest "examples/Foo.hs"                   "Main"
 -}
 
 -- | Where all the tests are to be found
@@ -180,7 +182,7 @@ manipulateAstTest' useTH file modname = do
   -- putStrLn $ "Test2:ann=[" ++ show (annotateAST parsed ghcAnns) ++ "]"
   writeFile out $ result
   -- putStrLn $ "Test3:ann=[" ++ show (snd ann) ++ "]"
-  putStrLn $ "Test:ann=" ++ showGhc ann
+  -- putStrLn $ "Test:ann=" ++ showGhc ann
   putStrLn $ "Test:ann organised:" ++ showGhc (organiseAnns ann)
   return ()
 -- }}}
