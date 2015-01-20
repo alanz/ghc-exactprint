@@ -128,7 +128,12 @@ combineAnns (Ann cs1 dp1) (Ann cs2 _) = Ann (cs1 ++ cs2) dp1
 
 -- |Note: assumes the SrcSpan stack is nonempty
 getSrcSpanAP :: AP GHC.SrcSpan
-getSrcSpanAP = AP (\l pe e ga -> (fst $ ghead "getSrcSpanAP" l,l,pe,e,ga,mempty))
+-- getSrcSpanAP = AP (\l pe e ga -> (fst $ ghead "getSrcSpanAP" l,l,pe,e,ga,mempty))
+getSrcSpanAP = AP (\l@((ss,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
+
+getPriorSrcSpanAP :: AP GHC.SrcSpan
+-- getPriorSrcSpanAP = AP (\l@([(ss,_)] pe e ga -> (ss,l,pe,e,ga,mempty))
+getPriorSrcSpanAP = AP (\l@(_:(ss,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
 
 pushSrcSpanAP :: Data a => (GHC.Located a) -> AP ()
 pushSrcSpanAP (GHC.L l a) = AP (\ls pe e ga -> ((),(l,annGetConstr a):ls,pe,e,ga,mempty))
@@ -163,7 +168,17 @@ adjustDeltaForOffset (DP (l,c)) = do
 getCurrentColOffset :: AP Int
 getCurrentColOffset = do
   ss <- getSrcSpanAP
-  return (srcSpanStartColumn ss - 1)
+  return (srcSpanStartColumn ss) -- AZ: - 1?
+
+-- |Get the difference between the current and the previous
+-- colOffsets, if they are on the same line
+getCurrentDP :: AP DeltaPos
+getCurrentDP = do
+  ss <- getSrcSpanAP
+  ps <- getPriorSrcSpanAP
+  if srcSpanStartLine ss == srcSpanStartLine ps
+     then return (DP (0,srcSpanStartColumn ss - srcSpanStartColumn ps))
+     else return (DP (1,srcSpanStartColumn ss))
 
 -- ---------------------------------------------------------------------
 
@@ -266,8 +281,7 @@ leaveAST = do
   let (lcs,_) = localComments (ss2span ss) newCs []
 
   -- let dp = deltaFromSrcSpans priorEnd ss
-  colOffset <- getCurrentColOffset
-  let dp = DP (0,colOffset)
+  dp <- getCurrentDP
   addAnnotationsAP (Ann lcs dp) `debug` ("leaveAST:(ss,lcs)=" ++ show (showGhc ss,lcs))
   popSrcSpanAP
   return () `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))

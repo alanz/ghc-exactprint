@@ -99,8 +99,8 @@ instance Annotated (GHC.Located a) where
 ------------------------------------------------------
 -- The EP monad and basic combinators
 
-newtype EP x = EP (Pos -> [DeltaPos] -> [GHC.SrcSpan] -> [Comment] -> Extra -> Anns
-            -> (x, Pos,   [DeltaPos],   [GHC.SrcSpan],   [Comment],   Extra,   Anns, ShowS))
+newtype EP x = EP (Pos -> [(Int,DeltaPos)] -> [GHC.SrcSpan] -> [Comment] -> Extra -> Anns
+            -> (x, Pos,   [(Int,DeltaPos)],   [GHC.SrcSpan],   [Comment],   Extra,   Anns, ShowS))
 
 data Extra = E { eFunId :: (Bool,String) -- (isSymbol,name)
                , eFunIsInfix :: Bool
@@ -126,7 +126,7 @@ instance Monad EP where
     in (b, l2, ss2, dp2, c2, st2, an2, s1 . s2)
 
 runEP :: EP () -> GHC.SrcSpan -> [Comment] -> Anns -> String
-runEP (EP f) ss cs ans = let (_,_,_,_,_,_,_,s) = f (1,1) [DP (0,0)] [ss] cs initExtra ans in s ""
+runEP (EP f) ss cs ans = let (_,_,_,_,_,_,_,s) = f (1,1) [(0,DP (0,0))] [ss] cs initExtra ans in s ""
 
 getPos :: EP Pos
 getPos = EP (\l dp s cs st an -> (l,l,dp,s,cs,st,an,id))
@@ -136,11 +136,17 @@ setPos l = EP (\_ dp s cs st an -> ((),l,dp,s,cs,st,an,id))
 
 -- ---------------------------------------------------------------------
 
-getOffset :: EP DeltaPos
-getOffset = EP (\l (dp:dps) s cs st an -> (dp,l,dp:dps,s,cs,st,an,id))
+-- Get the current column offset
+getOffset :: EP Int
+getOffset = EP (\l dps s cs st an -> (fst $ ghead "getOffset" dps,l,dps,s,cs,st,an,id))
 
 pushOffset :: DeltaPos -> EP ()
-pushOffset dp = EP (\l dps s cs st an -> ((),l,dp:dps,s,cs,st,an,id))
+pushOffset dp@(DP (f,dc)) = EP (\l dps s cs st an ->
+  let
+    (co,_) = ghead "pushOffset" dps
+    co' = if f == 1 then dc
+                    else dc + co
+  in ((),l,(co',dp):dps,s,cs,st,an,id))
 
 popOffset :: EP ()
 popOffset = EP (\l (_:dp) s cs st an -> ((),l,dp,s,cs,st,an,id))
@@ -220,12 +226,12 @@ dropComment = EP $ \l dp s cs st an ->
      in ((), l, dp, s, cs', st, an, id)
 
 mergeComments :: [DComment] -> EP ()
-mergeComments dcs = EP $ \l (dp:dps) s cs st an ->
+mergeComments dcs = EP $ \l dps s cs st an ->
     let ll = ss2pos $ head s
-        DP (_,co) = dp
+        (co,_) = ghead "mergeComments" dps
         acs = map (undeltaComment ll co) dcs
         cs' = merge acs cs
-    in ((), l, (dp:dps), s, cs', st, an, id) `debug` ("mergeComments:(l,acs,dcs)=" ++ show (l,acs,dcs))
+    in ((), l, dps, s, cs', st, an, id) `debug` ("mergeComments:(l,acs,dcs)=" ++ show (l,acs,dcs))
 
 newLine :: EP ()
 newLine = do
@@ -264,7 +270,6 @@ printComment b str
 -- Single point of delta application
 printWhitespace :: Pos -> EP ()
 printWhitespace (r,c) = do
-  -- DP (dr,dc)  <- getOffset
   let (dr,dc) = (0,0)
   let p = (r + dr, c + dc) -- `debug` ("printWhiteSpace:offset=" ++ (show (dr,dc)))
   mPrintComments p >> padUntil p
@@ -279,7 +284,7 @@ printStringAtLsDelta mc s =
   case reverse mc of
     (cl:_) -> do
       p <- getPos
-      DP (_,colOffset) <- getOffset
+      colOffset <- getOffset
       -- if isGoodDelta cl
       if isGoodDeltaWithOffset cl colOffset
         then printStringAt (undelta p cl colOffset) s

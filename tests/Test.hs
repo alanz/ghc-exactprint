@@ -108,14 +108,14 @@ main = do
     manipulateAstTest "examples/RecordUpdate.hs"          "Main"
     -- manipulateAstTest "examples/Unicode.hs"               "Main"
     manipulateAstTest "examples/B.hs"                     "Main"
-    manipulateAstTest "examples/BCase.hs"                 "Main"
     manipulateAstTest "examples/LayoutWhere.hs"           "Main"
     manipulateAstTest "examples/LayoutLet.hs"             "Main"
     manipulateAstTest "examples/Deprecation.hs"           "Deprecation"
     manipulateAstTest "examples/Infix.hs"                 "Main"
 -}
-    manipulateAstTest "examples/AltsSemis.hs"             "Main"
+    manipulateAstTest "examples/BCase.hs"                 "Main"
 {-
+    manipulateAstTest "examples/AltsSemis.hs"             "Main"
     manipulateAstTest "examples/Cpp.hs"                   "Main"
     manipulateAstTest "examples/Lhs.lhs"                  "Main"
     manipulateAstTest "examples/ParensAroundContext.hs"   "ParensAroundContext"
