@@ -146,10 +146,14 @@ pushOffset dp@(DP (f,dc)) = EP (\l dps s cs st an ->
     (co,_) = ghead "pushOffset" dps
     co' = if f == 1 then dc
                     else dc + co
-  in ((),l,(co',dp):dps,s,cs,st,an,id))
+  in ((),l,(co',dp):dps,s,cs,st,an,id)
+     `debug` ("pushOffset:co'=" ++ show co')
+     )
 
 popOffset :: EP ()
-popOffset = EP (\l (_:dp) s cs st an -> ((),l,dp,s,cs,st,an,id))
+popOffset = EP (\l (_o:dp) s cs st an -> ((),l,dp,s,cs,st,an,id)
+     `debug` ("popOffset:co=" ++ show (fst _o))
+               )
 
 -- ---------------------------------------------------------------------
 

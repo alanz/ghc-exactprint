@@ -17,7 +17,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , AnnsEP
   , AnnsFinal
   , KeywordId(..)
-  , AnnConName
+  , AnnConName(..)
   , annGetConstr
   , unConName
 
@@ -85,6 +85,7 @@ annGetConstr a = CN (show $ toConstr a)
 
 unConName :: AnnConName -> String
 unConName (CN s) = s
+
 
 
 -- | For every @Located a@, use the @SrcSpan@ and constructor name of

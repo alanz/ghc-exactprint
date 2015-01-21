@@ -52,6 +52,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
 import Control.Monad ( liftM, ap)
 import Control.Exception
 import Data.Data
+import Data.Generics
 import Data.List
 import Data.Monoid
 
@@ -68,17 +69,21 @@ import qualified ForeignCall    as GHC
 import qualified GHC            as GHC
 import qualified Lexer          as GHC
 import qualified Name           as GHC
+import qualified NameSet        as GHC
 import qualified Outputable     as GHC
 import qualified RdrName        as GHC
 import qualified SrcLoc         as GHC
+import qualified Var            as GHC
+
+import qualified OccName(occNameString)
 
 import qualified Data.Map as Map
 
 import Debug.Trace
 
 debug :: c -> String -> c
--- debug = flip trace
-debug c _ = c
+debug = flip trace
+-- debug c _ = c
 
 -- ---------------------------------------------------------------------
 
@@ -2324,6 +2329,57 @@ organiseAnns (anne,annf) = r
         Nothing        -> Map.insert ss ([], [(kw,dps)])   m
     re = foldl insertAnnE Map.empty (Map.toList anne)
     r  = foldl insertAnnF re        (Map.toList annf)
+
+-- ---------------------------------------------------------------------
+
+-- Based on ghc-syb-utils version, but adding the annotation
+-- information to each SrcLoc.
+
+showAnnData :: Data a => Anns -> Int -> a -> String
+showAnnData stage n =
+  generic `ext1Q` list `extQ` string `extQ` fastString `extQ` srcSpan
+          `extQ` name `extQ` occName `extQ` moduleName `extQ` var `extQ` dataCon
+          `extQ` overLit
+          `extQ` bagName `extQ` bagRdrName `extQ` bagVar `extQ` nameSet
+#if __GLASGOW_HASKELL__ <= 708
+          `extQ` postTcType
+#endif
+          `extQ` fixity
+  where generic :: Data a => a -> String
+        generic t = indent n ++ "(" ++ showConstr (toConstr t)
+                 ++ space (concat (intersperse " " (gmapQ (showAnnData stage (n+1)) t))) ++ ")"
+        space "" = ""
+        space s  = ' ':s
+        indent i = "\n" ++ replicate i ' '
+        string     = show :: String -> String
+        fastString = ("{FastString: "++) . (++"}") . show :: GHC.FastString -> String
+        list l     = indent n ++ "["
+                              ++ concat (intersperse "," (map (showAnnData stage (n+1)) l)) ++ "]"
+
+        name       = ("{Name: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Name -> String
+        occName    = ("{OccName: "++) . (++"}") .  OccName.occNameString
+        moduleName = ("{ModuleName: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.ModuleName -> String
+        srcSpan    = ("{"++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.SrcSpan -> String
+        var        = ("{Var: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Var -> String
+        dataCon    = ("{DataCon: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.DataCon -> String
+
+        overLit :: (GHC.HsOverLit GHC.RdrName) -> String
+        overLit    = ("{HsOverLit:"++) . (++"}") . showSDoc_ . GHC.ppr
+
+        bagRdrName:: GHC.Bag (GHC.Located (GHC.HsBind GHC.RdrName)) -> String
+        bagRdrName = ("{Bag(Located (HsBind RdrName)): "++) . (++"}") . list . GHC.bagToList
+        bagName   :: GHC.Bag (GHC.Located (GHC.HsBind GHC.Name)) -> String
+        bagName    = ("{Bag(Located (HsBind Name)): "++) . (++"}") . list . GHC.bagToList
+        bagVar    :: GHC.Bag (GHC.Located (GHC.HsBind GHC.Var)) -> String
+        bagVar     = ("{Bag(Located (HsBind Var)): "++) . (++"}") . list . GHC.bagToList
+
+        nameSet = ("{NameSet: "++) . (++"}") . list . GHC.nameSetElems
+
+        fixity = ("{Fixity: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Fixity -> String
+
+
+showSDoc_ :: GHC.SDoc -> String
+showSDoc_ = GHC.showSDoc GHC.unsafeGlobalDynFlags
 
 -- ---------------------------------------------------------------------
 -- Putting these here for the time being, to avoid import loops
