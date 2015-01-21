@@ -77,8 +77,8 @@ import qualified Data.Map as Map
 import Debug.Trace
 
 debug :: c -> String -> c
-debug = flip trace
--- debug c _ = c
+-- debug = flip trace
+debug c _ = c
 
 -- ---------------------------------------------------------------------
 
@@ -437,8 +437,8 @@ addEofAnnotation = do
   case ma of
     [] -> return ()
     [pa] -> do
-      let p = deltaFromSrcSpans pe pa
-      addAnnDeltaPos (ss,G GHC.AnnEofPos) p
+      let DP (r,c) = deltaFromSrcSpans pe pa
+      addAnnDeltaPos (ss,G GHC.AnnEofPos) (DP (r, c - 1))
       setPriorEnd pa
 
 countAnnsAP :: GHC.AnnKeywordId -> AP Int
