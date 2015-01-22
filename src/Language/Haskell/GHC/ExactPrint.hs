@@ -144,8 +144,9 @@ pushOffset :: DeltaPos -> EP ()
 pushOffset dp@(DP (f,dc)) = EP (\l dps s cs st an ->
   let
     (co,_) = ghead "pushOffset" dps
-    co' = if f == 1 then dc
-                    else dc + co
+    -- co' = if f == 1 then dc
+    --                 else dc + co
+    co' = dc + co
   in ((),l,(co',dp):dps,s,cs,st,an,id)
      `debug` ("pushOffset:co'=" ++ show co')
      )

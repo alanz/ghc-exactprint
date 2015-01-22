@@ -9,6 +9,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
     annotateLHsModule
 
   , organiseAnns
+  , OrganisedAnns
 
   , ghcIsComment
   , ghcIsMultiLine
@@ -30,6 +31,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , isListComp
 
   , showGhc
+  , showAnnData
 
   , merge
 
@@ -137,7 +139,6 @@ getSrcSpanAP :: AP GHC.SrcSpan
 getSrcSpanAP = AP (\l@((ss,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
 
 getPriorSrcSpanAP :: AP GHC.SrcSpan
--- getPriorSrcSpanAP = AP (\l@([(ss,_)] pe e ga -> (ss,l,pe,e,ga,mempty))
 getPriorSrcSpanAP = AP (\l@(_:(ss,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
 
 pushSrcSpanAP :: Data a => (GHC.Located a) -> AP ()
@@ -183,7 +184,9 @@ getCurrentDP = do
   ps <- getPriorSrcSpanAP
   if srcSpanStartLine ss == srcSpanStartLine ps
      then return (DP (0,srcSpanStartColumn ss - srcSpanStartColumn ps))
-     else return (DP (1,srcSpanStartColumn ss))
+     -- else return (DP (1,srcSpanStartColumn ss))
+     else return (DP (0,srcSpanStartColumn ss - srcSpanStartColumn ps))
+
 
 -- ---------------------------------------------------------------------
 
@@ -287,7 +290,7 @@ leaveAST = do
 
   -- let dp = deltaFromSrcSpans priorEnd ss
   dp <- getCurrentDP
-  addAnnotationsAP (Ann lcs dp) `debug` ("leaveAST:(ss,lcs)=" ++ show (showGhc ss,lcs))
+  addAnnotationsAP (Ann lcs dp) `debug` ("leaveAST:(ss,lcs,dp)=" ++ show (showGhc ss,lcs,dp))
   popSrcSpanAP
   return () `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
 
@@ -2307,18 +2310,18 @@ pp a = GHC.showPpr GHC.unsafeGlobalDynFlags a
 
 -- ---------------------------------------------------------------------
 
+-- |For debugging
+type OrganisedAnns = Map.Map GHC.SrcSpan ([(AnnConName,Annotation)]
+                                         ,[(KeywordId, [DeltaPos])] )
+
 -- | Re-arrange the annotations to make it clearer for users how they
 -- hang together.
-organiseAnns :: Anns ->
-                Map.Map GHC.SrcSpan ([(AnnConName,Annotation)]
-                                    ,[(KeywordId, [DeltaPos])] )
+organiseAnns :: Anns -> OrganisedAnns
 organiseAnns (anne,annf) = r
   where
-    insertAnnE :: Map.Map GHC.SrcSpan ([(AnnConName,Annotation)]
-                                      ,[(KeywordId, [DeltaPos])] )
+    insertAnnE :: OrganisedAnns
                -> ((GHC.SrcSpan,AnnConName), Annotation)
-               -> Map.Map GHC.SrcSpan ([(AnnConName,Annotation)]
-                                      ,[(KeywordId, [DeltaPos])] )
+               -> OrganisedAnns
     insertAnnE m ((ss,conName),ann) =
       case Map.lookup ss m of
         Just (cas,kds) -> Map.insert ss ((conName,ann):cas,kds) m
@@ -2334,32 +2337,34 @@ organiseAnns (anne,annf) = r
 
 -- Based on ghc-syb-utils version, but adding the annotation
 -- information to each SrcLoc.
-
-showAnnData :: Data a => Anns -> Int -> a -> String
-showAnnData stage n =
+showAnnData :: Data a => OrganisedAnns -> Int -> a -> String
+showAnnData anns n =
   generic `ext1Q` list `extQ` string `extQ` fastString `extQ` srcSpan
           `extQ` name `extQ` occName `extQ` moduleName `extQ` var `extQ` dataCon
           `extQ` overLit
           `extQ` bagName `extQ` bagRdrName `extQ` bagVar `extQ` nameSet
-#if __GLASGOW_HASKELL__ <= 708
-          `extQ` postTcType
-#endif
           `extQ` fixity
   where generic :: Data a => a -> String
         generic t = indent n ++ "(" ++ showConstr (toConstr t)
-                 ++ space (concat (intersperse " " (gmapQ (showAnnData stage (n+1)) t))) ++ ")"
+                 ++ space (concat (intersperse " " (gmapQ (showAnnData anns (n+1)) t))) ++ ")"
         space "" = ""
         space s  = ' ':s
         indent i = "\n" ++ replicate i ' '
         string     = show :: String -> String
         fastString = ("{FastString: "++) . (++"}") . show :: GHC.FastString -> String
         list l     = indent n ++ "["
-                              ++ concat (intersperse "," (map (showAnnData stage (n+1)) l)) ++ "]"
+                              ++ concat (intersperse "," (map (showAnnData anns (n+1)) l)) ++ "]"
 
         name       = ("{Name: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Name -> String
         occName    = ("{OccName: "++) . (++"}") .  OccName.occNameString
         moduleName = ("{ModuleName: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.ModuleName -> String
-        srcSpan    = ("{"++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.SrcSpan -> String
+
+        -- srcSpan    = ("{"++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.SrcSpan -> String
+        srcSpan :: GHC.SrcSpan -> String
+        srcSpan ss = "{ "++ (showSDoc_ (GHC.hang (GHC.ppr ss) (n+2)
+                                                 (GHC.ppr (Map.lookup ss anns))))
+                      ++"}"
+
         var        = ("{Var: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Var -> String
         dataCon    = ("{DataCon: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.DataCon -> String
 

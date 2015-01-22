@@ -184,6 +184,7 @@ manipulateAstTest' useTH file modname = do
   -- putStrLn $ "Test3:ann=[" ++ show (snd ann) ++ "]"
   -- putStrLn $ "Test:ann=" ++ showGhc ann
   putStrLn $ "Test:ann organised:" ++ showGhc (organiseAnns ann)
+  putStrLn $ "Test:showdaata:" ++ showAnnData (organiseAnns ann) 0 parsed
   return ()
 -- }}}
 
