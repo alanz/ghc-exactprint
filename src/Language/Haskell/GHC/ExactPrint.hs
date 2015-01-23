@@ -370,11 +370,11 @@ exactPC a@(GHC.L l ast) =
              return dp
 
        pushOffset offset
-       exactP ast
+       do
+         exactP ast
+         printStringAtMaybeAnn (G GHC.AnnComma) ","
+         printStringAtMaybeAnnAll AnnSemiSep ";"
        popOffset
-
-       printStringAtMaybeAnn (G GHC.AnnComma) ","
-       printStringAtMaybeAnnAll AnnSemiSep ";"
 
        popSrcSpan
 
