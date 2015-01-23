@@ -11,7 +11,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , organiseAnns
   , OrganisedAnns
 
-  , ghcIsComment
+  -- , ghcIsComment
   , ghcIsMultiLine
 
   , srcSpanStartLine
@@ -69,7 +69,6 @@ import qualified DynFlags       as GHC
 import qualified FastString     as GHC
 import qualified ForeignCall    as GHC
 import qualified GHC            as GHC
-import qualified Lexer          as GHC
 import qualified Name           as GHC
 import qualified NameSet        as GHC
 import qualified Outputable     as GHC
@@ -161,12 +160,17 @@ amendDeltaForGrouping :: DeltaPos -> AP DeltaPos
 amendDeltaForGrouping p = do
   return p
 
-adjustDeltaForOffset :: DeltaPos -> AP DeltaPos
-adjustDeltaForOffset dp@(DP (0,_)) = return dp
-adjustDeltaForOffset (DP (l,c)) = do
+adjustDeltaForOffsetM :: DeltaPos -> AP DeltaPos
+adjustDeltaForOffsetM dp = do
   colOffset <- getCurrentColOffset
-  let c' = c - colOffset
-  return (DP (l,c'))
+  return (adjustDeltaForOffset colOffset dp)
+
+adjustDeltaForOffset :: Int -> DeltaPos -> DeltaPos
+adjustDeltaForOffset colOffset dp@(DP (0,_)) = dp -- same line
+adjustDeltaForOffset colOffset (DP (l,c)) =
+  let
+    c' = c - colOffset
+  in (DP (l,c'))
 
 -- ---------------------------------------------------------------------
 
@@ -286,7 +290,8 @@ leaveAST = do
   priorEnd <- getPriorEnd
 
   newCs <- getCommentsForSpan ss
-  let (lcs,_) = localComments (ss2span ss) newCs []
+  co <- getCurrentColOffset
+  let (lcs,_) = localComments co (ss2span ss) newCs []
 
   -- let dp = deltaFromSrcSpans priorEnd ss
   dp <- getCurrentDP
@@ -323,7 +328,7 @@ addFinalComments :: AP ()
 addFinalComments = do
   return () `debug` ("addFinalComments:entering=")
   cs <- getCommentsForSpan GHC.noSrcSpan
-  let (dcs,_) = localComments ((1,1),(1,1)) cs []
+  let (dcs,_) = localComments 1 ((1,1),(1,1)) cs []
   pushSrcSpanAP (GHC.L GHC.noSrcSpan ())
   addAnnotationsAP (Ann dcs (DP (0,0)))
     -- `debug` ("leaveAST:dcs=" ++ show dcs)
@@ -348,7 +353,7 @@ addAnnotationWorker ann pa = do
         (G GHC.AnnClose,False) -> return ()
              `debug`  ("addDeltaAnnotationWorker::bad delta:(ss,ma,p,ann)=" ++ show (ss2span ss,ss2span pa,p,ann))
         _ -> do
-          p' <- adjustDeltaForOffset p
+          p' <- adjustDeltaForOffsetM p
           addAnnDeltaPos (ss,ann) p'
           setPriorEnd pa
               `debug` ("addDeltaAnnotationWorker:(ss,pe,pa,p,ann)=" ++ show (ss2span ss,ss2span pe,ss2span pa,p,ann))
@@ -433,7 +438,7 @@ addDeltaAnnotationExt s ann = do
   pe <- getPriorEnd
   ss <- getSrcSpanAP
   let p = deltaFromSrcSpans pe s
-  p' <- adjustDeltaForOffset p
+  p' <- adjustDeltaForOffsetM p
   addAnnDeltaPos (ss,G ann) p'
   setPriorEnd s
 
@@ -2107,11 +2112,11 @@ instance AnnotateP (GHC.CType) where
 -- | Given an enclosing Span @(p,e)@, and a list of sub SrcSpans @ds@,
 -- identify all comments that are in @(p,e)@ but not in @ds@, and convert
 -- them to be DComments relative to @p@
-localComments :: Span -> [Comment] -> [Span] -> ([DComment],[Comment])
-localComments pin cs ds = r
+localComments :: Int -> Span -> [Comment] -> [Span] -> ([DComment],[Comment])
+localComments co pin cs ds = r
   `debug` ("localComments:(p,ds,r):" ++ show ((p,e),ds,r))
   where
-    r = (map (\c -> deltaComment p c) matches,misses ++ missesRest)
+    r = (map (\c -> deltaComment co p c) matches,misses ++ missesRest)
     (p,e) = if pin == ((1,1),(1,1))
                then  ((1,1),(99999999,1))
                else pin
@@ -2130,47 +2135,17 @@ localComments pin cs ds = r
 -- | Apply the delta to the current position, taking into account the
 -- current column offset
 undeltaComment :: Pos -> Int -> DComment -> Comment
-undeltaComment l co (DComment b (dps,dpe) s)
-  = Comment b ((undelta l dps co),(undelta l dpe co)) s
+undeltaComment l con dco@(DComment coo b (dps,dpe) s) = r
+    `debug` ("undeltaComment:(l,con,dcomment,r)=" ++ show (l,con,dco,r))
+  where
+    r = Comment b ((adj $ undelta l dps co),(adj $ undelta l dpe co)) s
+    co = con
+    dc = - con
+    adj (row,c) = (row,c + dc)
 
-deltaComment :: Pos -> Comment -> DComment
-deltaComment l (Comment b (s,e) str)
-  = DComment b ((ss2deltaP l s),(ss2deltaP l e)) str
-
--- ---------------------------------------------------------------------
-
-deriving instance Eq GHC.Token
-
-ghcIsComment :: PosToken -> Bool
-ghcIsComment ((GHC.L _ (GHC.ITdocCommentNext _)),_s)  = True
-ghcIsComment ((GHC.L _ (GHC.ITdocCommentPrev _)),_s)  = True
-ghcIsComment ((GHC.L _ (GHC.ITdocCommentNamed _)),_s) = True
-ghcIsComment ((GHC.L _ (GHC.ITdocSection _ _)),_s)    = True
-ghcIsComment ((GHC.L _ (GHC.ITdocOptions _)),_s)      = True
-ghcIsComment ((GHC.L _ (GHC.ITdocOptionsOld _)),_s)   = True
-ghcIsComment ((GHC.L _ (GHC.ITlineComment _)),_s)     = True
-ghcIsComment ((GHC.L _ (GHC.ITblockComment _)),_s)    = True
-ghcIsComment ((GHC.L _ _),_s)                         = False
-
-ghcIsMultiLine :: GHC.Located GHC.AnnotationComment -> Bool
-ghcIsMultiLine (GHC.L _ (GHC.AnnDocCommentNext _))  = False
-ghcIsMultiLine (GHC.L _ (GHC.AnnDocCommentPrev _))  = False
-ghcIsMultiLine (GHC.L _ (GHC.AnnDocCommentNamed _)) = False
-ghcIsMultiLine (GHC.L _ (GHC.AnnDocSection _ _))    = False
-ghcIsMultiLine (GHC.L _ (GHC.AnnDocOptions _))      = False
-ghcIsMultiLine (GHC.L _ (GHC.AnnDocOptionsOld _))   = False
-ghcIsMultiLine (GHC.L _ (GHC.AnnLineComment _))     = False
-ghcIsMultiLine (GHC.L _ (GHC.AnnBlockComment _))    = True
-
-ghcCommentText :: GHC.Located GHC.AnnotationComment -> String
-ghcCommentText (GHC.L _ (GHC.AnnDocCommentNext s))  = s
-ghcCommentText (GHC.L _ (GHC.AnnDocCommentPrev s))  = s
-ghcCommentText (GHC.L _ (GHC.AnnDocCommentNamed s)) = s
-ghcCommentText (GHC.L _ (GHC.AnnDocSection _ s))    = s
-ghcCommentText (GHC.L _ (GHC.AnnDocOptions s))      = s
-ghcCommentText (GHC.L _ (GHC.AnnDocOptionsOld s))   = s
-ghcCommentText (GHC.L _ (GHC.AnnLineComment s))     = s
-ghcCommentText (GHC.L _ (GHC.AnnBlockComment s))    = "{-" ++ s ++ "-}"
+deltaComment :: Int -> Pos -> Comment -> DComment
+deltaComment co l (Comment b (s,e) str)
+  = DComment co b ((ss2deltaP l s),(ss2deltaP l e)) str
 
 -- | Create a delta covering the gap between the end of the first
 -- @SrcSpan@ and the start of the second.
@@ -2231,10 +2206,6 @@ srcSpanStartLine :: GHC.SrcSpan -> Int
 srcSpanStartLine (GHC.RealSrcSpan s) = GHC.srcSpanStartLine s
 srcSpanStartLine _ = 0
 
-{-
-nullSpan :: Span
-nullSpan = ((0,0),(0,0))
--}
 -- ---------------------------------------------------------------------
 
 isPointSrcSpan :: GHC.SrcSpan -> Bool
@@ -2256,6 +2227,43 @@ isListComp cts = case cts of
           GHC.PatGuard {}      -> False
           GHC.ParStmtCtxt {}   -> False
           GHC.TransStmtCtxt {} -> False
+
+-- ---------------------------------------------------------------------
+
+{-
+deriving instance Eq GHC.Token
+
+ghcIsComment :: PosToken -> Bool
+ghcIsComment ((GHC.L _ (GHC.ITdocCommentNext _)),_s)  = True
+ghcIsComment ((GHC.L _ (GHC.ITdocCommentPrev _)),_s)  = True
+ghcIsComment ((GHC.L _ (GHC.ITdocCommentNamed _)),_s) = True
+ghcIsComment ((GHC.L _ (GHC.ITdocSection _ _)),_s)    = True
+ghcIsComment ((GHC.L _ (GHC.ITdocOptions _)),_s)      = True
+ghcIsComment ((GHC.L _ (GHC.ITdocOptionsOld _)),_s)   = True
+ghcIsComment ((GHC.L _ (GHC.ITlineComment _)),_s)     = True
+ghcIsComment ((GHC.L _ (GHC.ITblockComment _)),_s)    = True
+ghcIsComment ((GHC.L _ _),_s)                         = False
+-}
+
+ghcIsMultiLine :: GHC.Located GHC.AnnotationComment -> Bool
+ghcIsMultiLine (GHC.L _ (GHC.AnnDocCommentNext _))  = False
+ghcIsMultiLine (GHC.L _ (GHC.AnnDocCommentPrev _))  = False
+ghcIsMultiLine (GHC.L _ (GHC.AnnDocCommentNamed _)) = False
+ghcIsMultiLine (GHC.L _ (GHC.AnnDocSection _ _))    = False
+ghcIsMultiLine (GHC.L _ (GHC.AnnDocOptions _))      = False
+ghcIsMultiLine (GHC.L _ (GHC.AnnDocOptionsOld _))   = False
+ghcIsMultiLine (GHC.L _ (GHC.AnnLineComment _))     = False
+ghcIsMultiLine (GHC.L _ (GHC.AnnBlockComment _))    = True
+
+ghcCommentText :: GHC.Located GHC.AnnotationComment -> String
+ghcCommentText (GHC.L _ (GHC.AnnDocCommentNext s))  = s
+ghcCommentText (GHC.L _ (GHC.AnnDocCommentPrev s))  = s
+ghcCommentText (GHC.L _ (GHC.AnnDocCommentNamed s)) = s
+ghcCommentText (GHC.L _ (GHC.AnnDocSection _ s))    = s
+ghcCommentText (GHC.L _ (GHC.AnnDocOptions s))      = s
+ghcCommentText (GHC.L _ (GHC.AnnDocOptionsOld s))   = s
+ghcCommentText (GHC.L _ (GHC.AnnLineComment s))     = s
+ghcCommentText (GHC.L _ (GHC.AnnBlockComment s))    = "{-" ++ s ++ "-}"
 
 -- ---------------------------------------------------------------------
 

@@ -214,7 +214,8 @@ setFunIsInfix b = EP (\l dp s cs e an -> ((),l,dp,s,cs,e { eFunIsInfix = b},an,i
 -- ---------------------------------------------------------------------
 
 printString :: String -> EP ()
-printString str = EP (\(l,c) dp s cs st an -> ((), (l,c+length str), dp, s, cs, st, an, showString str))
+printString str = EP (\(l,c) dp s cs st an ->
+                  ((), (l,c+length str), dp, s, cs, st, an, showString str))
 
 getComment :: EP (Maybe Comment)
 getComment = EP $ \l dp s cs st an ->
@@ -276,7 +277,7 @@ printComment b str
 printWhitespace :: Pos -> EP ()
 printWhitespace (r,c) = do
   let (dr,dc) = (0,0)
-  let p = (r + dr, c + dc) -- `debug` ("printWhiteSpace:offset=" ++ (show (dr,dc)))
+  let p = (r + dr, c + dc)
   mPrintComments p >> padUntil p
 
 printStringAt :: Pos -> String -> EP ()

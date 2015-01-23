@@ -44,7 +44,10 @@ import qualified Data.Map as Map
 data Comment = Comment Bool Span String
   deriving (Eq,Show,Typeable,Data)
 
-data DComment = DComment Bool (DeltaPos,DeltaPos) String
+-- |Delta version of the comment. The initial Int is the column offset
+-- that was force when the DeltaPos values were calculated. If this is
+-- different when it is output, they deltas must be updated.
+data DComment = DComment Int Bool (DeltaPos,DeltaPos) String
   deriving (Eq,Show,Typeable,Data)
 
 instance Ord Comment where
@@ -107,8 +110,6 @@ type AnnKeyF   =         (GHC.SrcSpan,KeywordId)
 -- elements in a list.
 data KeywordId = G GHC.AnnKeywordId
                | AnnSemiSep
-               -- Used for managing indentation
-               | AnnGroupOffset
                deriving (Eq,Show,Ord)
 
 -- ---------------------------------------------------------------------
