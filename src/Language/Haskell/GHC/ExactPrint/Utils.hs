@@ -2138,14 +2138,21 @@ undeltaComment :: Pos -> Int -> DComment -> Comment
 undeltaComment l con dco@(DComment coo b (dps,dpe) s) = r
     `debug` ("undeltaComment:(l,con,dcomment,r)=" ++ show (l,con,dco,r))
   where
-    r = Comment b ((adj $ undelta l dps co),(adj $ undelta l dpe co)) s
+    r = Comment b ((adj dps $ undelta l dps co),(adj dps $ undelta l dpe co)) s
     co = con
-    dc = - con
-    adj (row,c) = (row,c + dc)
+    dc = - con -- + (coo - con)
+
+    -- adj makes provision for the possible movement of the
+    -- surrounding context, and so applies the difference between the
+    -- original and current offsets
+    adj (DP (  0,dco)) (row,c) = (row,c)
+    adj (DP (dro,dco)) (row,c) = (row,c + dc)
 
 deltaComment :: Int -> Pos -> Comment -> DComment
-deltaComment co l (Comment b (s,e) str)
-  = DComment co b ((ss2deltaP l s),(ss2deltaP l e)) str
+deltaComment co l cin@(Comment b (s,e) str) = r
+  `debug` ("deltaComment:(co,l,cin,r)=" ++ show (co,l,cin,r))
+  where
+    r = DComment co b ((ss2deltaP l s),(ss2deltaP l e)) str
 
 -- | Create a delta covering the gap between the end of the first
 -- @SrcSpan@ and the start of the second.

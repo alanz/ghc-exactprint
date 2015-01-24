@@ -56,7 +56,6 @@ main = do
     manipulateAstTest "examples/Splice.hs"                "Splice"
     manipulateAstTest "examples/ImportsSemi.hs"           "ImportsSemi"
     manipulateAstTest "examples/Stmts.hs"                 "Stmts"
-    manipulateAstTest "examples/LetExprSemi.hs"           "LetExprSemi"
     manipulateAstTest "examples/Mixed.hs"                 "Main"
     manipulateAstTest "examples/Arrow.hs"                 "Arrow"
     manipulateAstTest "examples/PatSynBind.hs"            "Main"
@@ -113,8 +112,9 @@ main = do
     manipulateAstTest "examples/Deprecation.hs"           "Deprecation"
     manipulateAstTest "examples/Infix.hs"                 "Main"
     manipulateAstTest "examples/BCase.hs"                 "Main"
-
     manipulateAstTest "examples/AltsSemis.hs"             "Main"
+
+    manipulateAstTest "examples/LetExprSemi.hs"           "LetExprSemi"
 {-
     manipulateAstTest "examples/Cpp.hs"                   "Main"
     manipulateAstTest "examples/Lhs.lhs"                  "Main"
