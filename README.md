@@ -1,28 +1,21 @@
 ghc-exactprint
 ==============
 
+[![Available on Hackage][badge-hackage]][hackage]
+[![License BSD3][badge-license]][license]
+[![Build Status][badge-travis]][travis]
+
+[badge-travis]: https://travis-ci.org/alanz/ghc-exactprint.png?branch=master
+[travis]: https://travis-ci.org/alanz/ghc-exactprint
+[badge-hackage]: https://img.shields.io/hackage/v/ghc-exactprint.svg?dummy
+[hackage]: https://hackage.haskell.org/package/ghc-exactprint
+[badge-license]: https://img.shields.io/badge/license-BSD3-green.svg?dummy
+[license]: https://github.com/alanz/ghc-exactprint/blob/master/LICENSE
+
 GHC version of haskell-src-exts exactPrint
 
-Note: This only works with GHC ghc-7.10 RC1 (with https://phabricator.haskell.org/D538 merged)
+Note: This only works with GHC ghc-7.10 RC2 and beyond
 
-It also requires package ghc-syb to be installed from
-https://github.com/alanz/ghc-syb until
-https://github.com/nominolo/ghc-syb/pull/8 is merged
-
-Note too that this is a work in progress.
-
-Development proceeds by loading tests/Test.hs into ghci, and running
-it.
-
-The output is in tests/examples, where the output file for each test
-has a "exactprinter.out" suffix.
-
-If the file is reproduced exactly it will have the word "Match" only,
-otherwise it will have the ghc-exactprint output, followed by a dump
-of the ParsedSource.
-
-The original GHC Api Annotations are dumped to stdout in ghci at the
-start of the run.
 
 Current Limitations
 -------------------
