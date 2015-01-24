@@ -1,10 +1,9 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE ViewPatterns #-}
 -- | Use "runhaskell Setup.hs test" or "cabal test" to run these tests.
 module Main where
 
 import Language.Haskell.GHC.ExactPrint
-import Language.Haskell.GHC.ExactPrint.Types
+-- import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
 import GHC.Paths ( libdir )
@@ -17,22 +16,126 @@ import qualified Outputable    as GHC
 
 import qualified GHC.SYB.Utils as SYB
 
-import Control.Applicative
 import Control.Monad
-import Control.Monad.Trans
-import Data.Generics
-import Data.List
 import System.Directory
 import System.FilePath
 import System.IO
 
 import Test.HUnit
 
-import qualified Data.Map as Map
+-- import qualified Data.Map as Map
 
+-- ---------------------------------------------------------------------
 
-main :: IO ()
-main = do
+main :: IO Counts
+main = runTestTT tests
+
+-- tests = TestCase (do r <- manipulateAstTest "examples/LetStmt.hs" "Layout.LetStmt"
+--                      assertBool "test" r )
+
+tests = TestList
+  [
+    mkTestMod "examples/LetStmt.hs"               "Layout.LetStmt"
+  , mkTestMod "examples/LetExpr.hs"               "LetExpr"
+  , mkTestMod "examples/ExprPragmas.hs"           "ExprPragmas"
+  , mkTestMod "examples/ListComprehensions.hs"    "Main"
+  , mkTestMod "examples/MonadComprehensions.hs"   "Main"
+  , mkTestMod "examples/FunDeps.hs"               "Main"
+  , mkTestMod "examples/ImplicitParams.hs"        "Main"
+  , mkTestMod "examples/RecursiveDo.hs"           "Main"
+  , mkTestMod "examples/TypeFamilies.hs"          "Main"
+  , mkTestMod "examples/MultiParamTypeClasses.hs" "Main"
+  , mkTestMod "examples/DataFamilies.hs"          "DataFamilies"
+  , mkTestMod "examples/Deriving.hs"              "Main"
+  , mkTestMod "examples/Default.hs"               "Main"
+  , mkTestMod "examples/ForeignDecl.hs"           "ForeignDecl"
+  , mkTestMod "examples/Warning.hs"               "Warning"
+  , mkTestMod "examples/Annotations.hs"           "Annotations"
+  , mkTestMod "examples/DocDecls.hs"              "DocDecls"
+  , mkTestModTH "examples/QuasiQuote.hs"          "QuasiQuote"
+  , mkTestMod "examples/Roles.hs"                 "Roles"
+  , mkTestMod "examples/Splice.hs"                "Splice"
+  , mkTestMod "examples/ImportsSemi.hs"           "ImportsSemi"
+  , mkTestMod "examples/Stmts.hs"                 "Stmts"
+  , mkTestMod "examples/Mixed.hs"                 "Main"
+  , mkTestMod "examples/Arrow.hs"                 "Arrow"
+  , mkTestMod "examples/PatSynBind.hs"            "Main"
+  , mkTestMod "examples/HsDo.hs"                  "HsDo"
+  , mkTestMod "examples/ForAll.hs"                "ForAll"
+  , mkTestMod "examples/PArr.hs"                  "PArr"
+  , mkTestMod "examples/ViewPatterns.hs"          "Main"
+  , mkTestMod "examples/BangPatterns.hs"          "Main"
+  , mkTestMod "examples/Associated.hs"            "Main"
+  , mkTestMod "examples/Move1.hs"                 "Move1"
+  , mkTestMod "examples/Rules.hs"                 "Rules"
+  , mkTestMod "examples/TypeOperators.hs"         "Main"
+  , mkTestMod "examples/NullaryTypeClasses.hs"    "Main"
+  , mkTestMod "examples/FunctionalDeps.hs"        "Main"
+  , mkTestMod "examples/DerivingOC.hs"            "Main"
+  , mkTestMod "examples/GenericDeriving.hs"       "Main"
+  , mkTestMod "examples/OverloadedStrings.hs"     "Main"
+  , mkTestMod "examples/RankNTypes.hs"            "Main"
+  , mkTestMod "examples/Existential.hs"           "Main"
+  , mkTestMod "examples/ScopedTypeVariables.hs"   "Main"
+  , mkTestMod "examples/Arrows.hs"                "Main"
+  , mkTestMod "examples/TH.hs"                    "Main"
+  , mkTestMod "examples/StaticPointers.hs"        "Main"
+  , mkTestMod "examples/DataDecl.hs"              "Main"
+  , mkTestMod "examples/Guards.hs"                "Main"
+  , mkTestMod "examples/RebindableSyntax.hs"      "Main"
+  , mkTestMod "examples/RdrNames.hs"              "RdrNames"
+  , mkTestMod "examples/Vect.hs"                  "Vect"
+  , mkTestMod "examples/Tuple.hs"                 "Main"
+  , mkTestMod "examples/ExtraConstraints1.hs"     "ExtraConstraints1"
+  , mkTestMod "examples/AddAndOr3.hs"             "AddAndOr3"
+  , mkTestMod "examples/Ann01.hs"                 "Ann01"
+  , mkTestMod "examples/StrictLet.hs"             "Main"
+  , mkTestMod "examples/Cg008.hs"                 "Cg008"
+  , mkTestMod "examples/T2388.hs"                 "T2388"
+  , mkTestMod "examples/T3132.hs"                 "T3132"
+  , mkTestMod "examples/Stream.hs"                "Stream"
+  , mkTestMod "examples/Trit.hs"                  "Trit"
+  , mkTestMod "examples/DataDecl.hs"              "Main"
+  , mkTestMod "examples/Zipper.hs"                "Zipper"
+  , mkTestMod "examples/Sigs.hs"                  "Sigs"
+  , mkTestMod "examples/Utils2.hs"                "Utils2"
+  , mkTestMod "examples/EmptyMostlyInst.hs"       "EmptyMostlyInst"
+  , mkTestMod "examples/EmptyMostlyNoSemis.hs"    "EmptyMostlyNoSemis"
+  , mkTestMod "examples/Dead1.hs"                 "Dead1"
+  , mkTestMod "examples/EmptyMostly.hs"           "EmptyMostly"
+  , mkTestMod "examples/FromUtils.hs"             "Main"
+  , mkTestMod "examples/DocDecls.hs"              "DocDecls"
+  , mkTestMod "examples/RecordUpdate.hs"          "Main"
+  -- , mkTestMod "examples/Unicode.hs"               "Main"
+  , mkTestMod "examples/B.hs"                     "Main"
+  , mkTestMod "examples/LayoutWhere.hs"           "Main"
+  , mkTestMod "examples/LayoutLet.hs"             "Main"
+  , mkTestMod "examples/Deprecation.hs"           "Deprecation"
+  , mkTestMod "examples/Infix.hs"                 "Main"
+  , mkTestMod "examples/BCase.hs"                 "Main"
+  , mkTestMod "examples/AltsSemis.hs"             "Main"
+
+  , mkTestMod "examples/LetExprSemi.hs"           "LetExprSemi"
+  ]
+
+mkTestMain :: FilePath -> Test
+mkTestMain fileName = TestCase (do r <- manipulateAstTest fileName "Main"
+                                   assertBool fileName r )
+
+mkTestMod :: FilePath -> String -> Test
+mkTestMod fileName modName
+  = TestCase (do r <- manipulateAstTest fileName modName
+                 assertBool fileName r )
+
+mkTestModTH :: FilePath -> String -> Test
+mkTestModTH fileName modName
+  = TestCase (do r <- manipulateAstTestTH fileName modName
+                 assertBool fileName r )
+
+-- ---------------------------------------------------------------------
+
+t :: IO Bool
+t = do
 
     manipulateAstTest "examples/LetStmt.hs"               "Layout.LetStmt"
     manipulateAstTest "examples/LetExpr.hs"               "LetExpr"
@@ -130,15 +233,16 @@ examplesDir = "tests" </> "examples"
 examplesDir2 :: FilePath
 examplesDir2 = "examples"
 
-manipulateAstTest :: FilePath -> String -> IO ()
+manipulateAstTest :: FilePath -> String -> IO Bool
 manipulateAstTest file modname = manipulateAstTest' False file modname
 
-manipulateAstTestTH :: FilePath -> String -> IO ()
+manipulateAstTestTH :: FilePath -> String -> IO Bool
 manipulateAstTestTH file modname = manipulateAstTest' True file modname
 
-manipulateAstTest' :: Bool -> FilePath -> String -> IO ()
+manipulateAstTest' :: Bool -> FilePath -> String -> IO Bool
 manipulateAstTest' useTH file modname = do
-  let out    = file <.> "exactprinter" <.> "out"
+  let out    = file <.> "out"
+      golden = file <.> "golden"
 
   contents <- readUTF8File file
   (ghcAnns,t) <- parsedFileGhc file modname useTH
@@ -153,39 +257,21 @@ manipulateAstTest' useTH file modname = do
 
     Just (GHC.L le exps) = GHC.hsmodExports hsmod
     secondExp@(GHC.L l2 _) = ghead "foo" $ tail exps
-    -- Just [(Ann cs ll (AnnIEVar mc))] = Map.lookup l2 ann
-    -- ann' = Map.insert l2 [(Ann cs ll (AnnIEVar Nothing))] ann
-    -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (tail exps) }))
-    -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (head exps : (drop 2 exps)) }))
-    -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (init exps) }))
-
-    -- parsed' = (GHC.L l (hsmod { GHC.hsmodExports = Just (GHC.L le (head exps:(head $ tail exps):tail exps)) }))
-    -- ((16,9),(16,27))
     ss = GHC.mkSrcSpan (GHC.mkSrcLoc (GHC.mkFastString "examples/PatBind.hs") 16 9)
                        (GHC.mkSrcLoc (GHC.mkFastString "examples/PatBind.hs") 16 27)
 
-    -- Just [Ann cs1 dp1 as1,Ann cs2 dp2 as2] = Map.lookup ss ann
-    -- ann2 = Map.insert ss [Ann cs1 (DP (0,6)) as1,Ann cs2 dp2 as2] ann
     printed = exactPrintAnnotation parsed [] ann -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
-       -- `debug` ("ann=" ++ (show (snd ann)))
-       -- `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
     result =
             if printed == contents
               then "Match\n"
               else printed ++ "\n==============\n"
                     ++ "lengths:" ++ show (length printed,length contents) ++ "\n"
                     ++ parsedAST
-  putStrLn $ "Test:parsed=" ++ parsedAST
-  -- putStrLn $ "Test:ghcAnns:fst=" ++ show (fst ghcAnns)
-  -- putStrLn $ "Test:ghcAnns:snd=" ++ showGhc (snd ghcAnns)
-  -- putStrLn $ "Test2:empty ann=" ++ show ((Map.empty,Map.empty) :: Anns)
-  -- putStrLn $ "Test2:ann=[" ++ show (annotateAST parsed ghcAnns) ++ "]"
+  -- putStrLn $ "Test:parsed=" ++ parsedAST
   writeFile out $ result
-  -- putStrLn $ "Test3:ann=[" ++ show (snd ann) ++ "]"
-  -- putStrLn $ "Test:ann=" ++ showGhc ann
-  putStrLn $ "Test:ann organised:" ++ showGhc (organiseAnns ann)
-  putStrLn $ "Test:showdaata:" ++ showAnnData (organiseAnns ann) 0 parsed
-  return ()
+  -- putStrLn $ "Test:ann organised:" ++ showGhc (organiseAnns ann)
+  -- putStrLn $ "Test:showdata:" ++ showAnnData (organiseAnns ann) 0 parsed
+  return ("Match\n"  == result)
 -- }}}
 
 
@@ -237,13 +323,13 @@ parsedFileGhc fileName modname useTH = do
         -- GHC.liftIO $ putStrLn $ "targets loaded"
         g <- GHC.getModuleGraph
         let showStuff ms = show (GHC.moduleNameString $ GHC.moduleName $ GHC.ms_mod ms,GHC.ms_location ms)
-        GHC.liftIO $ putStrLn $ "module graph:" ++ (intercalate "," (map showStuff g))
+        -- GHC.liftIO $ putStrLn $ "module graph:" ++ (intercalate "," (map showStuff g))
 
         modSum <- GHC.getModSummary $ GHC.mkModuleName modname
-        GHC.liftIO $ putStrLn $ "got modSum"
+        -- GHC.liftIO $ putStrLn $ "got modSum"
         -- let modSum = head g
         p <- GHC.parseModule modSum
-        GHC.liftIO $ putStrLn $ "got parsedModule"
+        -- GHC.liftIO $ putStrLn $ "got parsedModule"
         t <- GHC.typecheckModule p
         GHC.liftIO $ putStrLn $ "typechecked"
         -- toks <- GHC.getRichTokenStream (GHC.ms_mod modSum)
@@ -256,33 +342,6 @@ readUTF8File :: FilePath -> IO String
 readUTF8File fp = openFile fp ReadMode >>= \h -> do
         hSetEncoding h utf8
         hGetContents h
-
-
--- ---------------------------------------------------------------------
-{-
-testAP :: AP a -> [Comment] -> GHC.ApiAnns -> IO a
-testAP (AP f) cs ga = do
-  let st = S [] [] cs ga
-      (r,st',(se,su)) = f st
-  return r
-
-testAPSrcSpans = do
-  let ss1 = mkSs (1,2) (3,4)
-      ss2 = mkSs (2,3) (4,5)
-      ss3 = mkSs (3,4) (5,6)
-
-      sst :: AP (GHC.SrcSpan,GHC.SrcSpan)
-      sst = do
-        pushSrcSpan (GHC.L ss1 ())
-        pushSrcSpan (GHC.L ss2 ())
-        r1 <- getSrcSpanAP
-        popSrcSpan
-        r2 <- getSrcSpanAP
-        return (r1,r2)
-
-  ss <- testAP sst [] (Map.empty,Map.empty)
-  putStrLn $ "testAPStuff: ss=" ++ showGhc ss
--}
 
 -- ---------------------------------------------------------------------
 
