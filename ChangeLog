@@ -1,0 +1,4 @@
+2015-01-28 v0.1.0.1
+	Update cabal to prevent building with GHC 7.70,thanks @peti
+2015-01-24 v0.1.0.0
+	Initial release, for GHC 7.10 RC 2
