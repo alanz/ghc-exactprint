@@ -10,9 +10,12 @@ import GHC.Paths ( libdir )
 import qualified DynFlags      as GHC
 import qualified FastString    as GHC
 import qualified GHC           as GHC
+import qualified RdrName       as GHC
+import qualified OccName       as GHC
 -- import qualified MonadUtils    as GHC
 -- import qualified Outputable    as GHC
 
+import qualified Data.Generics as SYB
 import qualified GHC.SYB.Utils as SYB
 
 import Control.Monad
@@ -114,8 +117,8 @@ tests = TestList
   , mkTestMod "Infix.hs"                 "Main"
   , mkTestMod "BCase.hs"                 "Main"
   , mkTestMod "AltsSemis.hs"             "Main"
-
   , mkTestMod "LetExprSemi.hs"           "LetExprSemi"
+  , mkTestMod "WhereIn4.hs"              "WhereIn4"
   ]
 
 mkTestMain :: FilePath -> Test
@@ -136,7 +139,7 @@ mkTestModTH fileName modName
 
 tt :: IO Bool
 tt = do
-
+{-
     manipulateAstTest "LetStmt.hs"               "Layout.LetStmt"
     manipulateAstTest "LetExpr.hs"               "LetExpr"
     manipulateAstTest "ExprPragmas.hs"           "ExprPragmas"
@@ -216,8 +219,10 @@ tt = do
     manipulateAstTest "Infix.hs"                 "Main"
     manipulateAstTest "BCase.hs"                 "Main"
     manipulateAstTest "AltsSemis.hs"             "Main"
-
     manipulateAstTest "LetExprSemi.hs"           "LetExprSemi"
+    -}
+    manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
+
 {-
     manipulateAstTest "Cpp.hs"                   "Main"
     manipulateAstTest "Lhs.lhs"                  "Main"
@@ -226,6 +231,19 @@ tt = do
     manipulateAstTest "Foo.hs"                   "Main"
 -}
 
+-- ---------------------------------------------------------------------
+
+changeWhereIn4 :: GHC.ParsedSource -> GHC.ParsedSource
+changeWhereIn4 parsed
+  = SYB.everywhere (SYB.mkT replace) parsed
+  where
+    replace :: GHC.Located GHC.RdrName -> GHC.Located GHC.RdrName
+    replace (GHC.L ln _n)
+      | ss2span ln == ((12,16),(12,17)) = GHC.L ln (GHC.mkRdrUnqual (GHC.mkVarOcc "p_2"))
+    replace x = x
+
+-- ---------------------------------------------------------------------
+
 -- | Where all the tests are to be found
 examplesDir :: FilePath
 examplesDir = "tests" </> "examples"
@@ -233,19 +251,25 @@ examplesDir = "tests" </> "examples"
 examplesDir2 :: FilePath
 examplesDir2 = "examples"
 
+manipulateAstTestWithMod :: (GHC.ParsedSource -> GHC.ParsedSource) -> FilePath -> String -> IO Bool
+manipulateAstTestWithMod change file modname = manipulateAstTest' (Just change) False file modname
+
 manipulateAstTest :: FilePath -> String -> IO Bool
-manipulateAstTest file modname = manipulateAstTest' False file modname
+manipulateAstTest file modname = manipulateAstTest' Nothing False file modname
 
 manipulateAstTestTH :: FilePath -> String -> IO Bool
-manipulateAstTestTH file modname = manipulateAstTest' True file modname
+manipulateAstTestTH file modname = manipulateAstTest' Nothing True file modname
 
-manipulateAstTest' :: Bool -> FilePath -> String -> IO Bool
-manipulateAstTest' useTH file' modname = do
+manipulateAstTest' :: Maybe (GHC.ParsedSource -> GHC.ParsedSource) -> Bool -> FilePath -> String -> IO Bool
+manipulateAstTest' mchange useTH file' modname = do
   let testpath = "./tests/examples/"
-      file   = testpath </> file'
-      out    = file <.> "out"
+      file     = testpath </> file'
+      out      = file <.> "out"
+      expected = file <.> "expected"
 
-  contents <- readUTF8File file
+  contents <- case mchange of
+                   Nothing -> readUTF8File file
+                   Just _  -> readUTF8File expected
   (ghcAnns,t) <- parsedFileGhc file modname useTH
   let
     parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
@@ -256,7 +280,10 @@ manipulateAstTest' useTH file' modname = do
     ann = annotateAST parsed ghcAnns
       `debug` ("ghcAnns:" ++ showGhc ghcAnns)
 
-    printed = exactPrintAnnotation parsed [] ann -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
+    parsed' = case mchange of
+                   Nothing -> parsed
+                   Just change -> change parsed
+    printed = exactPrintAnnotation parsed' [] ann -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
     result =
             if printed == contents
               then "Match\n"
@@ -267,6 +294,7 @@ manipulateAstTest' useTH file' modname = do
   writeFile out $ result
   -- putStrLn $ "Test:ann organised:" ++ showGhc (organiseAnns ann)
   -- putStrLn $ "Test:showdata:" ++ showAnnData (organiseAnns ann) 0 parsed
+  putStrLn $ "Test:showdata:parsed'" ++ showAnnData (organiseAnns ann) 0 parsed'
   return ("Match\n" == result)
 
 
