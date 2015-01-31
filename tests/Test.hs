@@ -221,15 +221,44 @@ tt = do
     manipulateAstTest "AltsSemis.hs"             "Main"
     manipulateAstTest "LetExprSemi.hs"           "LetExprSemi"
     -}
-    manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
+    manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
 
 {-
+    manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
     manipulateAstTest "Cpp.hs"                   "Main"
     manipulateAstTest "Lhs.lhs"                  "Main"
     manipulateAstTest "ParensAroundContext.hs"   "ParensAroundContext"
     manipulateAstTest "EmptyMostly2.hs"          "EmptyMostly2"
     manipulateAstTest "Foo.hs"                   "Main"
 -}
+
+-- ---------------------------------------------------------------------
+
+changeLayoutLet2 :: GHC.ParsedSource -> GHC.ParsedSource
+changeLayoutLet2 parsed
+  = SYB.everywhere ( SYB.mkT   replaceRdr
+                    `SYB.extT` replaceHsVar
+                    `SYB.extT` replacePat
+                   ) parsed
+  where
+    newName = GHC.mkRdrUnqual (GHC.mkVarOcc "xxxlong")
+    cond ln = ss2span ln == ((7, 5),(7, 8))
+           || ss2span ln == ((8,24),(8,27))
+    replaceRdr :: GHC.Located GHC.RdrName -> GHC.Located GHC.RdrName
+    replaceRdr (GHC.L ln _)
+        | cond ln = GHC.L ln newName
+    replaceRdr x = x
+
+    replaceHsVar :: GHC.LHsExpr GHC.RdrName -> GHC.LHsExpr GHC.RdrName
+    replaceHsVar (GHC.L ln (GHC.HsVar _))
+        | cond ln = GHC.L ln (GHC.HsVar newName)
+    replaceHsVar x = x
+
+    replacePat (GHC.L ln (GHC.VarPat _))
+        | cond ln = GHC.L ln (GHC.VarPat newName)
+    replacePat x = x
+
+
 
 -- ---------------------------------------------------------------------
 
