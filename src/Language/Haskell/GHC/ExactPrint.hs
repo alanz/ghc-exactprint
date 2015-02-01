@@ -351,7 +351,7 @@ annotateAST ast ghcAnns = annotateLHsModule ast ghcAnns
 loadInitialComments :: EP ()
 loadInitialComments = do
   -- return () `debug` ("loadInitialComments entered")
-  Just (Ann cs _) <- getAnnotation (GHC.L GHC.noSrcSpan ())
+  Just (Ann cs _ _) <- getAnnotation (GHC.L GHC.noSrcSpan ())
   mergeComments cs -- `debug` ("loadInitialComments cs=" ++ show cs)
   -- return () `debug` ("loadInitialComments exited")
   return ()
@@ -365,7 +365,7 @@ exactPC a@(GHC.L l ast) =
        offset <- case ma of
          Nothing -> return (DP (0,0))
            `debug` ("exactPC:no annotation for " ++ show (ss2span l,typeOf ast))
-         Just (Ann lcs dp) -> do
+         Just (Ann lcs v dp) -> do
              mergeComments lcs `debug` ("exactPC:(l,lcs,dp):" ++ show (showGhc l,lcs,dp))
              return dp
 

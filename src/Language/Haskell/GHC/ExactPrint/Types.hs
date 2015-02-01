@@ -1,7 +1,9 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-} -- for GHC.DataId
 module Language.Haskell.GHC.ExactPrint.Types
   (
@@ -29,9 +31,15 @@ module Language.Haskell.GHC.ExactPrint.Types
   , getAnnotationEP
   , getAndRemoveAnnotationEP
 
+  , Value(..)
+  , newValue
+  , fromValue
+  , emptyValue
+  , isEmptyValue
   ) where
 
 import Data.Data
+import Data.Maybe
 
 import qualified GHC           as GHC
 import qualified Outputable    as GHC
@@ -61,13 +69,26 @@ type Span = (Pos,Pos)
 newtype DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
 
 annNone :: Annotation
-annNone = Ann [] (DP (0,0))
+annNone = Ann [] emptyValue (DP (0,0))
+
+emptyValue :: Value
+emptyValue = newValue (Just () :: Maybe ())
+
+isEmptyValue :: Value -> Bool
+isEmptyValue v = vv == Just ()
+  where
+    vv = fromValue v :: Maybe ()
 
 data Annotation = Ann
   { ann_comments :: ![DComment]
-  , ann_delta    :: !DeltaPos -- Do we need this? Yes indeed.
+  , ann_extra    :: !Value
+  , ann_delta    :: !DeltaPos -- Do we need this? Yes indeed, but
+                                -- not necessarily a DP, just a column
+                                -- offset
   } deriving (Show,Typeable)
 
+instance (Show a) => Show (GHC.Located a) where
+  show (GHC.L l a) = "L " ++ show l ++ " " ++ show a
 
 instance Show GHC.RdrName where
   show n = "(a RdrName)"
@@ -152,3 +173,46 @@ getAndRemoveAnnotationEP anns (GHC.L ss a)
  = case Map.lookup (ss, annGetConstr a) anns of
      Nothing  -> (Nothing,anns)
      Just ann -> (Just ann,Map.delete (ss, annGetConstr a) anns)
+
+-- ---------------------------------------------------------------------
+-- Based on
+-- https://github.com/ndmitchell/shake/blob/master/Development/Shake/Value.hs
+
+
+-- We deliberately avoid Typeable instances on Key/Value to stop them
+-- accidentally being used inside themselves
+
+newtype Key = Key Value
+  -- deriving (Eq)
+
+data Value = forall a . (Show a,Typeable a, GHC.Outputable a) => Value a
+
+newValue :: (Show a, Typeable a, GHC.Outputable a) => a -> Value
+newValue = Value
+
+typeValue :: Value -> TypeRep
+typeValue (Value x) = typeOf x
+
+fromValue :: Typeable a => Value -> a
+fromValue (Value x) = fromMaybe (error errMsg) $ res
+  where
+   res = cast x
+   errMsg = "fromValue, bad cast from " ++ show (typeOf x)
+          ++ " to " ++ show (typeOf res)
+
+instance Show Key where
+  show (Key a) = show a
+
+instance Show Value where
+  show (Value a) = show a
+
+instance GHC.Outputable Value where
+  ppr (Value a) = GHC.ppr a
+
+{-
+instance Eq Value where
+  Value a == Value b = maybe False (a ==) $ cast b
+  Value a /= Value b = maybe True (a /=) $ cast b
+-}
+
+-- ---------------------------------------------------------------------
