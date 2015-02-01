@@ -119,6 +119,9 @@ tests = TestList
   , mkTestMod "AltsSemis.hs"             "Main"
   , mkTestMod "LetExprSemi.hs"           "LetExprSemi"
   , mkTestMod "WhereIn4.hs"              "WhereIn4"
+
+  , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
+
   ]
 
 mkTestMain :: FilePath -> Test
@@ -128,6 +131,11 @@ mkTestMain fileName = TestCase (do r <- manipulateAstTest fileName "Main"
 mkTestMod :: FilePath -> String -> Test
 mkTestMod fileName modName
   = TestCase (do r <- manipulateAstTest fileName modName
+                 assertBool fileName r )
+
+mkTestModChange :: (GHC.ParsedSource -> GHC.ParsedSource) -> FilePath -> String -> Test
+mkTestModChange change fileName modName
+  = TestCase (do r <- manipulateAstTestWithMod change fileName modName
                  assertBool fileName r )
 
 mkTestModTH :: FilePath -> String -> Test
@@ -140,7 +148,6 @@ mkTestModTH fileName modName
 tt :: IO Bool
 tt = do
 {-
-    manipulateAstTest "LetStmt.hs"               "Layout.LetStmt"
     manipulateAstTest "LetExpr.hs"               "LetExpr"
     manipulateAstTest "ExprPragmas.hs"           "ExprPragmas"
     manipulateAstTest "ListComprehensions.hs"    "Main"
@@ -220,9 +227,11 @@ tt = do
     manipulateAstTest "BCase.hs"                 "Main"
     manipulateAstTest "AltsSemis.hs"             "Main"
     manipulateAstTest "LetExprSemi.hs"           "LetExprSemi"
-    -}
+    manipulateAstTest "LetExpr2.hs"             "Main"
     manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
+    -}
 
+    manipulateAstTest "LetStmt.hs"               "Layout.LetStmt"
 {-
     manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
     manipulateAstTest "Cpp.hs"                   "Main"
@@ -323,7 +332,7 @@ manipulateAstTest' mchange useTH file' modname = do
   writeFile out $ result
   -- putStrLn $ "Test:ann organised:" ++ showGhc (organiseAnns ann)
   -- putStrLn $ "Test:showdata:" ++ showAnnData (organiseAnns ann) 0 parsed
-  putStrLn $ "Test:showdata:parsed'" ++ showAnnData (organiseAnns ann) 0 parsed'
+  -- putStrLn $ "Test:showdata:parsed'" ++ showAnnData (organiseAnns ann) 0 parsed'
   return ("Match\n" == result)
 
 

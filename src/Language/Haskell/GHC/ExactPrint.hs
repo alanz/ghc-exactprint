@@ -104,11 +104,11 @@ newtype EP x = EP (Pos -> [(ColOffset,ColOffset)] -> [GHC.SrcSpan] -> [Comment] 
 
 data Extra = E { eFunId :: (Bool,String) -- (isSymbol,name)
                , eFunIsInfix :: Bool
-               , eNestedOffset :: ColOffset
+               , eNestedOffset :: DeltaPos
                }
 
 initExtra :: Extra
-initExtra = E (False,"") False 0
+initExtra = E (False,"") False (DP (0,0))
 
 instance Functor EP where
   fmap = liftM
@@ -157,14 +157,16 @@ popOffset = EP (\l (_o:dp) s cs st an -> ((),l,dp,s,cs,st,an,id)
 
 pushNestedOffset :: EP ()
 pushNestedOffset = do
-  nd <- getNestedOffset
+  DP (lo,nd) <- getNestedOffset
   return () `debug` ("pushNestedOffset:nd=" ++ show nd)
+  (r,c) <- getPos
+  printWhitespace (r+lo,c)
   pushOffset nd
 
-getNestedOffset :: EP ColOffset
+getNestedOffset :: EP DeltaPos
 getNestedOffset = EP (\l dp s cs e an -> (eNestedOffset e,l,dp,s,cs,e,an,id))
 
-setNestedOffset :: ColOffset -> EP ()
+setNestedOffset :: DeltaPos -> EP ()
 setNestedOffset nd = EP (\l dp s cs e an -> ((),l,dp,s,cs,e { eNestedOffset = nd},an,id))
 
 -- ---------------------------------------------------------------------
@@ -284,11 +286,8 @@ printComment b str
     | b         = printString str
     | otherwise = printString str
 
--- Single point of delta application
 printWhitespace :: Pos -> EP ()
-printWhitespace (r,c) = do
-  let (dr,dc) = (0,0)
-  let p = (r + dr, c + dc)
+printWhitespace p = do
   mPrintComments p >> padUntil p
 
 printStringAt :: Pos -> String -> EP ()
@@ -374,7 +373,7 @@ exactPC a@(GHC.L l ast) =
        -- ma <- getAnnotation a
        ma <- getAndRemoveAnnotation a
        (offset,no) <- case ma of
-         Nothing -> return (0,0)
+         Nothing -> return (0,DP (0,0))
            `debug` ("exactPC:no annotation for " ++ show (ss2span l,typeOf ast))
          Just (Ann lcs v nd dp) -> do
              mergeComments lcs `debug` ("exactPC:(l,lcs,dp):" ++ show (showGhc l,lcs,dp))
