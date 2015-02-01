@@ -101,8 +101,6 @@ newtype AP x = AP ([(GHC.SrcSpan,ColOffset,AnnConName)] -> GHC.SrcSpan -> Extra 
                   ([(AnnKey,Annotation)],[(AnnKeyF,[DeltaPos])])
                  ))
 
-type ColOffset = Int
-
 -- TODO: AZ: Is this still needed?
 data Extra = Extra
                {
@@ -203,13 +201,13 @@ setCurrentColOffset o = AP (\((ss,_,c):ls) pe e ga
 
 -- |Get the difference between the current and the previous
 -- colOffsets, if they are on the same line
-getCurrentDP :: AP DeltaPos
+getCurrentDP :: AP ColOffset
 getCurrentDP = do
   -- Note: the current col offsets are not needed here, any
   -- indentation should be fully nested in an AST element
   ss <- getSrcSpanAP
   ps <- getPriorSrcSpanAP
-  return (DP (0,srcSpanStartColumn ss - srcSpanStartColumn ps))
+  return (srcSpanStartColumn ss - srcSpanStartColumn ps)
 
 -- ---------------------------------------------------------------------
 
@@ -384,7 +382,7 @@ addFinalComments = do
   cs <- getCommentsForSpan GHC.noSrcSpan
   let (dcs,_) = localComments 1 ((1,1),(1,1)) cs []
   pushSrcSpanAP (GHC.L GHC.noSrcSpan ())
-  addAnnotationsAP (Ann dcs (emptyValue) (DP (0,0)))
+  addAnnotationsAP (Ann dcs (emptyValue) 0)
     -- `debug` ("leaveAST:dcs=" ++ show dcs)
   return () `debug` ("addFinalComments:dcs=" ++ show dcs)
 

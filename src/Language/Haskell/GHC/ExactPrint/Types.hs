@@ -13,6 +13,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , Span
   , PosToken
   , DeltaPos(..)
+  , ColOffset
   , Annotation(..)
   , annNone
   , Anns,anEP,anF
@@ -67,9 +68,11 @@ type Pos = (Int,Int)
 type Span = (Pos,Pos)
 
 newtype DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
+type ColOffset = Int
+
 
 annNone :: Annotation
-annNone = Ann [] emptyValue (DP (0,0))
+annNone = Ann [] emptyValue 0
 
 emptyValue :: Value
 emptyValue = newValue (Just () :: Maybe ())
@@ -82,9 +85,8 @@ isEmptyValue v = vv == Just ()
 data Annotation = Ann
   { ann_comments :: ![DComment]
   , ann_extra    :: !Value
-  , ann_delta    :: !DeltaPos -- Do we need this? Yes indeed, but
-                                -- not necessarily a DP, just a column
-                                -- offset
+  , ann_delta    :: !ColOffset
+
   } deriving (Show,Typeable)
 
 instance (Show a) => Show (GHC.Located a) where

@@ -99,8 +99,8 @@ instance Annotated (GHC.Located a) where
 ------------------------------------------------------
 -- The EP monad and basic combinators
 
-newtype EP x = EP (Pos -> [(Int,DeltaPos)] -> [GHC.SrcSpan] -> [Comment] -> Extra -> Anns
-            -> (x, Pos,   [(Int,DeltaPos)],   [GHC.SrcSpan],   [Comment],   Extra,   Anns, ShowS))
+newtype EP x = EP (Pos -> [(ColOffset,ColOffset)] -> [GHC.SrcSpan] -> [Comment] -> Extra -> Anns
+            -> (x, Pos,   [(ColOffset,ColOffset)],   [GHC.SrcSpan],   [Comment],   Extra,   Anns, ShowS))
 
 data Extra = E { eFunId :: (Bool,String) -- (isSymbol,name)
                , eFunIsInfix :: Bool
@@ -126,7 +126,7 @@ instance Monad EP where
     in (b, l2, ss2, dp2, c2, st2, an2, s1 . s2)
 
 runEP :: EP () -> GHC.SrcSpan -> [Comment] -> Anns -> String
-runEP (EP f) ss cs ans = let (_,_,_,_,_,_,_,s) = f (1,1) [(0,DP (0,0))] [ss] cs initExtra ans in s ""
+runEP (EP f) ss cs ans = let (_,_,_,_,_,_,_,s) = f (1,1) [(0,0)] [ss] cs initExtra ans in s ""
 
 getPos :: EP Pos
 getPos = EP (\l dp s cs st an -> (l,l,dp,s,cs,st,an,id))
@@ -137,17 +137,15 @@ setPos l = EP (\_ dp s cs st an -> ((),l,dp,s,cs,st,an,id))
 -- ---------------------------------------------------------------------
 
 -- Get the current column offset
-getOffset :: EP Int
+getOffset :: EP ColOffset
 getOffset = EP (\l dps s cs st an -> (fst $ ghead "getOffset" dps,l,dps,s,cs,st,an,id))
 
-pushOffset :: DeltaPos -> EP ()
-pushOffset dp@(DP (f,dc)) = EP (\l dps s cs st an ->
+pushOffset :: ColOffset -> EP ()
+pushOffset dc = EP (\l dps s cs st an ->
   let
     (co,_) = ghead "pushOffset" dps
-    -- co' = if f == 1 then dc
-    --                 else dc + co
     co' = dc + co
-  in ((),l,(co',dp):dps,s,cs,st,an,id)
+  in ((),l,(co',dc):dps,s,cs,st,an,id)
      `debug` ("pushOffset:co'=" ++ show co')
      )
 
@@ -363,7 +361,7 @@ exactPC a@(GHC.L l ast) =
        -- ma <- getAnnotation a
        ma <- getAndRemoveAnnotation a
        offset <- case ma of
-         Nothing -> return (DP (0,0))
+         Nothing -> return 0
            `debug` ("exactPC:no annotation for " ++ show (ss2span l,typeOf ast))
          Just (Ann lcs v dp) -> do
              mergeComments lcs `debug` ("exactPC:(l,lcs,dp):" ++ show (showGhc l,lcs,dp))
