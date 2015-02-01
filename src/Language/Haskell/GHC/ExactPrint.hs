@@ -160,7 +160,7 @@ pushNestedOffset = do
   DP (lo,nd) <- getNestedOffset
   return () `debug` ("pushNestedOffset:nd=" ++ show nd)
   (r,c) <- getPos
-  printWhitespace (r+lo,1)
+  -- printWhitespace (r+lo,1)
   pushOffset nd
 
 getNestedOffset :: EP DeltaPos
@@ -1344,6 +1344,7 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     mapM_ exactPC rhs
 
   exactP (GHC.HsLet lb e)    = do
+    return () `debug` ("exactP.HsLet started")
     printStringAtMaybeAnn (G GHC.AnnLet) "let"
     printStringAtMaybeAnn (G GHC.AnnOpenC) "{"
     printStringAtMaybeAnnAll (G GHC.AnnSemi) ";"
@@ -1353,6 +1354,7 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     printStringAtMaybeAnn (G GHC.AnnCloseC) "}"
     printStringAtMaybeAnn (G GHC.AnnIn) "in"
     exactPC e
+    return () `debug` ("exactP.HsLet ended")
 
   exactP (GHC.HsDo cts stmts _typ)    = do
     printStringAtMaybeAnn (G GHC.AnnDo) "do"

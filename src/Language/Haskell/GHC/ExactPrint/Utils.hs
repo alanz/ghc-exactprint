@@ -83,8 +83,8 @@ import qualified Data.Map as Map
 import Debug.Trace
 
 debug :: c -> String -> c
-debug = flip trace
--- debug c _ = c
+-- debug = flip trace
+debug c _ = c
 
 -- ---------------------------------------------------------------------
 
@@ -96,8 +96,8 @@ debug = flip trace
 --    - the annotations provided by GHC
 
 {- -}
-newtype AP x = AP ([(GHC.SrcSpan,DeltaPos,Grouping,AnnConName)] -> GHC.SrcSpan -> Extra -> GHC.ApiAnns
-            -> (x, [(GHC.SrcSpan,DeltaPos,Grouping,AnnConName)],   GHC.SrcSpan,   Extra,   GHC.ApiAnns,
+newtype AP x = AP ([(GHC.SrcSpan,DeltaPos,AnnConName)] -> GHC.SrcSpan -> Extra -> GHC.ApiAnns
+            -> (x, [(GHC.SrcSpan,DeltaPos,AnnConName)],   GHC.SrcSpan,   Extra,   GHC.ApiAnns,
                   ([(AnnKey,Annotation)],[(AnnKeyF,[DeltaPos])])
                  ))
 
@@ -107,7 +107,7 @@ data Extra = Extra
                  e_is_infix :: Bool -- isInfix for a FunBind
                  -- TODO: AZ: Is this ^^  still needed?
 
-               -- , e_grouping :: Grouping
+               , e_grouping :: [(GHC.SrcSpan,Grouping)]
                , e_values   :: [(GHC.SrcSpan,Value)]
                }
 
@@ -133,7 +133,7 @@ instance Monad AP where
 
 runAP :: AP () -> GHC.ApiAnns -> Anns
 runAP (AP f) ga
- = let (_,_,_,_,_,(se,sa)) = f [] GHC.noSrcSpan (Extra False [(GHC.noSrcSpan,emptyValue)]) ga
+ = let (_,_,_,_,_,(se,sa)) = f [] GHC.noSrcSpan (Extra False [(GHC.noSrcSpan,None)] [(GHC.noSrcSpan,emptyValue)]) ga
    in (Map.fromListWith combineAnns se,Map.fromListWith (++) sa)
         --  `debug` ("runAP:se=" ++ show se)
 
@@ -147,14 +147,14 @@ combineAnns (Ann cs1 mf1 nd1 dp1) (Ann cs2 mf2 _ _) = Ann (cs1 ++ cs2) (cmf mf1 
 
 -- |Note: assumes the SrcSpan stack is nonempty
 getSrcSpanAP :: AP GHC.SrcSpan
-getSrcSpanAP = AP (\l@((ss,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
+getSrcSpanAP = AP (\l@((ss,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
 
 getPriorSrcSpanAP :: AP GHC.SrcSpan
-getPriorSrcSpanAP = AP (\l@(_:(ss,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
+getPriorSrcSpanAP = AP (\l@(_:(ss,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
 
 pushSrcSpanAP :: Data a => (GHC.Located a) -> AP ()
 pushSrcSpanAP (GHC.L l a) = AP (\ls pe e ga ->
-                  ((),(l,DP (0,srcSpanStartColumn l),None,annGetConstr a):ls,pe,e,ga,mempty))
+                  ((),(l,DP (0,srcSpanStartColumn l),annGetConstr a):ls,pe,e,ga,mempty))
 
 popSrcSpanAP :: AP ()
 popSrcSpanAP = AP (\(_:ls) pe e ga -> ((),ls,pe,e,ga,mempty))
@@ -177,17 +177,17 @@ startGroupingOffsets = do
   co <- getCurrentColOffset
   ss <- getSrcSpanAP
   return () `debug` ("startGroupingOffsets:(ss,co)=" ++ showGhc (ss,co))
-  setGrouping (Primed ss)
+  setGrouping ss (Primed ss)
 
 stopGroupingOffsets :: AP ()
 stopGroupingOffsets = do
-  grp <- getGrouping
+  (s,grp) <- getGroupingWithSpan
   let grp' = case grp of
         Active dp -> Done dp
         Done   dp -> Done dp
         _         -> None
-  setGrouping grp'
-    `debug` ("stopGroupingOffsets:(grp,grp')=" ++ show (grp,grp'))
+  setGrouping s grp'
+    `debug` ("stopGroupingOffsets:(grp,grp')=" ++ show (s,grp,grp'))
 
 maybeAdjustColOffsetForGrouping :: GHC.SrcSpan -> AP ()
 maybeAdjustColOffsetForGrouping ss = do
@@ -203,35 +203,48 @@ maybeAdjustColOffsetForGrouping ss = do
        -- We need to return the difference between the current in use
        -- co and the one already stored against the SrcSpan
        let offset = cur - srcSpanStartColumn primed
-       setGrouping (Active (DP (lo, offset)))
+       setGrouping primed (Active (DP (lo, offset)))
        return () `debug` ("maybeAdjustColOffsetForGrouping:setting (ss,primed,lo,co,cur,offset)="
                                                         ++ showGhc (ss,primed,lo,co,cur,offset))
     _ -> return ()
 
 getNestedColOffset :: AP DeltaPos
-getNestedColOffset = AP (\l@((_,_,grp,_):_) pe e ga ->
+getNestedColOffset = do
+  grp <- getGrouping
   let
     dp = case grp of
            Active dp' -> dp'
                 `debug` ("getNestedColOffset: returning " ++ show dp')
            _       -> (DP (0,0))
-  in (dp,l,pe,e,ga,mempty))
+  return dp
 
 getGrouping :: AP Grouping
-getGrouping = AP (\l@((_,_,grp,_):_) pe e ga ->  (grp,l,pe,e,ga,mempty))
+getGrouping = do
+  e <- getExtra
+  return (snd $ ghead "getGrouping" (e_grouping e))
 
-setGrouping :: Grouping -> AP ()
-setGrouping grp = AP (\((l,o,_grp,cn):ls) pe e ga ->  ((),(l,o,grp,cn):ls,pe,e,ga,mempty))
+getGroupingWithSpan :: AP (GHC.SrcSpan,Grouping)
+getGroupingWithSpan = do
+  e <- getExtra
+  return (ghead "getGroupingWithSpan" (e_grouping e))
+
+setGrouping :: GHC.SrcSpan -> Grouping -> AP ()
+setGrouping ss grp = do
+  e <- getExtra
+  case e_grouping e of
+   []         -> setExtra (e { e_grouping = [(ss,grp)] })
+   ((s,g):ls) -> if s == ss then setExtra (e { e_grouping = ((ss,grp):ls) })
+                            else setExtra (e { e_grouping = ((ss,grp):(s,g):ls) })
 
 -- | Get the current column offset
 getCurrentColOffset :: AP DeltaPos
-getCurrentColOffset = AP (\l@((_,o,_,_):_) pe e ga
+getCurrentColOffset = AP (\l@((_,o,_):_) pe e ga
                    -> (o,l,pe,e,ga,mempty))
 
 -- | Set the current column offset
 setCurrentColOffset :: DeltaPos -> AP ()
-setCurrentColOffset o = AP (\((ss,_,g,c):ls) pe e ga
-                   -> ((),(ss,o,g,c):ls,pe,e,ga,mempty)
+setCurrentColOffset o = AP (\((ss,_,c):ls) pe e ga
+                   -> ((),(ss,o,c):ls,pe,e,ga,mempty)
                       `debug` ("setCurrentColOffset:o=" ++ show o)
                            )
 
@@ -241,9 +254,16 @@ getCurrentDP :: AP ColOffset
 getCurrentDP = do
   -- Note: the current col offsets are not needed here, any
   -- indentation should be fully nested in an AST element
+  grp <- getGrouping
+  let co = case grp of
+             Active (DP (_,c)) -> c
+             _                 -> 0
   ss <- getSrcSpanAP
   ps <- getPriorSrcSpanAP
-  return (srcSpanStartColumn ss - srcSpanStartColumn ps)
+  return () `debug` ("getCurrentDP:(co,ss,ps)=" ++ showGhc (co,ss,ps))
+  if srcSpanStartLine ss == srcSpanStartLine ps
+     then return (srcSpanStartColumn ss - srcSpanStartColumn ps)
+     else return (srcSpanStartColumn ss - srcSpanStartColumn ps - co)
 
 -- ---------------------------------------------------------------------
 
@@ -299,8 +319,8 @@ addAnnotationsAP ann = AP (\l pe e ga ->
                        ( (),l,pe,e,ga,
                  ([((getAnnKey $ ghead "addAnnotationsAP" l),ann)],[])))
 
-getAnnKey :: (GHC.SrcSpan,t1,t2,AnnConName) -> AnnKey
-getAnnKey (l,_,_,t) = (l,t)
+getAnnKey :: (GHC.SrcSpan,t1,AnnConName) -> AnnKey
+getAnnKey (l,_,t) = (l,t)
 
 -- -------------------------------------
 
@@ -313,10 +333,10 @@ addAnnDeltaPos (s,kw) dp = AP (\l pe e ga -> ( (),
 -- -------------------------------------
 
 setFunIsInfix :: Bool -> AP ()
-setFunIsInfix e = AP (\l pe (Extra _ mf) ga -> ((),l,pe,(Extra e mf),ga,mempty))
+setFunIsInfix e = AP (\l pe (Extra _ g mf) ga -> ((),l,pe,(Extra e g mf),ga,mempty))
 
 getFunIsInfix :: AP Bool
-getFunIsInfix = AP (\l pe ex@(Extra e _) ga -> (e,l,pe,ex,ga,mempty))
+getFunIsInfix = AP (\l pe ex@(Extra e _ _) ga -> (e,l,pe,ex,ga,mempty))
 
 -- -------------------------------------
 
@@ -331,20 +351,20 @@ getExtra = AP (\l pe e ga -> (e,l,pe,e,ga,mempty))
 setExtraAnn :: Value -> AP ()
 setExtraAnn mfn = do
   ss <- getSrcSpanAP
-  (Extra v mfs) <- getExtra
-  setExtra (Extra v ((ss,mfn):mfs))
+  (Extra v g mfs) <- getExtra
+  setExtra (Extra v g ((ss,mfn):mfs))
 
 getAndRemoveExtraAnn :: AP Value
 getAndRemoveExtraAnn = do
   ss <- getSrcSpanAP
-  (Extra b mfs) <- getExtra
+  (Extra b g mfs) <- getExtra
   if null mfs
     then return (emptyValue)
     else do
       let (ssm,v) = ghead "getAndRemoveExtraAnn" mfs
       if ss == ssm
          then do
-           setExtra (Extra b (tail mfs))
+           setExtra (Extra b g (tail mfs))
            return v
          else do
            return (emptyValue)
@@ -383,15 +403,16 @@ leaveAST = do
 
   -- let dp = deltaFromSrcSpans priorEnd ss
   dp <- getCurrentDP
-  grp <- getGrouping
+  (s,grp) <- getGroupingWithSpan
   return () `debug` ("leaveAST:grp=" ++ show grp)
   let nd = case grp of
             Active dpg -> dpg
             Done   dpg -> dpg
             _         -> DP (0,0)
+      nd' = if s == ss then nd else DP (0,0)
   mfn <- getAndRemoveExtraAnn
-  addAnnotationsAP (Ann lcs mfn nd dp)
-    `debug` ("leaveAST:(ss,lcs,nd,dp)=" ++ show (showGhc ss,lcs,nd,dp))
+  addAnnotationsAP (Ann lcs mfn nd' dp)
+    `debug` ("leaveAST:(ss,lcs,nd',dp)=" ++ show (showGhc ss,lcs,nd',dp))
   popSrcSpanAP
   return () `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
 

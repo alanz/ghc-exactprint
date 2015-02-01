@@ -221,7 +221,6 @@ tt = do
     -- manipulateAstTest "Unicode.hs"               "Main"
     manipulateAstTest "B.hs"                     "Main"
     manipulateAstTest "LayoutWhere.hs"           "Main"
-    manipulateAstTest "LayoutLet.hs"             "Main"
     manipulateAstTest "Deprecation.hs"           "Deprecation"
     manipulateAstTest "Infix.hs"                 "Main"
     manipulateAstTest "BCase.hs"                 "Main"
@@ -229,9 +228,10 @@ tt = do
     manipulateAstTest "LetExprSemi.hs"           "LetExprSemi"
     manipulateAstTest "LetExpr2.hs"             "Main"
     manipulateAstTest "LetStmt.hs"               "Layout.LetStmt"
+    manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
     -}
 
-    manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
+    manipulateAstTest "LayoutLet.hs"             "Main"
 {-
     manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
     manipulateAstTest "Cpp.hs"                   "Main"
