@@ -1244,7 +1244,9 @@ instance (ExactP body)
   exactP (GHC.LetStmt lb) = do
     printStringAtMaybeAnn (G GHC.AnnLet) "let"
     printStringAtMaybeAnn (G GHC.AnnOpenC) "{"
+    pushNestedOffset
     exactP lb
+    popOffset
     printStringAtMaybeAnn (G GHC.AnnCloseC) "}"
 
   exactP (GHC.ParStmt pbs _ _) = do

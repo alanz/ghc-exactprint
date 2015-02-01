@@ -83,8 +83,8 @@ import qualified Data.Map as Map
 import Debug.Trace
 
 debug :: c -> String -> c
-debug = flip trace
--- debug c _ = c
+-- debug = flip trace
+debug c _ = c
 
 -- ---------------------------------------------------------------------
 
@@ -1531,6 +1531,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name,AnnotateP body)
   annotateP _ (GHC.LetStmt lb) = do
     addDeltaAnnotation GHC.AnnLet
     addDeltaAnnotation GHC.AnnOpenC -- '{'
+    startGroupingOffsets
+    stopGroupingOffsets
     annotateHsLocalBinds lb
     addDeltaAnnotation GHC.AnnCloseC -- '}'
 

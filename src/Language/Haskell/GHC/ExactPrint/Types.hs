@@ -89,8 +89,8 @@ data Annotation = Ann
 
   } deriving (Show,Typeable)
 
-instance (Show a) => Show (GHC.Located a) where
-  show (GHC.L l a) = "L " ++ show l ++ " " ++ show a
+-- instance (Show a) => Show (GHC.Located a) where
+--   show (GHC.L l a) = "L " ++ show l ++ " " ++ show a
 
 instance Show GHC.RdrName where
   show n = "(a RdrName)"
