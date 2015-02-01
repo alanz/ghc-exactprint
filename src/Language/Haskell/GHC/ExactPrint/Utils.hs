@@ -83,8 +83,8 @@ import qualified Data.Map as Map
 import Debug.Trace
 
 debug :: c -> String -> c
--- debug = flip trace
-debug c _ = c
+debug = flip trace
+-- debug c _ = c
 
 -- ---------------------------------------------------------------------
 
@@ -105,9 +105,12 @@ newtype AP x = AP ([(GHC.SrcSpan,ColOffset,AnnConName)] -> GHC.SrcSpan -> Extra 
 data Extra = Extra
                {
                  e_is_infix :: Bool -- isInfix for a FunBind
-               , e_start_grouping :: Bool
+               , e_grouping :: Grouping
                , e_values   :: [(GHC.SrcSpan,Value)]
                }
+
+data Grouping = None | Primed ColOffset | Active | Done ColOffset
+              deriving (Eq,Show)
 
 instance Functor AP where
   fmap = liftM
@@ -128,12 +131,12 @@ instance Monad AP where
 
 runAP :: AP () -> GHC.ApiAnns -> Anns
 runAP (AP f) ga
- = let (_,_,_,_,_,(se,sa)) = f [] GHC.noSrcSpan (Extra False False [(GHC.noSrcSpan,emptyValue)]) ga
+ = let (_,_,_,_,_,(se,sa)) = f [] GHC.noSrcSpan (Extra False None [(GHC.noSrcSpan,emptyValue)]) ga
    in (Map.fromListWith combineAnns se,Map.fromListWith (++) sa)
         --  `debug` ("runAP:se=" ++ show se)
 
 combineAnns :: Annotation -> Annotation -> Annotation
-combineAnns (Ann cs1 mf1 dp1) (Ann cs2 mf2 _) = Ann (cs1 ++ cs2) (cmf mf1 mf2) dp1
+combineAnns (Ann cs1 mf1 nd1 dp1) (Ann cs2 mf2 _ _) = Ann (cs1 ++ cs2) (cmf mf1 mf2) nd1 dp1
   where
     cmf m1 m2 = if isEmptyValue m1 then m2 else m1
 
@@ -173,21 +176,42 @@ adjustDeltaForOffset  colOffset (DP (l,c)) =
 startGroupingOffsets :: AP ()
 startGroupingOffsets = do
   (Extra v _g mfs) <- getExtra
-  setExtra (Extra v True mfs)
+  co <- getCurrentColOffset
+  return () `debug` ("startGroupingOffsets:co=" ++ show co)
+  setExtra (Extra v (Primed co) mfs)
 
+-- Capture the nested ColOffset for retrieval in leaveAST
 stopGroupingOffsets :: AP ()
 stopGroupingOffsets = do
-  (Extra v _g mfs) <- getExtra
-  setExtra (Extra v False mfs)
+  e <- getExtra
+  co <- getCurrentColOffset
+  let g' = case e_grouping e of
+        Active -> Done co
+               `debug` ("stopGroupingOffsets:returning: " ++ show co)
+        g      -> g
+  setExtra (e { e_grouping = g' })
 
 maybeAdjustColOffsetForGrouping :: GHC.SrcSpan -> AP ()
 maybeAdjustColOffsetForGrouping ss = do
   e <- getExtra
-  if e_start_grouping e
-     then do
-       setCurrentColOffset (srcSpanStartColumn ss)
-       setExtra (e { e_start_grouping = False })
-     else return ()
+  case e_grouping e of
+    Primed cur -> do
+       let co = srcSpanStartColumn ss
+       setCurrentColOffset co
+       -- We need to return the difference between the current in use
+       -- co and the one already stored against the SrcSpan
+       let offset = co - cur
+       setExtra (e { e_grouping = Done offset })
+       return () `debug` ("maybeAdjustColOffsetForGrouping:setting (co,offset)=" ++ show (co,offset))
+    _ -> return ()
+
+getNestedColOffset :: AP ColOffset
+getNestedColOffset = do
+  e <- getExtra
+  case e_grouping e of
+   Done co -> return co
+        `debug` ("getNestedColOffset: returning " ++ show co)
+   _       -> return 0
 
 -- | Get the current column offset
 getCurrentColOffset :: AP ColOffset
@@ -346,8 +370,9 @@ leaveAST = do
 
   -- let dp = deltaFromSrcSpans priorEnd ss
   dp <- getCurrentDP
+  nd <- getNestedColOffset
   mfn <- getAndRemoveExtraAnn
-  addAnnotationsAP (Ann lcs mfn dp) `debug` ("leaveAST:(ss,lcs,dp)=" ++ show (showGhc ss,lcs,dp))
+  addAnnotationsAP (Ann lcs mfn nd dp) `debug` ("leaveAST:(ss,lcs,nd,dp)=" ++ show (showGhc ss,lcs,nd,dp))
   popSrcSpanAP
   return () `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
 
@@ -382,7 +407,7 @@ addFinalComments = do
   cs <- getCommentsForSpan GHC.noSrcSpan
   let (dcs,_) = localComments 1 ((1,1),(1,1)) cs []
   pushSrcSpanAP (GHC.L GHC.noSrcSpan ())
-  addAnnotationsAP (Ann dcs (emptyValue) 0)
+  addAnnotationsAP (Ann dcs (emptyValue) 0 0)
     -- `debug` ("leaveAST:dcs=" ++ show dcs)
   return () `debug` ("addFinalComments:dcs=" ++ show dcs)
 
@@ -394,6 +419,7 @@ addAnnotationWorker ann pa = do
     then do
       pe <- getPriorEnd
       ss <- getSrcSpanAP
+      maybeAdjustColOffsetForGrouping pa
       let p = deltaFromSrcSpans pe pa
       case (ann,isGoodDelta p) of
         (G GHC.AnnComma,False) -> return ()
@@ -405,7 +431,6 @@ addAnnotationWorker ann pa = do
         (G GHC.AnnClose,False) -> return ()
              `debug`  ("addDeltaAnnotationWorker::bad delta:(ss,ma,p,ann)=" ++ show (ss2span ss,ss2span pa,p,ann))
         _ -> do
-          maybeAdjustColOffsetForGrouping pa
           p' <- adjustDeltaForOffsetM p
           addAnnDeltaPos (ss,ann) p'
           setPriorEnd pa
@@ -490,8 +515,8 @@ addDeltaAnnotationExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> AP ()
 addDeltaAnnotationExt s ann = do
   pe <- getPriorEnd
   ss <- getSrcSpanAP
-  let p = deltaFromSrcSpans pe s
   maybeAdjustColOffsetForGrouping s
+  let p = deltaFromSrcSpans pe s
   p' <- adjustDeltaForOffsetM p
   addAnnDeltaPos (ss,G ann) p'
   setPriorEnd s

@@ -70,9 +70,8 @@ type Span = (Pos,Pos)
 newtype DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
 type ColOffset = Int
 
-
 annNone :: Annotation
-annNone = Ann [] emptyValue 0
+annNone = Ann [] emptyValue 0 0
 
 emptyValue :: Value
 emptyValue = newValue (Just () :: Maybe ())
@@ -83,9 +82,10 @@ isEmptyValue v = vv == Just ()
     vv = fromValue v :: Maybe ()
 
 data Annotation = Ann
-  { ann_comments :: ![DComment]
-  , ann_extra    :: !Value
-  , ann_delta    :: !ColOffset
+  { ann_comments     :: ![DComment]
+  , ann_extra        :: !Value -- TODO:AZ: Needed?
+  , ann_nested_delta :: !ColOffset
+  , ann_delta        :: !ColOffset
 
   } deriving (Show,Typeable)
 
@@ -94,6 +94,11 @@ instance (Show a) => Show (GHC.Located a) where
 
 instance Show GHC.RdrName where
   show n = "(a RdrName)"
+
+-- TODO:AZ change Anns into
+--   M.Map (SrcSpan, AnnConName) (Annotation,[(KeywordId, DeltaPos)])
+-- with the list of (KeywordId, DeltaPos) ordered by original
+-- occurence in the source
 
 -- first field carries the comments, second the offsets
 type Anns = (AnnsEP,AnnsFinal)

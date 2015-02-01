@@ -104,10 +104,11 @@ newtype EP x = EP (Pos -> [(ColOffset,ColOffset)] -> [GHC.SrcSpan] -> [Comment] 
 
 data Extra = E { eFunId :: (Bool,String) -- (isSymbol,name)
                , eFunIsInfix :: Bool
+               , eNestedOffset :: ColOffset
                }
 
 initExtra :: Extra
-initExtra = E (False,"") False
+initExtra = E (False,"") False 0
 
 instance Functor EP where
   fmap = liftM
@@ -153,6 +154,18 @@ popOffset :: EP ()
 popOffset = EP (\l (_o:dp) s cs st an -> ((),l,dp,s,cs,st,an,id)
      `debug` ("popOffset:co=" ++ show (fst _o))
                )
+
+pushNestedOffset :: EP ()
+pushNestedOffset = do
+  nd <- getNestedOffset
+  return () `debug` ("pushNestedOffset:nd=" ++ show nd)
+  pushOffset nd
+
+getNestedOffset :: EP ColOffset
+getNestedOffset = EP (\l dp s cs e an -> (eNestedOffset e,l,dp,s,cs,e,an,id))
+
+setNestedOffset :: ColOffset -> EP ()
+setNestedOffset nd = EP (\l dp s cs e an -> ((),l,dp,s,cs,e { eNestedOffset = nd},an,id))
 
 -- ---------------------------------------------------------------------
 
@@ -349,7 +362,7 @@ annotateAST ast ghcAnns = annotateLHsModule ast ghcAnns
 loadInitialComments :: EP ()
 loadInitialComments = do
   -- return () `debug` ("loadInitialComments entered")
-  Just (Ann cs _ _) <- getAnnotation (GHC.L GHC.noSrcSpan ())
+  Just (Ann cs _ _ _) <- getAnnotation (GHC.L GHC.noSrcSpan ())
   mergeComments cs -- `debug` ("loadInitialComments cs=" ++ show cs)
   -- return () `debug` ("loadInitialComments exited")
   return ()
@@ -360,13 +373,14 @@ exactPC a@(GHC.L l ast) =
     do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
        -- ma <- getAnnotation a
        ma <- getAndRemoveAnnotation a
-       offset <- case ma of
-         Nothing -> return 0
+       (offset,no) <- case ma of
+         Nothing -> return (0,0)
            `debug` ("exactPC:no annotation for " ++ show (ss2span l,typeOf ast))
-         Just (Ann lcs v dp) -> do
+         Just (Ann lcs v nd dp) -> do
              mergeComments lcs `debug` ("exactPC:(l,lcs,dp):" ++ show (showGhc l,lcs,dp))
-             return dp
+             return (dp,nd)
 
+       setNestedOffset no
        pushOffset offset
        do
          exactP ast
@@ -1332,7 +1346,9 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     printStringAtMaybeAnn (G GHC.AnnLet) "let"
     printStringAtMaybeAnn (G GHC.AnnOpenC) "{"
     printStringAtMaybeAnnAll (G GHC.AnnSemi) ";"
+    pushNestedOffset
     exactP lb
+    popOffset
     printStringAtMaybeAnn (G GHC.AnnCloseC) "}"
     printStringAtMaybeAnn (G GHC.AnnIn) "in"
     exactPC e
