@@ -160,7 +160,7 @@ pushNestedOffset = do
   DP (lo,nd) <- getNestedOffset
   return () `debug` ("pushNestedOffset:nd=" ++ show nd)
   (r,c) <- getPos
-  printWhitespace (r+lo,c)
+  printWhitespace (r+lo,1)
   pushOffset nd
 
 getNestedOffset :: EP DeltaPos
@@ -375,8 +375,8 @@ exactPC a@(GHC.L l ast) =
        (offset,no) <- case ma of
          Nothing -> return (0,DP (0,0))
            `debug` ("exactPC:no annotation for " ++ show (ss2span l,typeOf ast))
-         Just (Ann lcs v nd dp) -> do
-             mergeComments lcs `debug` ("exactPC:(l,lcs,dp):" ++ show (showGhc l,lcs,dp))
+         Just (Ann lcs _v nd dp) -> do
+             mergeComments lcs `debug` ("exactPC:(l,lcs,nd,dp):" ++ show (showGhc l,lcs,nd,dp))
              return (dp,nd)
 
        setNestedOffset no

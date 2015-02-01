@@ -228,10 +228,10 @@ tt = do
     manipulateAstTest "AltsSemis.hs"             "Main"
     manipulateAstTest "LetExprSemi.hs"           "LetExprSemi"
     manipulateAstTest "LetExpr2.hs"             "Main"
-    manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
+    manipulateAstTest "LetStmt.hs"               "Layout.LetStmt"
     -}
 
-    manipulateAstTest "LetStmt.hs"               "Layout.LetStmt"
+    manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
 {-
     manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
     manipulateAstTest "Cpp.hs"                   "Main"
@@ -328,6 +328,8 @@ manipulateAstTest' mchange useTH file' modname = do
               else printed ++ "\n==============\n"
                     ++ "lengths:" ++ show (length printed,length contents) ++ "\n"
                     ++ parsedAST
+                    ++ "\n========================\n"
+                    ++ showAnnData (organiseAnns ann) 0 parsed
   -- putStrLn $ "Test:parsed=" ++ parsedAST
   writeFile out $ result
   -- putStrLn $ "Test:ann organised:" ++ showGhc (organiseAnns ann)

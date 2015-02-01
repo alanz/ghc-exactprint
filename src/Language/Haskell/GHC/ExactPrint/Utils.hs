@@ -96,20 +96,22 @@ debug = flip trace
 --    - the annotations provided by GHC
 
 {- -}
-newtype AP x = AP ([(GHC.SrcSpan,DeltaPos,AnnConName)] -> GHC.SrcSpan -> Extra -> GHC.ApiAnns
-            -> (x, [(GHC.SrcSpan,DeltaPos,AnnConName)],   GHC.SrcSpan,   Extra,   GHC.ApiAnns,
+newtype AP x = AP ([(GHC.SrcSpan,DeltaPos,Grouping,AnnConName)] -> GHC.SrcSpan -> Extra -> GHC.ApiAnns
+            -> (x, [(GHC.SrcSpan,DeltaPos,Grouping,AnnConName)],   GHC.SrcSpan,   Extra,   GHC.ApiAnns,
                   ([(AnnKey,Annotation)],[(AnnKeyF,[DeltaPos])])
                  ))
 
--- TODO: AZ: Is this still needed?
+
 data Extra = Extra
                {
                  e_is_infix :: Bool -- isInfix for a FunBind
-               , e_grouping :: Grouping
+                 -- TODO: AZ: Is this ^^  still needed?
+
+               -- , e_grouping :: Grouping
                , e_values   :: [(GHC.SrcSpan,Value)]
                }
 
-data Grouping = None | Primed GHC.SrcSpan | Active | Done DeltaPos
+data Grouping = None | Primed GHC.SrcSpan | Active DeltaPos | Done DeltaPos
               deriving (Eq,Show)
 
 instance Functor AP where
@@ -131,7 +133,7 @@ instance Monad AP where
 
 runAP :: AP () -> GHC.ApiAnns -> Anns
 runAP (AP f) ga
- = let (_,_,_,_,_,(se,sa)) = f [] GHC.noSrcSpan (Extra False None [(GHC.noSrcSpan,emptyValue)]) ga
+ = let (_,_,_,_,_,(se,sa)) = f [] GHC.noSrcSpan (Extra False [(GHC.noSrcSpan,emptyValue)]) ga
    in (Map.fromListWith combineAnns se,Map.fromListWith (++) sa)
         --  `debug` ("runAP:se=" ++ show se)
 
@@ -145,14 +147,14 @@ combineAnns (Ann cs1 mf1 nd1 dp1) (Ann cs2 mf2 _ _) = Ann (cs1 ++ cs2) (cmf mf1 
 
 -- |Note: assumes the SrcSpan stack is nonempty
 getSrcSpanAP :: AP GHC.SrcSpan
-getSrcSpanAP = AP (\l@((ss,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
+getSrcSpanAP = AP (\l@((ss,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
 
 getPriorSrcSpanAP :: AP GHC.SrcSpan
-getPriorSrcSpanAP = AP (\l@(_:(ss,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
+getPriorSrcSpanAP = AP (\l@(_:(ss,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
 
 pushSrcSpanAP :: Data a => (GHC.Located a) -> AP ()
 pushSrcSpanAP (GHC.L l a) = AP (\ls pe e ga ->
-                  ((),(l,DP (0,srcSpanStartColumn l),annGetConstr a):ls,pe,e,ga,mempty))
+                  ((),(l,DP (0,srcSpanStartColumn l),None,annGetConstr a):ls,pe,e,ga,mempty))
 
 popSrcSpanAP :: AP ()
 popSrcSpanAP = AP (\(_:ls) pe e ga -> ((),ls,pe,e,ga,mempty))
@@ -166,65 +168,72 @@ adjustDeltaForOffsetM dp = do
 
 adjustDeltaForOffset :: Int -> DeltaPos -> DeltaPos
 adjustDeltaForOffset _colOffset dp@(DP (0,_)) = dp -- same line
-adjustDeltaForOffset  colOffset (DP (l,c)) =
-  let
-    c' = c - colOffset
-  in (DP (l,c'))
+adjustDeltaForOffset  colOffset    (DP (l,c)) = DP (l,c - colOffset)
 
 -- ---------------------------------------------------------------------
 
 startGroupingOffsets :: AP ()
 startGroupingOffsets = do
-  (Extra v _g mfs) <- getExtra
   co <- getCurrentColOffset
   ss <- getSrcSpanAP
   return () `debug` ("startGroupingOffsets:(ss,co)=" ++ showGhc (ss,co))
-  setExtra (Extra v (Primed ss) mfs)
+  setGrouping (Primed ss)
 
--- Capture the nested ColOffset for retrieval in leaveAST
 stopGroupingOffsets :: AP ()
 stopGroupingOffsets = do
-  e <- getExtra
-  co <- getCurrentColOffset
-  let g' = case e_grouping e of
-        Active -> Done co
-               `debug` ("stopGroupingOffsets:returning: " ++ show co)
-        g      -> g
-  setExtra (e { e_grouping = g' })
+  grp <- getGrouping
+  let grp' = case grp of
+        Active dp -> Done dp
+        Done   dp -> Done dp
+        _         -> None
+  setGrouping grp'
+    `debug` ("stopGroupingOffsets:(grp,grp')=" ++ show (grp,grp'))
 
 maybeAdjustColOffsetForGrouping :: GHC.SrcSpan -> AP ()
 maybeAdjustColOffsetForGrouping ss = do
-  e <- getExtra
-  case e_grouping e of
+  grp <- getGrouping
+  case grp of
     Primed primed -> do
        -- let co = srcSpanStartColumn ss
-       let (DP (lo,co)) = deltaFromSrcSpans primed ss
+       let lo = srcSpanStartLine   ss - srcSpanStartLine   primed
+           co = srcSpanStartColumn ss - srcSpanStartColumn primed
        DP (_,cur) <- getCurrentColOffset
-       setCurrentColOffset (DP (lo,co))
+       setCurrentColOffset (DP (lo,srcSpanStartColumn ss))
+       -- setCurrentColOffset (DP (lo,co))
        -- We need to return the difference between the current in use
        -- co and the one already stored against the SrcSpan
        let offset = cur - srcSpanStartColumn primed
-       setExtra (e { e_grouping = Done (DP (lo, offset)) })
-       return () `debug` ("maybeAdjustColOffsetForGrouping:setting (ss,primed,co,cur,offset)=" ++ showGhc (ss,primed,co,cur,offset))
+       setGrouping (Active (DP (lo, offset)))
+       return () `debug` ("maybeAdjustColOffsetForGrouping:setting (ss,primed,lo,co,cur,offset)="
+                                                        ++ showGhc (ss,primed,lo,co,cur,offset))
     _ -> return ()
 
 getNestedColOffset :: AP DeltaPos
-getNestedColOffset = do
-  e <- getExtra
-  case e_grouping e of
-   Done dp -> return dp
-        `debug` ("getNestedColOffset: returning " ++ show dp)
-   _       -> return (DP (0,0))
+getNestedColOffset = AP (\l@((_,_,grp,_):_) pe e ga ->
+  let
+    dp = case grp of
+           Active dp' -> dp'
+                `debug` ("getNestedColOffset: returning " ++ show dp')
+           _       -> (DP (0,0))
+  in (dp,l,pe,e,ga,mempty))
+
+getGrouping :: AP Grouping
+getGrouping = AP (\l@((_,_,grp,_):_) pe e ga ->  (grp,l,pe,e,ga,mempty))
+
+setGrouping :: Grouping -> AP ()
+setGrouping grp = AP (\((l,o,_grp,cn):ls) pe e ga ->  ((),(l,o,grp,cn):ls,pe,e,ga,mempty))
 
 -- | Get the current column offset
 getCurrentColOffset :: AP DeltaPos
-getCurrentColOffset = AP (\l@((_,o,_):_) pe e ga
+getCurrentColOffset = AP (\l@((_,o,_,_):_) pe e ga
                    -> (o,l,pe,e,ga,mempty))
 
 -- | Set the current column offset
 setCurrentColOffset :: DeltaPos -> AP ()
-setCurrentColOffset o = AP (\((ss,_,c):ls) pe e ga
-                   -> ((),(ss,o,c):ls,pe,e,ga,mempty))
+setCurrentColOffset o = AP (\((ss,_,g,c):ls) pe e ga
+                   -> ((),(ss,o,g,c):ls,pe,e,ga,mempty)
+                      `debug` ("setCurrentColOffset:o=" ++ show o)
+                           )
 
 -- |Get the difference between the current and the previous
 -- colOffsets, if they are on the same line
@@ -290,8 +299,8 @@ addAnnotationsAP ann = AP (\l pe e ga ->
                        ( (),l,pe,e,ga,
                  ([((getAnnKey $ ghead "addAnnotationsAP" l),ann)],[])))
 
-getAnnKey :: (GHC.SrcSpan,t,AnnConName) -> AnnKey
-getAnnKey (l,_,t) = (l,t)
+getAnnKey :: (GHC.SrcSpan,t1,t2,AnnConName) -> AnnKey
+getAnnKey (l,_,_,t) = (l,t)
 
 -- -------------------------------------
 
@@ -304,10 +313,10 @@ addAnnDeltaPos (s,kw) dp = AP (\l pe e ga -> ( (),
 -- -------------------------------------
 
 setFunIsInfix :: Bool -> AP ()
-setFunIsInfix e = AP (\l pe (Extra _ g mf) ga -> ((),l,pe,(Extra e g mf),ga,mempty))
+setFunIsInfix e = AP (\l pe (Extra _ mf) ga -> ((),l,pe,(Extra e mf),ga,mempty))
 
 getFunIsInfix :: AP Bool
-getFunIsInfix = AP (\l pe ex@(Extra e _ _) ga -> (e,l,pe,ex,ga,mempty))
+getFunIsInfix = AP (\l pe ex@(Extra e _) ga -> (e,l,pe,ex,ga,mempty))
 
 -- -------------------------------------
 
@@ -322,20 +331,20 @@ getExtra = AP (\l pe e ga -> (e,l,pe,e,ga,mempty))
 setExtraAnn :: Value -> AP ()
 setExtraAnn mfn = do
   ss <- getSrcSpanAP
-  (Extra v g mfs) <- getExtra
-  setExtra (Extra v g ((ss,mfn):mfs))
+  (Extra v mfs) <- getExtra
+  setExtra (Extra v ((ss,mfn):mfs))
 
 getAndRemoveExtraAnn :: AP Value
 getAndRemoveExtraAnn = do
   ss <- getSrcSpanAP
-  (Extra b g mfs) <- getExtra
+  (Extra b mfs) <- getExtra
   if null mfs
     then return (emptyValue)
     else do
       let (ssm,v) = ghead "getAndRemoveExtraAnn" mfs
       if ss == ssm
          then do
-           setExtra (Extra b g (tail mfs))
+           setExtra (Extra b (tail mfs))
            return v
          else do
            return (emptyValue)
@@ -346,6 +355,7 @@ getAndRemoveExtraAnn = do
 enterAST :: Data a => GHC.Located a -> AP ()
 enterAST lss = do
   return () `debug` ("enterAST entered for " ++ show (ss2span $ GHC.getLoc lss))
+  return () `debug` ("enterAST:currentColOffset=" ++ show (DP (0,srcSpanStartColumn $ GHC.getLoc lss)))
   pushSrcSpanAP lss
   return ()
 
@@ -373,9 +383,15 @@ leaveAST = do
 
   -- let dp = deltaFromSrcSpans priorEnd ss
   dp <- getCurrentDP
-  nd <- getNestedColOffset
+  grp <- getGrouping
+  return () `debug` ("leaveAST:grp=" ++ show grp)
+  let nd = case grp of
+            Active dpg -> dpg
+            Done   dpg -> dpg
+            _         -> DP (0,0)
   mfn <- getAndRemoveExtraAnn
-  addAnnotationsAP (Ann lcs mfn nd dp) `debug` ("leaveAST:(ss,lcs,nd,dp)=" ++ show (showGhc ss,lcs,nd,dp))
+  addAnnotationsAP (Ann lcs mfn nd dp)
+    `debug` ("leaveAST:(ss,lcs,nd,dp)=" ++ show (showGhc ss,lcs,nd,dp))
   popSrcSpanAP
   return () `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
 
@@ -656,16 +672,16 @@ instance AnnotateP GHC.RdrName where
   annotateP l n = do
     case rdrName2String n of
       "[]" -> do
-        addDeltaAnnotation GHC.AnnOpenS -- '[' nonBUG
-        addDeltaAnnotation GHC.AnnCloseS -- ']' BUG
+        addDeltaAnnotation GHC.AnnOpenS  -- '['
+        addDeltaAnnotation GHC.AnnCloseS -- ']'
       "()" -> do
-        addDeltaAnnotation GHC.AnnOpenP -- '('
+        addDeltaAnnotation GHC.AnnOpenP  -- '('
         addDeltaAnnotation GHC.AnnCloseP -- ')'
       "(##)" -> do
-        addDeltaAnnotation GHC.AnnOpen -- '(#'
+        addDeltaAnnotation GHC.AnnOpen  -- '(#'
         addDeltaAnnotation GHC.AnnClose -- '#)'
       "[::]" -> do
-        addDeltaAnnotation GHC.AnnOpen -- '[:'
+        addDeltaAnnotation GHC.AnnOpen  -- '[:'
         addDeltaAnnotation GHC.AnnClose -- ':]'
       _ ->  do
         addDeltaAnnotation GHC.AnnType
@@ -1532,12 +1548,14 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name,AnnotateP body)
     annotatePC body
 
   annotateP _ (GHC.LetStmt lb) = do
+    return () `debug` ("annotateP.LetStmt entered")
     addDeltaAnnotation GHC.AnnLet
     addDeltaAnnotation GHC.AnnOpenC -- '{'
     startGroupingOffsets
-    stopGroupingOffsets
     annotateHsLocalBinds lb
+    stopGroupingOffsets
     addDeltaAnnotation GHC.AnnCloseC -- '}'
+    return () `debug` ("annotateP.LetStmt done")
 
   annotateP _ (GHC.ParStmt pbs _ _) = do
     mapM_ annotateParStmtBlock pbs
