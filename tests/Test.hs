@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 -- | Use "runhaskell Setup.hs test" or "cabal test" to run these tests.
 module Main where
 
@@ -153,7 +152,6 @@ tt = do
     manipulateAstTest "ListComprehensions.hs"    "Main"
     manipulateAstTest "MonadComprehensions.hs"   "Main"
     manipulateAstTest "FunDeps.hs"               "Main"
-    manipulateAstTest "ImplicitParams.hs"        "Main"
     manipulateAstTest "RecursiveDo.hs"           "Main"
     manipulateAstTest "TypeFamilies.hs"          "Main"
     manipulateAstTest "MultiParamTypeClasses.hs" "Main"
@@ -194,7 +192,6 @@ tt = do
     manipulateAstTest "StaticPointers.hs"        "Main"
     manipulateAstTest "DataDecl.hs"              "Main"
     manipulateAstTest "Guards.hs"                "Main"
-    manipulateAstTest "RebindableSyntax.hs"      "Main"
     manipulateAstTest "RdrNames.hs"              "RdrNames"
     manipulateAstTest "Vect.hs"                  "Vect"
     manipulateAstTest "Tuple.hs"                 "Main"
@@ -228,10 +225,13 @@ tt = do
     manipulateAstTest "LetExprSemi.hs"           "LetExprSemi"
     manipulateAstTest "LetExpr2.hs"             "Main"
     manipulateAstTest "LetStmt.hs"               "Layout.LetStmt"
-    manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
+    manipulateAstTest "LayoutLet.hs"             "Main"
     -}
 
-    manipulateAstTest "LayoutLet.hs"             "Main"
+    -- manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
+    manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
+    -- manipulateAstTest "ImplicitParams.hs"        "Main"
+    -- manipulateAstTest "RebindableSyntax.hs"      "Main"
 {-
     manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
     manipulateAstTest "Cpp.hs"                   "Main"
@@ -250,7 +250,7 @@ changeLayoutLet2 parsed
                     `SYB.extT` replacePat
                    ) parsed
   where
-    newName = GHC.mkRdrUnqual (GHC.mkVarOcc "xxxlong")
+    newName = GHC.mkRdrUnqual (GHC.mkVarOcc "xxxlongerrrr")
     cond ln = ss2span ln == ((7, 5),(7, 8))
            || ss2span ln == ((8,24),(8,27))
     replaceRdr :: GHC.Located GHC.RdrName -> GHC.Located GHC.RdrName
@@ -346,11 +346,7 @@ type ParseResult = GHC.TypecheckedModule
 parsedFileGhc :: String -> String -> Bool -> IO (GHC.ApiAnns,ParseResult)
 parsedFileGhc fileName modname useTH = do
     -- putStrLn $ "parsedFileGhc:" ++ show fileName
-#if __GLASGOW_HASKELL__ > 704
     GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
-#else
-    GHC.defaultErrorHandler GHC.defaultLogAction $ do
-#endif
       GHC.runGhc (Just libdir) $ do
         dflags <- GHC.getSessionDynFlags
         let dflags' = foldl GHC.xopt_set dflags

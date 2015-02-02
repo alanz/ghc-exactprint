@@ -99,6 +99,8 @@ instance Annotated (GHC.Located a) where
 ------------------------------------------------------
 -- The EP monad and basic combinators
 
+-- The (ColOffset,ColOffset) value carries the normal and current
+-- column offset. The second one may change while in a nested offset.
 newtype EP x = EP (Pos -> [(ColOffset,ColOffset)] -> [GHC.SrcSpan] -> [Comment] -> Extra -> Anns
             -> (x, Pos,   [(ColOffset,ColOffset)],   [GHC.SrcSpan],   [Comment],   Extra,   Anns, ShowS))
 
@@ -141,27 +143,33 @@ setPos l = EP (\_ dp s cs st an -> ((),l,dp,s,cs,st,an,id))
 getOffset :: EP ColOffset
 getOffset = EP (\l dps s cs st an -> (fst $ ghead "getOffset" dps,l,dps,s,cs,st,an,id))
 
-pushOffset :: ColOffset -> EP ()
-pushOffset dc = EP (\l dps s cs st an ->
+-- |Given a step offset to be applies, and the original column when
+-- the offset was calculated, determine an equivalent offset, based on
+-- the current column.
+pushOffset :: ColOffset -> Col -> EP ()
+pushOffset dc ec = EP (\(r,c) dps s cs st an ->
   let
     (co,_) = ghead "pushOffset" dps
     co' = dc + co
-  in ((),l,(co',dc):dps,s,cs,st,an,id)
-     `debug` ("pushOffset:co'=" ++ show co')
+  in ((),(r,c),(co',dc):dps,s,cs,st,an,id)
+     `debug` ("pushOffset:(l,dc,ec,co')=" ++ show ((r,c),dc,ec,co'))
      )
 
 popOffset :: EP ()
 popOffset = EP (\l (_o:dp) s cs st an -> ((),l,dp,s,cs,st,an,id)
-     `debug` ("popOffset:co=" ++ show (fst _o))
+     `debug` ("popOffset:old co,new co=" ++ show (fst _o,fst $ head dp))
                )
 
 pushNestedOffset :: EP ()
 pushNestedOffset = do
-  DP (lo,nd) <- getNestedOffset
+  ss <- getSrcSpan
+  pushSrcSpan ss
+  DP (_lo,nd) <- getNestedOffset
   return () `debug` ("pushNestedOffset:nd=" ++ show nd)
-  (r,c) <- getPos
+  (_r,c) <- getPos
   -- printWhitespace (r+lo,1)
-  pushOffset nd
+  pushOffset nd c
+  return ()
 
 getNestedOffset :: EP DeltaPos
 getNestedOffset = EP (\l dp s cs e an -> (eNestedOffset e,l,dp,s,cs,e,an,id))
@@ -176,6 +184,9 @@ pushSrcSpan ss = EP (\l dp sss cs st an -> ((),l,dp,(ss:sss),cs,st,an,id))
 
 popSrcSpan :: EP ()
 popSrcSpan = EP (\l dp (_:sss) cs st an -> ((),l,dp,sss,cs,st,an,id))
+
+getSrcSpan :: EP GHC.SrcSpan
+getSrcSpan = EP (\l dp (ss:sss) cs st an -> (ss,l,dp,ss:sss,cs,st,an,id))
 
 
 getAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
@@ -301,7 +312,6 @@ printStringAtLsDelta mc s =
     (cl:_) -> do
       p <- getPos
       colOffset <- getOffset
-      -- if isGoodDelta cl
       if isGoodDeltaWithOffset cl colOffset
         then printStringAt (undelta p cl colOffset) s
         else return () `debug` ("printStringAtLsDelta:bad delta for (mc,s):" ++ show (mc,s))
@@ -372,15 +382,15 @@ exactPC a@(GHC.L l ast) =
     do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
        -- ma <- getAnnotation a
        ma <- getAndRemoveAnnotation a
-       (offset,no) <- case ma of
-         Nothing -> return (0,DP (0,0))
+       (offset,no,ec) <- case ma of
+         Nothing -> return (0,DP (0,0),0)
            `debug` ("exactPC:no annotation for " ++ show (ss2span l,typeOf ast))
-         Just (Ann lcs _v nd dp) -> do
-             mergeComments lcs `debug` ("exactPC:(l,lcs,nd,dp):" ++ show (showGhc l,lcs,nd,dp))
-             return (dp,nd)
+         Just (Ann lcs ec' nd dp) -> do
+             mergeComments lcs `debug` ("exactPC:(l,lcs,ec,nd,dp):" ++ show (showGhc l,lcs,ec',nd,dp))
+             return (dp,nd,ec')
 
        setNestedOffset no
-       pushOffset offset
+       pushOffset offset ec
        do
          exactP ast
          printStringAtMaybeAnn (G GHC.AnnComma) ","
@@ -1246,6 +1256,7 @@ instance (ExactP body)
     pushNestedOffset
     exactP lb
     popOffset
+    popSrcSpan
     printStringAtMaybeAnn (G GHC.AnnCloseC) "}"
 
   exactP (GHC.ParStmt pbs _ _) = do
@@ -1350,7 +1361,9 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     printStringAtMaybeAnnAll (G GHC.AnnSemi) ";"
     pushNestedOffset
     exactP lb
+    return () `debug` ("exactP.HsLet lb done")
     popOffset
+    popSrcSpan
     printStringAtMaybeAnn (G GHC.AnnCloseC) "}"
     printStringAtMaybeAnn (G GHC.AnnIn) "in"
     exactPC e

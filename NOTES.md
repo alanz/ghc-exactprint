@@ -96,10 +96,28 @@ disconnected from its comments, e.g. a pre or post comment for a
 declaration.
 
 
-
 Note: Because the position always moves forward when emitting source,
 and syntax element start points are used by exactPC to advance, there
 is a problem with preceding comments.
 
+## Delta Annotations and modifications
+
+Assume the following
 
 
+```
+         1         2
+123456789012345678901
+foo xxx = let
+            a = 3
+          in aaa + xx
+```
+
+Here the RHS contains a HsLet, from (1,11) to (3,21)
+
+The prior structure ends at (1,9) for the '='
+
+
+
+We need to know the expected/normal endpoint for an exactPC span, and
+adjust for what we actually see.

@@ -13,7 +13,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , Span
   , PosToken
   , DeltaPos(..)
-  , ColOffset
+  , ColOffset,Col
   , Annotation(..)
   , annNone
   , Anns,anEP,anF
@@ -69,9 +69,10 @@ type Span = (Pos,Pos)
 
 data DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
 type ColOffset = Int
+type Col       = Int
 
 annNone :: Annotation
-annNone = Ann [] emptyValue (DP (0,0)) 0
+annNone = Ann [] 0 (DP (0,0)) 0
 
 emptyValue :: Value
 emptyValue = newValue (Just () :: Maybe ())
@@ -83,7 +84,7 @@ isEmptyValue v = vv == Just ()
 
 data Annotation = Ann
   { ann_comments     :: ![DComment]
-  , ann_extra        :: !Value -- TODO:AZ: Needed?
+  , ann_end_col      :: !Col -- ^ prior end column at point annotation was captured
   , ann_nested_delta :: !DeltaPos
   , ann_delta        :: !ColOffset
 
