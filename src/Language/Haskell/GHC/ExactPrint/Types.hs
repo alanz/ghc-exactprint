@@ -13,7 +13,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , Span
   , PosToken
   , DeltaPos(..)
-  , ColOffset,Col
+  , ColOffset,ColDelta,Col
   , Annotation(..)
   , annNone
   , Anns,anEP,anF
@@ -68,7 +68,8 @@ type Pos = (Int,Int)
 type Span = (Pos,Pos)
 
 data DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
-type ColOffset = Int
+type ColOffset = Int -- ^ indentation point for a new line
+type ColDelta  = Int -- ^ difference between two cols
 type Col       = Int
 
 annNone :: Annotation

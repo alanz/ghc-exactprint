@@ -2,6 +2,7 @@
 module Main where
 
 import Language.Haskell.GHC.ExactPrint
+import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
 import GHC.Paths ( libdir )
@@ -120,6 +121,7 @@ tests = TestList
   , mkTestMod "WhereIn4.hs"              "WhereIn4"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
+  , mkTestModChange changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
 
   ]
 
@@ -228,8 +230,10 @@ tt = do
     manipulateAstTest "LayoutLet.hs"             "Main"
     -}
 
-    -- manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
-    manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
+    manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
+    -- manipulateAstTestWithMod changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
+    -- manipulateAstTestWithMod changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
+    -- manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
     -- manipulateAstTest "ImplicitParams.hs"        "Main"
     -- manipulateAstTest "RebindableSyntax.hs"      "Main"
 {-
@@ -250,9 +254,38 @@ changeLayoutLet2 parsed
                     `SYB.extT` replacePat
                    ) parsed
   where
-    newName = GHC.mkRdrUnqual (GHC.mkVarOcc "xxxlongerrrr")
+    newName = GHC.mkRdrUnqual (GHC.mkVarOcc "xxxlonger")
     cond ln = ss2span ln == ((7, 5),(7, 8))
            || ss2span ln == ((8,24),(8,27))
+    replaceRdr :: GHC.Located GHC.RdrName -> GHC.Located GHC.RdrName
+    replaceRdr (GHC.L ln _)
+        | cond ln = GHC.L ln newName
+    replaceRdr x = x
+
+    replaceHsVar :: GHC.LHsExpr GHC.RdrName -> GHC.LHsExpr GHC.RdrName
+    replaceHsVar (GHC.L ln (GHC.HsVar _))
+        | cond ln = GHC.L ln (GHC.HsVar newName)
+    replaceHsVar x = x
+
+    replacePat (GHC.L ln (GHC.VarPat _))
+        | cond ln = GHC.L ln (GHC.VarPat newName)
+    replacePat x = x
+
+changeLayoutLet3 :: GHC.ParsedSource -> GHC.ParsedSource
+changeLayoutLet3 parsed = rename newName [((7,5),(7,8)),((9,14),(9,17))] parsed
+  where
+    newName = GHC.mkRdrUnqual (GHC.mkVarOcc "xxxlonger")
+
+rename :: (SYB.Data a) => GHC.RdrName -> [Span] -> a -> a
+rename newName spans a
+  = SYB.everywhere ( SYB.mkT   replaceRdr
+                    `SYB.extT` replaceHsVar
+                    `SYB.extT` replacePat
+                   ) a
+  where
+    cond :: GHC.SrcSpan -> Bool
+    cond ln = any (\ss -> ss2span ln == ss) spans
+
     replaceRdr :: GHC.Located GHC.RdrName -> GHC.Located GHC.RdrName
     replaceRdr (GHC.L ln _)
         | cond ln = GHC.L ln newName

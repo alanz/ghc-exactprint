@@ -18,6 +18,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , srcSpanEndLine
   , srcSpanStartColumn
   , srcSpanEndColumn
+  , getLocalBindsSrcSpan
 
   , ss2span
   , ss2pos
@@ -1074,7 +1075,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name) =>
     addDeltaAnnotation GHC.AnnEqual
     mapM_ annotatePC grhs
     addDeltaAnnotation GHC.AnnWhere
-    annotateHsLocalBinds lb
+    -- annotateHsLocalBinds lb
+    annotatePC (GHC.L (getLocalBindsSrcSpan lb) lb)
 
   annotateP _ (GHC.VarBind _n rhse _) = do
     -- Note: this bind is introduced by the typechecker
@@ -1154,7 +1156,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name,
     addDeltaAnnotation GHC.AnnWhere
     addDeltaAnnotation GHC.AnnOpenC -- '{'
     addDeltaAnnotationsInside GHC.AnnSemi
-    annotateHsLocalBinds lb
+    -- annotateHsLocalBinds lb
+    annotatePC (GHC.L (getLocalBindsSrcSpan lb) lb)
     addDeltaAnnotation GHC.AnnCloseC -- '}'
 
 -- ---------------------------------------------------------------------
@@ -1582,9 +1585,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name,AnnotateP body)
     return () `debug` ("annotateP.LetStmt entered")
     addDeltaAnnotation GHC.AnnLet
     addDeltaAnnotation GHC.AnnOpenC -- '{'
-    startGroupingOffsets
-    annotateHsLocalBinds lb
-    stopGroupingOffsets
+    -- startGroupingOffsets
+    -- annotateHsLocalBinds lb
+    annotatePC (GHC.L (getLocalBindsSrcSpan lb) lb)
+    -- stopGroupingOffsets
     addDeltaAnnotation GHC.AnnCloseC -- '}'
     return () `debug` ("annotateP.LetStmt done")
 
@@ -1627,6 +1631,35 @@ annotateParStmtBlock (GHC.ParStmtBlock stmts _ns _) = do
 
 -- ---------------------------------------------------------------------
 
+-- | Local binds need to be indented as a group, and thus need to have a
+-- SrcSpan around them so they can be processed via the normal
+-- annotatePC / exactPC machinery.
+getLocalBindsSrcSpan :: (GHC.HsLocalBinds name) -> GHC.SrcSpan
+getLocalBindsSrcSpan (GHC.HsValBinds (GHC.ValBindsIn binds sigs))
+  = case spans of
+      []  -> GHC.noSrcSpan
+      sss -> GHC.combineSrcSpans (head sss) (last sss)
+  where
+    spans = sort $ (map GHC.getLoc (GHC.bagToList binds) ++ map GHC.getLoc sigs)
+
+getLocalBindsSrcSpan (GHC.HsValBinds (GHC.ValBindsOut {}))
+   = error $ "getLocalBindsSrcSpan: only valid after type checking"
+
+getLocalBindsSrcSpan (GHC.HsIPBinds (GHC.IPBinds binds _))
+  = case sort (map GHC.getLoc binds) of
+      [] -> GHC.noSrcSpan
+      sss -> GHC.combineSrcSpans (head sss) (last sss)
+
+getLocalBindsSrcSpan (GHC.EmptyLocalBinds) = GHC.noSrcSpan
+
+-- ---------------------------------------------------------------------
+
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
+  => AnnotateP (GHC.HsLocalBinds name) where
+  annotateP _ lb = annotateHsLocalBinds lb
+
+-- ---------------------------------------------------------------------
+
 annotateHsLocalBinds :: (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
                      => (GHC.HsLocalBinds name) -> AP ()
 annotateHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
@@ -1637,7 +1670,7 @@ annotateHsLocalBinds (GHC.HsValBinds (GHC.ValBindsOut {}))
    = error $ "annotateHsLocalBinds: only valid after type checking"
 
 annotateHsLocalBinds (GHC.HsIPBinds (GHC.IPBinds binds _)) = mapM_ annotatePC binds
-annotateHsLocalBinds (GHC.EmptyLocalBinds) = return ()
+annotateHsLocalBinds (GHC.EmptyLocalBinds)                 = return ()
 
 -- ---------------------------------------------------------------------
 
@@ -1723,9 +1756,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
     addDeltaAnnotation GHC.AnnLet
     addDeltaAnnotation GHC.AnnOpenC
     addDeltaAnnotationsInside GHC.AnnSemi
-    startGroupingOffsets
-    annotateHsLocalBinds binds
-    stopGroupingOffsets
+    -- startGroupingOffsets
+    -- annotateHsLocalBinds binds
+    annotatePC (GHC.L (getLocalBindsSrcSpan binds) binds)
+    -- stopGroupingOffsets
     addDeltaAnnotation GHC.AnnCloseC
     addDeltaAnnotation GHC.AnnIn
     annotatePC e
@@ -2010,7 +2044,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
   annotateP _ (GHC.HsCmdLet binds e) = do
     addDeltaAnnotation GHC.AnnLet
     addDeltaAnnotation GHC.AnnOpenC
-    annotateHsLocalBinds binds
+    -- annotateHsLocalBinds binds
+    annotatePC (GHC.L (getLocalBindsSrcSpan binds) binds)
     addDeltaAnnotation GHC.AnnCloseC
     addDeltaAnnotation GHC.AnnIn
     annotatePC e

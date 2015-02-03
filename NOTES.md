@@ -113,11 +113,50 @@ foo xxx = let
           in aaa + xx
 ```
 
-Here the RHS contains a HsLet, from (1,11) to (3,21)
+Currently, when moving from the "let" to "a = 3" we have an offset
+specified as DP (1,2), ie one line down
 
-The prior structure ends at (1,9) for the '='
+Output stage in exactPC
 
+printStringAtMaybeAnn gets the offset and calls
+printStringAtLsDelta which does
 
+  cl = the DP to use
+  p <- getPos -- to get the current output (r,c)
+  colOffset < getOffset -- gets fst $ head dps, the second AP var.
 
-We need to know the expected/normal endpoint for an exactPC span, and
-adjust for what we actually see.
+Then
+  undelta p cl colOffset
+
+undelta :: Pos -> DeltaPos -> Int -> Pos
+undelta (l,c) (DP (dl,dc)) co = (fl,fc)
+  where
+    fl = l + dl
+    fc = if dl == 0 then c  + dc
+                    else co + dc
+
+So undelta treats co as the baseline offset when moving to a new line.
+
+co is set on entry to a new srcspan as follows
+
+  The SrcSpan has (Ann lcs ec nd dp)
+     where lcs = commsnts
+           ec  = original column offset at the point the dp was captured.
+           nd  = nested delta position, no longer used.
+           dp = the delta pos associated with the span.
+
+This gets fed into pushOffset dp ec
+
+this does
+    (co,_) = ghead "pushOffset" dps -- second param of EP
+    co' = dc + co
+ and then sets dps to
+   (co',dc):dps
+
+Currently the second value in the tuple is not used. We will use it to
+store the current difference that is embodied in the co. Initially
+this is zero, as there have been no changes in the offset. If the
+current col and the ec value differ, this diff is calculated and
+compared with the stored diff. If different, the difference is added
+to the co, and the stored diff updated. This was an offset will only
+be applied once.

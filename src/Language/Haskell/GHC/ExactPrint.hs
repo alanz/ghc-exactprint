@@ -100,9 +100,10 @@ instance Annotated (GHC.Located a) where
 -- The EP monad and basic combinators
 
 -- The (ColOffset,ColOffset) value carries the normal and current
--- column offset. The second one may change while in a nested offset.
-newtype EP x = EP (Pos -> [(ColOffset,ColOffset)] -> [GHC.SrcSpan] -> [Comment] -> Extra -> Anns
-            -> (x, Pos,   [(ColOffset,ColOffset)],   [GHC.SrcSpan],   [Comment],   Extra,   Anns, ShowS))
+-- column offset. The second one captures the difference between the
+-- original col when the DP was captured and the current one.
+newtype EP x = EP (Pos -> [(ColOffset,ColDelta)] -> [GHC.SrcSpan] -> [Comment] -> Extra -> Anns
+            -> (x, Pos,   [(ColOffset,ColDelta)],   [GHC.SrcSpan],   [Comment],   Extra,   Anns, ShowS))
 
 data Extra = E { eFunId :: (Bool,String) -- (isSymbol,name)
                , eFunIsInfix :: Bool
@@ -149,9 +150,11 @@ getOffset = EP (\l dps s cs st an -> (fst $ ghead "getOffset" dps,l,dps,s,cs,st,
 pushOffset :: ColOffset -> Col -> EP ()
 pushOffset dc ec = EP (\(r,c) dps s cs st an ->
   let
-    (co,_) = ghead "pushOffset" dps
-    co' = dc + co
-  in ((),(r,c),(co',dc):dps,s,cs,st,an,id)
+    (co,cd) = ghead "pushOffset" dps
+    nd = c - ec
+    (co',cd') = if nd == cd then (dc + co,cd)
+                            else (dc + co + (nd - cd), nd)
+  in ((),(r,c),(co',cd'):dps,s,cs,st,an,id)
      `debug` ("pushOffset:(l,dc,ec,co')=" ++ show ((r,c),dc,ec,co'))
      )
 
@@ -884,7 +887,9 @@ instance ExactP (GHC.HsBind GHC.RdrName) where
     printStringAtMaybeAnn (G GHC.AnnEqual) "="
     mapM_ exactPC grhs
     printStringAtMaybeAnn (G GHC.AnnWhere) "where"
-    exactP lb
+    -- exactP lb
+    exactPC (GHC.L (getLocalBindsSrcSpan lb) lb)
+
 
   exactP (GHC.VarBind _var_id _var_rhs _var_inline ) = printString "VarBind"
   exactP (GHC.AbsBinds _abs_tvs _abs_ev_vars _abs_exports _abs_ev_binds _abs_binds) = printString "AbsBinds"
@@ -953,7 +958,8 @@ instance (ExactP body) => ExactP (GHC.Match GHC.RdrName (GHC.Located body)) wher
     printStringAtMaybeAnn (G GHC.AnnWhere) "where"
     printStringAtMaybeAnn (G GHC.AnnOpenC) "{"
     printStringAtMaybeAnnAll (G GHC.AnnSemi) ";"
-    exactP lb
+    -- exactP lb
+    exactPC (GHC.L (getLocalBindsSrcSpan lb) lb)
     printStringAtMaybeAnn (G GHC.AnnCloseC) "}"
 
 -- ---------------------------------------------------------------------
@@ -1253,10 +1259,11 @@ instance (ExactP body)
   exactP (GHC.LetStmt lb) = do
     printStringAtMaybeAnn (G GHC.AnnLet) "let"
     printStringAtMaybeAnn (G GHC.AnnOpenC) "{"
-    pushNestedOffset
-    exactP lb
-    popOffset
-    popSrcSpan
+    -- pushNestedOffset
+    -- exactP lb
+    exactPC (GHC.L (getLocalBindsSrcSpan lb) lb)
+    -- popOffset
+    -- popSrcSpan
     printStringAtMaybeAnn (G GHC.AnnCloseC) "}"
 
   exactP (GHC.ParStmt pbs _ _) = do
@@ -1359,11 +1366,11 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     printStringAtMaybeAnn (G GHC.AnnLet) "let"
     printStringAtMaybeAnn (G GHC.AnnOpenC) "{"
     printStringAtMaybeAnnAll (G GHC.AnnSemi) ";"
-    pushNestedOffset
-    exactP lb
+    -- pushNestedOffset
+    exactPC (GHC.L (getLocalBindsSrcSpan lb) lb)
     return () `debug` ("exactP.HsLet lb done")
-    popOffset
-    popSrcSpan
+    -- popOffset
+    -- popSrcSpan
     printStringAtMaybeAnn (G GHC.AnnCloseC) "}"
     printStringAtMaybeAnn (G GHC.AnnIn) "in"
     exactPC e
@@ -1662,7 +1669,8 @@ instance ExactP (GHC.HsCmd GHC.RdrName) where
   exactP (GHC.HsCmdLet lb e)    = do
     printStringAtMaybeAnn (G GHC.AnnLet) "let"
     printStringAtMaybeAnn (G GHC.AnnOpenC) "{"
-    exactP lb
+    -- exactP lb
+    exactPC (GHC.L (getLocalBindsSrcSpan lb) lb)
     printStringAtMaybeAnn (G GHC.AnnCloseC) "}"
     printStringAtMaybeAnn (G GHC.AnnIn) "in"
     exactPC e
