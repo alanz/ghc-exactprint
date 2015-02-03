@@ -160,3 +160,10 @@ current col and the ec value differ, this diff is calculated and
 compared with the stored diff. If different, the difference is added
 to the co, and the stored diff updated. This was an offset will only
 be applied once.
+
+Problem is, how do we unwind? i.e., regardless of where the prior line
+ended, a new fn needs to be at col 1. Can't use prior pos for that.
+
+As we pop up the stack of annotations, we need to undo the deltas. Or
+perhaps only compare deltas at equivalent positions before. It is
+captured using a stack, based on pos on entry, do the same on use. TODO.

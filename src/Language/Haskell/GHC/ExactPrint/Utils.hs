@@ -156,13 +156,17 @@ getPriorSrcSpanAP = AP (\l@(_:(ss,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
 
 pushSrcSpanAP :: Data a => (GHC.Located a) -> AP ()
 pushSrcSpanAP (GHC.L l a) = AP (\ls pe e ga ->
-                  ((),(l,DP (0,srcSpanStartColumn l),srcSpanEndColumn pe,annGetConstr a):ls,pe,e,ga,mempty))
+  let
+    ec = if srcSpanStartColumn l == 1
+           then srcSpanEndColumn pe
+           else srcSpanEndColumn pe
+  in ((),(l,DP (0,srcSpanStartColumn l),ec,annGetConstr a):ls,pe,e,ga,mempty))
 
 popSrcSpanAP :: AP ()
 popSrcSpanAP = AP (\(_:ls) pe e ga -> ((),ls,pe,e,ga,mempty))
 
-getOriginalEncCol :: AP Col
-getOriginalEncCol = AP (\l@((_,_,ec,_):_) pe e ga
+getOriginalEndCol :: AP Col
+getOriginalEndCol = AP (\l@((_,_,ec,_):_) pe e ga
                    -> (ec,l,pe,e,ga,mempty))
 
 
@@ -421,7 +425,7 @@ leaveAST = do
       nd' = if s == ss then nd else DP (0,0)
   mfn <- getAndRemoveExtraAnn
   -- let endCol = srcSpanEndColumn priorEnd
-  endCol <- getOriginalEncCol
+  endCol <- getOriginalEndCol
   addAnnotationsAP (Ann lcs endCol nd' dp)
     `debug` ("leaveAST:(ss,lcs,nd',dp)=" ++ show (showGhc ss,lcs,nd',dp))
   popSrcSpanAP
