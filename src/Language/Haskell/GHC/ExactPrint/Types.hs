@@ -16,9 +16,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , ColOffset,ColDelta,Col
   , Annotation(..)
   , annNone
-  , Anns,anEP,anF
-  , AnnsEP
-  , AnnsFinal
+  , Anns,AnnKey,AnnValue,AnnKds
   , KeywordId(..)
   , AnnConName(..)
   , annGetConstr
@@ -26,21 +24,14 @@ module Language.Haskell.GHC.ExactPrint.Types
 
   , ResTyGADTHook(..)
 
-  , AnnKey
   , AnnKeyF
   , mkAnnKeyEP
   , getAnnotationEP
   , getAndRemoveAnnotationEP
 
-  , Value(..)
-  , newValue
-  , fromValue
-  , emptyValue
-  , isEmptyValue
   ) where
 
 import Data.Data
-import Data.Maybe
 
 import qualified GHC           as GHC
 import qualified Outputable    as GHC
@@ -75,13 +66,6 @@ type Col       = Int
 annNone :: Annotation
 annNone = Ann [] (DP (0,0)) 0
 
-emptyValue :: Value
-emptyValue = newValue (Just () :: Maybe ())
-
-isEmptyValue :: Value -> Bool
-isEmptyValue v = vv == Just ()
-  where
-    vv = fromValue v :: Maybe ()
 
 data Annotation = Ann
   { ann_comments     :: ![DComment]
@@ -103,12 +87,18 @@ instance Show GHC.RdrName where
 -- with the list of (KeywordId, DeltaPos) ordered by original
 -- occurence in the source
 
+type Anns = Map.Map AnnKey AnnValue
+type AnnKey   = (GHC.SrcSpan,AnnConName)
+type AnnValue = (Annotation,[(KeywordId,DeltaPos)])
+type AnnKds   = [(KeywordId,DeltaPos)]
+{-
 -- first field carries the comments, second the offsets
 type Anns = (AnnsEP,AnnsFinal)
 anEP :: Anns -> AnnsEP
 anEP (e,_) = e
 anF :: Anns -> AnnsFinal
 anF  (_,f) = f
+-}
 
 -- Holds the name of a constructor
 data AnnConName = CN String
@@ -126,7 +116,6 @@ unConName (CN s) = s
 -- a as the key, to store the standard annotation.
 -- These are used to maintain context in the AP and EP monads
 type AnnsEP = Map.Map (GHC.SrcSpan,AnnConName) Annotation
-type AnnKey =         (GHC.SrcSpan,AnnConName)
 
 -- | The offset values used for actually outputing the source. For a
 -- given @'SrcSpan'@, in a context managed by the AP or EP monads,
@@ -174,16 +163,20 @@ instance (GHC.OutputableBndr name) => GHC.Outputable (ResTyGADTHook name) where
 mkAnnKeyEP :: (Data a) => GHC.Located a -> AnnKey
 mkAnnKeyEP (GHC.L l a) = (l,annGetConstr a)
 
-getAnnotationEP :: (Data a) => AnnsEP -> GHC.Located a -> Maybe Annotation
-getAnnotationEP anns (GHC.L ss a) = Map.lookup (ss, annGetConstr a) anns
+getAnnotationEP :: (Data a) => Anns -> GHC.Located a -> Maybe Annotation
+getAnnotationEP anns (GHC.L ss a)
+  = case Map.lookup (ss, annGetConstr a) anns of
+      Nothing -> Nothing
+      Just (an,_kds) -> Just an
 
 getAndRemoveAnnotationEP :: (Data a)
-                         => AnnsEP -> GHC.Located a -> (Maybe Annotation,AnnsEP)
+                         => Anns -> GHC.Located a -> (Maybe AnnValue,Anns)
 getAndRemoveAnnotationEP anns (GHC.L ss a)
  = case Map.lookup (ss, annGetConstr a) anns of
      Nothing  -> (Nothing,anns)
-     Just ann -> (Just ann,Map.delete (ss, annGetConstr a) anns)
+     Just av -> (Just av,Map.delete (ss, annGetConstr a) anns)
 
+{-
 -- ---------------------------------------------------------------------
 -- Based on
 -- https://github.com/ndmitchell/shake/blob/master/Development/Shake/Value.hs
@@ -199,6 +192,14 @@ data Value = forall a . (Show a,Typeable a, GHC.Outputable a) => Value a
 
 newValue :: (Show a, Typeable a, GHC.Outputable a) => a -> Value
 newValue = Value
+
+emptyValue :: Value
+emptyValue = newValue (Just () :: Maybe ())
+
+isEmptyValue :: Value -> Bool
+isEmptyValue v = vv == Just ()
+  where
+    vv = fromValue v :: Maybe ()
 
 typeValue :: Value -> TypeRep
 typeValue (Value x) = typeOf x
@@ -224,5 +225,5 @@ instance Eq Value where
   Value a == Value b = maybe False (a ==) $ cast b
   Value a /= Value b = maybe True (a /=) $ cast b
 -}
-
+-}
 -- ---------------------------------------------------------------------

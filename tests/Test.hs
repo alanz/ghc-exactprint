@@ -231,12 +231,12 @@ tt = do
     manipulateAstTest "LayoutLet.hs"             "Main"
     manipulateAstTest "ImplicitParams.hs"        "Main"
     manipulateAstTest "RebindableSyntax.hs"      "Main"
-    manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
     manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
     manipulateAstTestWithMod changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
     manipulateAstTestWithMod changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
-    -}
     manipulateAstTestWithMod changeLayoutLet5 "LayoutLet5.hs" "LayoutLet5"
+    -}
+    manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
 
 {-
     manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
@@ -369,7 +369,7 @@ manipulateAstTest' mchange useTH file' modname = do
                     ++ "lengths:" ++ show (length printed,length contents) ++ "\n"
                     ++ parsedAST
                     ++ "\n========================\n"
-                    ++ showAnnData (organiseAnns ann) 0 parsed
+                    ++ showAnnData ann 0 parsed
   -- putStrLn $ "Test:parsed=" ++ parsedAST
   writeFile out $ result
   -- putStrLn $ "Test:ann organised:" ++ showGhc (organiseAnns ann)

@@ -8,8 +8,8 @@ module Language.Haskell.GHC.ExactPrint.Utils
   (
     annotateLHsModule
 
-  , organiseAnns
-  , OrganisedAnns
+  -- , organiseAnns
+  -- , OrganisedAnns
 
   -- , ghcIsComment
   , ghcIsMultiLine
@@ -84,8 +84,8 @@ import qualified Data.Map as Map
 import Debug.Trace
 
 debug :: c -> String -> c
--- debug = flip trace
-debug c _ = c
+debug = flip trace
+-- debug c _ = c
 
 -- ---------------------------------------------------------------------
 
@@ -97,9 +97,9 @@ debug c _ = c
 --    - the annotations provided by GHC
 
 {- -}
-newtype AP x = AP ([(GHC.SrcSpan,DeltaPos,DeltaPos,Col,AnnConName)] -> GHC.SrcSpan -> Extra -> GHC.ApiAnns
-            -> (x, [(GHC.SrcSpan,DeltaPos,DeltaPos,Col,AnnConName)],   GHC.SrcSpan,   Extra,   GHC.ApiAnns,
-                  ([(AnnKey,Annotation)],[(AnnKeyF,[DeltaPos])])
+newtype AP x = AP ([(GHC.SrcSpan,DeltaPos,DeltaPos,Col,[(KeywordId,DeltaPos)],AnnConName)] -> GHC.SrcSpan -> Extra -> GHC.ApiAnns
+            -> (x, [(GHC.SrcSpan,DeltaPos,DeltaPos,Col,[(KeywordId,DeltaPos)],AnnConName)],   GHC.SrcSpan,   Extra,   GHC.ApiAnns,
+                   [(AnnKey,AnnValue)]
                  ))
 
 
@@ -131,40 +131,39 @@ instance Monad AP where
 
 runAP :: AP () -> GHC.ApiAnns -> Anns
 runAP (AP f) ga
- = let (_,_,_,_,_,(se,sa)) = f [] GHC.noSrcSpan (Extra False) ga
-   in (Map.fromListWith combineAnns se,Map.fromListWith (++) sa)
-        --  `debug` ("runAP:se=" ++ show se)
+ = let (_,_,_,_,_,sa) = f [] GHC.noSrcSpan (Extra False) ga
+   in (Map.fromListWith combineAnns sa)
 
-combineAnns :: Annotation -> Annotation -> Annotation
-combineAnns (Ann cs1 ed1 dp1) (Ann cs2 _ed2 _dp2)
-  = Ann (cs1 ++ cs2) ed1 dp1
+combineAnns :: AnnValue -> AnnValue -> AnnValue
+combineAnns ((Ann cs1 ed1 dp1),dps1) ((Ann cs2 _ed2 _dp2),dps2)
+  = (Ann (cs1 ++ cs2) ed1 dp1,dps1++dps2)
 
 -- -------------------------------------
 
 -- |Note: assumes the SrcSpan stack is nonempty
 getSrcSpanAP :: AP GHC.SrcSpan
-getSrcSpanAP = AP (\l@((ss,_,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
+getSrcSpanAP = AP (\l@((ss,_,_,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
 
 getPriorSrcSpanAP :: AP GHC.SrcSpan
-getPriorSrcSpanAP = AP (\l@(_:(ss,_,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
+getPriorSrcSpanAP = AP (\l@(_:(ss,_,_,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
 
 pushSrcSpanAP :: Data a => (GHC.Located a) -> DeltaPos -> AP ()
 pushSrcSpanAP (GHC.L l a) edp = AP (\ls pe e ga ->
   let
     ec = case ls of
-          [(_,DP (_,o),_,_,_)]   -> o
-          ((_,DP (_,o),_,_,_):_) -> o
-  in ((),(l,DP (0,srcSpanStartColumn l),edp,ec,annGetConstr a):ls,pe,e,ga,mempty))
+          [(_,DP (_,o),_,_,_,_)]   -> o
+          ((_,DP (_,o),_,_,_,_):_) -> o
+  in ((),(l,DP (0,srcSpanStartColumn l),edp,ec,[],annGetConstr a):ls,pe,e,ga,mempty))
 
 popSrcSpanAP :: AP ()
 popSrcSpanAP = AP (\(_:ls) pe e ga -> ((),ls,pe,e,ga,mempty))
 
 getOriginalEndCol :: AP Col
-getOriginalEndCol = AP (\l@((_,_,_,ec,_):_) pe e ga
+getOriginalEndCol = AP (\l@((_,_,_,ec,_,_):_) pe e ga
                    -> (ec,l,pe,e,ga,mempty))
 
 getEntryDP :: AP DeltaPos
-getEntryDP = AP (\l@((_,_,edp,_,_):_) pe e ga
+getEntryDP = AP (\l@((_,_,edp,_,_,_):_) pe e ga
                    -> (edp,l,pe,e,ga,mempty))
 
 
@@ -183,7 +182,7 @@ adjustDeltaForOffset  colOffset    (DP (l,c)) = DP (l,c - colOffset)
 
 -- | Get the current column offset
 getCurrentColOffset :: AP DeltaPos
-getCurrentColOffset = AP (\l@((_,o,_,_,_):_) pe e ga
+getCurrentColOffset = AP (\l@((_,o,_,_,_,_):_) pe e ga
                    -> (o,l,pe,e,ga,mempty))
 
 -- |Get the difference between the current and the previous
@@ -230,7 +229,7 @@ getAndRemoveAnnotationComments (anns,canns) ss =
   (case Map.lookup ss canns of
     Just cs -> (cs,(anns,Map.delete ss canns))
     Nothing -> ([],(anns,canns)))
-     `debug` ("getAndRemoveAnnotationComments:ss=" ++ showGhc ss)
+     -- `debug` ("getAndRemoveAnnotationComments:ss=" ++ showGhc ss)
 
 ----------------------------------------
 
@@ -242,27 +241,42 @@ getCommentsForSpan s = AP (\l pe e ga ->
     tokComment :: GHC.Located GHC.AnnotationComment -> Comment
     tokComment t@(GHC.L lt _) = Comment (ghcIsMultiLine t) (ss2span lt) (ghcCommentText t)
   in (cs,l,pe,e,ga1,mempty)
-      `debug` ("getCommentsForSpan:(s,cs)" ++ show (showGhc s,cs))
+      -- `debug` ("getCommentsForSpan:(s,cs)" ++ show (showGhc s,cs))
      )
 
 -- -------------------------------------
 
 -- |Add some annotation to the currently active SrcSpan
-addAnnotationsAP :: Annotation -> AP ()
+addAnnotationsAP :: AnnValue -> AP ()
 addAnnotationsAP ann = AP (\l pe e ga ->
                        ( (),l,pe,e,ga,
-                 ([((getAnnKey $ ghead "addAnnotationsAP" l),ann)],[])))
+                 [((getAnnKey $ ghead "addAnnotationsAP" l),ann)]))
 
-getAnnKey :: (GHC.SrcSpan,t1,t2,t3,AnnConName) -> AnnKey
-getAnnKey (l,_,_,_,t) = (l,t)
+getAnnKey :: (GHC.SrcSpan,t1,t2,t3,t4,AnnConName) -> AnnKey
+getAnnKey (l,_,_,_,_,t) = (l,t)
 
 -- -------------------------------------
 
 addAnnDeltaPos :: (GHC.SrcSpan,KeywordId) -> DeltaPos -> AP ()
+addAnnDeltaPos (s,kw) dp = AP (\((ss,d1,d2,c,kd,cn):ls) pe e ga -> ( (),
+                                ((ss,d1,d2,c,(kw,dp):kd,cn):ls),pe,e,ga,
+                               []
+                               ))
+
+{-
 addAnnDeltaPos (s,kw) dp = AP (\l pe e ga -> ( (),
                                 l,pe,e,ga,
                                ([],
                                [ ((s,kw),[dp]) ])  ))
+-}
+
+-- -------------------------------------
+
+getKds :: AP [(KeywordId,DeltaPos)]
+getKds = AP (\l@((ss,d1,d2,c,kd,cn):ls) pe e ga -> ( kd,
+                                l,pe,e,ga,
+                               []
+                               ))
 
 -- -------------------------------------
 
@@ -278,7 +292,7 @@ getFunIsInfix = AP (\l pe ex@(Extra e) ga -> (e,l,pe,ex,ga,mempty))
 enterAST :: Data a => GHC.Located a -> AP ()
 enterAST lss = do
   return () `debug` ("enterAST entered for " ++ show (ss2span $ GHC.getLoc lss))
-  return () `debug` ("enterAST:currentColOffset=" ++ show (DP (0,srcSpanStartColumn $ GHC.getLoc lss)))
+  -- return () `debug` ("enterAST:currentColOffset=" ++ show (DP (0,srcSpanStartColumn $ GHC.getLoc lss)))
   -- Calculate offset required to get to the start of the SrcSPan
   pe <- getPriorEnd
   let p = deltaFromSrcSpans pe (GHC.getLoc lss)
@@ -313,10 +327,11 @@ leaveAST = do
   dp <- getCurrentDP
   endCol <- getOriginalEndCol
   edp <- getEntryDP
-  addAnnotationsAP (Ann lcs edp dp)
-    `debug` ("leaveAST:(ss,lcs,dp)=" ++ show (showGhc ss,lcs,dp))
+  kds <- getKds
+  addAnnotationsAP ((Ann lcs edp dp),kds)
+    -- `debug` ("leaveAST:(ss,lcs,dp)=" ++ show (showGhc ss,lcs,dp))
   popSrcSpanAP
-  return () `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
+  return () -- `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
 
 -- ---------------------------------------------------------------------
 
@@ -345,13 +360,13 @@ isGoodDelta (DP (ro,co)) = ro >= 0 && co >= 0
 
 addFinalComments :: AP ()
 addFinalComments = do
-  return () `debug` ("addFinalComments:entering=")
+  return () -- `debug` ("addFinalComments:entering=")
   cs <- getCommentsForSpan GHC.noSrcSpan
   let (dcs,_) = localComments 1 ((1,1),(1,1)) cs []
   pushSrcSpanAP (GHC.L GHC.noSrcSpan ()) (DP (0,0))
-  addAnnotationsAP (Ann dcs (DP (0,0)) 0)
+  addAnnotationsAP ((Ann dcs (DP (0,0)) 0),[])
     -- `debug` ("leaveAST:dcs=" ++ show dcs)
-  return () `debug` ("addFinalComments:dcs=" ++ show dcs)
+  return () -- `debug` ("addFinalComments:dcs=" ++ show dcs)
 
 -- ---------------------------------------------------------------------
 
@@ -365,21 +380,21 @@ addAnnotationWorker ann pa = do
       let p = deltaFromSrcSpans pe pa
       case (ann,isGoodDelta p) of
         (G GHC.AnnComma,False) -> return ()
-             `debug`  ("addDeltaAnnotationWorker::bad delta:(ss,ma,p,ann)=" ++ show (ss2span ss,ss2span pa,p,ann))
+             -- `debug`  ("addDeltaAnnotationWorker::bad delta:(ss,ma,p,ann)=" ++ show (ss2span ss,ss2span pa,p,ann))
         (G GHC.AnnSemi,False) -> return ()
-             `debug`  ("addDeltaAnnotationWorker::bad delta:(ss,ma,p,ann)=" ++ show (ss2span ss,ss2span pa,p,ann))
+             -- `debug`  ("addDeltaAnnotationWorker::bad delta:(ss,ma,p,ann)=" ++ show (ss2span ss,ss2span pa,p,ann))
         (G GHC.AnnOpen,False) -> return ()
-             `debug`  ("addDeltaAnnotationWorker::bad delta:(ss,ma,p,ann)=" ++ show (ss2span ss,ss2span pa,p,ann))
+             -- `debug`  ("addDeltaAnnotationWorker::bad delta:(ss,ma,p,ann)=" ++ show (ss2span ss,ss2span pa,p,ann))
         (G GHC.AnnClose,False) -> return ()
-             `debug`  ("addDeltaAnnotationWorker::bad delta:(ss,ma,p,ann)=" ++ show (ss2span ss,ss2span pa,p,ann))
+             -- `debug`  ("addDeltaAnnotationWorker::bad delta:(ss,ma,p,ann)=" ++ show (ss2span ss,ss2span pa,p,ann))
         _ -> do
           p' <- adjustDeltaForOffsetM p
           addAnnDeltaPos (ss,ann) p'
           setPriorEnd pa
-              `debug` ("addDeltaAnnotationWorker:(ss,pe,pa,p,ann)=" ++ show (ss2span ss,ss2span pe,ss2span pa,p,ann))
+              -- `debug` ("addDeltaAnnotationWorker:(ss,pe,pa,p,ann)=" ++ show (ss2span ss,ss2span pe,ss2span pa,p,ann))
     else do
       return ()
-          `debug` ("addDeltaAnnotationWorker::point span:(ss,ma,ann)=" ++ show (ss2span pa,ann))
+          -- `debug` ("addDeltaAnnotationWorker::point span:(ss,ma,ann)=" ++ show (ss2span pa,ann))
 
 
 -- | Look up and add a Delta annotation at the current position, and
@@ -415,7 +430,7 @@ addDeltaAnnotationLs ann off = do
   ma <- getAnnotationAP ss ann
   case (drop off ma) of
     [] -> return ()
-        `debug` ("addDeltaAnnotationLs:missed:(off,pe,ann,ma)=" ++ show (off,ss2span pe,ann,fmap ss2span ma))
+        -- `debug` ("addDeltaAnnotationLs:missed:(off,pe,ann,ma)=" ++ show (off,ss2span pe,ann,fmap ss2span ma))
     (pa:_) -> addAnnotationWorker (G ann) pa
 
 -- | Look up and add possibly multiple Delta annotation at the current
@@ -425,7 +440,7 @@ addDeltaAnnotations ann = do
   ss <- getSrcSpanAP
   ma <- getAnnotationAP ss ann
   let do_one ap' = addAnnotationWorker (G ann) ap'
-                    `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
+                    -- `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
   mapM_ do_one (sort ma)
 
 -- | Look up and add possibly multiple Delta annotations enclosed by
@@ -436,7 +451,7 @@ addDeltaAnnotationsInside ann = do
   ss <- getSrcSpanAP
   ma <- getAnnotationAP ss ann
   let do_one ap' = addAnnotationWorker (G ann) ap'
-                    `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
+                    -- `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
   mapM_ do_one (sort $ filter (\s -> GHC.isSubspanOf s ss) ma)
 
 -- | Look up and add possibly multiple Delta annotations not enclosed by
@@ -448,7 +463,7 @@ addDeltaAnnotationsOutside gann ann = do
   -- ma <- getAnnotationAP ss gann
   ma <- getAndRemoveAnnotationAP ss gann
   let do_one ap' = addAnnotationWorker ann ap'
-                    `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
+                    -- `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
   mapM_ do_one (sort $ filter (\s -> not (GHC.isSubspanOf s ss)) ma)
 
 -- | Add a Delta annotation at the current position, and advance the
@@ -1473,15 +1488,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name,AnnotateP body)
     annotatePC body
 
   annotateP _ (GHC.LetStmt lb) = do
-    return () `debug` ("annotateP.LetStmt entered")
+    -- return () `debug` ("annotateP.LetStmt entered")
     addDeltaAnnotation GHC.AnnLet
     addDeltaAnnotation GHC.AnnOpenC -- '{'
-    -- startGroupingOffsets
-    -- annotateHsLocalBinds lb
     annotatePC (GHC.L (getLocalBindsSrcSpan lb) lb)
-    -- stopGroupingOffsets
     addDeltaAnnotation GHC.AnnCloseC -- '}'
-    return () `debug` ("annotateP.LetStmt done")
+    -- return () `debug` ("annotateP.LetStmt done")
 
   annotateP _ (GHC.ParStmt pbs _ _) = do
     mapM_ annotateParStmtBlock pbs
@@ -2173,7 +2185,7 @@ instance AnnotateP (GHC.CType) where
 -- them to be DComments relative to @p@
 localComments :: Int -> Span -> [Comment] -> [Span] -> ([DComment],[Comment])
 localComments co pin cs ds = r
-  `debug` ("localComments:(p,ds,r):" ++ show ((p,e),ds,r))
+  -- `debug` ("localComments:(p,ds,r):" ++ show ((p,e),ds,r))
   where
     r = (map (\c -> deltaComment co p c) matches,misses ++ missesRest)
     (p,e) = if pin == ((1,1),(1,1))
@@ -2195,7 +2207,7 @@ localComments co pin cs ds = r
 -- current column offset
 undeltaComment :: Pos -> Int -> DComment -> Comment
 undeltaComment l con dco@(DComment _coo b (dps,dpe) s) = r
-    `debug` ("undeltaComment:(l,con,dcomment,r)=" ++ show (l,con,dco,r))
+    -- `debug` ("undeltaComment:(l,con,dcomment,r)=" ++ show (l,con,dco,r))
   where
     r = Comment b ((adj dps $ undelta l dps co),(adj dps $ undelta l dpe co)) s
     co = con
@@ -2209,7 +2221,7 @@ undeltaComment l con dco@(DComment _coo b (dps,dpe) s) = r
 
 deltaComment :: Int -> Pos -> Comment -> DComment
 deltaComment co l cin@(Comment b (s,e) str) = r
-  `debug` ("deltaComment:(co,l,cin,r)=" ++ show (co,l,cin,r))
+  -- `debug` ("deltaComment:(co,l,cin,r)=" ++ show (co,l,cin,r))
   where
     r = DComment co b ((ss2deltaP l s),(ss2deltaP l e)) str
 
@@ -2370,6 +2382,7 @@ pp a = GHC.showPpr GHC.unsafeGlobalDynFlags a
 
 -- ---------------------------------------------------------------------
 
+{-
 -- |For debugging
 type OrganisedAnns = Map.Map GHC.SrcSpan ([(AnnConName,Annotation)]
                                          ,[(KeywordId, [DeltaPos])] )
@@ -2392,12 +2405,13 @@ organiseAnns (anne,annf) = r
         Nothing        -> Map.insert ss ([], [(kw,dps)])   m
     re = foldl insertAnnE Map.empty (Map.toList anne)
     r  = foldl insertAnnF re        (Map.toList annf)
+-}
 
 -- ---------------------------------------------------------------------
 
 -- Based on ghc-syb-utils version, but adding the annotation
 -- information to each SrcLoc.
-showAnnData :: Data a => OrganisedAnns -> Int -> a -> String
+showAnnData :: Data a => Anns -> Int -> a -> String
 showAnnData anns n =
   generic `ext1Q` list `extQ` string `extQ` fastString `extQ` srcSpan
           `extQ` name `extQ` occName `extQ` moduleName `extQ` var `extQ` dataCon
@@ -2422,7 +2436,9 @@ showAnnData anns n =
         -- srcSpan    = ("{"++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.SrcSpan -> String
         srcSpan :: GHC.SrcSpan -> String
         srcSpan ss = "{ "++ (showSDoc_ (GHC.hang (GHC.ppr ss) (n+2)
-                                                 (GHC.ppr (Map.lookup ss anns))))
+                                                 -- (GHC.ppr (Map.lookup ss anns)
+                                                 (GHC.text "")
+                                                 ))
                       ++"}"
 
         var        = ("{Var: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Var -> String
