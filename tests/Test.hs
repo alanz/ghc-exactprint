@@ -231,8 +231,8 @@ tt = do
     -}
 
     -- manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
-    -- manipulateAstTestWithMod changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
-    manipulateAstTestWithMod changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
+    manipulateAstTestWithMod changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
+    -- manipulateAstTestWithMod changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
     -- manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
     -- manipulateAstTest "ImplicitParams.hs"        "Main"
     -- manipulateAstTest "RebindableSyntax.hs"      "Main"

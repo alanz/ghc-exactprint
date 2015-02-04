@@ -107,11 +107,10 @@ newtype EP x = EP (Pos -> [(ColOffset,ColDelta)] -> [GHC.SrcSpan] -> [Comment] -
 
 data Extra = E { eFunId :: (Bool,String) -- (isSymbol,name)
                , eFunIsInfix :: Bool
-               , eNestedOffset :: DeltaPos
                }
 
 initExtra :: Extra
-initExtra = E (False,"") False (DP (0,0))
+initExtra = E (False,"") False
 
 instance Functor EP where
   fmap = liftM
@@ -144,42 +143,24 @@ setPos l = EP (\_ dp s cs st an -> ((),l,dp,s,cs,st,an,id))
 getOffset :: EP ColOffset
 getOffset = EP (\l dps s cs st an -> (fst $ ghead "getOffset" dps,l,dps,s,cs,st,an,id))
 
--- |Given a step offset to be applies, and the original column when
--- the offset was calculated, determine an equivalent offset, based on
--- the current column.
-pushOffset :: ColOffset -> Col -> EP ()
-pushOffset dc ec = EP (\(r,c) dps s cs st an ->
+-- |Given a step offset to be applied, the original column when the
+-- offset was calculated and the current column, determine an
+-- equivalent offset
+pushOffset :: ColOffset -> Col -> Col -> Pos -> EP ()
+pushOffset dc ec sc op@(or,oc) = EP (\(r,c) dps s cs st an ->
   let
     (co,cd) = ghead "pushOffset" dps
-    nd = c - ec
+    nd = sc - oc
     (co',cd') = if nd == cd then (dc + co,cd)
-                            else (dc + co + (nd - cd), nd)
+                            else (dc + co + (cd - nd), nd)
   in ((),(r,c),(co',cd'):dps,s,cs,st,an,id)
-     `debug` ("pushOffset:(l,dc,ec,co')=" ++ show ((r,c),dc,ec,co'))
+     `debug` ("pushOffset:(l,dc,ec,sc,op,(co',cd'),(co,cd))=" ++ show ((r,c),dc,ec,sc,op,(co',cd'),(co,cd)))
      )
 
 popOffset :: EP ()
 popOffset = EP (\l (_o:dp) s cs st an -> ((),l,dp,s,cs,st,an,id)
      `debug` ("popOffset:old co,new co=" ++ show (fst _o,fst $ head dp))
                )
-
-pushNestedOffset :: EP ()
-pushNestedOffset = do
-  ss <- getSrcSpan
-  pushSrcSpan ss
-  DP (_lo,nd) <- getNestedOffset
-  return () `debug` ("pushNestedOffset:nd=" ++ show nd)
-  (_r,c) <- getPos
-  -- printWhitespace (r+lo,1)
-  pushOffset nd c
-  return ()
-
-getNestedOffset :: EP DeltaPos
-getNestedOffset = EP (\l dp s cs e an -> (eNestedOffset e,l,dp,s,cs,e,an,id))
-
-setNestedOffset :: DeltaPos -> EP ()
-setNestedOffset nd = EP (\l dp s cs e an -> ((),l,dp,s,cs,e { eNestedOffset = nd},an,id))
-
 -- ---------------------------------------------------------------------
 
 pushSrcSpan :: GHC.SrcSpan -> EP ()
@@ -317,12 +298,21 @@ printStringAtLsDelta mc s =
       colOffset <- getOffset
       if isGoodDeltaWithOffset cl colOffset
         then printStringAt (undelta p cl colOffset) s
+             `debug` ("printStringAtLsDelta:(pos,s):" ++ show (undelta p cl colOffset,s))
         else return () `debug` ("printStringAtLsDelta:bad delta for (mc,s):" ++ show (mc,s))
     _ -> return ()
 
 
 isGoodDeltaWithOffset :: DeltaPos -> Int -> Bool
 isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP (undelta (0,0) dp colOffset))
+
+-- ---------------------------------------------------------------------
+
+getPosForDelta :: DeltaPos -> EP Pos
+getPosForDelta dp = do
+  p <- getPos
+  colOffset <- getOffset
+  return (undelta p dp colOffset)
 
 -- ---------------------------------------------------------------------
 
@@ -385,15 +375,16 @@ exactPC a@(GHC.L l ast) =
     do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
        -- ma <- getAnnotation a
        ma <- getAndRemoveAnnotation a
-       (offset,no,ec) <- case ma of
-         Nothing -> return (0,DP (0,0),0)
+       (offset,ec,edp) <- case ma of
+         Nothing -> return (0,0,DP (0,0))
            `debug` ("exactPC:no annotation for " ++ show (ss2span l,typeOf ast))
-         Just (Ann lcs ec' nd dp) -> do
-             mergeComments lcs `debug` ("exactPC:(l,lcs,ec,nd,dp):" ++ show (showGhc l,lcs,ec',nd,dp))
-             return (dp,nd,ec')
+         Just (Ann lcs ec' edp dp) -> do
+             mergeComments lcs `debug` ("exactPC:(l,lcs,ec,dp):" ++ show (showGhc l,lcs,ec',dp))
+             return (dp,ec',edp)
 
-       setNestedOffset no
-       pushOffset offset ec
+       -- setNestedOffset no
+       op <- getPosForDelta edp
+       pushOffset offset ec (srcSpanStartColumn l) op
        do
          exactP ast
          printStringAtMaybeAnn (G GHC.AnnComma) ","
