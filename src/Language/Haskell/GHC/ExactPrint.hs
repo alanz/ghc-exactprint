@@ -146,15 +146,15 @@ getOffset = EP (\l dps s cs st an -> (fst $ ghead "getOffset" dps,l,dps,s,cs,st,
 -- |Given a step offset to be applied, the original column when the
 -- offset was calculated and the current column, determine an
 -- equivalent offset
-pushOffset :: ColOffset -> Col -> Col -> Pos -> EP ()
-pushOffset dc ec sc op@(or,oc) = EP (\(r,c) dps s cs st an ->
+pushOffset :: ColOffset -> Col -> Pos -> EP ()
+pushOffset dc sc (_or,oc) = EP (\(r,c) dps s cs st an ->
   let
     (co,cd) = ghead "pushOffset" dps
     nd = sc - oc
     (co',cd') = if nd == cd then (dc + co,cd)
                             else (dc + co + (cd - nd), nd)
   in ((),(r,c),(co',cd'):dps,s,cs,st,an,id)
-     `debug` ("pushOffset:(l,dc,ec,sc,op,(co',cd'),(co,cd))=" ++ show ((r,c),dc,ec,sc,op,(co',cd'),(co,cd)))
+     -- `debug` ("pushOffset:(l,dc,ec,sc,op,(co',cd'),(co,cd))=" ++ show ((r,c),dc,ec,sc,op,(co',cd'),(co,cd)))
      )
 
 popOffset :: EP ()
@@ -168,10 +168,6 @@ pushSrcSpan ss = EP (\l dp sss cs st an -> ((),l,dp,(ss:sss),cs,st,an,id))
 
 popSrcSpan :: EP ()
 popSrcSpan = EP (\l dp (_:sss) cs st an -> ((),l,dp,sss,cs,st,an,id))
-
-getSrcSpan :: EP GHC.SrcSpan
-getSrcSpan = EP (\l dp (ss:sss) cs st an -> (ss,l,dp,ss:sss,cs,st,an,id))
-
 
 getAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
 getAnnotation a  = EP (\l dp s cs st an -> (getAnnotationEP (anEP an) a
@@ -364,7 +360,7 @@ annotateAST ast ghcAnns = annotateLHsModule ast ghcAnns
 loadInitialComments :: EP ()
 loadInitialComments = do
   -- return () `debug` ("loadInitialComments entered")
-  Just (Ann cs _ _ _) <- getAnnotation (GHC.L GHC.noSrcSpan ())
+  Just (Ann cs _ _) <- getAnnotation (GHC.L GHC.noSrcSpan ())
   mergeComments cs -- `debug` ("loadInitialComments cs=" ++ show cs)
   -- return () `debug` ("loadInitialComments exited")
   return ()
@@ -375,16 +371,16 @@ exactPC a@(GHC.L l ast) =
     do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
        -- ma <- getAnnotation a
        ma <- getAndRemoveAnnotation a
-       (offset,ec,edp) <- case ma of
-         Nothing -> return (0,0,DP (0,0))
-           `debug` ("exactPC:no annotation for " ++ show (ss2span l,typeOf ast))
-         Just (Ann lcs ec' edp dp) -> do
-             mergeComments lcs `debug` ("exactPC:(l,lcs,ec,dp):" ++ show (showGhc l,lcs,ec',dp))
-             return (dp,ec',edp)
+       (offset,edp) <- case ma of
+         Nothing -> return (0,DP (0,0))
+           -- `debug` ("exactPC:no annotation for " ++ show (ss2span l,typeOf ast))
+         Just (Ann lcs edp dp) -> do
+             mergeComments lcs -- `debug` ("exactPC:(l,lcs,ec,dp):" ++ show (showGhc l,lcs,ec',dp))
+             return (dp,edp)
 
        -- setNestedOffset no
        op <- getPosForDelta edp
-       pushOffset offset ec (srcSpanStartColumn l) op
+       pushOffset offset (srcSpanStartColumn l) op
        do
          exactP ast
          printStringAtMaybeAnn (G GHC.AnnComma) ","

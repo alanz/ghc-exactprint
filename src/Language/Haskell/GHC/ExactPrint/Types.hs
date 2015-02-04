@@ -73,7 +73,7 @@ type ColDelta  = Int -- ^ difference between two cols
 type Col       = Int
 
 annNone :: Annotation
-annNone = Ann [] 0 (DP (0,0)) 0
+annNone = Ann [] (DP (0,0)) 0
 
 emptyValue :: Value
 emptyValue = newValue (Just () :: Maybe ())
@@ -85,8 +85,9 @@ isEmptyValue v = vv == Just ()
 
 data Annotation = Ann
   { ann_comments     :: ![DComment]
-  , ann_end_col      :: !Col -- ^ prior end column at point annotation was captured
-  , ann_entry_delta  :: !DeltaPos -- ^ Offset to get to the start of the SrcSpan, when captured
+  , ann_entry_delta  :: !DeltaPos -- ^ Offset used to get to the start
+                                  -- of the SrcSpan, during the
+                                  -- annotatePC phase
   , ann_delta        :: !ColOffset
 
   } deriving (Show,Typeable)

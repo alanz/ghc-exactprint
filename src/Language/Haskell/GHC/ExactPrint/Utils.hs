@@ -107,9 +107,6 @@ data Extra = Extra
                {
                  e_is_infix :: Bool -- isInfix for a FunBind
                  -- TODO: AZ: Is this ^^  still needed?
-
-               , e_grouping :: [(GHC.SrcSpan,Grouping)]
-               , e_values   :: [(GHC.SrcSpan,Value)]
                }
 
 data Grouping = None | Primed GHC.SrcSpan | Active DeltaPos | Done DeltaPos
@@ -134,12 +131,13 @@ instance Monad AP where
 
 runAP :: AP () -> GHC.ApiAnns -> Anns
 runAP (AP f) ga
- = let (_,_,_,_,_,(se,sa)) = f [] GHC.noSrcSpan (Extra False [(GHC.noSrcSpan,None)] [(GHC.noSrcSpan,emptyValue)]) ga
+ = let (_,_,_,_,_,(se,sa)) = f [] GHC.noSrcSpan (Extra False) ga
    in (Map.fromListWith combineAnns se,Map.fromListWith (++) sa)
         --  `debug` ("runAP:se=" ++ show se)
 
 combineAnns :: Annotation -> Annotation -> Annotation
-combineAnns (Ann cs1 ec1 ed1 dp1) (Ann cs2 ec2 ed2 dp2) = Ann (cs1 ++ cs2) ec1 ed1 dp1
+combineAnns (Ann cs1 ed1 dp1) (Ann cs2 _ed2 _dp2)
+  = Ann (cs1 ++ cs2) ed1 dp1
 
 -- -------------------------------------
 
@@ -156,9 +154,6 @@ pushSrcSpanAP (GHC.L l a) edp = AP (\ls pe e ga ->
     ec = case ls of
           [(_,DP (_,o),_,_,_)]   -> o
           ((_,DP (_,o),_,_,_):_) -> o
-    -- ec = if srcSpanStartColumn l == 1
-    --        then srcSpanEndColumn pe
-    --        else srcSpanEndColumn pe
   in ((),(l,DP (0,srcSpanStartColumn l),edp,ec,annGetConstr a):ls,pe,e,ga,mempty))
 
 popSrcSpanAP :: AP ()
@@ -185,84 +180,11 @@ adjustDeltaForOffset _colOffset dp@(DP (0,_)) = dp -- same line
 adjustDeltaForOffset  colOffset    (DP (l,c)) = DP (l,c - colOffset)
 
 -- ---------------------------------------------------------------------
-{-
-startGroupingOffsets :: AP ()
-startGroupingOffsets = do
-  co <- getCurrentColOffset
-  ss <- getSrcSpanAP
-  return () `debug` ("startGroupingOffsets:(ss,co)=" ++ showGhc (ss,co))
-  setGrouping ss (Primed ss)
-
-stopGroupingOffsets :: AP ()
-stopGroupingOffsets = do
-  (s,grp) <- getGroupingWithSpan
-  let grp' = case grp of
-        Active dp -> Done dp
-        Done   dp -> Done dp
-        _         -> None
-  setGrouping s grp'
-  return () `debug` ("stopGroupingOffsets:(grp,grp')=" ++ show (s,grp,grp'))
-
-maybeAdjustColOffsetForGrouping :: GHC.SrcSpan -> AP ()
-maybeAdjustColOffsetForGrouping ss = do
-  grp <- getGrouping
-  case grp of
-    -- Note: primed is the container SrcSpan
-    Primed primed -> do
-       -- let co = srcSpanStartColumn ss
-       let lo = srcSpanStartLine   ss - srcSpanStartLine   primed
-           co = srcSpanStartColumn ss - srcSpanStartColumn primed
-       DP (_,cur) <- getCurrentColOffset
-       setCurrentColOffset (DP (lo,srcSpanStartColumn ss))
-       -- setCurrentColOffset (DP (lo,co))
-       -- We need to return the difference between the current in use
-       -- co and the one already stored against the SrcSpan
-       let offset = cur - srcSpanStartColumn primed
-       setGrouping primed (Active (DP (lo, offset)))
-       return () `debug` ("maybeAdjustColOffsetForGrouping:setting (ss,primed,lo,co,cur,offset)="
-                                                        ++ showGhc (ss,primed,lo,co,cur,offset))
-    _ -> return ()
--}
-
-getNestedColOffset :: AP DeltaPos
-getNestedColOffset = do
-  grp <- getGrouping
-  let
-    dp = case grp of
-           Active dp' -> dp'
-                `debug` ("getNestedColOffset: returning " ++ show dp')
-           _       -> (DP (0,0))
-  return dp
-
-getGrouping :: AP Grouping
-getGrouping = do
-  e <- getExtra
-  return (snd $ ghead "getGrouping" (e_grouping e))
-
-getGroupingWithSpan :: AP (GHC.SrcSpan,Grouping)
-getGroupingWithSpan = do
-  e <- getExtra
-  return (ghead "getGroupingWithSpan" (e_grouping e))
-
-setGrouping :: GHC.SrcSpan -> Grouping -> AP ()
-setGrouping ss grp = do
-  e <- getExtra
-  case e_grouping e of
-   []         -> setExtra (e { e_grouping = [(ss,grp)] })
-   ((s,g):ls) -> if s == ss then setExtra (e { e_grouping = ((ss,grp):ls) })
-                            else setExtra (e { e_grouping = ((ss,grp):(s,g):ls) })
 
 -- | Get the current column offset
 getCurrentColOffset :: AP DeltaPos
 getCurrentColOffset = AP (\l@((_,o,_,_,_):_) pe e ga
                    -> (o,l,pe,e,ga,mempty))
-
--- | Set the current column offset
-setCurrentColOffset :: DeltaPos -> AP ()
-setCurrentColOffset o = AP (\((ss,_,edp,ec,c):ls) pe e ga
-                   -> ((),(ss,o,edp,ec,c):ls,pe,e,ga,mempty)
-                      `debug` ("setCurrentColOffset:o=" ++ show o)
-                           )
 
 -- |Get the difference between the current and the previous
 -- colOffsets, if they are on the same line
@@ -270,13 +192,8 @@ getCurrentDP :: AP ColOffset
 getCurrentDP = do
   -- Note: the current col offsets are not needed here, any
   -- indentation should be fully nested in an AST element
-  grp <- getGrouping
-  let co = case grp of
-             Active (DP (_,c)) -> c
-             _                 -> 0
   ss <- getSrcSpanAP
   ps <- getPriorSrcSpanAP
-  return () `debug` ("getCurrentDP:(co,ss,ps)=" ++ showGhc (co,ss,ps))
   if srcSpanStartLine ss == srcSpanStartLine ps
      then return (srcSpanStartColumn ss - srcSpanStartColumn ps)
      -- else return (srcSpanStartColumn ss - srcSpanStartColumn ps - co)
@@ -350,41 +267,10 @@ addAnnDeltaPos (s,kw) dp = AP (\l pe e ga -> ( (),
 -- -------------------------------------
 
 setFunIsInfix :: Bool -> AP ()
-setFunIsInfix e = AP (\l pe (Extra _ g mf) ga -> ((),l,pe,(Extra e g mf),ga,mempty))
+setFunIsInfix e = AP (\l pe (Extra _) ga -> ((),l,pe,(Extra e),ga,mempty))
 
 getFunIsInfix :: AP Bool
-getFunIsInfix = AP (\l pe ex@(Extra e _ _) ga -> (e,l,pe,ex,ga,mempty))
-
--- -------------------------------------
-
-setExtra :: Extra -> AP ()
-setExtra e = AP (\l pe _ ga -> ((),l,pe,e,ga,mempty))
-
-getExtra :: AP Extra
-getExtra = AP (\l pe e ga -> (e,l,pe,e,ga,mempty))
-
--- -------------------------------------
-
-setExtraAnn :: Value -> AP ()
-setExtraAnn mfn = do
-  ss <- getSrcSpanAP
-  (Extra v g mfs) <- getExtra
-  setExtra (Extra v g ((ss,mfn):mfs))
-
-getAndRemoveExtraAnn :: AP Value
-getAndRemoveExtraAnn = do
-  ss <- getSrcSpanAP
-  (Extra b g mfs) <- getExtra
-  if null mfs
-    then return (emptyValue)
-    else do
-      let (ssm,v) = ghead "getAndRemoveExtraAnn" mfs
-      if ss == ssm
-         then do
-           setExtra (Extra b g (tail mfs))
-           return v
-         else do
-           return (emptyValue)
+getFunIsInfix = AP (\l pe ex@(Extra e) ga -> (e,l,pe,ex,ga,mempty))
 
 -- -------------------------------------
 
@@ -395,7 +281,6 @@ enterAST lss = do
   return () `debug` ("enterAST:currentColOffset=" ++ show (DP (0,srcSpanStartColumn $ GHC.getLoc lss)))
   -- Calculate offset required to get to the start of the SrcSPan
   pe <- getPriorEnd
-  ss <- getSrcSpanAP
   let p = deltaFromSrcSpans pe (GHC.getLoc lss)
   p' <- adjustDeltaForOffsetM p
   -- need to save p', and put it in Annotation
@@ -428,7 +313,7 @@ leaveAST = do
   dp <- getCurrentDP
   endCol <- getOriginalEndCol
   edp <- getEntryDP
-  addAnnotationsAP (Ann lcs endCol edp dp)
+  addAnnotationsAP (Ann lcs edp dp)
     `debug` ("leaveAST:(ss,lcs,dp)=" ++ show (showGhc ss,lcs,dp))
   popSrcSpanAP
   return () `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
@@ -464,7 +349,7 @@ addFinalComments = do
   cs <- getCommentsForSpan GHC.noSrcSpan
   let (dcs,_) = localComments 1 ((1,1),(1,1)) cs []
   pushSrcSpanAP (GHC.L GHC.noSrcSpan ()) (DP (0,0))
-  addAnnotationsAP (Ann dcs 0 (DP (0,0)) 0)
+  addAnnotationsAP (Ann dcs (DP (0,0)) 0)
     -- `debug` ("leaveAST:dcs=" ++ show dcs)
   return () `debug` ("addFinalComments:dcs=" ++ show dcs)
 
@@ -2309,7 +2194,7 @@ localComments co pin cs ds = r
 -- | Apply the delta to the current position, taking into account the
 -- current column offset
 undeltaComment :: Pos -> Int -> DComment -> Comment
-undeltaComment l con dco@(DComment coo b (dps,dpe) s) = r
+undeltaComment l con dco@(DComment _coo b (dps,dpe) s) = r
     `debug` ("undeltaComment:(l,con,dcomment,r)=" ++ show (l,con,dco,r))
   where
     r = Comment b ((adj dps $ undelta l dps co),(adj dps $ undelta l dpe co)) s
@@ -2319,8 +2204,8 @@ undeltaComment l con dco@(DComment coo b (dps,dpe) s) = r
     -- adj makes provision for the possible movement of the
     -- surrounding context, and so applies the difference between the
     -- original and current offsets
-    adj (DP (  0,dco)) (row,c) = (row,c)
-    adj (DP (dro,dco)) (row,c) = (row,c + dc)
+    adj (DP (   0,_dco)) (row,c) = (row,c)
+    adj (DP (_dro,_dco)) (row,c) = (row,c + dc)
 
 deltaComment :: Int -> Pos -> Comment -> DComment
 deltaComment co l cin@(Comment b (s,e) str) = r
