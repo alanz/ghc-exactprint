@@ -234,8 +234,9 @@ tt = do
     manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
     manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
     manipulateAstTestWithMod changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
-    -}
     manipulateAstTestWithMod changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
+    -}
+    manipulateAstTestWithMod changeLayoutLet5 "LayoutLet5.hs" "LayoutLet5"
 
 {-
     manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
@@ -276,6 +277,11 @@ changeLayoutLet3 :: GHC.ParsedSource -> GHC.ParsedSource
 changeLayoutLet3 parsed = rename newName [((7,5),(7,8)),((9,14),(9,17))] parsed
   where
     newName = GHC.mkRdrUnqual (GHC.mkVarOcc "xxxlonger")
+
+changeLayoutLet5 :: GHC.ParsedSource -> GHC.ParsedSource
+changeLayoutLet5 parsed = rename newName [((7,5),(7,8)),((9,14),(9,17))] parsed
+  where
+    newName = GHC.mkRdrUnqual (GHC.mkVarOcc "x")
 
 rename :: (SYB.Data a) => GHC.RdrName -> [Span] -> a -> a
 rename newName spans a
