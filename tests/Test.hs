@@ -122,6 +122,7 @@ tests = TestList
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
   , mkTestModChange changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
+  , mkTestModChange changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
 
   ]
 
@@ -225,17 +226,17 @@ tt = do
     manipulateAstTest "BCase.hs"                 "Main"
     manipulateAstTest "AltsSemis.hs"             "Main"
     manipulateAstTest "LetExprSemi.hs"           "LetExprSemi"
-    manipulateAstTest "LetExpr2.hs"             "Main"
+    manipulateAstTest "LetExpr2.hs"              "Main"
     manipulateAstTest "LetStmt.hs"               "Layout.LetStmt"
     manipulateAstTest "LayoutLet.hs"             "Main"
-    -}
-
-    -- manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
+    manipulateAstTest "ImplicitParams.hs"        "Main"
+    manipulateAstTest "RebindableSyntax.hs"      "Main"
+    manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
+    manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
     manipulateAstTestWithMod changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
-    -- manipulateAstTestWithMod changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
-    -- manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
-    -- manipulateAstTest "ImplicitParams.hs"        "Main"
-    -- manipulateAstTest "RebindableSyntax.hs"      "Main"
+    -}
+    manipulateAstTestWithMod changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
+
 {-
     manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
     manipulateAstTest "Cpp.hs"                   "Main"
