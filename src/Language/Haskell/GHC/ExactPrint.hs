@@ -365,8 +365,8 @@ annotateAST ast ghcAnns = annotateLHsModule ast ghcAnns
 loadInitialComments :: EP ()
 loadInitialComments = do
   -- return () `debug` ("loadInitialComments entered")
-  Just (Ann cs _ _) <- getAnnotation (GHC.L GHC.noSrcSpan ())
-  mergeComments cs -- `debug` ("loadInitialComments cs=" ++ show cs)
+  -- Just (Ann cs _ _) <- getAnnotation (GHC.L GHC.noSrcSpan ())
+  -- mergeComments cs -- `debug` ("loadInitialComments cs=" ++ show cs)
   -- return () `debug` ("loadInitialComments exited")
   return ()
 

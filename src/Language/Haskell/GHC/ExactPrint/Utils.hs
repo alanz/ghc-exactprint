@@ -98,15 +98,17 @@ newtype AP x = AP ([(GHC.SrcSpan -- Current SrcSpan
                     ,[(KeywordId,DeltaPos)] -- Offsets for the
                                             -- elements annotated in
                                             -- this SrcSpan
-                    ,[Comment] -- ordered list of comments still to be
-                               -- allocated into the previous list
                     ,AnnConName)] -- The constructor name of the AST
                                   -- element, to distingush between
                                   -- nested elements that have the
                                   -- same SrcSpan in the AST
-                   -> GHC.SrcSpan -> Extra -> GHC.ApiAnns
-            -> (x, [(GHC.SrcSpan,DeltaPos,[(KeywordId,DeltaPos)],[Comment],AnnConName)]
-                   , GHC.SrcSpan,   Extra,   GHC.ApiAnns,
+                   -> GHC.SrcSpan -- Prior end position
+                   -> [Comment]   -- ordered list of comments still to
+                                  -- be allocated
+                   -> Extra       -- random state variable. Should disappear one day
+                   -> GHC.ApiAnns -- The original GHC Api Annotations
+            -> (x, [(GHC.SrcSpan,DeltaPos,[(KeywordId,DeltaPos)],AnnConName)]
+                   , GHC.SrcSpan,[Comment],Extra,GHC.ApiAnns,
 
                    [(AnnKey,AnnValue)]
                  ))
@@ -129,50 +131,58 @@ instance Applicative AP where
   (<*>) = ap
 
 instance Monad AP where
-  return x = AP $ \l pe e ga -> (x, l, pe, e, ga, mempty)
+  return x = AP $ \l pe cs e ga -> (x, l, pe, cs, e, ga, mempty)
 
-  AP m >>= k = AP $ \l0 p0 e0 ga0 -> let
-        (a, l1, p1, e1, ga1, s1) = m l0 p0 e0 ga0
+  AP m >>= k = AP $ \l0 p0 c0 e0 ga0 -> let
+        (a, l1, p1, c1, e1, ga1, s1) = m l0 p0 c0 e0 ga0
         AP f = k a
-        (b, l2, p2, e2, ga2, s2) = f l1 p1 e1 ga1
-    in (b, l2, p2, e2, ga2, s1 <> s2)
+        (b, l2, p2, c2, e2, ga2, s2) = f l1 p1 c1 e1 ga1
+    in (b, l2, p2, c2, e2, ga2, s1 <> s2)
 
 
 runAP :: AP () -> GHC.ApiAnns -> Anns
 runAP (AP f) ga
- = let (_,_,_,_,_,sa) = f [] GHC.noSrcSpan (Extra False) ga
+ = let
+     cs = flattenedComments ga
+     (_,_,_,_,_,_,sa) = f [] GHC.noSrcSpan cs (Extra False) ga
    in (Map.fromListWith combineAnns sa)
+      `debug` ("runAP:cs=" ++ showGhc cs)
 
 combineAnns :: AnnValue -> AnnValue -> AnnValue
 combineAnns ((Ann cs1 ed1 dp1),dps1) ((Ann cs2 _ed2 _dp2),dps2)
   = (Ann (cs1 ++ cs2) ed1 dp1,dps1++dps2)
 
+-- ---------------------------------------------------------------------
+
+flattenedComments :: GHC.ApiAnns -> [Comment]
+flattenedComments (_,cm) = map tokComment $ GHC.sortLocated $ concat $ Map.elems cm
+
 -- -------------------------------------
 
 -- |Note: assumes the SrcSpan stack is nonempty
 getSrcSpanAP :: AP GHC.SrcSpan
-getSrcSpanAP = AP (\l@((ss,_,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
+getSrcSpanAP = AP (\l@((ss,_,_,_):_) pe cs e ga -> (ss,l,pe,cs,e,ga,mempty))
 
 getPriorSrcSpanAP :: AP GHC.SrcSpan
-getPriorSrcSpanAP = AP (\l@(_:(ss,_,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
+getPriorSrcSpanAP = AP (\l@(_:(ss,_,_,_):_) pe cs e ga -> (ss,l,pe,cs,e,ga,mempty))
 
-pushSrcSpanAP :: Data a => (GHC.Located a) -> DeltaPos -> [Comment] -> AP ()
-pushSrcSpanAP (GHC.L l a) edp cs = AP (\ls pe e ga ->
-  ((),(l,edp,[],cs,annGetConstr a):ls,pe,e,ga,mempty))
+pushSrcSpanAP :: Data a => (GHC.Located a) -> DeltaPos -> AP ()
+pushSrcSpanAP (GHC.L l a) edp = AP (\ls pe cs e ga ->
+  ((),(l,edp,[],annGetConstr a):ls,pe,cs,e,ga,mempty))
 
 popSrcSpanAP :: AP ()
-popSrcSpanAP = AP (\(_:ls) pe e ga -> ((),ls,pe,e,ga,mempty))
+popSrcSpanAP = AP (\(_:ls) pe cs e ga -> ((),ls,pe,cs,e,ga,mempty))
 
 getEntryDP :: AP DeltaPos
-getEntryDP = AP (\l@((_,edp,_,_,_):_) pe e ga
-                   -> (edp,l,pe,e,ga,mempty))
+getEntryDP = AP (\l@((_,edp,_,_):_) pe cs e ga
+                   -> (edp,l,pe,cs,e,ga,mempty))
 
 getUnallocatedComments :: AP [Comment]
-getUnallocatedComments = AP (\l@((_,_,_,cs,_):_) pe e ga -> (cs,l,pe,e,ga,mempty))
+getUnallocatedComments = AP (\l@((_,_,_,_):_) pe cs e ga -> (cs,l,pe,cs,e,ga,mempty))
 
 putUnallocatedComments :: [Comment] -> AP ()
-putUnallocatedComments cs = AP (\((ss,edp,kd, _,ac):ls) pe e ga
-                          -> ((),((ss,edp,kd,cs,ac):ls),pe,e,ga,mempty))
+putUnallocatedComments cs = AP (\l pe _cs e ga
+                          -> ((),l,pe, cs,e,ga,mempty))
 
 -- ---------------------------------------------------------------------
 
@@ -191,8 +201,8 @@ adjustDeltaForOffset  colOffset    (DP (l,c)) = DP (l,c - colOffset)
 getCurrentColOffset :: AP ColOffset
 -- getCurrentColOffset = AP (\l@((_,o,_,_,_):_) pe e ga
 --                    -> (o,l,pe,e,ga,mempty))
-getCurrentColOffset = AP (\l@((s,_,_,_,_):_) pe e ga
-                   -> (srcSpanStartColumn s,l,pe,e,ga,mempty))
+getCurrentColOffset = AP (\l@((s,_,_,_):_) pe cs e ga
+                   -> (srcSpanStartColumn s,l,pe,cs,e,ga,mempty))
 
 -- |Get the difference between the current and the previous
 -- colOffsets, if they are on the same line
@@ -208,22 +218,22 @@ getCurrentDP = do
 
 -- |Note: assumes the prior end SrcSpan stack is nonempty
 getPriorEnd :: AP GHC.SrcSpan
-getPriorEnd = AP (\l pe e ga -> (pe,l,pe,e,ga,mempty))
+getPriorEnd = AP (\l pe cs e ga -> (pe,l,pe,cs,e,ga,mempty))
 
 setPriorEnd :: GHC.SrcSpan -> AP ()
-setPriorEnd pe = AP (\ls _ e ga  -> ((),ls,pe,e,ga,mempty))
+setPriorEnd pe = AP (\ls _ cs e ga  -> ((),ls,pe,cs,e,ga,mempty))
 
 -- -------------------------------------
 
 getAnnotationAP :: GHC.AnnKeywordId -> AP [GHC.SrcSpan]
-getAnnotationAP an = AP (\l@((ss,_,_,_,_):_) pe e ga
-    -> (GHC.getAnnotation ga ss an, l,pe,e,ga,mempty))
+getAnnotationAP an = AP (\l@((ss,_,_,_):_) pe cs e ga
+    -> (GHC.getAnnotation ga ss an, l,pe,cs,e,ga,mempty))
 
 getAndRemoveAnnotationAP :: GHC.SrcSpan -> GHC.AnnKeywordId -> AP [GHC.SrcSpan]
-getAndRemoveAnnotationAP sp an = AP (\l pe e ga ->
+getAndRemoveAnnotationAP sp an = AP (\l pe cs e ga ->
     let
       (r,ga') = GHC.getAndRemoveAnnotation ga sp an
-    in (r, l,pe,e,ga',mempty))
+    in (r, l,pe,cs,e,ga',mempty))
 
 -- -------------------------------------
 -- |Retrieve the comments allocated to the current 'SrcSpan', and
@@ -239,46 +249,47 @@ getAndRemoveAnnotationComments (anns,canns) ss =
 ----------------------------------------
 
 getCommentsForSpan :: GHC.SrcSpan -> AP [Comment]
-getCommentsForSpan s = AP (\l pe e ga ->
+getCommentsForSpan s = AP (\l pe cs e ga ->
   let
     (gcs,ga1) = getAndRemoveAnnotationComments ga s
     cs = reverse $ map tokComment gcs
-    tokComment :: GHC.Located GHC.AnnotationComment -> Comment
-    tokComment t@(GHC.L lt _) = Comment (ss2span lt) (ghcCommentText t)
-  in (cs,l,pe,e,ga1,mempty)
+  in (cs,l,pe,cs,e,ga1,mempty)
       `debug` ("getCommentsForSpan:(s,cs)" ++ show (showGhc s,cs))
      )
+
+tokComment :: GHC.Located GHC.AnnotationComment -> Comment
+tokComment t@(GHC.L lt _) = Comment (ss2span lt) (ghcCommentText t)
 
 -- -------------------------------------
 
 -- |Add some annotation to the currently active SrcSpan
 addAnnotationsAP :: AnnValue -> AP ()
-addAnnotationsAP ann = AP (\l pe e ga ->
-                       ( (),l,pe,e,ga,
+addAnnotationsAP ann = AP (\l pe cs e ga ->
+                       ( (),l,pe,cs,e,ga,
                  [((getAnnKey $ ghead "addAnnotationsAP" l),ann)]))
 
-getAnnKey :: (GHC.SrcSpan,t1,t2,t3,AnnConName) -> AnnKey
-getAnnKey (l,_,_,_,t) = (l,t)
+getAnnKey :: (GHC.SrcSpan,t1,t2,AnnConName) -> AnnKey
+getAnnKey (l,_,_,t) = (l,t)
 
 -- -------------------------------------
 
 addAnnDeltaPos :: (GHC.SrcSpan,KeywordId) -> DeltaPos -> AP ()
-addAnnDeltaPos (_s,kw) dp = AP (\((ss,d2, kd,       cs,cn):ls) pe e ga -> ( (),
-                                 ((ss,d2,(kw,dp):kd,cs,cn):ls),pe,e,ga,[]))
+addAnnDeltaPos (_s,kw) dp = AP (\((ss,d2, kd,       cn):ls) pe cs e ga -> ( (),
+                                 ((ss,d2,(kw,dp):kd,cn):ls),pe,cs,e,ga,[]))
 
 -- -------------------------------------
 
 getKds :: AP [(KeywordId,DeltaPos)]
-getKds = AP (\l@((_ss,_d2,kd,_cs,_cn):_) pe e ga
-             -> (reverse kd,l,pe,e,ga,[]))
+getKds = AP (\l@((_ss,_d2,kd,_cn):_) pe cs e ga
+             -> (reverse kd,l,pe,cs,e,ga,[]))
 
 -- -------------------------------------
 
 setFunIsInfix :: Bool -> AP ()
-setFunIsInfix e = AP (\l pe (Extra _) ga -> ((),l,pe,(Extra e),ga,mempty))
+setFunIsInfix e = AP (\l pe cs (Extra _) ga -> ((),l,pe,cs,(Extra e),ga,mempty))
 
 getFunIsInfix :: AP Bool
-getFunIsInfix = AP (\l pe ex@(Extra e) ga -> (e,l,pe,ex,ga,mempty))
+getFunIsInfix = AP (\l pe cs ex@(Extra e) ga -> (e,l,pe,cs,ex,ga,mempty))
 
 -- -------------------------------------
 
@@ -294,9 +305,9 @@ enterAST lss = do
   p' <- adjustDeltaForOffsetM p
   -- need to save p', and put it in Annotation
 
-  cs <- getCommentsForSpan ss
-  return () `debug` ("enterAST:cs=" ++ show cs)
-  pushSrcSpanAP lss p' cs
+  -- cs <- getCommentsForSpan ss
+  -- return () `debug` ("enterAST:cs=" ++ show cs)
+  pushSrcSpanAP lss p'
 
   return ()
 
@@ -359,7 +370,7 @@ addFinalComments = do
   cs <- getCommentsForSpan GHC.noSrcSpan
   -- let (dcs,_) = localComments ((1,1),(1,1)) cs
   let dcs = [] -- ++AZ++ nned to reinstate this
-  pushSrcSpanAP (GHC.L GHC.noSrcSpan ()) (DP (0,0)) []
+  pushSrcSpanAP (GHC.L GHC.noSrcSpan ()) (DP (0,0))
   addAnnotationsAP ((Ann dcs (DP (0,0)) 0),[])
     -- `debug` ("leaveAST:dcs=" ++ show dcs)
   return () -- `debug` ("addFinalComments:dcs=" ++ show dcs)
@@ -372,8 +383,8 @@ allocatePriorComments :: [Comment] -> GHC.SrcSpan -> ([Comment],[Comment])
 allocatePriorComments cs ss = partition isPrior cs
   where
     (start,_) = ss2span ss
-    isPrior (Comment s _)  = start  < (fst s)
-      `debug` ("allocatePriorComments:(s,ss,cond)=" ++ showGhc (s,ss,start  < (fst s)))
+    isPrior (Comment s _)  = (fst s) < start
+      `debug` ("allocatePriorComments:(s,ss,cond)=" ++ showGhc (s,ss,(fst s) < start))
 
 -- ---------------------------------------------------------------------
 
@@ -393,7 +404,7 @@ addAnnotationWorker ann pa = do
           cs <- getUnallocatedComments
           let (allocated,cs') = allocatePriorComments cs pa
           putUnallocatedComments cs'
-          return () `debug`("addAnnotationWorker:(pa,allocated)=" ++ showGhc (pa,allocated))
+          return () `debug`("addAnnotationWorker:(ss,pa,allocated,cs)=" ++ showGhc (ss,pa,allocated,cs))
           mapM_ addDeltaComment allocated
           p' <- adjustDeltaForOffsetM p
           addAnnDeltaPos (ss,ann) p'
@@ -494,7 +505,7 @@ addEofAnnotation :: AP ()
 addEofAnnotation = do
   pe <- getPriorEnd
   ss <- getSrcSpanAP
-  pushSrcSpanAP (GHC.noLoc ()) (DP (0,0)) []
+  pushSrcSpanAP (GHC.noLoc ()) (DP (0,0))
   ma <- getAnnotationAP GHC.AnnEofPos
   popSrcSpanAP
   case ma of
@@ -527,7 +538,8 @@ applyListAnnotations ls
 annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns
                   -> Anns
 annotateLHsModule modu ghcAnns
-   = runAP (addFinalComments >> annotatePC modu) ghcAnns
+   -- = runAP (addFinalComments >> annotatePC modu) ghcAnns
+   = runAP (pushSrcSpanAP (GHC.L GHC.noSrcSpan ()) (DP (0,0)) >> annotatePC modu) ghcAnns
 
 -- ---------------------------------------------------------------------
 
