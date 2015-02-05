@@ -7,12 +7,6 @@ module Language.Haskell.GHC.ExactPrint.Utils
   (
     annotateLHsModule
 
-  -- , organiseAnns
-  -- , OrganisedAnns
-
-  -- , ghcIsComment
-  -- , ghcIsMultiLine
-
   , srcSpanStartLine
   , srcSpanEndLine
   , srcSpanStartColumn
@@ -95,9 +89,20 @@ debug c _ = c
 --    - extra data needing to be stored in the monad
 --    - the annotations provided by GHC
 
-{- -}
-newtype AP x = AP ([(GHC.SrcSpan,DeltaPos,DeltaPos,[(KeywordId,DeltaPos)],AnnConName)] -> GHC.SrcSpan -> Extra -> GHC.ApiAnns
-            -> (x, [(GHC.SrcSpan,DeltaPos,DeltaPos,[(KeywordId,DeltaPos)],AnnConName)],   GHC.SrcSpan,   Extra,   GHC.ApiAnns,
+newtype AP x = AP ([(GHC.SrcSpan -- Current SrcSpan
+                    ,DeltaPos    -- The offset required to get from
+                                 -- the prior end point to the start
+                                 -- of the current SrcSpan. Accessed
+                                 -- via @getEntryDP@
+                    ,[(KeywordId,DeltaPos)] -- Offsets for the
+                                            -- elements annotated in
+                                            -- this SrcSpan
+                    ,AnnConName)] -- The constructor name of the AST
+                                  -- element, to distingush between
+                                  -- nested elements that have the
+                                  -- same SrcSpan in the AST
+                   -> GHC.SrcSpan -> Extra -> GHC.ApiAnns
+            -> (x, [(GHC.SrcSpan,DeltaPos,[(KeywordId,DeltaPos)],AnnConName)],   GHC.SrcSpan,   Extra,   GHC.ApiAnns,
                    [(AnnKey,AnnValue)]
                  ))
 
@@ -141,20 +146,20 @@ combineAnns ((Ann cs1 ed1 dp1),dps1) ((Ann cs2 _ed2 _dp2),dps2)
 
 -- |Note: assumes the SrcSpan stack is nonempty
 getSrcSpanAP :: AP GHC.SrcSpan
-getSrcSpanAP = AP (\l@((ss,_,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
+getSrcSpanAP = AP (\l@((ss,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
 
 getPriorSrcSpanAP :: AP GHC.SrcSpan
-getPriorSrcSpanAP = AP (\l@(_:(ss,_,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
+getPriorSrcSpanAP = AP (\l@(_:(ss,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
 
 pushSrcSpanAP :: Data a => (GHC.Located a) -> DeltaPos -> AP ()
 pushSrcSpanAP (GHC.L l a) edp = AP (\ls pe e ga ->
-  ((),(l,DP (0,srcSpanStartColumn l),edp,[],annGetConstr a):ls,pe,e,ga,mempty))
+  ((),(l,edp,[],annGetConstr a):ls,pe,e,ga,mempty))
 
 popSrcSpanAP :: AP ()
 popSrcSpanAP = AP (\(_:ls) pe e ga -> ((),ls,pe,e,ga,mempty))
 
 getEntryDP :: AP DeltaPos
-getEntryDP = AP (\l@((_,_,edp,_,_):_) pe e ga
+getEntryDP = AP (\l@((_,edp,_,_):_) pe e ga
                    -> (edp,l,pe,e,ga,mempty))
 
 
@@ -162,7 +167,7 @@ getEntryDP = AP (\l@((_,_,edp,_,_):_) pe e ga
 
 adjustDeltaForOffsetM :: DeltaPos -> AP DeltaPos
 adjustDeltaForOffsetM dp = do
-  DP (_,colOffset) <- getCurrentColOffset
+  colOffset <- getCurrentColOffset
   return (adjustDeltaForOffset colOffset dp)
 
 adjustDeltaForOffset :: Int -> DeltaPos -> DeltaPos
@@ -172,9 +177,11 @@ adjustDeltaForOffset  colOffset    (DP (l,c)) = DP (l,c - colOffset)
 -- ---------------------------------------------------------------------
 
 -- | Get the current column offset
-getCurrentColOffset :: AP DeltaPos
-getCurrentColOffset = AP (\l@((_,o,_,_,_):_) pe e ga
-                   -> (o,l,pe,e,ga,mempty))
+getCurrentColOffset :: AP ColOffset
+-- getCurrentColOffset = AP (\l@((_,o,_,_,_):_) pe e ga
+--                    -> (o,l,pe,e,ga,mempty))
+getCurrentColOffset = AP (\l@((s,_,_,_):_) pe e ga
+                   -> (srcSpanStartColumn s,l,pe,e,ga,mempty))
 
 -- |Get the difference between the current and the previous
 -- colOffsets, if they are on the same line
@@ -198,7 +205,7 @@ setPriorEnd pe = AP (\ls _ e ga  -> ((),ls,pe,e,ga,mempty))
 -- -------------------------------------
 
 getAnnotationAP :: GHC.AnnKeywordId -> AP [GHC.SrcSpan]
-getAnnotationAP an = AP (\l@((ss,_,_,_,_):_) pe e ga
+getAnnotationAP an = AP (\l@((ss,_,_,_):_) pe e ga
     -> (GHC.getAnnotation ga ss an, l,pe,e,ga,mempty))
 
 getAndRemoveAnnotationAP :: GHC.SrcSpan -> GHC.AnnKeywordId -> AP [GHC.SrcSpan]
@@ -239,19 +246,19 @@ addAnnotationsAP ann = AP (\l pe e ga ->
                        ( (),l,pe,e,ga,
                  [((getAnnKey $ ghead "addAnnotationsAP" l),ann)]))
 
-getAnnKey :: (GHC.SrcSpan,t1,t2,t3,AnnConName) -> AnnKey
-getAnnKey (l,_,_,_,t) = (l,t)
+getAnnKey :: (GHC.SrcSpan,t1,t2,AnnConName) -> AnnKey
+getAnnKey (l,_,_,t) = (l,t)
 
 -- -------------------------------------
 
 addAnnDeltaPos :: (GHC.SrcSpan,KeywordId) -> DeltaPos -> AP ()
-addAnnDeltaPos (_s,kw) dp = AP (\((ss,d1,d2, kd,       cn):ls) pe e ga -> ( (),
-                                 ((ss,d1,d2,(kw,dp):kd,cn):ls),pe,e,ga,[]))
+addAnnDeltaPos (_s,kw) dp = AP (\((ss,d2, kd,       cn):ls) pe e ga -> ( (),
+                                 ((ss,d2,(kw,dp):kd,cn):ls),pe,e,ga,[]))
 
 -- -------------------------------------
 
 getKds :: AP [(KeywordId,DeltaPos)]
-getKds = AP (\l@((_ss,_d1,_d2,kd,_cn):_) pe e ga
+getKds = AP (\l@((_ss,_d2,kd,_cn):_) pe e ga
              -> (reverse kd,l,pe,e,ga,[]))
 
 -- -------------------------------------
@@ -294,9 +301,8 @@ leaveAST = do
      else addDeltaAnnotationsOutside GHC.AnnSemi AnnSemiSep
 
   newCs <- getCommentsForSpan ss
-  let (lcs,_) = localComments (ss2span ss) newCs []
+  let (lcs,_) = localComments (ss2span ss) newCs
 
-  -- let dp = deltaFromSrcSpans priorEnd ss
   dp  <- getCurrentDP
   edp <- getEntryDP
   kds <- getKds
@@ -334,7 +340,7 @@ addFinalComments :: AP ()
 addFinalComments = do
   return () -- `debug` ("addFinalComments:entering=")
   cs <- getCommentsForSpan GHC.noSrcSpan
-  let (dcs,_) = localComments ((1,1),(1,1)) cs []
+  let (dcs,_) = localComments ((1,1),(1,1)) cs
   pushSrcSpanAP (GHC.L GHC.noSrcSpan ()) (DP (0,0))
   addAnnotationsAP ((Ann dcs (DP (0,0)) 0),[])
     -- `debug` ("leaveAST:dcs=" ++ show dcs)
@@ -2141,11 +2147,12 @@ instance AnnotateP (GHC.CType) where
 
 -- ---------------------------------------------------------------------
 
+-- AZ: GHC does this now, can simplify
 -- | Given an enclosing Span @(p,e)@, and a list of sub SrcSpans @ds@,
 -- identify all comments that are in @(p,e)@ but not in @ds@, and convert
 -- them to be DComments relative to @p@
-localComments :: Span -> [Comment] -> [Span] -> ([DComment],[Comment])
-localComments pin cs ds = r
+localComments :: Span -> [Comment] -> ([DComment],[Comment])
+localComments pin cs = r
   -- `debug` ("localComments:(p,ds,r):" ++ show ((p,e),ds,r))
   where
     r = (map (\c -> deltaComment p c) matches,misses ++ missesRest)
@@ -2157,7 +2164,7 @@ localComments pin cs ds = r
     (cs',missesRest) = partition (\(Comment com _) -> isSubPos com (p,e)) cs
 
     notSub :: Comment -> Bool
-    notSub (Comment com _) = not $ any (\sub -> isSubPos com sub) ds
+    notSub (Comment com _) = True
 
     isSubPos (subs,sube) (parents,parente)
       = parents <= subs && parente >= sube
