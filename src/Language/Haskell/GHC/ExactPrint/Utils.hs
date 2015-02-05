@@ -184,10 +184,7 @@ getCurrentDP = do
   -- indentation should be fully nested in an AST element
   ss <- getSrcSpanAP
   ps <- getPriorSrcSpanAP
-  if srcSpanStartLine ss == srcSpanStartLine ps
-     then return (srcSpanStartColumn ss - srcSpanStartColumn ps)
-     -- else return (srcSpanStartColumn ss - srcSpanStartColumn ps - co)
-     else return (srcSpanStartColumn ss - srcSpanStartColumn ps)
+  return (srcSpanStartColumn ss - srcSpanStartColumn ps)
 
 -- ---------------------------------------------------------------------
 
@@ -311,7 +308,7 @@ leaveAST = do
   let (lcs,_) = localComments co (ss2span ss) newCs []
 
   -- let dp = deltaFromSrcSpans priorEnd ss
-  dp <- getCurrentDP
+  dp  <- getCurrentDP
   edp <- getEntryDP
   kds <- getKds
   addAnnotationsAP ((Ann lcs edp dp),kds)
@@ -2191,7 +2188,7 @@ localComments co pin cs ds = r
 -- | Apply the delta to the current position, taking into account the
 -- current column offset
 undeltaComment :: Pos -> Int -> DComment -> Comment
-undeltaComment l con (DComment _coo b (dps,dpe) s) = r
+undeltaComment l con (DComment b (dps,dpe) s) = r
     -- `debug` ("undeltaComment:(l,con,dcomment,r)=" ++ show (l,con,dco,r))
   where
     r = Comment b ((adj dps $ undelta l dps co),(adj dps $ undelta l dpe co)) s
@@ -2208,7 +2205,7 @@ deltaComment :: Int -> Pos -> Comment -> DComment
 deltaComment co l (Comment b (s,e) str) = r
   -- `debug` ("deltaComment:(co,l,cin,r)=" ++ show (co,l,cin,r))
   where
-    r = DComment co b ((ss2deltaP l s),(ss2deltaP l e)) str
+    r = DComment b ((ss2deltaP l s),(ss2deltaP l e)) str
 
 -- | Create a delta covering the gap between the end of the first
 -- @SrcSpan@ and the start of the second.

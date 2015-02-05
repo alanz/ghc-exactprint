@@ -41,7 +41,7 @@ data Comment = Comment Bool Span String
 -- |Delta version of the comment. The initial Int is the column offset
 -- that was force when the DeltaPos values were calculated. If this is
 -- different when it is output, they deltas must be updated.
-data DComment = DComment Int Bool (DeltaPos,DeltaPos) String
+data DComment = DComment Bool (DeltaPos,DeltaPos) String
   deriving (Eq,Show,Typeable,Data)
 
 instance Ord Comment where
@@ -96,6 +96,7 @@ unConName (CN s) = s
 -- elements in a list.
 data KeywordId = G GHC.AnnKeywordId
                | AnnSemiSep
+               | AnnComment String
                deriving (Eq,Show,Ord)
 
 -- ---------------------------------------------------------------------

@@ -242,14 +242,15 @@ tt = do
     manipulateAstTestWithMod changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
     manipulateAstTestWithMod changeLayoutLet5 "LayoutLet5.hs" "LayoutLet5"
     manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
+    manipulateAstTest "EmptyMostly2.hs"          "EmptyMostly2"
     -}
-    manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
+    manipulateAstTest "WhereIn4.hs"              "WhereIn4"
 
 {-
+    manipulateAstTest "ParensAroundContext.hs"   "ParensAroundContext"
+    manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
     manipulateAstTest "Cpp.hs"                   "Main"
     manipulateAstTest "Lhs.lhs"                  "Main"
-    manipulateAstTest "ParensAroundContext.hs"   "ParensAroundContext"
-    manipulateAstTest "EmptyMostly2.hs"          "EmptyMostly2"
     manipulateAstTest "Foo.hs"                   "Main"
 -}
 
