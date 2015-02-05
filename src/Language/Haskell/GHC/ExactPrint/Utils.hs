@@ -148,11 +148,7 @@ getPriorSrcSpanAP = AP (\l@(_:(ss,_,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
 
 pushSrcSpanAP :: Data a => (GHC.Located a) -> DeltaPos -> AP ()
 pushSrcSpanAP (GHC.L l a) edp = AP (\ls pe e ga ->
-  let
-    ec = case ls of
-          [(_,DP (_,o),_,_,_)]   -> o
-          ((_,DP (_,o),_,_,_):_) -> o
-  in ((),(l,DP (0,srcSpanStartColumn l),edp,[],annGetConstr a):ls,pe,e,ga,mempty))
+  ((),(l,DP (0,srcSpanStartColumn l),edp,[],annGetConstr a):ls,pe,e,ga,mempty))
 
 popSrcSpanAP :: AP ()
 popSrcSpanAP = AP (\(_:ls) pe e ga -> ((),ls,pe,e,ga,mempty))
