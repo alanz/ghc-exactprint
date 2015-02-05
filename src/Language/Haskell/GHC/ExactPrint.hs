@@ -371,19 +371,16 @@ loadInitialComments = do
   return ()
 
 -- |First move to the given location, then call exactP
-exactPC :: (Data ast,ExactP ast) => GHC.Located ast -> EP ()
+exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC a@(GHC.L l ast) =
     do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
-       -- ma <- getAnnotation a
        ma <- getAndRemoveAnnotation a
        (offset,edp,kd) <- case ma of
          Nothing -> return (0,DP (0,0),[])
-           -- `debug` ("exactPC:no annotation for " ++ show (ss2span l,typeOf ast))
          Just ((Ann lcs edp dp),kds) -> do
-             mergeComments lcs -- `debug` ("exactPC:(l,lcs,ec,dp):" ++ show (showGhc l,lcs,ec',dp))
+             mergeComments lcs
              return (dp,edp,kds)
        pushKds kd
-       -- setNestedOffset no
        op <- getPosForDelta edp
        pushOffset offset (srcSpanStartColumn l) op
        do

@@ -34,9 +34,12 @@ import qualified Data.Map as Map
 
 -- ---------------------------------------------------------------------
 
--- | A Haskell comment. The 'Bool' is 'True' if the comment is multi-line, i.e. @{- -}@.
+-- | A Haskell comment.
 data Comment = Comment Span String
   deriving (Eq,Show,Typeable,Data)
+
+instance GHC.Outputable Comment where
+  ppr x = GHC.text (show x)
 
 -- |Delta version of the comment.
 data DComment = DComment (DeltaPos,DeltaPos) String

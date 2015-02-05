@@ -230,7 +230,6 @@ tt = do
     manipulateAstTest "Deprecation.hs"           "Deprecation"
     manipulateAstTest "Infix.hs"                 "Main"
     manipulateAstTest "BCase.hs"                 "Main"
-    manipulateAstTest "AltsSemis.hs"             "Main"
     manipulateAstTest "LetExprSemi.hs"           "LetExprSemi"
     manipulateAstTest "LetExpr2.hs"              "Main"
     manipulateAstTest "LetStmt.hs"               "Layout.LetStmt"
@@ -243,8 +242,9 @@ tt = do
     manipulateAstTestWithMod changeLayoutLet5 "LayoutLet5.hs" "LayoutLet5"
     manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
     manipulateAstTest "EmptyMostly2.hs"          "EmptyMostly2"
-    -}
     manipulateAstTest "WhereIn4.hs"              "WhereIn4"
+    -}
+    manipulateAstTest "AltsSemis.hs"             "Main"
 
 {-
     manipulateAstTest "ParensAroundContext.hs"   "ParensAroundContext"
@@ -379,7 +379,7 @@ manipulateAstTest' mchange useTH file' modname = do
                     ++ showAnnData ann 0 parsed
   -- putStrLn $ "Test:parsed=" ++ parsedAST
   writeFile out $ result
-  -- putStrLn $ "Test:ann :" ++ showGhc ann
+  putStrLn $ "Test:ann :" ++ showGhc ann
   -- putStrLn $ "Test:ann organised:" ++ showGhc (organiseAnns ann)
   -- putStrLn $ "Test:showdata:" ++ showAnnData (organiseAnns ann) 0 parsed
   -- putStrLn $ "Test:showdata:parsed'" ++ showAnnData (organiseAnns ann) 0 parsed'
