@@ -1,9 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-} -- for GHC.DataId
 module Language.Haskell.GHC.ExactPrint.Types
   (
@@ -24,8 +20,6 @@ module Language.Haskell.GHC.ExactPrint.Types
 
   , ResTyGADTHook(..)
 
-  , AnnKeyF
-  , mkAnnKeyEP
   , getAnnotationEP
   , getAndRemoveAnnotationEP
 
@@ -76,29 +70,16 @@ data Annotation = Ann
 
   } deriving (Show,Typeable)
 
--- instance (Show a) => Show (GHC.Located a) where
---   show (GHC.L l a) = "L " ++ show l ++ " " ++ show a
-
 instance Show GHC.RdrName where
   show n = "(a RdrName)"
 
--- TODO:AZ change Anns into
---   M.Map (SrcSpan, AnnConName) (Annotation,[(KeywordId, DeltaPos)])
--- with the list of (KeywordId, DeltaPos) ordered by original
--- occurence in the source
-
 type Anns = Map.Map AnnKey AnnValue
+-- | For every @Located a@, use the @SrcSpan@ and constructor name of
+-- a as the key, to store the standard annotation.
+-- These are used to maintain context in the AP and EP monads
 type AnnKey   = (GHC.SrcSpan,AnnConName)
 type AnnValue = (Annotation,[(KeywordId,DeltaPos)])
 type AnnKds   = [(KeywordId,DeltaPos)]
-{-
--- first field carries the comments, second the offsets
-type Anns = (AnnsEP,AnnsFinal)
-anEP :: Anns -> AnnsEP
-anEP (e,_) = e
-anF :: Anns -> AnnsFinal
-anF  (_,f) = f
--}
 
 -- Holds the name of a constructor
 data AnnConName = CN String
@@ -109,21 +90,6 @@ annGetConstr a = CN (show $ toConstr a)
 
 unConName :: AnnConName -> String
 unConName (CN s) = s
-
-
-
--- | For every @Located a@, use the @SrcSpan@ and constructor name of
--- a as the key, to store the standard annotation.
--- These are used to maintain context in the AP and EP monads
-type AnnsEP = Map.Map (GHC.SrcSpan,AnnConName) Annotation
-
--- | The offset values used for actually outputing the source. For a
--- given @'SrcSpan'@, in a context managed by the AP or EP monads,
--- store a list of offsets for a particular KeywordId. Mostly there
--- will only be one, but in certain circumstances they are multiple,
--- e.g. semi colons as separators, which can be repeated.
-type AnnsFinal = Map.Map (GHC.SrcSpan,KeywordId) [DeltaPos]
-type AnnKeyF   =         (GHC.SrcSpan,KeywordId)
 
 -- |We need our own version of keywordid to distinguish between a
 -- semi-colon appearing within an AST element and one separating AST
@@ -160,9 +126,6 @@ instance (GHC.OutputableBndr name) => GHC.Outputable (ResTyGADTHook name) where
 
 -- ---------------------------------------------------------------------
 
-mkAnnKeyEP :: (Data a) => GHC.Located a -> AnnKey
-mkAnnKeyEP (GHC.L l a) = (l,annGetConstr a)
-
 getAnnotationEP :: (Data a) => Anns -> GHC.Located a -> Maybe Annotation
 getAnnotationEP anns (GHC.L ss a)
   = case Map.lookup (ss, annGetConstr a) anns of
@@ -176,54 +139,4 @@ getAndRemoveAnnotationEP anns (GHC.L ss a)
      Nothing  -> (Nothing,anns)
      Just av -> (Just av,Map.delete (ss, annGetConstr a) anns)
 
-{-
--- ---------------------------------------------------------------------
--- Based on
--- https://github.com/ndmitchell/shake/blob/master/Development/Shake/Value.hs
-
-
--- We deliberately avoid Typeable instances on Key/Value to stop them
--- accidentally being used inside themselves
-
-newtype Key = Key Value
-  -- deriving (Eq)
-
-data Value = forall a . (Show a,Typeable a, GHC.Outputable a) => Value a
-
-newValue :: (Show a, Typeable a, GHC.Outputable a) => a -> Value
-newValue = Value
-
-emptyValue :: Value
-emptyValue = newValue (Just () :: Maybe ())
-
-isEmptyValue :: Value -> Bool
-isEmptyValue v = vv == Just ()
-  where
-    vv = fromValue v :: Maybe ()
-
-typeValue :: Value -> TypeRep
-typeValue (Value x) = typeOf x
-
-fromValue :: Typeable a => Value -> a
-fromValue (Value x) = fromMaybe (error errMsg) $ res
-  where
-   res = cast x
-   errMsg = "fromValue, bad cast from " ++ show (typeOf x)
-          ++ " to " ++ show (typeOf res)
-
-instance Show Key where
-  show (Key a) = show a
-
-instance Show Value where
-  show (Value a) = show a
-
-instance GHC.Outputable Value where
-  ppr (Value a) = GHC.ppr a
-
-{-
-instance Eq Value where
-  Value a == Value b = maybe False (a ==) $ cast b
-  Value a /= Value b = maybe True (a /=) $ cast b
--}
--}
 -- ---------------------------------------------------------------------

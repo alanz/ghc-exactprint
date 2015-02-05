@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -97,8 +96,8 @@ debug c _ = c
 --    - the annotations provided by GHC
 
 {- -}
-newtype AP x = AP ([(GHC.SrcSpan,DeltaPos,DeltaPos,Col,[(KeywordId,DeltaPos)],AnnConName)] -> GHC.SrcSpan -> Extra -> GHC.ApiAnns
-            -> (x, [(GHC.SrcSpan,DeltaPos,DeltaPos,Col,[(KeywordId,DeltaPos)],AnnConName)],   GHC.SrcSpan,   Extra,   GHC.ApiAnns,
+newtype AP x = AP ([(GHC.SrcSpan,DeltaPos,DeltaPos,[(KeywordId,DeltaPos)],AnnConName)] -> GHC.SrcSpan -> Extra -> GHC.ApiAnns
+            -> (x, [(GHC.SrcSpan,DeltaPos,DeltaPos,[(KeywordId,DeltaPos)],AnnConName)],   GHC.SrcSpan,   Extra,   GHC.ApiAnns,
                    [(AnnKey,AnnValue)]
                  ))
 
@@ -142,28 +141,24 @@ combineAnns ((Ann cs1 ed1 dp1),dps1) ((Ann cs2 _ed2 _dp2),dps2)
 
 -- |Note: assumes the SrcSpan stack is nonempty
 getSrcSpanAP :: AP GHC.SrcSpan
-getSrcSpanAP = AP (\l@((ss,_,_,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
+getSrcSpanAP = AP (\l@((ss,_,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
 
 getPriorSrcSpanAP :: AP GHC.SrcSpan
-getPriorSrcSpanAP = AP (\l@(_:(ss,_,_,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
+getPriorSrcSpanAP = AP (\l@(_:(ss,_,_,_,_):_) pe e ga -> (ss,l,pe,e,ga,mempty))
 
 pushSrcSpanAP :: Data a => (GHC.Located a) -> DeltaPos -> AP ()
 pushSrcSpanAP (GHC.L l a) edp = AP (\ls pe e ga ->
   let
     ec = case ls of
-          [(_,DP (_,o),_,_,_,_)]   -> o
-          ((_,DP (_,o),_,_,_,_):_) -> o
-  in ((),(l,DP (0,srcSpanStartColumn l),edp,ec,[],annGetConstr a):ls,pe,e,ga,mempty))
+          [(_,DP (_,o),_,_,_)]   -> o
+          ((_,DP (_,o),_,_,_):_) -> o
+  in ((),(l,DP (0,srcSpanStartColumn l),edp,[],annGetConstr a):ls,pe,e,ga,mempty))
 
 popSrcSpanAP :: AP ()
 popSrcSpanAP = AP (\(_:ls) pe e ga -> ((),ls,pe,e,ga,mempty))
 
-getOriginalEndCol :: AP Col
-getOriginalEndCol = AP (\l@((_,_,_,ec,_,_):_) pe e ga
-                   -> (ec,l,pe,e,ga,mempty))
-
 getEntryDP :: AP DeltaPos
-getEntryDP = AP (\l@((_,_,edp,_,_,_):_) pe e ga
+getEntryDP = AP (\l@((_,_,edp,_,_):_) pe e ga
                    -> (edp,l,pe,e,ga,mempty))
 
 
@@ -182,7 +177,7 @@ adjustDeltaForOffset  colOffset    (DP (l,c)) = DP (l,c - colOffset)
 
 -- | Get the current column offset
 getCurrentColOffset :: AP DeltaPos
-getCurrentColOffset = AP (\l@((_,o,_,_,_,_):_) pe e ga
+getCurrentColOffset = AP (\l@((_,o,_,_,_):_) pe e ga
                    -> (o,l,pe,e,ga,mempty))
 
 -- |Get the difference between the current and the previous
@@ -252,14 +247,14 @@ addAnnotationsAP ann = AP (\l pe e ga ->
                        ( (),l,pe,e,ga,
                  [((getAnnKey $ ghead "addAnnotationsAP" l),ann)]))
 
-getAnnKey :: (GHC.SrcSpan,t1,t2,t3,t4,AnnConName) -> AnnKey
-getAnnKey (l,_,_,_,_,t) = (l,t)
+getAnnKey :: (GHC.SrcSpan,t1,t2,t3,AnnConName) -> AnnKey
+getAnnKey (l,_,_,_,t) = (l,t)
 
 -- -------------------------------------
 
 addAnnDeltaPos :: (GHC.SrcSpan,KeywordId) -> DeltaPos -> AP ()
-addAnnDeltaPos (_s,kw) dp = AP (\((ss,d1,d2,c, kd,       cn):ls) pe e ga -> ( (),
-                                 ((ss,d1,d2,c,(kw,dp):kd,cn):ls),pe,e,ga,[]))
+addAnnDeltaPos (_s,kw) dp = AP (\((ss,d1,d2, kd,       cn):ls) pe e ga -> ( (),
+                                 ((ss,d1,d2,(kw,dp):kd,cn):ls),pe,e,ga,[]))
 
 {-
 addAnnDeltaPos (s,kw) dp = AP (\l pe e ga -> ( (),
@@ -271,7 +266,7 @@ addAnnDeltaPos (s,kw) dp = AP (\l pe e ga -> ( (),
 -- -------------------------------------
 
 getKds :: AP [(KeywordId,DeltaPos)]
-getKds = AP (\l@((_ss,_d1,_d2,_c,kd,_cn):_) pe e ga
+getKds = AP (\l@((_ss,_d1,_d2,kd,_cn):_) pe e ga
              -> (reverse kd,l,pe,e,ga,[]))
 
 -- -------------------------------------
@@ -321,7 +316,6 @@ leaveAST = do
 
   -- let dp = deltaFromSrcSpans priorEnd ss
   dp <- getCurrentDP
-  -- endCol <- getOriginalEndCol
   edp <- getEntryDP
   kds <- getKds
   addAnnotationsAP ((Ann lcs edp dp),kds)
@@ -421,7 +415,6 @@ addDeltaAnnotationAfter ann = do
 -- advance the position to the end of the annotation
 addDeltaAnnotationLs :: GHC.AnnKeywordId -> Int -> AP ()
 addDeltaAnnotationLs ann off = do
-  pe <- getPriorEnd
   ss <- getSrcSpanAP
   ma <- getAnnotationAP ss ann
   case (drop off ma) of
@@ -2202,7 +2195,7 @@ localComments co pin cs ds = r
 -- | Apply the delta to the current position, taking into account the
 -- current column offset
 undeltaComment :: Pos -> Int -> DComment -> Comment
-undeltaComment l con dco@(DComment _coo b (dps,dpe) s) = r
+undeltaComment l con (DComment _coo b (dps,dpe) s) = r
     -- `debug` ("undeltaComment:(l,con,dcomment,r)=" ++ show (l,con,dco,r))
   where
     r = Comment b ((adj dps $ undelta l dps co),(adj dps $ undelta l dpe co)) s
@@ -2216,7 +2209,7 @@ undeltaComment l con dco@(DComment _coo b (dps,dpe) s) = r
     adj (DP (_dro,_dco)) (row,c) = (row,c + dc)
 
 deltaComment :: Int -> Pos -> Comment -> DComment
-deltaComment co l cin@(Comment b (s,e) str) = r
+deltaComment co l (Comment b (s,e) str) = r
   -- `debug` ("deltaComment:(co,l,cin,r)=" ++ show (co,l,cin,r))
   where
     r = DComment co b ((ss2deltaP l s),(ss2deltaP l e)) str
