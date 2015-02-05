@@ -35,17 +35,15 @@ import qualified Data.Map as Map
 -- ---------------------------------------------------------------------
 
 -- | A Haskell comment. The 'Bool' is 'True' if the comment is multi-line, i.e. @{- -}@.
-data Comment = Comment Bool Span String
+data Comment = Comment Span String
   deriving (Eq,Show,Typeable,Data)
 
--- |Delta version of the comment. The initial Int is the column offset
--- that was force when the DeltaPos values were calculated. If this is
--- different when it is output, they deltas must be updated.
-data DComment = DComment Bool (DeltaPos,DeltaPos) String
+-- |Delta version of the comment.
+data DComment = DComment (DeltaPos,DeltaPos) String
   deriving (Eq,Show,Typeable,Data)
 
 instance Ord Comment where
-  compare (Comment _ p1 _) (Comment _ p2 _) = compare p1 p2
+  compare (Comment p1 _) (Comment p2 _) = compare p1 p2
 
 type PosToken = (GHC.Located GHC.Token, String)
 

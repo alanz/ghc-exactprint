@@ -269,20 +269,18 @@ mPrintComments p = do
     mc <- getComment
     case mc of
      Nothing -> return ()
-     Just (Comment multi (s,e) str) ->
+     Just (Comment (s,e) str) ->
         (
         when (s < p) $ do
             dropComment
             padUntil s
-            printComment multi str
-            setPos e
+            printComment str
+            setPos e -- AZ:only seems to affect the end position of the file
             mPrintComments p
          ) -- `debug` ("mPrintComments:(s,p):" ++ show (s,p))
 
-printComment :: Bool -> String -> EP ()
-printComment b str
-    | b         = printString str
-    | otherwise = printString str
+printComment :: String -> EP ()
+printComment str = printString str
 
 printWhitespace :: Pos -> EP ()
 printWhitespace p = do

@@ -11,7 +11,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   -- , OrganisedAnns
 
   -- , ghcIsComment
-  , ghcIsMultiLine
+  -- , ghcIsMultiLine
 
   , srcSpanStartLine
   , srcSpanEndLine
@@ -197,10 +197,9 @@ setPriorEnd pe = AP (\ls _ e ga  -> ((),ls,pe,e,ga,mempty))
 
 -- -------------------------------------
 
-getAnnotationAP :: GHC.SrcSpan -> GHC.AnnKeywordId -> AP [GHC.SrcSpan]
-getAnnotationAP sp an = AP (\l pe e ga
-    -> (GHC.getAnnotation ga sp an, l,pe,e,ga,mempty))
-
+getAnnotationAP :: GHC.AnnKeywordId -> AP [GHC.SrcSpan]
+getAnnotationAP an = AP (\l@((ss,_,_,_,_):_) pe e ga
+    -> (GHC.getAnnotation ga ss an, l,pe,e,ga,mempty))
 
 getAndRemoveAnnotationAP :: GHC.SrcSpan -> GHC.AnnKeywordId -> AP [GHC.SrcSpan]
 getAndRemoveAnnotationAP sp an = AP (\l pe e ga ->
@@ -227,7 +226,7 @@ getCommentsForSpan s = AP (\l pe e ga ->
     (gcs,ga1) = getAndRemoveAnnotationComments ga s
     cs = reverse $ map tokComment gcs
     tokComment :: GHC.Located GHC.AnnotationComment -> Comment
-    tokComment t@(GHC.L lt _) = Comment (ghcIsMultiLine t) (ss2span lt) (ghcCommentText t)
+    tokComment t@(GHC.L lt _) = Comment (ss2span lt) (ghcCommentText t)
   in (cs,l,pe,e,ga1,mempty)
       -- `debug` ("getCommentsForSpan:(s,cs)" ++ show (showGhc s,cs))
      )
@@ -248,13 +247,6 @@ getAnnKey (l,_,_,_,t) = (l,t)
 addAnnDeltaPos :: (GHC.SrcSpan,KeywordId) -> DeltaPos -> AP ()
 addAnnDeltaPos (_s,kw) dp = AP (\((ss,d1,d2, kd,       cn):ls) pe e ga -> ( (),
                                  ((ss,d1,d2,(kw,dp):kd,cn):ls),pe,e,ga,[]))
-
-{-
-addAnnDeltaPos (s,kw) dp = AP (\l pe e ga -> ( (),
-                                l,pe,e,ga,
-                               ([],
-                               [ ((s,kw),[dp]) ])  ))
--}
 
 -- -------------------------------------
 
@@ -301,11 +293,8 @@ leaveAST = do
      then return ()
      else addDeltaAnnotationsOutside GHC.AnnSemi AnnSemiSep
 
-  -- priorEnd <- getPriorEnd
-
   newCs <- getCommentsForSpan ss
-  DP (_,co) <- getCurrentColOffset
-  let (lcs,_) = localComments co (ss2span ss) newCs []
+  let (lcs,_) = localComments (ss2span ss) newCs []
 
   -- let dp = deltaFromSrcSpans priorEnd ss
   dp  <- getCurrentDP
@@ -345,7 +334,7 @@ addFinalComments :: AP ()
 addFinalComments = do
   return () -- `debug` ("addFinalComments:entering=")
   cs <- getCommentsForSpan GHC.noSrcSpan
-  let (dcs,_) = localComments 1 ((1,1),(1,1)) cs []
+  let (dcs,_) = localComments ((1,1),(1,1)) cs []
   pushSrcSpanAP (GHC.L GHC.noSrcSpan ()) (DP (0,0))
   addAnnotationsAP ((Ann dcs (DP (0,0)) 0),[])
     -- `debug` ("leaveAST:dcs=" ++ show dcs)
@@ -353,23 +342,19 @@ addFinalComments = do
 
 -- ---------------------------------------------------------------------
 
+-- AZ:TODO: Intersperse any comments now.
 addAnnotationWorker :: KeywordId -> GHC.SrcSpan -> AP ()
 addAnnotationWorker ann pa = do
   if not (isPointSrcSpan pa)
     then do
       pe <- getPriorEnd
       ss <- getSrcSpanAP
-      -- maybeAdjustColOffsetForGrouping pa
       let p = deltaFromSrcSpans pe pa
       case (ann,isGoodDelta p) of
         (G GHC.AnnComma,False) -> return ()
-             -- `debug`  ("addDeltaAnnotationWorker::bad delta:(ss,ma,p,ann)=" ++ show (ss2span ss,ss2span pa,p,ann))
-        (G GHC.AnnSemi,False) -> return ()
-             -- `debug`  ("addDeltaAnnotationWorker::bad delta:(ss,ma,p,ann)=" ++ show (ss2span ss,ss2span pa,p,ann))
-        (G GHC.AnnOpen,False) -> return ()
-             -- `debug`  ("addDeltaAnnotationWorker::bad delta:(ss,ma,p,ann)=" ++ show (ss2span ss,ss2span pa,p,ann))
+        (G GHC.AnnSemi, False) -> return ()
+        (G GHC.AnnOpen, False) -> return ()
         (G GHC.AnnClose,False) -> return ()
-             -- `debug`  ("addDeltaAnnotationWorker::bad delta:(ss,ma,p,ann)=" ++ show (ss2span ss,ss2span pa,p,ann))
         _ -> do
           p' <- adjustDeltaForOffsetM p
           addAnnDeltaPos (ss,ann) p'
@@ -385,7 +370,7 @@ addAnnotationWorker ann pa = do
 addDeltaAnnotation :: GHC.AnnKeywordId -> AP ()
 addDeltaAnnotation ann = do
   ss <- getSrcSpanAP
-  ma <- getAnnotationAP ss ann
+  ma <- getAnnotationAP ann
   case nub ma of -- ++AZ++ TODO: get rid of duplicates earlier
     [] -> return () `debug` ("addDeltaAnnotation empty ma for:" ++ show ann)
     [pa] -> addAnnotationWorker (G ann) pa
@@ -397,7 +382,7 @@ addDeltaAnnotation ann = do
 addDeltaAnnotationAfter :: GHC.AnnKeywordId -> AP ()
 addDeltaAnnotationAfter ann = do
   ss <- getSrcSpanAP
-  ma <- getAnnotationAP ss ann
+  ma <- getAnnotationAP ann
   let ma' = filter (\s -> not (GHC.isSubspanOf s ss)) ma
   case ma' of
     [] -> return () `debug` ("addDeltaAnnotation empty ma")
@@ -408,8 +393,7 @@ addDeltaAnnotationAfter ann = do
 -- advance the position to the end of the annotation
 addDeltaAnnotationLs :: GHC.AnnKeywordId -> Int -> AP ()
 addDeltaAnnotationLs ann off = do
-  ss <- getSrcSpanAP
-  ma <- getAnnotationAP ss ann
+  ma <- getAnnotationAP ann
   case (drop off ma) of
     [] -> return ()
         -- `debug` ("addDeltaAnnotationLs:missed:(off,pe,ann,ma)=" ++ show (off,ss2span pe,ann,fmap ss2span ma))
@@ -419,8 +403,7 @@ addDeltaAnnotationLs ann off = do
 -- position, and advance the position to the end of the annotations
 addDeltaAnnotations :: GHC.AnnKeywordId -> AP ()
 addDeltaAnnotations ann = do
-  ss <- getSrcSpanAP
-  ma <- getAnnotationAP ss ann
+  ma <- getAnnotationAP ann
   let do_one ap' = addAnnotationWorker (G ann) ap'
                     -- `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
   mapM_ do_one (sort ma)
@@ -431,7 +414,7 @@ addDeltaAnnotations ann = do
 addDeltaAnnotationsInside :: GHC.AnnKeywordId -> AP ()
 addDeltaAnnotationsInside ann = do
   ss <- getSrcSpanAP
-  ma <- getAnnotationAP ss ann
+  ma <- getAnnotationAP ann
   let do_one ap' = addAnnotationWorker (G ann) ap'
                     -- `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
   mapM_ do_one (sort $ filter (\s -> GHC.isSubspanOf s ss) ma)
@@ -452,19 +435,16 @@ addDeltaAnnotationsOutside gann ann = do
 -- position to the end of the annotation
 addDeltaAnnotationExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> AP ()
 addDeltaAnnotationExt s ann = do
-  pe <- getPriorEnd
-  ss <- getSrcSpanAP
-  -- maybeAdjustColOffsetForGrouping s
-  let p = deltaFromSrcSpans pe s
-  p' <- adjustDeltaForOffsetM p
-  addAnnDeltaPos (ss,G ann) p'
-  setPriorEnd s
+  addAnnotationWorker (G ann) s
+
 
 addEofAnnotation :: AP ()
 addEofAnnotation = do
   pe <- getPriorEnd
   ss <- getSrcSpanAP
-  ma <- getAnnotationAP GHC.noSrcSpan GHC.AnnEofPos
+  pushSrcSpanAP (GHC.noLoc ()) (DP (0,0))
+  ma <- getAnnotationAP GHC.AnnEofPos
+  popSrcSpanAP
   case ma of
     [] -> return ()
     [pa] -> do
@@ -474,8 +454,7 @@ addEofAnnotation = do
 
 countAnnsAP :: GHC.AnnKeywordId -> AP Int
 countAnnsAP ann = do
-  ss <- getSrcSpanAP
-  ma <- getAnnotationAP ss ann
+  ma <- getAnnotationAP ann
   return (length ma)
 
 -- ---------------------------------------------------------------------
@@ -2165,20 +2144,20 @@ instance AnnotateP (GHC.CType) where
 -- | Given an enclosing Span @(p,e)@, and a list of sub SrcSpans @ds@,
 -- identify all comments that are in @(p,e)@ but not in @ds@, and convert
 -- them to be DComments relative to @p@
-localComments :: Int -> Span -> [Comment] -> [Span] -> ([DComment],[Comment])
-localComments co pin cs ds = r
+localComments :: Span -> [Comment] -> [Span] -> ([DComment],[Comment])
+localComments pin cs ds = r
   -- `debug` ("localComments:(p,ds,r):" ++ show ((p,e),ds,r))
   where
-    r = (map (\c -> deltaComment co p c) matches,misses ++ missesRest)
+    r = (map (\c -> deltaComment p c) matches,misses ++ missesRest)
     (p,e) = if pin == ((1,1),(1,1))
                then  ((1,1),(99999999,1))
                else pin
 
     (matches,misses) = partition notSub cs'
-    (cs',missesRest) = partition (\(Comment _ com _) -> isSubPos com (p,e)) cs
+    (cs',missesRest) = partition (\(Comment com _) -> isSubPos com (p,e)) cs
 
     notSub :: Comment -> Bool
-    notSub (Comment _ com _) = not $ any (\sub -> isSubPos com sub) ds
+    notSub (Comment com _) = not $ any (\sub -> isSubPos com sub) ds
 
     isSubPos (subs,sube) (parents,parente)
       = parents <= subs && parente >= sube
@@ -2188,10 +2167,10 @@ localComments co pin cs ds = r
 -- | Apply the delta to the current position, taking into account the
 -- current column offset
 undeltaComment :: Pos -> Int -> DComment -> Comment
-undeltaComment l con (DComment b (dps,dpe) s) = r
+undeltaComment l con (DComment (dps,dpe) s) = r
     -- `debug` ("undeltaComment:(l,con,dcomment,r)=" ++ show (l,con,dco,r))
   where
-    r = Comment b ((adj dps $ undelta l dps co),(adj dps $ undelta l dpe co)) s
+    r = Comment ((adj dps $ undelta l dps co),(adj dps $ undelta l dpe co)) s
     co = con
     dc = - con -- + (coo - con)
 
@@ -2201,11 +2180,11 @@ undeltaComment l con (DComment b (dps,dpe) s) = r
     adj (DP (   0,_dco)) (row,c) = (row,c)
     adj (DP (_dro,_dco)) (row,c) = (row,c + dc)
 
-deltaComment :: Int -> Pos -> Comment -> DComment
-deltaComment co l (Comment b (s,e) str) = r
+deltaComment :: Pos -> Comment -> DComment
+deltaComment l (Comment (s,e) str) = r
   -- `debug` ("deltaComment:(co,l,cin,r)=" ++ show (co,l,cin,r))
   where
-    r = DComment b ((ss2deltaP l s),(ss2deltaP l e)) str
+    r = DComment ((ss2deltaP l s),(ss2deltaP l e)) str
 
 -- | Create a delta covering the gap between the end of the first
 -- @SrcSpan@ and the start of the second.
@@ -2290,31 +2269,6 @@ isListComp cts = case cts of
 
 -- ---------------------------------------------------------------------
 
-{-
-deriving instance Eq GHC.Token
-
-ghcIsComment :: PosToken -> Bool
-ghcIsComment ((GHC.L _ (GHC.ITdocCommentNext _)),_s)  = True
-ghcIsComment ((GHC.L _ (GHC.ITdocCommentPrev _)),_s)  = True
-ghcIsComment ((GHC.L _ (GHC.ITdocCommentNamed _)),_s) = True
-ghcIsComment ((GHC.L _ (GHC.ITdocSection _ _)),_s)    = True
-ghcIsComment ((GHC.L _ (GHC.ITdocOptions _)),_s)      = True
-ghcIsComment ((GHC.L _ (GHC.ITdocOptionsOld _)),_s)   = True
-ghcIsComment ((GHC.L _ (GHC.ITlineComment _)),_s)     = True
-ghcIsComment ((GHC.L _ (GHC.ITblockComment _)),_s)    = True
-ghcIsComment ((GHC.L _ _),_s)                         = False
--}
-
-ghcIsMultiLine :: GHC.Located GHC.AnnotationComment -> Bool
-ghcIsMultiLine (GHC.L _ (GHC.AnnDocCommentNext _))  = False
-ghcIsMultiLine (GHC.L _ (GHC.AnnDocCommentPrev _))  = False
-ghcIsMultiLine (GHC.L _ (GHC.AnnDocCommentNamed _)) = False
-ghcIsMultiLine (GHC.L _ (GHC.AnnDocSection _ _))    = False
-ghcIsMultiLine (GHC.L _ (GHC.AnnDocOptions _))      = False
-ghcIsMultiLine (GHC.L _ (GHC.AnnDocOptionsOld _))   = False
-ghcIsMultiLine (GHC.L _ (GHC.AnnLineComment _))     = False
-ghcIsMultiLine (GHC.L _ (GHC.AnnBlockComment _))    = True
-
 ghcCommentText :: GHC.Located GHC.AnnotationComment -> String
 ghcCommentText (GHC.L _ (GHC.AnnDocCommentNext s))  = s
 ghcCommentText (GHC.L _ (GHC.AnnDocCommentPrev s))  = s
@@ -2361,33 +2315,6 @@ instance Show (GHC.GenLocated GHC.SrcSpan GHC.Token) where
 
 pp :: GHC.Outputable a => a -> String
 pp a = GHC.showPpr GHC.unsafeGlobalDynFlags a
-
--- ---------------------------------------------------------------------
-
-{-
--- |For debugging
-type OrganisedAnns = Map.Map GHC.SrcSpan ([(AnnConName,Annotation)]
-                                         ,[(KeywordId, [DeltaPos])] )
-
--- | Re-arrange the annotations to make it clearer for users how they
--- hang together.
-organiseAnns :: Anns -> OrganisedAnns
-organiseAnns (anne,annf) = r
-  where
-    insertAnnE :: OrganisedAnns
-               -> ((GHC.SrcSpan,AnnConName), Annotation)
-               -> OrganisedAnns
-    insertAnnE m ((ss,conName),ann) =
-      case Map.lookup ss m of
-        Just (cas,kds) -> Map.insert ss ((conName,ann):cas,kds) m
-        Nothing        -> Map.insert ss ([(conName,ann)],  [])  m
-    insertAnnF m ((ss,kw),dps) =
-      case Map.lookup ss m of
-        Just (cas,kds) -> Map.insert ss (cas,(kw,dps):kds) m
-        Nothing        -> Map.insert ss ([], [(kw,dps)])   m
-    re = foldl insertAnnE Map.empty (Map.toList anne)
-    r  = foldl insertAnnF re        (Map.toList annf)
--}
 
 -- ---------------------------------------------------------------------
 
