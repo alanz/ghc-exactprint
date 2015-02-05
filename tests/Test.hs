@@ -22,6 +22,7 @@ import Control.Monad
 import System.Directory
 import System.FilePath
 import System.IO
+import System.Exit
 
 import Test.HUnit
 
@@ -29,8 +30,13 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-main :: IO Counts
-main = runTestTT tests
+main :: IO ()
+main = do
+  cnts <- runTestTT tests
+  putStrLn $ show cnts
+  if errors cnts > 0 || failures cnts > 0
+     then exitFailure
+     else return () -- exitSuccess
 
 -- tests = TestCase (do r <- manipulateAstTest "examples/LetStmt.hs" "Layout.LetStmt"
 --                      assertBool "test" r )
@@ -372,6 +378,7 @@ manipulateAstTest' mchange useTH file' modname = do
                     ++ showAnnData ann 0 parsed
   -- putStrLn $ "Test:parsed=" ++ parsedAST
   writeFile out $ result
+  -- putStrLn $ "Test:ann :" ++ showGhc ann
   -- putStrLn $ "Test:ann organised:" ++ showGhc (organiseAnns ann)
   -- putStrLn $ "Test:showdata:" ++ showAnnData (organiseAnns ann) 0 parsed
   -- putStrLn $ "Test:showdata:parsed'" ++ showAnnData (organiseAnns ann) 0 parsed'

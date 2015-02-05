@@ -181,6 +181,12 @@ getAndRemoveAnnotation a = EP (\l dp s cs st kd an ->
     (r,  l,dp,s,cs,st,kd,an',id))
 
 
+pushKds :: AnnKds -> EP ()
+pushKds kd = EP (\l dp ss cs st kds an -> ((),l,dp,ss,cs,st,kd:kds,an,id))
+
+popKds :: EP ()
+popKds = EP (\l dp ss cs st (_:kd) an -> ((),l,dp,ss,cs,st,kd,an,id))
+
 -- |destructive get, hence use an annotation once only
 getAnnFinal :: KeywordId -> EP [DeltaPos]
 getAnnFinal kw = EP (\l dp ss cs st kd an ->
@@ -372,13 +378,13 @@ exactPC a@(GHC.L l ast) =
     do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
        -- ma <- getAnnotation a
        ma <- getAndRemoveAnnotation a
-       (offset,edp) <- case ma of
-         Nothing -> return (0,DP (0,0))
+       (offset,edp,kd) <- case ma of
+         Nothing -> return (0,DP (0,0),[])
            -- `debug` ("exactPC:no annotation for " ++ show (ss2span l,typeOf ast))
          Just ((Ann lcs edp dp),kds) -> do
              mergeComments lcs -- `debug` ("exactPC:(l,lcs,ec,dp):" ++ show (showGhc l,lcs,ec',dp))
-             return (dp,edp)
-
+             return (dp,edp,kds)
+       pushKds kd
        -- setNestedOffset no
        op <- getPosForDelta edp
        pushOffset offset (srcSpanStartColumn l) op
@@ -387,7 +393,7 @@ exactPC a@(GHC.L l ast) =
          printStringAtMaybeAnn (G GHC.AnnComma) ","
          printStringAtMaybeAnnAll AnnSemiSep ";"
        popOffset
-
+       popKds
        popSrcSpan
 
 

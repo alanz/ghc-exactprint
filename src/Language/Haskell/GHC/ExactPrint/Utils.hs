@@ -84,8 +84,8 @@ import qualified Data.Map as Map
 import Debug.Trace
 
 debug :: c -> String -> c
-debug = flip trace
--- debug c _ = c
+-- debug = flip trace
+debug c _ = c
 
 -- ---------------------------------------------------------------------
 
@@ -258,10 +258,8 @@ getAnnKey (l,_,_,_,_,t) = (l,t)
 -- -------------------------------------
 
 addAnnDeltaPos :: (GHC.SrcSpan,KeywordId) -> DeltaPos -> AP ()
-addAnnDeltaPos (s,kw) dp = AP (\((ss,d1,d2,c,kd,cn):ls) pe e ga -> ( (),
-                                ((ss,d1,d2,c,(kw,dp):kd,cn):ls),pe,e,ga,
-                               []
-                               ))
+addAnnDeltaPos (_s,kw) dp = AP (\((ss,d1,d2,c, kd,       cn):ls) pe e ga -> ( (),
+                                 ((ss,d1,d2,c,(kw,dp):kd,cn):ls),pe,e,ga,[]))
 
 {-
 addAnnDeltaPos (s,kw) dp = AP (\l pe e ga -> ( (),
@@ -273,10 +271,8 @@ addAnnDeltaPos (s,kw) dp = AP (\l pe e ga -> ( (),
 -- -------------------------------------
 
 getKds :: AP [(KeywordId,DeltaPos)]
-getKds = AP (\l@((ss,d1,d2,c,kd,cn):ls) pe e ga -> ( kd,
-                                l,pe,e,ga,
-                               []
-                               ))
+getKds = AP (\l@((_ss,_d1,_d2,_c,kd,_cn):_) pe e ga
+             -> (reverse kd,l,pe,e,ga,[]))
 
 -- -------------------------------------
 
@@ -317,7 +313,7 @@ leaveAST = do
      then return ()
      else addDeltaAnnotationsOutside GHC.AnnSemi AnnSemiSep
 
-  priorEnd <- getPriorEnd
+  -- priorEnd <- getPriorEnd
 
   newCs <- getCommentsForSpan ss
   DP (_,co) <- getCurrentColOffset
@@ -325,11 +321,11 @@ leaveAST = do
 
   -- let dp = deltaFromSrcSpans priorEnd ss
   dp <- getCurrentDP
-  endCol <- getOriginalEndCol
+  -- endCol <- getOriginalEndCol
   edp <- getEntryDP
   kds <- getKds
   addAnnotationsAP ((Ann lcs edp dp),kds)
-    -- `debug` ("leaveAST:(ss,lcs,dp)=" ++ show (showGhc ss,lcs,dp))
+    `debug` ("leaveAST:(ss,edp,dp,kds)=" ++ show (showGhc ss,edp,dp,kds,dp))
   popSrcSpanAP
   return () -- `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
 
