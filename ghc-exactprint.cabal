@@ -59,7 +59,8 @@ Test-Suite test
                        ghc,
                        ghc-paths,
                        HUnit,
-                       random
+                       random,
+                       stm
 
 source-repository head
   type:     git
