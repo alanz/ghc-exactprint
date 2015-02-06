@@ -102,8 +102,8 @@ instance Annotated (GHC.Located a) where
 -- The (ColOffset,ColOffset) value carries the normal and current
 -- column offset. The second one captures the difference between the
 -- original col when the DP was captured and the current one.
-newtype EP x = EP (Pos -> [(ColOffset,ColDelta)] -> [GHC.SrcSpan] -> [Comment] -> Extra -> [AnnKds] -> Anns
-            -> (x, Pos,   [(ColOffset,ColDelta)],   [GHC.SrcSpan],   [Comment],   Extra,   [AnnKds],   Anns, ShowS))
+newtype EP x = EP (Pos -> [(ColOffset,ColDelta)] -> [GHC.SrcSpan] -> [DComment] -> Extra -> [AnnKds] -> Anns
+            -> (x, Pos,   [(ColOffset,ColDelta)],   [GHC.SrcSpan],   [DComment],   Extra,   [AnnKds],   Anns, ShowS))
 
 data Extra = E { eFunId :: (Bool,String) -- ^ (isSymbol,name)
                , eFunIsInfix :: Bool
@@ -128,7 +128,7 @@ instance Monad EP where
         (b, l2, ss2, dp2, c2, st2, kd2, an2, s2) = f l1 ss1 dp1 c1 st1 kd1 an1
     in (b, l2, ss2, dp2, c2, st2, kd2, an2, s1 . s2)
 
-runEP :: EP () -> GHC.SrcSpan -> [Comment] -> Anns -> String
+runEP :: EP () -> GHC.SrcSpan -> [DComment] -> Anns -> String
 runEP (EP f) ss cs ans = let (_,_,_,_,_,_,_,_,s) = f (1,1) [(0,0)] [ss] cs initExtra [] ans in s ""
 
 getPos :: EP Pos
@@ -189,25 +189,37 @@ popKds = EP (\l dp ss cs st (_:kd) an -> ((),l,dp,ss,cs,st,kd,an,id))
 
 -- |destructive get, hence use an annotation once only
 getAnnFinal :: KeywordId -> EP [DeltaPos]
-getAnnFinal kw = EP (\l dp ss cs st kd an ->
+getAnnFinal kw = EP (\l dp ss _cs st kd an ->
      let
-       (r,kd') = case kd of
-                  []    -> ([],[])
-                  (k:kds) -> (r',kk:kds)
-                    where (r',kk) = destructiveGetFirst kw ([],k)
-     in (r, l,dp,ss,cs,st,kd',an,id))
+       (r,kd',dcs) = case kd of
+                  []    -> ([],[],[])
+                  (k:kds) -> (r',kk:kds,dcs')
+                    where (cs',r',kk) = destructiveGetFirst kw ([],k)
+                          dcs' = concatMap keywordIdToDComment cs'
+     in (r, l,dp,ss,dcs,st,kd',an,id))
 
-destructiveGetFirst :: Eq k => k -> ([(k,v)],[(k,v)]) -> ([v],[(k,v)])
-destructiveGetFirst _key (acc,[]) = ([],acc)
+-- | Get and remove the first item in the (k,v) list for which the k matches.
+-- Return the value, together with any comments skipped over to get there.
+destructiveGetFirst :: KeywordId -> ([(KeywordId,v)],[(KeywordId,v)])
+                    -> ([(KeywordId,v)],[v],[(KeywordId,v)])
+destructiveGetFirst _key (acc,[]) = ([],[],acc)
 destructiveGetFirst  key (acc,((k,v):kvs))
-  | k == key = ([v],acc++kvs)
+  | k == key = let (cs,others) = commentsAndOthers acc in (cs,[v],others++kvs)
   | otherwise = destructiveGetFirst key (acc++[(k,v)],kvs)
+  where
+    commentsAndOthers kvs' = partition isComment kvs'
+    isComment ((AnnComment _),_) = True
+    isComment _              = False
+
+keywordIdToDComment :: (KeywordId, DeltaPos) -> [DComment]
+keywordIdToDComment (AnnComment str,dp) = [DComment (dp,dp) str]
+keywordIdToDComment _                   = []
 
 -- |non-destructive get
 peekAnnFinal :: KeywordId -> EP [DeltaPos]
 peekAnnFinal kw = EP (\l dp (s:ss) cs st (kd:kds) an ->
      let
-       (r,_) = destructiveGetFirst kw ([],kd)
+       (_cs',r,_) = destructiveGetFirst kw ([],kd)
      in (r,l,dp,(s:ss),cs,st,kd:kds,an,id))
 
 getFunId :: EP (Bool,String)
@@ -228,7 +240,11 @@ printString :: String -> EP ()
 printString str = EP (\(l,c) dp s cs st kd an ->
                   ((), (l,c+length str), dp, s, cs, st, kd, an, showString str))
 
-getComment :: EP (Maybe Comment)
+getComments :: EP [DComment]
+getComments = EP $ \l dp s cs st kd an ->
+     (cs, l, dp, s, cs, st, kd, an, id)
+
+getComment :: EP (Maybe DComment)
 getComment = EP $ \l dp s cs st kd an ->
     let x = case cs of
              c:_ -> Just c
@@ -242,6 +258,7 @@ dropComment = EP $ \l dp s cs st kd an ->
                _       -> cs
      in ((), l, dp, s, cs', st, kd, an, id)
 
+{-
 mergeComments :: [DComment] -> EP ()
 mergeComments dcs = EP $ \l dps s cs st kd an ->
     let ll = ss2pos $ head s
@@ -249,6 +266,7 @@ mergeComments dcs = EP $ \l dps s cs st kd an ->
         acs = map (undeltaComment ll co) dcs
         cs' = merge acs cs
     in ((), l, dps, s, cs', st, kd, an, id) `debug` ("mergeComments:(l,acs,dcs)=" ++ show (l,acs,dcs))
+-}
 
 newLine :: EP ()
 newLine = do
@@ -266,18 +284,21 @@ padUntil (l,c) = do
 
 mPrintComments :: Pos -> EP ()
 mPrintComments p = do
+  {-
     mc <- getComment
     case mc of
      Nothing -> return ()
-     Just (Comment (s,e) str) ->
+     Just (DComment s str) ->
         (
         when (s < p) $ do
             dropComment
             padUntil s
             printComment str
-            setPos e -- AZ:only seems to affect the end position of the file
+            -- setPos e -- AZ:only seems to affect the end position of the file
             mPrintComments p
          ) -- `debug` ("mPrintComments:(s,p):" ++ show (s,p))
+-}
+  return ()
 
 printComment :: String -> EP ()
 printComment str = printString str
@@ -291,6 +312,8 @@ printStringAt p str = printWhitespace p >> printString str
 
 -- ---------------------------------------------------------------------
 
+-- |This should be the final point where things are mode concrete,
+-- before output. Hence the point where comments can be inserted
 printStringAtLsDelta :: [DeltaPos] -> String -> EP ()
 printStringAtLsDelta mc s =
   case reverse mc of
@@ -298,14 +321,27 @@ printStringAtLsDelta mc s =
       p <- getPos
       colOffset <- getOffset
       if isGoodDeltaWithOffset cl colOffset
-        then printStringAt (undelta p cl colOffset) s
-             `debug` ("printStringAtLsDelta:(pos,s):" ++ show (undelta p cl colOffset,s))
+        then do
+          cs <- getComments
+          mapM_ printQueuedComment cs
+          printStringAt (undelta p cl colOffset) s
+            `debug` ("printStringAtLsDelta:(pos,s):" ++ show (undelta p cl colOffset,s))
         else return () `debug` ("printStringAtLsDelta:bad delta for (mc,s):" ++ show (mc,s))
     _ -> return ()
 
 
 isGoodDeltaWithOffset :: DeltaPos -> Int -> Bool
 isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP (undelta (0,0) dp colOffset))
+
+-- AZ:TODO: harvest the commonality between this and printStringAtLsDelta
+printQueuedComment :: DComment -> EP ()
+printQueuedComment (DComment (dp,_) s) = do
+  p <- getPos
+  colOffset <- getOffset
+  if isGoodDeltaWithOffset dp colOffset
+    then printStringAt (undelta p dp colOffset) s
+         `debug` ("printQueuedComment:(pos,s):" ++ show (undelta p dp colOffset,s))
+    else return () `debug` ("printQueuedComment::bad delta for (dp,s):" ++ show (dp,s))
 
 -- ---------------------------------------------------------------------
 
@@ -344,7 +380,7 @@ countAnns an = do
 
 -- | Print an AST exactly as specified by the annotations on the nodes in the tree.
 -- exactPrint :: (ExactP ast) => ast -> [Comment] -> String
-exactPrint :: (ExactP ast) => GHC.Located ast -> [Comment] -> String
+exactPrint :: (ExactP ast) => GHC.Located ast -> [DComment] -> String
 exactPrint ast@(GHC.L l _) cs = runEP (exactPC ast) l cs Map.empty
 
 
@@ -355,7 +391,7 @@ exactPrintAnnotated ast@(GHC.L l _) ghcAnns = runEP (loadInitialComments >> exac
     an = annotateLHsModule ast ghcAnns
 
 exactPrintAnnotation :: ExactP ast =>
-  GHC.Located ast -> [Comment] -> Anns -> String
+  GHC.Located ast -> [DComment] -> Anns -> String
 exactPrintAnnotation ast@(GHC.L l _) cs an = runEP (loadInitialComments >> exactPC ast) l cs an
   -- `debug` ("exactPrintAnnotation:an=" ++ (concatMap (\(l,a) -> show (ss2span l,a)) $ Map.toList an ))
 
@@ -378,7 +414,7 @@ exactPC a@(GHC.L l ast) =
        (offset,edp,kd) <- case ma of
          Nothing -> return (0,DP (0,0),[])
          Just ((Ann lcs edp dp),kds) -> do
-             mergeComments lcs
+             -- mergeComments lcs
              return (dp,edp,kds)
        pushKds kd
        op <- getPosForDelta edp
