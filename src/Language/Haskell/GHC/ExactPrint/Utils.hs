@@ -503,7 +503,6 @@ applyListAnnotations ls
 annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns
                   -> Anns
 annotateLHsModule modu ghcAnns
-   -- = runAP (addFinalComments >> annotatePC modu) ghcAnns
    = runAP (pushSrcSpanAP (GHC.L GHC.noSrcSpan ()) (DP (0,0)) >> annotatePC modu) ghcAnns
 
 -- ---------------------------------------------------------------------

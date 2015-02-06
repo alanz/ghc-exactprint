@@ -35,7 +35,6 @@ module Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
-import Control.Monad (liftM, ap)
 import Control.Applicative
 import Control.Monad.State
 import Control.Exception
@@ -43,7 +42,6 @@ import Data.Data
 import Data.List
 import Data.Monoid
 import Control.Monad.Writer
--- import Data.List.Utils -- TODO: Reinstate when available
 
 import qualified Bag           as GHC
 import qualified BasicTypes    as GHC
@@ -154,7 +152,6 @@ getOffset = gets (fst . ghead "getOffset" . stack)
 -- equivalent offset
 pushOffset :: ColOffset -> Col -> Pos -> EP ()
 pushOffset dc sc (_or,oc) = do
-  (r, c) <- gets epPos
   (co, cd) <- gets (ghead "pushOffset" . stack)
   let nd = sc - oc
       (co',cd') = if nd == cd
@@ -164,8 +161,7 @@ pushOffset dc sc (_or,oc) = do
 
 popOffset :: EP ()
 popOffset = modify (\s -> s {stack = tail (stack s)})
---     `debug` ("popOffset:old co,new co=" ++ show (fst _o,fst $ head dp))
- --              )
+
 -- ---------------------------------------------------------------------
 
 pushSrcSpan :: GHC.SrcSpan -> EP ()
@@ -173,9 +169,6 @@ pushSrcSpan ss = modify (\s -> s {srcSpans = ss:(srcSpans s)})
 
 popSrcSpan :: EP ()
 popSrcSpan = modify (\s -> s {srcSpans = tail (srcSpans s)})
-
-getAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
-getAnnotation a  = gets (getAnnotationEP a . anns)
 
 getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe AnnValue)
 getAndRemoveAnnotation a = do
@@ -250,27 +243,6 @@ printString str = do
 getComments :: EP [DComment]
 getComments = gets comments
 
-{-
-dropComment :: EP ()
-dropComment =
-    modify (\s -> s { comments = newComments (comments s) } )
-    where
-      newComments cs =
-        case cs of
-            (_:csl) -> csl
-            _       -> cs
-mergeComments :: [DComment] -> EP ()
-mergeComments dcs = do
-    cs <- gets comments
-    srcs <- gets srcSpans
-    dps  <- gets stack
-    let ll = ss2pos $ head srcs
-        (co,_) = ghead "mergeComments" dps
-        acs = map (undeltaComment ll co) dcs
-        cs' = merge acs cs
-    modify (\s -> s {comments = cs'}) -- `debug` ("mergeComments:(l,acs,dcs)=" ++ show (l,acs,dcs))
--}
-
 newLine :: EP ()
 newLine = do
     (l,_) <- getPos
@@ -284,31 +256,6 @@ padUntil (l,c) = do
      _ {-()-} | l1 >= l && c1 <= c -> printString $ replicate (c - c1) ' '
               | l1 < l             -> newLine >> padUntil (l,c)
               | otherwise          -> return ()
-
-{-
-mPrintComments :: Pos -> EP ()
-mPrintComments p = do
-  {-
-    mc <- getComment
-    case mc of
-     Nothing -> return ()
-     Just (DComment s str) ->
-        (
-        when (s < p) $ do
-            dropComment
-            padUntil s
-            printComment str
-            -- setPos e -- AZ:only seems to affect the end position of the file
-            mPrintComments p
-         ) -- `debug` ("mPrintComments:(s,p):" ++ show (s,p))
--}
-  return ()
--}
-
-{-
-printComment :: String -> EP ()
-printComment str = printString str
--}
 
 printWhitespace :: Pos -> EP ()
 printWhitespace p = do
@@ -396,25 +343,20 @@ exactPrint ast@(GHC.L l _) cs = runEP (exactPC ast) l cs Map.empty
 
 exactPrintAnnotated ::
      GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns -> String
-exactPrintAnnotated ast@(GHC.L l _) ghcAnns = runEP (loadInitialComments >> exactPC ast) l [] an
+exactPrintAnnotated ast@(GHC.L l _) ghcAnns = runEP (exactPC ast) l [] an
   where
     an = annotateLHsModule ast ghcAnns
 
 exactPrintAnnotation :: ExactP ast =>
   GHC.Located ast -> [DComment] -> Anns -> String
-exactPrintAnnotation ast@(GHC.L l _) cs an = runEP (loadInitialComments >> exactPC ast) l cs an
+exactPrintAnnotation ast@(GHC.L l _) cs an = runEP (exactPC ast) l cs an
   -- `debug` ("exactPrintAnnotation:an=" ++ (concatMap (\(l,a) -> show (ss2span l,a)) $ Map.toList an ))
 
 annotateAST :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns -> Anns
 annotateAST ast ghcAnns = annotateLHsModule ast ghcAnns
 
-loadInitialComments :: EP ()
-loadInitialComments = do
-  -- return () `debug` ("loadInitialComments entered")
-  -- Just (Ann cs _ _) <- getAnnotation (GHC.L GHC.noSrcSpan ())
-  -- mergeComments cs -- `debug` ("loadInitialComments cs=" ++ show cs)
-  -- return () `debug` ("loadInitialComments exited")
-  return ()
+
+-- ---------------------------------------------------------------------
 
 -- |First move to the given location, then call exactP
 exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
@@ -436,6 +378,7 @@ exactPC a@(GHC.L l ast) =
        popKds
        popSrcSpan
 
+-- ---------------------------------------------------------------------
 
 printMerged :: (ExactP a, ExactP b) => [GHC.Located a] -> [GHC.Located b] -> EP ()
 printMerged [] [] = return ()

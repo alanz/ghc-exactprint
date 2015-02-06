@@ -168,120 +168,30 @@ new one entered
   (Ann {ann_entry_delta = DP (0,-1), ann_delta = 8}, [])),
 ```
 
+AZ:Not sure why we have a -1 here.
+
+The HsLet runs from (7,11) to (8,35) (GHC reports one less for the end)
+
+```
+ ((tests/examples/LayoutLet2.hs:(7,11)-(8,34), CN "HsLet"),
+  (Ann {ann_entry_delta = DP (0,1), ann_delta = 2},
+   [(G AnnLet, DP (0,1)), (G AnnIn, DP (0,1))])),
+```
+
+The delta from previous output (the "=" on col 8, endinf on 9) is 1,
+for a total indent of 10. We already have an indent of 8 from the
+ (CN "GRHS") entry higher in the stack, so this ann_delta is 2.
+
+The "let" occurs one space over from prior output. It is the first
+output item for this span so it has the same DeltaPos as
+ann_entry_delta.
 
 
 
 
 
 
+More to come ...
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Currently, when moving from the "let" to "a = 3" we have an offset
-specified as DP (1,2), ie one line down
-
-Output stage in exactPC
-
-printStringAtMaybeAnn gets the offset and calls
-printStringAtLsDelta which does
-
-  cl = the DP to use
-  p <- getPos -- to get the current output (r,c)
-  colOffset < getOffset -- gets fst $ head dps, the second AP var.
-
-Then
-  undelta p cl colOffset
-
-undelta :: Pos -> DeltaPos -> Int -> Pos
-undelta (l,c) (DP (dl,dc)) co = (fl,fc)
-  where
-    fl = l + dl
-    fc = if dl == 0 then c  + dc
-                    else co + dc
-
-So undelta treats co as the baseline offset when moving to a new line.
-
-co is set on entry to a new srcspan as follows
-
-  The SrcSpan has (Ann lcs ec nd dp)
-     where lcs = commsnts
-           ec  = original column offset at the point the dp was captured.
-           nd  = nested delta position, no longer used.
-           dp = the delta pos associated with the span.
-
-This gets fed into pushOffset dp ec
-
-this does
-    (co,_) = ghead "pushOffset" dps -- second param of EP
-    co' = dc + co
- and then sets dps to
-   (co',dc):dps
-
-Currently the second value in the tuple is not used. We will use it to
-store the current difference that is embodied in the co. Initially
-this is zero, as there have been no changes in the offset. If the
-current col and the ec value differ, this diff is calculated and
-compared with the stored diff. If different, the difference is added
-to the co, and the stored diff updated. This was an offset will only
-be applied once.
-
-Problem is, how do we unwind? i.e., regardless of where the prior line
-ended, a new fn needs to be at col 1. Can't use prior pos for that.
-
-As we pop up the stack of annotations, we need to undo the deltas. Or
-perhaps only compare deltas at equivalent positions before. It is
-captured using a stack, based on pos on entry, do the same on use. TODO.
-
-
-Invariants re SrcSpans / Annotations
-
-1. The start of the SrcSpan coincides with the first output of the
-   given feature.
-2. There may be annotations that occur beyond the end of the SrcSpan,
-   for e.g. semicolons or commas in lists, or comments.
-
-So, we can add an "annotation" / DP for the start of a SrcSpan which
-emits the empty string. Or equivalently, add a DP to the Annotation
-type to carry the DP to get to the start of the SrcSpan. This can give
-us a "current position" marker for use in exactPC when working out the
-offset.
-
-Scenarios
-
-    123456789012345
-    a xxx = do b
-               c
-
-Starting col for c is 12, stored as original annotation.
-
-    1234567890123456
-    a xxx123 = do b
-                  c
-
-Starting col for c is 15. The whole RHS is a single nested production.
-The '=' is the start of it, we have an offset to apply, but the
-observed position when the offset is applied will be different.
-
-    123456789012345
-    a x = do b
-             c
-
-Starting col for c is 10.
 

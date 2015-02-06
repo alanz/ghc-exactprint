@@ -378,8 +378,8 @@ manipulateAstTest' mchange useTH file' modname = do
                     ++ "\n========================\n"
                     ++ showAnnData ann 0 parsed
   writeFile out $ result
-  putStrLn $ "Test:parsed=" ++ parsedAST
-  putStrLn $ "Test:ann :" ++ showGhc ann
+  -- putStrLn $ "Test:parsed=" ++ parsedAST
+  -- putStrLn $ "Test:ann :" ++ showGhc ann
   -- putStrLn $ "Test:ann organised:" ++ showGhc (organiseAnns ann)
   -- putStrLn $ "Test:showdata:" ++ showAnnData (organiseAnns ann) 0 parsed
   -- putStrLn $ "Test:showdata:parsed'" ++ showAnnData (organiseAnns ann) 0 parsed'

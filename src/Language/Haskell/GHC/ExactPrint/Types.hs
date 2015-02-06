@@ -63,7 +63,7 @@ annNone = Ann (DP (0,0)) 0
 
 
 data Annotation = Ann
-  { -- ann_comments     :: ![DComment]
+  {
     ann_entry_delta  :: !DeltaPos -- ^ Offset used to get to the start
                                   -- of the SrcSpan, during the
                                   -- annotatePC phase
