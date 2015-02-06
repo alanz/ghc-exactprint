@@ -78,8 +78,8 @@ import qualified Data.Map as Map
 import Debug.Trace
 
 debug :: c -> String -> c
-debug = flip trace
--- debug c _ = c
+-- debug = flip trace
+debug c _ = c
 
 -- ---------------------------------------------------------------------
 
@@ -424,7 +424,9 @@ addDeltaComment (Comment paspan str) = do
   let p = deltaFromSrcSpans pe pa
   p' <- adjustDeltaForOffsetM p
   setPriorEnd pa
-  addAnnDeltaPos (ss,(AnnComment str)) p'
+  let e = ss2deltaP (ss2posEnd pe) (snd paspan)
+  e' <- adjustDeltaForOffsetM e
+  addAnnDeltaPos (ss,AnnComment (DComment (p',e') str)) p'
 
 -- ---------------------------------------------------------------------
 

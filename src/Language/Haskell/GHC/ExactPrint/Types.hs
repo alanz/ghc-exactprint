@@ -43,7 +43,7 @@ instance GHC.Outputable Comment where
 
 -- |Delta version of the comment.
 data DComment = DComment (DeltaPos,DeltaPos) String
-  deriving (Eq,Show,Typeable,Data)
+  deriving (Eq,Show,Typeable,Data,Ord)
 
 instance Ord Comment where
   compare (Comment p1 _) (Comment p2 _) = compare p1 p2
@@ -97,7 +97,7 @@ unConName (CN s) = s
 -- elements in a list.
 data KeywordId = G GHC.AnnKeywordId
                | AnnSemiSep
-               | AnnComment String
+               | AnnComment DComment
                deriving (Eq,Show,Ord)
 
 -- ---------------------------------------------------------------------

@@ -212,7 +212,7 @@ destructiveGetFirst  key (acc,((k,v):kvs))
     isComment _              = False
 
 keywordIdToDComment :: (KeywordId, DeltaPos) -> [DComment]
-keywordIdToDComment (AnnComment str,dp) = [DComment (dp,dp) str]
+keywordIdToDComment (AnnComment comment,_dp) = [comment]
 keywordIdToDComment _                   = []
 
 -- |non-destructive get
@@ -335,12 +335,14 @@ isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP (undelta (0,0) dp colOffset
 
 -- AZ:TODO: harvest the commonality between this and printStringAtLsDelta
 printQueuedComment :: DComment -> EP ()
-printQueuedComment (DComment (dp,_) s) = do
+printQueuedComment (DComment (dp,de) s) = do
   p <- getPos
   colOffset <- getOffset
   if isGoodDeltaWithOffset dp colOffset
-    then printStringAt (undelta p dp colOffset) s
+    then do
+      printStringAt (undelta p dp colOffset) s
          `debug` ("printQueuedComment:(pos,s):" ++ show (undelta p dp colOffset,s))
+      setPos (undelta p de colOffset)
     else return () `debug` ("printQueuedComment::bad delta for (dp,s):" ++ show (dp,s))
 
 -- ---------------------------------------------------------------------

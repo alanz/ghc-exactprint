@@ -181,7 +181,6 @@ tt = do
     manipulateAstTest "PatSynBind.hs"            "Main"
     manipulateAstTest "HsDo.hs"                  "HsDo"
     manipulateAstTest "ForAll.hs"                "ForAll"
-    manipulateAstTest "PArr.hs"                  "PArr"
     manipulateAstTest "ViewPatterns.hs"          "Main"
     manipulateAstTest "BangPatterns.hs"          "Main"
     manipulateAstTest "Associated.hs"            "Main"
@@ -243,8 +242,9 @@ tt = do
     manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
     manipulateAstTest "EmptyMostly2.hs"          "EmptyMostly2"
     manipulateAstTest "WhereIn4.hs"              "WhereIn4"
-    -}
     manipulateAstTest "AltsSemis.hs"             "Main"
+    -}
+    manipulateAstTest "PArr.hs"                  "PArr"
 
 {-
     manipulateAstTest "ParensAroundContext.hs"   "ParensAroundContext"
