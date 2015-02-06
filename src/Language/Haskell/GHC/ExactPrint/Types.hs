@@ -129,15 +129,15 @@ instance (GHC.OutputableBndr name) => GHC.Outputable (ResTyGADTHook name) where
 
 -- ---------------------------------------------------------------------
 
-getAnnotationEP :: (Data a) => Anns -> GHC.Located a -> Maybe Annotation
-getAnnotationEP anns (GHC.L ss a)
+getAnnotationEP :: (Data a) =>  GHC.Located a -> Anns -> Maybe Annotation
+getAnnotationEP  (GHC.L ss a) anns
   = case Map.lookup (ss, annGetConstr a) anns of
       Nothing -> Nothing
       Just (an,_kds) -> Just an
 
 getAndRemoveAnnotationEP :: (Data a)
-                         => Anns -> GHC.Located a -> (Maybe AnnValue,Anns)
-getAndRemoveAnnotationEP anns (GHC.L ss a)
+                         => GHC.Located a -> Anns -> (Maybe AnnValue,Anns)
+getAndRemoveAnnotationEP (GHC.L ss a) anns
  = case Map.lookup (ss, annGetConstr a) anns of
      Nothing  -> (Nothing,anns)
      Just av -> (Just av,Map.delete (ss, annGetConstr a) anns)
