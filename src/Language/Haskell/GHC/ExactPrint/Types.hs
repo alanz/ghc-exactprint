@@ -75,6 +75,7 @@ instance Show GHC.RdrName where
   show n = "(a RdrName)"
 
 type Anns = Map.Map AnnKey AnnValue
+
 -- | For every @Located a@, use the @SrcSpan@ and constructor name of
 -- a as the key, to store the standard annotation.
 -- These are used to maintain context in the AP and EP monads

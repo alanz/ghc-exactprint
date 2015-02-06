@@ -35,7 +35,7 @@ module Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
-import Control.Monad (when, liftM, ap)
+import Control.Monad (liftM, ap)
 import Control.Exception
 import Data.Data
 import Data.List
@@ -169,9 +169,11 @@ pushSrcSpan ss = EP (\l dp sss cs st kd an -> ((),l,dp,(ss:sss),cs,st,kd,an,id))
 popSrcSpan :: EP ()
 popSrcSpan = EP (\l dp (_:sss) cs st kd an -> ((),l,dp,sss,cs,st,kd,an,id))
 
+{-
 getAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
 getAnnotation a  = EP (\l dp s cs st kd an -> (getAnnotationEP an a
                        ,l,dp,s,cs,st,kd,an,id))
+-}
 
 getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe AnnValue)
 getAndRemoveAnnotation a = EP (\l dp s cs st kd an ->
@@ -244,20 +246,23 @@ getComments :: EP [DComment]
 getComments = EP $ \l dp s cs st kd an ->
      (cs, l, dp, s, cs, st, kd, an, id)
 
+{-
 getComment :: EP (Maybe DComment)
 getComment = EP $ \l dp s cs st kd an ->
     let x = case cs of
              c:_ -> Just c
              _   -> Nothing
      in (x, l, dp, s, cs, st, kd, an, id)
+-}
 
+{-
 dropComment :: EP ()
 dropComment = EP $ \l dp s cs st kd an ->
     let cs' = case cs of
                (_:csl) -> csl
                _       -> cs
      in ((), l, dp, s, cs', st, kd, an, id)
-
+-}
 {-
 mergeComments :: [DComment] -> EP ()
 mergeComments dcs = EP $ \l dps s cs st kd an ->
@@ -282,6 +287,7 @@ padUntil (l,c) = do
               | l1 < l             -> newLine >> padUntil (l,c)
               | otherwise          -> return ()
 
+{-
 mPrintComments :: Pos -> EP ()
 mPrintComments p = do
   {-
@@ -299,13 +305,17 @@ mPrintComments p = do
          ) -- `debug` ("mPrintComments:(s,p):" ++ show (s,p))
 -}
   return ()
+-}
 
+{-
 printComment :: String -> EP ()
 printComment str = printString str
+-}
 
 printWhitespace :: Pos -> EP ()
 printWhitespace p = do
-  mPrintComments p >> padUntil p
+  -- mPrintComments p >> padUntil p
+  padUntil p
 
 printStringAt :: Pos -> String -> EP ()
 printStringAt p str = printWhitespace p >> printString str

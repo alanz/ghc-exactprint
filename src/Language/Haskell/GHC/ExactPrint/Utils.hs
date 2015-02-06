@@ -28,7 +28,6 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , showGhc
   , showAnnData
 
-  , merge
 
   -- * For tests
   , debug
@@ -199,8 +198,6 @@ adjustDeltaForOffset  colOffset    (DP (l,c)) = DP (l,c - colOffset)
 
 -- | Get the current column offset
 getCurrentColOffset :: AP ColOffset
--- getCurrentColOffset = AP (\l@((_,o,_,_,_):_) pe e ga
---                    -> (o,l,pe,e,ga,mempty))
 getCurrentColOffset = AP (\l@((s,_,_,_):_) pe cs e ga
                    -> (srcSpanStartColumn s,l,pe,cs,e,ga,mempty))
 
@@ -235,27 +232,6 @@ getAndRemoveAnnotationAP sp an = AP (\l pe cs e ga ->
       (r,ga') = GHC.getAndRemoveAnnotation ga sp an
     in (r, l,pe,cs,e,ga',mempty))
 
--- -------------------------------------
--- |Retrieve the comments allocated to the current 'SrcSpan', and
--- remove them from the annotations
-getAndRemoveAnnotationComments :: GHC.ApiAnns -> GHC.SrcSpan
-                               -> ([GHC.Located GHC.AnnotationComment],GHC.ApiAnns)
-getAndRemoveAnnotationComments (anns,canns) ss =
-  (case Map.lookup ss canns of
-    Just cs -> (cs,(anns,Map.delete ss canns))
-    Nothing -> ([],(anns,canns)))
-     -- `debug` ("getAndRemoveAnnotationComments:ss=" ++ showGhc ss)
-
-----------------------------------------
-
-getCommentsForSpan :: GHC.SrcSpan -> AP [Comment]
-getCommentsForSpan s = AP (\l pe cs e ga ->
-  let
-    (gcs,ga1) = getAndRemoveAnnotationComments ga s
-    cs = reverse $ map tokComment gcs
-  in (cs,l,pe,cs,e,ga1,mempty)
-      `debug` ("getCommentsForSpan:(s,cs)" ++ show (showGhc s,cs))
-     )
 
 tokComment :: GHC.Located GHC.AnnotationComment -> Comment
 tokComment t@(GHC.L lt _) = Comment (ss2span lt) (ghcCommentText t)
@@ -305,8 +281,6 @@ enterAST lss = do
   p' <- adjustDeltaForOffsetM p
   -- need to save p', and put it in Annotation
 
-  -- cs <- getCommentsForSpan ss
-  -- return () `debug` ("enterAST:cs=" ++ show cs)
   pushSrcSpanAP lss p'
 
   return ()
@@ -327,8 +301,6 @@ leaveAST = do
      then return ()
      else addDeltaAnnotationsOutside GHC.AnnSemi AnnSemiSep
 
-  -- newCs <- getCommentsForSpan ss
-  -- let (lcs,_) = localComments (ss2span ss) newCs
   let lcs = []
 
   dp  <- getCurrentDP
@@ -363,17 +335,6 @@ annotateList xs = mapM_ annotatePC xs
 
 isGoodDelta :: DeltaPos -> Bool
 isGoodDelta (DP (ro,co)) = ro >= 0 && co >= 0
-
-addFinalComments :: AP ()
-addFinalComments = do
-  return () -- `debug` ("addFinalComments:entering=")
-  cs <- getCommentsForSpan GHC.noSrcSpan
-  -- let (dcs,_) = localComments ((1,1),(1,1)) cs
-  let dcs = [] -- ++AZ++ nned to reinstate this
-  pushSrcSpanAP (GHC.L GHC.noSrcSpan ()) (DP (0,0))
-  addAnnotationsAP ((Ann dcs (DP (0,0)) 0),[])
-    -- `debug` ("leaveAST:dcs=" ++ show dcs)
-  return () -- `debug` ("addFinalComments:dcs=" ++ show dcs)
 
 -- ---------------------------------------------------------------------
 
@@ -1688,10 +1649,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
     addDeltaAnnotation GHC.AnnLet
     addDeltaAnnotation GHC.AnnOpenC
     addDeltaAnnotationsInside GHC.AnnSemi
-    -- startGroupingOffsets
-    -- annotateHsLocalBinds binds
     annotatePC (GHC.L (getLocalBindsSrcSpan binds) binds)
-    -- stopGroupingOffsets
     addDeltaAnnotation GHC.AnnCloseC
     addDeltaAnnotation GHC.AnnIn
     annotatePC e
@@ -1976,7 +1934,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
   annotateP _ (GHC.HsCmdLet binds e) = do
     addDeltaAnnotation GHC.AnnLet
     addDeltaAnnotation GHC.AnnOpenC
-    -- annotateHsLocalBinds binds
     annotatePC (GHC.L (getLocalBindsSrcSpan binds) binds)
     addDeltaAnnotation GHC.AnnCloseC
     addDeltaAnnotation GHC.AnnIn
@@ -2125,7 +2082,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
     addDeltaAnnotation GHC.AnnDeriving
     addDeltaAnnotation GHC.AnnOpenP
     mapM_ annotatePC ts
-    -- addDeltaAnnotation GHC.AnnUnit -- for empty context
     addDeltaAnnotation GHC.AnnCloseP
     addDeltaAnnotation GHC.AnnDarrow
 
@@ -2209,21 +2165,6 @@ instance AnnotateP (GHC.CType) where
 
 -- ---------------------------------------------------------------------
 
--- AZ: GHC does this now, can simplify
--- | Given an enclosing Span @(p,e)@, and a list of sub SrcSpans @ds@,
--- identify all comments that are in @(p,e)@ but not in @ds@, and convert
--- them to be DComments relative to @p@
-localComments :: Span -> [Comment] -> ([DComment],[Comment])
-localComments pin cs = r
-  -- `debug` ("localComments:(p,ds,r):" ++ show ((p,e),ds,r))
-  where
-    r = (map (\c -> deltaComment p c) cs,[])
-    (p,e) = if pin == ((1,1),(1,1))
-               then  ((1,1),(99999999,1))
-               else pin
-
--- ---------------------------------------------------------------------
-
 -- | Apply the delta to the current position, taking into account the
 -- current column offset
 undeltaComment :: Pos -> Int -> DComment -> Comment
@@ -2239,13 +2180,6 @@ undeltaComment l con (DComment (dps,dpe) s) = r
     -- original and current offsets
     adj (DP (   0,_dco)) (row,c) = (row,c)
     adj (DP (_dro,_dco)) (row,c) = (row,c + dc)
-
-deltaComment :: Pos -> Comment -> DComment
-deltaComment l (Comment (s,e) str) = r
-  -- `debug` ("deltaComment:(co,l,cin,r)=" ++ show (co,l,cin,r))
-  where
-    r = DComment ((ss2deltaP l s),(ss2deltaP l e)) str
-
 
 -- | Create a delta covering the gap between the end of the first
 -- @SrcSpan@ and the start of the second.
@@ -2458,43 +2392,4 @@ gtail _info h    = tail h
 gfromJust :: [Char] -> Maybe a -> a
 gfromJust _info (Just h) = h
 gfromJust  info Nothing = error $ "gfromJust " ++ info ++ " Nothing"
-
--- -------------------------------------------------------------------..
--- Copied from MissingH, does not compile with HEAD
-
-
-{- | Merge two sorted lists into a single, sorted whole.
-
-Example:
-
-> merge [1,3,5] [1,2,4,6] -> [1,1,2,3,4,5,6]
-
-QuickCheck test property:
-
-prop_merge xs ys =
-    merge (sort xs) (sort ys) == sort (xs ++ ys)
-          where types = xs :: [Int]
--}
-merge ::  (Ord a) => [a] -> [a] -> [a]
-merge = mergeBy (compare)
-
-{- | Merge two sorted lists using into a single, sorted whole,
-allowing the programmer to specify the comparison function.
-
-QuickCheck test property:
-
-prop_mergeBy xs ys =
-    mergeBy cmp (sortBy cmp xs) (sortBy cmp ys) == sortBy cmp (xs ++ ys)
-          where types = xs :: [ (Int, Int) ]
-                cmp (x1,_) (x2,_) = compare x1 x2
--}
-mergeBy :: (a -> a -> Ordering) -> [a] -> [a] -> [a]
-mergeBy _cmp [] ys = ys
-mergeBy _cmp xs [] = xs
-mergeBy cmp (allx@(x:xs)) (ally@(y:ys))
-        -- Ordering derives Eq, Ord, so the comparison below is valid.
-        -- Explanation left as an exercise for the reader.
-        -- Someone please put this code out of its misery.
-    | (x `cmp` y) <= EQ = x : mergeBy cmp xs ally
-    | otherwise = y : mergeBy cmp allx ys
 
