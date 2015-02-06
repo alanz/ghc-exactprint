@@ -218,7 +218,6 @@ tt = do
     manipulateAstTest "Utils2.hs"                "Utils2"
     manipulateAstTest "EmptyMostlyInst.hs"       "EmptyMostlyInst"
     manipulateAstTest "EmptyMostlyNoSemis.hs"    "EmptyMostlyNoSemis"
-    manipulateAstTest "Dead1.hs"                 "Dead1"
     manipulateAstTest "EmptyMostly.hs"           "EmptyMostly"
     manipulateAstTest "FromUtils.hs"             "Main"
     manipulateAstTest "DocDecls.hs"              "DocDecls"
@@ -243,8 +242,9 @@ tt = do
     manipulateAstTest "EmptyMostly2.hs"          "EmptyMostly2"
     manipulateAstTest "WhereIn4.hs"              "WhereIn4"
     manipulateAstTest "AltsSemis.hs"             "Main"
-    -}
     manipulateAstTest "PArr.hs"                  "PArr"
+    -}
+    manipulateAstTest "Dead1.hs"                 "Dead1"
 
 {-
     manipulateAstTest "ParensAroundContext.hs"   "ParensAroundContext"
@@ -379,7 +379,7 @@ manipulateAstTest' mchange useTH file' modname = do
                     ++ showAnnData ann 0 parsed
   -- putStrLn $ "Test:parsed=" ++ parsedAST
   writeFile out $ result
-  putStrLn $ "Test:ann :" ++ showGhc ann
+  -- putStrLn $ "Test:ann :" ++ showGhc ann
   -- putStrLn $ "Test:ann organised:" ++ showGhc (organiseAnns ann)
   -- putStrLn $ "Test:showdata:" ++ showAnnData (organiseAnns ann) 0 parsed
   -- putStrLn $ "Test:showdata:parsed'" ++ showAnnData (organiseAnns ann) 0 parsed'

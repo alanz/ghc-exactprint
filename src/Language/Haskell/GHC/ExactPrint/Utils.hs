@@ -513,6 +513,8 @@ addEofAnnotation = do
   case ma of
     [] -> return ()
     [pa] -> do
+      cs <- getUnallocatedComments
+      mapM_ addDeltaComment cs
       let DP (r,c) = deltaFromSrcSpans pe pa
       addAnnDeltaPos (ss,G GHC.AnnEofPos) (DP (r, c - 1))
       setPriorEnd pa
