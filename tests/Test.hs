@@ -238,13 +238,13 @@ tt = do
     manipulateAstTestWithMod changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
     manipulateAstTestWithMod changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
     manipulateAstTestWithMod changeLayoutLet5 "LayoutLet5.hs" "LayoutLet5"
-    manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
     manipulateAstTest "EmptyMostly2.hs"          "EmptyMostly2"
     manipulateAstTest "WhereIn4.hs"              "WhereIn4"
     manipulateAstTest "AltsSemis.hs"             "Main"
     manipulateAstTest "PArr.hs"                  "PArr"
-    -}
     manipulateAstTest "Dead1.hs"                 "Dead1"
+    -}
+    manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
 
 {-
     manipulateAstTest "ParensAroundContext.hs"   "ParensAroundContext"
@@ -377,9 +377,9 @@ manipulateAstTest' mchange useTH file' modname = do
                     ++ parsedAST
                     ++ "\n========================\n"
                     ++ showAnnData ann 0 parsed
-  -- putStrLn $ "Test:parsed=" ++ parsedAST
   writeFile out $ result
-  -- putStrLn $ "Test:ann :" ++ showGhc ann
+  putStrLn $ "Test:parsed=" ++ parsedAST
+  putStrLn $ "Test:ann :" ++ showGhc ann
   -- putStrLn $ "Test:ann organised:" ++ showGhc (organiseAnns ann)
   -- putStrLn $ "Test:showdata:" ++ showAnnData (organiseAnns ann) 0 parsed
   -- putStrLn $ "Test:showdata:parsed'" ++ showAnnData (organiseAnns ann) 0 parsed'

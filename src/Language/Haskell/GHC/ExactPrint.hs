@@ -423,8 +423,7 @@ exactPC a@(GHC.L l ast) =
        ma <- getAndRemoveAnnotation a
        (offset,edp,kd) <- case ma of
          Nothing -> return (0,DP (0,0),[])
-         Just ((Ann lcs edp dp),kds) -> do
-             -- mergeComments lcs
+         Just ((Ann edp dp),kds) -> do
              return (dp,edp,kds)
        pushKds kd
        op <- getPosForDelta edp

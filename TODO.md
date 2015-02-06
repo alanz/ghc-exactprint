@@ -41,7 +41,29 @@ single instance of something can be written, and used in both.
 
 Perhaps a free monad.
 
-# More mundane things
+## Fix the annotate and exactp instances for HsDecl
+
+They use annGetConstr of the HsDecl, not the thing inside.
+
+So change
+
+    AnnotateP (GHC.HsDecl name) where
+      annotateP l decl = do
+        case decl of
+          ..
+          GHC.ValD d        -> annotateP l d
+
+to
+
+    AnnotateP (GHC.HsDecl name) where
+      annotateP l decl = do
+        case decl of
+          ..
+          GHC.ValD d        -> annotatePC (GHC.L l d)
+
+
+
+## More mundane things
 
 There are currently warnings for missing pattern matches in both Utils
 and ExactPrint. Add the missing cases.

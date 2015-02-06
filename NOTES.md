@@ -102,16 +102,97 @@ is a problem with preceding comments.
 
 ## Delta Annotations and modifications
 
-Assume the following
+Assume the following (LayoutLet2.hs from the tests)
 
 
 ```
          1         2
-123456789012345678901
-foo xxx = let
-            a = 3
-          in aaa + xx
+123456789012345678901234567890
+foo xxx = let a = 1
+              b = 2 in xxx + a + b
 ```
+
+We end up with the following annotations for the chain from `foo` to
+`let`, ignoring the ValD/FunBind part, as it is not actually
+processed, the Match is all we need.
+
+```
+ ((tests/examples/LayoutLet2.hs:(7,1)-(8,34), CN "Match"),
+  (Ann {ann_entry_delta = DP (6,0), ann_delta = 0},
+   [(G AnnEqual, DP (0,1))])),
+```
+
+
+The ann_entry_delta says this span starts 6 lines and 0 columns offset
+from the prior output (getPriorSrcSpanAP), which puts us from location
+(1,1) at (7,1).
+
+It starts against the left margin, so ann_delta is 0.
+
+```
+((tests/examples/LayoutLet2.hs:7:1-3, CN "Unqual"),
+  (Ann {ann_entry_delta = DP (6,0), ann_delta = 0},
+    (G AnnVal, DP (6,0))])),
+```
+
+The "foo" appears next, there was no output from the start of the
+Match, so the ann_entry_delta and ann_delta are unchanged.
+
+Once the name "foo" is output, the prior output position is at (7,4),
+one character past the last output, as per the GHC SrcSpan convention.
+
+Next is the "xxx", a VarPat
+
+```
+ ((tests/examples/LayoutLet2.hs:7:5-7, CN "VarPat"),
+  (Ann {ann_entry_delta = DP (0,1), ann_delta = 4},
+   [(G AnnVal, DP (0,1))])),
+```
+
+The ann_entry_delta DP is (0,1), because the "xxx" starts on the same
+line and one space over from "foo". So we can get the start of the
+SrcSpan as
+
+    prior output + ann_entry_delta
+    (7,4)        + (0,1)           = (7,5)
+
+At this point the column offet is 4, (1 + 4 == 5).
+
+Once "xxx" is printed, the last output pos is (7,8)
+
+The next part of the Match is the GRHSs, the SrcSpan is popped and a
+new one entered
+
+```
+ ((tests/examples/LayoutLet2.hs:7:9, CN "GRHS"),
+  (Ann {ann_entry_delta = DP (0,-1), ann_delta = 8}, [])),
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 Currently, when moving from the "let" to "a = 3" we have an offset
 specified as DP (1,2), ie one line down

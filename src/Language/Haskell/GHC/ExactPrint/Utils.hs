@@ -148,8 +148,8 @@ runAP (AP f) ga
       `debug` ("runAP:cs=" ++ showGhc cs)
 
 combineAnns :: AnnValue -> AnnValue -> AnnValue
-combineAnns ((Ann cs1 ed1 dp1),dps1) ((Ann cs2 _ed2 _dp2),dps2)
-  = (Ann (cs1 ++ cs2) ed1 dp1,dps1++dps2)
+combineAnns ((Ann ed1 dp1),dps1) ((Ann _ed2 _dp2),dps2)
+  = (Ann ed1 dp1,dps1++dps2)
 
 -- ---------------------------------------------------------------------
 
@@ -306,7 +306,7 @@ leaveAST = do
   dp  <- getCurrentDP
   edp <- getEntryDP
   kds <- getKds
-  addAnnotationsAP ((Ann lcs edp dp),kds)
+  addAnnotationsAP ((Ann edp dp),kds)
     `debug` ("leaveAST:(ss,edp,dp,kds)=" ++ show (showGhc ss,edp,dp,kds,dp))
   popSrcSpanAP
   return () -- `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
