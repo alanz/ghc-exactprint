@@ -143,9 +143,6 @@ runAP ap ga = Map.fromListWith combineAnns . snd . runWriter
 
 -- `debug` ("runAP:cs=" ++ showGhc cs)
 
-combineAnns :: Annotation -> Annotation -> Annotation
-combineAnns (Ann ed1 dp1 dps1) (Ann _ed2 _dp2 dps2)
-  = Ann ed1 dp1 (dps1 ++ dps2)
 
 -- ---------------------------------------------------------------------
 
