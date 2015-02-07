@@ -131,7 +131,7 @@ defaultAPState ga =
 --    - the srcspan of the last thing annotated, to calculate delta's from
 --    - extra data needing to be stored in the monad
 --    - the annotations provided by GHC
-type AP a = StateT APState (Writer [(AnnKey, AnnValue)]) a
+type AP a = StateT APState (Writer [(AnnKey, Annotation)]) a
 
 data Grouping = None | Primed GHC.SrcSpan | Active DeltaPos | Done DeltaPos
               deriving (Eq,Show)
@@ -143,9 +143,9 @@ runAP ap ga = Map.fromListWith combineAnns . snd . runWriter
 
 -- `debug` ("runAP:cs=" ++ showGhc cs)
 
-combineAnns :: AnnValue -> AnnValue -> AnnValue
-combineAnns ((Ann ed1 dp1),dps1) ((Ann _ed2 _dp2),dps2)
-  = (Ann ed1 dp1,dps1++dps2)
+combineAnns :: Annotation -> Annotation -> Annotation
+combineAnns (Ann ed1 dp1 dps1) (Ann _ed2 _dp2 dps2)
+  = Ann ed1 dp1 (dps1 ++ dps2)
 
 -- ---------------------------------------------------------------------
 
@@ -235,13 +235,13 @@ tokComment t@(GHC.L lt _) = Comment (ss2span lt) (ghcCommentText t)
 -- -------------------------------------
 
 -- |Add some annotation to the currently active SrcSpan
-addAnnotationsAP :: AnnValue -> AP ()
+addAnnotationsAP :: Annotation -> AP ()
 addAnnotationsAP ann = do
     l <- gets apStack
     tell [((getAnnKey $ ghead "addAnnotationsAP" l),ann)]
 
 getAnnKey :: StackItem -> AnnKey
-getAnnKey StackItem {curSrcSpan, annConName} = (curSrcSpan, annConName)
+getAnnKey StackItem {curSrcSpan, annConName} = AnnKey curSrcSpan annConName
 
 -- -------------------------------------
 
@@ -304,7 +304,7 @@ leaveAST = do
   dp  <- getCurrentDP
   edp <- getEntryDP
   kds <- getKds
-  addAnnotationsAP ((Ann edp dp),kds)
+  addAnnotationsAP (Ann edp dp kds)
     `debug` ("leaveAST:(ss,edp,dp,kds)=" ++ show (showGhc ss,edp,dp,kds,dp))
   popSrcSpanAP
   return () -- `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))

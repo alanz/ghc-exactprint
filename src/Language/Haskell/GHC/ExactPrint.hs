@@ -107,13 +107,13 @@ instance Annotated (GHC.Located a) where
 
 data EPState = EPState
              { epPos :: Pos
-             , stack :: [(ColOffset, ColDelta)]
-             , srcSpans :: [GHC.SrcSpan]
-             , comments :: [DComment]
+             , epStack :: [(ColOffset, ColDelta)]
+             , epSrcSpans :: [GHC.SrcSpan]
+             , epComments :: [DComment]
              , eFunId   :: (Bool, String)
              , eFunIsInfix :: Bool
-             , annKds   :: [AnnKds]
-             , anns     :: Anns
+             , epAnnKds   :: [[(KeywordId, DeltaPos)]]
+             , epAnns     :: Anns
              }
 
 type EP a = StateT EPState (Writer (Endo String)) a
@@ -126,13 +126,13 @@ runEP f ss cs ans =
 defaultState :: GHC.SrcSpan -> [DComment] -> Anns -> EPState
 defaultState ss cs as = EPState
              { epPos = (1,1)
-             , stack = [(0,0)]
-             , srcSpans = [ss]
-             , comments = cs
+             , epStack = [(0,0)]
+             , epSrcSpans = [ss]
+             , epComments = cs
              , eFunId   = (False, "")
              , eFunIsInfix = False
-             , annKds      = []
-             , anns = as
+             , epAnnKds      = []
+             , epAnns = as
              }
 
 getPos :: EP Pos
@@ -145,43 +145,42 @@ setPos l = modify (\s -> s {epPos = l})
 
 -- Get the current column offset
 getOffset :: EP ColOffset
-getOffset = gets (fst . ghead "getOffset" . stack)
+getOffset = gets (fst . ghead "getOffset" . epStack)
 
 -- |Given a step offset to be applied, the original column when the
 -- offset was calculated and the current column, determine an
 -- equivalent offset
 pushOffset :: ColOffset -> Col -> Pos -> EP ()
 pushOffset dc sc (_or,oc) = do
-  (co, cd) <- gets (ghead "pushOffset" . stack)
+  (co, cd) <- gets (ghead "pushOffset" . epStack)
   let nd = sc - oc
       (co',cd') = if nd == cd
                     then (dc + co,cd)
                     else (dc + co + (cd - nd), nd)
-  modify (\s -> s {stack = (co',cd'): stack s})
+  modify (\s -> s {epStack = (co',cd'): epStack s})
 
 popOffset :: EP ()
-popOffset = modify (\s -> s {stack = tail (stack s)})
-
+popOffset = modify (\s -> s {epStack = tail (epStack s)})
 -- ---------------------------------------------------------------------
 
 pushSrcSpan :: GHC.SrcSpan -> EP ()
-pushSrcSpan ss = modify (\s -> s {srcSpans = ss:(srcSpans s)})
+pushSrcSpan ss = modify (\s -> s {epSrcSpans = ss:(epSrcSpans s)})
 
 popSrcSpan :: EP ()
-popSrcSpan = modify (\s -> s {srcSpans = tail (srcSpans s)})
+popSrcSpan = modify (\s -> s {epSrcSpans = tail (epSrcSpans s)})
 
-getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe AnnValue)
+getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
 getAndRemoveAnnotation a = do
-  (r, an') <- gets (getAndRemoveAnnotationEP a . anns)
-  modify (\s -> s { anns = an' })
+  (r, an') <- gets (getAndRemoveAnnotationEP a . epAnns)
+  modify (\s -> s { epAnns = an' })
   return r
 
 
-pushKds :: AnnKds -> EP ()
-pushKds kd = modify (\s -> s { annKds = kd : (annKds s)})
+pushKds :: [(KeywordId, DeltaPos)] -> EP ()
+pushKds kd = modify (\s -> s { epAnnKds = kd : (epAnnKds s)})
 
 popKds :: EP ()
-popKds = modify (\s -> s { annKds = tail (annKds s)})
+popKds = modify (\s -> s { epAnnKds = tail (epAnnKds s)})
 
 -- | Get and remove the first item in the (k,v) list for which the k matches.
 -- Return the value, together with any comments skipped over to get there.
@@ -199,14 +198,14 @@ destructiveGetFirst  key (acc,((k,v):kvs))
 -- |destructive get, hence use an annotation once only
 getAnnFinal :: KeywordId -> EP [DeltaPos]
 getAnnFinal kw = do
-  kd <- gets annKds
+  kd <- gets epAnnKds
   let (r, kd', dcs) = case kd of
                   []    -> ([],[], [])
                   (k:kds) -> (r',kk:kds, dcs')
                     where (cs', r',kk) = destructiveGetFirst kw ([],k)
                           dcs' = concatMap keywordIdToDComment cs'
-  modify (\s -> s { annKds = kd' })
-  modify (\s -> s { comments = dcs } )
+  modify (\s -> s { epAnnKds = kd' })
+  modify (\s -> s { epComments = dcs } )
   return r
 
 
@@ -217,7 +216,7 @@ keywordIdToDComment _                   = []
 -- |non-destructive get
 peekAnnFinal :: KeywordId -> EP [DeltaPos]
 peekAnnFinal kw = do
-  (_, r, _) <- (\kd -> destructiveGetFirst kw ([], kd)) <$> gets (head . annKds)
+  (_, r, _) <- (\kd -> destructiveGetFirst kw ([], kd)) <$> gets (head . epAnnKds)
   return r
 
 getFunId :: EP (Bool,String)
@@ -241,7 +240,7 @@ printString str = do
   tell (Endo $ showString str)
 
 getComments :: EP [DComment]
-getComments = gets comments
+getComments = gets epComments
 
 newLine :: EP ()
 newLine = do
@@ -365,7 +364,7 @@ exactPC a@(GHC.L l ast) =
        ma <- getAndRemoveAnnotation a
        (offset,edp,kd) <- case ma of
          Nothing -> return (0,DP (0,0),[])
-         Just ((Ann edp dp),kds) -> do
+         Just (Ann edp dp kds) -> do
              return (dp,edp,kds)
        pushKds kd
        op <- getPosForDelta edp

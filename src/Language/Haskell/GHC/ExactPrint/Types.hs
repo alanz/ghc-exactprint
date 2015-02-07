@@ -12,7 +12,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , ColOffset,ColDelta,Col
   , Annotation(..)
   , annNone
-  , Anns,AnnKey,AnnValue,AnnKds
+  , Anns,AnnKey(..)
   , KeywordId(..)
   , AnnConName(..)
   , annGetConstr
@@ -59,7 +59,7 @@ type ColDelta  = Int -- ^ difference between two cols
 type Col       = Int
 
 annNone :: Annotation
-annNone = Ann (DP (0,0)) 0
+annNone = Ann (DP (0,0)) 0 []
 
 
 data Annotation = Ann
@@ -68,20 +68,22 @@ data Annotation = Ann
                                   -- of the SrcSpan, during the
                                   -- annotatePC phase
   , ann_delta        :: !ColOffset
+  , anns             :: [(KeywordId, DeltaPos)]
 
   } deriving (Show,Typeable)
 
 instance Show GHC.RdrName where
   show n = "(a RdrName)"
 
-type Anns = Map.Map AnnKey AnnValue
+type Anns = Map.Map AnnKey Annotation
 
 -- | For every @Located a@, use the @SrcSpan@ and constructor name of
 -- a as the key, to store the standard annotation.
 -- These are used to maintain context in the AP and EP monads
-type AnnKey   = (GHC.SrcSpan,AnnConName)
-type AnnValue = (Annotation,[(KeywordId,DeltaPos)])
-type AnnKds   = [(KeywordId,DeltaPos)]
+data AnnKey   = AnnKey GHC.SrcSpan AnnConName
+                  deriving (Eq, Show, Ord)
+--type AnnValue = (Annotation,[(KeywordId,DeltaPos)])
+--type AnnKds   = [(KeywordId,DeltaPos)]
 
 -- Holds the name of a constructor
 data AnnConName = CN String
@@ -130,16 +132,14 @@ instance (GHC.OutputableBndr name) => GHC.Outputable (ResTyGADTHook name) where
 -- ---------------------------------------------------------------------
 
 getAnnotationEP :: (Data a) =>  GHC.Located a -> Anns -> Maybe Annotation
-getAnnotationEP  (GHC.L ss a) anns
-  = case Map.lookup (ss, annGetConstr a) anns of
-      Nothing -> Nothing
-      Just (an,_kds) -> Just an
+getAnnotationEP  (GHC.L ss a) anns = Map.lookup (AnnKey ss (annGetConstr a)) anns
 
 getAndRemoveAnnotationEP :: (Data a)
-                         => GHC.Located a -> Anns -> (Maybe AnnValue,Anns)
+                         => GHC.Located a -> Anns -> (Maybe Annotation,Anns)
 getAndRemoveAnnotationEP (GHC.L ss a) anns
- = case Map.lookup (ss, annGetConstr a) anns of
-     Nothing  -> (Nothing,anns)
-     Just av -> (Just av,Map.delete (ss, annGetConstr a) anns)
+ = let key = AnnKey ss (annGetConstr a) in
+    case Map.lookup key anns of
+         Nothing  -> (Nothing,anns)
+         Just av -> (Just av,Map.delete key anns)
 
 -- ---------------------------------------------------------------------
