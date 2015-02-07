@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE UndecidableInstances #-} -- for GHC.DataId
 module Language.Haskell.GHC.ExactPrint.Utils
   (
@@ -46,6 +47,9 @@ module Language.Haskell.GHC.ExactPrint.Utils
   ) where
 
 import Control.Monad ( liftM, ap)
+import Control.Monad.State
+import Control.Monad.Writer
+import Control.Applicative
 import Control.Exception
 import Data.Data
 import Data.Generics
@@ -82,70 +86,62 @@ debug c _ = c
 
 -- ---------------------------------------------------------------------
 
+
+data APState = APState
+             { -- | A stack to the root of the AST.
+               apStack :: [StackItem]
+             , priorEndPosition :: GHC.SrcSpan
+               -- | Ordered list of comments still to be allocated
+             , apComments :: [Comment]
+               -- | isInfix for a FunBind
+               -- AZ: Is this still needed?
+             , e_is_infix :: Bool
+               -- | The original GHC API Annotations
+             , apAnns :: GHC.ApiAnns
+             }
+
+data StackItem = StackItem
+               { -- | Current `SrcSpan`
+                  curSrcSpan :: GHC.SrcSpan
+                 -- | The offset required to get from the prior end point to the
+                 -- start of the current SrcSpan. Accessed via `getEntryDP`
+               , offset     :: DeltaPos
+                 -- | Offsets for the elements annotated in this `SrcSpan`
+               , annOffsets :: [(KeywordId, DeltaPos)]
+                 -- | The constructor name of the AST element, to
+                 -- distinguish between nested elements that have the same
+                 -- `SrcSpan` in the AST.
+               , annConName :: AnnConName
+               }
+
+defaultAPState :: GHC.ApiAnns -> APState
+defaultAPState ga =
+  let cs = flattenedComments ga in
+    APState
+      { apStack = []
+      , priorEndPosition = GHC.noSrcSpan
+      , apComments = cs
+      , e_is_infix = False -- ^ AZ: Is this still needed? isInfix for a FunBind
+      , apAnns     = ga    -- $
+      }
+
 -- | Type used in the AP Monad. The state variables maintain
 --    - the current SrcSpan and the constructor of the thing it encloses
 --      as a stack to the root of the AST as it is traversed,
 --    - the srcspan of the last thing annotated, to calculate delta's from
 --    - extra data needing to be stored in the monad
 --    - the annotations provided by GHC
-
-newtype AP x = AP ([(GHC.SrcSpan -- Current SrcSpan
-                    ,DeltaPos    -- The offset required to get from
-                                 -- the prior end point to the start
-                                 -- of the current SrcSpan. Accessed
-                                 -- via @getEntryDP@
-                    ,[(KeywordId,DeltaPos)] -- Offsets for the
-                                            -- elements annotated in
-                                            -- this SrcSpan
-                    ,AnnConName)] -- The constructor name of the AST
-                                  -- element, to distingush between
-                                  -- nested elements that have the
-                                  -- same SrcSpan in the AST
-                   -> GHC.SrcSpan -- Prior end position
-                   -> [Comment]   -- ordered list of comments still to
-                                  -- be allocated
-                   -> Extra       -- random state variable. Should disappear one day
-                   -> GHC.ApiAnns -- The original GHC Api Annotations
-            -> (x, [(GHC.SrcSpan,DeltaPos,[(KeywordId,DeltaPos)],AnnConName)]
-                   , GHC.SrcSpan,[Comment],Extra,GHC.ApiAnns,
-
-                   [(AnnKey,AnnValue)]
-                 ))
-
-
-data Extra = Extra
-               {
-                 e_is_infix :: Bool -- isInfix for a FunBind
-                 -- TODO: AZ: Is this ^^  still needed?
-               }
+type AP a = StateT APState (Writer [(AnnKey, AnnValue)]) a
 
 data Grouping = None | Primed GHC.SrcSpan | Active DeltaPos | Done DeltaPos
               deriving (Eq,Show)
 
-instance Functor AP where
-  fmap = liftM
-
-instance Applicative AP where
-  pure = return
-  (<*>) = ap
-
-instance Monad AP where
-  return x = AP $ \l pe cs e ga -> (x, l, pe, cs, e, ga, mempty)
-
-  AP m >>= k = AP $ \l0 p0 c0 e0 ga0 -> let
-        (a, l1, p1, c1, e1, ga1, s1) = m l0 p0 c0 e0 ga0
-        AP f = k a
-        (b, l2, p2, c2, e2, ga2, s2) = f l1 p1 c1 e1 ga1
-    in (b, l2, p2, c2, e2, ga2, s1 <> s2)
-
 
 runAP :: AP () -> GHC.ApiAnns -> Anns
-runAP (AP f) ga
- = let
-     cs = flattenedComments ga
-     (_,_,_,_,_,_,sa) = f [] GHC.noSrcSpan cs (Extra False) ga
-   in (Map.fromListWith combineAnns sa)
-      `debug` ("runAP:cs=" ++ showGhc cs)
+runAP ap ga = Map.fromListWith combineAnns . snd . runWriter
+                . flip execStateT (defaultAPState ga) $ ap
+
+-- `debug` ("runAP:cs=" ++ showGhc cs)
 
 combineAnns :: AnnValue -> AnnValue -> AnnValue
 combineAnns ((Ann ed1 dp1),dps1) ((Ann _ed2 _dp2),dps2)
@@ -160,28 +156,27 @@ flattenedComments (_,cm) = map tokComment $ GHC.sortLocated $ concat $ Map.elems
 
 -- |Note: assumes the SrcSpan stack is nonempty
 getSrcSpanAP :: AP GHC.SrcSpan
-getSrcSpanAP = AP (\l@((ss,_,_,_):_) pe cs e ga -> (ss,l,pe,cs,e,ga,mempty))
+getSrcSpanAP = gets (curSrcSpan . head . apStack)
 
 getPriorSrcSpanAP :: AP GHC.SrcSpan
-getPriorSrcSpanAP = AP (\l@(_:(ss,_,_,_):_) pe cs e ga -> (ss,l,pe,cs,e,ga,mempty))
+getPriorSrcSpanAP = gets (curSrcSpan . head . tail . apStack)
 
 pushSrcSpanAP :: Data a => (GHC.Located a) -> DeltaPos -> AP ()
-pushSrcSpanAP (GHC.L l a) edp = AP (\ls pe cs e ga ->
-  ((),(l,edp,[],annGetConstr a):ls,pe,cs,e,ga,mempty))
+pushSrcSpanAP (GHC.L l a) edp =
+  let newss = StackItem l edp [] (annGetConstr a) in
+  modify (\s -> s { apStack =  newss : (apStack s) })
 
 popSrcSpanAP :: AP ()
-popSrcSpanAP = AP (\(_:ls) pe cs e ga -> ((),ls,pe,cs,e,ga,mempty))
+popSrcSpanAP = modify (\s -> s { apStack = tail (apStack s) })
 
 getEntryDP :: AP DeltaPos
-getEntryDP = AP (\l@((_,edp,_,_):_) pe cs e ga
-                   -> (edp,l,pe,cs,e,ga,mempty))
+getEntryDP = gets (offset . head . apStack)
 
 getUnallocatedComments :: AP [Comment]
-getUnallocatedComments = AP (\l@((_,_,_,_):_) pe cs e ga -> (cs,l,pe,cs,e,ga,mempty))
+getUnallocatedComments = gets apComments
 
 putUnallocatedComments :: [Comment] -> AP ()
-putUnallocatedComments cs = AP (\l pe _cs e ga
-                          -> ((),l,pe, cs,e,ga,mempty))
+putUnallocatedComments cs = modify (\s -> s { apComments = cs } )
 
 -- ---------------------------------------------------------------------
 
@@ -198,8 +193,7 @@ adjustDeltaForOffset  colOffset    (DP (l,c)) = DP (l,c - colOffset)
 
 -- | Get the current column offset
 getCurrentColOffset :: AP ColOffset
-getCurrentColOffset = AP (\l@((s,_,_,_):_) pe cs e ga
-                   -> (srcSpanStartColumn s,l,pe,cs,e,ga,mempty))
+getCurrentColOffset = srcSpanStartColumn <$> getSrcSpanAP
 
 -- |Get the difference between the current and the previous
 -- colOffsets, if they are on the same line
@@ -215,22 +209,24 @@ getCurrentDP = do
 
 -- |Note: assumes the prior end SrcSpan stack is nonempty
 getPriorEnd :: AP GHC.SrcSpan
-getPriorEnd = AP (\l pe cs e ga -> (pe,l,pe,cs,e,ga,mempty))
+getPriorEnd = gets priorEndPosition
 
 setPriorEnd :: GHC.SrcSpan -> AP ()
-setPriorEnd pe = AP (\ls _ cs e ga  -> ((),ls,pe,cs,e,ga,mempty))
+setPriorEnd pe = modify (\s -> s { priorEndPosition = pe })
 
 -- -------------------------------------
 
 getAnnotationAP :: GHC.AnnKeywordId -> AP [GHC.SrcSpan]
-getAnnotationAP an = AP (\l@((ss,_,_,_):_) pe cs e ga
-    -> (GHC.getAnnotation ga ss an, l,pe,cs,e,ga,mempty))
+getAnnotationAP an = do
+    ga <- gets apAnns
+    ss <- getSrcSpanAP
+    return $ GHC.getAnnotation ga ss an
 
 getAndRemoveAnnotationAP :: GHC.SrcSpan -> GHC.AnnKeywordId -> AP [GHC.SrcSpan]
-getAndRemoveAnnotationAP sp an = AP (\l pe cs e ga ->
-    let
-      (r,ga') = GHC.getAndRemoveAnnotation ga sp an
-    in (r, l,pe,cs,e,ga',mempty))
+getAndRemoveAnnotationAP sp an = do
+    ga <- gets apAnns
+    let (r,ga') = GHC.getAndRemoveAnnotation ga sp an
+    r <$ modify (\s -> s { apAnns = ga' })
 
 
 tokComment :: GHC.Located GHC.AnnotationComment -> Comment
@@ -240,32 +236,34 @@ tokComment t@(GHC.L lt _) = Comment (ss2span lt) (ghcCommentText t)
 
 -- |Add some annotation to the currently active SrcSpan
 addAnnotationsAP :: AnnValue -> AP ()
-addAnnotationsAP ann = AP (\l pe cs e ga ->
-                       ( (),l,pe,cs,e,ga,
-                 [((getAnnKey $ ghead "addAnnotationsAP" l),ann)]))
+addAnnotationsAP ann = do
+    l <- gets apStack
+    tell [((getAnnKey $ ghead "addAnnotationsAP" l),ann)]
 
-getAnnKey :: (GHC.SrcSpan,t1,t2,AnnConName) -> AnnKey
-getAnnKey (l,_,_,t) = (l,t)
+getAnnKey :: StackItem -> AnnKey
+getAnnKey StackItem {curSrcSpan, annConName} = (curSrcSpan, annConName)
 
 -- -------------------------------------
 
 addAnnDeltaPos :: (GHC.SrcSpan,KeywordId) -> DeltaPos -> AP ()
-addAnnDeltaPos (_s,kw) dp = AP (\((ss,d2, kd,       cn):ls) pe cs e ga -> ( (),
-                                 ((ss,d2,(kw,dp):kd,cn):ls),pe,cs,e,ga,[]))
+addAnnDeltaPos (_s,kw) dp = do
+  (st:sts) <- gets apStack
+  modify (\s -> s { apStack = (manip st) : sts })
+  where
+    manip s = s { annOffsets = (kw, dp) : (annOffsets s) }
 
 -- -------------------------------------
 
 getKds :: AP [(KeywordId,DeltaPos)]
-getKds = AP (\l@((_ss,_d2,kd,_cn):_) pe cs e ga
-             -> (reverse kd,l,pe,cs,e,ga,[]))
+getKds = gets (reverse . annOffsets . head . apStack)
 
 -- -------------------------------------
 
 setFunIsInfix :: Bool -> AP ()
-setFunIsInfix e = AP (\l pe cs (Extra _) ga -> ((),l,pe,cs,(Extra e),ga,mempty))
+setFunIsInfix e = modify (\s -> s {e_is_infix = e})
 
 getFunIsInfix :: AP Bool
-getFunIsInfix = AP (\l pe cs ex@(Extra e) ga -> (e,l,pe,cs,ex,ga,mempty))
+getFunIsInfix = gets e_is_infix
 
 -- -------------------------------------
 
