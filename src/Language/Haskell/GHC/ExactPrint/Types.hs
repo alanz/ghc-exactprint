@@ -11,6 +11,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , DeltaPos(..)
   , ColOffset,ColDelta,Col
   , Annotation(..)
+  , combineAnns
   , annNone
   , Anns,AnnKey(..)
   , KeywordId(..)
@@ -26,6 +27,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   ) where
 
 import Data.Data
+import Data.Monoid
 
 import qualified GHC           as GHC
 import qualified Outputable    as GHC
@@ -61,6 +63,9 @@ type Col       = Int
 annNone :: Annotation
 annNone = Ann (DP (0,0)) 0 []
 
+combineAnns :: Annotation -> Annotation -> Annotation
+combineAnns (Ann ed1 dp1 dps1) (Ann _ed2 _dp2 dps2)
+  = Ann ed1 dp1 (dps1 ++ dps2)
 
 data Annotation = Ann
   {
@@ -71,6 +76,11 @@ data Annotation = Ann
   , anns             :: [(KeywordId, DeltaPos)]
 
   } deriving (Show,Typeable)
+
+instance Monoid Annotation where
+  mempty = annNone
+  mappend = combineAnns
+
 
 instance Show GHC.RdrName where
   show n = "(a RdrName)"
@@ -112,6 +122,9 @@ instance GHC.Outputable (AnnConName) where
   ppr tr     = GHC.text (show tr)
 
 instance GHC.Outputable Annotation where
+  ppr a     = GHC.text (show a)
+
+instance GHC.Outputable AnnKey where
   ppr a     = GHC.text (show a)
 
 instance GHC.Outputable DeltaPos where
