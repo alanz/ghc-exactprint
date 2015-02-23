@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-} -- for GHC.DataId
 module Language.Haskell.GHC.ExactPrint.Utils
   (
@@ -2319,14 +2320,14 @@ pp a = GHC.showPpr GHC.unsafeGlobalDynFlags a
 -- information to each SrcLoc.
 showAnnData :: Data a => Anns -> Int -> a -> String
 showAnnData anns n =
-  generic `ext1Q` list
-          `ext1Q` located
+  generic -- `ext1Q` located
+          `ext1Q` list
           `extQ` string `extQ` fastString `extQ` srcSpan
           `extQ` name `extQ` occName `extQ` moduleName `extQ` var `extQ` dataCon
           `extQ` overLit
           `extQ` bagName `extQ` bagRdrName `extQ` bagVar `extQ` nameSet
           `extQ` fixity
-          `ext1Q` located
+          `ext2Q` located
   where generic :: Data a => a -> String
         generic t = indent n ++ "(" ++ showConstr (toConstr t)
                  ++ space (concat (intersperse " " (gmapQ (showAnnData anns (n+1)) t))) ++ ")"
@@ -2367,9 +2368,16 @@ showAnnData anns n =
 
         fixity = ("{Fixity: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Fixity -> String
 
-        -- located :: (Data b) => GHC.Located b -> String
-        located la = show (getAnnotationEP la anns)
-        -- located la = error $ "located:"
+        located :: (Data b,Data loc) => GHC.GenLocated loc b -> String
+        -- located la = show (getAnnotationEP la anns)
+        located la@(GHC.L ss a) = "( L"
+                                      ++ case (cast ss) of
+                                           Just (s::GHC.SrcSpan) -> srcSpan s ++ show (getAnnotationEP (GHC.L s a) anns)
+                                           Nothing -> "nnnnnnnn"
+                                      ++ showAnnData anns (n+1) a
+                                      ++ ")"
+
+
 
 -- extQ  :: (Typeable d, Typeable b) => (d -> q) ->                     (b   -> q) -> d -> q
 -- ext1Q :: (Data d, Typeable1 t)    => (d -> q) -> (forall e. Data e => t e -> q) -> d -> q
