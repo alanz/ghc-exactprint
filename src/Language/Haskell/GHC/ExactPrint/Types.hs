@@ -72,7 +72,9 @@ data Annotation = Ann
     ann_entry_delta  :: !DeltaPos -- ^ Offset used to get to the start
                                   -- of the SrcSpan, during the
                                   -- annotatePC phase
-  , ann_delta        :: !ColOffset
+  , ann_delta        :: !ColOffset -- ^ Indentation level introduced
+                                   -- by this SrcSpan, for other items
+                                   -- at same layout level
   , anns             :: [(KeywordId, DeltaPos)]
 
   } deriving (Show,Typeable)

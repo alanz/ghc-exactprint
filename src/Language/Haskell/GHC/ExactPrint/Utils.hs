@@ -2319,6 +2319,67 @@ pp a = GHC.showPpr GHC.unsafeGlobalDynFlags a
 -- information to each SrcLoc.
 showAnnData :: Data a => Anns -> Int -> a -> String
 showAnnData anns n =
+  generic `ext1Q` list
+          `ext1Q` located
+          `extQ` string `extQ` fastString `extQ` srcSpan
+          `extQ` name `extQ` occName `extQ` moduleName `extQ` var `extQ` dataCon
+          `extQ` overLit
+          `extQ` bagName `extQ` bagRdrName `extQ` bagVar `extQ` nameSet
+          `extQ` fixity
+          `ext1Q` located
+  where generic :: Data a => a -> String
+        generic t = indent n ++ "(" ++ showConstr (toConstr t)
+                 ++ space (concat (intersperse " " (gmapQ (showAnnData anns (n+1)) t))) ++ ")"
+        space "" = ""
+        space s  = ' ':s
+        indent i = "\n" ++ replicate i ' '
+        string     = show :: String -> String
+        fastString = ("{FastString: "++) . (++"}") . show :: GHC.FastString -> String
+        list l     = indent n ++ "["
+                              ++ concat (intersperse "," (map (showAnnData anns (n+1)) l)) ++ "]"
+
+        name       = ("{Name: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Name -> String
+        occName    = ("{OccName: "++) . (++"}") .  OccName.occNameString
+        moduleName = ("{ModuleName: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.ModuleName -> String
+
+        -- srcSpan    = ("{"++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.SrcSpan -> String
+        srcSpan :: GHC.SrcSpan -> String
+        srcSpan ss = "{ "++ (showSDoc_ (GHC.hang (GHC.ppr ss) (n+2)
+                                                 -- (GHC.ppr (Map.lookup ss anns)
+                                                 (GHC.text "")
+                                                 ))
+                      ++"}"
+
+        var        = ("{Var: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Var -> String
+        dataCon    = ("{DataCon: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.DataCon -> String
+
+        overLit :: (GHC.HsOverLit GHC.RdrName) -> String
+        overLit    = ("{HsOverLit:"++) . (++"}") . showSDoc_ . GHC.ppr
+
+        bagRdrName:: GHC.Bag (GHC.Located (GHC.HsBind GHC.RdrName)) -> String
+        bagRdrName = ("{Bag(Located (HsBind RdrName)): "++) . (++"}") . list . GHC.bagToList
+        bagName   :: GHC.Bag (GHC.Located (GHC.HsBind GHC.Name)) -> String
+        bagName    = ("{Bag(Located (HsBind Name)): "++) . (++"}") . list . GHC.bagToList
+        bagVar    :: GHC.Bag (GHC.Located (GHC.HsBind GHC.Var)) -> String
+        bagVar     = ("{Bag(Located (HsBind Var)): "++) . (++"}") . list . GHC.bagToList
+
+        nameSet = ("{NameSet: "++) . (++"}") . list . GHC.nameSetElems
+
+        fixity = ("{Fixity: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Fixity -> String
+
+        -- located :: (Data b) => GHC.Located b -> String
+        located la = show (getAnnotationEP la anns)
+        -- located la = error $ "located:"
+
+-- extQ  :: (Typeable d, Typeable b) => (d -> q) ->                     (b   -> q) -> d -> q
+-- ext1Q :: (Data d, Typeable1 t)    => (d -> q) -> (forall e. Data e => t e -> q) -> d -> q
+
+-- ---------------------------------------------------------------------
+{-
+-- Based on ghc-syb-utils version, but adding the annotation
+-- information to each SrcLoc.
+showAnnData :: Data a => Anns -> Int -> a -> String
+showAnnData anns n =
   generic `ext1Q` list `extQ` string `extQ` fastString `extQ` srcSpan
           `extQ` name `extQ` occName `extQ` moduleName `extQ` var `extQ` dataCon
           `extQ` overLit
@@ -2363,7 +2424,7 @@ showAnnData anns n =
         nameSet = ("{NameSet: "++) . (++"}") . list . GHC.nameSetElems
 
         fixity = ("{Fixity: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Fixity -> String
-
+-}
 
 showSDoc_ :: GHC.SDoc -> String
 showSDoc_ = GHC.showSDoc GHC.unsafeGlobalDynFlags

@@ -382,7 +382,7 @@ manipulateAstTest' mchange useTH file' modname = do
   -- putStrLn $ "Test:ann :" ++ showGhc ann
   -- putStrLn $ "Test:ann organised:" ++ showGhc (organiseAnns ann)
   -- putStrLn $ "Test:showdata:" ++ showAnnData (organiseAnns ann) 0 parsed
-  -- putStrLn $ "Test:showdata:parsed'" ++ showAnnData (organiseAnns ann) 0 parsed'
+  putStrLn $ "Test:showdata:parsed'" ++ showAnnData ann 0 parsed'
   return ("Match\n" == result)
 
 
