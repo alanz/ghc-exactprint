@@ -77,7 +77,10 @@ data Annotation = Ann
                                    -- at same layout level
   , anns             :: [(KeywordId, DeltaPos)]
 
-  } deriving (Show,Typeable)
+  } deriving (Typeable)
+
+instance Show Annotation where
+  show (Ann dp d ans) = "(Ann (" ++ show dp ++ ") " ++ show d ++ " " ++ show ans ++ ")"
 
 instance Monoid Annotation where
   mempty = annNone

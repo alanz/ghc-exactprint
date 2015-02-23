@@ -2370,9 +2370,10 @@ showAnnData anns n =
 
         located :: (Data b,Data loc) => GHC.GenLocated loc b -> String
         -- located la = show (getAnnotationEP la anns)
-        located la@(GHC.L ss a) = "( L"
+        located la@(GHC.L ss a) = indent n ++ "("
                                       ++ case (cast ss) of
-                                           Just (s::GHC.SrcSpan) -> srcSpan s ++ show (getAnnotationEP (GHC.L s a) anns)
+                                           Just (s::GHC.SrcSpan) -> srcSpan s
+                                                                    ++ indent (n + 1) ++ show (getAnnotationEP (GHC.L s a) anns)
                                            Nothing -> "nnnnnnnn"
                                       ++ showAnnData anns (n+1) a
                                       ++ ")"
