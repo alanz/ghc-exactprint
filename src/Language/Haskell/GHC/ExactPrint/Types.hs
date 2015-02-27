@@ -61,17 +61,19 @@ type ColDelta  = Int -- ^ difference between two cols
 type Col       = Int
 
 annNone :: Annotation
-annNone = Ann (DP (0,0)) 0 []
+annNone = Ann (DP (0,0)) 0 0 []
 
 combineAnns :: Annotation -> Annotation -> Annotation
-combineAnns (Ann ed1 dp1 dps1) (Ann _ed2 _dp2 dps2)
-  = Ann ed1 dp1 (dps1 ++ dps2)
+combineAnns (Ann ed1 c1 dp1 dps1) (Ann _ed2 _c2 _dp2 dps2)
+  = Ann ed1 c1 dp1 (dps1 ++ dps2)
 
 data Annotation = Ann
   {
     ann_entry_delta  :: !DeltaPos -- ^ Offset used to get to the start
                                   -- of the SrcSpan, during the
                                   -- annotatePC phase
+  , ann_original_col :: !Col      -- ^ Start of the SrcSpan, as used
+                                  -- during the annotatePC phase
   , ann_delta        :: !ColOffset -- ^ Indentation level introduced
                                    -- by this SrcSpan, for other items
                                    -- at same layout level
@@ -80,7 +82,7 @@ data Annotation = Ann
   } deriving (Typeable)
 
 instance Show Annotation where
-  show (Ann dp d ans) = "(Ann (" ++ show dp ++ ") " ++ show d ++ " " ++ show ans ++ ")"
+  show (Ann dp c d ans) = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ show d ++ " " ++ show ans ++ ")"
 
 instance Monoid Annotation where
   mempty = annNone

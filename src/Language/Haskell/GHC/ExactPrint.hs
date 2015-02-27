@@ -153,14 +153,17 @@ getOffset = gets (fst . ghead "getOffset" . epStack)
 pushOffset :: ColOffset -> Col -> Pos -> EP ()
 pushOffset dc sc (_or,oc) = do
   (co, cd) <- gets (ghead "pushOffset" . epStack)
+  epStack' <- gets epStack
   let nd = sc - oc
       (co',cd') = if nd == cd
                     then (dc + co,cd)
                     else (dc + co + (cd - nd), nd)
   modify (\s -> s {epStack = (co',cd'): epStack s})
+    `debug` ("pushOffset:(dc,sc,oc,(co,cd),(co',cd'),epStack')=" ++ show (dc,sc,oc,(co,cd),(co',cd'),epStack'))
 
 popOffset :: EP ()
 popOffset = modify (\s -> s {epStack = tail (epStack s)})
+
 -- ---------------------------------------------------------------------
 
 pushSrcSpan :: GHC.SrcSpan -> EP ()
@@ -362,13 +365,13 @@ exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC a@(GHC.L l ast) =
     do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAndRemoveAnnotation a
-       (offset,edp,kd) <- case ma of
-         Nothing -> return (0,DP (0,0),[])
-         Just (Ann edp dp kds) -> do
-             return (dp,edp,kds)
+       (offset,edp,kd,sc) <- case ma of
+         Nothing -> return (0,DP (0,0),[],0)
+         Just (Ann edp sc' dp kds) -> do
+             return (dp,edp,kds,sc')
        pushKds kd
        op <- getPosForDelta edp
-       pushOffset offset (srcSpanStartColumn l) op
+       pushOffset offset sc op
        do
          exactP ast
          printStringAtMaybeAnn (G GHC.AnnComma) ","
