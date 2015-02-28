@@ -194,4 +194,50 @@ ann_entry_delta.
 More to come ...
 
 
+## Column offsets / indentation
+
+Things we know
+
+1. The SrcSpan captures the original scope of the item being annotated.
+
+2. But, there may be commas or semis after the item being annotated.
+
+3. When converting to a delta, the two fundamental variants are
+   spacing in the same line, which is straightforward, and managing
+   the indent when moving to a new line. These are independent.
+
+4. The trailing commas, semis, or comments may spill on to the next
+   line, as leaders to the next SrcSpan.
+
+   e.g
+
+     ls = [ 1
+          , 2
+          ]
+
+   In this case the SrcSpan for "2" will be preceded by a comma
+   captured in the SrcSpan for "1".
+
+   So, we need to capture the starting offset for a given line, but
+   cannot necessarily rely on the SrcSpan that originally starts the
+   line.
+
+5. When moving into a SrcSpan, on the same line, we have the concept
+   of a current indentation offset. This is the additional offset
+   applied to indentation for this particular AST item.
+
+   e.g.
+
+     f x = let a = 3
+               b = 4
+           in x + a + b
+
+   The let statement as a whole has an indentation offset, based on
+   the SrcSpan of the GRHS containing it. The offset for "b=4" depends
+   on the position of "a=3" in the HsLocalBinds, and has an additional
+   offset of 4.
+
+   So the offset for a new line is the sum of the offsets in force on
+   the previous line (or rather the ones captured in the SrcSpan
+   stack)
 

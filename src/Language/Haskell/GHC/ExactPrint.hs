@@ -106,14 +106,14 @@ instance Annotated (GHC.Located a) where
 -- original col when the DP was captured and the current one.
 
 data EPState = EPState
-             { epPos :: Pos
-             , epStack :: [(ColOffset, ColDelta)]
-             , epSrcSpans :: [GHC.SrcSpan]
-             , epComments :: [DComment]
-             , eFunId   :: (Bool, String)
-             , eFunIsInfix :: Bool
-             , epAnnKds   :: [[(KeywordId, DeltaPos)]]
-             , epAnns     :: Anns
+             { epPos       :: Pos
+             , epStack     :: [(ColOffset, ColDelta)]
+             , epSrcSpans  :: [GHC.SrcSpan]
+             , epComments  :: [DComment]
+             , eFunId      :: (Bool, String)
+             , eFunIsInfix :: Bool -- AZ:Needed? is in first field of eFunId
+             , epAnnKds    :: [[(KeywordId, DeltaPos)]]
+             , epAnns      :: Anns
              }
 
 type EP a = StateT EPState (Writer (Endo String)) a
@@ -143,10 +143,6 @@ setPos l = modify (\s -> s {epPos = l})
 
 -- ---------------------------------------------------------------------
 
--- Get the current column offset
-getOffset :: EP ColOffset
-getOffset = gets (fst . ghead "getOffset" . epStack)
-
 -- |Given a step offset to be applied, the original column when the
 -- offset was calculated and the current column, determine an
 -- equivalent offset
@@ -154,12 +150,32 @@ pushOffset :: ColOffset -> Col -> Pos -> EP ()
 pushOffset dc sc (_or,oc) = do
   (co, cd) <- gets (ghead "pushOffset" . epStack)
   epStack' <- gets epStack
+  let co' = dc + sum (map fst epStack')
+      cd' = co'
+  -- let nd = sc - oc
+  --     (co',cd') = if nd == cd
+  --                   then (dc + co,             cd)
+  --                   else (dc + co + (cd - nd), nd)
+  modify (\s -> s {epStack = (co',cd'): epStack s})
+    `debug` ("pushOffset:(dc,sc,oc,(co,cd),(co',cd'),epStack')=" ++ show (dc,sc,oc,(co,cd),(co',cd'),epStack'))
+    -- `debug` ("pushOffset:(dc,sc,oc,(co,cd),(co',cd'),epStack')=" ++ show (dc,sc,oc,(co,cd),(co',cd'),epStack'))
+
+{-
+pushOffset :: ColOffset -> Col -> Pos -> EP ()
+pushOffset dc sc (_or,oc) = do
+  (co, cd) <- gets (ghead "pushOffset" . epStack)
+  epStack' <- gets epStack
   let nd = sc - oc
       (co',cd') = if nd == cd
-                    then (dc + co,cd)
+                    then (dc + co,             cd)
                     else (dc + co + (cd - nd), nd)
   modify (\s -> s {epStack = (co',cd'): epStack s})
     `debug` ("pushOffset:(dc,sc,oc,(co,cd),(co',cd'),epStack')=" ++ show (dc,sc,oc,(co,cd),(co',cd'),epStack'))
+-}
+
+-- |Get the current column offset
+getOffset :: EP ColOffset
+getOffset = gets (fst . ghead "getOffset" . epStack)
 
 popOffset :: EP ()
 popOffset = modify (\s -> s {epStack = tail (epStack s)})

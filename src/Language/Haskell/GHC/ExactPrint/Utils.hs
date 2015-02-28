@@ -82,8 +82,8 @@ import qualified Data.Map as Map
 import Debug.Trace
 
 debug :: c -> String -> c
--- debug = flip trace
-debug c _ = c
+debug = flip trace
+-- debug c _ = c
 
 -- ---------------------------------------------------------------------
 
@@ -103,7 +103,7 @@ data APState = APState
 
 data StackItem = StackItem
                { -- | Current `SrcSpan`
-                  curSrcSpan :: GHC.SrcSpan
+                 curSrcSpan :: GHC.SrcSpan
                  -- | The offset required to get from the prior end point to the
                  -- start of the current SrcSpan. Accessed via `getEntryDP`
                , offset     :: DeltaPos
@@ -273,21 +273,16 @@ enterAST lss = do
   -- Calculate offset required to get to the start of the SrcSPan
   pe <- getPriorEnd
   let ss = (GHC.getLoc lss)
-  let p = deltaFromSrcSpans pe ss
-  p' <- adjustDeltaForOffsetM p
-  -- need to save p', and put it in Annotation
+  let edp = deltaFromSrcSpans pe ss
+  edp' <- adjustDeltaForOffsetM edp
+  -- need to save edp', and put it in Annotation
 
-  pushSrcSpanAP lss p'
+  pushSrcSpanAP lss edp'
 
   return ()
 
 
--- | Pop up the SrcSpan stack, capture the annotations, and work the
--- comments in belonging to the span
--- Assumption: the annotations belong to the immediate sub elements of
--- the AST, hence relate to the current SrcSpan. They can thus be used
--- to decide which comments belong at this level,
--- The assumption is made valid by matching enterAST/leaveAST calls.
+-- | Pop up the SrcSpan stack, capture the annotations
 leaveAST :: AP ()
 leaveAST = do
   -- Automatically add any trailing comma or semi
@@ -2192,14 +2187,15 @@ ss2deltaP (refl,refc) (l,c) = DP (lo,co)
                     else c
 
 -- | Apply the delta to the current position, taking into account the
--- current column offset
-undelta :: Pos -> DeltaPos -> Int -> Pos
+-- current column offset if advancing to a new line
+undelta :: Pos -> DeltaPos -> ColOffset -> Pos
 undelta (l,c) (DP (dl,dc)) co = (fl,fc)
   where
     fl = l + dl
-    fc = if dl == 0 then c + dc else co + dc
+    fc = if dl == 0 then c  + dc
+                    else co + dc
 
--- prop_delta :: TODO
+-- ---------------------------------------------------------------------
 
 ss2pos :: GHC.SrcSpan -> Pos
 ss2pos ss = (srcSpanStartLine ss,srcSpanStartColumn ss)
