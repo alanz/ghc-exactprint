@@ -159,15 +159,15 @@ pushOffset dc sc (_or,oc) = do
 -- |Given a step offset to be applied, the original column when the
 -- offset was calculated and the current column, determine an
 -- equivalent offset
-pushOffset :: ColOffset -> Col -> Pos -> DeltaPos -> EP ()
-pushOffset dc sc (_or,oc) edp = do
+pushOffset :: ColOffset -> Col -> Pos -> DeltaPos -> LineChanged -> EP ()
+pushOffset dc sc (_or,oc) edp nl = do
   co <- gets (ghead "pushOffset" . epStack)
   epStack' <- gets epStack
   let
     offsetMaybe o = if dc == 0 then co else o
-    co' = case edp of
-        DP (0,_) -> offsetMaybe $ dc + co -- sum epStack'
-        _        -> offsetMaybe $ dc
+    co' = case nl of -- wrong discriminant. Need flag to say line changed as part of Annotation.
+        LineSame     -> offsetMaybe $ dc + co -- sum epStack'
+        LineChanged  -> offsetMaybe $ dc
   modify (\s -> s {epStack = co': epStack s})
     `debug` ("pushOffset:(dc,sc,oc,edp,co,co',epStack')=" ++ show (dc,sc,oc,edp,co,co',epStack'))
 
@@ -379,18 +379,18 @@ exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC a@(GHC.L l ast) =
     do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAndRemoveAnnotation a
-       (offset,edp,kd,sc) <- case ma of
-         Nothing -> return (0,DP (0,0),[],0)
-         Just (Ann edp sc' dp kds) -> do
-             return (dp,edp,kds,sc')
+       (offset,edp,kd,sc,nl) <- case ma of
+         Nothing -> return (0,DP (0,0),[],0,LineSame)
+         Just (Ann edp nl' sc' dp kds) -> do
+             return (dp,edp,kds,sc',nl')
        pushKds kd
        op <- getPosForDelta edp
-       pushOffset offset sc op edp
+       pushOffset offset sc op edp nl
        do
          exactP ast
          printStringAtMaybeAnn (G GHC.AnnComma) ","
          printStringAtMaybeAnnAll AnnSemiSep ";"
-       popOffset
+       popOffset `debug` ("popOffset:1")
        popKds
        popSrcSpan
 
@@ -1252,11 +1252,7 @@ instance (ExactP body)
   exactP (GHC.LetStmt lb) = do
     printStringAtMaybeAnn (G GHC.AnnLet) "let"
     printStringAtMaybeAnn (G GHC.AnnOpenC) "{"
-    -- pushNestedOffset
-    -- exactP lb
     exactPC (GHC.L (getLocalBindsSrcSpan lb) lb)
-    -- popOffset
-    -- popSrcSpan
     printStringAtMaybeAnn (G GHC.AnnCloseC) "}"
 
   exactP (GHC.ParStmt pbs _ _) = do
@@ -1359,11 +1355,8 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     printStringAtMaybeAnn (G GHC.AnnLet) "let"
     printStringAtMaybeAnn (G GHC.AnnOpenC) "{"
     printStringAtMaybeAnnAll (G GHC.AnnSemi) ";"
-    -- pushNestedOffset
     exactPC (GHC.L (getLocalBindsSrcSpan lb) lb)
     return () `debug` ("exactP.HsLet lb done")
-    -- popOffset
-    -- popSrcSpan
     printStringAtMaybeAnn (G GHC.AnnCloseC) "}"
     printStringAtMaybeAnn (G GHC.AnnIn) "in"
     exactPC e

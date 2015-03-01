@@ -82,8 +82,8 @@ import qualified Data.Map as Map
 import Debug.Trace
 
 debug :: c -> String -> c
-debug = flip trace
--- debug c _ = c
+-- debug = flip trace
+debug c _ = c
 
 -- ---------------------------------------------------------------------
 
@@ -195,15 +195,15 @@ getCurrentColOffset = srcSpanStartColumn <$> getSrcSpanAP
 
 -- |Get the difference between the current and the previous
 -- colOffsets, if they are on the same line
-getCurrentDP :: AP ColOffset
+getCurrentDP :: AP (ColOffset,LineChanged)
 getCurrentDP = do
   -- Note: the current col offsets are not needed here, any
   -- indentation should be fully nested in an AST element
   ss <- getSrcSpanAP
   ps <- getPriorSrcSpanAP
   let r = if srcSpanStartLine ss == srcSpanStartLine ps
-             then (srcSpanStartColumn ss - srcSpanStartColumn ps)
-             else srcSpanStartColumn ss
+             then (srcSpanStartColumn ss - srcSpanStartColumn ps,LineSame)
+             else (srcSpanStartColumn ss, LineChanged)
   return r
 
 -- ---------------------------------------------------------------------
@@ -295,10 +295,10 @@ leaveAST = do
      then return ()
      else addDeltaAnnotationsOutside GHC.AnnSemi AnnSemiSep
 
-  dp  <- getCurrentDP
+  (dp,nl)  <- getCurrentDP
   edp <- getEntryDP
   kds <- getKds
-  addAnnotationsAP (Ann edp (srcSpanStartColumn ss) dp kds)
+  addAnnotationsAP (Ann edp nl (srcSpanStartColumn ss) dp kds)
     `debug` ("leaveAST:(ss,edp,dp,kds)=" ++ show (showGhc ss,edp,dp,kds,dp))
   popSrcSpanAP
   return () -- `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
