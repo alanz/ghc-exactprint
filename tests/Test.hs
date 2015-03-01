@@ -242,9 +242,9 @@ tt = do
     manipulateAstTest "Dead1.hs"                 "Dead1"
     manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
     manipulateAstTest "DocDecls.hs"              "DocDecls"
-    manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
-    -}
     manipulateAstTest "ViewPatterns.hs"          "Main"
+    -}
+    manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
 
 {-
     manipulateAstTest "ParensAroundContext.hs"   "ParensAroundContext"

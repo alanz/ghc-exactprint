@@ -107,7 +107,7 @@ instance Annotated (GHC.Located a) where
 
 data EPState = EPState
              { epPos       :: Pos -- ^ Current output position
-             , epStack     :: [ColOffset] -- ^ stack of offsets that currently apply
+             , epStack     :: [(ColOffset,ColDelta)] -- ^ stack of offsets that currently apply
              , epSrcSpans  :: [GHC.SrcSpan]
              , epComments  :: [DComment]
              , eFunId      :: (Bool, String)
@@ -126,7 +126,7 @@ runEP f ss cs ans =
 defaultState :: GHC.SrcSpan -> [DComment] -> Anns -> EPState
 defaultState ss cs as = EPState
              { epPos = (1,1)
-             , epStack = [0]
+             , epStack = [(0,0)]
              , epSrcSpans = [ss]
              , epComments = cs
              , eFunId   = (False, "")
@@ -159,21 +159,25 @@ pushOffset dc sc (_or,oc) = do
 -- |Given a step offset to be applied, the original column when the
 -- offset was calculated and the current column, determine an
 -- equivalent offset
-pushOffset :: ColOffset -> Col -> Pos -> DeltaPos -> LineChanged -> EP ()
-pushOffset dc sc (_or,oc) edp nl = do
-  co <- gets (ghead "pushOffset" . epStack)
+pushOffset :: ColOffset -> Col -> Pos -> LineChanged -> EP ()
+pushOffset dc sc (_or,oc) nl = do
+  (co,cd) <- gets (ghead "pushOffset" . epStack)
   epStack' <- gets epStack
   let
     offsetMaybe o = if dc == 0 then co else o
     co' = case nl of -- wrong discriminant. Need flag to say line changed as part of Annotation.
         LineSame     -> offsetMaybe $ dc + co -- sum epStack'
         LineChanged  -> offsetMaybe $ dc
-  modify (\s -> s {epStack = co': epStack s})
-    `debug` ("pushOffset:(dc,sc,oc,edp,co,co',epStack')=" ++ show (dc,sc,oc,edp,co,co',epStack'))
+  let nd = sc - oc
+      (co'',cd') = if nd == cd
+                    then (co',             cd)
+                    else (co' + (cd - nd), nd)
+  modify (\s -> s {epStack = (co'',cd'): epStack s})
+    `debug` ("pushOffset:(dc,sc,oc,nl,co,co'',epStack')=" ++ show (dc,sc,oc,nl,co,co'',epStack'))
 
 -- |Get the current column offset
 getOffset :: EP ColOffset
-getOffset = gets (ghead "getOffset" . epStack)
+getOffset = gets (fst . ghead "getOffset" . epStack)
 
 popOffset :: EP ()
 popOffset = modify (\s -> s {epStack = tail (epStack s)})
@@ -385,7 +389,7 @@ exactPC a@(GHC.L l ast) =
              return (dp,edp,kds,sc',nl')
        pushKds kd
        op <- getPosForDelta edp
-       pushOffset offset sc op edp nl
+       pushOffset offset sc op nl
        do
          exactP ast
          printStringAtMaybeAnn (G GHC.AnnComma) ","
