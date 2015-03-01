@@ -201,7 +201,10 @@ getCurrentDP = do
   -- indentation should be fully nested in an AST element
   ss <- getSrcSpanAP
   ps <- getPriorSrcSpanAP
-  return (srcSpanStartColumn ss - srcSpanStartColumn ps)
+  let r = if srcSpanStartLine ss == srcSpanStartLine ps
+             then (srcSpanStartColumn ss - srcSpanStartColumn ps)
+             else srcSpanStartColumn ss
+  return r
 
 -- ---------------------------------------------------------------------
 

@@ -106,8 +106,8 @@ instance Annotated (GHC.Located a) where
 -- original col when the DP was captured and the current one.
 
 data EPState = EPState
-             { epPos       :: Pos
-             , epStack     :: [(ColOffset, ColDelta)]
+             { epPos       :: Pos -- ^ Current output position
+             , epStack     :: [ColOffset] -- ^ stack of offsets that currently apply
              , epSrcSpans  :: [GHC.SrcSpan]
              , epComments  :: [DComment]
              , eFunId      :: (Bool, String)
@@ -126,7 +126,7 @@ runEP f ss cs ans =
 defaultState :: GHC.SrcSpan -> [DComment] -> Anns -> EPState
 defaultState ss cs as = EPState
              { epPos = (1,1)
-             , epStack = [(0,0)]
+             , epStack = [0]
              , epSrcSpans = [ss]
              , epComments = cs
              , eFunId   = (False, "")
@@ -143,23 +143,6 @@ setPos l = modify (\s -> s {epPos = l})
 
 -- ---------------------------------------------------------------------
 
--- |Given a step offset to be applied, the original column when the
--- offset was calculated and the current column, determine an
--- equivalent offset
-pushOffset :: ColOffset -> Col -> Pos -> EP ()
-pushOffset dc sc (_or,oc) = do
-  (co, cd) <- gets (ghead "pushOffset" . epStack)
-  epStack' <- gets epStack
-  let co' = dc + sum (map fst epStack')
-      cd' = co'
-  -- let nd = sc - oc
-  --     (co',cd') = if nd == cd
-  --                   then (dc + co,             cd)
-  --                   else (dc + co + (cd - nd), nd)
-  modify (\s -> s {epStack = (co',cd'): epStack s})
-    `debug` ("pushOffset:(dc,sc,oc,(co,cd),(co',cd'),epStack')=" ++ show (dc,sc,oc,(co,cd),(co',cd'),epStack'))
-    -- `debug` ("pushOffset:(dc,sc,oc,(co,cd),(co',cd'),epStack')=" ++ show (dc,sc,oc,(co,cd),(co',cd'),epStack'))
-
 {-
 pushOffset :: ColOffset -> Col -> Pos -> EP ()
 pushOffset dc sc (_or,oc) = do
@@ -173,9 +156,24 @@ pushOffset dc sc (_or,oc) = do
     `debug` ("pushOffset:(dc,sc,oc,(co,cd),(co',cd'),epStack')=" ++ show (dc,sc,oc,(co,cd),(co',cd'),epStack'))
 -}
 
+-- |Given a step offset to be applied, the original column when the
+-- offset was calculated and the current column, determine an
+-- equivalent offset
+pushOffset :: ColOffset -> Col -> Pos -> DeltaPos -> EP ()
+pushOffset dc sc (_or,oc) edp = do
+  co <- gets (ghead "pushOffset" . epStack)
+  epStack' <- gets epStack
+  let
+    offsetMaybe o = if dc == 0 then co else o
+    co' = case edp of
+        DP (0,_) -> offsetMaybe $ dc + co -- sum epStack'
+        _        -> offsetMaybe $ dc
+  modify (\s -> s {epStack = co': epStack s})
+    `debug` ("pushOffset:(dc,sc,oc,edp,co,co',epStack')=" ++ show (dc,sc,oc,edp,co,co',epStack'))
+
 -- |Get the current column offset
 getOffset :: EP ColOffset
-getOffset = gets (fst . ghead "getOffset" . epStack)
+getOffset = gets (ghead "getOffset" . epStack)
 
 popOffset :: EP ()
 popOffset = modify (\s -> s {epStack = tail (epStack s)})
@@ -387,7 +385,7 @@ exactPC a@(GHC.L l ast) =
              return (dp,edp,kds,sc')
        pushKds kd
        op <- getPosForDelta edp
-       pushOffset offset sc op
+       pushOffset offset sc op edp
        do
          exactP ast
          printStringAtMaybeAnn (G GHC.AnnComma) ","

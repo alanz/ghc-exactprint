@@ -170,7 +170,6 @@ tt = do
     manipulateAstTest "ForeignDecl.hs"           "ForeignDecl"
     manipulateAstTest "Warning.hs"               "Warning"
     manipulateAstTest "Annotations.hs"           "Annotations"
-    manipulateAstTest "DocDecls.hs"              "DocDecls"
     manipulateAstTestTH "QuasiQuote.hs"          "QuasiQuote"
     manipulateAstTest "Roles.hs"                 "Roles"
     manipulateAstTest "Splice.hs"                "Splice"
@@ -181,7 +180,6 @@ tt = do
     manipulateAstTest "PatSynBind.hs"            "Main"
     manipulateAstTest "HsDo.hs"                  "HsDo"
     manipulateAstTest "ForAll.hs"                "ForAll"
-    manipulateAstTest "ViewPatterns.hs"          "Main"
     manipulateAstTest "BangPatterns.hs"          "Main"
     manipulateAstTest "Associated.hs"            "Main"
     manipulateAstTest "Move1.hs"                 "Move1"
@@ -234,7 +232,6 @@ tt = do
     manipulateAstTest "LayoutLet.hs"             "Main"
     manipulateAstTest "ImplicitParams.hs"        "Main"
     manipulateAstTest "RebindableSyntax.hs"      "Main"
-    manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
     manipulateAstTestWithMod changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
     manipulateAstTestWithMod changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
     manipulateAstTestWithMod changeLayoutLet5 "LayoutLet5.hs" "LayoutLet5"
@@ -243,8 +240,11 @@ tt = do
     manipulateAstTest "AltsSemis.hs"             "Main"
     manipulateAstTest "PArr.hs"                  "PArr"
     manipulateAstTest "Dead1.hs"                 "Dead1"
-    -}
     manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
+    manipulateAstTest "DocDecls.hs"              "DocDecls"
+    manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
+    -}
+    manipulateAstTest "ViewPatterns.hs"          "Main"
 
 {-
     manipulateAstTest "ParensAroundContext.hs"   "ParensAroundContext"

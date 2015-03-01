@@ -241,3 +241,12 @@ Things we know
    the previous line (or rather the ones captured in the SrcSpan
    stack)
 
+   SO
+
+   Moving to a new line is indicated by a span entry offset with
+   lineOffset > 0. We use it to trigger the new line only, and do not
+   process it further.
+
+   In addition, every time we hit a new line we need to start a new
+   sub-stack of nested offsets, based on the ruling offset of the
+   prior sub-stack.

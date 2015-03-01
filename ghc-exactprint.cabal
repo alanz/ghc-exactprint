@@ -33,10 +33,13 @@ library
   -- other-extensions:
   build-depends:       base >=4.7 && <4.9
                      , containers
+                     , directory
+                     , filepath
                      , ghc
                      , ghc-paths
-                     , syb
+                     , ghc-syb-utils
                      , mtl
+                     , syb
   hs-source-dirs:      src
   default-language:    Haskell2010
   -- Note: the following constraint actually requires RC2 or better
@@ -49,19 +52,19 @@ Test-Suite test
   main-is:             Test.hs
   GHC-Options:         -threaded
   Default-language:    Haskell2010
-  Build-depends:       base < 5,
-                       mtl,
-                       containers,
-                       ghc-exactprint,
-                       filepath,
-                       directory,
-                       syb,
-                       ghc-syb-utils,
-                       ghc,
-                       ghc-paths,
-                       HUnit,
-                       random,
-                       stm
+  Build-depends:       HUnit
+                     , base < 5
+                     , containers
+                     , directory
+                     , filepath
+                     , ghc
+                     , ghc-exactprint
+                     , ghc-paths
+                     , ghc-syb-utils
+                     , mtl
+                     , random
+                     , stm
+                     , syb
 
 source-repository head
   type:     git
