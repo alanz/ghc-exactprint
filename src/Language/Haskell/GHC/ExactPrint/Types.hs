@@ -89,7 +89,7 @@ data Annotation = Ann
   } deriving (Typeable)
 
 instance Show Annotation where
-  show (Ann dp nl c d ans) = "(Ann (" ++ show dp ++ ") " ++ show nl ++ show c ++ " " ++ show d ++ " " ++ show ans ++ ")"
+  show (Ann dp nl c d ans) = "(Ann (" ++ show dp ++ ") " ++ show nl ++ " " ++ show c ++ " " ++ show d ++ " " ++ show ans ++ ")"
 
 instance Monoid Annotation where
   mempty = annNone

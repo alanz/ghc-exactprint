@@ -168,12 +168,15 @@ pushOffset dc sc (_or,oc) nl = do
     co' = case nl of -- wrong discriminant. Need flag to say line changed as part of Annotation.
         LineSame     -> offsetMaybe $ dc + co -- sum epStack'
         LineChanged  -> offsetMaybe $ dc
-  let nd = sc - oc
-      (co'',cd') = if nd == cd
-                    then (co',             cd)
-                    else (co' + (cd - nd), nd)
+  let nd = - (sc - oc)
+      (co'',cd') = case nl of
+                    LineChanged -> (co' + cd,cd)
+                    LineSame ->
+                      if nd == cd
+                        then (co',             cd)
+                        else (co' - (cd - nd), nd)
   modify (\s -> s {epStack = (co'',cd'): epStack s})
-    `debug` ("pushOffset:(dc,sc,oc,nl,co,co'',epStack')=" ++ show (dc,sc,oc,nl,co,co'',epStack'))
+    `debug` ("pushOffset:(dc,sc,oc,nl,co,(cd,nd),(co'',cd'),epStack')=" ++ show (dc,sc,oc,nl,co,(cd,nd),(co'',cd'),epStack'))
 
 -- |Get the current column offset
 getOffset :: EP ColOffset
