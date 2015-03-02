@@ -143,30 +143,16 @@ setPos l = modify (\s -> s {epPos = l})
 
 -- ---------------------------------------------------------------------
 
-{-
-pushOffset :: ColOffset -> Col -> Pos -> EP ()
-pushOffset dc sc (_or,oc) = do
-  (co, cd) <- gets (ghead "pushOffset" . epStack)
-  epStack' <- gets epStack
-  let nd = sc - oc
-      (co',cd') = if nd == cd
-                    then (dc + co,             cd)
-                    else (dc + co + (cd - nd), nd)
-  modify (\s -> s {epStack = (co',cd'): epStack s})
-    `debug` ("pushOffset:(dc,sc,oc,(co,cd),(co',cd'),epStack')=" ++ show (dc,sc,oc,(co,cd),(co',cd'),epStack'))
--}
-
 -- |Given a step offset to be applied, the original column when the
 -- offset was calculated and the current column, determine an
 -- equivalent offset
 pushOffset :: ColOffset -> Col -> Pos -> LineChanged -> EP ()
 pushOffset dc sc (_or,oc) nl = do
   (co,cd) <- gets (ghead "pushOffset" . epStack)
-  epStack' <- gets epStack
   let
     offsetMaybe o = if dc == 0 then co else o
-    co' = case nl of -- wrong discriminant. Need flag to say line changed as part of Annotation.
-        LineSame     -> offsetMaybe $ dc + co -- sum epStack'
+    co' = case nl of
+        LineSame     -> offsetMaybe $ dc + co
         LineChanged  -> offsetMaybe $ dc
   let nd = - (sc - oc)
       (co'',cd') = case nl of
@@ -176,7 +162,7 @@ pushOffset dc sc (_or,oc) nl = do
                         then (co',             cd)
                         else (co' - (cd - nd), nd)
   modify (\s -> s {epStack = (co'',cd'): epStack s})
-    `debug` ("pushOffset:(dc,sc,oc,nl,co,(cd,nd),(co'',cd'),epStack')=" ++ show (dc,sc,oc,nl,co,(cd,nd),(co'',cd'),epStack'))
+    -- `debug` ("pushOffset:(dc,sc,oc,nl,co,(cd,nd),(co'',cd'),epStack')=" ++ show (dc,sc,oc,nl,co,(cd,nd),(co'',cd'),epStack'))
 
 -- |Get the current column offset
 getOffset :: EP ColOffset

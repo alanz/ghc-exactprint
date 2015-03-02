@@ -297,9 +297,6 @@ leaveAST = do
 
   (dp,nl)  <- getCurrentDP
   edp <- getEntryDP
-  let _nl = case edp of
-            DP (0,_) -> LineSame
-            _        -> LineChanged
   kds <- getKds
   addAnnotationsAP (Ann edp nl (srcSpanStartColumn ss) dp kds)
     `debug` ("leaveAST:(ss,edp,dp,kds)=" ++ show (showGhc ss,edp,dp,kds,dp))
