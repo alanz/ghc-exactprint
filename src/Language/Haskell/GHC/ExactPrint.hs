@@ -40,6 +40,7 @@ import Control.Monad.State
 import Control.Exception
 import Data.Data
 import Data.List
+import Data.Maybe
 import Data.Monoid
 import Control.Monad.Writer
 
@@ -143,24 +144,31 @@ setPos l = modify (\s -> s {epPos = l})
 
 -- ---------------------------------------------------------------------
 
--- |Given a step offset to be applied, the original column when the
--- offset was calculated and the current column, determine an
--- equivalent offset
-pushOffset :: ColOffset -> Col -> Pos -> LineChanged -> EP ()
-pushOffset dc sc (_or,oc) nl = do
+-- |Given the original column when the
+-- offset was calculated, a step offset to be applied, the column that
+-- would have been used had the ruling offset been in play, and
+-- whether we are moving onto a new line, determine an equivalent
+-- offset
+pushOffset :: DeltaPos -> LineChanged -> Col -> ColOffset -> EP ()
+pushOffset (DP (edl,edc)) nl sc dc = do
   (co,cd) <- gets (ghead "pushOffset" . epStack)
-  let
-    offsetMaybe o = if dc == 0 then co else o
-    co' = case nl of
-        LineSame     -> offsetMaybe $ dc + co
-        LineChanged  -> offsetMaybe $ dc
-  let nd = - (sc - oc)
+  (_l,c) <- getPos
+
+  epStack' <- gets epStack
+  let 
       (co'',cd') = case nl of
-                    LineChanged -> (co' + cd,cd)
+                    -- LineChanged -> (co,cd)
+                    LineChanged -> (dc + cd,cd)
                     LineSame ->
-                      if nd == cd
-                        then (co',             cd)
-                        else (co' - (cd - nd), nd)
+                      let
+                        co' = dc + co
+                        nd = - (sc - oc)
+                        oc = if edl == 0 then  c + edc -- same line
+                                         else co + edc -- different line
+                      in
+                        if nd == cd
+                          then (co',             cd)
+                          else (co' - (cd - nd), nd)
   modify (\s -> s {epStack = (co'',cd'): epStack s})
     -- `debug` ("pushOffset:(dc,sc,oc,nl,co,(cd,nd),(co'',cd'),epStack')=" ++ show (dc,sc,oc,nl,co,(cd,nd),(co'',cd'),epStack'))
 
@@ -372,18 +380,16 @@ exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC a@(GHC.L l ast) =
     do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAndRemoveAnnotation a
-       (offset,edp,kd,sc,nl) <- case ma of
-         Nothing -> return (0,DP (0,0),[],0,LineSame)
-         Just (Ann edp nl' sc' dp kds) -> do
-             return (dp,edp,kds,sc',nl')
-       pushKds kd
-       op <- getPosForDelta edp
-       pushOffset offset sc op nl
+       let (Ann edp nl sc dc kds) = fromMaybe annNone ma
+       pushKds kds
+       pushOffset edp nl sc dc
        do
          exactP ast
          printStringAtMaybeAnn (G GHC.AnnComma) ","
          printStringAtMaybeAnnAll AnnSemiSep ";"
-       popOffset `debug` ("popOffset:1")
+       popOffset
+       epStack' <- gets epStack
+       return () `debug` ("popOffset:after pop:(l,epStack')=" ++ showGhc (l,epStack'))
        popKds
        popSrcSpan
 

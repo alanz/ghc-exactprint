@@ -962,10 +962,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name) =>
     addDeltaAnnotation GHC.AnnEqual
     mapM_ annotatePC grhs
     addDeltaAnnotation GHC.AnnWhere
-    -- annotateHsLocalBinds lb
+
+    -- TODO: Store the following SrcSpan in an AnnList instance for exactPC
     annotatePC (GHC.L (getLocalBindsSrcSpan lb) lb)
 
-  annotateP _ (GHC.VarBind _n rhse _) = do
+  annotateP _ (GHC.VarBind _n rhse _) =
     -- Note: this bind is introduced by the typechecker
     annotatePC rhse
 
@@ -1510,7 +1511,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name,AnnotateP body)
 
 annotateParStmtBlock :: (GHC.DataId name,GHC.OutputableBndr name, AnnotateP name)
   =>  GHC.ParStmtBlock name name -> AP ()
-annotateParStmtBlock (GHC.ParStmtBlock stmts _ns _) = do
+annotateParStmtBlock (GHC.ParStmtBlock stmts _ns _) =
   mapM_ annotatePC stmts
 
 -- ---------------------------------------------------------------------
@@ -1518,16 +1519,16 @@ annotateParStmtBlock (GHC.ParStmtBlock stmts _ns _) = do
 -- | Local binds need to be indented as a group, and thus need to have a
 -- SrcSpan around them so they can be processed via the normal
 -- annotatePC / exactPC machinery.
-getLocalBindsSrcSpan :: (GHC.HsLocalBinds name) -> GHC.SrcSpan
+getLocalBindsSrcSpan :: GHC.HsLocalBinds name -> GHC.SrcSpan
 getLocalBindsSrcSpan (GHC.HsValBinds (GHC.ValBindsIn binds sigs))
   = case spans of
       []  -> GHC.noSrcSpan
       sss -> GHC.combineSrcSpans (head sss) (last sss)
   where
-    spans = sort $ (map GHC.getLoc (GHC.bagToList binds) ++ map GHC.getLoc sigs)
+    spans = sort (map GHC.getLoc (GHC.bagToList binds) ++ map GHC.getLoc sigs)
 
 getLocalBindsSrcSpan (GHC.HsValBinds (GHC.ValBindsOut {}))
-   = error $ "getLocalBindsSrcSpan: only valid after type checking"
+   = error "getLocalBindsSrcSpan: only valid after type checking"
 
 getLocalBindsSrcSpan (GHC.HsIPBinds (GHC.IPBinds binds _))
   = case sort (map GHC.getLoc binds) of
@@ -1536,6 +1537,15 @@ getLocalBindsSrcSpan (GHC.HsIPBinds (GHC.IPBinds binds _))
 
 getLocalBindsSrcSpan (GHC.EmptyLocalBinds) = GHC.noSrcSpan
 
+-- ---------------------------------------------------------------------
+
+-- | Generate a SrcSpan that enclosed the given list
+getListSrcSpan :: [GHC.Located a] -> GHC.SrcSpan
+getListSrcSpan ls
+  = case ls of
+      []  -> GHC.noSrcSpan
+      sss -> GHC.combineLocs (head sss) (last sss)
+  
 -- ---------------------------------------------------------------------
 
 instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)

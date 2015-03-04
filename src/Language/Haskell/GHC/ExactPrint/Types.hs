@@ -86,7 +86,7 @@ data Annotation = Ann
                                    -- at same layout level
   , anns             :: [(KeywordId, DeltaPos)]
 
-  } deriving (Typeable)
+  } deriving (Typeable,Eq)
 
 instance Show Annotation where
   show (Ann dp nl c d ans) = "(Ann (" ++ show dp ++ ") " ++ show nl ++ " " ++ show c ++ " " ++ show d ++ " " ++ show ans ++ ")"
@@ -125,6 +125,14 @@ unConName (CN s) = s
 data KeywordId = G GHC.AnnKeywordId
                | AnnSemiSep
                | AnnComment DComment
+               | AnnList GHC.SrcSpan -- ^ In some circumstances we
+                                     -- need to annotate a list of
+                                     -- statements (e.g. HsDo) and
+                                     -- must synthesise a SrcSpan to
+                                     -- hang the annotations off. This
+                                     -- needs to be preserved so that
+                                     -- exactPC can find it, after
+                                     -- potential AST edits.
                deriving (Eq,Show,Ord)
 
 -- ---------------------------------------------------------------------

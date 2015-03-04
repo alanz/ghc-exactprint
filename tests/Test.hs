@@ -243,8 +243,9 @@ tt = do
     manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
     manipulateAstTest "DocDecls.hs"              "DocDecls"
     manipulateAstTest "ViewPatterns.hs"          "Main"
-    -}
     manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
+    -}
+    manipulateAstTest "FooExpected.hs"          "Main"
 
 {-
     manipulateAstTest "ParensAroundContext.hs"   "ParensAroundContext"
