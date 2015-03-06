@@ -1380,7 +1380,9 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
         printStringAtMaybeAnn (G GHC.AnnVbar) "|"
         mapM_ exactPC (init stmts)
       else do
-        mapM_ exactPC stmts
+        let ss = getListSrcSpan stmts
+        exactPC (GHC.L ss stmts)
+        -- mapM_ exactPC stmts
     printStringAtMaybeAnn (G GHC.AnnCloseS) "]"
     printStringAtMaybeAnn (G GHC.AnnClose) cstr
     printStringAtMaybeAnn (G GHC.AnnCloseC) "}"
@@ -1589,6 +1591,11 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
 
   exactP e = printString "HsExpr"
     `debug` ("exactP.HsExpr:not processing " ++ (showGhc e) )
+
+-- ---------------------------------------------------------------------
+
+instance ExactP ([GHC.ExprLStmt GHC.RdrName]) where
+  exactP ls = mapM_ exactPC ls
 
 -- ---------------------------------------------------------------------
 

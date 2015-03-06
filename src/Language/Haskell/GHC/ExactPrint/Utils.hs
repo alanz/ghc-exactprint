@@ -13,6 +13,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , srcSpanEndLine
   , srcSpanStartColumn
   , srcSpanEndColumn
+  , getListSrcSpan
   , getLocalBindsSrcSpan
 
   , ss2span
@@ -1545,7 +1546,7 @@ getListSrcSpan ls
   = case ls of
       []  -> GHC.noSrcSpan
       sss -> GHC.combineLocs (head sss) (last sss)
-  
+
 -- ---------------------------------------------------------------------
 
 instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
@@ -1667,7 +1668,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
         addDeltaAnnotation GHC.AnnVbar
         mapM_ annotatePC (init es)
       else do
-        mapM_ annotatePC es
+        let ss = getListSrcSpan es
+        -- mapM_ annotatePC es
+        annotatePC (GHC.L ss es)
     addDeltaAnnotation GHC.AnnCloseS
     addDeltaAnnotation GHC.AnnCloseC
     addDeltaAnnotation GHC.AnnClose
@@ -1866,6 +1869,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
   annotateP _ (GHC.HsWrap _ _) = return ()
   annotateP _ (GHC.HsUnboundVar _) = return ()
 
+
+-- ---------------------------------------------------------------------
+
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
+  => AnnotateP ([GHC.ExprLStmt name]) where
+  annotateP _ ls = mapM_ annotatePC ls
 
 -- ---------------------------------------------------------------------
 
