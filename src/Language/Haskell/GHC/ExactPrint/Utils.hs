@@ -1,7 +1,5 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-} -- for GHC.DataId
@@ -1669,7 +1667,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
         mapM_ annotatePC (init es)
       else do
         let ss = getListSrcSpan es
-        -- mapM_ annotatePC es
         annotatePC (GHC.L ss es)
     addDeltaAnnotation GHC.AnnCloseS
     addDeltaAnnotation GHC.AnnCloseC

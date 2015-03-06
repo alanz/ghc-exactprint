@@ -16,6 +16,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , annNone
   , Anns,AnnKey(..)
   , KeywordId(..)
+  , mkAnnKey
   , AnnConName(..)
   , annGetConstr
   , unConName
@@ -84,7 +85,7 @@ data Annotation = Ann
   , ann_delta        :: !ColOffset -- ^ Indentation level introduced
                                    -- by this SrcSpan, for other items
                                    -- at same layout level
-  , anns             :: [(KeywordId, DeltaPos)]
+  , anns             :: [(KeywordId, DeltaPos)] -- TODO:AZ change this to ann_dps
 
   } deriving (Typeable,Eq)
 
@@ -106,8 +107,9 @@ type Anns = Map.Map AnnKey Annotation
 -- These are used to maintain context in the AP and EP monads
 data AnnKey   = AnnKey GHC.SrcSpan AnnConName
                   deriving (Eq, Show, Ord)
---type AnnValue = (Annotation,[(KeywordId,DeltaPos)])
---type AnnKds   = [(KeywordId,DeltaPos)]
+
+mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
+mkAnnKey (GHC.L l a) = AnnKey l (annGetConstr a)
 
 -- Holds the name of a constructor
 data AnnConName = CN String

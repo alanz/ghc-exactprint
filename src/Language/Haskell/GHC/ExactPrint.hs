@@ -170,7 +170,7 @@ pushOffset (DP (edl,edc)) nl sc dc = do
                           then (co',             cd)
                           else (co' - (cd - nd), nd)
   modify (\s -> s {epStack = (co'',cd'): epStack s})
-    -- `debug` ("pushOffset:(dc,sc,oc,nl,co,(cd,nd),(co'',cd'),epStack')=" ++ show (dc,sc,oc,nl,co,(cd,nd),(co'',cd'),epStack'))
+    `debug` ("pushOffset:((edl,edc),nl,sc,dc,(co,cd),c,(co'',cd'),epStack')=" ++ show ((edl,edc),nl,sc,dc,(co,cd),c,(co'',cd'),epStack'))
 
 -- |Get the current column offset
 getOffset :: EP ColOffset
