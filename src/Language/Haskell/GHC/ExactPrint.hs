@@ -144,32 +144,43 @@ setPos l = modify (\s -> s {epPos = l})
 
 -- ---------------------------------------------------------------------
 
--- |Given the original column when the
--- offset was calculated, a step offset to be applied, the column that
--- would have been used had the ruling offset been in play, and
--- whether we are moving onto a new line, determine an equivalent
+-- Given an annotation, determines a new offset relative to the previous
 -- offset
+--
+--  edLine: Relative line of annotation
+--  edColumn: Relative Column of annotation
+--  newline: whether we move to a new line with the annotation
+--  sc:
+--  dc: The column that would have been used had the ruling offset been in
+--  play
 pushOffset :: Annotation -> EP ()
-pushOffset (Ann (DP (edl,edc)) nl sc dc _kds) = do
-  (co,cd) <- gets (ghead "pushOffset" . epStack)
-  (_l,c) <- getPos
-
-  epStack' <- gets epStack
+pushOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) = do
+  (colOffset, colDelta) <- ghead "pushOffset" <$> gets epStack
+  (_l, currentColumn) <- getPos
   let
-      (co'',cd') = case nl of
-                    KeepOffset  -> (dc + cd,cd)
-                    LineChanged -> (dc + cd,cd)
+      newOffset = case newline of
+                    LineChanged -> (annDelta + colDelta , colDelta)
+                    KeepOffset -> (annDelta + colDelta , colDelta)
                     LineSame ->
                       let
-                        co' = dc + co
-                        nd = - (sc - oc)
-                        oc = if edl == 0 then  c + edc -- same line
-                                         else co + edc -- different line
-                      in
-                        (co' - (cd - nd), nd)
-  modify (\s -> s {epStack = (co'',cd'): epStack s})
-    `debug` ("pushOffset:((edl,edc),nl,sc,dc,(co,cd),c,(co'',cd'),epStack')="
-                 ++ show ((edl,edc),nl,sc,dc,(co,cd),c,(co'',cd'),epStack'))
+                        -- Add extra indentation
+                        colOffset' = annDelta + colOffset
+                        -- Work out where new column starts
+                        -- If the annLineDelta == 0 ie, we stay on the same
+                        -- line so the new column is the current position
+                        --
+                        --
+                        -- If not then we move to the next line so the
+                        -- start column is whatever the indentation context
+                        -- is `colOffset`
+                        newStartColumn = edColumn +
+                                          if edLine == 0
+                                            then currentColumn -- same line
+                                            else colOffset -- different line
+                        newColDelta = newStartColumn - originalStartCol
+                      in ((colOffset' + newColDelta) - colDelta, newColDelta)
+  modify (\s -> s {epStack = newOffset : epStack s})
+    `debug` ("pushOffset:(ann, colOffset, colDelta, currentColumn, newOffset)=" ++ show (a, colOffset, colDelta, currentColumn, newOffset))
 
 -- |Get the current column offset
 getOffset :: EP ColOffset
@@ -393,9 +404,9 @@ exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC a@(GHC.L l ast) =
     do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAndRemoveAnnotation a
-       let an@(Ann _edp _nl _sc _dc kds) = fromMaybe annNone ma
+       let ann@(Ann _edp _nl _sc _dc kds) = fromMaybe annNone ma
        pushKds kds
-       pushOffset an
+       pushOffset ann
        do
          exactP ast
          printStringAtMaybeAnn (G GHC.AnnComma) ","
