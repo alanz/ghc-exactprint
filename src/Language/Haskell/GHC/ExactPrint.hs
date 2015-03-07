@@ -155,9 +155,8 @@ pushOffset (DP (edl,edc)) nl sc dc = do
   (_l,c) <- getPos
 
   epStack' <- gets epStack
-  let 
+  let
       (co'',cd') = case nl of
-                    -- LineChanged -> (co,cd)
                     LineChanged -> (dc + cd,cd)
                     LineSame ->
                       let
@@ -170,7 +169,8 @@ pushOffset (DP (edl,edc)) nl sc dc = do
                           then (co',             cd)
                           else (co' - (cd - nd), nd)
   modify (\s -> s {epStack = (co'',cd'): epStack s})
-    `debug` ("pushOffset:((edl,edc),nl,sc,dc,(co,cd),c,(co'',cd'),epStack')=" ++ show ((edl,edc),nl,sc,dc,(co,cd),c,(co'',cd'),epStack'))
+    `debug` ("pushOffset:((edl,edc),nl,sc,dc,(co,cd),c,(co'',cd'),epStack')="
+                 ++ show ((edl,edc),nl,sc,dc,(co,cd),c,(co'',cd'),epStack'))
 
 -- |Get the current column offset
 getOffset :: EP ColOffset
@@ -182,7 +182,7 @@ popOffset = modify (\s -> s {epStack = tail (epStack s)})
 -- ---------------------------------------------------------------------
 
 pushSrcSpan :: GHC.SrcSpan -> EP ()
-pushSrcSpan ss = modify (\s -> s {epSrcSpans = ss:(epSrcSpans s)})
+pushSrcSpan ss = modify (\s -> s {epSrcSpans = ss:epSrcSpans s})
 
 popSrcSpan :: EP ()
 popSrcSpan = modify (\s -> s {epSrcSpans = tail (epSrcSpans s)})

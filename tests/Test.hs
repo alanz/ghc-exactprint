@@ -183,7 +183,6 @@ tt = do
     manipulateAstTest "BangPatterns.hs"          "Main"
     manipulateAstTest "Associated.hs"            "Main"
     manipulateAstTest "Move1.hs"                 "Move1"
-    manipulateAstTest "Rules.hs"                 "Rules"
     manipulateAstTest "TypeOperators.hs"         "Main"
     manipulateAstTest "NullaryTypeClasses.hs"    "Main"
     manipulateAstTest "FunctionalDeps.hs"        "Main"
@@ -244,8 +243,9 @@ tt = do
     manipulateAstTest "DocDecls.hs"              "DocDecls"
     manipulateAstTest "ViewPatterns.hs"          "Main"
     manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
-    -}
     manipulateAstTest "FooExpected.hs"          "Main"
+    -}
+    manipulateAstTest "Rules.hs"                 "Rules"
 
 {-
     manipulateAstTest "ParensAroundContext.hs"   "ParensAroundContext"
