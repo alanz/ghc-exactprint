@@ -149,14 +149,15 @@ setPos l = modify (\s -> s {epPos = l})
 -- would have been used had the ruling offset been in play, and
 -- whether we are moving onto a new line, determine an equivalent
 -- offset
-pushOffset :: DeltaPos -> LineChanged -> Col -> ColOffset -> EP ()
-pushOffset (DP (edl,edc)) nl sc dc = do
+pushOffset :: Annotation -> EP ()
+pushOffset (Ann (DP (edl,edc)) nl sc dc _kds) = do
   (co,cd) <- gets (ghead "pushOffset" . epStack)
   (_l,c) <- getPos
 
   epStack' <- gets epStack
   let
       (co'',cd') = case nl of
+                    KeepOffset  -> (dc + cd,cd)
                     LineChanged -> (dc + cd,cd)
                     LineSame ->
                       let
@@ -380,9 +381,9 @@ exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC a@(GHC.L l ast) =
     do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAndRemoveAnnotation a
-       let (Ann edp nl sc dc kds) = fromMaybe annNone ma
+       let an@(Ann _edp _nl _sc _dc kds) = fromMaybe annNone ma
        pushKds kds
-       pushOffset edp nl sc dc
+       pushOffset an
        do
          exactP ast
          printStringAtMaybeAnn (G GHC.AnnComma) ","

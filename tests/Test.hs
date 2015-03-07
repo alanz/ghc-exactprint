@@ -12,7 +12,7 @@ import qualified FastString    as GHC
 import qualified GHC           as GHC
 import qualified RdrName       as GHC
 import qualified OccName       as GHC
--- import qualified MonadUtils    as GHC
+import qualified MonadUtils    as GHC
 -- import qualified Outputable    as GHC
 
 import qualified Data.Generics as SYB
@@ -440,7 +440,7 @@ parsedFileGhc fileName modname useTH = do
         t <- GHC.typecheckModule p
         -- GHC.liftIO $ putStrLn $ "typechecked"
         -- toks <- GHC.getRichTokenStream (GHC.ms_mod modSum)
-        -- GHC.liftIO $ putStrLn $ "toks"
+        -- GHC.liftIO $ putStrLn $ "toks" ++ show toks
         let anns = GHC.pm_annotations p
         -- GHC.liftIO $ putStrLn $ "anns"
         return (anns,t)
