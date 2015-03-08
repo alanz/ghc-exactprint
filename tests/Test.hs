@@ -129,7 +129,7 @@ tests = TestList
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
   , mkTestModChange changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
   , mkTestModChange changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
-  , mkTestModChange changeRename1    "Rename1.hs"  "Main"
+  -- , mkTestModChange changeRename1    "Rename1.hs"  "Main"
 
   ]
 
