@@ -34,7 +34,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , debug
 
   , runAP
-  , AP(..)
+  , AP
   , getSrcSpanAP, pushSrcSpanAP, popSrcSpanAP
   , getAnnotationAP
   , addAnnotationsAP
@@ -46,7 +46,6 @@ module Language.Haskell.GHC.ExactPrint.Utils
 
   ) where
 
--- import Control.Monad ( liftM, ap)
 import Control.Monad.State
 import Control.Monad.Writer
 import Control.Applicative
@@ -54,7 +53,6 @@ import Control.Exception
 import Data.Data
 import Data.Generics
 import Data.List
--- import Data.Monoid
 
 import Language.Haskell.GHC.ExactPrint.Types
 
@@ -108,6 +106,9 @@ data StackItem = StackItem
                , offset     :: DeltaPos
                  -- | Offsets for the elements annotated in this `SrcSpan`
                , annOffsets :: [(KeywordId, DeltaPos)]
+               -- | Indicates whether the contents of this SrcSpan are
+               -- subject to vertical alignment layout rules
+               , curLayoutOn :: Bool
                  -- | The constructor name of the AST element, to
                  -- distinguish between nested elements that have the same
                  -- `SrcSpan` in the AST.
@@ -138,8 +139,8 @@ data Grouping = None | Primed GHC.SrcSpan | Active DeltaPos | Done DeltaPos
 
 
 runAP :: AP () -> GHC.ApiAnns -> Anns
-runAP ap ga = Map.fromListWith combineAnns . snd . runWriter
-                . flip execStateT (defaultAPState ga) $ ap
+runAP apf ga = Map.fromListWith combineAnns . snd . runWriter
+                . flip execStateT (defaultAPState ga) $ apf
 
 -- `debug` ("runAP:cs=" ++ showGhc cs)
 
@@ -147,20 +148,19 @@ runAP ap ga = Map.fromListWith combineAnns . snd . runWriter
 -- ---------------------------------------------------------------------
 
 flattenedComments :: GHC.ApiAnns -> [Comment]
-flattenedComments (_,cm) = map tokComment $ GHC.sortLocated $ concat $ Map.elems cm
+flattenedComments (_,cm) = map tokComment . GHC.sortLocated . concat $ Map.elems cm
 
 -- -------------------------------------
 
--- |Note: assumes the SrcSpan stack is nonempty
 getSrcSpanAP :: AP GHC.SrcSpan
-getSrcSpanAP = gets (curSrcSpan . head . apStack)
+getSrcSpanAP = gets (curSrcSpan . ghead "getSrcSpanAP" . apStack)
 
 getPriorSrcSpanAP :: AP GHC.SrcSpan
-getPriorSrcSpanAP = gets (curSrcSpan . head . tail . apStack)
+getPriorSrcSpanAP = gets (curSrcSpan . ghead "getPriorSrcSpanAP" . tail . apStack)
 
 pushSrcSpanAP :: Data a => (GHC.Located a) -> DeltaPos -> AP ()
 pushSrcSpanAP (GHC.L l a) edp =
-  let newss = StackItem l edp [] (annGetConstr a) in
+  let newss = StackItem l edp [] False (annGetConstr a) in
   modify (\s -> s { apStack =  newss : (apStack s) })
 
 popSrcSpanAP :: AP ()
@@ -200,6 +200,7 @@ getCurrentDP = do
   -- indentation should be fully nested in an AST element
   ss <- getSrcSpanAP
   ps <- getPriorSrcSpanAP
+  layoutOn <- getLayoutOn
   let r = if srcSpanStartLine ss == srcSpanStartLine ps
              then (srcSpanStartColumn ss - srcSpanStartColumn ps,LineSame)
              else (srcSpanStartColumn ss, LineChanged)
@@ -251,6 +252,18 @@ addAnnDeltaPos (_s,kw) dp = do
   modify (\s -> s { apStack = (manip st) : sts })
   where
     manip s = s { annOffsets = (kw, dp) : (annOffsets s) }
+
+-- -------------------------------------
+
+getLayoutOn :: AP Bool
+getLayoutOn = gets (curLayoutOn . ghead "getSrcSpanAP" . apStack)
+
+setLayoutOn :: Bool -> AP ()
+setLayoutOn layoutOn = do
+  (st:sts) <- gets apStack
+  modify (\s -> s { apStack = (manip st) : sts })
+  where
+    manip s = s { curLayoutOn = layoutOn }
 
 -- -------------------------------------
 
@@ -309,11 +322,13 @@ class Data ast => AnnotateP ast where
 
 -- |First move to the given location, then call exactP
 annotatePC :: (AnnotateP ast) => GHC.Located ast -> AP ()
-annotatePC a@(GHC.L l ast) = do
-  enterAST a `debug` ("annotatePC:entering " ++ showGhc l)
-  annotateP l ast
-  leaveAST `debug` ("annotatePC:leaving " ++ showGhc (l))
+annotatePC a = withLocated a annotateP
 
+withLocated :: Data a => GHC.Located a -> (GHC.SrcSpan -> a -> AP ()) -> AP ()
+withLocated a@(GHC.L l ast) action = do
+  enterAST a `debug` ("annotatePC:entering " ++ showGhc l)
+  action l ast
+  leaveAST `debug` ("annotatePC:leaving " ++ showGhc (l))
 
 annotateMaybe :: (AnnotateP ast) => Maybe (GHC.Located ast) -> AP ()
 annotateMaybe Nothing    = return ()
@@ -321,6 +336,10 @@ annotateMaybe (Just ast) = annotatePC ast
 
 annotateList :: (AnnotateP ast) => [GHC.Located ast] -> AP ()
 annotateList xs = mapM_ annotatePC xs
+
+-- | Flag the item to be annotated as requiring layout.
+annotateWithLayout a = do
+  withLocated a (\l ast -> annotateP l ast >> setLayoutOn True)
 
 -- ---------------------------------------------------------------------
 
