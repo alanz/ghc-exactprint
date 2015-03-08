@@ -110,7 +110,6 @@ data EPState = EPState
              { epPos       :: Pos -- ^ Current output position
              , epStack     :: [(ColOffset,ColDelta)] -- ^ stack of offsets that currently apply
              , epSrcSpans  :: [GHC.SrcSpan]
-             , epComments  :: [DComment]
              , eFunId      :: (Bool, String)
              , eFunIsInfix :: Bool -- AZ:Needed? is in first field of eFunId
              , epAnnKds    :: [[(KeywordId, DeltaPos)]]
@@ -119,17 +118,16 @@ data EPState = EPState
 
 type EP a = StateT EPState (Writer (Endo String)) a
 
-runEP :: EP () -> GHC.SrcSpan -> [DComment] -> Anns -> String
-runEP f ss cs ans =
+runEP :: EP () -> GHC.SrcSpan -> Anns -> String
+runEP f ss ans =
   flip appEndo "" . snd . runWriter
-  . flip execStateT (defaultState ss cs ans) $ f
+  . flip execStateT (defaultState ss ans) $ f
 
-defaultState :: GHC.SrcSpan -> [DComment] -> Anns -> EPState
-defaultState ss cs as = EPState
+defaultState :: GHC.SrcSpan -> Anns -> EPState
+defaultState ss as = EPState
              { epPos = (1,1)
              , epStack = [(0,0)]
              , epSrcSpans = [ss]
-             , epComments = cs
              , eFunId   = (False, "")
              , eFunIsInfix = False
              , epAnnKds      = []
@@ -224,7 +222,7 @@ destructiveGetFirst  key (acc,((k,v):kvs))
     isComment _              = False
 
 -- |destructive get, hence use an annotation once only
-getAnnFinal :: KeywordId -> EP [DeltaPos]
+getAnnFinal :: KeywordId -> EP ([DComment], [DeltaPos])
 getAnnFinal kw = do
   kd <- gets epAnnKds
   let (r, kd', dcs) = case kd of
@@ -233,8 +231,7 @@ getAnnFinal kw = do
                     where (cs', r',kk) = destructiveGetFirst kw ([],k)
                           dcs' = concatMap keywordIdToDComment cs'
   modify (\s -> s { epAnnKds = kd' })
-  modify (\s -> s { epComments = dcs } )
-  return r
+  return (dcs, r)
 
 -- ---------------------------------------------------------------------
 
@@ -281,9 +278,6 @@ printString str = do
   setPos (l, c + length str)
   tell (Endo $ showString str)
 
-getComments :: EP [DComment]
-getComments = gets epComments
-
 newLine :: EP ()
 newLine = do
     (l,_) <- getPos
@@ -310,15 +304,14 @@ printStringAt p str = printWhitespace p >> printString str
 
 -- |This should be the final point where things are mode concrete,
 -- before output. Hence the point where comments can be inserted
-printStringAtLsDelta :: [DeltaPos] -> String -> EP ()
-printStringAtLsDelta mc s =
+printStringAtLsDelta :: [DComment] -> [DeltaPos] -> String -> EP ()
+printStringAtLsDelta cs mc s =
   case reverse mc of
     (cl:_) -> do
       p <- getPos
       colOffset <- getOffset
       if isGoodDeltaWithOffset cl colOffset
         then do
-          cs <- getComments
           mapM_ printQueuedComment cs
           printStringAt (undelta p cl colOffset) s
             `debug` ("printStringAtLsDelta:(pos,s):" ++ show (undelta p cl colOffset,s))
@@ -353,18 +346,18 @@ getPosForDelta dp = do
 
 printStringAtMaybeAnn :: KeywordId -> String -> EP ()
 printStringAtMaybeAnn an str = do
-  ma <- getAnnFinal an
-  printStringAtLsDelta ma str
+  (comments, ma) <- getAnnFinal an
+  printStringAtLsDelta comments ma str
     `debug` ("printStringAtMaybeAnn:(an,ma,str)=" ++ show (an,ma,str))
 
 printStringAtMaybeAnnAll :: KeywordId -> String -> EP ()
 printStringAtMaybeAnnAll an str = go
   where
     go = do
-      ma <- getAnnFinal an
+      (comments, ma) <- getAnnFinal an
       case ma of
         [] -> return ()
-        [d]  -> printStringAtLsDelta [d] str >> go
+        [d]  -> printStringAtLsDelta comments [d] str >> go
 
 -- ---------------------------------------------------------------------
 
@@ -378,19 +371,19 @@ countAnns an = do
 
 -- | Print an AST exactly as specified by the annotations on the nodes in the tree.
 -- exactPrint :: (ExactP ast) => ast -> [Comment] -> String
-exactPrint :: (ExactP ast) => GHC.Located ast -> [DComment] -> String
-exactPrint ast@(GHC.L l _) cs = runEP (exactPC ast) l cs Map.empty
+exactPrint :: (ExactP ast) => GHC.Located ast -> String
+exactPrint ast@(GHC.L l _) = runEP (exactPC ast) l Map.empty
 
 
 exactPrintAnnotated ::
      GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns -> String
-exactPrintAnnotated ast@(GHC.L l _) ghcAnns = runEP (exactPC ast) l [] an
+exactPrintAnnotated ast@(GHC.L l _) ghcAnns = runEP (exactPC ast) l an
   where
     an = annotateLHsModule ast ghcAnns
 
 exactPrintAnnotation :: ExactP ast =>
-  GHC.Located ast -> [DComment] -> Anns -> String
-exactPrintAnnotation ast@(GHC.L l _) cs an = runEP (exactPC ast) l cs an
+  GHC.Located ast -> Anns -> String
+exactPrintAnnotation ast@(GHC.L l _) an = runEP (exactPC ast) l an
   -- `debug` ("exactPrintAnnotation:an=" ++ (concatMap (\(l,a) -> show (ss2span l,a)) $ Map.toList an ))
 
 annotateAST :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns -> Anns
