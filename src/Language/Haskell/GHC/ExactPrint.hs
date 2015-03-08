@@ -108,7 +108,6 @@ instance Annotated (GHC.Located a) where
 
 data EPState = EPState
              { epPos       :: Pos -- ^ Current output position
-             , epSrcSpans  :: [GHC.SrcSpan]
              , epAnnKds    :: [[(KeywordId, DeltaPos)]]
              , epAnns      :: Anns
              }
@@ -117,27 +116,28 @@ data EPLocal = EPLocal
              { eFunId      :: (Bool, String)
              , eFunIsInfix :: Bool -- AZ:Needed? is in first field of eFunId
              , epStack     :: (ColOffset,ColDelta) -- ^ stack of offsets that currently apply
+             , epSrcSpan  :: GHC.SrcSpan
              }
 
 type EP a = RWS EPLocal (Endo String) EPState a
 
 runEP :: EP () -> GHC.SrcSpan -> Anns -> String
 runEP f ss ans =
-  flip appEndo "" . snd . execRWS f defaultLocal $ (defaultState ss ans)
+  flip appEndo "" . snd . execRWS f (defaultLocal ss) $ (defaultState ans)
 
-defaultState :: GHC.SrcSpan -> Anns -> EPState
-defaultState ss as = EPState
+defaultState :: Anns -> EPState
+defaultState as = EPState
              { epPos = (1,1)
-             , epSrcSpans = [ss]
              , epAnnKds      = []
              , epAnns = as
              }
 
-defaultLocal :: EPLocal
-defaultLocal = EPLocal
+defaultLocal :: GHC.SrcSpan -> EPLocal
+defaultLocal ss = EPLocal
              { eFunId   = (False, "")
              , eFunIsInfix = False
              , epStack = (0,0)
+             , epSrcSpan = ss
              }
 
 getPos :: EP Pos
@@ -192,11 +192,8 @@ getOffset = asks (fst . epStack)
 
 -- ---------------------------------------------------------------------
 
-pushSrcSpan :: GHC.SrcSpan -> EP ()
-pushSrcSpan ss = modify (\s -> s {epSrcSpans = ss:epSrcSpans s})
-
-popSrcSpan :: EP ()
-popSrcSpan = modify (\s -> s {epSrcSpans = tail (epSrcSpans s)})
+withSrcSpan :: GHC.SrcSpan -> (EP () -> EP ())
+withSrcSpan ss = local (\s -> s {epSrcSpan = ss})
 
 getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
 getAndRemoveAnnotation a = do
@@ -398,19 +395,19 @@ annotateAST ast ghcAnns = annotateLHsModule ast ghcAnns
 -- |First move to the given location, then call exactP
 exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC a@(GHC.L l ast) =
-    do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
+    do return () `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAndRemoveAnnotation a
        let ann@(Ann _edp _nl _sc _dc kds) = fromMaybe annNone ma
        pushKds kds
-       withOffset ann
-        (do
-          exactP ast
-          printStringAtMaybeAnn (G GHC.AnnComma) ","
-          printStringAtMaybeAnnAll AnnSemiSep ";")
+       withSrcSpan l (
+        withOffset ann
+          (do
+            exactP ast
+            printStringAtMaybeAnn (G GHC.AnnComma) ","
+            printStringAtMaybeAnnAll AnnSemiSep ";"))
        epStack' <- asks epStack
        return () `debug` ("popOffset:after pop:(l,epStack')=" ++ showGhc (l,epStack'))
        popKds
-       popSrcSpan
 
 -- ---------------------------------------------------------------------
 
