@@ -42,7 +42,7 @@ import Data.Data
 import Data.List
 import Data.Maybe
 import Data.Monoid
-import Control.Monad.Writer
+import Control.Monad.RWS
 
 import qualified Bag           as GHC
 import qualified BasicTypes    as GHC
@@ -91,8 +91,6 @@ instance SrcInfo GHC.SrcSpan where
   startLine   = srcSpanStartLine
   startColumn = srcSpanStartColumn
 
-
-
 class Annotated a where
   ann :: a -> GHC.SrcSpan
 
@@ -108,32 +106,36 @@ instance Annotated (GHC.Located a) where
 
 data EPState = EPState
              { epPos       :: Pos -- ^ Current output position
-             , epStack     :: [(ColOffset,ColDelta)] -- ^ stack of offsets that currently apply
-             , epSrcSpans  :: [GHC.SrcSpan]
-             , epComments  :: [DComment]
-             , eFunId      :: (Bool, String)
-             , eFunIsInfix :: Bool -- AZ:Needed? is in first field of eFunId
-             , epAnnKds    :: [[(KeywordId, DeltaPos)]]
              , epAnns      :: Anns
+             , epAnnKds    :: [[(KeywordId, DeltaPos)]] -- MP: Could this be moved to the local state with suitable refactoring?
              }
 
-type EP a = StateT EPState (Writer (Endo String)) a
+data EPLocal = EPLocal
+             { eFunId      :: (Bool, String)
+             , eFunIsInfix :: Bool -- AZ:Needed? is in first field of eFunId
+             , epStack     :: (ColOffset,ColDelta) -- ^ stack of offsets that currently apply
+             , epSrcSpan  :: GHC.SrcSpan
+             }
 
-runEP :: EP () -> GHC.SrcSpan -> [DComment] -> Anns -> String
-runEP f ss cs ans =
-  flip appEndo "" . snd . runWriter
-  . flip execStateT (defaultState ss cs ans) $ f
+type EP a = RWS EPLocal (Endo String) EPState a
 
-defaultState :: GHC.SrcSpan -> [DComment] -> Anns -> EPState
-defaultState ss cs as = EPState
+runEP :: EP () -> GHC.SrcSpan -> Anns -> String
+runEP f ss ans =
+  flip appEndo "" . snd . execRWS f (defaultLocal ss) $ (defaultState ans)
+
+defaultState :: Anns -> EPState
+defaultState as = EPState
              { epPos = (1,1)
-             , epStack = [(0,0)]
-             , epSrcSpans = [ss]
-             , epComments = cs
-             , eFunId   = (False, "")
-             , eFunIsInfix = False
-             , epAnnKds      = []
              , epAnns = as
+             , epAnnKds      = []
+             }
+
+defaultLocal :: GHC.SrcSpan -> EPLocal
+defaultLocal ss = EPLocal
+             { eFunId   = (False, "")
+             , eFunIsInfix = False
+             , epStack = (0,0)
+             , epSrcSpan = ss
              }
 
 getPos :: EP Pos
@@ -144,47 +146,47 @@ setPos l = modify (\s -> s {epPos = l})
 
 -- ---------------------------------------------------------------------
 
--- |Given the original column when the
--- offset was calculated, a step offset to be applied, the column that
--- would have been used had the ruling offset been in play, and
--- whether we are moving onto a new line, determine an equivalent
+-- Given an annotation, determines a new offset relative to the previous
 -- offset
-pushOffset :: Annotation -> EP ()
-pushOffset (Ann (DP (edl,edc)) nl sc dc _kds) = do
-  (co,cd) <- gets (ghead "pushOffset" . epStack)
-  (_l,c) <- getPos
-
-  epStack' <- gets epStack
+--
+withOffset :: Annotation -> (EP () -> EP ())
+withOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) k = do
+  (colOffset, colDelta) <- asks epStack
+  (_l, currentColumn) <- getPos
   let
-      (co'',cd') = case nl of
-                    KeepOffset  -> (dc + cd,cd)
-                    LineChanged -> (dc + cd,cd)
-                    LineSame ->
-                      let
-                        co' = dc + co
-                        nd = - (sc - oc)
-                        oc = if edl == 0 then  c + edc -- same line
-                                         else co + edc -- different line
-                      in
-                        (co' - (cd - nd), nd)
-  modify (\s -> s {epStack = (co'',cd'): epStack s})
-    `debug` ("pushOffset:((edl,edc),nl,sc,dc,(co,cd),c,(co'',cd'),epStack')="
-                 ++ show ((edl,edc),nl,sc,dc,(co,cd),c,(co'',cd'),epStack'))
+      newOffset =
+        case newline of
+          LineChanged -> (annDelta + colDelta , colDelta)
+          KeepOffset -> (annDelta + colDelta , colDelta)
+          LineSame ->
+            let
+              -- Add extra indentation
+              colOffset' = annDelta + colOffset
+              -- Work out where new column starts
+              -- If the annLineDelta == 0 ie, we stay on the same
+              -- line so the new column is the current position
+              --
+              --
+              -- If not then we move to the next line so the
+              -- start column is whatever the indentation context
+              -- is `colOffset`
+              newStartColumn = edColumn +
+                                 if edLine == 0
+                                   then currentColumn -- same line
+                                   else colOffset -- different line
+              newColDelta = newStartColumn - originalStartCol
+              in (colOffset' + (newColDelta - colDelta), newColDelta)
+  local (\s -> s {epStack = newOffset }) k
+    `debug` ("pushOffset:(ann, colOffset, colDelta, currentColumn, newOffset)=" ++ show (a, colOffset, colDelta, currentColumn, newOffset))
 
 -- |Get the current column offset
 getOffset :: EP ColOffset
-getOffset = gets (fst . ghead "getOffset" . epStack)
-
-popOffset :: EP ()
-popOffset = modify (\s -> s {epStack = tail (epStack s)})
+getOffset = asks (fst . epStack)
 
 -- ---------------------------------------------------------------------
 
-pushSrcSpan :: GHC.SrcSpan -> EP ()
-pushSrcSpan ss = modify (\s -> s {epSrcSpans = ss:epSrcSpans s})
-
-popSrcSpan :: EP ()
-popSrcSpan = modify (\s -> s {epSrcSpans = tail (epSrcSpans s)})
+withSrcSpan :: GHC.SrcSpan -> (EP () -> EP ())
+withSrcSpan ss = local (\s -> s {epSrcSpan = ss})
 
 getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
 getAndRemoveAnnotation a = do
@@ -192,12 +194,11 @@ getAndRemoveAnnotation a = do
   modify (\s -> s { epAnns = an' })
   return r
 
-
-pushKds :: [(KeywordId, DeltaPos)] -> EP ()
-pushKds kd = modify (\s -> s { epAnnKds = kd : (epAnnKds s)})
-
-popKds :: EP ()
-popKds = modify (\s -> s { epAnnKds = tail (epAnnKds s)})
+withKds :: [(KeywordId, DeltaPos)] -> EP () -> EP ()
+withKds kd action = do
+  modify (\s -> s { epAnnKds = kd : (epAnnKds s) })
+  action
+  modify (\s -> s { epAnnKds = tail (epAnnKds s) })
 
 -- | Get and remove the first item in the (k,v) list for which the k matches.
 -- Return the value, together with any comments skipped over to get there.
@@ -213,7 +214,7 @@ destructiveGetFirst  key (acc,((k,v):kvs))
     isComment _              = False
 
 -- |destructive get, hence use an annotation once only
-getAnnFinal :: KeywordId -> EP [DeltaPos]
+getAnnFinal :: KeywordId -> EP ([DComment], [DeltaPos])
 getAnnFinal kw = do
   kd <- gets epAnnKds
   let (r, kd', dcs) = case kd of
@@ -222,8 +223,7 @@ getAnnFinal kw = do
                     where (cs', r',kk) = destructiveGetFirst kw ([],k)
                           dcs' = concatMap keywordIdToDComment cs'
   modify (\s -> s { epAnnKds = kd' })
-  modify (\s -> s { epComments = dcs } )
-  return r
+  return (dcs, r)
 
 -- ---------------------------------------------------------------------
 
@@ -251,16 +251,16 @@ peekAnnFinal kw = do
   return r
 
 getFunId :: EP (Bool,String)
-getFunId = gets eFunId
+getFunId = asks eFunId
 
-setFunId :: (Bool,String) -> EP ()
-setFunId st = modify (\s -> s{eFunId = st})
+withFunId :: (Bool,String) -> (EP () -> EP ())
+withFunId st = local (\s -> s{eFunId = st})
 
 getFunIsInfix :: EP Bool
-getFunIsInfix = gets eFunIsInfix
+getFunIsInfix = asks eFunIsInfix
 
-setFunIsInfix :: Bool -> EP ()
-setFunIsInfix b = modify (\s -> s {eFunIsInfix = b})
+withFunIsInfix :: Bool -> (EP () -> EP ())
+withFunIsInfix b = local (\s -> s {eFunIsInfix = b})
 
 -- ---------------------------------------------------------------------
 
@@ -269,9 +269,6 @@ printString str = do
   (l,c) <- gets epPos
   setPos (l, c + length str)
   tell (Endo $ showString str)
-
-getComments :: EP [DComment]
-getComments = gets epComments
 
 newLine :: EP ()
 newLine = do
@@ -299,15 +296,14 @@ printStringAt p str = printWhitespace p >> printString str
 
 -- |This should be the final point where things are mode concrete,
 -- before output. Hence the point where comments can be inserted
-printStringAtLsDelta :: [DeltaPos] -> String -> EP ()
-printStringAtLsDelta mc s =
+printStringAtLsDelta :: [DComment] -> [DeltaPos] -> String -> EP ()
+printStringAtLsDelta cs mc s =
   case reverse mc of
     (cl:_) -> do
       p <- getPos
       colOffset <- getOffset
       if isGoodDeltaWithOffset cl colOffset
         then do
-          cs <- getComments
           mapM_ printQueuedComment cs
           printStringAt (undelta p cl colOffset) s
             `debug` ("printStringAtLsDelta:(pos,s):" ++ show (undelta p cl colOffset,s))
@@ -342,18 +338,18 @@ getPosForDelta dp = do
 
 printStringAtMaybeAnn :: KeywordId -> String -> EP ()
 printStringAtMaybeAnn an str = do
-  ma <- getAnnFinal an
-  printStringAtLsDelta ma str
+  (comments, ma) <- getAnnFinal an
+  printStringAtLsDelta comments ma str
     `debug` ("printStringAtMaybeAnn:(an,ma,str)=" ++ show (an,ma,str))
 
 printStringAtMaybeAnnAll :: KeywordId -> String -> EP ()
 printStringAtMaybeAnnAll an str = go
   where
     go = do
-      ma <- getAnnFinal an
+      (comments, ma) <- getAnnFinal an
       case ma of
         [] -> return ()
-        [d]  -> printStringAtLsDelta [d] str >> go
+        [d]  -> printStringAtLsDelta comments [d] str >> go
 
 -- ---------------------------------------------------------------------
 
@@ -367,19 +363,19 @@ countAnns an = do
 
 -- | Print an AST exactly as specified by the annotations on the nodes in the tree.
 -- exactPrint :: (ExactP ast) => ast -> [Comment] -> String
-exactPrint :: (ExactP ast) => GHC.Located ast -> [DComment] -> String
-exactPrint ast@(GHC.L l _) cs = runEP (exactPC ast) l cs Map.empty
+exactPrint :: (ExactP ast) => GHC.Located ast -> String
+exactPrint ast@(GHC.L l _) = runEP (exactPC ast) l Map.empty
 
 
 exactPrintAnnotated ::
      GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns -> String
-exactPrintAnnotated ast@(GHC.L l _) ghcAnns = runEP (exactPC ast) l [] an
+exactPrintAnnotated ast@(GHC.L l _) ghcAnns = runEP (exactPC ast) l an
   where
     an = annotateLHsModule ast ghcAnns
 
 exactPrintAnnotation :: ExactP ast =>
-  GHC.Located ast -> [DComment] -> Anns -> String
-exactPrintAnnotation ast@(GHC.L l _) cs an = runEP (exactPC ast) l cs an
+  GHC.Located ast -> Anns -> String
+exactPrintAnnotation ast@(GHC.L l _) an = runEP (exactPC ast) l an
   -- `debug` ("exactPrintAnnotation:an=" ++ (concatMap (\(l,a) -> show (ss2span l,a)) $ Map.toList an ))
 
 annotateAST :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns -> Anns
@@ -391,20 +387,22 @@ annotateAST ast ghcAnns = annotateLHsModule ast ghcAnns
 -- |First move to the given location, then call exactP
 exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC a@(GHC.L l ast) =
-    do pushSrcSpan l `debug` ("exactPC entered for:" ++ showGhc l)
+    do return () `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAndRemoveAnnotation a
-       let an@(Ann _edp _nl _sc _dc kds) = fromMaybe annNone ma
-       pushKds kds
-       pushOffset an
-       do
-         exactP ast
-         printStringAtMaybeAnn (G GHC.AnnComma) ","
-         printStringAtMaybeAnnAll AnnSemiSep ";"
-       popOffset
-       epStack' <- gets epStack
+       let ann@(Ann _edp _nl _sc _dc kds) = fromMaybe annNone ma
+       withContext kds l ann
+        (do
+          exactP ast
+          printStringAtMaybeAnn (G GHC.AnnComma) ","
+          printStringAtMaybeAnnAll AnnSemiSep ";")
+       epStack' <- asks epStack
        return () `debug` ("popOffset:after pop:(l,epStack')=" ++ showGhc (l,epStack'))
-       popKds
-       popSrcSpan
+
+withContext :: [(KeywordId, DeltaPos)]
+            -> GHC.SrcSpan
+            -> Annotation
+            -> (EP () -> EP ())
+withContext kds l ann = withKds kds . withSrcSpan l . withOffset ann
 
 -- ---------------------------------------------------------------------
 
@@ -883,9 +881,9 @@ instance ExactP (GHC.DataFamInstDecl GHC.RdrName) where
 
 instance ExactP (GHC.HsBind GHC.RdrName) where
   exactP (GHC.FunBind (GHC.L _ n) isInfix  (GHC.MG matches _ _ _) _ _ _) = do
-    setFunId (isSymbolRdrName n,rdrName2String n)
-    setFunIsInfix isInfix
-    mapM_ exactPC matches
+    withFunId (isSymbolRdrName n,rdrName2String n) (
+      withFunIsInfix isInfix
+        (mapM_ exactPC matches))
 
   exactP (GHC.PatBind lhs (GHC.GRHSs grhs lb) _ty _fvs _ticks) = do
     exactPC lhs
