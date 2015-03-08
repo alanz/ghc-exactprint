@@ -376,7 +376,7 @@ manipulateAstTest' mchange useTH file' modname = do
     parsed' = case mchange of
                    Nothing -> parsed
                    Just change -> change parsed
-    printed = exactPrintAnnotation parsed' [] ann -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
+    printed = exactPrintAnnotation parsed' ann -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
     result =
             if printed == contents
               then "Match\n"
