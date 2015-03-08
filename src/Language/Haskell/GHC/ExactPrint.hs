@@ -108,7 +108,6 @@ instance Annotated (GHC.Located a) where
 
 data EPState = EPState
              { epPos       :: Pos -- ^ Current output position
-             , epStack     :: [(ColOffset,ColDelta)] -- ^ stack of offsets that currently apply
              , epSrcSpans  :: [GHC.SrcSpan]
              , epAnnKds    :: [[(KeywordId, DeltaPos)]]
              , epAnns      :: Anns
@@ -117,6 +116,7 @@ data EPState = EPState
 data EPLocal = EPLocal
              { eFunId      :: (Bool, String)
              , eFunIsInfix :: Bool -- AZ:Needed? is in first field of eFunId
+             , epStack     :: (ColOffset,ColDelta) -- ^ stack of offsets that currently apply
              }
 
 type EP a = RWS EPLocal (Endo String) EPState a
@@ -128,7 +128,6 @@ runEP f ss ans =
 defaultState :: GHC.SrcSpan -> Anns -> EPState
 defaultState ss as = EPState
              { epPos = (1,1)
-             , epStack = [(0,0)]
              , epSrcSpans = [ss]
              , epAnnKds      = []
              , epAnns = as
@@ -138,6 +137,7 @@ defaultLocal :: EPLocal
 defaultLocal = EPLocal
              { eFunId   = (False, "")
              , eFunIsInfix = False
+             , epStack = (0,0)
              }
 
 getPos :: EP Pos
@@ -157,9 +157,9 @@ setPos l = modify (\s -> s {epPos = l})
 --  sc:
 --  dc: The column that would have been used had the ruling offset been in
 --  play
-pushOffset :: Annotation -> EP ()
-pushOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) = do
-  (colOffset, colDelta) <- ghead "pushOffset" <$> gets epStack
+withOffset :: Annotation -> (EP () -> EP ())
+withOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) k = do
+  (colOffset, colDelta) <- asks epStack
   (_l, currentColumn) <- getPos
   let
       newOffset = case newline of
@@ -183,15 +183,12 @@ pushOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) =
                                             else colOffset -- different line
                         newColDelta = newStartColumn - originalStartCol
                       in ((colOffset' + newColDelta) - colDelta, newColDelta)
-  modify (\s -> s {epStack = newOffset : epStack s})
+  local (\s -> s {epStack = newOffset }) k
     `debug` ("pushOffset:(ann, colOffset, colDelta, currentColumn, newOffset)=" ++ show (a, colOffset, colDelta, currentColumn, newOffset))
 
 -- |Get the current column offset
 getOffset :: EP ColOffset
-getOffset = gets (fst . ghead "getOffset" . epStack)
-
-popOffset :: EP ()
-popOffset = modify (\s -> s {epStack = tail (epStack s)})
+getOffset = asks (fst . epStack)
 
 -- ---------------------------------------------------------------------
 
@@ -405,13 +402,12 @@ exactPC a@(GHC.L l ast) =
        ma <- getAndRemoveAnnotation a
        let ann@(Ann _edp _nl _sc _dc kds) = fromMaybe annNone ma
        pushKds kds
-       pushOffset ann
-       do
-         exactP ast
-         printStringAtMaybeAnn (G GHC.AnnComma) ","
-         printStringAtMaybeAnnAll AnnSemiSep ";"
-       popOffset
-       epStack' <- gets epStack
+       withOffset ann
+        (do
+          exactP ast
+          printStringAtMaybeAnn (G GHC.AnnComma) ","
+          printStringAtMaybeAnnAll AnnSemiSep ";")
+       epStack' <- asks epStack
        return () `debug` ("popOffset:after pop:(l,epStack')=" ++ showGhc (l,epStack'))
        popKds
        popSrcSpan
