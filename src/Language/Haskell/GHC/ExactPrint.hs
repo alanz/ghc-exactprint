@@ -42,7 +42,7 @@ import Data.Data
 import Data.List
 import Data.Maybe
 import Data.Monoid
-import Control.Monad.Writer
+import Control.Monad.RWS
 
 import qualified Bag           as GHC
 import qualified BasicTypes    as GHC
@@ -116,12 +116,11 @@ data EPState = EPState
              , epAnns      :: Anns
              }
 
-type EP a = StateT EPState (Writer (Endo String)) a
+type EP a = RWS () (Endo String) EPState a
 
 runEP :: EP () -> GHC.SrcSpan -> Anns -> String
 runEP f ss ans =
-  flip appEndo "" . snd . runWriter
-  . flip execStateT (defaultState ss ans) $ f
+  flip appEndo "" . snd . execRWS f () $ (defaultState ss ans)
 
 defaultState :: GHC.SrcSpan -> Anns -> EPState
 defaultState ss as = EPState
