@@ -146,26 +146,30 @@ setPos l = modify (\s -> s {epPos = l})
 
 -- ---------------------------------------------------------------------
 
--- Given an annotation, determines a new offset relative to the previous
+-- | Given an annotation associated with a specific SrcSpan, determines a new offset relative to the previous
 -- offset
 --
 withOffset :: Annotation -> (EP () -> EP ())
 withOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) k = do
-  (colOffset, colDelta) <- asks epStack
+  -- The colOffset is the offset to be used when going to the next line.
+  -- The colIndent is how far the current code block has been indented.
+  (colOffset, colIndent) <- asks epStack
   (_l, currentColumn) <- getPos
   let
       newOffset =
         case newline of
-          LineChanged -> (annDelta + colDelta , colDelta)
-          KeepOffset -> (annDelta + colDelta , colDelta)
+          -- For use by AST modifiers, to preserve the indentation
+          -- level for the next line after an AST modification
+          KeepOffset  -> (annDelta + colIndent , colIndent)
+          -- Generated during the annotation phase
+          LineChanged -> (annDelta + colIndent , colIndent)
           LineSame ->
             let
-              -- Add extra indentation
+              -- Add extra indentation for this SrcSpan
               colOffset' = annDelta + colOffset
               -- Work out where new column starts
               -- If the annLineDelta == 0 ie, we stay on the same
               -- line so the new column is the current position
-              --
               --
               -- If not then we move to the next line so the
               -- start column is whatever the indentation context
@@ -174,10 +178,11 @@ withOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) k
                                  if edLine == 0
                                    then currentColumn -- same line
                                    else colOffset -- different line
-              newColDelta = newStartColumn - originalStartCol
-              in (colOffset' + (newColDelta - colDelta), newColDelta)
+              newColIndent = newStartColumn - originalStartCol
+              in (colOffset' + (newColIndent - colIndent), newColIndent)
   local (\s -> s {epStack = newOffset }) k
-    `debug` ("pushOffset:(ann, colOffset, colDelta, currentColumn, newOffset)=" ++ show (a, colOffset, colDelta, currentColumn, newOffset))
+    `debug` ("pushOffset:(a, colOffset, colIndent, currentColumn, newOffset)="
+                 ++ show (a, colOffset, colIndent, currentColumn, newOffset))
 
 -- |Get the current column offset
 getOffset :: EP ColOffset
