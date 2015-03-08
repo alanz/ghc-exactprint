@@ -1,0 +1,6 @@
+
+
+bar2 x y =
+   do c <- getChar
+      return c
+

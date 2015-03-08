@@ -6,3 +6,6 @@
 /tests/examples/LetExpr.hs.1
 /ghc-compile-speed.txt
 /src/RoundTrip.hs
+/src/Language/Haskell/GHC/ExactPrint/HLint.hs
+/src/Language/Haskell/GHC/HLint.hs
+/tests/HLint.hs

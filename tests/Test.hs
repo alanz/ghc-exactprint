@@ -129,6 +129,7 @@ tests = TestList
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
   , mkTestModChange changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
   , mkTestModChange changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
+  -- , mkTestModChange changeRename1    "Rename1.hs"  "Main"
 
   ]
 
@@ -244,8 +245,9 @@ tt = do
     manipulateAstTest "ViewPatterns.hs"          "Main"
     manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
     manipulateAstTest "FooExpected.hs"          "Main"
-    -}
     manipulateAstTest "Rules.hs"                 "Rules"
+    -}
+    manipulateAstTestWithMod changeRename1    "Rename1.hs"  "Main"
 
 {-
     manipulateAstTest "ParensAroundContext.hs"   "ParensAroundContext"
@@ -280,6 +282,11 @@ changeLayoutLet2 parsed
     replacePat (GHC.L ln (GHC.VarPat _))
         | cond ln = GHC.L ln (GHC.VarPat newName)
     replacePat x = x
+
+changeRename1 :: GHC.ParsedSource -> GHC.ParsedSource
+changeRename1 parsed = rename newName [((3,1),(3,3))] parsed
+  where
+    newName = GHC.mkRdrUnqual (GHC.mkVarOcc "bar2")
 
 changeLayoutLet3 :: GHC.ParsedSource -> GHC.ParsedSource
 changeLayoutLet3 parsed = rename newName [((7,5),(7,8)),((9,14),(9,17))] parsed
@@ -398,7 +405,8 @@ parsedFileGhc fileName modname useTH = do
       GHC.runGhc (Just libdir) $ do
         dflags <- GHC.getSessionDynFlags
         let dflags' = foldl GHC.xopt_set dflags
-                           [GHC.Opt_Cpp, GHC.Opt_ImplicitPrelude, GHC.Opt_MagicHash]
+                           -- [GHC.Opt_Cpp, GHC.Opt_ImplicitPrelude, GHC.Opt_MagicHash]
+                           [GHC.Opt_ImplicitPrelude, GHC.Opt_MagicHash]
 
             dflags'' = dflags' { GHC.importPaths = ["./tests/examples/","../tests/examples/",
                                                     "./src/","../src/"] }
