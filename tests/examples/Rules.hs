@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module Rules where
 
 import Data.Char

@@ -7,22 +7,33 @@ import Language.Haskell.GHC.ExactPrint.Utils
 
 import GHC.Paths ( libdir )
 
+
+import qualified Bag                   as GHC
 import qualified DynFlags      as GHC
+import qualified ErrUtils              as GHC
 import qualified FastString    as GHC
 import qualified GHC           as GHC
-import qualified RdrName       as GHC
-import qualified OccName       as GHC
+import qualified HscTypes              as GHC
+import qualified Lexer                 as GHC
 import qualified MonadUtils    as GHC
+import qualified OccName       as GHC
+import qualified Outputable            as GHC
+import qualified RdrName       as GHC
+import qualified SrcLoc                as GHC
+import qualified StringBuffer          as GHC
 -- import qualified Outputable    as GHC
 
 import qualified Data.Generics as SYB
 import qualified GHC.SYB.Utils as SYB
 
+import Data.IORef
+import Control.Exception
 import Control.Monad
 import System.Directory
 import System.FilePath
 import System.IO
 import System.Exit
+import qualified Data.Map as Map
 
 import Test.HUnit
 
@@ -129,7 +140,7 @@ tests = TestList
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
   , mkTestModChange changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
   , mkTestModChange changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
-  -- , mkTestModChange changeRename1    "Rename1.hs"  "Main"
+  , mkTestModChange changeRename1    "Rename1.hs"  "Main"
 
   ]
 
@@ -245,9 +256,9 @@ tt = do
     manipulateAstTest "ViewPatterns.hs"          "Main"
     manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
     manipulateAstTest "FooExpected.hs"          "Main"
-    manipulateAstTest "Rules.hs"                 "Rules"
     -}
-    manipulateAstTestWithMod changeRename1    "Rename1.hs"  "Main"
+    -- manipulateAstTestWithMod changeRename1    "Rename1.hs"  "Main"
+    manipulateAstTest "Rules.hs"                 "Rules"
 
 {-
     manipulateAstTest "ParensAroundContext.hs"   "ParensAroundContext"
@@ -439,6 +450,11 @@ parsedFileGhc fileName modname useTH = do
         modSum <- GHC.getModSummary $ GHC.mkModuleName modname
         -- GHC.liftIO $ putStrLn $ "got modSum"
         -- let modSum = head g
+
+        (sourceFile, source, flags) <- getModuleSourceAndFlags (GHC.ms_mod modSum)
+        strSrcBuf <- getPreprocessedSrc sourceFile
+        GHC.liftIO $ putStrLn $ "preprocessedSrc====\n" ++ strSrcBuf ++ "\n================\n"
+
         p <- GHC.parseModule modSum
         -- GHC.liftIO $ putStrLn $ "got parsedModule"
         t <- GHC.typecheckModule p
@@ -468,3 +484,74 @@ mkSs :: (Int,Int) -> (Int,Int) -> GHC.SrcSpan
 mkSs (sr,sc) (er,ec)
   = GHC.mkSrcSpan (GHC.mkSrcLoc (GHC.mkFastString "examples/PatBind.hs") sr sc)
                   (GHC.mkSrcLoc (GHC.mkFastString "examples/PatBind.hs") er ec)
+-- ---------------------------------------------------------------------
+
+-- | The preprocessed files are placed in a temporary directory, with
+-- a temporary name, and extension .hscpp. Each of these files has
+-- three lines at the top identifying the original origin of the
+-- files, which is ignored by the later stages of compilation except
+-- to contextualise error messages.
+getPreprocessedSrc ::
+  -- GHC.GhcMonad m => FilePath -> m GHC.StringBuffer
+  GHC.GhcMonad m => FilePath -> m String
+getPreprocessedSrc srcFile = do
+  df <- GHC.getSessionDynFlags
+  d <- GHC.liftIO $ getTempDir df
+  fileList <- GHC.liftIO $ getDirectoryContents d
+  let suffix = "hscpp"
+
+  let cppFiles = filter (\f -> getSuffix f == suffix) fileList
+  origNames <- GHC.liftIO $ mapM getOriginalFile $ map (\f -> d </> f) cppFiles
+  let tmpFile = ghead "getPreprocessedSrc" $ filter (\(o,_) -> o == srcFile) origNames
+  -- buf <- GHC.liftIO $ GHC.hGetStringBuffer $ snd tmpFile
+  -- return buf
+  GHC.liftIO $ readUTF8File (snd tmpFile)
+
+-- ---------------------------------------------------------------------
+
+getSuffix :: FilePath -> String
+getSuffix fname = reverse $ fst $ break (== '.') $ reverse fname
+
+-- | A GHC preprocessed file has the following comments at the top
+-- @
+-- # 1 "./test/testdata/BCpp.hs"
+-- # 1 "<command-line>"
+-- # 1 "./test/testdata/BCpp.hs"
+-- @
+-- This function reads the first line of the file and returns the
+-- string in it.
+-- NOTE: no error checking, will blow up if it fails
+getOriginalFile :: FilePath -> IO (FilePath,FilePath)
+getOriginalFile fname = do
+  fcontents <- readFile fname
+  let firstLine = ghead "getOriginalFile" $ lines fcontents
+  let (_,originalFname) = break (== '"') firstLine
+  return $ (tail $ init $ originalFname,fname)
+
+
+-- ---------------------------------------------------------------------
+-- Copied from the GHC source, since not exported
+
+getModuleSourceAndFlags :: GHC.GhcMonad m => GHC.Module -> m (String, GHC.StringBuffer, GHC.DynFlags)
+getModuleSourceAndFlags modu = do
+  m <- GHC.getModSummary (GHC.moduleName modu)
+  case GHC.ml_hs_file $ GHC.ms_location m of
+    Nothing ->
+               do dflags <- GHC.getDynFlags
+                  GHC.liftIO $ throwIO $ GHC.mkApiErr dflags (GHC.text "No source available for module " GHC.<+> GHC.ppr modu)
+    Just sourceFile -> do
+        source <- GHC.liftIO $ GHC.hGetStringBuffer sourceFile
+        return (sourceFile, source, GHC.ms_hspp_opts m)
+
+
+-- return our temporary directory within tmp_dir, creating one if we
+-- don't have one yet
+getTempDir :: GHC.DynFlags -> IO FilePath
+getTempDir dflags
+  = do let ref = GHC.dirsToClean dflags
+           tmp_dir = GHC.tmpDir dflags
+       mapping <- readIORef ref
+       case Map.lookup tmp_dir mapping of
+           Nothing -> error "should already be a tmpDir"
+           Just d -> return d
+
