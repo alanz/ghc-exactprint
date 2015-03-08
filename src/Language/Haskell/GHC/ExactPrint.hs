@@ -175,7 +175,7 @@ withOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) k
                                    then currentColumn -- same line
                                    else colOffset -- different line
               newColDelta = newStartColumn - originalStartCol
-              in ((colOffset' + newColDelta) - colDelta, newColDelta)
+              in (colOffset' + (newColDelta - colDelta), newColDelta)
   local (\s -> s {epStack = newOffset }) k
     `debug` ("pushOffset:(ann, colOffset, colDelta, currentColumn, newOffset)=" ++ show (a, colOffset, colDelta, currentColumn, newOffset))
 
