@@ -1654,7 +1654,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
     addDeltaAnnotation GHC.AnnIn
     annotatePC e
 
-  annotateP _ (GHC.HsDo cts es _) = do
+  annotateP l (GHC.HsDo cts es _) = do
     addDeltaAnnotation GHC.AnnDo
     addDeltaAnnotation GHC.AnnOpen
     addDeltaAnnotation GHC.AnnOpenS
@@ -1667,6 +1667,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
         mapM_ annotatePC (init es)
       else do
         let ss = getListSrcSpan es
+        addAnnDeltaPos (l,AnnList ss) (DP (0,0))
         annotatePC (GHC.L ss es)
     addDeltaAnnotation GHC.AnnCloseS
     addDeltaAnnotation GHC.AnnCloseC
@@ -1869,6 +1870,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
 
 -- ---------------------------------------------------------------------
 
+-- |Used for declarations that need to be aligned together, e.g. in a
+-- do or let .. in statement/expr
 instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
   => AnnotateP ([GHC.ExprLStmt name]) where
   annotateP _ ls = mapM_ annotatePC ls

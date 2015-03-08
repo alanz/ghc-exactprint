@@ -166,9 +166,7 @@ pushOffset (Ann (DP (edl,edc)) nl sc dc _kds) = do
                         oc = if edl == 0 then  c + edc -- same line
                                          else co + edc -- different line
                       in
-                        if nd == cd
-                          then (co',             cd)
-                          else (co' - (cd - nd), nd)
+                        (co' - (cd - nd), nd)
   modify (\s -> s {epStack = (co'',cd'): epStack s})
     `debug` ("pushOffset:((edl,edc),nl,sc,dc,(co,cd),c,(co'',cd'),epStack')="
                  ++ show ((edl,edc),nl,sc,dc,(co,cd),c,(co'',cd'),epStack'))
@@ -227,6 +225,20 @@ getAnnFinal kw = do
   modify (\s -> s { epComments = dcs } )
   return r
 
+-- ---------------------------------------------------------------------
+
+getStoredListSrcSpan :: EP GHC.SrcSpan
+getStoredListSrcSpan = do
+  kd <- gets epAnnKds
+  let
+    isAnnList ((AnnList _),_) = True
+    isAnnList _               = False
+
+    kdf = ghead "getStoredListSrcSpan.1" kd
+    (AnnList ss,_) = ghead "getStoredListSrcSpan.2" $ filter isAnnList kdf
+  return ss
+
+-- ---------------------------------------------------------------------
 
 keywordIdToDComment :: (KeywordId, DeltaPos) -> [DComment]
 keywordIdToDComment (AnnComment comment,_dp) = [comment]
@@ -1381,7 +1393,7 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
         printStringAtMaybeAnn (G GHC.AnnVbar) "|"
         mapM_ exactPC (init stmts)
       else do
-        let ss = getListSrcSpan stmts
+        ss <- getStoredListSrcSpan
         exactPC (GHC.L ss stmts)
         -- mapM_ exactPC stmts
     printStringAtMaybeAnn (G GHC.AnnCloseS) "]"

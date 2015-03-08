@@ -129,7 +129,7 @@ tests = TestList
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
   , mkTestModChange changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
   , mkTestModChange changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
-  -- , mkTestModChange changeRename1    "Rename1.hs"  "Main"
+  , mkTestModChange changeRename1    "Rename1.hs"  "Main"
 
   ]
 
@@ -404,12 +404,8 @@ parsedFileGhc fileName modname useTH = do
     GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
       GHC.runGhc (Just libdir) $ do
         dflags <- GHC.getSessionDynFlags
-        let dflags' = foldl GHC.xopt_set dflags
-                           -- [GHC.Opt_Cpp, GHC.Opt_ImplicitPrelude, GHC.Opt_MagicHash]
-                           [GHC.Opt_ImplicitPrelude, GHC.Opt_MagicHash]
-
-            dflags'' = dflags' { GHC.importPaths = ["./tests/examples/","../tests/examples/",
-                                                    "./src/","../src/"] }
+        let dflags'' = dflags { GHC.importPaths = ["./tests/examples/","../tests/examples/",
+                                                   "./src/","../src/"] }
 
             tgt = if useTH then GHC.HscInterpreted
                            else GHC.HscNothing -- allows FFI
