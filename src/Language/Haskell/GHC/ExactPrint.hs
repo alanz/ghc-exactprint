@@ -149,38 +149,33 @@ setPos l = modify (\s -> s {epPos = l})
 -- Given an annotation, determines a new offset relative to the previous
 -- offset
 --
---  edLine: Relative line of annotation
---  edColumn: Relative Column of annotation
---  newline: whether we move to a new line with the annotation
---  sc:
---  dc: The column that would have been used had the ruling offset been in
---  play
 withOffset :: Annotation -> (EP () -> EP ())
 withOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) k = do
   (colOffset, colDelta) <- asks epStack
   (_l, currentColumn) <- getPos
   let
-      newOffset = case newline of
-                    LineChanged -> (annDelta + colDelta , colDelta)
-                    KeepOffset -> (annDelta + colDelta , colDelta)
-                    LineSame ->
-                      let
-                        -- Add extra indentation
-                        colOffset' = annDelta + colOffset
-                        -- Work out where new column starts
-                        -- If the annLineDelta == 0 ie, we stay on the same
-                        -- line so the new column is the current position
-                        --
-                        --
-                        -- If not then we move to the next line so the
-                        -- start column is whatever the indentation context
-                        -- is `colOffset`
-                        newStartColumn = edColumn +
-                                          if edLine == 0
-                                            then currentColumn -- same line
-                                            else colOffset -- different line
-                        newColDelta = newStartColumn - originalStartCol
-                      in ((colOffset' + newColDelta) - colDelta, newColDelta)
+      newOffset =
+        case newline of
+          LineChanged -> (annDelta + colDelta , colDelta)
+          KeepOffset -> (annDelta + colDelta , colDelta)
+          LineSame ->
+            let
+              -- Add extra indentation
+              colOffset' = annDelta + colOffset
+              -- Work out where new column starts
+              -- If the annLineDelta == 0 ie, we stay on the same
+              -- line so the new column is the current position
+              --
+              --
+              -- If not then we move to the next line so the
+              -- start column is whatever the indentation context
+              -- is `colOffset`
+              newStartColumn = edColumn +
+                                 if edLine == 0
+                                   then currentColumn -- same line
+                                   else colOffset -- different line
+              newColDelta = newStartColumn - originalStartCol
+              in ((colOffset' + newColDelta) - colDelta, newColDelta)
   local (\s -> s {epStack = newOffset }) k
     `debug` ("pushOffset:(ann, colOffset, colDelta, currentColumn, newOffset)=" ++ show (a, colOffset, colDelta, currentColumn, newOffset))
 
