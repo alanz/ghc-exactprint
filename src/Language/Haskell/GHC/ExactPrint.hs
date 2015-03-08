@@ -91,8 +91,6 @@ instance SrcInfo GHC.SrcSpan where
   startLine   = srcSpanStartLine
   startColumn = srcSpanStartColumn
 
-
-
 class Annotated a where
   ann :: a -> GHC.SrcSpan
 
@@ -108,8 +106,8 @@ instance Annotated (GHC.Located a) where
 
 data EPState = EPState
              { epPos       :: Pos -- ^ Current output position
-             , epAnnKds    :: [[(KeywordId, DeltaPos)]]
              , epAnns      :: Anns
+             , epAnnKds    :: [[(KeywordId, DeltaPos)]] -- MP: Could this be moved to the local state with suitable refactoring?
              }
 
 data EPLocal = EPLocal
@@ -128,8 +126,8 @@ runEP f ss ans =
 defaultState :: Anns -> EPState
 defaultState as = EPState
              { epPos = (1,1)
-             , epAnnKds      = []
              , epAnns = as
+             , epAnnKds      = []
              }
 
 defaultLocal :: GHC.SrcSpan -> EPLocal
@@ -201,12 +199,11 @@ getAndRemoveAnnotation a = do
   modify (\s -> s { epAnns = an' })
   return r
 
-
-pushKds :: [(KeywordId, DeltaPos)] -> EP ()
-pushKds kd = modify (\s -> s { epAnnKds = kd : (epAnnKds s)})
-
-popKds :: EP ()
-popKds = modify (\s -> s { epAnnKds = tail (epAnnKds s)})
+withKds :: [(KeywordId, DeltaPos)] -> EP () -> EP ()
+withKds kd action = do
+  modify (\s -> s { epAnnKds = kd : (epAnnKds s) })
+  action
+  modify (\s -> s { epAnnKds = tail (epAnnKds s) })
 
 -- | Get and remove the first item in the (k,v) list for which the k matches.
 -- Return the value, together with any comments skipped over to get there.
@@ -398,16 +395,19 @@ exactPC a@(GHC.L l ast) =
     do return () `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAndRemoveAnnotation a
        let ann@(Ann _edp _nl _sc _dc kds) = fromMaybe annNone ma
-       pushKds kds
-       withSrcSpan l (
-        withOffset ann
-          (do
-            exactP ast
-            printStringAtMaybeAnn (G GHC.AnnComma) ","
-            printStringAtMaybeAnnAll AnnSemiSep ";"))
+       withContext kds l ann
+        (do
+          exactP ast
+          printStringAtMaybeAnn (G GHC.AnnComma) ","
+          printStringAtMaybeAnnAll AnnSemiSep ";")
        epStack' <- asks epStack
        return () `debug` ("popOffset:after pop:(l,epStack')=" ++ showGhc (l,epStack'))
-       popKds
+
+withContext :: [(KeywordId, DeltaPos)]
+            -> GHC.SrcSpan
+            -> Annotation
+            -> (EP () -> EP ())
+withContext kds l ann = withKds kds . withSrcSpan l . withOffset ann
 
 -- ---------------------------------------------------------------------
 
