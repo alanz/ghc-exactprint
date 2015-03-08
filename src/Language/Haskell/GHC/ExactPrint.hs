@@ -110,27 +110,34 @@ data EPState = EPState
              { epPos       :: Pos -- ^ Current output position
              , epStack     :: [(ColOffset,ColDelta)] -- ^ stack of offsets that currently apply
              , epSrcSpans  :: [GHC.SrcSpan]
-             , eFunId      :: (Bool, String)
-             , eFunIsInfix :: Bool -- AZ:Needed? is in first field of eFunId
              , epAnnKds    :: [[(KeywordId, DeltaPos)]]
              , epAnns      :: Anns
              }
 
-type EP a = RWS () (Endo String) EPState a
+data EPLocal = EPLocal
+             { eFunId      :: (Bool, String)
+             , eFunIsInfix :: Bool -- AZ:Needed? is in first field of eFunId
+             }
+
+type EP a = RWS EPLocal (Endo String) EPState a
 
 runEP :: EP () -> GHC.SrcSpan -> Anns -> String
 runEP f ss ans =
-  flip appEndo "" . snd . execRWS f () $ (defaultState ss ans)
+  flip appEndo "" . snd . execRWS f defaultLocal $ (defaultState ss ans)
 
 defaultState :: GHC.SrcSpan -> Anns -> EPState
 defaultState ss as = EPState
              { epPos = (1,1)
              , epStack = [(0,0)]
              , epSrcSpans = [ss]
-             , eFunId   = (False, "")
-             , eFunIsInfix = False
              , epAnnKds      = []
              , epAnns = as
+             }
+
+defaultLocal :: EPLocal
+defaultLocal = EPLocal
+             { eFunId   = (False, "")
+             , eFunIsInfix = False
              }
 
 getPos :: EP Pos
@@ -258,16 +265,16 @@ peekAnnFinal kw = do
   return r
 
 getFunId :: EP (Bool,String)
-getFunId = gets eFunId
+getFunId = asks eFunId
 
-setFunId :: (Bool,String) -> EP ()
-setFunId st = modify (\s -> s{eFunId = st})
+withFunId :: (Bool,String) -> (EP () -> EP ())
+withFunId st = local (\s -> s{eFunId = st})
 
 getFunIsInfix :: EP Bool
-getFunIsInfix = gets eFunIsInfix
+getFunIsInfix = asks eFunIsInfix
 
-setFunIsInfix :: Bool -> EP ()
-setFunIsInfix b = modify (\s -> s {eFunIsInfix = b})
+withFunIsInfix :: Bool -> (EP () -> EP ())
+withFunIsInfix b = local (\s -> s {eFunIsInfix = b})
 
 -- ---------------------------------------------------------------------
 
@@ -886,9 +893,9 @@ instance ExactP (GHC.DataFamInstDecl GHC.RdrName) where
 
 instance ExactP (GHC.HsBind GHC.RdrName) where
   exactP (GHC.FunBind (GHC.L _ n) isInfix  (GHC.MG matches _ _ _) _ _ _) = do
-    setFunId (isSymbolRdrName n,rdrName2String n)
-    setFunIsInfix isInfix
-    mapM_ exactPC matches
+    withFunId (isSymbolRdrName n,rdrName2String n) (
+      withFunIsInfix isInfix
+        (mapM_ exactPC matches))
 
   exactP (GHC.PatBind lhs (GHC.GRHSs grhs lb) _ty _fvs _ticks) = do
     exactPC lhs
