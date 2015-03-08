@@ -284,7 +284,7 @@ changeLayoutLet2 parsed
     replacePat x = x
 
 changeRename1 :: GHC.ParsedSource -> GHC.ParsedSource
-changeRename1 parsed = rename newName [((3,1),(3,3))] parsed
+changeRename1 parsed = rename newName [((3,1),(3,4))] parsed
   where
     newName = GHC.mkRdrUnqual (GHC.mkVarOcc "bar2")
 
@@ -384,7 +384,7 @@ manipulateAstTest' mchange useTH file' modname = do
                     ++ "lengths:" ++ show (length printed,length contents) ++ "\n"
                     ++ parsedAST
                     ++ "\n========================\n"
-                    ++ showAnnData ann 0 parsed
+                    ++ showAnnData ann 0 parsed'
   writeFile out $ result
   -- putStrLn $ "Test:parsed=" ++ parsedAST
   -- putStrLn $ "Test:ann :" ++ showGhc ann

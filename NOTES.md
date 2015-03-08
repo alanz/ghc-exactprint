@@ -2,6 +2,22 @@
 Principles
 ----------
 
+## Goals
+
+1. The SrcSpan's can be used during the annotation phase for
+   positional information, in the output phase they are purely indices
+   into the annotation store.
+
+2. It must be possible to edit the annotated AST and still get
+   "correct" output. For example, if an element is indented, all the
+   children should be too, if a definition in a let statement is
+   removed, the remaining ones should fill in the gap.
+
+3. Only the minimal additional indentation should be done, which is
+   driven by the layout rules in haskell. Code should only change its
+   column if it has to.
+
+
 ## Robustness
 
 There are two ways of approaching the annotations. The one, as used
