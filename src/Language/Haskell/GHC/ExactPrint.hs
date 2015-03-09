@@ -156,30 +156,37 @@ withOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) k
   (colOffset, colIndent) <- asks epStack
   (_l, currentColumn) <- getPos
   let
-      newOffset =
+      -- Add extra indentation for this SrcSpan
+     colOffset' = annDelta + colOffset
+     -- Work out where new column starts
+     -- If the annLineDelta == 0 ie, we stay on the same
+     -- line so the new column is the current position
+     --
+     -- If not then we move to the next line so the
+     -- start column is whatever the indentation context
+     -- is `colOffset`
+     newStartColumn = if edLine == 0
+                          then edColumn + currentColumn -- same line, use entry delta
+                          else colOffset -- different line, use current offset
+     newColIndent       = newStartColumn - originalStartCol
+     offsetValSame      = (colOffset' + (newColIndent - colIndent), newColIndent)
+     -- offsetValUnchanged = (colOffset' + colIndent,                  colIndent)
+     offsetValUnchanged = (colOffset'            ,                  colIndent)
+     offsetValChanged   = (annDelta   + colIndent,                  colIndent)
+     newOffset =
         case newline of
           -- For use by AST modifiers, to preserve the indentation
           -- level for the next line after an AST modification
-          KeepOffset  -> (annDelta + colIndent , colIndent)
+          KeepOffset  -> offsetValChanged
           -- Generated during the annotation phase
-          LineChanged -> (annDelta + colIndent , colIndent)
-          LineSame ->
-            let
-              -- Add extra indentation for this SrcSpan
-              colOffset' = annDelta + colOffset
-              -- Work out where new column starts
-              -- If the annLineDelta == 0 ie, we stay on the same
-              -- line so the new column is the current position
-              --
-              -- If not then we move to the next line so the
-              -- start column is whatever the indentation context
-              -- is `colOffset`
-              newStartColumn = edColumn +
-                                 if edLine == 0
-                                   then currentColumn -- same line
-                                   else colOffset -- different line
-              newColIndent = newStartColumn - originalStartCol
-              in (colOffset' + (newColIndent - colIndent), newColIndent)
+          LineChanged       -> offsetValChanged
+
+          -- LineSame          -> offsetValSame
+          -- LineSame          -> offsetValChanged
+          LineSame          -> offsetValUnchanged
+
+          LayoutLineChanged -> offsetValChanged
+          LayoutLineSame    -> offsetValSame
   local (\s -> s {epStack = newOffset }) k
     `debug` ("pushOffset:(a, colOffset, colIndent, currentColumn, newOffset)="
                  ++ show (a, colOffset, colIndent, currentColumn, newOffset))

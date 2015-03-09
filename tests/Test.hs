@@ -243,7 +243,6 @@ tt = do
     manipulateAstTest "LayoutLet.hs"             "Main"
     manipulateAstTest "ImplicitParams.hs"        "Main"
     manipulateAstTest "RebindableSyntax.hs"      "Main"
-    manipulateAstTestWithMod changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
     manipulateAstTestWithMod changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
     manipulateAstTestWithMod changeLayoutLet5 "LayoutLet5.hs" "LayoutLet5"
     manipulateAstTest "EmptyMostly2.hs"          "EmptyMostly2"
@@ -251,14 +250,16 @@ tt = do
     manipulateAstTest "AltsSemis.hs"             "Main"
     manipulateAstTest "PArr.hs"                  "PArr"
     manipulateAstTest "Dead1.hs"                 "Dead1"
-    manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
     manipulateAstTest "DocDecls.hs"              "DocDecls"
     manipulateAstTest "ViewPatterns.hs"          "Main"
-    manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
+    manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
     manipulateAstTest "FooExpected.hs"          "Main"
+    manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
     -}
+    manipulateAstTestWithMod changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
     -- manipulateAstTestWithMod changeRename1    "Rename1.hs"  "Main"
-    manipulateAstTest "Rules.hs"                 "Rules"
+    -- manipulateAstTest    "Rename1.hs"  "Main"
+    -- manipulateAstTest "Rules.hs"                 "Rules"
 
 {-
     manipulateAstTest "ParensAroundContext.hs"   "ParensAroundContext"
@@ -450,11 +451,11 @@ parsedFileGhc fileName modname useTH = do
         modSum <- GHC.getModSummary $ GHC.mkModuleName modname
         -- GHC.liftIO $ putStrLn $ "got modSum"
         -- let modSum = head g
-
+{-
         (sourceFile, source, flags) <- getModuleSourceAndFlags (GHC.ms_mod modSum)
         strSrcBuf <- getPreprocessedSrc sourceFile
         GHC.liftIO $ putStrLn $ "preprocessedSrc====\n" ++ strSrcBuf ++ "\n================\n"
-
+-}
         p <- GHC.parseModule modSum
         -- GHC.liftIO $ putStrLn $ "got parsedModule"
         t <- GHC.typecheckModule p

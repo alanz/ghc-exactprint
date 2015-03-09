@@ -201,10 +201,21 @@ getCurrentDP = do
   ss <- getSrcSpanAP
   ps <- getPriorSrcSpanAP
   layoutOn <- getLayoutOn
+  {-
   let r = if srcSpanStartLine ss == srcSpanStartLine ps
              then (srcSpanStartColumn ss - srcSpanStartColumn ps,LineSame)
              else (srcSpanStartColumn ss, LineChanged)
+   -}
+  let colOffset = if srcSpanStartLine ss == srcSpanStartLine ps
+                    then srcSpanStartColumn ss - srcSpanStartColumn ps
+                    else srcSpanStartColumn ss
+  let r = case (layoutOn, srcSpanStartLine ss == srcSpanStartLine ps) of
+             (True,  True) -> (colOffset, LayoutLineSame)
+             (True, False) -> (colOffset, LayoutLineChanged)
+             (False, True) -> (colOffset, LineSame)
+             (False,False) -> (colOffset, LineChanged)
   return r
+    `debug` ("getCurrentDP:layoutOn=" ++ show layoutOn)
 
 -- ---------------------------------------------------------------------
 
@@ -338,6 +349,7 @@ annotateList :: (AnnotateP ast) => [GHC.Located ast] -> AP ()
 annotateList xs = mapM_ annotatePC xs
 
 -- | Flag the item to be annotated as requiring layout.
+annotateWithLayout :: AnnotateP ast => GHC.Located ast -> AP ()
 annotateWithLayout a = do
   withLocated a (\l ast -> annotateP l ast >> setLayoutOn True)
 
@@ -1665,10 +1677,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
     mapM_ annotatePC rhs
 
   annotateP _ (GHC.HsLet binds e) = do
+    setLayoutOn True -- Make sure the 'in' gets indented too
     addDeltaAnnotation GHC.AnnLet
     addDeltaAnnotation GHC.AnnOpenC
     addDeltaAnnotationsInside GHC.AnnSemi
-    annotatePC (GHC.L (getLocalBindsSrcSpan binds) binds)
+    -- annotatePC (GHC.L (getLocalBindsSrcSpan binds) binds)
+    annotateWithLayout (GHC.L (getLocalBindsSrcSpan binds) binds)
     addDeltaAnnotation GHC.AnnCloseC
     addDeltaAnnotation GHC.AnnIn
     annotatePC e
@@ -1687,7 +1701,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
       else do
         let ss = getListSrcSpan es
         addAnnDeltaPos (l,AnnList ss) (DP (0,0))
-        annotatePC (GHC.L ss es)
+        -- annotatePC (GHC.L ss es)
+        annotateWithLayout (GHC.L ss es)
     addDeltaAnnotation GHC.AnnCloseS
     addDeltaAnnotation GHC.AnnCloseC
     addDeltaAnnotation GHC.AnnClose
