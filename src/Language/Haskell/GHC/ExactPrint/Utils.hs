@@ -1681,7 +1681,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
     addDeltaAnnotation GHC.AnnLet
     addDeltaAnnotation GHC.AnnOpenC
     addDeltaAnnotationsInside GHC.AnnSemi
-    -- annotatePC (GHC.L (getLocalBindsSrcSpan binds) binds)
     annotateWithLayout (GHC.L (getLocalBindsSrcSpan binds) binds)
     addDeltaAnnotation GHC.AnnCloseC
     addDeltaAnnotation GHC.AnnIn
@@ -1701,7 +1700,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
       else do
         let ss = getListSrcSpan es
         addAnnDeltaPos (l,AnnList ss) (DP (0,0))
-        -- annotatePC (GHC.L ss es)
         annotateWithLayout (GHC.L ss es)
     addDeltaAnnotation GHC.AnnCloseS
     addDeltaAnnotation GHC.AnnCloseC

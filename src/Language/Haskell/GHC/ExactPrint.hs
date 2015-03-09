@@ -169,20 +169,19 @@ withOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) k
                           then edColumn + currentColumn -- same line, use entry delta
                           else colOffset -- different line, use current offset
      newColIndent       = newStartColumn - originalStartCol
+
      offsetValSame      = (colOffset' + (newColIndent - colIndent), newColIndent)
-     -- offsetValUnchanged = (colOffset' + colIndent,                  colIndent)
      offsetValUnchanged = (colOffset'            ,                  colIndent)
      offsetValChanged   = (annDelta   + colIndent,                  colIndent)
+
      newOffset =
         case newline of
           -- For use by AST modifiers, to preserve the indentation
           -- level for the next line after an AST modification
           KeepOffset  -> offsetValChanged
+
           -- Generated during the annotation phase
           LineChanged       -> offsetValChanged
-
-          -- LineSame          -> offsetValSame
-          -- LineSame          -> offsetValChanged
           LineSame          -> offsetValUnchanged
 
           LayoutLineChanged -> offsetValChanged
