@@ -130,6 +130,7 @@ tests = TestList
   , mkTestMod "B.hs"                     "Main"
   , mkTestMod "LayoutWhere.hs"           "Main"
   , mkTestMod "LayoutLet.hs"             "Main"
+  , mkTestMod "LayoutIn1.hs"             "LayoutIn1"
   , mkTestMod "Deprecation.hs"           "Deprecation"
   , mkTestMod "Infix.hs"                 "Main"
   , mkTestMod "BCase.hs"                 "Main"
@@ -140,7 +141,8 @@ tests = TestList
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
   , mkTestModChange changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
   , mkTestModChange changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
-  , mkTestModChange changeRename1    "Rename1.hs"  "Main"
+  , mkTestModChange changeRename1    "Rename1.hs"    "Main"
+  , mkTestModChange changeLayoutIn1  "LayoutIn1.hs"  "LayoutIn1"
 
   ]
 
@@ -255,8 +257,10 @@ tt = do
     manipulateAstTest "LayoutLet2.hs"             "LayoutLet2"
     manipulateAstTest "FooExpected.hs"          "Main"
     manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
+    manipulateAstTest "LayoutIn1.hs"                 "LayoutIn1"
     -}
-    manipulateAstTestWithMod changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
+    manipulateAstTestWithMod changeLayoutIn1  "LayoutIn1.hs" "LayoutIn1"
+    -- manipulateAstTestWithMod changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
     -- manipulateAstTestWithMod changeRename1    "Rename1.hs"  "Main"
     -- manipulateAstTest    "Rename1.hs"  "Main"
     -- manipulateAstTest "Rules.hs"                 "Rules"
@@ -294,6 +298,11 @@ changeLayoutLet2 parsed
     replacePat (GHC.L ln (GHC.VarPat _))
         | cond ln = GHC.L ln (GHC.VarPat newName)
     replacePat x = x
+
+changeLayoutIn1 :: GHC.ParsedSource -> GHC.ParsedSource
+changeLayoutIn1 parsed = rename newName [((7,17),(7,19)),((7,24),(7,26))] parsed
+  where
+    newName = GHC.mkRdrUnqual (GHC.mkVarOcc "square")
 
 changeRename1 :: GHC.ParsedSource -> GHC.ParsedSource
 changeRename1 parsed = rename newName [((3,1),(3,4))] parsed

@@ -951,6 +951,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
     addDeltaAnnotation GHC.AnnOpenC -- '{'
     addDeltaAnnotationsInside GHC.AnnSemi
 
+    -- AZ:Need to turn this into a located list annotation.
     -- must merge all the rest
     applyListAnnotations (prepareListAnnotation (GHC.bagToList binds)
                        ++ prepareListAnnotation sigs
@@ -1081,7 +1082,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name,
     addDeltaAnnotation GHC.AnnOpenC -- '{'
     addDeltaAnnotationsInside GHC.AnnSemi
     -- annotateHsLocalBinds lb
-    annotatePC (GHC.L (getLocalBindsSrcSpan lb) lb)
+    annotateWithLayout (GHC.L (getLocalBindsSrcSpan lb) lb)
     addDeltaAnnotation GHC.AnnCloseC -- '}'
 
 -- ---------------------------------------------------------------------
