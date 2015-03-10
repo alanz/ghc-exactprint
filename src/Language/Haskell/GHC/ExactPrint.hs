@@ -324,7 +324,8 @@ printQueuedComment :: DComment -> EP ()
 printQueuedComment (DComment (dp,de) s) = do
   p <- getPos
   colOffset <- getOffset
-  if isGoodDeltaWithOffset dp colOffset
+  let (dr,dc) = undelta (0,0) dp colOffset
+  if isGoodDelta (DP (dr,max 0 dc)) -- do not lose comments against the left margin
     then do
       printStringAt (undelta p dp colOffset) s
          `debug` ("printQueuedComment:(pos,s):" ++ show (undelta p dp colOffset,s))
