@@ -353,6 +353,12 @@ annotateWithLayout :: AnnotateP ast => GHC.Located ast -> AP ()
 annotateWithLayout a = do
   withLocated a (\l ast -> annotateP l ast >> setLayoutOn True)
 
+annotateListWithLayout :: AnnotateP [GHC.Located ast] => GHC.SrcSpan -> [GHC.Located ast] -> AP ()
+annotateListWithLayout l ls = do
+  let ss = getListSrcSpan ls
+  addAnnDeltaPos (l,AnnList ss) (DP (0,0))
+  annotateWithLayout (GHC.L ss ls)
+
 -- ---------------------------------------------------------------------
 
 isGoodDelta :: DeltaPos -> Bool
@@ -1000,7 +1006,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name) =>
     -- Note: this bind is introduced by the typechecker
     annotatePC rhse
 
-  annotateP _ (GHC.PatSynBind (GHC.PSB ln _fvs args def dir)) = do
+  annotateP l (GHC.PatSynBind (GHC.PSB ln _fvs args def dir)) = do
     addDeltaAnnotation GHC.AnnPattern
     annotatePC ln
     case args of
@@ -1015,7 +1021,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name) =>
     case dir of
       GHC.Unidirectional           -> return ()
       GHC.ImplicitBidirectional    -> return ()
-      GHC.ExplicitBidirectional mg -> annotateMatchGroup mg
+      GHC.ExplicitBidirectional mg -> annotateMatchGroup l mg
 
     addDeltaAnnotation GHC.AnnWhere
     addDeltaAnnotation GHC.AnnOpenC  -- '{'
@@ -1503,7 +1509,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name,AnnotateP body)
     -- return () `debug` ("annotateP.LetStmt entered")
     addDeltaAnnotation GHC.AnnLet
     addDeltaAnnotation GHC.AnnOpenC -- '{'
-    annotatePC (GHC.L (getLocalBindsSrcSpan lb) lb)
+    annotateWithLayout (GHC.L (getLocalBindsSrcSpan lb) lb)
     addDeltaAnnotation GHC.AnnCloseC -- '}'
     -- return () `debug` ("annotateP.LetStmt done")
 
@@ -1600,10 +1606,17 @@ annotateHsLocalBinds (GHC.EmptyLocalBinds)                 = return ()
 
 annotateMatchGroup :: (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name,
                                                AnnotateP body)
-                   =>   (GHC.MatchGroup name (GHC.Located body))
+                   => GHC.SrcSpan -> (GHC.MatchGroup name (GHC.Located body))
                    -> AP ()
-annotateMatchGroup (GHC.MG matches _ _ _)
-  = mapM_ annotatePC matches
+annotateMatchGroup l (GHC.MG matches _ _ _)
+  = annotateListWithLayout l matches
+
+-- ---------------------------------------------------------------------
+
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name,
+                                               AnnotateP body)
+  => AnnotateP [GHC.Located (GHC.Match name (GHC.Located body))] where
+  annotateP _ ls = mapM_ annotatePC ls
 
 -- ---------------------------------------------------------------------
 
@@ -1614,11 +1627,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
   annotateP l (GHC.HsOverLit _ov)     = addDeltaAnnotationExt l GHC.AnnVal
   annotateP l (GHC.HsLit _)           = addDeltaAnnotationExt l GHC.AnnVal
 
-  annotateP _ (GHC.HsLam match)       = do
+  annotateP l (GHC.HsLam match)       = do
     addDeltaAnnotation GHC.AnnLam
-    annotateMatchGroup match
+    annotateMatchGroup l match
 
-  annotateP _ (GHC.HsLamCase _ match) = annotateMatchGroup match
+  annotateP l (GHC.HsLamCase _ match) = annotateMatchGroup l match
 
   annotateP _ (GHC.HsApp e1 e2) = do
     annotatePC e1
@@ -1653,13 +1666,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
     addDeltaAnnotation GHC.AnnCloseP
     addDeltaAnnotation GHC.AnnClose
 
-  annotateP _ (GHC.HsCase e1 matches) = do
+  annotateP l (GHC.HsCase e1 matches) = do
     addDeltaAnnotation GHC.AnnCase
     annotatePC e1
     addDeltaAnnotation GHC.AnnOf
     addDeltaAnnotation GHC.AnnOpenC
     addDeltaAnnotationsInside GHC.AnnSemi
-    annotateMatchGroup matches
+    annotateMatchGroup l matches
     addDeltaAnnotation GHC.AnnCloseC
 
   annotateP _ (GHC.HsIf _ e1 e2 e3) = do
@@ -1698,9 +1711,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
         addDeltaAnnotation GHC.AnnVbar
         mapM_ annotatePC (init es)
       else do
-        let ss = getListSrcSpan es
-        addAnnDeltaPos (l,AnnList ss) (DP (0,0))
-        annotateWithLayout (GHC.L ss es)
+        annotateListWithLayout l es
     addDeltaAnnotation GHC.AnnCloseS
     addDeltaAnnotation GHC.AnnCloseC
     addDeltaAnnotation GHC.AnnClose
@@ -1946,21 +1957,21 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
     annotatePC e1
     annotatePC e2
 
-  annotateP _ (GHC.HsCmdLam match) = do
+  annotateP l (GHC.HsCmdLam match) = do
     addDeltaAnnotation GHC.AnnLam
-    annotateMatchGroup match
+    annotateMatchGroup l match
 
   annotateP _ (GHC.HsCmdPar e) = do
     addDeltaAnnotation GHC.AnnOpenP -- '('
     annotatePC e
     addDeltaAnnotation GHC.AnnCloseP -- ')'
 
-  annotateP _ (GHC.HsCmdCase e1 matches) = do
+  annotateP l (GHC.HsCmdCase e1 matches) = do
     addDeltaAnnotation GHC.AnnCase
     annotatePC e1
     addDeltaAnnotation GHC.AnnOf
     addDeltaAnnotation GHC.AnnOpenC
-    annotateMatchGroup matches
+    annotateMatchGroup l matches
     addDeltaAnnotation GHC.AnnCloseC
 
   annotateP _ (GHC.HsCmdIf _ e1 e2 e3) = do
@@ -1976,19 +1987,26 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
   annotateP _ (GHC.HsCmdLet binds e) = do
     addDeltaAnnotation GHC.AnnLet
     addDeltaAnnotation GHC.AnnOpenC
-    annotatePC (GHC.L (getLocalBindsSrcSpan binds) binds)
+    annotateWithLayout (GHC.L (getLocalBindsSrcSpan binds) binds)
     addDeltaAnnotation GHC.AnnCloseC
     addDeltaAnnotation GHC.AnnIn
     annotatePC e
 
-  annotateP _ (GHC.HsCmdDo es _) = do
+  annotateP l (GHC.HsCmdDo es _) = do
     addDeltaAnnotation GHC.AnnDo
     addDeltaAnnotation GHC.AnnOpenC
-    mapM_ annotatePC es
+    -- mapM_ annotatePC es
+    annotateListWithLayout l es
     addDeltaAnnotation GHC.AnnCloseC
 
   annotateP _ (GHC.HsCmdCast {}) = error $ "annotateP.HsCmdCast: only valid after type checker"
 
+
+-- ---------------------------------------------------------------------
+
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
+  => AnnotateP [GHC.Located (GHC.StmtLR name name (GHC.LHsCmd name))] where
+  annotateP _ ls = mapM_ annotatePC ls
 
 -- ---------------------------------------------------------------------
 

@@ -158,34 +158,28 @@ withOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) k
   let
       -- Add extra indentation for this SrcSpan
      colOffset' = annDelta + colOffset
-     -- Work out where new column starts
-     -- If the annLineDelta == 0 ie, we stay on the same
-     -- line so the new column is the current position
-     --
-     -- If not then we move to the next line so the
-     -- start column is whatever the indentation context
-     -- is `colOffset`
+     -- Work out where new column starts, based on the entry delta
      newStartColumn = if edLine == 0
                           then edColumn + currentColumn -- same line, use entry delta
                           else colOffset -- different line, use current offset
-     newColIndent       = newStartColumn - originalStartCol
+     newColIndent        = newStartColumn - originalStartCol
 
-     offsetValSame      = (colOffset' + (newColIndent - colIndent), newColIndent)
-     offsetValUnchanged = (colOffset'            ,                  colIndent)
-     offsetValChanged   = (annDelta   + colIndent,                  colIndent)
+     offsetValNewIndent  = (colOffset' + (newColIndent - colIndent), newColIndent)
+     offsetValSameIndent = (colOffset'            ,                  colIndent)
+     offsetValNewline    = (annDelta   + colIndent,                  colIndent)
 
      newOffset =
         case newline of
           -- For use by AST modifiers, to preserve the indentation
           -- level for the next line after an AST modification
-          KeepOffset  -> offsetValChanged
+          KeepOffset  -> offsetValNewline
 
           -- Generated during the annotation phase
-          LineChanged       -> offsetValChanged
-          LineSame          -> offsetValUnchanged
+          LineChanged       -> offsetValNewline
+          LayoutLineChanged -> offsetValNewline
 
-          LayoutLineChanged -> offsetValChanged
-          LayoutLineSame    -> offsetValSame
+          LineSame          -> offsetValSameIndent
+          LayoutLineSame    -> offsetValNewIndent
   local (\s -> s {epStack = newOffset }) k
     `debug` ("pushOffset:(a, colOffset, colIndent, currentColumn, newOffset)="
                  ++ show (a, colOffset, colIndent, currentColumn, newOffset))
@@ -1404,7 +1398,6 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
       else do
         ss <- getStoredListSrcSpan
         exactPC (GHC.L ss stmts)
-        -- mapM_ exactPC stmts
     printStringAtMaybeAnn (G GHC.AnnCloseS) "]"
     printStringAtMaybeAnn (G GHC.AnnClose) cstr
     printStringAtMaybeAnn (G GHC.AnnCloseC) "}"
@@ -1692,10 +1685,17 @@ instance ExactP (GHC.HsCmd GHC.RdrName) where
   exactP (GHC.HsCmdDo stmts _typ)    = do
     printStringAtMaybeAnn (G GHC.AnnDo) "do"
     printStringAtMaybeAnn (G GHC.AnnOpenC) "{"
-    mapM_ exactPC stmts
+    -- mapM_ exactPC stmts
+    ss <- getStoredListSrcSpan
+    exactPC (GHC.L ss stmts)
     printStringAtMaybeAnn (G GHC.AnnCloseC) "}"
 
   exactP (GHC.HsCmdCast {}) = error $ "exactP.HsCmdCast: only valid after type checker"
+
+-- ---------------------------------------------------------------------
+
+instance ExactP [GHC.CmdLStmt GHC.RdrName] where
+  exactP ls = mapM_ exactPC ls
 
 -- ---------------------------------------------------------------------
 
@@ -1735,8 +1735,14 @@ instance ExactP GHC.HsIPName where
 
 exactPMatchGroup :: (ExactP body) => (GHC.MatchGroup GHC.RdrName (GHC.Located body))
                    -> EP ()
-exactPMatchGroup (GHC.MG matches _ _ _)
-  = mapM_ exactPC matches
+exactPMatchGroup (GHC.MG matches _ _ _) = do
+  ss <- getStoredListSrcSpan
+  exactPC (GHC.L ss matches)
+
+-- ---------------------------------------------------------------------
+
+instance ExactP body => (ExactP [GHC.LMatch GHC.RdrName (GHC.Located body)]) where
+  exactP ls = mapM_ exactPC ls
 
 -- ---------------------------------------------------------------------
 
