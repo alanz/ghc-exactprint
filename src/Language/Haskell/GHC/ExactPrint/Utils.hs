@@ -48,6 +48,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
 
 import Control.Monad.State
 import Control.Monad.Writer
+import Control.Monad.RWS
 import Control.Applicative
 import Control.Exception
 import Data.Data
@@ -132,15 +133,15 @@ defaultAPState ga =
 --    - the srcspan of the last thing annotated, to calculate delta's from
 --    - extra data needing to be stored in the monad
 --    - the annotations provided by GHC
-type AP a = StateT APState (Writer [(AnnKey, Annotation)]) a
+type AP a = RWS () [(AnnKey, Annotation)] APState a
 
 data Grouping = None | Primed GHC.SrcSpan | Active DeltaPos | Done DeltaPos
               deriving (Eq,Show)
 
 
 runAP :: AP () -> GHC.ApiAnns -> Anns
-runAP apf ga = Map.fromListWith combineAnns . snd . runWriter
-                . flip execStateT (defaultAPState ga) $ apf
+runAP apf ga = Map.fromListWith combineAnns . snd $
+               execRWS apf () (defaultAPState ga)
 
 -- `debug` ("runAP:cs=" ++ showGhc cs)
 
