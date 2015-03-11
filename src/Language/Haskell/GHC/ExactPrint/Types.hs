@@ -118,6 +118,8 @@ data AnnConName = CN String
                  deriving (Eq,Show,Ord)
 
 annGetConstr :: (Data a) => a -> AnnConName
+annGetConstr a = CN (show $ toConstr a)
+{-
 annGetConstr a = CN con
   where
     -- map all RdrName constuctors to the same field.
@@ -127,6 +129,7 @@ annGetConstr a = CN con
       "Orig"   -> "RdrName"
       "Exact"  -> "RdrName"
       s        -> s
+-}
 
 unConName :: AnnConName -> String
 unConName (CN s) = s

@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                ghc-exactprint
-version:             0.1.0.1
+version:             0.1.1.0
 synopsis:            ExactPrint for GHC
 description:         Using the API Annotations available from GHC 7.10 RC2, this
                      library provides a means to round trip any* code that can
@@ -17,7 +17,7 @@ description:         Using the API Annotations available from GHC 7.10 RC2, this
 
 license:             BSD3
 license-file:        LICENSE
-author:              Alan Zimmerman
+author:              Alan Zimmerman, Matt Pickering
 maintainer:          alan.zimm@gmail.com
 -- copyright:
 category:            Development

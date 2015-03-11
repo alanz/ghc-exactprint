@@ -6,19 +6,8 @@
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Language.Haskell.GHC.ExactPrint
--- Based on
--- --------------------------------------------------------------------------
--- Module      :  Language.Haskell.Exts.Annotated.ExactPrint
--- Copyright   :  (c) Niklas Broberg 2009
--- License     :  BSD-style (see the file LICENSE.txt)
 --
--- Maintainer  :  Niklas Broberg, d00nibro@chalmers.se
--- Stability   :  stable
--- Portability :  portable
---
--- Exact-printer for Haskell abstract syntax. The input is a (semi-concrete)
--- abstract syntax tree, annotated with exact source information to enable
--- printing the tree exactly as it was parsed.
+-- Based on Language.Haskell.Exts.Annotated.ExactPrint
 --
 -----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint
@@ -36,13 +25,11 @@ import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
 import Control.Applicative
-import Control.Monad.State
 import Control.Exception
+import Control.Monad.RWS
 import Data.Data
 import Data.List
 import Data.Maybe
-import Data.Monoid
-import Control.Monad.RWS
 
 import qualified Bag           as GHC
 import qualified BasicTypes    as GHC
@@ -108,6 +95,7 @@ data EPState = EPState
              { epPos       :: Pos -- ^ Current output position
              , epAnns      :: Anns
              , epAnnKds    :: [[(KeywordId, DeltaPos)]] -- MP: Could this be moved to the local state with suitable refactoring?
+                                                        -- AZ, it is already in the last element of Annotation, for withOffset
              }
 
 data EPLocal = EPLocal
@@ -125,17 +113,17 @@ runEP f ss ans =
 
 defaultState :: Anns -> EPState
 defaultState as = EPState
-             { epPos = (1,1)
-             , epAnns = as
-             , epAnnKds      = []
+             { epPos    = (1,1)
+             , epAnns   = as
+             , epAnnKds = []
              }
 
 defaultLocal :: GHC.SrcSpan -> EPLocal
 defaultLocal ss = EPLocal
-             { eFunId   = (False, "")
+             { eFunId      = (False, "")
              , eFunIsInfix = False
-             , epStack = (0,0)
-             , epSrcSpan = ss
+             , epStack     = (0,0)
+             , epSrcSpan   = ss
              }
 
 getPos :: EP Pos
@@ -408,7 +396,7 @@ withContext :: [(KeywordId, DeltaPos)]
             -> GHC.SrcSpan
             -> Annotation
             -> (EP () -> EP ())
-withContext kds l ann = withKds kds . withSrcSpan l . withOffset ann
+withContext kds l an = withKds kds . withSrcSpan l . withOffset an
 
 -- ---------------------------------------------------------------------
 
