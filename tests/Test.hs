@@ -138,6 +138,7 @@ tests = TestList
   , mkTestMod "AltsSemis.hs"             "Main"
   , mkTestMod "LetExprSemi.hs"           "LetExprSemi"
   , mkTestMod "WhereIn4.hs"              "WhereIn4"
+  , mkTestMod "LocToName.hs"             "LocToName"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
   , mkTestModChange changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
@@ -145,6 +146,7 @@ tests = TestList
   , mkTestModChange changeRename1    "Rename1.hs"    "Main"
   , mkTestModChange changeLayoutIn1  "LayoutIn1.hs"  "LayoutIn1"
   , mkTestModChange changeLayoutIn4  "LayoutIn4.hs"  "LayoutIn4"
+  , mkTestModChange changeLocToName  "LocToName.hs"  "LocToName"
 
   ]
 
@@ -261,8 +263,10 @@ tt = do
     manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
     manipulateAstTest "LayoutIn1.hs"                 "LayoutIn1"
     manipulateAstTestWithMod changeLayoutIn1  "LayoutIn1.hs" "LayoutIn1"
+    manipulateAstTest "LocToName.hs"                 "LocToName"
     -}
-    manipulateAstTestWithMod changeLayoutIn4  "LayoutIn4.hs" "LayoutIn4"
+    -- manipulateAstTestWithMod changeLayoutIn4  "LayoutIn4.hs" "LayoutIn4"
+    manipulateAstTestWithMod changeLocToName  "LocToName.hs" "LocToName"
     -- manipulateAstTestWithMod changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
     -- manipulateAstTestWithMod changeRename1    "Rename1.hs"  "Main"
     -- manipulateAstTest    "Rename1.hs"  "Main"
@@ -279,61 +283,35 @@ tt = do
 -- ---------------------------------------------------------------------
 
 changeLayoutLet2 :: GHC.ParsedSource -> GHC.ParsedSource
-changeLayoutLet2 parsed
-  = SYB.everywhere ( SYB.mkT   replaceRdr
-                    `SYB.extT` replaceHsVar
-                    `SYB.extT` replacePat
-                   ) parsed
-  where
-    newName = GHC.mkRdrUnqual (GHC.mkVarOcc "xxxlonger")
-    cond ln = ss2span ln == ((7, 5),(7, 8))
-           || ss2span ln == ((8,24),(8,27))
-    replaceRdr :: GHC.Located GHC.RdrName -> GHC.Located GHC.RdrName
-    replaceRdr (GHC.L ln _)
-        | cond ln = GHC.L ln newName
-    replaceRdr x = x
+changeLayoutLet2 parsed = rename "xxxlonger" [((7,5),(7,8)),((8,24),(8,27))] parsed
 
-    replaceHsVar :: GHC.LHsExpr GHC.RdrName -> GHC.LHsExpr GHC.RdrName
-    replaceHsVar (GHC.L ln (GHC.HsVar _))
-        | cond ln = GHC.L ln (GHC.HsVar newName)
-    replaceHsVar x = x
-
-    replacePat (GHC.L ln (GHC.VarPat _))
-        | cond ln = GHC.L ln (GHC.VarPat newName)
-    replacePat x = x
+changeLocToName :: GHC.ParsedSource -> GHC.ParsedSource
+changeLocToName parsed = rename "LocToName.newPoint" [((20,1),(20,11)),((20,28),(20,38)),((24,1),(24,11))] parsed
 
 changeLayoutIn4 :: GHC.ParsedSource -> GHC.ParsedSource
-changeLayoutIn4 parsed = rename newName [((7,8),(7,13)),((7,28),(7,33))] parsed
-  where
-    newName = GHC.mkRdrUnqual (GHC.mkVarOcc "io")
+changeLayoutIn4 parsed = rename "io" [((7,8),(7,13)),((7,28),(7,33))] parsed
 
 changeLayoutIn1 :: GHC.ParsedSource -> GHC.ParsedSource
-changeLayoutIn1 parsed = rename newName [((7,17),(7,19)),((7,24),(7,26))] parsed
-  where
-    newName = GHC.mkRdrUnqual (GHC.mkVarOcc "square")
+changeLayoutIn1 parsed = rename "square" [((7,17),(7,19)),((7,24),(7,26))] parsed
 
 changeRename1 :: GHC.ParsedSource -> GHC.ParsedSource
-changeRename1 parsed = rename newName [((3,1),(3,4))] parsed
-  where
-    newName = GHC.mkRdrUnqual (GHC.mkVarOcc "bar2")
+changeRename1 parsed = rename "bar2" [((3,1),(3,4))] parsed
 
 changeLayoutLet3 :: GHC.ParsedSource -> GHC.ParsedSource
-changeLayoutLet3 parsed = rename newName [((7,5),(7,8)),((9,14),(9,17))] parsed
-  where
-    newName = GHC.mkRdrUnqual (GHC.mkVarOcc "xxxlonger")
+changeLayoutLet3 parsed = rename "xxxlonger" [((7,5),(7,8)),((9,14),(9,17))] parsed
 
 changeLayoutLet5 :: GHC.ParsedSource -> GHC.ParsedSource
-changeLayoutLet5 parsed = rename newName [((7,5),(7,8)),((9,14),(9,17))] parsed
-  where
-    newName = GHC.mkRdrUnqual (GHC.mkVarOcc "x")
+changeLayoutLet5 parsed = rename "x" [((7,5),(7,8)),((9,14),(9,17))] parsed
 
-rename :: (SYB.Data a) => GHC.RdrName -> [Span] -> a -> a
-rename newName spans a
+rename :: (SYB.Data a) => String -> [Span] -> a -> a
+rename newNameStr spans a
   = SYB.everywhere ( SYB.mkT   replaceRdr
                     `SYB.extT` replaceHsVar
                     `SYB.extT` replacePat
                    ) a
   where
+    newName = GHC.mkRdrUnqual (GHC.mkVarOcc newNameStr)
+
     cond :: GHC.SrcSpan -> Bool
     cond ln = any (\ss -> ss2span ln == ss) spans
 

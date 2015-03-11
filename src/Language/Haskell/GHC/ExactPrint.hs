@@ -395,8 +395,8 @@ exactPC :: (ExactP ast) => GHC.Located ast -> EP ()
 exactPC a@(GHC.L l ast) =
     do return () `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAndRemoveAnnotation a
-       let ann@(Ann _edp _nl _sc _dc kds) = fromMaybe annNone ma
-       withContext kds l ann
+       let an@(Ann _edp _nl _sc _dc kds) = fromMaybe annNone ma
+       withContext kds l an
         (do
           exactP ast
           printStringAtMaybeAnn (G GHC.AnnComma) ","
