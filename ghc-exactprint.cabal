@@ -22,7 +22,7 @@ maintainer:          alan.zimm@gmail.com
 -- copyright:
 category:            Development
 build-type:          Simple
--- extra-source-files:
+extra-source-files:  ChangeLog
 cabal-version:       >=1.10
 
 library
