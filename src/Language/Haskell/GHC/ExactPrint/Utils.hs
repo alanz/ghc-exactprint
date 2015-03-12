@@ -35,7 +35,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
 
   , runAP
   , AP
-  , getSrcSpanAP, pushSrcSpanAP, popSrcSpanAP
+  , getSrcSpanAP, withSrcSpanAP
   , getAnnotationAP
   , addAnnotationsAP
 
@@ -87,9 +87,7 @@ debug c _ = c
 
 
 data APState = APState
-             { -- | A stack to the root of the AST.
-               apStack :: [StackItem]
-             , priorEndPosition :: GHC.SrcSpan
+             { priorEndPosition :: GHC.SrcSpan
                -- | Ordered list of comments still to be allocated
              , apComments :: [Comment]
                -- | isInfix for a FunBind
@@ -102,44 +100,71 @@ data APState = APState
 data StackItem = StackItem
                { -- | Current `SrcSpan`
                  curSrcSpan :: GHC.SrcSpan
+                 -- |  `SrcSpan` of the immediately prior scope
+               , prevSrcSpan :: GHC.SrcSpan
+                 -- | The offset required to get from the prior end point to the
                  -- | The offset required to get from the prior end point to the
                  -- start of the current SrcSpan. Accessed via `getEntryDP`
                , offset     :: DeltaPos
                  -- | Offsets for the elements annotated in this `SrcSpan`
                -- | Indicates whether the contents of this SrcSpan are
                -- subject to vertical alignment layout rules
-               , curLayoutOn :: Bool
                  -- | The constructor name of the AST element, to
                  -- distinguish between nested elements that have the same
                  -- `SrcSpan` in the AST.
                , annConName :: AnnConName
                }
 
+initialStackItem :: StackItem
+initialStackItem =
+  StackItem
+    { curSrcSpan = GHC.noSrcSpan
+    , prevSrcSpan = GHC.noSrcSpan
+    , offset = DP (0,0)
+    , annConName = annGetConstr ()
+    }
+
 defaultAPState :: GHC.ApiAnns -> APState
 defaultAPState ga =
   let cs = flattenedComments ga in
     APState
-      { apStack = []
-      , priorEndPosition = GHC.noSrcSpan
+      { priorEndPosition = GHC.noSrcSpan
       , apComments = cs
       , e_is_infix = False -- ^ AZ: Is this still needed? isInfix for a FunBind
       , apAnns     = ga    -- $
       }
 
 data APWriter = APWriter
-  { finalAnns :: [(AnnKey, Annotation)]
+  { -- Final list of annotations
+    finalAnns :: [(AnnKey, Annotation)]
+    -- Used locally to pass Keywords, delta pairs relevant to a specific
+    -- subtree to the parent.
   , annKds :: [(KeywordId, DeltaPos)]
-  } deriving (Eq, Show)
+    -- Used locally to report a subtrees aderhence to haskell's layout
+    -- rules.
+  , layoutFlag :: LayoutFlag
+  }
+
+data LayoutFlag = LayoutRules | NoLayoutRules deriving (Show, Eq)
+
+instance Monoid LayoutFlag where
+  mempty = NoLayoutRules
+  LayoutRules `mappend` _ = LayoutRules
+  _ `mappend` LayoutRules = LayoutRules
+  _ `mappend` _           = NoLayoutRules
 
 tellFinalAnn :: (AnnKey, Annotation) -> AP ()
-tellFinalAnn ann = tell (APWriter [ann] mempty)
+tellFinalAnn ann = tell (mempty { finalAnns = [ann]})
 
 tellKd :: (KeywordId, DeltaPos) -> AP ()
-tellKd kd = tell (APWriter mempty [kd])
+tellKd kd = tell (mempty { annKds = [kd] })
+
+setLayoutFlag :: AP ()
+setLayoutFlag = tell (mempty {layoutFlag = LayoutRules})
 
 instance Monoid APWriter where
-  mempty = APWriter mempty mempty
-  (APWriter a b) `mappend` (APWriter c d) = APWriter (a <> c) (b <> d)
+  mempty = APWriter mempty mempty mempty
+  (APWriter a b e) `mappend` (APWriter c d f) = APWriter (a <> c) (b <> d) (e <> f)
 
 
 -- | Type used in the AP Monad. The state variables maintain
@@ -148,7 +173,7 @@ instance Monoid APWriter where
 --    - the srcspan of the last thing annotated, to calculate delta's from
 --    - extra data needing to be stored in the monad
 --    - the annotations provided by GHC
-type AP a = RWS () APWriter APState a
+type AP a = RWS StackItem APWriter APState a
 
 data Grouping = None | Primed GHC.SrcSpan | Active DeltaPos | Done DeltaPos
               deriving (Eq,Show)
@@ -156,7 +181,7 @@ data Grouping = None | Primed GHC.SrcSpan | Active DeltaPos | Done DeltaPos
 
 runAP :: AP () -> GHC.ApiAnns -> Anns
 runAP apf ga = Map.fromListWith combineAnns . finalAnns . snd $
-               execRWS apf () (defaultAPState ga)
+               execRWS apf initialStackItem (defaultAPState ga)
 
 -- `debug` ("runAP:cs=" ++ showGhc cs)
 
@@ -169,21 +194,18 @@ flattenedComments (_,cm) = map tokComment . GHC.sortLocated . concat $ Map.elems
 -- -------------------------------------
 
 getSrcSpanAP :: AP GHC.SrcSpan
-getSrcSpanAP = gets (curSrcSpan . ghead "getSrcSpanAP" . apStack)
+getSrcSpanAP = asks curSrcSpan
 
 getPriorSrcSpanAP :: AP GHC.SrcSpan
-getPriorSrcSpanAP = gets (curSrcSpan . ghead "getPriorSrcSpanAP" . tail . apStack)
+getPriorSrcSpanAP = asks prevSrcSpan
 
-pushSrcSpanAP :: Data a => (GHC.Located a) -> DeltaPos -> AP ()
-pushSrcSpanAP (GHC.L l a) edp =
-  let newss = StackItem l edp False (annGetConstr a) in
-  modify (\s -> s { apStack =  newss : (apStack s) })
-
-popSrcSpanAP :: AP ()
-popSrcSpanAP = modify (\s -> s { apStack = tail (apStack s) })
+withSrcSpanAP :: Data a => (GHC.Located a) -> DeltaPos -> AP b -> AP b
+withSrcSpanAP (GHC.L l a) edp =
+  local (\s -> let previousSrcSpan = curSrcSpan s in
+                   StackItem l previousSrcSpan edp (annGetConstr a))
 
 getEntryDP :: AP DeltaPos
-getEntryDP = gets (offset . head . apStack)
+getEntryDP = asks offset
 
 getUnallocatedComments :: AP [Comment]
 getUnallocatedComments = gets apComments
@@ -210,22 +232,22 @@ getCurrentColOffset = srcSpanStartColumn <$> getSrcSpanAP
 
 -- |Get the difference between the current and the previous
 -- colOffsets, if they are on the same line
-getCurrentDP :: AP (ColOffset,LineChanged)
-getCurrentDP = do
+getCurrentDP :: LayoutFlag -> AP (ColOffset,LineChanged)
+getCurrentDP layoutOn = do
   -- Note: the current col offsets are not needed here, any
   -- indentation should be fully nested in an AST element
   ss <- getSrcSpanAP
   ps <- getPriorSrcSpanAP
-  layoutOn <- getLayoutOn
   {-
   let r = if srcSpanStartLine ss == srcSpanStartLine ps
              then (srcSpanStartColumn ss - srcSpanStartColumn ps,LineSame)
              else (srcSpanStartColumn ss, LineChanged)
    -}
-  let colOffset = if srcSpanStartLine ss == srcSpanStartLine ps
+  let boolLayoutFlag = case layoutOn of { LayoutRules -> True; NoLayoutRules -> False}
+      colOffset = if srcSpanStartLine ss == srcSpanStartLine ps
                     then srcSpanStartColumn ss - srcSpanStartColumn ps
                     else srcSpanStartColumn ss
-  let r = case (layoutOn, srcSpanStartLine ss == srcSpanStartLine ps) of
+      r = case ( boolLayoutFlag , srcSpanStartLine ss == srcSpanStartLine ps) of
              (True,  True) -> (colOffset, LayoutLineSame)
              (True, False) -> (colOffset, LayoutLineChanged)
              (False, True) -> (colOffset, LineSame)
@@ -265,8 +287,8 @@ tokComment t@(GHC.L lt _) = Comment (ss2span lt) (ghcCommentText t)
 -- |Add some annotation to the currently active SrcSpan
 addAnnotationsAP :: Annotation -> AP ()
 addAnnotationsAP ann = do
-    l <- gets apStack
-    tellFinalAnn ((getAnnKey $ ghead "addAnnotationsAP" l),ann)
+    l <- ask
+    tellFinalAnn ((getAnnKey l),ann)
 
 getAnnKey :: StackItem -> AnnKey
 getAnnKey StackItem {curSrcSpan, annConName} = AnnKey curSrcSpan annConName
@@ -274,26 +296,9 @@ getAnnKey StackItem {curSrcSpan, annConName} = AnnKey curSrcSpan annConName
 -- -------------------------------------
 
 addAnnDeltaPos :: (GHC.SrcSpan,KeywordId) -> DeltaPos -> AP ()
-addAnnDeltaPos (_s,kw) dp = do
-  tellKd (kw, dp)
+addAnnDeltaPos (_s,kw) dp = tellKd (kw, dp)
 
--- -------------------------------------
 
-getLayoutOn :: AP Bool
-getLayoutOn = gets (curLayoutOn . ghead "getSrcSpanAP" . apStack)
-
-setLayoutOn :: Bool -> AP ()
-setLayoutOn layoutOn = do
-  (st:sts) <- gets apStack
-  modify (\s -> s { apStack = (manip st) : sts })
-  where
-    manip s = s { curLayoutOn = layoutOn }
-
--- -------------------------------------
-{-
-getKds :: AP [(KeywordId,DeltaPos)]
-getKds = gets (reverse . annOffsets . head . apStack)
--}
 -- -------------------------------------
 
 setFunIsInfix :: Bool -> AP ()
@@ -305,8 +310,8 @@ getFunIsInfix = gets e_is_infix
 -- -------------------------------------
 
 -- | Enter a new AST element. Maintain SrcSpan stack
-withAST :: Data a => GHC.Located a -> AP b -> AP b
-withAST lss action = do
+withAST :: Data a => GHC.Located a -> LayoutFlag -> AP b -> AP b
+withAST lss layout action = do
   return () `debug` ("enterAST entered for " ++ show (ss2span $ GHC.getLoc lss))
   -- return () `debug` ("enterAST:currentColOffset=" ++ show (DP (0,srcSpanStartColumn $ GHC.getLoc lss)))
   -- Calculate offset required to get to the start of the SrcSPan
@@ -316,28 +321,31 @@ withAST lss action = do
   edp' <- adjustDeltaForOffsetM edp
   -- need to save edp', and put it in Annotation
 
-  pushSrcSpanAP lss edp'
+  withSrcSpanAP lss edp' (do
 
-  let maskKds s = s { annKds = [] }
+    let maskWriter s = s { annKds = []
+                         , layoutFlag = NoLayoutRules }
 
-  (res, w) <-
-    (censor maskKds (listen (do
-      r <- action
-      -- Automatically add any trailing comma or semi
-      addDeltaAnnotationAfter GHC.AnnComma
-      ss <- getSrcSpanAP
-      if ss2span ss == ((1,1),(1,1))
-        then return ()
-        else addDeltaAnnotationsOutside GHC.AnnSemi AnnSemiSep
-      return r)))
+    (res, w) <-
+      (censor maskWriter (listen (do
+        r <- action
+        -- Automatically add any trailing comma or semi
+        addDeltaAnnotationAfter GHC.AnnComma
+        ss <- getSrcSpanAP
+        if ss2span ss == ((1,1),(1,1))
+          then return ()
+          else addDeltaAnnotationsOutside GHC.AnnSemi AnnSemiSep
+        return r)))
 
-  (dp,nl)  <- getCurrentDP
-  edp <- getEntryDP
-  let kds = annKds w
-  addAnnotationsAP (Ann edp nl (srcSpanStartColumn ss) dp kds)
-    `debug` ("leaveAST:(ss,edp,dp,kds)=" ++ show (showGhc ss,edp,dp,kds,dp))
-  popSrcSpanAP
-  return res -- `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
+    (dp,nl)  <- getCurrentDP (layout <> layoutFlag w)
+    edp <- getEntryDP
+    let kds = annKds w
+    addAnnotationsAP (Ann edp nl (srcSpanStartColumn ss) dp kds)
+      `debug` ("leaveAST:(ss,edp,dp,kds)=" ++ show (showGhc ss,edp,dp,kds,dp))
+    return res)
+
+
+
 
 -- ---------------------------------------------------------------------
 
@@ -346,11 +354,11 @@ class Data ast => AnnotateP ast where
 
 -- |First move to the given location, then call exactP
 annotatePC :: (AnnotateP ast) => GHC.Located ast -> AP ()
-annotatePC a = withLocated a annotateP
+annotatePC a = withLocated a NoLayoutRules annotateP
 
-withLocated :: Data a => GHC.Located a -> (GHC.SrcSpan -> a -> AP ()) -> AP ()
-withLocated a@(GHC.L l ast) action = do
-  withAST a (action l ast)
+withLocated :: Data a => GHC.Located a -> LayoutFlag -> (GHC.SrcSpan -> a -> AP ()) -> AP ()
+withLocated a@(GHC.L l ast) layoutFlag action = do
+  withAST a layoutFlag (action l ast)
 
 annotateMaybe :: (AnnotateP ast) => Maybe (GHC.Located ast) -> AP ()
 annotateMaybe Nothing    = return ()
@@ -362,7 +370,7 @@ annotateList xs = mapM_ annotatePC xs
 -- | Flag the item to be annotated as requiring layout.
 annotateWithLayout :: AnnotateP ast => GHC.Located ast -> AP ()
 annotateWithLayout a = do
-  withLocated a (\l ast -> annotateP l ast >> setLayoutOn True)
+  withLocated a LayoutRules (\l ast -> annotateP l ast)
 
 annotateListWithLayout :: AnnotateP [GHC.Located ast] => GHC.SrcSpan -> [GHC.Located ast] -> AP ()
 annotateListWithLayout l ls = do
@@ -507,9 +515,7 @@ addEofAnnotation :: AP ()
 addEofAnnotation = do
   pe <- getPriorEnd
   ss <- getSrcSpanAP
-  pushSrcSpanAP (GHC.noLoc ()) (DP (0,0))
-  ma <- getAnnotationAP GHC.AnnEofPos
-  popSrcSpanAP
+  ma <- withSrcSpanAP (GHC.noLoc ()) (DP (0,0)) (getAnnotationAP GHC.AnnEofPos)
   case ma of
     [] -> return ()
     [pa] -> do
@@ -542,7 +548,9 @@ applyListAnnotations ls
 annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns
                   -> Anns
 annotateLHsModule modu ghcAnns
-   = runAP (pushSrcSpanAP (GHC.L GHC.noSrcSpan ()) (DP (0,0)) >> annotatePC modu) ghcAnns
+   = runAP (annotatePC modu) ghcAnns
+
+
 
 -- ---------------------------------------------------------------------
 
@@ -1702,7 +1710,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
     mapM_ annotatePC rhs
 
   annotateP _ (GHC.HsLet binds e) = do
-    setLayoutOn True -- Make sure the 'in' gets indented too
+    setLayoutFlag -- Make sure the 'in' gets indented too
     addDeltaAnnotation GHC.AnnLet
     addDeltaAnnotation GHC.AnnOpenC
     addDeltaAnnotationsInside GHC.AnnSemi
