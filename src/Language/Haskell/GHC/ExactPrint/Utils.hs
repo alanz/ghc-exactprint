@@ -293,8 +293,8 @@ getFunIsInfix = gets e_is_infix
 -- -------------------------------------
 
 -- | Enter a new AST element. Maintain SrcSpan stack
-enterAST :: Data a => GHC.Located a -> AP ()
-enterAST lss = do
+withAST :: Data a => GHC.Located a -> AP b -> AP b
+withAST lss action = do
   return () `debug` ("enterAST entered for " ++ show (ss2span $ GHC.getLoc lss))
   -- return () `debug` ("enterAST:currentColOffset=" ++ show (DP (0,srcSpanStartColumn $ GHC.getLoc lss)))
   -- Calculate offset required to get to the start of the SrcSPan
@@ -306,12 +306,8 @@ enterAST lss = do
 
   pushSrcSpanAP lss edp'
 
-  return ()
+  r <- action
 
-
--- | Pop up the SrcSpan stack, capture the annotations
-leaveAST :: AP ()
-leaveAST = do
   -- Automatically add any trailing comma or semi
   addDeltaAnnotationAfter GHC.AnnComma
   ss <- getSrcSpanAP
@@ -325,7 +321,7 @@ leaveAST = do
   addAnnotationsAP (Ann edp nl (srcSpanStartColumn ss) dp kds)
     `debug` ("leaveAST:(ss,edp,dp,kds)=" ++ show (showGhc ss,edp,dp,kds,dp))
   popSrcSpanAP
-  return () -- `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
+  return r -- `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
 
 -- ---------------------------------------------------------------------
 
@@ -338,9 +334,7 @@ annotatePC a = withLocated a annotateP
 
 withLocated :: Data a => GHC.Located a -> (GHC.SrcSpan -> a -> AP ()) -> AP ()
 withLocated a@(GHC.L l ast) action = do
-  enterAST a `debug` ("annotatePC:entering " ++ showGhc l)
-  action l ast
-  leaveAST `debug` ("annotatePC:leaving " ++ showGhc (l))
+  withAST a (action l ast)
 
 annotateMaybe :: (AnnotateP ast) => Maybe (GHC.Located ast) -> AP ()
 annotateMaybe Nothing    = return ()
