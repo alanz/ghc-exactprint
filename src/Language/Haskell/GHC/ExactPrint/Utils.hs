@@ -106,7 +106,6 @@ data StackItem = StackItem
                  -- start of the current SrcSpan. Accessed via `getEntryDP`
                , offset     :: DeltaPos
                  -- | Offsets for the elements annotated in this `SrcSpan`
-               , annOffsets :: [(KeywordId, DeltaPos)]
                -- | Indicates whether the contents of this SrcSpan are
                -- subject to vertical alignment layout rules
                , curLayoutOn :: Bool
@@ -127,20 +126,36 @@ defaultAPState ga =
       , apAnns     = ga    -- $
       }
 
+data APWriter = APWriter
+  { finalAnns :: [(AnnKey, Annotation)]
+  , annKds :: [(KeywordId, DeltaPos)]
+  } deriving (Eq, Show)
+
+tellFinalAnn :: (AnnKey, Annotation) -> AP ()
+tellFinalAnn ann = tell (APWriter [ann] mempty)
+
+tellKd :: (KeywordId, DeltaPos) -> AP ()
+tellKd kd = tell (APWriter mempty [kd])
+
+instance Monoid APWriter where
+  mempty = APWriter mempty mempty
+  (APWriter a b) `mappend` (APWriter c d) = APWriter (a <> c) (b <> d)
+
+
 -- | Type used in the AP Monad. The state variables maintain
 --    - the current SrcSpan and the constructor of the thing it encloses
 --      as a stack to the root of the AST as it is traversed,
 --    - the srcspan of the last thing annotated, to calculate delta's from
 --    - extra data needing to be stored in the monad
 --    - the annotations provided by GHC
-type AP a = RWS () [(AnnKey, Annotation)] APState a
+type AP a = RWS () APWriter APState a
 
 data Grouping = None | Primed GHC.SrcSpan | Active DeltaPos | Done DeltaPos
               deriving (Eq,Show)
 
 
 runAP :: AP () -> GHC.ApiAnns -> Anns
-runAP apf ga = Map.fromListWith combineAnns . snd $
+runAP apf ga = Map.fromListWith combineAnns . finalAnns . snd $
                execRWS apf () (defaultAPState ga)
 
 -- `debug` ("runAP:cs=" ++ showGhc cs)
@@ -161,7 +176,7 @@ getPriorSrcSpanAP = gets (curSrcSpan . ghead "getPriorSrcSpanAP" . tail . apStac
 
 pushSrcSpanAP :: Data a => (GHC.Located a) -> DeltaPos -> AP ()
 pushSrcSpanAP (GHC.L l a) edp =
-  let newss = StackItem l edp [] False (annGetConstr a) in
+  let newss = StackItem l edp False (annGetConstr a) in
   modify (\s -> s { apStack =  newss : (apStack s) })
 
 popSrcSpanAP :: AP ()
@@ -251,7 +266,7 @@ tokComment t@(GHC.L lt _) = Comment (ss2span lt) (ghcCommentText t)
 addAnnotationsAP :: Annotation -> AP ()
 addAnnotationsAP ann = do
     l <- gets apStack
-    tell [((getAnnKey $ ghead "addAnnotationsAP" l),ann)]
+    tellFinalAnn ((getAnnKey $ ghead "addAnnotationsAP" l),ann)
 
 getAnnKey :: StackItem -> AnnKey
 getAnnKey StackItem {curSrcSpan, annConName} = AnnKey curSrcSpan annConName
@@ -260,10 +275,7 @@ getAnnKey StackItem {curSrcSpan, annConName} = AnnKey curSrcSpan annConName
 
 addAnnDeltaPos :: (GHC.SrcSpan,KeywordId) -> DeltaPos -> AP ()
 addAnnDeltaPos (_s,kw) dp = do
-  (st:sts) <- gets apStack
-  modify (\s -> s { apStack = (manip st) : sts })
-  where
-    manip s = s { annOffsets = (kw, dp) : (annOffsets s) }
+  tellKd (kw, dp)
 
 -- -------------------------------------
 
@@ -278,10 +290,10 @@ setLayoutOn layoutOn = do
     manip s = s { curLayoutOn = layoutOn }
 
 -- -------------------------------------
-
+{-
 getKds :: AP [(KeywordId,DeltaPos)]
 getKds = gets (reverse . annOffsets . head . apStack)
-
+-}
 -- -------------------------------------
 
 setFunIsInfix :: Bool -> AP ()
@@ -306,22 +318,26 @@ withAST lss action = do
 
   pushSrcSpanAP lss edp'
 
-  r <- action
+  let maskKds s = s { annKds = [] }
 
-  -- Automatically add any trailing comma or semi
-  addDeltaAnnotationAfter GHC.AnnComma
-  ss <- getSrcSpanAP
-  if ss2span ss == ((1,1),(1,1))
-     then return ()
-     else addDeltaAnnotationsOutside GHC.AnnSemi AnnSemiSep
+  (res, w) <-
+    (censor maskKds (listen (do
+      r <- action
+      -- Automatically add any trailing comma or semi
+      addDeltaAnnotationAfter GHC.AnnComma
+      ss <- getSrcSpanAP
+      if ss2span ss == ((1,1),(1,1))
+        then return ()
+        else addDeltaAnnotationsOutside GHC.AnnSemi AnnSemiSep
+      return r)))
 
   (dp,nl)  <- getCurrentDP
   edp <- getEntryDP
-  kds <- getKds
+  let kds = annKds w
   addAnnotationsAP (Ann edp nl (srcSpanStartColumn ss) dp kds)
     `debug` ("leaveAST:(ss,edp,dp,kds)=" ++ show (showGhc ss,edp,dp,kds,dp))
   popSrcSpanAP
-  return r -- `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
+  return res -- `debug` ("leaveAST:(ss,dp,priorEnd)=" ++ show (ss2span ss,dp,ss2span priorEnd))
 
 -- ---------------------------------------------------------------------
 
