@@ -136,7 +136,7 @@ defaultAPState ga =
 
 data APWriter = APWriter
   { -- Final list of annotations
-    finalAnns :: [(AnnKey, Annotation)]
+    finalAnns :: Endo (Map.Map AnnKey Annotation)
     -- Used locally to pass Keywords, delta pairs relevant to a specific
     -- subtree to the parent.
   , annKds :: [(KeywordId, DeltaPos)]
@@ -154,7 +154,8 @@ instance Monoid LayoutFlag where
   _ `mappend` _           = NoLayoutRules
 
 tellFinalAnn :: (AnnKey, Annotation) -> AP ()
-tellFinalAnn ann = tell (mempty { finalAnns = [ann]})
+tellFinalAnn (k, v) =
+  tell (mempty { finalAnns = Endo (Map.insertWith (<>) k v) })
 
 tellKd :: (KeywordId, DeltaPos) -> AP ()
 tellKd kd = tell (mempty { annKds = [kd] })
@@ -180,7 +181,7 @@ data Grouping = None | Primed GHC.SrcSpan | Active DeltaPos | Done DeltaPos
 
 
 runAP :: AP () -> GHC.ApiAnns -> Anns
-runAP apf ga = Map.fromListWith combineAnns . finalAnns . snd $
+runAP apf ga = ($ mempty) . appEndo . finalAnns . snd $
                execRWS apf initialStackItem (defaultAPState ga)
 
 -- `debug` ("runAP:cs=" ++ showGhc cs)
