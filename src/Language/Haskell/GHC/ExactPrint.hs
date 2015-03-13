@@ -196,10 +196,10 @@ withKds kd action = do
 -- | Get and remove the first item in the (k,v) list for which the k matches.
 -- Return the value, together with any comments skipped over to get there.
 destructiveGetFirst :: KeywordId -> ([(KeywordId,v)],[(KeywordId,v)])
-                    -> ([(KeywordId,v)],[v],[(KeywordId,v)])
-destructiveGetFirst _key (acc,[]) = ([],[],acc)
+                    -> ([(KeywordId,v)], Maybe v,[(KeywordId,v)])
+destructiveGetFirst _key (acc,[]) = ([], Nothing ,acc)
 destructiveGetFirst  key (acc,((k,v):kvs))
-  | k == key = let (cs,others) = commentsAndOthers acc in (cs,[v],others++kvs)
+  | k == key = let (cs,others) = commentsAndOthers acc in (cs, Just v ,others++kvs)
   | otherwise = destructiveGetFirst key (acc++[(k,v)],kvs)
   where
     commentsAndOthers kvs' = partition isComment kvs'
@@ -207,11 +207,11 @@ destructiveGetFirst  key (acc,((k,v):kvs))
     isComment _              = False
 
 -- |destructive get, hence use an annotation once only
-getAnnFinal :: KeywordId -> EP ([DComment], [DeltaPos])
+getAnnFinal :: KeywordId -> EP ([DComment], Maybe DeltaPos)
 getAnnFinal kw = do
   kd <- gets epAnnKds
   let (r, kd', dcs) = case kd of
-                  []    -> ([],[], [])
+                  []    -> (Nothing ,[], [])
                   (k:kds) -> (r',kk:kds, dcs')
                     where (cs', r',kk) = destructiveGetFirst kw ([],k)
                           dcs' = concatMap keywordIdToDComment cs'
@@ -238,7 +238,7 @@ keywordIdToDComment (AnnComment comment,_dp) = [comment]
 keywordIdToDComment _                   = []
 
 -- |non-destructive get
-peekAnnFinal :: KeywordId -> EP [DeltaPos]
+peekAnnFinal :: KeywordId -> EP (Maybe DeltaPos)
 peekAnnFinal kw = do
   (_, r, _) <- (\kd -> destructiveGetFirst kw ([], kd)) <$> gets (head . epAnnKds)
   return r
@@ -333,7 +333,7 @@ getPosForDelta dp = do
 printStringAtMaybeAnn :: KeywordId -> String -> EP ()
 printStringAtMaybeAnn an str = do
   (comments, ma) <- getAnnFinal an
-  printStringAtLsDelta comments ma str
+  printStringAtLsDelta comments (maybeToList ma) str
     `debug` ("printStringAtMaybeAnn:(an,ma,str)=" ++ show (an,ma,str))
 
 printStringAtMaybeAnnAll :: KeywordId -> String -> EP ()
@@ -342,8 +342,8 @@ printStringAtMaybeAnnAll an str = go
     go = do
       (comments, ma) <- getAnnFinal an
       case ma of
-        [] -> return ()
-        [d]  -> printStringAtLsDelta comments [d] str >> go
+        Nothing -> return ()
+        Just d  -> printStringAtLsDelta comments [d] str >> go
 
 -- ---------------------------------------------------------------------
 
