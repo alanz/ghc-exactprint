@@ -77,11 +77,13 @@ import qualified OccName(occNameString)
 
 import qualified Data.Map as Map
 
-import Debug.Trace
-
 debug :: c -> String -> c
--- debug = flip trace
+--debug = flip trace
 debug c _ = c
+
+warn :: c -> String -> c
+-- warn = flip trace
+warn c _ = c
 
 -- ---------------------------------------------------------------------
 
@@ -332,16 +334,16 @@ withAST lss layout action = do
         r <- action
         -- Automatically add any trailing comma or semi
         addDeltaAnnotationAfter GHC.AnnComma
-        ss <- getSrcSpanAP
-        if ss2span ss == ((1,1),(1,1))
+        curss <- getSrcSpanAP
+        if ss2span curss == ((1,1),(1,1))
           then return ()
           else addDeltaAnnotationsOutside GHC.AnnSemi AnnSemiSep
         return r)))
 
     (dp,nl)  <- getCurrentDP (layout <> layoutFlag w)
-    edp <- getEntryDP
+    finaledp <- getEntryDP
     let kds = annKds w
-    addAnnotationsAP (Ann edp nl (srcSpanStartColumn ss) dp kds)
+    addAnnotationsAP (Ann finaledp nl (srcSpanStartColumn ss) dp kds)
       `debug` ("leaveAST:(ss,edp,dp,kds)=" ++ show (showGhc ss,edp,dp,kds,dp))
     return res)
 
@@ -519,12 +521,13 @@ addEofAnnotation = do
   ma <- withSrcSpanAP (GHC.noLoc ()) (DP (0,0)) (getAnnotationAP GHC.AnnEofPos)
   case ma of
     [] -> return ()
-    [pa] -> do
+    (pa:pss) -> do
       cs <- getUnallocatedComments
       mapM_ addDeltaComment cs
       let DP (r,c) = deltaFromSrcSpans pe pa
       addAnnDeltaPos (ss,G GHC.AnnEofPos) (DP (r, c - 1))
-      setPriorEnd pa
+      setPriorEnd pa `warn` ("Trailing annotations after Eof: " ++ showGhc pss)
+
 
 countAnnsAP :: GHC.AnnKeywordId -> AP Int
 countAnnsAP ann = do
@@ -2386,21 +2389,21 @@ name2String name = showGhc name
 showGhc :: (GHC.Outputable a) => a -> String
 showGhc x = GHC.showPpr GHC.unsafeGlobalDynFlags x
 
-
+{-
 -- |Show a GHC API structure
 showGhcDebug :: (GHC.Outputable a) => a -> String
 showGhcDebug x = GHC.showSDocDebug GHC.unsafeGlobalDynFlags (GHC.ppr x)
-
+-}
 -- ---------------------------------------------------------------------
 
 instance Show (GHC.GenLocated GHC.SrcSpan GHC.Token) where
   show (GHC.L l tok) = show ((srcSpanStart l, srcSpanEnd l),tok)
 
 -- ---------------------------------------------------------------------
-
+{-
 pp :: GHC.Outputable a => a -> String
 pp a = GHC.showPpr GHC.unsafeGlobalDynFlags a
-
+-}
 -- ---------------------------------------------------------------------
 
 -- Based on ghc-syb-utils version, but adding the annotation
@@ -2457,13 +2460,16 @@ showAnnData anns n =
 
         located :: (Data b,Data loc) => GHC.GenLocated loc b -> String
         -- located la = show (getAnnotationEP la anns)
-        located la@(GHC.L ss a) = indent n ++ "("
-                                      ++ case (cast ss) of
-                                           Just (s::GHC.SrcSpan) -> srcSpan s
-                                                                    ++ indent (n + 1) ++ show (getAnnotationEP (GHC.L s a) anns)
-                                           Nothing -> "nnnnnnnn"
-                                      ++ showAnnData anns (n+1) a
-                                      ++ ")"
+        located (GHC.L ss a) =
+          indent n ++ "("
+            ++ case (cast ss) of
+                    Just (s :: GHC.SrcSpan) ->
+                      srcSpan s
+                      ++ indent (n + 1) ++
+                      show (getAnnotationEP (GHC.L s a) anns)
+                    Nothing -> "nnnnnnnn"
+                      ++ showAnnData anns (n+1) a
+                      ++ ")"
 
 -- ---------------------------------------------------------------------
 

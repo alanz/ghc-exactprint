@@ -322,12 +322,13 @@ printQueuedComment (DComment (dp,de) s) = do
 
 -- ---------------------------------------------------------------------
 
+{-
 getPosForDelta :: DeltaPos -> EP Pos
 getPosForDelta dp = do
   p <- getPos
   colOffset <- getOffset
   return (undelta p dp colOffset)
-
+-}
 -- ---------------------------------------------------------------------
 
 printStringAtMaybeAnn :: KeywordId -> String -> EP ()
@@ -714,8 +715,8 @@ instance ExactP (GHC.WarnDecl GHC.RdrName) where
      printStringAtMaybeAnn (G GHC.AnnOpenS) "["
      case txt of
        -- TODO: AZ: why are we ignoring src?
-       GHC.WarningTxt    src ls -> mapM_ exactPC ls
-       GHC.DeprecatedTxt src ls -> mapM_ exactPC ls
+       GHC.WarningTxt    _ ls -> mapM_ exactPC ls
+       GHC.DeprecatedTxt _ ls -> mapM_ exactPC ls
      printStringAtMaybeAnn (G GHC.AnnCloseS) "]"
 
 
@@ -1409,7 +1410,7 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     printStringAtMaybeAnn (G GHC.AnnCloseC) "}"
 
   -- TODO: AZ: cons are not processed
-  exactP (GHC.RecordUpd e (GHC.HsRecFields fs _) cons _ _)  = do
+  exactP (GHC.RecordUpd e (GHC.HsRecFields fs _) _ _ _)  = do
     exactPC e
     printStringAtMaybeAnn (G GHC.AnnOpenC) "{"
     printStringAtMaybeAnn (G GHC.AnnDotdot) ".."

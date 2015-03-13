@@ -29,7 +29,6 @@ module Language.Haskell.GHC.ExactPrint.Types
   ) where
 
 import Data.Data
-import Data.Monoid
 
 import qualified GHC           as GHC
 import qualified Outputable    as GHC
@@ -100,7 +99,7 @@ instance Monoid Annotation where
 
 
 instance Show GHC.RdrName where
-  show n = "(a RdrName)"
+  show _ = "(a RdrName)"
 
 type Anns = Map.Map AnnKey Annotation
 
@@ -182,14 +181,15 @@ instance (GHC.OutputableBndr name) => GHC.Outputable (ResTyGADTHook name) where
 -- ---------------------------------------------------------------------
 
 getAnnotationEP :: (Data a) =>  GHC.Located a -> Anns -> Maybe Annotation
-getAnnotationEP  (GHC.L ss a) anns = Map.lookup (AnnKey ss (annGetConstr a)) anns
+getAnnotationEP  (GHC.L ss a) annotations =
+  Map.lookup (AnnKey ss (annGetConstr a)) annotations
 
 getAndRemoveAnnotationEP :: (Data a)
                          => GHC.Located a -> Anns -> (Maybe Annotation,Anns)
-getAndRemoveAnnotationEP (GHC.L ss a) anns
+getAndRemoveAnnotationEP (GHC.L ss a) annotations
  = let key = AnnKey ss (annGetConstr a) in
-    case Map.lookup key anns of
-         Nothing  -> (Nothing,anns)
-         Just av -> (Just av,Map.delete key anns)
+    case Map.lookup key annotations of
+         Nothing  -> (Nothing, annotations)
+         Just av -> (Just av, Map.delete key annotations)
 
 -- ---------------------------------------------------------------------
