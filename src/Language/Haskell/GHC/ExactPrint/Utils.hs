@@ -2396,9 +2396,6 @@ showGhcDebug x = GHC.showSDocDebug GHC.unsafeGlobalDynFlags (GHC.ppr x)
 -}
 -- ---------------------------------------------------------------------
 
-instance Show (GHC.GenLocated GHC.SrcSpan GHC.Token) where
-  show (GHC.L l tok) = show ((srcSpanStart l, srcSpanEnd l),tok)
-
 -- ---------------------------------------------------------------------
 {-
 pp :: GHC.Outputable a => a -> String

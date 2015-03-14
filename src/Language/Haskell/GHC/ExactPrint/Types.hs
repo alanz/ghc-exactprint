@@ -97,10 +97,6 @@ instance Monoid Annotation where
   mempty = annNone
   mappend = combineAnns
 
-
-instance Show GHC.RdrName where
-  show _ = "(a RdrName)"
-
 type Anns = Map.Map AnnKey Annotation
 
 -- | For every @Located a@, use the @SrcSpan@ and constructor name of
