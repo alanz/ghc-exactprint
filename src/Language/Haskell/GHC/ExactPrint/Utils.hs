@@ -2271,13 +2271,6 @@ ss2posEnd ss = (srcSpanEndLine ss,srcSpanEndColumn ss)
 ss2span :: GHC.SrcSpan -> Span
 ss2span ss = (ss2pos ss,ss2posEnd ss)
 
-srcSpanStart :: GHC.SrcSpan -> Pos
-srcSpanStart ss = (srcSpanStartLine ss,srcSpanStartColumn ss)
-
-srcSpanEnd :: GHC.SrcSpan -> Pos
-srcSpanEnd ss = (srcSpanEndLine ss,srcSpanEndColumn ss)
-
-
 srcSpanEndColumn :: GHC.SrcSpan -> Int
 srcSpanEndColumn (GHC.RealSrcSpan s) = GHC.srcSpanEndCol s
 srcSpanEndColumn _ = 0
