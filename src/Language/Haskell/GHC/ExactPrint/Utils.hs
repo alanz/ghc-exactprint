@@ -178,15 +178,10 @@ instance Monoid APWriter where
 --    - the annotations provided by GHC
 type AP a = RWS StackItem APWriter APState a
 
-data Grouping = None | Primed GHC.SrcSpan | Active DeltaPos | Done DeltaPos
-              deriving (Eq,Show)
-
-
 runAP :: AP () -> GHC.ApiAnns -> Anns
 runAP apf ga = ($ mempty) . appEndo . finalAnns . snd $
                execRWS apf initialStackItem (defaultAPState ga)
 
--- `debug` ("runAP:cs=" ++ showGhc cs)
 
 
 -- ---------------------------------------------------------------------
@@ -241,11 +236,6 @@ getCurrentDP layoutOn = do
   -- indentation should be fully nested in an AST element
   ss <- getSrcSpanAP
   ps <- getPriorSrcSpanAP
-  {-
-  let r = if srcSpanStartLine ss == srcSpanStartLine ps
-             then (srcSpanStartColumn ss - srcSpanStartColumn ps,LineSame)
-             else (srcSpanStartColumn ss, LineChanged)
-   -}
   let boolLayoutFlag = case layoutOn of { LayoutRules -> True; NoLayoutRules -> False}
       colOffset = if srcSpanStartLine ss == srcSpanStartLine ps
                     then srcSpanStartColumn ss - srcSpanStartColumn ps
@@ -301,7 +291,6 @@ getAnnKey StackItem {curSrcSpan, annConName} = AnnKey curSrcSpan annConName
 addAnnDeltaPos :: (GHC.SrcSpan,KeywordId) -> DeltaPos -> AP ()
 addAnnDeltaPos (_s,kw) dp = tellKd (kw, dp)
 
-
 -- -------------------------------------
 
 setFunIsInfix :: Bool -> AP ()
@@ -346,9 +335,6 @@ withAST lss layout action = do
     addAnnotationsAP (Ann finaledp nl (srcSpanStartColumn ss) dp kds)
       `debug` ("leaveAST:(ss,edp,dp,kds)=" ++ show (showGhc ss,edp,dp,kds,dp))
     return res)
-
-
-
 
 -- ---------------------------------------------------------------------
 
@@ -542,7 +528,7 @@ prepareListAnnotation ls = map (\b@(GHC.L l _) -> (l,annotatePC b)) ls
 
 applyListAnnotations :: [(GHC.SrcSpan,AP ())] -> AP ()
 applyListAnnotations ls
-  = mapM_ (\(_,b) -> b) $ sortBy (\(a,_) (b,_) -> compare a b) ls
+  = mapM_ snd $ sortBy (\(a,_) (b,_) -> compare a b) ls
 
 -- ---------------------------------------------------------------------
 -- Start of application specific part
@@ -553,8 +539,6 @@ annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns
                   -> Anns
 annotateLHsModule modu ghcAnns
    = runAP (annotatePC modu) ghcAnns
-
-
 
 -- ---------------------------------------------------------------------
 
@@ -584,7 +568,6 @@ instance AnnotateP (GHC.HsModule GHC.RdrName) where
     addDeltaAnnotation GHC.AnnCloseC -- Possible '}'
 
     addEofAnnotation
-
 
 -- ---------------------------------------------------------------------
 

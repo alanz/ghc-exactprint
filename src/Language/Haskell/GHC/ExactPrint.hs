@@ -322,15 +322,6 @@ printQueuedComment (DComment (dp,de) s) = do
 
 -- ---------------------------------------------------------------------
 
-{-
-getPosForDelta :: DeltaPos -> EP Pos
-getPosForDelta dp = do
-  p <- getPos
-  colOffset <- getOffset
-  return (undelta p dp colOffset)
--}
--- ---------------------------------------------------------------------
-
 printStringAtMaybeAnn :: KeywordId -> String -> EP ()
 printStringAtMaybeAnn an str = do
   (comments, ma) <- getAnnFinal an
