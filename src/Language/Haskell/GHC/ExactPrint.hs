@@ -42,48 +42,6 @@ import qualified SrcLoc        as GHC
 
 import qualified Data.Map as Map
 
--- ---------------------------------------------------------------------
-
--- Compatibiity types, from HSE
-
--- | A portion of the source, extended with information on the position of entities within the span.
-data SrcSpanInfo = SrcSpanInfo
-    { srcInfoSpan    :: GHC.SrcSpan
-    , srcInfoPoints  :: [GHC.SrcSpan]    -- Marks the location of specific entities inside the span
-    }
-  deriving (Eq,Ord,Show,Typeable,Data)
-
-
--- | A class to work over all kinds of source location information.
-class SrcInfo si where
-  toSrcInfo   :: GHC.SrcLoc -> [GHC.SrcSpan] -> GHC.SrcLoc -> si
-  fromSrcInfo :: SrcSpanInfo -> si
-  getPointLoc :: si -> GHC.SrcLoc
-  fileName    :: si -> String
-  startLine   :: si -> Int
-  startColumn :: si -> Int
-
-  getPointLoc si = GHC.mkSrcLoc (GHC.mkFastString $ fileName si) (startLine si) (startColumn si)
-
-
-instance SrcInfo GHC.SrcSpan where
-  toSrcInfo   = error "toSrcInfo GHC.SrcSpan undefined"
-  fromSrcInfo = error "toSrcInfo GHC.SrcSpan undefined"
-
-  getPointLoc = GHC.srcSpanStart
-
-  fileName (GHC.RealSrcSpan s) = GHC.unpackFS $ GHC.srcSpanFile s
-  fileName _                   = "bad file name for SrcSpan"
-
-  startLine   = srcSpanStartLine
-  startColumn = srcSpanStartColumn
-
-class Annotated a where
-  ann :: a -> GHC.SrcSpan
-
-instance Annotated (GHC.Located a) where
-  ann (GHC.L l _) = l
-
 ------------------------------------------------------
 -- The EP monad and basic combinators
 
