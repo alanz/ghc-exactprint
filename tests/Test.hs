@@ -139,6 +139,9 @@ tests = TestList
   , mkTestMod "LetExprSemi.hs"           "LetExprSemi"
   , mkTestMod "WhereIn4.hs"              "WhereIn4"
   , mkTestMod "LocToName.hs"             "LocToName"
+  , mkTestMod "IfThenElse1.hs"           "Main"
+  , mkTestMod "IfThenElse2.hs"           "Main"
+  , mkTestMod "IfThenElse3.hs"           "Main"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
   , mkTestModChange changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
