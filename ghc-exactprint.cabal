@@ -29,6 +29,7 @@ library
   exposed-modules:     Language.Haskell.GHC.ExactPrint
                      , Language.Haskell.GHC.ExactPrint.Types
                      , Language.Haskell.GHC.ExactPrint.Utils
+                     , Language.Haskell.GHC.ExactPrint.Common
   GHC-Options:         -Wall
   -- other-modules:
   -- other-extensions:
@@ -41,6 +42,7 @@ library
                      , ghc-syb-utils
                      , mtl
                      , syb
+                     , free
   hs-source-dirs:      src
   default-language:    Haskell2010
   -- Note: the following constraint actually requires RC2 or better
