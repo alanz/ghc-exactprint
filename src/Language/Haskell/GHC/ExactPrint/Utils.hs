@@ -92,9 +92,6 @@ data APState = APState
              { priorEndPosition :: GHC.SrcSpan
                -- | Ordered list of comments still to be allocated
              , apComments :: [Comment]
-               -- | isInfix for a FunBind
-               -- AZ: Is this still needed?
-             , e_is_infix :: Bool
                -- | The original GHC API Annotations
              , apAnns :: GHC.ApiAnns
              }
@@ -132,7 +129,6 @@ defaultAPState ga =
     APState
       { priorEndPosition = GHC.noSrcSpan
       , apComments = cs
-      , e_is_infix = False -- ^ AZ: Is this still needed? isInfix for a FunBind
       , apAnns     = ga    -- $
       }
 
@@ -290,14 +286,6 @@ getAnnKey StackItem {curSrcSpan, annConName} = AnnKey curSrcSpan annConName
 
 addAnnDeltaPos :: (GHC.SrcSpan,KeywordId) -> DeltaPos -> AP ()
 addAnnDeltaPos (_s,kw) dp = tellKd (kw, dp)
-
--- -------------------------------------
-
-setFunIsInfix :: Bool -> AP ()
-setFunIsInfix e = modify (\s -> s {e_is_infix = e})
-
-getFunIsInfix :: AP Bool
-getFunIsInfix = gets e_is_infix
 
 -- -------------------------------------
 
@@ -996,8 +984,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name)
 
 instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name) =>
                                                   AnnotateP (GHC.HsBind name) where
-  annotateP _ (GHC.FunBind (GHC.L _ln _n) isInfix (GHC.MG matches _ _ _) _ _ _) = do
-    setFunIsInfix isInfix
+  annotateP _ (GHC.FunBind (GHC.L _ln _n) _ (GHC.MG matches _ _ _) _ _ _) = do
     mapM_ annotatePC matches
 
   annotateP _ (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
@@ -1059,9 +1046,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateP name,
   => AnnotateP (GHC.Match name (GHC.Located body)) where
 
   annotateP _ (GHC.Match mln pats _typ (GHC.GRHSs grhs lb)) = do
-    isInfix <- getFunIsInfix
     let
-      get_infix Nothing = isInfix
+      get_infix Nothing = False
       get_infix (Just (_,f)) = f
     case (get_infix mln,pats) of
       (True,[a,b]) -> do
@@ -2284,13 +2270,6 @@ ss2posEnd ss = (srcSpanEndLine ss,srcSpanEndColumn ss)
 
 ss2span :: GHC.SrcSpan -> Span
 ss2span ss = (ss2pos ss,ss2posEnd ss)
-
-srcSpanStart :: GHC.SrcSpan -> Pos
-srcSpanStart ss = (srcSpanStartLine ss,srcSpanStartColumn ss)
-
-srcSpanEnd :: GHC.SrcSpan -> Pos
-srcSpanEnd ss = (srcSpanEndLine ss,srcSpanEndColumn ss)
-
 
 srcSpanEndColumn :: GHC.SrcSpan -> Int
 srcSpanEndColumn (GHC.RealSrcSpan s) = GHC.srcSpanEndCol s
