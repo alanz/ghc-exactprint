@@ -57,9 +57,7 @@ data EPState = EPState
              }
 
 data EPLocal = EPLocal
-             { eFunId      :: (Bool, String)
-             , eFunIsInfix :: Bool -- AZ:Needed? is in first field of eFunId
-             , epStack     :: (ColOffset,ColDelta) -- ^ stack of offsets that currently apply
+             { epStack     :: (ColOffset,ColDelta) -- ^ stack of offsets that currently apply
              , epSrcSpan  :: GHC.SrcSpan
              }
 
@@ -78,9 +76,7 @@ defaultState as = EPState
 
 defaultLocal :: GHC.SrcSpan -> EPLocal
 defaultLocal ss = EPLocal
-             { eFunId      = (False, "")
-             , eFunIsInfix = False
-             , epStack     = (0,0)
+             { epStack     = (0,0)
              , epSrcSpan   = ss
              }
 
@@ -200,18 +196,6 @@ peekAnnFinal :: KeywordId -> EP (Maybe DeltaPos)
 peekAnnFinal kw = do
   (_, r, _) <- (\kd -> destructiveGetFirst kw ([], kd)) <$> gets (head . epAnnKds)
   return r
-
-getFunId :: EP (Bool,String)
-getFunId = asks eFunId
-
-withFunId :: (Bool,String) -> (EP () -> EP ())
-withFunId st = local (\s -> s{eFunId = st})
-
-getFunIsInfix :: EP Bool
-getFunIsInfix = asks eFunIsInfix
-
-withFunIsInfix :: Bool -> (EP () -> EP ())
-withFunIsInfix b = local (\s -> s {eFunIsInfix = b})
 
 -- ---------------------------------------------------------------------
 
@@ -824,10 +808,8 @@ instance ExactP (GHC.DataFamInstDecl GHC.RdrName) where
 -- ---------------------------------------------------------------------
 
 instance ExactP (GHC.HsBind GHC.RdrName) where
-  exactP (GHC.FunBind (GHC.L _ n) isInfix  (GHC.MG matches _ _ _) _ _ _) = do
-    withFunId (isSymbolRdrName n,rdrName2String n) (
-      withFunIsInfix isInfix
-        (mapM_ exactPC matches))
+  exactP (GHC.FunBind (GHC.L _ _) _  (GHC.MG matches _ _ _) _ _ _) = do
+    mapM_ exactPC matches
 
   exactP (GHC.PatBind lhs (GHC.GRHSs grhs lb) _ty _fvs _ticks) = do
     exactPC lhs
@@ -878,24 +860,20 @@ instance ExactP (GHC.IPBind GHC.RdrName) where
 
 instance (ExactP body) => ExactP (GHC.Match GHC.RdrName (GHC.Located body)) where
   exactP (GHC.Match mln pats typ (GHC.GRHSs grhs lb)) = do
-    (isSym,funid) <- getFunId
-    isInfix <- getFunIsInfix
     let
-      get_infix Nothing = isInfix
+      get_infix Nothing = False
       get_infix (Just (_,f)) = f
     case (get_infix mln,pats) of
       (True,[a,b]) -> do
         exactPC a
         case mln of
-          Nothing -> do
-            if isSym
-              then printStringAtMaybeAnn (G GHC.AnnFunId) funid
-              else printStringAtMaybeAnn (G GHC.AnnFunId) ("`"++ funid ++ "`")
+          Nothing ->
+            printStringAtMaybeAnn (G GHC.AnnFunId) "funid"
           Just (n,_) -> exactPC n
         exactPC b
       _ -> do
         case mln of
-          Nothing -> printStringAtMaybeAnn (G GHC.AnnFunId) funid
+          Nothing -> printStringAtMaybeAnn (G GHC.AnnFunId) "funid"
           Just (n,_)  -> exactPC n
         mapM_ exactPC pats
     printStringAtMaybeAnn (G GHC.AnnEqual)  "="
