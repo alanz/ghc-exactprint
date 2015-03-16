@@ -23,6 +23,10 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , isGoodDelta
   , rdrName2String
   , isSymbolRdrName
+  , deltaFromSrcSpans
+  , ghcCommentText
+  , isPointSrcSpan
+  , ss2deltaP
 
   , isListComp
 
@@ -32,6 +36,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
 
   -- * For tests
   , debug
+  , warn
 
   , runAP
   , AP

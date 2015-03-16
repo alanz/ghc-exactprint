@@ -2,12 +2,14 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-} -- for GHC.DataId
-module Language.Haskell.GHC.ExactPrint.Common
-  (
-  ) where
+{-# LANGUAGE RankNTypes #-} -- for GHC.DataId
+{-# LANGUAGE GADTs #-} -- for GHC.DataId
+{-# LANGUAGE KindSignatures #-} -- for GHC.DataId
+module Language.Haskell.GHC.ExactPrint.Common where
 
 import Control.Monad.State
 import Control.Monad.Writer
@@ -15,63 +17,239 @@ import Control.Monad.RWS
 import Control.Applicative
 import Control.Exception
 import Data.Data
-import Data.Generics
+import Data.Maybe
 import Data.List
 
 import Language.Haskell.GHC.ExactPrint.Types
+import Language.Haskell.GHC.ExactPrint.Utils (srcSpanStartColumn, srcSpanStartLine, debug, showGhc, isListComp, ss2posEnd, deltaFromSrcSpans, rdrName2String, ss2span, ghcCommentText, isPointSrcSpan, span2ss, ss2deltaP, ghead, undelta)
 
 import qualified Bag            as GHC
 import qualified BasicTypes     as GHC
 import qualified BooleanFormula as GHC
 import qualified Class          as GHC
 import qualified CoAxiom        as GHC
-import qualified DynFlags       as GHC
 import qualified FastString     as GHC
 import qualified ForeignCall    as GHC
 import qualified GHC            as GHC
-import qualified Name           as GHC
-import qualified NameSet        as GHC
 import qualified Outputable     as GHC
-import qualified RdrName        as GHC
 import qualified SrcLoc         as GHC
-import qualified Var            as GHC
 
-import qualified OccName(occNameString)
 
 import qualified Data.Map as Map
 
-import Control.Monad.Free
 import Control.Monad.Free.TH
-
-debug :: c -> String -> c
---debug = flip trace
-debug c _ = c
-
-warn :: c -> String -> c
--- warn = flip trace
-warn c _ = c
+import Control.Monad.Trans.Free
 
 -- ---------------------------------------------------------------------
 
 
 
+data LayoutFlag = LayoutRules | NoLayoutRules deriving (Show, Eq)
 
-data AnnotationF next =
-     Annotation GHC.AnnKeywordId next
+data AnnotationF w next where
+--  AddAnnotationWorker :: KeywordId -> GHC.SrcSpan -> next -> AnnotationF w next
+  Output :: w -> next -> AnnotationF w next
+  AddEofAnnotation  :: next -> AnnotationF w next
+  AddDeltaAnnotation :: GHC.AnnKeywordId -> next -> AnnotationF w next
+  AddDeltaAnnotationsOutside :: GHC.AnnKeywordId -> KeywordId -> next -> AnnotationF w next
+  AddDeltaAnnotationsInside :: GHC.AnnKeywordId -> next -> AnnotationF w next
+  AddDeltaAnnotations :: GHC.AnnKeywordId -> next -> AnnotationF w next
+  AddDeltaAnnotationLs :: GHC.AnnKeywordId -> Int -> next -> AnnotationF w next
+  AddDeltaAnnotationAfter :: GHC.AnnKeywordId -> next -> AnnotationF w next
+  AddDeltaAnnotationExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> AnnotationF w next
+  AnnotatePC :: GHC.Located ast -> next -> AnnotationF w next
 
-$(makeFree ''AnnotationF)
+deriving instance Functor (AnnotationF w)
 
-type AnnotateM = Free Annotation
+makeFree ''AnnotationF
 
 
+class Data ast => AnnotateGen ast where
+  annotateG :: GHC.SrcSpan -> ast -> Wrapped ()
 
-data Grouping = None | Primed GHC.SrcSpan | Active DeltaPos | Done DeltaPos
-              deriving (Eq,Show)
+type AnnotateT w m = FreeT (AnnotationF w)  m
+
+-- ---------------------------------------------------------------------
+
+
+data APState = APState
+             { priorEndPosition :: GHC.SrcSpan
+               -- | Ordered list of comments still to be allocated
+             , apComments :: [Comment]
+               -- | The original GHC API Annotations
+             , apAnns :: GHC.ApiAnns
+             }
+
+data EPState = EPState
+             { epPos       :: Pos -- ^ Current output position
+             , epAnns      :: Anns
+             , epAnnKds    :: [[(KeywordId, DeltaPos)]] -- MP: Could this be moved to the local state with suitable refactoring?
+             }
+
+data StackItem = StackItem
+               { -- | Current `SrcSpan`
+                 curSrcSpan :: GHC.SrcSpan
+                 -- |  `SrcSpan` of the immediately prior scope
+               , prevSrcSpan :: GHC.SrcSpan
+                 -- | The offset required to get from the prior end point to the
+                 -- | The offset required to get from the prior end point to the
+                 -- start of the current SrcSpan. Accessed via `getEntryDP`
+               , offset     :: DeltaPos
+                 -- | Offsets for the elements annotated in this `SrcSpan`
+               -- | Indicates whether the contents of this SrcSpan are
+               -- subject to vertical alignment layout rules
+                 -- | The constructor name of the AST element, to
+                 -- distinguish between nested elements that have the same
+                 -- `SrcSpan` in the AST.
+               , annConName :: AnnConName
+               }
+
+data EPStack = EPStack
+              { epStack     :: (ColOffset,ColDelta) -- ^ stack of offsets that currently apply
+              , epSrcSpan  :: GHC.SrcSpan
+              }
+
+initialEPStack :: GHC.SrcSpan -> EPStack
+initialEPStack ss = EPStack
+    { epStack     = (0,0)
+    , epSrcSpan   = ss
+    }
+
+initialStackItem :: GHC.SrcSpan -> StackItem
+initialStackItem ss =
+  StackItem
+    { curSrcSpan = GHC.noSrcSpan
+    , prevSrcSpan = GHC.noSrcSpan
+    , offset = DP (0,0)
+    , annConName = annGetConstr ()
+    }
+
+defaultAPState :: Anns -> GHC.ApiAnns -> APState
+defaultAPState as ga =
+  let cs = flattenedComments ga in
+    APState
+      { priorEndPosition = GHC.noSrcSpan
+      , apComments = cs
+      , apAnns     = ga    -- $
+      }
+
+defaultEPState :: Anns -> EPState
+defaultEPState as = EPState
+      { epPos    = (1,1)
+      , epAnns   = as
+      , epAnnKds = []
+      }
+
+data APWriter = APWriter
+  { -- Final list of annotations
+    finalAnns :: Endo (Map.Map AnnKey Annotation)
+    -- Used locally to pass Keywords, delta pairs relevant to a specific
+    -- subtree to the parent.
+  , annKds :: [(KeywordId, DeltaPos)]
+    -- Used locally to report a subtrees aderhence to haskell's layout
+    -- rules.
+  , layoutFlag :: LayoutFlag
+  }
+
+
+instance Monoid LayoutFlag where
+  mempty = NoLayoutRules
+  LayoutRules `mappend` _ = LayoutRules
+  _ `mappend` LayoutRules = LayoutRules
+  _ `mappend` _           = NoLayoutRules
+
+tellFinalAnn :: (AnnKey, Annotation) -> AP ()
+tellFinalAnn (k, v) =
+  tell (mempty { finalAnns = Endo (Map.insertWith (<>) k v) })
+
+tellKd :: (KeywordId, DeltaPos) -> AP ()
+tellKd kd = tell (mempty { annKds = [kd] })
+
+setLayoutFlag :: AP ()
+setLayoutFlag = tell (mempty {layoutFlag = LayoutRules})
+
+instance Monoid APWriter where
+  mempty = APWriter mempty mempty mempty
+  (APWriter a1 b1 c1) `mappend` (APWriter a2 b2 c2)
+    = APWriter (a1 <> a2) (b1 <> b2) (c1 <> c2)
+
+
+-- | Type used in the AP Monad. The state variables maintain
+--    - the current SrcSpan and the constructor of the thing it encloses
+--      as a stack to the root of the AST as it is traversed,
+--    - the srcspan of the last thing annotated, to calculate delta's from
+--    - extra data needing to be stored in the monad
+--    - the annotations provided by GHC
+type Wrapped a = AnnotateT (AnnKey, Annotation) AP a
+
+type Common = RWS CommonStack CommonWriter CommonState
+
+type CommonStack = ()
+type CommonWriter = ()
+type CommonState = ()
+
+type AP = RWS StackItem APWriter APState
+
+runAP :: Wrapped () -> GHC.ApiAnns -> Anns
+runAP apf ga = ($ mempty) . appEndo . finalAnns . snd $ runGen simpleInterpret apf ga undefined undefined
+
+runGen :: (AnnotateT (AnnKey, Annotation) AP () -> AP ())  -> Wrapped () -> GHC.ApiAnns -> GHC.SrcSpan -> Anns -> (APState, APWriter)
+runGen interpret action ga ss ans  =
+  (\action -> execRWS action (initialStackItem ss) (defaultAPState ans ga)) .
+  interpret $ action
+
+runEP :: Wrapped () -> GHC.SrcSpan -> Anns -> String
+runEP f ss ans = undefined
+  --flip appEndo "" . stringOutput . snd $  runGen writeInterpret f undefined ss ans
+
+simpleInterpret :: AnnotateT (AnnKey, Annotation) AP a -> AP a
+simpleInterpret = iterT go
+  where
+    --go (AddAnnotationWorker kwid ss next) = addAnnotationWorker' kwid ss >> next
+    go (Output w next) = tellFinalAnn w >> next
+
+
+writeInterpret :: AnnotateT w AP a -> AP a
+writeInterpret = undefined
+    --go (AddAnnotationWorker kwid ss next) = printStringAtMaybeAnn kwid "" >> next
+
 
 
 -- ---------------------------------------------------------------------
 
-adjustDeltaForOffsetM :: DeltaPos -> AnnotateM DeltaPos
+flattenedComments :: GHC.ApiAnns -> [Comment]
+flattenedComments (_,cm) = map tokComment . GHC.sortLocated . concat $ Map.elems cm
+
+-- -------------------------------------
+
+getSrcSpanAP :: AP GHC.SrcSpan
+getSrcSpanAP = asks curSrcSpan
+
+getPriorSrcSpanAP :: AP GHC.SrcSpan
+getPriorSrcSpanAP = asks prevSrcSpan
+
+withSrcSpanAP :: Data a => (GHC.Located a) -> DeltaPos -> AP b -> AP b
+withSrcSpanAP (GHC.L l a) edp =
+  local (\s -> let previousSrcSpan = curSrcSpan s in
+               s { curSrcSpan = l
+                 , prevSrcSpan = previousSrcSpan
+                 , offset = edp
+                 , annConName = annGetConstr a
+                 })
+
+
+getEntryDP :: AP DeltaPos
+getEntryDP = asks offset
+
+getUnallocatedComments :: AP [Comment]
+getUnallocatedComments = gets apComments
+
+putUnallocatedComments :: [Comment] -> AP ()
+putUnallocatedComments cs = modify (\s -> s { apComments = cs } )
+
+-- ---------------------------------------------------------------------
+
+adjustDeltaForOffsetM :: DeltaPos -> AP DeltaPos
 adjustDeltaForOffsetM dp = do
   colOffset <- getCurrentColOffset
   return (adjustDeltaForOffset colOffset dp)
@@ -82,19 +260,18 @@ adjustDeltaForOffset  colOffset    (DP (l,c)) = DP (l,c - colOffset)
 
 -- ---------------------------------------------------------------------
 
+-- | Get the current column offset
+getCurrentColOffset :: AP ColOffset
+getCurrentColOffset = srcSpanStartColumn <$> getSrcSpanAP
+
 -- |Get the difference between the current and the previous
 -- colOffsets, if they are on the same line
-getCurrentDP :: LayoutFlag -> AnnotateM (ColOffset,LineChanged)
+getCurrentDP :: LayoutFlag -> AP (ColOffset,LineChanged)
 getCurrentDP layoutOn = do
   -- Note: the current col offsets are not needed here, any
   -- indentation should be fully nested in an AST element
   ss <- getSrcSpanAP
   ps <- getPriorSrcSpanAP
-  {-
-  let r = if srcSpanStartLine ss == srcSpanStartLine ps
-             then (srcSpanStartColumn ss - srcSpanStartColumn ps,LineSame)
-             else (srcSpanStartColumn ss, LineChanged)
-   -}
   let boolLayoutFlag = case layoutOn of { LayoutRules -> True; NoLayoutRules -> False}
       colOffset = if srcSpanStartLine ss == srcSpanStartLine ps
                     then srcSpanStartColumn ss - srcSpanStartColumn ps
@@ -110,21 +287,21 @@ getCurrentDP layoutOn = do
 -- ---------------------------------------------------------------------
 
 -- |Note: assumes the prior end SrcSpan stack is nonempty
-getPriorEnd :: AnnotateM GHC.SrcSpan
+getPriorEnd :: AP GHC.SrcSpan
 getPriorEnd = gets priorEndPosition
 
-setPriorEnd :: GHC.SrcSpan -> AnnotateM ()
+setPriorEnd :: GHC.SrcSpan -> AP ()
 setPriorEnd pe = modify (\s -> s { priorEndPosition = pe })
 
 -- -------------------------------------
 
-getAnnotationAP :: GHC.AnnKeywordId -> AnnotateM [GHC.SrcSpan]
+getAnnotationAP :: GHC.AnnKeywordId -> AP [GHC.SrcSpan]
 getAnnotationAP an = do
     ga <- gets apAnns
     ss <- getSrcSpanAP
     return $ GHC.getAnnotation ga ss an
 
-getAndRemoveAnnotationAP :: GHC.SrcSpan -> GHC.AnnKeywordId -> AnnotateM [GHC.SrcSpan]
+getAndRemoveAnnotationAP :: GHC.SrcSpan -> GHC.AnnKeywordId -> AP [GHC.SrcSpan]
 getAndRemoveAnnotationAP sp an = do
     ga <- gets apAnns
     let (r,ga') = GHC.getAndRemoveAnnotation ga sp an
@@ -136,24 +313,40 @@ tokComment t@(GHC.L lt _) = Comment (ss2span lt) (ghcCommentText t)
 
 -- -------------------------------------
 
--- -------------------------------------
+-- |Add some annotation to the currently active SrcSpan
+addAnnotationsAP :: Annotation -> AP ()
+addAnnotationsAP ann = do
+    l <- ask
+    tellFinalAnn ((getAnnKey l),ann)
+
+getAnnKey :: StackItem -> AnnKey
+getAnnKey StackItem {curSrcSpan, annConName} = AnnKey curSrcSpan annConName
 
 -- -------------------------------------
+
+addAnnDeltaPos :: (GHC.SrcSpan,KeywordId) -> DeltaPos -> AP ()
+addAnnDeltaPos (_s,kw) dp = tellKd (kw, dp)
+
 -- -------------------------------------
+
+--withAST' :: Data a => GHC.Located a -> LayoutFlag -> Wrapped b -> Wrapped b
+--withAST' l lf action  = join . liftF $ Recurse l lf action (return ())
 
 -- | Enter a new AST element. Maintain SrcSpan stack
-withAST :: Data a => GHC.Located a -> LayoutFlag -> AnnotateM b -> AnnotateM b
-withAST lss layout action = do
-  return () `debug` ("enterAST entered for " ++ show (ss2span $ GHC.getLoc lss))
-  -- return () `debug` ("enterAST:currentColOffset=" ++ show (DP (0,srcSpanStartColumn $ GHC.getLoc lss)))
+withAST :: Data a => GHC.Located a -> LayoutFlag -> AP b -> AP b
+withAST lss@(GHC.L l ast) layout action = do
+  -- Print
+--i-  ma <- lift $ getAndRemoveAnnotation lss
+--  let an@(Ann _edp _nl _sc _dc kds) = fromMaybe annNone ma
+
   -- Calculate offset required to get to the start of the SrcSPan
   pe <- getPriorEnd
   let ss = (GHC.getLoc lss)
   let edp = deltaFromSrcSpans pe ss
   edp' <- adjustDeltaForOffsetM edp
   -- need to save edp', and put it in Annotation
-
-  withSrcSpanAP lss edp' (do
+  --(withContext kds l an . withSrcSpanAP lss edp') (do
+  (withSrcSpanAP lss edp') (do
 
     let maskWriter s = s { annKds = []
                          , layoutFlag = NoLayoutRules }
@@ -176,39 +369,307 @@ withAST lss layout action = do
       `debug` ("leaveAST:(ss,edp,dp,kds)=" ++ show (showGhc ss,edp,dp,kds,dp))
     return res)
 
+{-
+-- |First move to the given location, then call exactP
+exactPC :: (AnnotateGen ast) => GHC.Located ast -> AP ()
+exactPC a@(GHC.L l ast) =
+    do return () `debug` ("exactPC entered for:" ++ showGhc l)
+       ma <- getAndRemoveAnnotation a
+       let an@(Ann _edp _nl _sc _dc kds) = fromMaybe annNone ma
+       withContext kds l an
+        (do
+          exactP ast
+          printStringAtMaybeAnn (G GHC.AnnComma) ","
+          printStringAtMaybeAnnAll AnnSemiSep ";")
+       epStack' <- asks epStack
+       return () `debug` ("popOffset:after pop:(l,epStack')=" ++ showGhc (l,epStack'))
+-}
+{-
+withContext :: [(KeywordId, DeltaPos)]
+            -> GHC.SrcSpan
+            -> Annotation
+            -> (Wrapped a -> Wrapped a)
+withContext kds l an = withKds kds . withSrcSpan l . withOffset an
 
+
+getPos :: AP Pos
+getPos = gets epPos
+
+setPos :: Pos -> AP ()
+setPos l = modify (\s -> s {epPos = l})
+
+-- ---------------------------------------------------------------------
+
+-- | Given an annotation associated with a specific SrcSpan, determines a new offset relative to the previous
+-- offset
+--
+withOffset :: Annotation -> (Wrapped a -> Wrapped a)
+withOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) k = do
+  -- The colOffset is the offset to be used when going to the next line.
+  -- The colIndent is how far the current code block has been indented.
+  (colOffset, colIndent) <- asks epStack
+  (_l, currentColumn) <- lift getPos
+  let
+      -- Add extra indentation for this SrcSpan
+     colOffset' = annDelta + colOffset
+     -- Work out where new column starts, based on the entry delta
+     newStartColumn = if edLine == 0
+                          then edColumn + currentColumn -- same line, use entry delta
+                          else colOffset -- different line, use current offset
+     newColIndent        = newStartColumn - originalStartCol
+
+     offsetValNewIndent  = (colOffset' + (newColIndent - colIndent), newColIndent)
+     offsetValSameIndent = (colOffset'            ,                  colIndent)
+     offsetValNewline    = (annDelta   + colIndent,                  colIndent)
+
+     newOffset =
+        case newline of
+          -- For use by AST modifiers, to preserve the indentation
+          -- level for the next line after an AST modification
+          KeepOffset  -> offsetValNewline
+
+          -- Generated during the annotation phase
+          LineChanged       -> offsetValNewline
+          LayoutLineChanged -> offsetValNewline
+
+          LineSame          -> offsetValSameIndent
+          LayoutLineSame    -> offsetValNewIndent
+  local (\s -> s {epStack = newOffset }) k
+    `debug` ("pushOffset:(a, colOffset, colIndent, currentColumn, newOffset)="
+                 ++ show (a, colOffset, colIndent, currentColumn, newOffset))
+
+-- |Get the current column offset
+getOffset :: AP ColOffset
+getOffset = asks (fst . epStack)
+
+-- ---------------------------------------------------------------------
+
+withSrcSpan :: GHC.SrcSpan -> (Wrapped a -> Wrapped a)
+withSrcSpan ss = local (\s -> s {epSrcSpan = ss})
+
+getAndRemoveAnnotation :: (Data a) => GHC.Located a -> AP (Maybe Annotation)
+getAndRemoveAnnotation a = do
+  (r, an') <- gets (getAndRemoveAnnotationEP a . epAnns)
+  modify (\s -> s { epAnns = an' })
+  return r
+
+withKds :: [(KeywordId, DeltaPos)] -> Wrapped a -> Wrapped a
+withKds kd action = do
+  modify (\s -> s { epAnnKds = kd : (epAnnKds s) })
+  r <- action
+  modify (\s -> s { epAnnKds = tail (epAnnKds s) })
+  return r
+
+-- | Get and remove the first item in the (k,v) list for which the k matches.
+-- Return the value, together with any comments skipped over to get there.
+destructiveGetFirst :: KeywordId -> ([(KeywordId,v)],[(KeywordId,v)])
+                    -> ([(KeywordId,v)], Maybe v,[(KeywordId,v)])
+destructiveGetFirst _key (acc,[]) = ([], Nothing ,acc)
+destructiveGetFirst  key (acc,((k,v):kvs))
+  | k == key = let (cs,others) = commentsAndOthers acc in (cs, Just v ,others++kvs)
+  | otherwise = destructiveGetFirst key (acc++[(k,v)],kvs)
+  where
+    commentsAndOthers kvs' = partition isComment kvs'
+    isComment ((AnnComment _),_) = True
+    isComment _              = False
+
+-- |destructive get, hence use an annotation once only
+getAnnFinal :: KeywordId -> AP ([DComment], Maybe DeltaPos)
+getAnnFinal kw = do
+  kd <- gets epAnnKds
+  let (r, kd', dcs) = case kd of
+                  []    -> (Nothing ,[], [])
+                  (k:kds) -> (r',kk:kds, dcs')
+                    where (cs', r',kk) = destructiveGetFirst kw ([],k)
+                          dcs' = concatMap keywordIdToDComment cs'
+  modify (\s -> s { epAnnKds = kd' })
+  return (dcs, r)
+
+-- ---------------------------------------------------------------------
+
+getStoredListSrcSpan :: AP GHC.SrcSpan
+getStoredListSrcSpan = do
+  kd <- gets epAnnKds
+  let
+    isAnnList ((AnnList _),_) = True
+    isAnnList _               = False
+
+    kdf = ghead "getStoredListSrcSpan.1" kd
+    (AnnList ss,_) = ghead "getStoredListSrcSpan.2" $ filter isAnnList kdf
+  return ss
+
+-- ---------------------------------------------------------------------
+
+keywordIdToDComment :: (KeywordId, DeltaPos) -> [DComment]
+keywordIdToDComment (AnnComment comment,_dp) = [comment]
+keywordIdToDComment _                   = []
+
+-- |non-destructive get
+peekAnnFinal :: KeywordId -> AP (Maybe DeltaPos)
+peekAnnFinal kw = do
+  (_, r, _) <- (\kd -> destructiveGetFirst kw ([], kd)) <$> gets (head . epAnnKds)
+  return r
+-}
+-- ---------------------------------------------------------------------
+{-
+printString :: String -> AP ()
+printString str = do
+  (l,c) <- gets epPos
+  setPos (l, c + length str)
+  undefined
+  --tell (mempty { stringOutput = Endo $ showString str })
+
+newLine :: AP ()
+newLine = do
+    (l,_) <- getPos
+    printString "\n"
+    setPos (l+1,1)
+
+padUntil :: Pos -> AP ()
+padUntil (l,c) = do
+    (l1,c1) <- getPos
+    case  {- trace (show ((l,c), (l1,c1))) -} () of
+     _ {-()-} | l1 >= l && c1 <= c -> printString $ replicate (c - c1) ' '
+              | l1 < l             -> newLine >> padUntil (l,c)
+              | otherwise          -> return ()
+
+printWhitespace :: Pos -> AP ()
+printWhitespace p = do
+  -- mPrintComments p >> padUntil p
+  padUntil p
+
+printStringAt :: Pos -> String -> AP ()
+printStringAt p str = printWhitespace p >> printString str
+
+-- ---------------------------------------------------------------------
+
+-- |This should be the final point where things are mode concrete,
+-- before output. Hence the point where comments can be inserted
+printStringAtLsDelta :: [DComment] -> [DeltaPos] -> String -> AP ()
+printStringAtLsDelta cs mc s =
+  case reverse mc of
+    (cl:_) -> do
+      p <- getPos
+      colOffset <- getOffset
+      if isGoodDeltaWithOffset cl colOffset
+        then do
+          mapM_ printQueuedComment cs
+          printStringAt (undelta p cl colOffset) s
+            `debug` ("printStringAtLsDelta:(pos,s):" ++ show (undelta p cl colOffset,s))
+        else return () `debug` ("printStringAtLsDelta:bad delta for (mc,s):" ++ show (mc,s))
+    _ -> return ()
+
+
+isGoodDeltaWithOffset :: DeltaPos -> Int -> Bool
+isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP (undelta (0,0) dp colOffset))
+
+-- AZ:TODO: harvest the commonality between this and printStringAtLsDelta
+printQueuedComment :: DComment -> AP ()
+printQueuedComment (DComment (dp,de) s) = do
+  p <- getPos
+  colOffset <- getOffset
+  let (dr,dc) = undelta (0,0) dp colOffset
+  if isGoodDelta (DP (dr,max 0 dc)) -- do not lose comments against the left margin
+    then do
+      printStringAt (undelta p dp colOffset) s
+         `debug` ("printQueuedComment:(pos,s):" ++ show (undelta p dp colOffset,s))
+      setPos (undelta p de colOffset)
+    else return () `debug` ("printQueuedComment::bad delta for (dp,s):" ++ show (dp,s))
+
+-- ---------------------------------------------------------------------
+
+printStringAtMaybeAnn :: KeywordId -> String -> AP ()
+printStringAtMaybeAnn an str = do
+  (comments, ma) <- getAnnFinal an
+  printStringAtLsDelta comments (maybeToList ma) str
+    `debug` ("printStringAtMaybeAnn:(an,ma,str)=" ++ show (an,ma,str))
+
+printStringAtMaybeAnnAll :: KeywordId -> String -> AP ()
+printStringAtMaybeAnnAll an str = go
+  where
+    go = do
+      (comments, ma) <- getAnnFinal an
+      case ma of
+        Nothing -> return ()
+        Just d  -> printStringAtLsDelta comments [d] str >> go
+
+-- ---------------------------------------------------------------------
+
+countAnns :: KeywordId -> AP Int
+countAnns an = do
+  ma <- peekAnnFinal an
+  return (length ma)
+
+------------------------------------------------------------------------------
+-- Printing of source elements
+{-
+-- | Print an AST exactly as specified by the annotations on the nodes in the tree.
+-- exactPrint :: (ExactP ast) => ast -> [Comment] -> String
+exactPrint :: (ExactGen ast) => GHC.Located ast -> String
+exactPrint ast@(GHC.L l _) = runAP (exactPC ast) l Map.empty
+-}
+
+
+exactPrintAnnotated ::
+     GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns -> String
+exactPrintAnnotated ast@(GHC.L l _) ghcAnns = runEP (annotatePC ast) l an
+  where
+    an = annotateLHsModule ast ghcAnns
+
+exactPrintAnnotation :: AnnotateGen ast =>
+  GHC.Located ast -> Anns -> String
+exactPrintAnnotation ast@(GHC.L l _) an = runEP (annotatePC ast) l an
+  -- `debug` ("exactPrintAnnotation:an=" ++ (concatMap (\(l,a) -> show (ss2span l,a)) $ Map.toList an ))
+  --
+annotateAST :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns -> Anns
+annotateAST ast ghcAnns = annotateLHsModule ast ghcAnns
 
 
 -- ---------------------------------------------------------------------
 
-class Data ast => GenAnnotate ast where
-  annotateG :: GHC.SrcSpan -> ast -> AnnotateM ()
+-- ---------------------------------------------------------------------
+
+printMerged :: (AnnotateGen a, AnnotateGen b) => [GHC.Located a] -> [GHC.Located b] -> Wrapped  ()
+printMerged [] [] = return ()
+printMerged [] bs = mapM_ annotatePC bs
+printMerged as [] = mapM_ annotatePC as
+printMerged (a@(GHC.L l1 _):as) (b@(GHC.L l2 _):bs) =
+  if l1 < l2
+    then annotatePC a >> printMerged    as (b:bs)
+    else annotatePC b >> printMerged (a:as)   bs
+
+-}
+
+-- ---------------------------------------------------------------------
+
+
+-- ---------------------------------------------------------------------
 
 
 -- |First move to the given location, then call exactP
-annotatePC :: (GenAnnotate ast) => GHC.Located ast -> AnnotateM ()
-annotatePC a = withLocated a NoLayoutRules annotateP
+annotatePC' :: (AnnotateGen ast) => GHC.Located ast -> AP ()
+annotatePC' a = withLocated a NoLayoutRules annotateG
 
-withLocated :: Data a => GHC.Located a -> LayoutFlag -> (GHC.SrcSpan -> a -> AnnotateM ()) -> AnnotateM ()
+withLocated :: Data a => GHC.Located a -> LayoutFlag -> (GHC.SrcSpan -> a -> AP ()) -> AP ()
 withLocated a@(GHC.L l ast) layoutFlag action = do
   withAST a layoutFlag (action l ast)
 
-annotateMaybe :: (GenAnnotate ast) => Maybe (GHC.Located ast) -> AnnotateM ()
+annotateMaybe :: (AnnotateGen ast) => Maybe (GHC.Located ast) -> Wrapped ()
 annotateMaybe Nothing    = return ()
 annotateMaybe (Just ast) = annotatePC ast
 
-annotateList :: (GenAnnotate ast) => [GHC.Located ast] -> AnnotateM ()
+annotateList :: (AnnotateGen ast) => [GHC.Located ast] -> Wrapped ()
 annotateList xs = mapM_ annotatePC xs
 
 -- | Flag the item to be annotated as requiring layout.
-annotateWithLayout :: GenAnnotate ast => GHC.Located ast -> AnnotateM ()
+annotateWithLayout :: AnnotateGen ast => GHC.Located ast -> Wrapped ()
 annotateWithLayout a = do
   withLocated a LayoutRules (\l ast -> annotateG l ast)
 
-annotateListWithLayout :: GenAnnotate [GHC.Located ast] => GHC.SrcSpan -> [GHC.Located ast] -> AnnotateM ()
+annotateListWithLayout :: AnnotateGen [GHC.Located ast] => GHC.SrcSpan -> [GHC.Located ast] -> Wrapped ()
 annotateListWithLayout l ls = do
   let ss = getListSrcSpan ls
-  addAnnDeltaPos (l,AnnList ss) (DP (0,0))
+  lift $ addAnnDeltaPos (l,AnnList ss) (DP (0,0))
   annotateWithLayout (GHC.L ss ls)
 
 -- ---------------------------------------------------------------------
@@ -229,7 +690,7 @@ allocatePriorComments cs ss = partition isPrior cs
 
 -- ---------------------------------------------------------------------
 
-addAnnotationWorker :: KeywordId -> GHC.SrcSpan -> AnnotateM ()
+addAnnotationWorker :: KeywordId -> GHC.SrcSpan -> AP ()
 addAnnotationWorker ann pa = do
   if not (isPointSrcSpan pa)
     then do
@@ -257,7 +718,7 @@ addAnnotationWorker ann pa = do
 
 -- ---------------------------------------------------------------------
 
-addDeltaComment :: Comment -> AnnotateM ()
+addDeltaComment :: Comment -> AP ()
 addDeltaComment (Comment paspan str) = do
   let pa = span2ss paspan
   pe <- getPriorEnd
@@ -273,8 +734,8 @@ addDeltaComment (Comment paspan str) = do
 
 -- | Look up and add a Delta annotation at the current position, and
 -- advance the position to the end of the annotation
-addDeltaAnnotation :: GHC.AnnKeywordId -> AnnotateM ()
-addDeltaAnnotation ann = do
+addDeltaAnnotation' :: GHC.AnnKeywordId -> AP ()
+addDeltaAnnotation' ann = do
   ss <- getSrcSpanAP
   ma <- getAnnotationAP ann
   case nub ma of -- ++AZ++ TODO: get rid of duplicates earlier
@@ -285,8 +746,8 @@ addDeltaAnnotation ann = do
 -- | Look up and add a Delta annotation appearing beyond the current
 -- SrcSpan at the current position, and advance the position to the
 -- end of the annotation
-addDeltaAnnotationAfter :: GHC.AnnKeywordId -> AnnotateM ()
-addDeltaAnnotationAfter ann = do
+addDeltaAnnotationAfter' :: GHC.AnnKeywordId -> AP ()
+addDeltaAnnotationAfter' ann = do
   ss <- getSrcSpanAP
   ma <- getAnnotationAP ann
   let ma' = filter (\s -> not (GHC.isSubspanOf s ss)) ma
@@ -297,8 +758,8 @@ addDeltaAnnotationAfter ann = do
 
 -- | Look up and add a Delta annotation at the current position, and
 -- advance the position to the end of the annotation
-addDeltaAnnotationLs :: GHC.AnnKeywordId -> Int -> AnnotateM ()
-addDeltaAnnotationLs ann off = do
+addDeltaAnnotationLs' :: GHC.AnnKeywordId -> Int -> AP ()
+addDeltaAnnotationLs' ann off = do
   ma <- getAnnotationAP ann
   case (drop off ma) of
     [] -> return ()
@@ -307,8 +768,8 @@ addDeltaAnnotationLs ann off = do
 
 -- | Look up and add possibly multiple Delta annotation at the current
 -- position, and advance the position to the end of the annotations
-addDeltaAnnotations :: GHC.AnnKeywordId -> AnnotateM ()
-addDeltaAnnotations ann = do
+addDeltaAnnotations' :: GHC.AnnKeywordId -> AP ()
+addDeltaAnnotations' ann = do
   ma <- getAnnotationAP ann
   let do_one ap' = addAnnotationWorker (G ann) ap'
                     -- `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
@@ -317,8 +778,8 @@ addDeltaAnnotations ann = do
 -- | Look up and add possibly multiple Delta annotations enclosed by
 -- the current SrcSpan at the current position, and advance the
 -- position to the end of the annotations
-addDeltaAnnotationsInside :: GHC.AnnKeywordId -> AnnotateM ()
-addDeltaAnnotationsInside ann = do
+addDeltaAnnotationsInside' :: GHC.AnnKeywordId -> AP ()
+addDeltaAnnotationsInside' ann = do
   ss <- getSrcSpanAP
   ma <- getAnnotationAP ann
   let do_one ap' = addAnnotationWorker (G ann) ap'
@@ -328,8 +789,8 @@ addDeltaAnnotationsInside ann = do
 -- | Look up and add possibly multiple Delta annotations not enclosed by
 -- the current SrcSpan at the current position, and advance the
 -- position to the end of the annotations
-addDeltaAnnotationsOutside :: GHC.AnnKeywordId -> KeywordId -> AnnotateM ()
-addDeltaAnnotationsOutside gann ann = do
+addDeltaAnnotationsOutside' :: GHC.AnnKeywordId -> KeywordId -> AP ()
+addDeltaAnnotationsOutside' gann ann = do
   ss <- getSrcSpanAP
   -- ma <- getAnnotationAP ss gann
   ma <- getAndRemoveAnnotationAP ss gann
@@ -339,13 +800,13 @@ addDeltaAnnotationsOutside gann ann = do
 
 -- | Add a Delta annotation at the current position, and advance the
 -- position to the end of the annotation
-addDeltaAnnotationExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> AnnotateM ()
-addDeltaAnnotationExt s ann = do
-  addAnnotationWorker (G ann) s
+addDeltaAnnotationExt' :: GHC.SrcSpan -> GHC.AnnKeywordId -> AP ()
+addDeltaAnnotationExt' s ann = addAnnotationWorker (G ann) s
 
 
-addEofAnnotation :: AnnotateM ()
-addEofAnnotation = do
+
+addEofAnnotation' :: AP ()
+addEofAnnotation' = do
   pe <- getPriorEnd
   ss <- getSrcSpanAP
   ma <- withSrcSpanAP (GHC.noLoc ()) (DP (0,0)) (getAnnotationAP GHC.AnnEofPos)
@@ -356,23 +817,23 @@ addEofAnnotation = do
       mapM_ addDeltaComment cs
       let DP (r,c) = deltaFromSrcSpans pe pa
       addAnnDeltaPos (ss,G GHC.AnnEofPos) (DP (r, c - 1))
-      setPriorEnd pa `warn` ("Trailing annotations after Eof: " ++ showGhc pss)
+      setPriorEnd pa
 
 
-countAnnsAP :: GHC.AnnKeywordId -> AnnotateM Int
+countAnnsAP :: GHC.AnnKeywordId -> Wrapped Int
 countAnnsAP ann = do
-  ma <- getAnnotationAP ann
+  ma <- lift $ getAnnotationAP ann
   return (length ma)
 
 -- ---------------------------------------------------------------------
 -- Managing lists which have been separated, e.g. Sigs and Binds
 
-prepareListAnnotation :: GenAnnotate a => [GHC.Located a] -> [(GHC.SrcSpan,AP ())]
+prepareListAnnotation :: AnnotateGen a => [GHC.Located a] -> [(GHC.SrcSpan,Wrapped ())]
 prepareListAnnotation ls = map (\b@(GHC.L l _) -> (l,annotatePC b)) ls
 
-applyListAnnotations :: [(GHC.SrcSpan,AP ())] -> AnnotateM ()
+applyListAnnotations :: [(GHC.SrcSpan, Wrapped ())] -> Wrapped ()
 applyListAnnotations ls
-  = mapM_ (\(_,b) -> b) $ sortBy (\(a,_) (b,_) -> compare a b) ls
+  = mapM_ snd $ sortBy (\(a,_) (b,_) -> compare a b) ls
 
 -- ---------------------------------------------------------------------
 -- Start of application specific part
@@ -384,13 +845,11 @@ annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns
 annotateLHsModule modu ghcAnns
    = runAP (annotatePC modu) ghcAnns
 
-
-
 -- ---------------------------------------------------------------------
 
-instance GenAnnotate (GHC.HsModule GHC.RdrName) where
-  annotate lm (GHC.HsModule mmn mexp imps decs mdepr _haddock) = do
-    setPriorEnd lm
+instance AnnotateGen (GHC.HsModule GHC.RdrName) where
+  annotateG lm (GHC.HsModule mmn mexp imps decs mdepr _haddock) = do
+    lift $ setPriorEnd lm
 
     addDeltaAnnotation GHC.AnnModule
 
@@ -415,10 +874,9 @@ instance GenAnnotate (GHC.HsModule GHC.RdrName) where
 
     addEofAnnotation
 
-
 -- ---------------------------------------------------------------------
 
-instance GenAnnotate GHC.WarningTxt where
+instance AnnotateGen GHC.WarningTxt where
   annotateG _ (GHC.WarningTxt (GHC.L ls _) lss) = do
     addDeltaAnnotationExt ls GHC.AnnOpen
     addDeltaAnnotation GHC.AnnOpenS
@@ -435,16 +893,16 @@ instance GenAnnotate GHC.WarningTxt where
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GenAnnotate name)
-  => GenAnnotate [GHC.LIE name] where
+instance (GHC.DataId name,AnnotateGen name)
+  => AnnotateGen [GHC.LIE name] where
    annotateG _ ls = do
      addDeltaAnnotation GHC.AnnHiding -- in an import decl
      addDeltaAnnotation GHC.AnnOpenP -- '('
      mapM_ annotatePC ls
      addDeltaAnnotation GHC.AnnCloseP -- ')'
 
-instance (GHC.DataId name,GenAnnotate name)
-  => GenAnnotate (GHC.IE name) where
+instance (GHC.DataId name,AnnotateGen name)
+  => AnnotateGen (GHC.IE name) where
   annotateG _ ie = do
 
     case ie of
@@ -476,7 +934,7 @@ instance (GHC.DataId name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance GenAnnotate GHC.RdrName where
+instance AnnotateGen GHC.RdrName where
   annotateG l n = do
     case rdrName2String n of
       "[]" -> do
@@ -511,14 +969,14 @@ instance GenAnnotate GHC.RdrName where
 
 -- ---------------------------------------------------------------------
 
-instance GenAnnotate GHC.Name where
+instance AnnotateGen GHC.Name where
   annotateG l _n = do
     addDeltaAnnotationExt l GHC.AnnVal
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GenAnnotate name)
-  => GenAnnotate (GHC.ImportDecl name) where
+instance (GHC.DataId name,AnnotateGen name)
+  => AnnotateGen (GHC.ImportDecl name) where
  annotateG _ (GHC.ImportDecl _msrc (GHC.L ln _) _pkg _src _safe _qual _impl _as hiding) = do
 
    -- 'import' maybe_src maybe_safe optqualified maybe_pkg modid maybeas maybeimpspec
@@ -544,8 +1002,8 @@ instance (GHC.DataId name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-  => GenAnnotate (GHC.HsDecl name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+  => AnnotateGen (GHC.HsDecl name) where
   annotateG l decl = do
     case decl of
       GHC.TyClD d       -> annotateG l d
@@ -566,27 +1024,27 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GenAnnotate name)
-   => GenAnnotate (GHC.RoleAnnotDecl name) where
+instance (AnnotateGen name)
+   => AnnotateGen (GHC.RoleAnnotDecl name) where
   annotateG _ (GHC.RoleAnnotDecl ln mr) = do
     addDeltaAnnotation GHC.AnnType
     addDeltaAnnotation GHC.AnnRole
     annotatePC ln
     mapM_ annotatePC mr
 
-instance GenAnnotate (Maybe GHC.Role) where
+instance AnnotateGen (Maybe GHC.Role) where
   annotateG l _ = addDeltaAnnotationExt l GHC.AnnVal
 
 -- ---------------------------------------------------------------------
 
-instance (GenAnnotate name)
-   => GenAnnotate (GHC.HsQuasiQuote name) where
+instance (AnnotateGen name)
+   => AnnotateGen (GHC.HsQuasiQuote name) where
   annotateG _ (GHC.HsQuasiQuote _n _ss _fs) = assert False undefined
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-   => GenAnnotate (GHC.SpliceDecl name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+   => AnnotateGen (GHC.SpliceDecl name) where
   annotateG _ (GHC.SpliceDecl (GHC.L _ls (GHC.HsSplice _n e)) _flag) = do
     addDeltaAnnotation GHC.AnnOpen -- "$(" or "$$("
     annotatePC e
@@ -594,8 +1052,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-   => GenAnnotate (GHC.VectDecl name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+   => AnnotateGen (GHC.VectDecl name) where
   annotateG _ (GHC.HsVect _src ln e) = do
     addDeltaAnnotation GHC.AnnOpen -- "{-# VECTORISE"
     annotatePC ln
@@ -630,8 +1088,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-   => GenAnnotate (GHC.RuleDecls name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+   => AnnotateGen (GHC.RuleDecls name) where
    annotateG _ (GHC.HsRules _src rules) = do
      addDeltaAnnotation GHC.AnnOpen
      mapM_ annotatePC rules
@@ -639,8 +1097,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-   => GenAnnotate (GHC.RuleDecl name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+   => AnnotateGen (GHC.RuleDecl name) where
   annotateG _ (GHC.HsRule ln _act bndrs lhs _ rhs _) = do
     annotatePC ln
     -- activation
@@ -659,8 +1117,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-   => GenAnnotate (GHC.RuleBndr name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+   => AnnotateGen (GHC.RuleBndr name) where
   annotateG _ (GHC.RuleBndr ln) = annotatePC ln
   annotateG _ (GHC.RuleBndrSig ln (GHC.HsWB thing _ _ _)) = do
     addDeltaAnnotation GHC.AnnOpenP -- "("
@@ -671,8 +1129,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-   => GenAnnotate (GHC.AnnDecl name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+   => AnnotateGen (GHC.AnnDecl name) where
    annotateG _ (GHC.HsAnnotation _src prov e) = do
      addDeltaAnnotation GHC.AnnOpen -- "{-# Ann"
      addDeltaAnnotation GHC.AnnType
@@ -687,7 +1145,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance GenAnnotate name => GenAnnotate (GHC.WarnDecls name) where
+instance AnnotateGen name => AnnotateGen (GHC.WarnDecls name) where
    annotateG _ (GHC.Warnings _src warns) = do
      addDeltaAnnotation GHC.AnnOpen
      mapM_ annotatePC warns
@@ -695,8 +1153,8 @@ instance GenAnnotate name => GenAnnotate (GHC.WarnDecls name) where
 
 -- ---------------------------------------------------------------------
 
-instance (GenAnnotate name)
-   => GenAnnotate (GHC.WarnDecl name) where
+instance (AnnotateGen name)
+   => AnnotateGen (GHC.WarnDecl name) where
    annotateG _ (GHC.Warning lns txt) = do
      mapM_ annotatePC lns
      addDeltaAnnotation GHC.AnnOpenS -- "["
@@ -705,13 +1163,13 @@ instance (GenAnnotate name)
        GHC.DeprecatedTxt _src ls -> mapM_ annotatePC ls
      addDeltaAnnotation GHC.AnnCloseS -- "]"
 
-instance GenAnnotate GHC.FastString where
+instance AnnotateGen GHC.FastString where
   annotateG l _ = addDeltaAnnotationExt l GHC.AnnVal
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-   => GenAnnotate (GHC.ForeignDecl name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+   => AnnotateGen (GHC.ForeignDecl name) where
 
   annotateG _ (GHC.ForeignImport ln typ _
                (GHC.CImport cconv safety@(GHC.L ll _) _mh _imp (GHC.L ls _src))) = do
@@ -740,23 +1198,23 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GenAnnotate GHC.CExportSpec) where
+instance (AnnotateGen GHC.CExportSpec) where
   annotateG l (GHC.CExportStatic _ cconv) = annotateG l cconv
 
 -- ---------------------------------------------------------------------
 
-instance (GenAnnotate GHC.CCallConv) where
+instance (AnnotateGen GHC.CCallConv) where
   annotateG l _ = addDeltaAnnotationExt l GHC.AnnVal
 
 -- ---------------------------------------------------------------------
 
-instance (GenAnnotate GHC.Safety) where
+instance (AnnotateGen GHC.Safety) where
   annotateG l _ = addDeltaAnnotationExt l GHC.AnnVal
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-   => GenAnnotate (GHC.DerivDecl name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+   => AnnotateGen (GHC.DerivDecl name) where
 
   annotateG _ (GHC.DerivDecl typ mov) = do
     addDeltaAnnotation GHC.AnnDeriving
@@ -766,8 +1224,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-   => GenAnnotate (GHC.DefaultDecl name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+   => AnnotateGen (GHC.DefaultDecl name) where
 
   annotateG _ (GHC.DefaultDecl typs) = do
     addDeltaAnnotation GHC.AnnDefault
@@ -777,8 +1235,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-   => GenAnnotate (GHC.InstDecl name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+   => AnnotateGen (GHC.InstDecl name) where
 
   annotateG l (GHC.ClsInstD      cid) = annotateG l  cid
   annotateG l (GHC.DataFamInstD dfid) = annotateG l dfid
@@ -786,15 +1244,15 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance GenAnnotate (GHC.OverlapMode) where
+instance AnnotateGen (GHC.OverlapMode) where
   annotateG _ _ = do
     addDeltaAnnotation GHC.AnnOpen
     addDeltaAnnotation GHC.AnnClose
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-   => GenAnnotate (GHC.ClsInstDecl name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+   => AnnotateGen (GHC.ClsInstDecl name) where
 
   annotateG _ (GHC.ClsInstDecl poly binds sigs tyfams datafams mov) = do
     addDeltaAnnotation GHC.AnnInstance
@@ -816,8 +1274,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-   => GenAnnotate (GHC.TyFamInstDecl name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+   => AnnotateGen (GHC.TyFamInstDecl name) where
 
   annotateG _ (GHC.TyFamInstDecl eqn _) = do
     addDeltaAnnotation GHC.AnnType
@@ -826,8 +1284,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-   => GenAnnotate (GHC.DataFamInstDecl name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+   => AnnotateGen (GHC.DataFamInstDecl name) where
 
   annotateG l (GHC.DataFamInstDecl ln (GHC.HsWB pats _ _ _) defn _) = do
     addDeltaAnnotation GHC.AnnData
@@ -841,10 +1299,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name) =>
-                                                  GenAnnotate (GHC.HsBind name) where
-  annotateG _ (GHC.FunBind (GHC.L _ln _n) isInfix (GHC.MG matches _ _ _) _ _ _) = do
-    setFunIsInfix isInfix
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name) =>
+                                                  AnnotateGen (GHC.HsBind name) where
+  annotateG _ (GHC.FunBind (GHC.L _ln _n) _ (GHC.MG matches _ _ _) _ _ _) = do
     mapM_ annotatePC matches
 
   annotateG _ (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
@@ -885,8 +1342,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name) =>
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-    => GenAnnotate (GHC.IPBind name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+    => AnnotateGen (GHC.IPBind name) where
   annotateG _ (GHC.IPBind en e) = do
     case en of
       Left n -> annotatePC n
@@ -896,19 +1353,18 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance GenAnnotate GHC.HsIPName where
+instance AnnotateGen GHC.HsIPName where
   annotateG l _ = addDeltaAnnotationExt l GHC.AnnVal
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name,
-                                                  GenAnnotate body)
-  => GenAnnotate (GHC.Match name (GHC.Located body)) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name,
+                                                  AnnotateGen body)
+  => AnnotateGen (GHC.Match name (GHC.Located body)) where
 
   annotateG _ (GHC.Match mln pats _typ (GHC.GRHSs grhs lb)) = do
-    isInfix <- getFunIsInfix
     let
-      get_infix Nothing = isInfix
+      get_infix Nothing = False
       get_infix (Just (_,f)) = f
     case (get_infix mln,pats) of
       (True,[a,b]) -> do
@@ -940,9 +1396,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name,
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name,
-                                                  GenAnnotate body)
-  => GenAnnotate (GHC.GRHS name (GHC.Located body)) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name,
+                                                  AnnotateGen body)
+  => AnnotateGen (GHC.GRHS name (GHC.Located body)) where
   annotateG _ (GHC.GRHS guards expr) = do
 
     addDeltaAnnotation GHC.AnnVbar
@@ -953,8 +1409,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name,
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-  => GenAnnotate (GHC.Sig name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+  => AnnotateGen (GHC.Sig name) where
 
   annotateG _ (GHC.TypeSig lns typ _) = do
     mapM_ annotatePC lns
@@ -1034,13 +1490,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-annotateBooleanFormula :: GHC.BooleanFormula (GHC.Located name) -> AnnotateM ()
+annotateBooleanFormula :: GHC.BooleanFormula (GHC.Located name) -> Wrapped ()
 annotateBooleanFormula = assert False undefined
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name) =>
-                     GenAnnotate (GHC.HsTyVarBndr name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name) =>
+                     AnnotateGen (GHC.HsTyVarBndr name) where
   annotateG l (GHC.UserTyVar _n) = do
     addDeltaAnnotationExt l GHC.AnnVal
 
@@ -1053,8 +1509,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name) =>
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-   => GenAnnotate (GHC.HsType name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+   => AnnotateGen (GHC.HsType name) where
 
   annotateG _ (GHC.HsForAllTy _f mwc (GHC.HsQTvs _kvs tvs) ctx@(GHC.L lc ctxs) typ) = do
     addDeltaAnnotation GHC.AnnOpenP -- "("
@@ -1176,7 +1632,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
   annotateG l (GHC.HsTyLit _tl) = do
     addDeltaAnnotationExt l GHC.AnnVal
 
-  -- HsWrapTy HsTyWrapper (HsType name)
+  -- HsWrapTy HsTyWrapped (HsType name)
   annotateG _ (GHC.HsWrapTy _ _) = return ()
 
   annotateG l (GHC.HsWildcardTy) = do
@@ -1188,8 +1644,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name) =>
-                             GenAnnotate (GHC.ConDeclField name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name) =>
+                             AnnotateGen (GHC.ConDeclField name) where
   annotateG _ (GHC.ConDeclField ns ty mdoc) = do
     mapM_ annotatePC ns
     addDeltaAnnotation GHC.AnnDcolon
@@ -1198,14 +1654,14 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name) =>
 
 -- ---------------------------------------------------------------------
 
-instance GenAnnotate GHC.HsDocString where
+instance AnnotateGen GHC.HsDocString where
   annotateG l (GHC.HsDocString _s) = do
     addDeltaAnnotationExt l GHC.AnnVal
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GenAnnotate name,GHC.OutputableBndr name)
-  => GenAnnotate (GHC.Pat name) where
+instance (GHC.DataId name,AnnotateGen name,GHC.OutputableBndr name)
+  => AnnotateGen (GHC.Pat name) where
   annotateG l (GHC.WildPat _) = addDeltaAnnotationExt l GHC.AnnVal
   annotateG l (GHC.VarPat _)  = addDeltaAnnotationExt l GHC.AnnVal
   annotateG _ (GHC.LazyPat p) = do
@@ -1285,13 +1741,13 @@ instance (GHC.DataId name,GenAnnotate name,GHC.OutputableBndr name)
 
   annotateG _ (GHC.SigPatOut {}) = return ()
 
-  -- CoPat HsWrapper (Pat id) Type
+  -- CoPat HsWrapped (Pat id) Type
   annotateG _ (GHC.CoPat {}) = return ()
 
 -- ---------------------------------------------------------------------
 
-annotateHsConPatDetails :: (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-                      => GHC.Located name -> GHC.HsConPatDetails name -> AnnotateM ()
+annotateHsConPatDetails :: (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+                      => GHC.Located name -> GHC.HsConPatDetails name -> Wrapped ()
 annotateHsConPatDetails ln dets = do
   case dets of
     GHC.PrefixCon args -> do
@@ -1308,8 +1764,8 @@ annotateHsConPatDetails ln dets = do
       annotatePC ln
       annotatePC a2
 
-annotateHsConDeclDetails :: (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-                    =>  [GHC.Located name] -> GHC.HsConDeclDetails name -> AnnotateM ()
+annotateHsConDeclDetails :: (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+                    =>  [GHC.Located name] -> GHC.HsConDeclDetails name -> Wrapped ()
 annotateHsConDeclDetails lns dets = do
   case dets of
     GHC.PrefixCon args -> mapM_ annotatePC args
@@ -1324,8 +1780,8 @@ annotateHsConDeclDetails lns dets = do
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-   => GenAnnotate [GHC.LConDeclField name] where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+   => AnnotateGen [GHC.LConDeclField name] where
   annotateG _ fs = do
        addDeltaAnnotation GHC.AnnOpenC -- '{'
        mapM_ annotatePC fs
@@ -1334,19 +1790,19 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name) => GenAnnotate (GHC.HsOverLit name) where
+instance (GHC.DataId name) => AnnotateGen (GHC.HsOverLit name) where
   annotateG l _ol = addDeltaAnnotationExt l GHC.AnnVal
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GenAnnotate arg)
-    => GenAnnotate (GHC.HsWithBndrs name (GHC.Located arg)) where
+instance (GHC.DataId name,AnnotateGen arg)
+    => AnnotateGen (GHC.HsWithBndrs name (GHC.Located arg)) where
   annotateG _ (GHC.HsWB thing _ _ _) = annotatePC thing
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name,GenAnnotate body) =>
-                            GenAnnotate (GHC.Stmt name (GHC.Located body)) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name,AnnotateGen body) =>
+                            AnnotateGen (GHC.Stmt name (GHC.Located body)) where
 
   annotateG _ (GHC.LastStmt body _) = annotatePC body
 
@@ -1399,8 +1855,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name,GenAnnotate b
 
 -- ---------------------------------------------------------------------
 
-annotateParStmtBlock :: (GHC.DataId name,GHC.OutputableBndr name, GenAnnotate name)
-  =>  GHC.ParStmtBlock name name -> AnnotateM ()
+annotateParStmtBlock :: (GHC.DataId name,GHC.OutputableBndr name, AnnotateGen name)
+  =>  GHC.ParStmtBlock name name -> Wrapped ()
 annotateParStmtBlock (GHC.ParStmtBlock stmts _ns _) =
   mapM_ annotatePC stmts
 
@@ -1438,14 +1894,14 @@ getListSrcSpan ls
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-  => GenAnnotate (GHC.HsLocalBinds name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+  => AnnotateGen (GHC.HsLocalBinds name) where
   annotateG _ lb = annotateHsLocalBinds lb
 
 -- ---------------------------------------------------------------------
 
-annotateHsLocalBinds :: (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-                     => (GHC.HsLocalBinds name) -> AnnotateM ()
+annotateHsLocalBinds :: (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+                     => (GHC.HsLocalBinds name) -> Wrapped ()
 annotateHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
     applyListAnnotations (prepareListAnnotation (GHC.bagToList binds)
                        ++ prepareListAnnotation sigs
@@ -1458,24 +1914,24 @@ annotateHsLocalBinds (GHC.EmptyLocalBinds)                 = return ()
 
 -- ---------------------------------------------------------------------
 
-annotateMatchGroup :: (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name,
-                                               GenAnnotate body)
+annotateMatchGroup :: (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name,
+                                               AnnotateGen body)
                    => GHC.SrcSpan -> (GHC.MatchGroup name (GHC.Located body))
-                   -> AnnotateM ()
+                   -> Wrapped ()
 annotateMatchGroup l (GHC.MG matches _ _ _)
   = annotateListWithLayout l matches
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name,
-                                               GenAnnotate body)
-  => GenAnnotate [GHC.Located (GHC.Match name (GHC.Located body))] where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name,
+                                               AnnotateGen body)
+  => AnnotateGen [GHC.Located (GHC.Match name (GHC.Located body))] where
   annotateG _ ls = mapM_ annotatePC ls
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-  => GenAnnotate (GHC.HsExpr name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+  => AnnotateGen (GHC.HsExpr name) where
   annotateG l (GHC.HsVar n)           = annotateG l n
   annotateG l (GHC.HsIPVar _)         = addDeltaAnnotationExt l GHC.AnnVal
   annotateG l (GHC.HsOverLit _ov)     = addDeltaAnnotationExt l GHC.AnnVal
@@ -1544,7 +2000,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
     mapM_ annotatePC rhs
 
   annotateG _ (GHC.HsLet binds e) = do
-    setLayoutFlag -- Make sure the 'in' gets indented too
+    lift $ setLayoutFlag -- Make sure the 'in' gets indented too
     addDeltaAnnotation GHC.AnnLet
     addDeltaAnnotation GHC.AnnOpenC
     addDeltaAnnotationsInside GHC.AnnSemi
@@ -1769,14 +2225,14 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- |Used for declarations that need to be aligned together, e.g. in a
 -- do or let .. in statement/expr
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-  => GenAnnotate ([GHC.ExprLStmt name]) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+  => AnnotateGen ([GHC.ExprLStmt name]) where
   annotateG _ ls = mapM_ annotatePC ls
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-  => GenAnnotate (GHC.HsTupArg name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+  => AnnotateGen (GHC.HsTupArg name) where
   annotateG _ (GHC.Present e) = do
     annotatePC e
 
@@ -1785,12 +2241,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-  => GenAnnotate (GHC.HsCmdTop name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+  => AnnotateGen (GHC.HsCmdTop name) where
   annotateG _ (GHC.HsCmdTop cmd _ _ _) = annotatePC cmd
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-   => GenAnnotate (GHC.HsCmd name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+   => AnnotateGen (GHC.HsCmd name) where
   annotateG _ (GHC.HsCmdArrApp e1 e2 _ _ _) = do
     annotatePC e1
     -- only one of the next 4 will be resent
@@ -1858,14 +2314,14 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-  => GenAnnotate [GHC.Located (GHC.StmtLR name name (GHC.LHsCmd name))] where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+  => AnnotateGen [GHC.Located (GHC.StmtLR name name (GHC.LHsCmd name))] where
   annotateG _ ls = mapM_ annotatePC ls
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-     => GenAnnotate (GHC.TyClDecl name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+     => AnnotateGen (GHC.TyClDecl name) where
 
   annotateG l (GHC.FamDecl famdecl) = annotateG l famdecl
 
@@ -1915,8 +2371,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-annotateTyClass :: (GenAnnotate a, GenAnnotate ast)
-                => GHC.Located a -> [GHC.Located ast] -> AnnotateM ()
+annotateTyClass :: (AnnotateGen a, AnnotateGen ast)
+                => GHC.Located a -> [GHC.Located ast] -> Wrapped ()
 annotateTyClass ln tyVars = do
     addDeltaAnnotations GHC.AnnOpenP
     applyListAnnotations (prepareListAnnotation [ln]
@@ -1926,8 +2382,8 @@ annotateTyClass ln tyVars = do
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GenAnnotate name, GHC.OutputableBndr name)
-   => GenAnnotate (GHC.FamilyDecl name) where
+instance (GHC.DataId name,AnnotateGen name, GHC.OutputableBndr name)
+   => AnnotateGen (GHC.FamilyDecl name) where
   annotateG _ (GHC.FamilyDecl info ln (GHC.HsQTvs _ tyvars) mkind) = do
     addDeltaAnnotation GHC.AnnType
     addDeltaAnnotation GHC.AnnData
@@ -1948,8 +2404,8 @@ instance (GHC.DataId name,GenAnnotate name, GHC.OutputableBndr name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GenAnnotate name,GHC.OutputableBndr name)
-   => GenAnnotate (GHC.TyFamInstEqn name) where
+instance (GHC.DataId name,AnnotateGen name,GHC.OutputableBndr name)
+   => AnnotateGen (GHC.TyFamInstEqn name) where
   annotateG _ (GHC.TyFamEqn ln (GHC.HsWB pats _ _ _) typ) = do
     annotatePC ln
     mapM_ annotatePC pats
@@ -1959,8 +2415,8 @@ instance (GHC.DataId name,GenAnnotate name,GHC.OutputableBndr name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GenAnnotate name,GHC.OutputableBndr name)
-  => GenAnnotate (GHC.TyFamDefltEqn name) where
+instance (GHC.DataId name,AnnotateGen name,GHC.OutputableBndr name)
+  => AnnotateGen (GHC.TyFamDefltEqn name) where
   annotateG _ (GHC.TyFamEqn ln (GHC.HsQTvs _ns bndrs) typ) = do
     annotatePC ln
     mapM_ annotatePC bndrs
@@ -1970,13 +2426,13 @@ instance (GHC.DataId name,GenAnnotate name,GHC.OutputableBndr name)
 -- ---------------------------------------------------------------------
 
 -- TODO: modify lexer etc, in the meantime to not set haddock flag
-instance GenAnnotate GHC.DocDecl where
+instance AnnotateGen GHC.DocDecl where
   annotateG l _ = addDeltaAnnotationExt l GHC.AnnVal
 
 -- ---------------------------------------------------------------------
 
-annotateDataDefn :: (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-  => GHC.SrcSpan -> GHC.HsDataDefn name -> AnnotateM ()
+annotateDataDefn :: (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+  => GHC.SrcSpan -> GHC.HsDataDefn name -> Wrapped ()
 annotateDataDefn _ (GHC.HsDataDefn _ ctx typ mk cons mderivs) = do
   annotatePC ctx
   annotateMaybe typ
@@ -1989,8 +2445,8 @@ annotateDataDefn _ (GHC.HsDataDefn _ ctx typ mk cons mderivs) = do
 -- ---------------------------------------------------------------------
 
 -- Note: GHC.HsContext name aliases to here too
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
-     => GenAnnotate [GHC.LHsType name] where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
+     => AnnotateGen [GHC.LHsType name] where
   annotateG l ts = do
     return () `debug` ("annotateP.HsContext:l=" ++ showGhc l)
     addDeltaAnnotation GHC.AnnDeriving
@@ -2001,8 +2457,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GenAnnotate name,GHC.OutputableBndr name)
-      => GenAnnotate (GHC.ConDecl name) where
+instance (GHC.DataId name,AnnotateGen name,GHC.OutputableBndr name)
+      => AnnotateGen (GHC.ConDecl name) where
   annotateG _ (GHC.ConDecl lns _expr (GHC.HsQTvs _ns bndrs) ctx
                          dets res _ _) = do
     case res of
@@ -2042,8 +2498,8 @@ instance (GHC.DataId name,GenAnnotate name,GHC.OutputableBndr name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name) =>
-              GenAnnotate (ResTyGADTHook name) where
+instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name) =>
+              AnnotateGen (ResTyGADTHook name) where
   annotateG _ (ResTyGADTHook bndrs) = do
     addDeltaAnnotation GHC.AnnForall
     mapM_ annotatePC bndrs
@@ -2051,8 +2507,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GenAnnotate name) =>
 
 -- ---------------------------------------------------------------------
 
-instance (GenAnnotate name,GenAnnotate a)
-  => GenAnnotate (GHC.HsRecField name (GHC.Located a)) where
+instance (AnnotateGen name,AnnotateGen a)
+  => AnnotateGen (GHC.HsRecField name (GHC.Located a)) where
   annotateG _ (GHC.HsRecField n e _) = do
     annotatePC n
     addDeltaAnnotation GHC.AnnEqual
@@ -2060,8 +2516,8 @@ instance (GenAnnotate name,GenAnnotate a)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GenAnnotate name)
-    => GenAnnotate (GHC.FunDep (GHC.Located name)) where
+instance (GHC.DataId name,AnnotateGen name)
+    => AnnotateGen (GHC.FunDep (GHC.Located name)) where
 
   annotateG _ (ls,rs) = do
     mapM_ annotatePC ls
@@ -2070,7 +2526,7 @@ instance (GHC.DataId name,GenAnnotate name)
 
 -- ---------------------------------------------------------------------
 
-instance GenAnnotate (GHC.CType) where
+instance AnnotateGen (GHC.CType) where
   annotateG _ _ = do
     addDeltaAnnotation GHC.AnnOpen
     addDeltaAnnotation GHC.AnnHeader
@@ -2078,247 +2534,3 @@ instance GenAnnotate (GHC.CType) where
     addDeltaAnnotation GHC.AnnClose
 
 -- ---------------------------------------------------------------------
-
--- | Apply the delta to the current position, taking into account the
--- current column offset
-undeltaComment :: Pos -> Int -> DComment -> Comment
-undeltaComment l con (DComment (dps,dpe) s) = r
-    -- `debug` ("undeltaComment:(l,con,dcomment,r)=" ++ show (l,con,dco,r))
-  where
-    r = Comment ((adj dps $ undelta l dps co),(adj dps $ undelta l dpe co)) s
-    co = con
-    dc = - con -- + (coo - con)
-
-    -- adj makes provision for the possible movement of the
-    -- surrounding context, and so applies the difference between the
-    -- original and current offsets
-    adj (DP (   0,_dco)) (row,c) = (row,c)
-    adj (DP (_dro,_dco)) (row,c) = (row,c + dc)
-
--- | Create a delta covering the gap between the end of the first
--- @SrcSpan@ and the start of the second.
-deltaFromSrcSpans :: GHC.SrcSpan -> GHC.SrcSpan -> DeltaPos
-deltaFromSrcSpans ss1 ss2 = ss2delta (ss2posEnd ss1) ss2
-
-ss2delta :: Pos -> GHC.SrcSpan -> DeltaPos
-ss2delta ref ss = ss2deltaP ref (ss2pos ss)
-
--- | Convert the start of the second @Pos@ to be an offset from the
--- first. The assumption is the reference starts before the second @Pos@
-ss2deltaP :: Pos -> Pos -> DeltaPos
-ss2deltaP (refl,refc) (l,c) = DP (lo,co)
-  where
-    lo = l - refl
-    co = if lo == 0 then c - refc
-                    else c
-
--- | Apply the delta to the current position, taking into account the
--- current column offset if advancing to a new line
-undelta :: Pos -> DeltaPos -> ColOffset -> Pos
-undelta (l,c) (DP (dl,dc)) co = (fl,fc)
-  where
-    fl = l + dl
-    fc = if dl == 0 then c  + dc
-                    else co + dc
-
--- ---------------------------------------------------------------------
-
-ss2pos :: GHC.SrcSpan -> Pos
-ss2pos ss = (srcSpanStartLine ss,srcSpanStartColumn ss)
-
-ss2posEnd :: GHC.SrcSpan -> Pos
-ss2posEnd ss = (srcSpanEndLine ss,srcSpanEndColumn ss)
-
-ss2span :: GHC.SrcSpan -> Span
-ss2span ss = (ss2pos ss,ss2posEnd ss)
-
-srcSpanStart :: GHC.SrcSpan -> Pos
-srcSpanStart ss = (srcSpanStartLine ss,srcSpanStartColumn ss)
-
-srcSpanEnd :: GHC.SrcSpan -> Pos
-srcSpanEnd ss = (srcSpanEndLine ss,srcSpanEndColumn ss)
-
-
-srcSpanEndColumn :: GHC.SrcSpan -> Int
-srcSpanEndColumn (GHC.RealSrcSpan s) = GHC.srcSpanEndCol s
-srcSpanEndColumn _ = 0
-
-srcSpanStartColumn :: GHC.SrcSpan -> Int
-srcSpanStartColumn (GHC.RealSrcSpan s) = GHC.srcSpanStartCol s
-srcSpanStartColumn _ = 0
-
-srcSpanEndLine :: GHC.SrcSpan -> Int
-srcSpanEndLine (GHC.RealSrcSpan s) = GHC.srcSpanEndLine s
-srcSpanEndLine _ = 0
-
-srcSpanStartLine :: GHC.SrcSpan -> Int
-srcSpanStartLine (GHC.RealSrcSpan s) = GHC.srcSpanStartLine s
-srcSpanStartLine _ = 0
-
--- ---------------------------------------------------------------------
-
-span2ss :: Span -> GHC.SrcSpan
-span2ss ((sr,sc),(er,ec)) = l
-  where
-   filename = (GHC.mkFastString "f")
-   l = GHC.mkSrcSpan (GHC.mkSrcLoc filename sr sc) (GHC.mkSrcLoc filename er ec)
-
--- ---------------------------------------------------------------------
-
-isPointSrcSpan :: GHC.SrcSpan -> Bool
-isPointSrcSpan ss = s == e where (s,e) = ss2span ss
-
--- ---------------------------------------------------------------------
-
-isListComp :: GHC.HsStmtContext name -> Bool
-isListComp cts = case cts of
-          GHC.ListComp  -> True
-          GHC.MonadComp -> True
-          GHC.PArrComp  -> True
-
-          GHC.DoExpr       -> False
-          GHC.MDoExpr      -> False
-          GHC.ArrowExpr    -> False
-          GHC.GhciStmtCtxt -> False
-
-          GHC.PatGuard {}      -> False
-          GHC.ParStmtCtxt {}   -> False
-          GHC.TransStmtCtxt {} -> False
-
--- ---------------------------------------------------------------------
-
-ghcCommentText :: GHC.Located GHC.AnnotationComment -> String
-ghcCommentText (GHC.L _ (GHC.AnnDocCommentNext s))  = s
-ghcCommentText (GHC.L _ (GHC.AnnDocCommentPrev s))  = s
-ghcCommentText (GHC.L _ (GHC.AnnDocCommentNamed s)) = s
-ghcCommentText (GHC.L _ (GHC.AnnDocSection _ s))    = s
-ghcCommentText (GHC.L _ (GHC.AnnDocOptions s))      = s
-ghcCommentText (GHC.L _ (GHC.AnnDocOptionsOld s))   = s
-ghcCommentText (GHC.L _ (GHC.AnnLineComment s))     = s
-ghcCommentText (GHC.L _ (GHC.AnnBlockComment s))    = "{-" ++ s ++ "-}"
-
--- ---------------------------------------------------------------------
-
-isSymbolRdrName :: GHC.RdrName -> Bool
-isSymbolRdrName n = GHC.isSymOcc $ GHC.rdrNameOcc n
-
-rdrName2String :: GHC.RdrName -> String
-rdrName2String r =
-  case GHC.isExact_maybe r of
-    Just n  -> name2String n
-    Nothing ->
-      case r of
-        GHC.Unqual _occ -> GHC.occNameString $ GHC.rdrNameOcc r
-        GHC.Qual modname _occ -> GHC.moduleNameString modname ++ "."
-                            ++ (GHC.occNameString $ GHC.rdrNameOcc r)
-
-name2String :: GHC.Name -> String
-name2String name = showGhc name
-
--- |Show a GHC API structure
-showGhc :: (GHC.Outputable a) => a -> String
-showGhc x = GHC.showPpr GHC.unsafeGlobalDynFlags x
-
-{-
--- |Show a GHC API structure
-showGhcDebug :: (GHC.Outputable a) => a -> String
-showGhcDebug x = GHC.showSDocDebug GHC.unsafeGlobalDynFlags (GHC.ppr x)
--}
--- ---------------------------------------------------------------------
-
--- ---------------------------------------------------------------------
-{-
-pp :: GHC.Outputable a => a -> String
-pp a = GHC.showPpr GHC.unsafeGlobalDynFlags a
--}
--- ---------------------------------------------------------------------
-
--- Based on ghc-syb-utils version, but adding the annotation
--- information to each SrcLoc.
-showAnnData :: Data a => Anns -> Int -> a -> String
-showAnnData anns n =
-  generic -- `ext1Q` located
-          `ext1Q` list
-          `extQ` string `extQ` fastString `extQ` srcSpan
-          `extQ` name `extQ` occName `extQ` moduleName `extQ` var `extQ` dataCon
-          `extQ` overLit
-          `extQ` bagName `extQ` bagRdrName `extQ` bagVar `extQ` nameSet
-          `extQ` fixity
-          `ext2Q` located
-  where generic :: Data a => a -> String
-        generic t = indent n ++ "(" ++ showConstr (toConstr t)
-                 ++ space (concat (intersperse " " (gmapQ (showAnnData anns (n+1)) t))) ++ ")"
-        space "" = ""
-        space s  = ' ':s
-        indent i = "\n" ++ replicate i ' '
-        string     = show :: String -> String
-        fastString = ("{FastString: "++) . (++"}") . show :: GHC.FastString -> String
-        list l     = indent n ++ "["
-                              ++ concat (intersperse "," (map (showAnnData anns (n+1)) l)) ++ "]"
-
-        name       = ("{Name: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Name -> String
-        occName    = ("{OccName: "++) . (++"}") .  OccName.occNameString
-        moduleName = ("{ModuleName: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.ModuleName -> String
-
-        -- srcSpan    = ("{"++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.SrcSpan -> String
-        srcSpan :: GHC.SrcSpan -> String
-        srcSpan ss = "{ "++ (showSDoc_ (GHC.hang (GHC.ppr ss) (n+2)
-                                                 -- (GHC.ppr (Map.lookup ss anns)
-                                                 (GHC.text "")
-                                                 ))
-                      ++"}"
-
-        var        = ("{Var: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Var -> String
-        dataCon    = ("{DataCon: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.DataCon -> String
-
-        overLit :: (GHC.HsOverLit GHC.RdrName) -> String
-        overLit    = ("{HsOverLit:"++) . (++"}") . showSDoc_ . GHC.ppr
-
-        bagRdrName:: GHC.Bag (GHC.Located (GHC.HsBind GHC.RdrName)) -> String
-        bagRdrName = ("{Bag(Located (HsBind RdrName)): "++) . (++"}") . list . GHC.bagToList
-        bagName   :: GHC.Bag (GHC.Located (GHC.HsBind GHC.Name)) -> String
-        bagName    = ("{Bag(Located (HsBind Name)): "++) . (++"}") . list . GHC.bagToList
-        bagVar    :: GHC.Bag (GHC.Located (GHC.HsBind GHC.Var)) -> String
-        bagVar     = ("{Bag(Located (HsBind Var)): "++) . (++"}") . list . GHC.bagToList
-
-        nameSet = ("{NameSet: "++) . (++"}") . list . GHC.nameSetElems
-
-        fixity = ("{Fixity: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Fixity -> String
-
-        located :: (Data b,Data loc) => GHC.GenLocated loc b -> String
-        -- located la = show (getAnnotationEP la anns)
-        located (GHC.L ss a) =
-          indent n ++ "("
-            ++ case (cast ss) of
-                    Just (s :: GHC.SrcSpan) ->
-                      srcSpan s
-                      ++ indent (n + 1) ++
-                      show (getAnnotationEP (GHC.L s a) anns)
-                    Nothing -> "nnnnnnnn"
-                      ++ showAnnData anns (n+1) a
-                      ++ ")"
-
--- ---------------------------------------------------------------------
-
-showSDoc_ :: GHC.SDoc -> String
-showSDoc_ = GHC.showSDoc GHC.unsafeGlobalDynFlags
-
--- ---------------------------------------------------------------------
--- Putting these here for the time being, to avoid import loops
-
-ghead :: String -> [a] -> a
-ghead  info []    = error $ "ghead "++info++" []"
-ghead _info (h:_) = h
-
-glast :: String -> [a] -> a
-glast  info []    = error $ "glast " ++ info ++ " []"
-glast _info h     = last h
-
-gtail :: String -> [a] -> [a]
-gtail  info []   = error $ "gtail " ++ info ++ " []"
-gtail _info h    = tail h
-
-gfromJust :: [Char] -> Maybe a -> a
-gfromJust _info (Just h) = h
-gfromJust  info Nothing = error $ "gfromJust " ++ info ++ " Nothing"
-
