@@ -57,11 +57,82 @@ data AnnotationF w next where
   AddDeltaAnnotationLs :: GHC.AnnKeywordId -> Int -> next -> AnnotationF w next
   AddDeltaAnnotationAfter :: GHC.AnnKeywordId -> next -> AnnotationF w next
   AddDeltaAnnotationExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> AnnotationF w next
-  AnnotatePC :: GHC.Located ast -> next -> AnnotationF w next
+  Before :: (GHC.SrcSpan -> DeltaPos -> GHC.SrcSpan -> DeltaPos -> next) -> AnnotationF w next
+  Middle :: Wrapped b -> ((b, APWriter) -> next) -> AnnotationF w next
+  After  :: b -> LayoutFlag -> LayoutFlag -> GHC.SrcSpan -> [(KeywordId, DeltaPos)]
+          -> (b -> next) -> AnnotationF w next
+--  Middle :: Data a => GHC.Located a -> DeltaPos -> Wrapped b
+--          -> ((b, APWriter) -> next) -> AnnotationF w next
 
 deriving instance Functor (AnnotationF w)
 
-makeFree ''AnnotationF
+--makeFree ''AnnotationF
+-- Generate by TH
+output ::
+  forall m_a19g1 w_a1908. MonadFree (AnnotationF w_a1908) m_a19g1 =>
+  w_a1908 -> m_a19g1 ()
+output p_a19g3 = liftF (Output p_a19g3 ())
+addEofAnnotation ::
+  forall m_a19g4 w_a1908. MonadFree (AnnotationF w_a1908) m_a19g4 =>
+  m_a19g4 ()
+addEofAnnotation = liftF (AddEofAnnotation ())
+addDeltaAnnotation ::
+  forall m_a19g6 w_a1908. MonadFree (AnnotationF w_a1908) m_a19g6 =>
+  GHC.AnnKeywordId -> m_a19g6 ()
+addDeltaAnnotation p_a19g8 = liftF (AddDeltaAnnotation p_a19g8 ())
+addDeltaAnnotationsOutside ::
+  forall m_a19g9 w_a1908. MonadFree (AnnotationF w_a1908) m_a19g9 =>
+  GHC.AnnKeywordId -> KeywordId -> m_a19g9 ()
+addDeltaAnnotationsOutside p_a19gb p_a19gc
+  = liftF (AddDeltaAnnotationsOutside p_a19gb p_a19gc ())
+addDeltaAnnotationsInside ::
+  forall m_a19gd w_a1908. MonadFree (AnnotationF w_a1908) m_a19gd =>
+  GHC.AnnKeywordId -> m_a19gd ()
+addDeltaAnnotationsInside p_a19gf
+  = liftF (AddDeltaAnnotationsInside p_a19gf ())
+addDeltaAnnotations ::
+  forall m_a19gg w_a1908. MonadFree (AnnotationF w_a1908) m_a19gg =>
+  GHC.AnnKeywordId -> m_a19gg ()
+addDeltaAnnotations p_a19gi
+  = liftF (AddDeltaAnnotations p_a19gi ())
+addDeltaAnnotationLs ::
+  forall m_a19gj w_a1908. MonadFree (AnnotationF w_a1908) m_a19gj =>
+  GHC.AnnKeywordId -> Int -> m_a19gj ()
+addDeltaAnnotationLs p_a19gl p_a19gm
+  = liftF (AddDeltaAnnotationLs p_a19gl p_a19gm ())
+addDeltaAnnotationAfter ::
+  forall m_a19gn w_a1908. MonadFree (AnnotationF w_a1908) m_a19gn =>
+  GHC.AnnKeywordId -> m_a19gn ()
+addDeltaAnnotationAfter p_a19gp
+  = liftF (AddDeltaAnnotationAfter p_a19gp ())
+addDeltaAnnotationExt ::
+  forall a_a19gr
+         m_a19gq
+         w_a1908. MonadFree (AnnotationF w_a1908) m_a19gq =>
+  GHC.SrcSpan -> GHC.AnnKeywordId -> m_a19gq a_a19gr
+addDeltaAnnotationExt p_a19gs p_a19gt
+  = liftF (AddDeltaAnnotationExt p_a19gs p_a19gt)
+before ::
+  forall m_a19gu w_a1908. MonadFree (AnnotationF w_a1908) m_a19gu =>
+  m_a19gu (GHC.SrcSpan, DeltaPos, GHC.SrcSpan, DeltaPos)
+before = liftF (Before (\ x_a19gw x_a19gx c d -> (x_a19gw, x_a19gx, c, d)))
+after ::
+  forall (b_a190u :: *)
+         m_a19gy
+         w_a1908. MonadFree (AnnotationF w_a1908) m_a19gy =>
+  b_a190u
+  -> LayoutFlag
+     -> LayoutFlag
+        -> GHC.SrcSpan -> [(KeywordId, DeltaPos)] -> m_a19gy b_a190u
+after p_a19gB p_a19gC p_a19gD p_a19gE p_a19gF
+  = liftF
+      (After
+         p_a19gB p_a19gC p_a19gD p_a19gE p_a19gF (\ x_a19gA -> (x_a19gA)))
+
+middle :: Wrapped b
+          -> Wrapped (b, APWriter)
+middle w = liftF (Middle w (\r -> r))
+
 
 
 class Data ast => AnnotateGen ast where
@@ -203,7 +274,7 @@ runEP f ss ans = undefined
   --flip appEndo "" . stringOutput . snd $  runGen writeInterpret f undefined ss ans
 
 simpleInterpret :: AnnotateT (AnnKey, Annotation) AP a -> AP a
-simpleInterpret = iterT go
+simpleInerpret = iterT go
   where
     --go (AddAnnotationWorker kwid ss next) = addAnnotationWorker' kwid ss >> next
     go (Output w next) = tellFinalAnn w >> next
@@ -333,41 +404,46 @@ addAnnDeltaPos (_s,kw) dp = tellKd (kw, dp)
 --withAST' l lf action  = join . liftF $ Recurse l lf action (return ())
 
 -- | Enter a new AST element. Maintain SrcSpan stack
-withAST :: Data a => GHC.Located a -> LayoutFlag -> AP b -> AP b
+withAST :: Data a => GHC.Located a -> LayoutFlag -> Wrapped b -> Wrapped b
 withAST lss@(GHC.L l ast) layout action = do
   -- Print
 --i-  ma <- lift $ getAndRemoveAnnotation lss
 --  let an@(Ann _edp _nl _sc _dc kds) = fromMaybe annNone ma
 
   -- Calculate offset required to get to the start of the SrcSPan
+  (pe, edp', ss, edp) <- before
+
+  {-
   pe <- getPriorEnd
   let ss = (GHC.getLoc lss)
   let edp = deltaFromSrcSpans pe ss
   edp' <- adjustDeltaForOffsetM edp
+  -}
   -- need to save edp', and put it in Annotation
   --(withContext kds l an . withSrcSpanAP lss edp') (do
-  (withSrcSpanAP lss edp') (do
-
-    let maskWriter s = s { annKds = []
+  let maskWriter s = s { annKds = []
                          , layoutFlag = NoLayoutRules }
 
-    (res, w) <-
-      (censor maskWriter (listen (do
+
+  (res, w) <-
+--    (censor maskWriter (listen (
+--      (withSrcSpanAP lss edp')
+   middle
+     (do
         r <- action
         -- Automatically add any trailing comma or semi
         addDeltaAnnotationAfter GHC.AnnComma
-        curss <- getSrcSpanAP
-        if ss2span curss == ((1,1),(1,1))
-          then return ()
-          else addDeltaAnnotationsOutside GHC.AnnSemi AnnSemiSep
-        return r)))
-
+        addDeltaAnnotationsOutside GHC.AnnSemi AnnSemiSep
+        return r)
+  after res layout (layoutFlag w) ss (annKds w)
+    {-
     (dp,nl)  <- getCurrentDP (layout <> layoutFlag w)
     finaledp <- getEntryDP
     let kds = annKds w
     addAnnotationsAP (Ann finaledp nl (srcSpanStartColumn ss) dp kds)
       `debug` ("leaveAST:(ss,edp,dp,kds)=" ++ show (showGhc ss,edp,dp,kds,dp))
     return res)
+    -}
 
 {-
 -- |First move to the given location, then call exactP
@@ -639,7 +715,6 @@ printMerged (a@(GHC.L l1 _):as) (b@(GHC.L l2 _):bs) =
     else annotatePC b >> printMerged (a:as)   bs
 
 -}
-
 -- ---------------------------------------------------------------------
 
 
@@ -647,10 +722,10 @@ printMerged (a@(GHC.L l1 _):as) (b@(GHC.L l2 _):bs) =
 
 
 -- |First move to the given location, then call exactP
-annotatePC' :: (AnnotateGen ast) => GHC.Located ast -> AP ()
-annotatePC' a = withLocated a NoLayoutRules annotateG
+annotatePC :: (AnnotateGen ast) => GHC.Located ast -> Wrapped ()
+annotatePC a = withLocated a NoLayoutRules annotateG
 
-withLocated :: Data a => GHC.Located a -> LayoutFlag -> (GHC.SrcSpan -> a -> AP ()) -> AP ()
+withLocated :: Data a => GHC.Located a -> LayoutFlag -> (GHC.SrcSpan -> a -> Wrapped ()) -> Wrapped ()
 withLocated a@(GHC.L l ast) layoutFlag action = do
   withAST a layoutFlag (action l ast)
 
@@ -792,11 +867,14 @@ addDeltaAnnotationsInside' ann = do
 addDeltaAnnotationsOutside' :: GHC.AnnKeywordId -> KeywordId -> AP ()
 addDeltaAnnotationsOutside' gann ann = do
   ss <- getSrcSpanAP
-  -- ma <- getAnnotationAP ss gann
-  ma <- getAndRemoveAnnotationAP ss gann
-  let do_one ap' = addAnnotationWorker ann ap'
-                    -- `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
-  mapM_ do_one (sort $ filter (\s -> not (GHC.isSubspanOf s ss)) ma)
+  if ss2span ss == ((1,1),(1,1))
+    then return ()
+    else do
+      -- ma <- getAnnotationAP ss gann
+      ma <- getAndRemoveAnnotationAP ss gann
+      let do_one ap' = addAnnotationWorker ann ap'
+                        -- `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
+      mapM_ do_one (sort $ filter (\s -> not (GHC.isSubspanOf s ss)) ma)
 
 -- | Add a Delta annotation at the current position, and advance the
 -- position to the end of the annotation
