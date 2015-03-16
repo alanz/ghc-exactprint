@@ -14,6 +14,7 @@ module Language.Haskell.GHC.ExactPrint.Common where
 import Control.Monad.State
 import Control.Monad.Writer
 import Control.Monad.RWS
+import Control.Monad.Identity
 import Control.Applicative
 import Control.Exception
 import Data.Data
@@ -49,6 +50,7 @@ data LayoutFlag = LayoutRules | NoLayoutRules deriving (Show, Eq)
 data AnnotationF w next where
 --  AddAnnotationWorker :: KeywordId -> GHC.SrcSpan -> next -> AnnotationF w next
   Output :: w -> next -> AnnotationF w next
+  OutputKD :: (DeltaPos, (GHC.SrcSpan, KeywordId)) -> next -> AnnotationF w next
   AddEofAnnotation  :: next -> AnnotationF w next
   AddDeltaAnnotation :: GHC.AnnKeywordId -> next -> AnnotationF w next
   AddDeltaAnnotationsOutside :: GHC.AnnKeywordId -> KeywordId -> next -> AnnotationF w next
@@ -61,6 +63,8 @@ data AnnotationF w next where
   Middle :: Wrapped b -> ((b, APWriter) -> next) -> AnnotationF w next
   After  :: b -> LayoutFlag -> LayoutFlag -> GHC.SrcSpan -> [(KeywordId, DeltaPos)]
           -> (b -> next) -> AnnotationF w next
+  CountAnnsAP ::  GHC.AnnKeywordId -> (Int -> next) -> AnnotationF w next
+  SetLayoutFlag ::  next -> AnnotationF w next
 --  Middle :: Data a => GHC.Located a -> DeltaPos -> Wrapped b
 --          -> ((b, APWriter) -> next) -> AnnotationF w next
 
@@ -133,6 +137,14 @@ middle :: Wrapped b
           -> Wrapped (b, APWriter)
 middle w = liftF (Middle w (\r -> r))
 
+countAnnsAP :: GHC.AnnKeywordId -> Wrapped Int
+countAnnsAP kwid = liftF (CountAnnsAP kwid (\i -> i))
+
+setLayoutFlag :: Wrapped ()
+setLayoutFlag = liftF (SetLayoutFlag ())
+
+outputKD :: (DeltaPos, (GHC.SrcSpan, KeywordId)) -> Wrapped ()
+outputKD kd = liftF (OutputKD kd ())
 
 
 class Data ast => AnnotateGen ast where
@@ -195,11 +207,11 @@ initialStackItem ss =
     , annConName = annGetConstr ()
     }
 
-defaultAPState :: Anns -> GHC.ApiAnns -> APState
-defaultAPState as ga =
+defaultAPState :: Anns -> GHC.SrcSpan -> GHC.ApiAnns -> APState
+defaultAPState as priorEnd ga =
   let cs = flattenedComments ga in
     APState
-      { priorEndPosition = GHC.noSrcSpan
+      { priorEndPosition = priorEnd
       , apComments = cs
       , apAnns     = ga    -- $
       }
@@ -236,8 +248,8 @@ tellFinalAnn (k, v) =
 tellKd :: (KeywordId, DeltaPos) -> AP ()
 tellKd kd = tell (mempty { annKds = [kd] })
 
-setLayoutFlag :: AP ()
-setLayoutFlag = tell (mempty {layoutFlag = LayoutRules})
+setLayoutFlag' :: AP ()
+setLayoutFlag' = tell (mempty {layoutFlag = LayoutRules})
 
 instance Monoid APWriter where
   mempty = APWriter mempty mempty mempty
@@ -251,7 +263,7 @@ instance Monoid APWriter where
 --    - the srcspan of the last thing annotated, to calculate delta's from
 --    - extra data needing to be stored in the monad
 --    - the annotations provided by GHC
-type Wrapped a = AnnotateT (AnnKey, Annotation) AP a
+type Wrapped a = AnnotateT (AnnKey, Annotation) Identity a
 
 type Common = RWS CommonStack CommonWriter CommonState
 
@@ -265,20 +277,33 @@ runAP :: Wrapped () -> GHC.ApiAnns -> Anns
 runAP apf ga = ($ mempty) . appEndo . finalAnns . snd $ runGen simpleInterpret apf ga undefined undefined
 
 runGen :: (AnnotateT (AnnKey, Annotation) AP () -> AP ())  -> Wrapped () -> GHC.ApiAnns -> GHC.SrcSpan -> Anns -> (APState, APWriter)
-runGen interpret action ga ss ans  =
-  (\action -> execRWS action (initialStackItem ss) (defaultAPState ans ga)) .
-  interpret $ action
+runGen interpret action ga ss ans  = undefined
+--  (\action -> execRWS action (initialStackItem ss) (defaultAPState ans ga)) .
+--  interpret $ action
 
 runEP :: Wrapped () -> GHC.SrcSpan -> Anns -> String
 runEP f ss ans = undefined
   --flip appEndo "" . stringOutput . snd $  runGen writeInterpret f undefined ss ans
 
 simpleInterpret :: AnnotateT (AnnKey, Annotation) AP a -> AP a
-simpleInerpret = iterT go
+simpleInterpret = undefined
+{-
   where
-    --go (AddAnnotationWorker kwid ss next) = addAnnotationWorker' kwid ss >> next
+    go :: AnnotateF (AP a) -> AP a
     go (Output w next) = tellFinalAnn w >> next
-
+    go (AddEofAnnotation next) = addEofAnnotation >> next
+    go (AddDeltaAnnotation kwid next) = addDeltaAnnotation :: GHC.AnnKeywordId -> next -> AnnotationF w next
+  AddDeltaAnnotationsOutside :: GHC.AnnKeywordId -> KeywordId -> next -> AnnotationF w next
+  AddDeltaAnnotationsInside :: GHC.AnnKeywordId -> next -> AnnotationF w next
+  AddDeltaAnnotations :: GHC.AnnKeywordId -> next -> AnnotationF w next
+  AddDeltaAnnotationLs :: GHC.AnnKeywordId -> Int -> next -> AnnotationF w next
+  AddDeltaAnnotationAfter :: GHC.AnnKeywordId -> next -> AnnotationF w next
+  AddDeltaAnnotationExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> AnnotationF w next
+  Before :: (GHC.SrcSpan -> DeltaPos -> GHC.SrcSpan -> DeltaPos -> next) -> AnnotationF w next
+  Middle :: Wrapped b -> ((b, APWriter) -> next) -> AnnotationF w next
+  After  :: b -> LayoutFlag -> LayoutFlag -> GHC.SrcSpan -> [(KeywordId, DeltaPos)]
+          -> (b -> next) -> AnnotationF w next
+-}
 
 writeInterpret :: AnnotateT w AP a -> AP a
 writeInterpret = undefined
@@ -744,7 +769,7 @@ annotateWithLayout a = do
 annotateListWithLayout :: AnnotateGen [GHC.Located ast] => GHC.SrcSpan -> [GHC.Located ast] -> Wrapped ()
 annotateListWithLayout l ls = do
   let ss = getListSrcSpan ls
-  lift $ addAnnDeltaPos (l,AnnList ss) (DP (0,0))
+  outputKD $ ((DP (0,0)), (l,AnnList ss))
   annotateWithLayout (GHC.L ss ls)
 
 -- ---------------------------------------------------------------------
@@ -898,9 +923,9 @@ addEofAnnotation' = do
       setPriorEnd pa
 
 
-countAnnsAP :: GHC.AnnKeywordId -> Wrapped Int
-countAnnsAP ann = do
-  ma <- lift $ getAnnotationAP ann
+countAnnsAP' :: GHC.AnnKeywordId -> AP Int
+countAnnsAP' ann = do
+  ma <- getAnnotationAP ann
   return (length ma)
 
 -- ---------------------------------------------------------------------
@@ -927,7 +952,6 @@ annotateLHsModule modu ghcAnns
 
 instance AnnotateGen (GHC.HsModule GHC.RdrName) where
   annotateG lm (GHC.HsModule mmn mexp imps decs mdepr _haddock) = do
-    lift $ setPriorEnd lm
 
     addDeltaAnnotation GHC.AnnModule
 
@@ -2078,7 +2102,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
     mapM_ annotatePC rhs
 
   annotateG _ (GHC.HsLet binds e) = do
-    lift $ setLayoutFlag -- Make sure the 'in' gets indented too
+    setLayoutFlag -- Make sure the 'in' gets indented too
     addDeltaAnnotation GHC.AnnLet
     addDeltaAnnotation GHC.AnnOpenC
     addDeltaAnnotationsInside GHC.AnnSemi
