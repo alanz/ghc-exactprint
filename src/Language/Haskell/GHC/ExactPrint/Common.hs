@@ -22,6 +22,7 @@ import Data.Maybe
 import Data.List
 
 import Language.Haskell.GHC.ExactPrint.Types
+import Language.Haskell.GHC.ExactPrint.Lookup
 import Language.Haskell.GHC.ExactPrint.Utils (srcSpanStartColumn, srcSpanStartLine, debug, showGhc, isListComp, ss2posEnd, deltaFromSrcSpans, rdrName2String, ss2span, ghcCommentText, isPointSrcSpan, span2ss, ss2deltaP, ghead, undelta)
 
 import qualified Bag            as GHC
@@ -58,13 +59,15 @@ data AnnotationF w next where
   AddDeltaAnnotations :: GHC.AnnKeywordId -> next -> AnnotationF w next
   AddDeltaAnnotationLs :: GHC.AnnKeywordId -> Int -> next -> AnnotationF w next
   AddDeltaAnnotationAfter :: GHC.AnnKeywordId -> next -> AnnotationF w next
-  AddDeltaAnnotationExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> next ->  AnnotationF w next
+  AddDeltaAnnotationExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> next ->  AnnotationF w next {-
   Before :: Data a => GHC.Located a -> (GHC.SrcSpan -> DeltaPos -> GHC.SrcSpan -> DeltaPos -> next) -> AnnotationF w next
   Middle :: Data a => GHC.Located a -> DeltaPos -> Wrapped b -> ((b, APWriter) -> next) -> AnnotationF w next
   After  :: b -> LayoutFlag -> LayoutFlag -> GHC.SrcSpan -> [(KeywordId, DeltaPos)]
-          -> (b -> next) -> AnnotationF w next
+          -> (b -> next) -> AnnotationF w next -}
+  WithAST  :: Data a => GHC.Located a -> LayoutFlag -> Wrapped b -> (b -> next) -> AnnotationF w next
   CountAnnsAP ::  GHC.AnnKeywordId -> (Int -> next) -> AnnotationF w next
   SetLayoutFlag ::  next -> AnnotationF w next
+
 --  Middle :: Data a => GHC.Located a -> DeltaPos -> Wrapped b
 --          -> ((b, APWriter) -> next) -> AnnotationF w next
 
@@ -116,6 +119,8 @@ addDeltaAnnotationExt ::
   GHC.SrcSpan -> GHC.AnnKeywordId ->  m_a19gq ()
 addDeltaAnnotationExt p_a19gs p_a19gt
   = liftF (AddDeltaAnnotationExt p_a19gs p_a19gt ())
+
+{-
 before ::
   forall m_a19gu w_a1908 a . (MonadFree (AnnotationF w_a1908) m_a19gu, Data a) =>
   GHC.Located a -> m_a19gu (GHC.SrcSpan, DeltaPos, GHC.SrcSpan, DeltaPos)
@@ -139,6 +144,7 @@ middle :: Data a
        -> Wrapped b
        -> Wrapped (b, APWriter)
 middle lss dp w = liftF (Middle lss dp w (\r -> r))
+-}
 
 countAnnsAP :: GHC.AnnKeywordId -> Wrapped Int
 countAnnsAP kwid = liftF (CountAnnsAP kwid (\i -> i))
@@ -268,40 +274,39 @@ instance Monoid APWriter where
 --    - the annotations provided by GHC
 type Wrapped a = AnnotateT (AnnKey, Annotation) Identity a
 
-type Common = RWS CommonStack CommonWriter CommonState
-
-type CommonStack = ()
-type CommonWriter = ()
-type CommonState = ()
-
 type AP = RWS StackItem APWriter APState
+
+type EP = RWS EPStack (Endo String) EPState
 
 runAP :: Wrapped () -> GHC.ApiAnns -> GHC.SrcSpan -> Anns
 runAP action ga priorEnd =
   ($ mempty) . appEndo . finalAnns . snd
   . (\action -> execRWS action initialStackItem (defaultAPState priorEnd ga))
   . simpleInterpret $ action
-{-
+
+
 runEP :: Wrapped () -> GHC.SrcSpan -> Anns -> String
-runEP f ss ans = undefined
-  --flip appEndo "" . stringOutput . snd $  runGen writeInterpret f undefined ss ans
--}
+runEP action ss ans =
+  flip appEndo "" . snd
+  . (\action -> execRWS action (initialEPStack ss) (defaultEPState ans))
+  . printInterpret $ action
+
 simpleInterpret :: AnnotateT (AnnKey, Annotation) Identity a -> AP a
 simpleInterpret = iterTM go
   where
     go :: AnnotationF (AnnKey, Annotation) (AP a) -> AP a
-    go (Output w next) = tellFinalAnn w >> next
+    go (Output w next) = next
     go (AddEofAnnotation next) = addEofAnnotation' >> next
-    go (AddDeltaAnnotation kwid next) = addDeltaAnnotation' kwid >> next
+    go (AddDeltaAnnotation kwid next) =
+      addDeltaAnnotation' kwid >> next
     go (AddDeltaAnnotationsOutside akwid kwid next) = addDeltaAnnotationsOutside' akwid kwid >> next
     go (AddDeltaAnnotationsInside akwid next) = addDeltaAnnotationsInside' akwid >> next
     go (AddDeltaAnnotations akwid next) = addDeltaAnnotations' akwid >> next
     go (AddDeltaAnnotationLs akwid n next) = addDeltaAnnotationLs' akwid n >> next
     go (AddDeltaAnnotationAfter akwid next) = addDeltaAnnotationAfter' akwid >> next
     go (AddDeltaAnnotationExt ss akwid next) = addDeltaAnnotationExt' ss akwid >> next
-    go (Before ss next) =  beforeAction ss next
-    go (Middle lss edp wrapped next) = middleAction lss edp (simpleInterpret wrapped) next
-    go (After ret lf1 lf2 ss annKds next) = afterAction (lf1 <> lf2) ss annKds >> next ret
+    go (WithAST lss layoutflag prog next) =
+      withAST' lss layoutflag (simpleInterpret prog) >>= next
     go (OutputKD (kwid, (_, dp)) next) = tellKd (dp, kwid) >> next
     go (CountAnnsAP kwid next) = countAnnsAP' kwid >>= next
     go (SetLayoutFlag next) = setLayoutFlag' >> next
@@ -334,10 +339,37 @@ afterAction lf ss annkds = do
   finaledp <- getEntryDP
   addAnnotationsAP (Ann finaledp nl (srcSpanStartColumn ss) dp annkds)
 
-writeInterpret :: AnnotateT w AP a -> AP a
-writeInterpret = undefined
-    --go (AddAnnotationWorker kwid ss next) = printStringAtMaybeAnn kwid "" >> next
+printInterpret :: AnnotateT (AnnKey, Annotation) Identity a -> EP a
+printInterpret = iterTM go
+  where
+    go :: AnnotationF (AnnKey, Annotation) (EP a) -> EP a
+    go (Output w next) = next
+    go (AddEofAnnotation next) = printStringAtMaybeAnn (G GHC.AnnEofPos) "" >> next
+    go (AddDeltaAnnotation kwid next) =
+      justOne kwid  >> next
+    go (AddDeltaAnnotationsOutside akwid kwid next) =
+      printStringAtMaybeAnnAll kwid ";"  >> next
+    go (AddDeltaAnnotationsInside akwid next) =
+      allAnns akwid >> next
+    go (AddDeltaAnnotations akwid next) =
+      allAnns akwid >> next
+    go (AddDeltaAnnotationLs akwid _ next) =
+      justOne akwid >> next
+    go (AddDeltaAnnotationAfter akwid next) =
+      justOne akwid >> next
+    go (AddDeltaAnnotationExt ss akwid next) =
+      justOne akwid >> next
+    go (WithAST lss layoutflag action next) =
+      exactPC lss (printInterpret action) >>= next
+    go (OutputKD _ next) =
+      next
+    go (CountAnnsAP kwid next) =
+      countAnnsEP (G kwid) >>= next
+    go (SetLayoutFlag next) =
+      next
 
+justOne kwid = printStringAtMaybeAnn (G kwid) (keywordToString kwid)
+allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString kwid)
 
 
 -- ---------------------------------------------------------------------
@@ -457,22 +489,51 @@ addAnnDeltaPos (_s,kw) dp = tellKd (kw, dp)
 --withAST' :: Data a => GHC.Located a -> LayoutFlag -> Wrapped b -> Wrapped b
 --withAST' l lf action  = join . liftF $ Recurse l lf action (return ())
 
--- | Enter a new AST element. Maintain SrcSpan stack
 withAST :: Data a => GHC.Located a -> LayoutFlag -> Wrapped b -> Wrapped b
-withAST lss@(GHC.L l ast) layout action = do
-  -- Print
---i-  ma <- lift $ getAndRemoveAnnotation lss
---  let an@(Ann _edp _nl _sc _dc kds) = fromMaybe annNone ma
+withAST lss layout action = liftF (WithAST lss layout prog (\b -> b))
+  where
+    prog = do
+      r <- action
+      -- Automatically add any trailing comma or semi
+      addDeltaAnnotationAfter GHC.AnnComma
+      addDeltaAnnotationsOutside GHC.AnnSemi AnnSemiSep
+      return r
 
+-- | Enter a new AST element. Maintain SrcSpan stack
+withAST' :: Data a => GHC.Located a -> LayoutFlag -> AP b -> AP b
+withAST' lss layout action = do
   -- Calculate offset required to get to the start of the SrcSPan
-  (pe, edp', ss, edp) <- before lss
-
-  {-
   pe <- getPriorEnd
   let ss = (GHC.getLoc lss)
   let edp = deltaFromSrcSpans pe ss
   edp' <- adjustDeltaForOffsetM edp
-  -}
+  -- need to save edp', and put it in Annotation
+
+  withSrcSpanAP lss edp' (do
+
+    let maskWriter s = s { annKds = []
+                         , layoutFlag = NoLayoutRules }
+
+    (res, w) <-
+      (censor maskWriter (listen action))
+
+    (dp,nl)  <- getCurrentDP (layout <> layoutFlag w)
+    finaledp <- getEntryDP
+    let kds = annKds w
+    addAnnotationsAP (Ann finaledp nl (srcSpanStartColumn ss) dp kds)
+      `debug` ("leaveAST:(ss,edp,dp,kds)=" ++ show (showGhc ss,edp,dp,kds,dp))
+    return res)
+
+{-
+withAST' :: Data a => GHC.Located a -> LayoutFlag -> Wrapped b -> Wrapped b
+withAST' lss@(GHC.L l ast) layout action = do
+
+  -- Calculate offset required to get to the start of the SrcSPan
+
+  pe <- getPriorEnd
+  let ss = (GHC.getLoc lss)
+  let edp = deltaFromSrcSpans pe ss
+  edp' <- adjustDeltaForOffsetM edp
   -- need to save edp', and put it in Annotation
   --(withContext kds l an . withSrcSpanAP lss edp') (do
 
@@ -489,34 +550,26 @@ withAST lss@(GHC.L l ast) layout action = do
     {-
     return res)
     -}
-
-{-
+-}
 -- |First move to the given location, then call exactP
-exactPC :: (AnnotateGen ast) => GHC.Located ast -> AP ()
-exactPC a@(GHC.L l ast) =
+exactPC :: Data ast => GHC.Located ast -> EP a -> EP a
+exactPC a@(GHC.L l ast) action =
     do return () `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAndRemoveAnnotation a
        let an@(Ann _edp _nl _sc _dc kds) = fromMaybe annNone ma
-       withContext kds l an
-        (do
-          exactP ast
-          printStringAtMaybeAnn (G GHC.AnnComma) ","
-          printStringAtMaybeAnnAll AnnSemiSep ";")
-       epStack' <- asks epStack
-       return () `debug` ("popOffset:after pop:(l,epStack')=" ++ showGhc (l,epStack'))
--}
-{-
+       withContext kds l an action
+
 withContext :: [(KeywordId, DeltaPos)]
             -> GHC.SrcSpan
             -> Annotation
-            -> (Wrapped a -> Wrapped a)
+            -> EP a -> EP a
 withContext kds l an = withKds kds . withSrcSpan l . withOffset an
 
 
-getPos :: AP Pos
+getPos :: EP Pos
 getPos = gets epPos
 
-setPos :: Pos -> AP ()
+setPos :: Pos -> EP ()
 setPos l = modify (\s -> s {epPos = l})
 
 -- ---------------------------------------------------------------------
@@ -524,12 +577,12 @@ setPos l = modify (\s -> s {epPos = l})
 -- | Given an annotation associated with a specific SrcSpan, determines a new offset relative to the previous
 -- offset
 --
-withOffset :: Annotation -> (Wrapped a -> Wrapped a)
+withOffset :: Annotation -> EP a -> EP a
 withOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) k = do
   -- The colOffset is the offset to be used when going to the next line.
   -- The colIndent is how far the current code block has been indented.
   (colOffset, colIndent) <- asks epStack
-  (_l, currentColumn) <- lift getPos
+  (_l, currentColumn) <- getPos
   let
       -- Add extra indentation for this SrcSpan
      colOffset' = annDelta + colOffset
@@ -560,21 +613,21 @@ withOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) k
                  ++ show (a, colOffset, colIndent, currentColumn, newOffset))
 
 -- |Get the current column offset
-getOffset :: AP ColOffset
+getOffset :: EP ColOffset
 getOffset = asks (fst . epStack)
 
 -- ---------------------------------------------------------------------
 
-withSrcSpan :: GHC.SrcSpan -> (Wrapped a -> Wrapped a)
+withSrcSpan :: GHC.SrcSpan -> EP a -> EP a
 withSrcSpan ss = local (\s -> s {epSrcSpan = ss})
 
-getAndRemoveAnnotation :: (Data a) => GHC.Located a -> AP (Maybe Annotation)
+getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
 getAndRemoveAnnotation a = do
   (r, an') <- gets (getAndRemoveAnnotationEP a . epAnns)
   modify (\s -> s { epAnns = an' })
   return r
 
-withKds :: [(KeywordId, DeltaPos)] -> Wrapped a -> Wrapped a
+withKds :: [(KeywordId, DeltaPos)] -> EP a -> EP a
 withKds kd action = do
   modify (\s -> s { epAnnKds = kd : (epAnnKds s) })
   r <- action
@@ -595,7 +648,7 @@ destructiveGetFirst  key (acc,((k,v):kvs))
     isComment _              = False
 
 -- |destructive get, hence use an annotation once only
-getAnnFinal :: KeywordId -> AP ([DComment], Maybe DeltaPos)
+getAnnFinal :: KeywordId -> EP ([DComment], Maybe DeltaPos)
 getAnnFinal kw = do
   kd <- gets epAnnKds
   let (r, kd', dcs) = case kd of
@@ -608,7 +661,7 @@ getAnnFinal kw = do
 
 -- ---------------------------------------------------------------------
 
-getStoredListSrcSpan :: AP GHC.SrcSpan
+getStoredListSrcSpan :: EP GHC.SrcSpan
 getStoredListSrcSpan = do
   kd <- gets epAnnKds
   let
@@ -626,27 +679,24 @@ keywordIdToDComment (AnnComment comment,_dp) = [comment]
 keywordIdToDComment _                   = []
 
 -- |non-destructive get
-peekAnnFinal :: KeywordId -> AP (Maybe DeltaPos)
+peekAnnFinal :: KeywordId -> EP (Maybe DeltaPos)
 peekAnnFinal kw = do
   (_, r, _) <- (\kd -> destructiveGetFirst kw ([], kd)) <$> gets (head . epAnnKds)
   return r
--}
 -- ---------------------------------------------------------------------
-{-
-printString :: String -> AP ()
+printString :: String -> EP ()
 printString str = do
   (l,c) <- gets epPos
   setPos (l, c + length str)
-  undefined
-  --tell (mempty { stringOutput = Endo $ showString str })
+  tell (Endo $ showString str )
 
-newLine :: AP ()
+newLine :: EP ()
 newLine = do
     (l,_) <- getPos
     printString "\n"
     setPos (l+1,1)
 
-padUntil :: Pos -> AP ()
+padUntil :: Pos -> EP ()
 padUntil (l,c) = do
     (l1,c1) <- getPos
     case  {- trace (show ((l,c), (l1,c1))) -} () of
@@ -654,19 +704,19 @@ padUntil (l,c) = do
               | l1 < l             -> newLine >> padUntil (l,c)
               | otherwise          -> return ()
 
-printWhitespace :: Pos -> AP ()
+printWhitespace :: Pos -> EP ()
 printWhitespace p = do
   -- mPrintComments p >> padUntil p
   padUntil p
 
-printStringAt :: Pos -> String -> AP ()
+printStringAt :: Pos -> String -> EP ()
 printStringAt p str = printWhitespace p >> printString str
 
 -- ---------------------------------------------------------------------
 
 -- |This should be the final point where things are mode concrete,
 -- before output. Hence the point where comments can be inserted
-printStringAtLsDelta :: [DComment] -> [DeltaPos] -> String -> AP ()
+printStringAtLsDelta :: [DComment] -> [DeltaPos] -> String -> EP ()
 printStringAtLsDelta cs mc s =
   case reverse mc of
     (cl:_) -> do
@@ -685,7 +735,7 @@ isGoodDeltaWithOffset :: DeltaPos -> Int -> Bool
 isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP (undelta (0,0) dp colOffset))
 
 -- AZ:TODO: harvest the commonality between this and printStringAtLsDelta
-printQueuedComment :: DComment -> AP ()
+printQueuedComment :: DComment -> EP ()
 printQueuedComment (DComment (dp,de) s) = do
   p <- getPos
   colOffset <- getOffset
@@ -696,16 +746,15 @@ printQueuedComment (DComment (dp,de) s) = do
          `debug` ("printQueuedComment:(pos,s):" ++ show (undelta p dp colOffset,s))
       setPos (undelta p de colOffset)
     else return () `debug` ("printQueuedComment::bad delta for (dp,s):" ++ show (dp,s))
-
 -- ---------------------------------------------------------------------
 
-printStringAtMaybeAnn :: KeywordId -> String -> AP ()
+printStringAtMaybeAnn :: KeywordId -> String -> EP ()
 printStringAtMaybeAnn an str = do
   (comments, ma) <- getAnnFinal an
   printStringAtLsDelta comments (maybeToList ma) str
     `debug` ("printStringAtMaybeAnn:(an,ma,str)=" ++ show (an,ma,str))
 
-printStringAtMaybeAnnAll :: KeywordId -> String -> AP ()
+printStringAtMaybeAnnAll :: KeywordId -> String -> EP ()
 printStringAtMaybeAnnAll an str = go
   where
     go = do
@@ -713,22 +762,18 @@ printStringAtMaybeAnnAll an str = go
       case ma of
         Nothing -> return ()
         Just d  -> printStringAtLsDelta comments [d] str >> go
-
 -- ---------------------------------------------------------------------
 
-countAnns :: KeywordId -> AP Int
-countAnns an = do
+countAnnsEP :: KeywordId -> EP Int
+countAnnsEP an = do
   ma <- peekAnnFinal an
   return (length ma)
-
 ------------------------------------------------------------------------------
 -- Printing of source elements
-{-
 -- | Print an AST exactly as specified by the annotations on the nodes in the tree.
 -- exactPrint :: (ExactP ast) => ast -> [Comment] -> String
-exactPrint :: (ExactGen ast) => GHC.Located ast -> String
-exactPrint ast@(GHC.L l _) = runAP (exactPC ast) l Map.empty
--}
+exactPrint :: (AnnotateGen ast) => GHC.Located ast -> String
+exactPrint ast@(GHC.L l _) = runEP (annotatePC ast) l Map.empty
 
 
 exactPrintAnnotated ::
@@ -742,10 +787,11 @@ exactPrintAnnotation :: AnnotateGen ast =>
 exactPrintAnnotation ast@(GHC.L l _) an = runEP (annotatePC ast) l an
   -- `debug` ("exactPrintAnnotation:an=" ++ (concatMap (\(l,a) -> show (ss2span l,a)) $ Map.toList an ))
   --
+
 annotateAST :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns -> Anns
 annotateAST ast ghcAnns = annotateLHsModule ast ghcAnns
 
-
+{-
 -- ---------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------
@@ -973,11 +1019,13 @@ annotateLHsModule modu@(GHC.L ss _) ghcAnns
 instance AnnotateGen (GHC.HsModule GHC.RdrName) where
   annotateG lm (GHC.HsModule mmn mexp imps decs mdepr _haddock) = do
 
-    addDeltaAnnotation GHC.AnnModule
 
     case mmn of
       Nothing -> return ()
-      Just (GHC.L ln _) -> addDeltaAnnotationExt ln GHC.AnnVal
+      Just (GHC.L ln _) -> do
+        addDeltaAnnotation GHC.AnnModule
+        addDeltaAnnotationExt ln GHC.AnnVal
+
 
     annotateMaybe mdepr
 

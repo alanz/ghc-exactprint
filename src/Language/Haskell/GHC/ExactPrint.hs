@@ -861,6 +861,7 @@ instance ExactP (GHC.IPBind GHC.RdrName) where
 instance (ExactP body) => ExactP (GHC.Match GHC.RdrName (GHC.Located body)) where
   exactP (GHC.Match mln pats typ (GHC.GRHSs grhs lb)) = do
     let
+
       get_infix Nothing = False
       get_infix (Just (_,f)) = f
     case (get_infix mln,pats) of
