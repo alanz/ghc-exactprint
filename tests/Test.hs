@@ -1,7 +1,7 @@
 -- | Use "runhaskell Setup.hs test" or "cabal test" to run these tests.
 module Main where
 
-import Language.Haskell.GHC.ExactPrint
+import Language.Haskell.GHC.ExactPrint ()
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils (ss2span, debug, showGhc, showAnnData, ghead)
 import Language.Haskell.GHC.ExactPrint.Common

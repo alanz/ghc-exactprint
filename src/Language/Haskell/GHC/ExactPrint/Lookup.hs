@@ -28,7 +28,7 @@ keywordToString kw =
       AnnDot   -> "."
       AnnDotdot  -> ".."
       AnnElse   -> "else"
-      AnnEqual    -> "equal"
+      AnnEqual    -> "="
       AnnExport   -> "export"
       AnnFamily   -> "family"
       AnnForall   -> "forall"

@@ -67,6 +67,9 @@ data AnnotationF w next where
   WithAST  :: Data a => GHC.Located a -> LayoutFlag -> Wrapped b -> (b -> next) -> AnnotationF w next
   CountAnnsAP ::  GHC.AnnKeywordId -> (Int -> next) -> AnnotationF w next
   SetLayoutFlag ::  next -> AnnotationF w next
+  PrintAnnString :: GHC.AnnKeywordId -> String -> next -> AnnotationF w next
+  PrintAnnStringExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> String -> next -> AnnotationF w next
+  PrintAnnStringLs :: GHC.AnnKeywordId -> String -> Int -> next -> AnnotationF w next
 
 --  Middle :: Data a => GHC.Located a -> DeltaPos -> Wrapped b
 --          -> ((b, APWriter) -> next) -> AnnotationF w next
@@ -120,32 +123,6 @@ addDeltaAnnotationExt ::
 addDeltaAnnotationExt p_a19gs p_a19gt
   = liftF (AddDeltaAnnotationExt p_a19gs p_a19gt ())
 
-{-
-before ::
-  forall m_a19gu w_a1908 a . (MonadFree (AnnotationF w_a1908) m_a19gu, Data a) =>
-  GHC.Located a -> m_a19gu (GHC.SrcSpan, DeltaPos, GHC.SrcSpan, DeltaPos)
-before lss = liftF (Before lss (\ x_a19gw x_a19gx c d -> (x_a19gw, x_a19gx, c, d)))
-after ::
-  forall (b_a190u :: *)
-         m_a19gy
-         w_a1908. MonadFree (AnnotationF w_a1908) m_a19gy =>
-  b_a190u
-  -> LayoutFlag
-     -> LayoutFlag
-        -> GHC.SrcSpan -> [(KeywordId, DeltaPos)] -> m_a19gy b_a190u
-after p_a19gB p_a19gC p_a19gD p_a19gE p_a19gF
-  = liftF
-      (After
-         p_a19gB p_a19gC p_a19gD p_a19gE p_a19gF (\ x_a19gA -> (x_a19gA)))
-
-middle :: Data a
-       => GHC.Located a
-       -> DeltaPos
-       -> Wrapped b
-       -> Wrapped (b, APWriter)
-middle lss dp w = liftF (Middle lss dp w (\r -> r))
--}
-
 countAnnsAP :: GHC.AnnKeywordId -> Wrapped Int
 countAnnsAP kwid = liftF (CountAnnsAP kwid (\i -> i))
 
@@ -155,6 +132,14 @@ setLayoutFlag = liftF (SetLayoutFlag ())
 outputKD :: (DeltaPos, (GHC.SrcSpan, KeywordId)) -> Wrapped ()
 outputKD kd = liftF (OutputKD kd ())
 
+printAnnString :: GHC.AnnKeywordId -> String -> Wrapped ()
+printAnnString kwid s = liftF (PrintAnnString kwid s ())
+
+printAnnStringExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> String -> Wrapped ()
+printAnnStringExt ss kwid s = liftF (PrintAnnStringExt ss kwid s ())
+
+printAnnStringLs :: GHC.AnnKeywordId -> String -> Int -> Wrapped ()
+printAnnStringLs  kwid s n = liftF (PrintAnnStringLs kwid s n ())
 
 class Data ast => AnnotateGen ast where
   annotateG :: GHC.SrcSpan -> ast -> Wrapped ()
@@ -310,6 +295,9 @@ simpleInterpret = iterTM go
     go (OutputKD (kwid, (_, dp)) next) = tellKd (dp, kwid) >> next
     go (CountAnnsAP kwid next) = countAnnsAP' kwid >>= next
     go (SetLayoutFlag next) = setLayoutFlag' >> next
+    go (PrintAnnString akwid s next) = addDeltaAnnotation' akwid >> next
+    go (PrintAnnStringExt ss akwid _ next) = addDeltaAnnotationExt' ss akwid >> next
+    go (PrintAnnStringLs akwid _ n next) = addDeltaAnnotationLs' akwid n >> next
 
 beforeAction :: GHC.GenLocated GHC.SrcSpan e
                  -> (GHC.SrcSpan
@@ -367,6 +355,9 @@ printInterpret = iterTM go
       countAnnsEP (G kwid) >>= next
     go (SetLayoutFlag next) =
       next
+    go (PrintAnnString akwid s next) = printStringAtMaybeAnn (G akwid) s >> next
+    go (PrintAnnStringExt _ akwid s next) = printStringAtMaybeAnn (G akwid) s >> next
+    go (PrintAnnStringLs akwid s _ next) = printStringAtMaybeAnn (G akwid) s >> next
 
 justOne kwid = printStringAtMaybeAnn (G kwid) (keywordToString kwid)
 allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString kwid)
@@ -1022,9 +1013,9 @@ instance AnnotateGen (GHC.HsModule GHC.RdrName) where
 
     case mmn of
       Nothing -> return ()
-      Just (GHC.L ln _) -> do
+      Just (GHC.L ln mn) -> do
         addDeltaAnnotation GHC.AnnModule
-        addDeltaAnnotationExt ln GHC.AnnVal
+        printAnnStringExt ln GHC.AnnVal (GHC.moduleNameString mn)
 
 
     annotateMaybe mdepr
@@ -1047,19 +1038,19 @@ instance AnnotateGen (GHC.HsModule GHC.RdrName) where
 -- ---------------------------------------------------------------------
 
 instance AnnotateGen GHC.WarningTxt where
-  annotateG _ (GHC.WarningTxt (GHC.L ls _) lss) = do
-    addDeltaAnnotationExt ls GHC.AnnOpen
+  annotateG _ (GHC.WarningTxt (GHC.L ls txt) lss) = do
+    printAnnStringExt ls GHC.AnnOpen txt
     addDeltaAnnotation GHC.AnnOpenS
     mapM_ annotatePC lss
     addDeltaAnnotation GHC.AnnCloseS
-    addDeltaAnnotation GHC.AnnClose
+    printAnnString GHC.AnnClose "#-}"
 
-  annotateG _ (GHC.DeprecatedTxt (GHC.L ls _) lss) = do
-    addDeltaAnnotationExt ls GHC.AnnOpen
+  annotateG _ (GHC.DeprecatedTxt (GHC.L ls txt) lss) = do
+    printAnnStringExt ls GHC.AnnOpen txt
     addDeltaAnnotation GHC.AnnOpenS
     mapM_ annotatePC lss
     addDeltaAnnotation GHC.AnnCloseS
-    addDeltaAnnotation GHC.AnnClose
+    printAnnString GHC.AnnClose "#-}"
 
 -- ---------------------------------------------------------------------
 
@@ -1097,9 +1088,9 @@ instance (GHC.DataId name,AnnotateGen name)
           addDeltaAnnotation GHC.AnnDotdot
           addDeltaAnnotation GHC.AnnCloseP
 
-        (GHC.IEModuleContents (GHC.L lm _n)) -> do
+        (GHC.IEModuleContents (GHC.L lm mn)) -> do
           addDeltaAnnotation GHC.AnnModule
-          addDeltaAnnotationExt lm GHC.AnnVal
+          printAnnStringExt lm GHC.AnnVal (GHC.moduleNameString mn)
 
 
 -- ---------------------------------------------------------------------
@@ -1114,12 +1105,12 @@ instance AnnotateGen GHC.RdrName where
         addDeltaAnnotation GHC.AnnOpenP  -- '('
         addDeltaAnnotation GHC.AnnCloseP -- ')'
       "(##)" -> do
-        addDeltaAnnotation GHC.AnnOpen  -- '(#'
-        addDeltaAnnotation GHC.AnnClose -- '#)'
+        printAnnString GHC.AnnOpen  "(#" -- '(#'
+        printAnnString GHC.AnnClose  "#)"-- '#)'
       "[::]" -> do
-        addDeltaAnnotation GHC.AnnOpen  -- '[:'
-        addDeltaAnnotation GHC.AnnClose -- ':]'
-      _ ->  do
+        printAnnString GHC.AnnOpen  "[:" -- '[:'
+        printAnnString GHC.AnnClose ":]" -- ':]'
+      str ->  do
         addDeltaAnnotation GHC.AnnType
         addDeltaAnnotation GHC.AnnOpenP -- '('
         addDeltaAnnotationLs GHC.AnnBackquote 0
@@ -1128,8 +1119,10 @@ instance AnnotateGen GHC.RdrName where
         cntT <- countAnnsAP GHC.AnnCommaTuple
         cntR <- countAnnsAP GHC.AnnRarrow
         case cnt of
-          0 -> if cntT >0 || cntR >0 then return () else addDeltaAnnotationExt l GHC.AnnVal
-          1 -> addDeltaAnnotation GHC.AnnVal
+          0 -> if cntT >0 || cntR >0
+                 then return ()
+                 else printAnnStringExt l GHC.AnnVal str
+          1 -> printAnnString GHC.AnnVal str
           x -> error $ "annotateP.RdrName: too many AnnVal :" ++ showGhc (l,x)
         addDeltaAnnotation GHC.AnnTildehsh
         addDeltaAnnotation GHC.AnnTilde
@@ -1139,30 +1132,34 @@ instance AnnotateGen GHC.RdrName where
 
 -- ---------------------------------------------------------------------
 
+-- TODO: What is this used for? Not in ExactPrint
 instance AnnotateGen GHC.Name where
-  annotateG l _n = do
-    addDeltaAnnotationExt l GHC.AnnVal
+  annotateG l n = do
+    printAnnStringExt l GHC.AnnVal (showGhc n)
 
 -- ---------------------------------------------------------------------
 
 instance (GHC.DataId name,AnnotateGen name)
   => AnnotateGen (GHC.ImportDecl name) where
- annotateG _ (GHC.ImportDecl _msrc (GHC.L ln _) _pkg _src _safe _qual _impl _as hiding) = do
+ annotateG _ imp@(GHC.ImportDecl _msrc (GHC.L ln _) _pkg _src _safe _qual _impl _as hiding) = do
 
    -- 'import' maybe_src maybe_safe optqualified maybe_pkg modid maybeas maybeimpspec
    addDeltaAnnotation GHC.AnnImport
 
    -- "{-# SOURCE" and "#-}"
-   addDeltaAnnotation GHC.AnnOpen
-   addDeltaAnnotation GHC.AnnClose
+   printAnnString GHC.AnnOpen "{-# SOURCE"
+   printAnnString GHC.AnnClose "#-}"
    addDeltaAnnotation GHC.AnnSafe
    addDeltaAnnotation GHC.AnnQualified
    addDeltaAnnotation GHC.AnnPackageName
 
-   addDeltaAnnotationExt ln GHC.AnnVal -- modid
+   printAnnStringExt ln GHC.AnnVal (GHC.moduleNameString $ GHC.unLoc $ GHC.ideclName imp)
 
-   addDeltaAnnotation GHC.AnnAs
-   addDeltaAnnotation GHC.AnnVal -- as modid
+   case GHC.ideclAs imp of
+      Nothing -> return ()
+      Just mn -> do
+          addDeltaAnnotation GHC.AnnAs
+          printAnnString GHC.AnnVal (GHC.moduleNameString mn)
 
    case hiding of
      Nothing -> return ()
@@ -1203,7 +1200,8 @@ instance (AnnotateGen name)
     mapM_ annotatePC mr
 
 instance AnnotateGen (Maybe GHC.Role) where
-  annotateG l _ = addDeltaAnnotationExt l GHC.AnnVal
+  annotateG _ Nothing  = printAnnString GHC.AnnVal "_"
+  annotateG l (Just r) = printAnnStringExt l GHC.AnnVal (GHC.unpackFS $ GHC.fsFromRole r)
 
 -- ---------------------------------------------------------------------
 
@@ -1215,42 +1213,46 @@ instance (AnnotateGen name)
 
 instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
    => AnnotateGen (GHC.SpliceDecl name) where
-  annotateG _ (GHC.SpliceDecl (GHC.L _ls (GHC.HsSplice _n e)) _flag) = do
-    addDeltaAnnotation GHC.AnnOpen -- "$(" or "$$("
+  annotateG _ (GHC.SpliceDecl (GHC.L _ (GHC.HsSplice _n e)) flag) = do
+    case flag of
+      GHC.ExplicitSplice ->
+        printAnnString GHC.AnnOpen "$("
+      GHC.ImplicitSplice ->
+        printAnnString GHC.AnnOpen "$$("
     annotatePC e
-    addDeltaAnnotation GHC.AnnClose -- ")"
+    printAnnString GHC.AnnClose ")"
 
 -- ---------------------------------------------------------------------
 
 instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
    => AnnotateGen (GHC.VectDecl name) where
   annotateG _ (GHC.HsVect _src ln e) = do
-    addDeltaAnnotation GHC.AnnOpen -- "{-# VECTORISE"
+    printAnnString GHC.AnnOpen "{-# VECTORISE" -- "{-# VECTORISE"
     annotatePC ln
     addDeltaAnnotation GHC.AnnEqual
     annotatePC e
-    addDeltaAnnotation GHC.AnnClose -- "#-}"
+    printAnnString GHC.AnnClose "#-}" -- "#-}"
 
   annotateG _ (GHC.HsNoVect _src ln) = do
-    addDeltaAnnotation GHC.AnnOpen -- "{-# NOVECTORISE"
+    printAnnString GHC.AnnOpen "{-# NOVECTORISE" -- "{-# NOVECTORISE"
     annotatePC ln
-    addDeltaAnnotation GHC.AnnClose -- "#-}"
+    printAnnString GHC.AnnClose "#-}" -- "#-}"
 
-  annotateG _ (GHC.HsVectTypeIn _src _b ln mln) = do
-    addDeltaAnnotation GHC.AnnOpen -- "{-# VECTORISE" or "{-# VECTORISE SCALAR"
+  annotateG _ (GHC.HsVectTypeIn src _b ln mln) = do
+    printAnnString GHC.AnnOpen src -- "{-# VECTORISE" or "{-# VECTORISE SCALAR"
     addDeltaAnnotation GHC.AnnType
     annotatePC ln
     addDeltaAnnotation GHC.AnnEqual
     annotateMaybe mln
-    addDeltaAnnotation GHC.AnnClose -- "#-}"
+    printAnnString GHC.AnnClose "#-}" -- "#-}"
 
   annotateG _ (GHC.HsVectTypeOut {}) = error $ "annotateP.HsVectTypeOut: only valid after type checker"
 
   annotateG _ (GHC.HsVectClassIn _src ln) = do
-    addDeltaAnnotation GHC.AnnOpen -- "{-# VECTORISE"
+    printAnnString GHC.AnnOpen "{-# VECTORISE"-- "{-# VECTORISE"
     addDeltaAnnotation GHC.AnnClass
     annotatePC ln
-    addDeltaAnnotation GHC.AnnClose -- "#-}"
+    printAnnString GHC.AnnClose "#-}" -- "#-}"
 
   annotateG _ (GHC.HsVectClassOut {}) = error $ "annotateP.HsVectClassOut: only valid after type checker"
   annotateG _ (GHC.HsVectInstIn {})   = error $ "annotateP.HsVectInstIn: not supported?"
@@ -1260,21 +1262,24 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
 
 instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
    => AnnotateGen (GHC.RuleDecls name) where
-   annotateG _ (GHC.HsRules _src rules) = do
-     addDeltaAnnotation GHC.AnnOpen
+   annotateG _ (GHC.HsRules src rules) = do
+     printAnnString GHC.AnnOpen src
      mapM_ annotatePC rules
-     addDeltaAnnotation GHC.AnnClose
+     printAnnString GHC.AnnClose "#-}"
 
 -- ---------------------------------------------------------------------
 
 instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
    => AnnotateGen (GHC.RuleDecl name) where
-  annotateG _ (GHC.HsRule ln _act bndrs lhs _ rhs _) = do
+  annotateG _ (GHC.HsRule ln act bndrs lhs _ rhs _) = do
     annotatePC ln
     -- activation
     addDeltaAnnotation GHC.AnnOpenS -- "["
     addDeltaAnnotation GHC.AnnTilde
-    addDeltaAnnotation GHC.AnnVal
+    case act of
+      GHC.ActiveBefore n -> printAnnString GHC.AnnVal (show n)
+      GHC.ActiveAfter n  -> printAnnString GHC.AnnVal (show n)
+      _                  -> return ()
     addDeltaAnnotation GHC.AnnCloseS -- "]"
 
     addDeltaAnnotation GHC.AnnForall
@@ -1302,7 +1307,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
 instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
    => AnnotateGen (GHC.AnnDecl name) where
    annotateG _ (GHC.HsAnnotation _src prov e) = do
-     addDeltaAnnotation GHC.AnnOpen -- "{-# Ann"
+     printAnnString GHC.AnnOpen "{-# Ann" -- "{-# Ann"
      addDeltaAnnotation GHC.AnnType
      addDeltaAnnotation GHC.AnnModule
      case prov of
@@ -1311,15 +1316,15 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
        (GHC.ModuleAnnProvenance) -> return ()
 
      annotatePC e
-     addDeltaAnnotation GHC.AnnClose
+     printAnnString GHC.AnnClose "#-}"
 
 -- ---------------------------------------------------------------------
 
 instance AnnotateGen name => AnnotateGen (GHC.WarnDecls name) where
-   annotateG _ (GHC.Warnings _src warns) = do
-     addDeltaAnnotation GHC.AnnOpen
+   annotateG _ (GHC.Warnings src warns) = do
+     printAnnString GHC.AnnOpen src
      mapM_ annotatePC warns
-     addDeltaAnnotation GHC.AnnClose
+     printAnnString GHC.AnnClose "#-}"
 
 -- ---------------------------------------------------------------------
 
@@ -1334,7 +1339,7 @@ instance (AnnotateGen name)
      addDeltaAnnotation GHC.AnnCloseS -- "]"
 
 instance AnnotateGen GHC.FastString where
-  annotateG l _ = addDeltaAnnotationExt l GHC.AnnVal
+  annotateG l fs = printAnnStringExt l GHC.AnnVal (GHC.unpackFS fs)
 
 -- ---------------------------------------------------------------------
 
@@ -1342,7 +1347,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
    => AnnotateGen (GHC.ForeignDecl name) where
 
   annotateG _ (GHC.ForeignImport ln typ _
-               (GHC.CImport cconv safety@(GHC.L ll _) _mh _imp (GHC.L ls _src))) = do
+               (GHC.CImport cconv safety@(GHC.L ll _) _mh _imp (GHC.L ls src))) = do
     addDeltaAnnotation GHC.AnnForeign
     addDeltaAnnotation GHC.AnnImport
     annotatePC cconv
@@ -1350,17 +1355,17 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
       then return ()
       else annotatePC safety
     -- annotateMaybe mh
-    addDeltaAnnotationExt ls GHC.AnnVal
+    printAnnStringExt ls GHC.AnnVal src
     annotatePC ln
     addDeltaAnnotation GHC.AnnDcolon
     annotatePC typ
 
 
-  annotateG _l (GHC.ForeignExport ln typ _ (GHC.CExport spec (GHC.L ls _src))) = do
+  annotateG _l (GHC.ForeignExport ln typ _ (GHC.CExport spec (GHC.L ls src))) = do
     addDeltaAnnotation GHC.AnnForeign
     addDeltaAnnotation GHC.AnnExport
     annotatePC spec
-    addDeltaAnnotationExt ls GHC.AnnVal
+    printAnnStringExt ls GHC.AnnVal src
     annotatePC ln
     addDeltaAnnotation GHC.AnnDcolon
     annotatePC typ
@@ -1374,12 +1379,18 @@ instance (AnnotateGen GHC.CExportSpec) where
 -- ---------------------------------------------------------------------
 
 instance (AnnotateGen GHC.CCallConv) where
-  annotateG l _ = addDeltaAnnotationExt l GHC.AnnVal
+  annotateG l GHC.StdCallConv        =  printAnnStringExt l GHC.AnnVal "stdcall"
+  annotateG l GHC.CCallConv          =  printAnnStringExt l GHC.AnnVal "ccall"
+  annotateG l GHC.CApiConv           =  printAnnStringExt l GHC.AnnVal "capi"
+  annotateG l GHC.PrimCallConv       =  printAnnStringExt l GHC.AnnVal "prim"
+  annotateG l GHC.JavaScriptCallConv =  printAnnStringExt l GHC.AnnVal "javascript"
 
 -- ---------------------------------------------------------------------
 
 instance (AnnotateGen GHC.Safety) where
-  annotateG l _ = addDeltaAnnotationExt l GHC.AnnVal
+  annotateG l GHC.PlayRisky         = printAnnStringExt l GHC.AnnVal "unsafe"
+  annotateG l GHC.PlaySafe          = printAnnStringExt l GHC.AnnVal "safe"
+  annotateG l GHC.PlayInterruptible = printAnnStringExt l GHC.AnnVal "interruptible"
 
 -- ---------------------------------------------------------------------
 
@@ -1414,10 +1425,26 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
 
 -- ---------------------------------------------------------------------
 
-instance AnnotateGen (GHC.OverlapMode) where
-  annotateG _ _ = do
-    addDeltaAnnotation GHC.AnnOpen
-    addDeltaAnnotation GHC.AnnClose
+instance AnnotateGen GHC.OverlapMode where
+  annotateG _ (GHC.NoOverlap src) = do
+    printAnnString GHC.AnnOpen src
+    printAnnString GHC.AnnClose "#-}"
+
+  annotateG _ (GHC.Overlappable src) = do
+    printAnnString GHC.AnnOpen src
+    printAnnString GHC.AnnClose "#-}"
+
+  annotateG _ (GHC.Overlapping src) = do
+    printAnnString GHC.AnnOpen src
+    printAnnString GHC.AnnClose "#-}"
+
+  annotateG _ (GHC.Overlaps src) = do
+    printAnnString GHC.AnnOpen src
+    printAnnString GHC.AnnClose "#-}"
+
+  annotateG _ (GHC.Incoherent src) = do
+    printAnnString GHC.AnnOpen src
+    printAnnString GHC.AnnClose "#-}"
 
 -- ---------------------------------------------------------------------
 
@@ -1524,7 +1551,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
 -- ---------------------------------------------------------------------
 
 instance AnnotateGen GHC.HsIPName where
-  annotateG l _ = addDeltaAnnotationExt l GHC.AnnVal
+  annotateG l (GHC.HsIPName n) = printAnnStringExt l GHC.AnnVal ("?" ++ (GHC.unpackFS n))
 
 -- ---------------------------------------------------------------------
 
@@ -1541,9 +1568,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name,
         annotatePC a
         case mln of
           Nothing -> do
-            addDeltaAnnotation GHC.AnnOpen -- possible '`'
+            printAnnString GHC.AnnOpen "`" -- possible '`'
             addDeltaAnnotation GHC.AnnFunId
-            addDeltaAnnotation GHC.AnnClose -- possible '`'
+            printAnnString GHC.AnnClose "`"-- possible '`'
           Just (n,_) -> annotatePC n
         annotatePC b
       _ -> do
@@ -1613,49 +1640,58 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
   annotateG _ (GHC.IdSig _) = return ()
 
   -- FixSig (FixitySig name)
-  annotateG _ (GHC.FixSig (GHC.FixitySig lns (GHC.Fixity _v _fdir))) = do
-    addDeltaAnnotation GHC.AnnInfix
-    addDeltaAnnotation GHC.AnnVal
+  annotateG _ (GHC.FixSig (GHC.FixitySig lns (GHC.Fixity v fdir))) = do
+    let fixstr = case fdir of
+         GHC.InfixL -> "infixl"
+         GHC.InfixR -> "infixr"
+         GHC.InfixN -> "infix"
+    printAnnString GHC.AnnInfix fixstr
+    printAnnString GHC.AnnVal (show v)
     mapM_ annotatePC lns
 
   -- InlineSig (Located name) InlinePragma
   -- '{-# INLINE' activation qvar '#-}'
-  annotateG _ (GHC.InlineSig ln _inl) = do
-    addDeltaAnnotation GHC.AnnOpen   -- '{-# INLINE'
+  annotateG _ (GHC.InlineSig ln inl) = do
+    let actStr = case GHC.inl_act inl of
+          GHC.NeverActive -> ""
+          GHC.AlwaysActive -> ""
+          GHC.ActiveBefore np -> show np
+          GHC.ActiveAfter  np -> show np
+    printAnnString GHC.AnnOpen  "{-# INLINE"  -- '{-# INLINE'
     addDeltaAnnotation GHC.AnnOpenS  -- '['
     addDeltaAnnotation  GHC.AnnTilde -- ~
-    addDeltaAnnotation  GHC.AnnVal   -- e.g. 34
+    printAnnString  GHC.AnnVal actStr -- e.g. 34
     addDeltaAnnotation GHC.AnnCloseS -- ']'
     annotatePC ln
-    addDeltaAnnotation GHC.AnnClose -- '#-}'
+    printAnnString GHC.AnnClose "#-}" -- '#-}'
 
 
   annotateG _ (GHC.SpecSig ln typs _inl) = do
-    addDeltaAnnotation GHC.AnnOpen  -- '{-# SPECIALISE'
+    printAnnString GHC.AnnOpen "{-# SPECIALISE" -- '{-# SPECIALISE'
     addDeltaAnnotation GHC.AnnOpenS --  '['
     addDeltaAnnotation GHC.AnnTilde -- ~
-    addDeltaAnnotation GHC.AnnVal   -- e.g. 34
+    printAnnString GHC.AnnVal  "TODO: What here"
 
     addDeltaAnnotation GHC.AnnCloseS -- ']'
     annotatePC ln
     addDeltaAnnotation GHC.AnnDcolon -- '::'
     mapM_ annotatePC typs
-    addDeltaAnnotation GHC.AnnClose -- '#-}'
+    printAnnString GHC.AnnClose "#-}" -- '#-}'
 
 
   -- '{-# SPECIALISE' 'instance' inst_type '#-}'
   annotateG _ (GHC.SpecInstSig _ typ) = do
-    addDeltaAnnotation GHC.AnnOpen -- '{-# SPECIALISE'
+    printAnnString GHC.AnnOpen "{-# SPECIALISE"
     addDeltaAnnotation GHC.AnnInstance
     annotatePC typ
-    addDeltaAnnotation GHC.AnnClose -- '#-}'
+    printAnnString GHC.AnnClose "#-}" -- '#-}'
 
 
   -- MinimalSig (BooleanFormula (Located name))
   annotateG _ (GHC.MinimalSig _ formula) = do
-    addDeltaAnnotation GHC.AnnOpen -- '{-# MINIMAL'
+    printAnnString GHC.AnnOpen "{-# MINIMAL"
     annotateBooleanFormula formula
-    addDeltaAnnotation GHC.AnnClose -- '#-}'
+    printAnnString GHC.AnnClose "#-}"
 
 
 -- ---------------------------------------------------------------------
@@ -1667,8 +1703,8 @@ annotateBooleanFormula = assert False undefined
 
 instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name) =>
                      AnnotateGen (GHC.HsTyVarBndr name) where
-  annotateG l (GHC.UserTyVar _n) = do
-    addDeltaAnnotationExt l GHC.AnnVal
+  annotateG l (GHC.UserTyVar n) = do
+    annotateG l n
 
   annotateG _ (GHC.KindedTyVar n ty) = do
     addDeltaAnnotation GHC.AnnOpenP  -- '('
@@ -1718,17 +1754,17 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
     addDeltaAnnotation GHC.AnnCloseS -- ']'
 
   annotateG _ (GHC.HsPArrTy t) = do
-    addDeltaAnnotation GHC.AnnOpen  -- '[:'
+    printAnnString GHC.AnnOpen "[:" -- '[:'
     annotatePC t
-    addDeltaAnnotation GHC.AnnClose -- ':]'
+    printAnnString GHC.AnnClose ":]" -- ':]'
 
   annotateG _ (GHC.HsTupleTy _tt ts) = do
     addDeltaAnnotation GHC.AnnDcolon -- for HsKind, alias for HsType
-    addDeltaAnnotation GHC.AnnOpen  -- '(#'
+    printAnnString GHC.AnnOpen "(#" -- '(#'
     addDeltaAnnotation GHC.AnnOpenP  -- '('
     mapM_ annotatePC ts
     addDeltaAnnotation GHC.AnnCloseP -- ')'
-    addDeltaAnnotation GHC.AnnClose --  '#)'
+    printAnnString GHC.AnnClose "#)" --  '#)'
 
   annotateG _ (GHC.HsOpTy t1 (_,lo) t2) = do
     annotatePC t1
@@ -1741,8 +1777,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
     annotatePC t
     addDeltaAnnotation GHC.AnnCloseP -- ')'
 
-  annotateG _ (GHC.HsIParamTy _n t) = do
-    addDeltaAnnotation GHC.AnnVal
+  annotateG l (GHC.HsIParamTy n t) = do
+    annotateG l n
     addDeltaAnnotation GHC.AnnDcolon
     annotatePC t
 
@@ -1759,23 +1795,31 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
     addDeltaAnnotation GHC.AnnCloseP -- ')'
 
   -- HsQuasiQuoteTy (HsQuasiQuote name)
-  annotateG l (GHC.HsQuasiQuoteTy _qq) = do
-    addDeltaAnnotationExt l GHC.AnnVal
+  -- TODO: Probably wrong
+  annotateG l (GHC.HsQuasiQuoteTy (GHC.HsQuasiQuote n _ss q)) = do
+    printAnnStringExt l GHC.AnnVal
+      ("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS q) ++ "|]")
 
   -- HsSpliceTy (HsSplice name) (PostTc name Kind)
   annotateG _ (GHC.HsSpliceTy (GHC.HsSplice _is e) _) = do
-    addDeltaAnnotation GHC.AnnOpen  -- '$('
+    printAnnString GHC.AnnOpen "$(" -- '$('
     annotatePC e
-    addDeltaAnnotation GHC.AnnClose -- ')'
+    printAnnString GHC.AnnClose ")" -- ')'
 
   annotateG _ (GHC.HsDocTy t ds) = do
     annotatePC t
     annotatePC ds
 
-  annotateG _ (GHC.HsBangTy _b t) = do
-    addDeltaAnnotation GHC.AnnOpen  -- '{-# UNPACK' or '{-# NOUNPACK'
-    addDeltaAnnotation GHC.AnnClose -- '#-}'
-    addDeltaAnnotation GHC.AnnBang  -- '!'
+  annotateG _ (GHC.HsBangTy b t) = do
+    case b of
+      (GHC.HsSrcBang ms (Just True) _) -> do
+        printAnnString GHC.AnnOpen  (maybe "{-# UNPACK" id ms)
+        printAnnString GHC.AnnClose "#-}"
+      (GHC.HsSrcBang ms (Just False) _) -> do
+        printAnnString GHC.AnnOpen  (maybe "{-# NOUNPACK" id ms)
+        printAnnString GHC.AnnClose "#-}"
+      _ -> return ()
+    addDeltaAnnotation GHC.AnnBang
     annotatePC t
 
   -- HsRecTy [LConDeclField name]
@@ -1789,28 +1833,32 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
 
   annotateG _ (GHC.HsExplicitListTy _ ts) = do
     -- TODO: what about SIMPLEQUOTE?
-    addDeltaAnnotation GHC.AnnOpen  -- "'["
+    printAnnString GHC.AnnOpen "'[" -- "'["
     mapM_ annotatePC ts
     addDeltaAnnotation GHC.AnnCloseS -- ']'
 
   annotateG _ (GHC.HsExplicitTupleTy _ ts) = do
-    addDeltaAnnotation GHC.AnnOpen  -- "'("
+    printAnnString GHC.AnnOpen "'(" -- "'("
     mapM_ annotatePC ts
-    addDeltaAnnotation GHC.AnnClose -- ')'
+    printAnnString GHC.AnnClose ")" -- ')'
 
   -- HsTyLit HsTyLit
-  annotateG l (GHC.HsTyLit _tl) = do
-    addDeltaAnnotationExt l GHC.AnnVal
+  annotateG l (GHC.HsTyLit lit) = do
+    case lit of
+      (GHC.HsNumTy s _) ->
+        printAnnStringExt l GHC.AnnVal s
+      (GHC.HsStrTy s _) ->
+        printAnnStringExt l GHC.AnnVal s
 
   -- HsWrapTy HsTyWrapped (HsType name)
   annotateG _ (GHC.HsWrapTy _ _) = return ()
 
   annotateG l (GHC.HsWildcardTy) = do
-    addDeltaAnnotationExt l GHC.AnnVal
+    printAnnStringExt l GHC.AnnVal "_"
     addDeltaAnnotation GHC.AnnDarrow -- if only part of a partial type signature context
-
-  annotateG l (GHC.HsNamedWildcardTy _n) = do
-    addDeltaAnnotationExt l GHC.AnnVal
+-- TODO: Probably wrong
+  annotateG l (GHC.HsNamedWildcardTy n) = do
+    printAnnStringExt l GHC.AnnVal  (showGhc n)
 
 -- ---------------------------------------------------------------------
 
@@ -1825,15 +1873,16 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name) =>
 -- ---------------------------------------------------------------------
 
 instance AnnotateGen GHC.HsDocString where
-  annotateG l (GHC.HsDocString _s) = do
-    addDeltaAnnotationExt l GHC.AnnVal
+  annotateG l (GHC.HsDocString s) = do
+    printAnnStringExt l GHC.AnnVal (GHC.unpackFS s)
 
 -- ---------------------------------------------------------------------
 
 instance (GHC.DataId name,AnnotateGen name,GHC.OutputableBndr name)
   => AnnotateGen (GHC.Pat name) where
-  annotateG l (GHC.WildPat _) = addDeltaAnnotationExt l GHC.AnnVal
-  annotateG l (GHC.VarPat _)  = addDeltaAnnotationExt l GHC.AnnVal
+  annotateG l (GHC.WildPat _) = printAnnStringExt l GHC.AnnVal "_"
+  -- TODO: probably wrong
+  annotateG l (GHC.VarPat n)  = printAnnStringExt l GHC.AnnVal (showGhc n)
   annotateG _ (GHC.LazyPat p) = do
     addDeltaAnnotation GHC.AnnTilde
     annotatePC p
@@ -1857,17 +1906,17 @@ instance (GHC.DataId name,AnnotateGen name,GHC.OutputableBndr name)
     mapM_ annotatePC ps
     addDeltaAnnotation GHC.AnnCloseS
 
-  annotateG _ (GHC.TuplePat ps _ _) = do
-    addDeltaAnnotation GHC.AnnOpen
-    addDeltaAnnotation GHC.AnnOpenP
-    mapM_ annotatePC ps
-    addDeltaAnnotation GHC.AnnCloseP
-    addDeltaAnnotation GHC.AnnClose
+  annotateG _ (GHC.TuplePat pats b _) = do
+    if b == GHC.Boxed then addDeltaAnnotation GHC.AnnOpenP
+                      else printAnnString GHC.AnnOpen "(#"
+    mapM_ annotatePC pats
+    if b == GHC.Boxed then addDeltaAnnotation GHC.AnnCloseP
+                      else printAnnString GHC.AnnClose "#)"
 
   annotateG _ (GHC.PArrPat ps _) = do
-    addDeltaAnnotation GHC.AnnOpen
+    printAnnString GHC.AnnOpen "[:"
     mapM_ annotatePC ps
-    addDeltaAnnotation GHC.AnnClose
+    printAnnString GHC.AnnClose ":]"
 
   annotateG _ (GHC.ConPatIn n dets) = do
     annotateHsConPatDetails n dets
@@ -1882,16 +1931,18 @@ instance (GHC.DataId name,AnnotateGen name,GHC.OutputableBndr name)
 
   -- SplicePat (HsSplice id)
   annotateG _ (GHC.SplicePat (GHC.HsSplice _ e)) = do
-    addDeltaAnnotation GHC.AnnOpen -- '$('
+    printAnnString GHC.AnnOpen "$(" -- '$('
     annotatePC e
-    addDeltaAnnotation GHC.AnnClose -- ')'
+    printAnnString GHC.AnnClose ")" -- ')'
 
   -- QuasiQuotePat (HsQuasiQuote id)
-  annotateG l (GHC.QuasiQuotePat (GHC.HsQuasiQuote _ _ _)) = do
-    addDeltaAnnotationExt l GHC.AnnVal
+  -- TODO
+  annotateG l (GHC.QuasiQuotePat (GHC.HsQuasiQuote n _ q)) = do
+    printAnnStringExt l GHC.AnnVal
+      ("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS q) ++ "|]")
 
   -- LitPat HsLit
-  annotateG l (GHC.LitPat _lp) = addDeltaAnnotationExt l GHC.AnnVal
+  annotateG l (GHC.LitPat lp) = printAnnStringExt l GHC.AnnVal (hsLit2String lp)
 
   -- NPat (HsOverLit id) (Maybe (SyntaxExpr id)) (SyntaxExpr id)
   annotateG _ (GHC.NPat ol _ _) = do
@@ -1901,7 +1952,7 @@ instance (GHC.DataId name,AnnotateGen name,GHC.OutputableBndr name)
   -- NPlusKPat (Located id) (HsOverLit id) (SyntaxExpr id) (SyntaxExpr id)
   annotateG _ (GHC.NPlusKPat ln ol _ _) = do
     annotatePC ln
-    addDeltaAnnotation GHC.AnnVal -- "+"
+    printAnnString GHC.AnnVal "+"  -- "+"
     annotatePC ol
 
   annotateG l (GHC.SigPatIn pat ty) = do
@@ -1915,6 +1966,22 @@ instance (GHC.DataId name,AnnotateGen name,GHC.OutputableBndr name)
   annotateG _ (GHC.CoPat {}) = return ()
 
 -- ---------------------------------------------------------------------
+hsLit2String :: GHC.HsLit -> GHC.SourceText
+hsLit2String lit =
+  case lit of
+    GHC.HsChar       src _   -> src
+    GHC.HsCharPrim   src _   -> src
+    GHC.HsString     src _   -> src
+    GHC.HsStringPrim src _   -> src
+    GHC.HsInt        src _   -> src
+    GHC.HsIntPrim    src _   -> src
+    GHC.HsWordPrim   src _   -> src
+    GHC.HsInt64Prim  src _   -> src
+    GHC.HsWord64Prim src _   -> src
+    GHC.HsInteger    src _ _ -> src
+    GHC.HsRat        (GHC.FL src _) _ -> src
+    GHC.HsFloatPrim  (GHC.FL src _)   -> src
+    GHC.HsDoublePrim (GHC.FL src _)   -> src
 
 annotateHsConPatDetails :: (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
                       => GHC.Located name -> GHC.HsConPatDetails name -> Wrapped ()
@@ -1961,7 +2028,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
 -- ---------------------------------------------------------------------
 
 instance (GHC.DataId name) => AnnotateGen (GHC.HsOverLit name) where
-  annotateG l _ol = addDeltaAnnotationExt l GHC.AnnVal
+  annotateG l ol =
+    let str = case GHC.ol_val ol of
+                GHC.HsIntegral src _ -> src
+                GHC.HsFractional l   -> (GHC.fl_text l)
+                GHC.HsIsString src _ -> src
+    in
+    printAnnStringExt l GHC.AnnVal str
 
 -- ---------------------------------------------------------------------
 
@@ -2103,9 +2176,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name,
 instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
   => AnnotateGen (GHC.HsExpr name) where
   annotateG l (GHC.HsVar n)           = annotateG l n
-  annotateG l (GHC.HsIPVar _)         = addDeltaAnnotationExt l GHC.AnnVal
-  annotateG l (GHC.HsOverLit _ov)     = addDeltaAnnotationExt l GHC.AnnVal
-  annotateG l (GHC.HsLit _)           = addDeltaAnnotationExt l GHC.AnnVal
+  annotateG l (GHC.HsIPVar (GHC.HsIPName v))         =
+    printAnnStringExt l GHC.AnnVal ("?" ++ GHC.unpackFS v)
+  annotateG l (GHC.HsOverLit ov)     = annotateG l ov
+  annotateG l (GHC.HsLit lit)           = annotateG l lit
 
   annotateG l (GHC.HsLam match)       = do
     addDeltaAnnotation GHC.AnnLam
@@ -2139,12 +2213,14 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
     annotatePC e1
     annotatePC e2
 
-  annotateG _ (GHC.ExplicitTuple args _boxity) = do
-    addDeltaAnnotation GHC.AnnOpen
-    addDeltaAnnotation GHC.AnnOpenP
+  annotateG _ (GHC.ExplicitTuple args b) = do
+    if b == GHC.Boxed then addDeltaAnnotation GHC.AnnOpenP
+                      else printAnnString GHC.AnnOpen "(#"
+
     mapM_ annotatePC args
-    addDeltaAnnotation GHC.AnnCloseP
-    addDeltaAnnotation GHC.AnnClose
+
+    if b == GHC.Boxed then addDeltaAnnotation GHC.AnnCloseP
+                      else printAnnString GHC.AnnClose "#)"
 
   annotateG l (GHC.HsCase e1 matches) = do
     addDeltaAnnotation GHC.AnnCase
@@ -2181,7 +2257,14 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
 
   annotateG l (GHC.HsDo cts es _) = do
     addDeltaAnnotation GHC.AnnDo
-    addDeltaAnnotation GHC.AnnOpen
+    let (ostr,cstr,isComp) =
+          if isListComp cts
+            then case cts of
+                   GHC.PArrComp -> ("[:",":]",True)
+                   _            -> ("[",  "]",True)
+            else ("{","}",False)
+
+    printAnnString GHC.AnnOpen ostr
     addDeltaAnnotation GHC.AnnOpenS
     addDeltaAnnotation GHC.AnnOpenC
     addDeltaAnnotationsInside GHC.AnnSemi
@@ -2194,7 +2277,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
         annotateListWithLayout l es
     addDeltaAnnotation GHC.AnnCloseS
     addDeltaAnnotation GHC.AnnCloseC
-    addDeltaAnnotation GHC.AnnClose
+    printAnnString GHC.AnnClose cstr
 
   annotateG _ (GHC.ExplicitList _ _ es) = do
     addDeltaAnnotation GHC.AnnOpenS
@@ -2202,9 +2285,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
     addDeltaAnnotation GHC.AnnCloseS
 
   annotateG _ (GHC.ExplicitPArr _ es)   = do
-    addDeltaAnnotation GHC.AnnOpen
+    printAnnString GHC.AnnOpen "[:"
     mapM_ annotatePC es
-    addDeltaAnnotation GHC.AnnClose
+    printAnnString GHC.AnnClose ":]"
 
   annotateG _ (GHC.RecordCon n _ (GHC.HsRecFields fs _)) = do
     annotatePC n
@@ -2254,7 +2337,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
     addDeltaAnnotation GHC.AnnCloseS -- ']'
 
   annotateG _ (GHC.PArrSeq _ seqInfo) = do
-    addDeltaAnnotation GHC.AnnOpen -- '[:'
+    printAnnString GHC.AnnOpen "[:" -- '[:'
     case seqInfo of
         GHC.From e -> do
           annotatePC e
@@ -2274,56 +2357,67 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
           annotatePC e2
           addDeltaAnnotation GHC.AnnDotdot
           annotatePC e3
-    addDeltaAnnotation GHC.AnnClose -- ':]'
+    printAnnString GHC.AnnClose ":]" -- ':]'
 
-  annotateG _ (GHC.HsSCC _ _csFStr e) = do
-    addDeltaAnnotation GHC.AnnOpen -- '{-# SCC'
-    addDeltaAnnotation GHC.AnnVal
+  annotateG _ (GHC.HsSCC _ csFStr e) = do
+    printAnnString GHC.AnnOpen "{-# SCC"
+    printAnnString GHC.AnnVal (GHC.unpackFS csFStr)
     addDeltaAnnotation GHC.AnnValStr
-    addDeltaAnnotation GHC.AnnClose -- '#-}'
+    printAnnString GHC.AnnClose "#-}"
     annotatePC e
 
-  annotateG _ (GHC.HsCoreAnn _ _csFStr e) = do
-    addDeltaAnnotation GHC.AnnOpen -- '{-# CORE'
-    addDeltaAnnotation GHC.AnnVal
-    addDeltaAnnotation GHC.AnnClose -- '#-}'
+  annotateG _ (GHC.HsCoreAnn _ csFStr e) = do
+    printAnnString GHC.AnnOpen "{-# CORE"
+    printAnnString GHC.AnnVal (GHC.unpackFS csFStr)
+    printAnnString GHC.AnnClose "#-}"
     annotatePC e
-
-  annotateG l (GHC.HsBracket (GHC.VarBr _ _)) = do
-    addDeltaAnnotationExt l GHC.AnnVal
+  -- TODO: make monomorphic
+  annotateG l (GHC.HsBracket (GHC.VarBr single v)) =
+    let str =
+          if single then ("'"  ++ showGhc v)
+                    else ("''" ++ showGhc v)
+    in
+    printAnnStringExt l GHC.AnnVal str
   annotateG _ (GHC.HsBracket (GHC.DecBrL ds)) = do
-    addDeltaAnnotation GHC.AnnOpen
+    printAnnString GHC.AnnOpen "[d|"
     addDeltaAnnotation GHC.AnnOpenC
     mapM_ annotatePC ds
     addDeltaAnnotation GHC.AnnCloseC
-    addDeltaAnnotation GHC.AnnClose
+    printAnnString GHC.AnnClose "|]"
   annotateG _ (GHC.HsBracket (GHC.ExpBr e)) = do
-    addDeltaAnnotation GHC.AnnOpen
+    printAnnString GHC.AnnOpen "[|"
     annotatePC e
-    addDeltaAnnotation GHC.AnnClose
+    printAnnString GHC.AnnClose "|]"
   annotateG _ (GHC.HsBracket (GHC.TExpBr e)) = do
-    addDeltaAnnotation GHC.AnnOpen
+    printAnnString GHC.AnnOpen "[||"
     annotatePC e
-    addDeltaAnnotation GHC.AnnClose
+    printAnnString GHC.AnnClose "||]"
   annotateG _ (GHC.HsBracket (GHC.TypBr e)) = do
-    addDeltaAnnotation GHC.AnnOpen
+    printAnnString GHC.AnnOpen "[t|"
     annotatePC e
-    addDeltaAnnotation GHC.AnnClose
+    printAnnString GHC.AnnClose "|]"
   annotateG _ (GHC.HsBracket (GHC.PatBr e)) = do
-    addDeltaAnnotation GHC.AnnOpen
+    printAnnString GHC.AnnOpen  "[p|"
     annotatePC e
-    addDeltaAnnotation GHC.AnnClose
+    printAnnString GHC.AnnClose "|]"
 
   annotateG _ (GHC.HsRnBracketOut _ _) = return ()
   annotateG _ (GHC.HsTcBracketOut _ _) = return ()
 
-  annotateG _ (GHC.HsSpliceE _typed (GHC.HsSplice _ e)) = do
-    addDeltaAnnotation GHC.AnnOpen -- possible '$('
+  annotateG _ (GHC.HsSpliceE False (GHC.HsSplice _ e)) = do
+    printAnnString GHC.AnnOpen "$("
     annotatePC e
-    addDeltaAnnotation GHC.AnnClose -- possible ')'
+    printAnnString GHC.AnnClose ")"
 
-  annotateG l (GHC.HsQuasiQuoteE (GHC.HsQuasiQuote _ _ _)) = do
-    addDeltaAnnotationExt l GHC.AnnVal
+  annotateG _ (GHC.HsSpliceE True (GHC.HsSplice _ e)) = do
+    printAnnString GHC.AnnOpen "$$("
+    annotatePC e
+    printAnnString GHC.AnnClose ")"
+
+  annotateG l (GHC.HsQuasiQuoteE (GHC.HsQuasiQuote n _ q)) = do
+    printAnnStringExt l GHC.AnnVal
+      ("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS q) ++ "|]")
+
 
   annotateG _ (GHC.HsProc p c) = do
     addDeltaAnnotation GHC.AnnProc
@@ -2346,30 +2440,30 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
     annotatePC e2
 
   annotateG _ (GHC.HsArrForm e _ cs) = do
-    addDeltaAnnotation GHC.AnnOpen -- '(|'
+    printAnnString GHC.AnnOpen "(|"
     annotatePC e
     mapM_ annotatePC cs
-    addDeltaAnnotation GHC.AnnClose -- '|)'
+    printAnnString GHC.AnnClose "|)"
 
   annotateG _ (GHC.HsTick _ _) = return ()
   annotateG _ (GHC.HsBinTick _ _ _) = return ()
 
-  annotateG _ (GHC.HsTickPragma _ (_str,(_v1,_v2),(_v3,_v4)) e) = do
+  annotateG _ (GHC.HsTickPragma _ (str,(v1,v2),(v3,v4)) e) = do
     -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
-    addDeltaAnnotation   GHC.AnnOpen     -- '{-# GENERATED'
-    addDeltaAnnotationLs GHC.AnnVal   0 -- STRING
-    addDeltaAnnotationLs GHC.AnnVal   1 -- INTEGER
+    printAnnString       GHC.AnnOpen  "{-# GENERATED"
+    printAnnStringLs GHC.AnnVal (GHC.unpackFS str) 0 -- STRING
+    printAnnStringLs GHC.AnnVal (show v1)  1 -- INTEGER
     addDeltaAnnotationLs GHC.AnnColon 0 -- ':'
-    addDeltaAnnotationLs GHC.AnnVal   2 -- INTEGER
+    printAnnStringLs GHC.AnnVal (show v2)  2 -- INTEGER
     addDeltaAnnotation   GHC.AnnMinus   -- '-'
-    addDeltaAnnotationLs GHC.AnnVal   3 -- INTEGER
+    printAnnStringLs GHC.AnnVal (show v3)  3 -- INTEGER
     addDeltaAnnotationLs GHC.AnnColon 1 -- ':'
-    addDeltaAnnotationLs GHC.AnnVal   4 -- INTEGER
-    addDeltaAnnotation   GHC.AnnClose   -- '#-}'
+    printAnnStringLs GHC.AnnVal (show v4)  4 -- INTEGER
+    printAnnString   GHC.AnnClose  "#-}"
     annotatePC e
 
   annotateG l (GHC.EWildPat) = do
-    addDeltaAnnotationExt l GHC.AnnVal
+    printAnnStringExt l GHC.AnnVal "_"
 
   annotateG _ (GHC.EAsPat ln e) = do
     annotatePC ln
@@ -2390,7 +2484,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
   annotateG _ (GHC.HsWrap _ _) = return ()
   annotateG _ (GHC.HsUnboundVar _) = return ()
 
-
+instance AnnotateGen GHC.HsLit where
+  annotateG l lit = printAnnStringExt l GHC.AnnVal (hsLit2String lit)
 -- ---------------------------------------------------------------------
 
 -- |Used for declarations that need to be aligned together, e.g. in a
@@ -2428,10 +2523,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
     annotatePC e2
 
   annotateG _ (GHC.HsCmdArrForm e _mf cs) = do
-    addDeltaAnnotation GHC.AnnOpen -- '(|'
+    printAnnString GHC.AnnOpen "(|"
     annotatePC e
     mapM_ annotatePC cs
-    addDeltaAnnotation GHC.AnnClose -- '|)'
+    printAnnString GHC.AnnClose "|)"
 
   annotateG _ (GHC.HsCmdApp e1 e2) = do
     annotatePC e1
@@ -2442,7 +2537,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
     annotateMatchGroup l match
 
   annotateG _ (GHC.HsCmdPar e) = do
-    addDeltaAnnotation GHC.AnnOpenP -- '('
+    addDeltaAnnotation GHC.AnnOpenP
     annotatePC e
     addDeltaAnnotation GHC.AnnCloseP -- ')'
 
@@ -2597,7 +2692,15 @@ instance (GHC.DataId name,AnnotateGen name,GHC.OutputableBndr name)
 
 -- TODO: modify lexer etc, in the meantime to not set haddock flag
 instance AnnotateGen GHC.DocDecl where
-  annotateG l _ = addDeltaAnnotationExt l GHC.AnnVal
+  annotateG l v =
+    let str =
+          case v of
+            (GHC.DocCommentNext (GHC.HsDocString fs)) -> (GHC.unpackFS fs)
+            (GHC.DocCommentPrev (GHC.HsDocString fs)) -> (GHC.unpackFS fs)
+            (GHC.DocCommentNamed _s (GHC.HsDocString fs)) -> (GHC.unpackFS fs)
+            (GHC.DocGroup _i (GHC.HsDocString fs)) -> (GHC.unpackFS fs)
+    in
+      printAnnStringExt l (GHC.AnnVal) str
 
 -- ---------------------------------------------------------------------
 
@@ -2697,10 +2800,13 @@ instance (GHC.DataId name,AnnotateGen name)
 -- ---------------------------------------------------------------------
 
 instance AnnotateGen (GHC.CType) where
-  annotateG _ _ = do
-    addDeltaAnnotation GHC.AnnOpen
-    addDeltaAnnotation GHC.AnnHeader
-    addDeltaAnnotation GHC.AnnVal
-    addDeltaAnnotation GHC.AnnClose
+  annotateG _ (GHC.CType src mh f) = do
+    printAnnString GHC.AnnOpen src
+    case mh of
+      Nothing -> return ()
+      Just (GHC.Header h) ->
+         printAnnString GHC.AnnHeader ("\"" ++ GHC.unpackFS h ++ "\"")
+    printAnnString GHC.AnnVal ("\"" ++ GHC.unpackFS f ++ "\"")
+    printAnnString GHC.AnnClose "#-}"
 
 -- ---------------------------------------------------------------------
