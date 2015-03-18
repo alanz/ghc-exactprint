@@ -1307,8 +1307,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
 
 instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
    => AnnotateGen (GHC.AnnDecl name) where
-   annotateG _ (GHC.HsAnnotation _src prov e) = do
-     printAnnString GHC.AnnOpen "{-# ANN"
+   annotateG _ (GHC.HsAnnotation src prov e) = do
+     printAnnString GHC.AnnOpen src
      addDeltaAnnotation GHC.AnnType
      addDeltaAnnotation GHC.AnnModule
      case prov of
@@ -1681,16 +1681,16 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
 
 
   -- '{-# SPECIALISE' 'instance' inst_type '#-}'
-  annotateG _ (GHC.SpecInstSig _ typ) = do
-    printAnnString GHC.AnnOpen "{-# SPECIALISE"
+  annotateG _ (GHC.SpecInstSig src typ) = do
+    printAnnString GHC.AnnOpen src
     addDeltaAnnotation GHC.AnnInstance
     annotatePC typ
     printAnnString GHC.AnnClose "#-}" -- '#-}'
 
 
   -- MinimalSig (BooleanFormula (Located name))
-  annotateG _ (GHC.MinimalSig _ formula) = do
-    printAnnString GHC.AnnOpen "{-# MINIMAL"
+  annotateG _ (GHC.MinimalSig src  formula) = do
+    printAnnString GHC.AnnOpen src
     annotateBooleanFormula formula
     printAnnString GHC.AnnClose "#-}"
 
@@ -2360,15 +2360,15 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
           annotatePC e3
     printAnnString GHC.AnnClose ":]" -- ':]'
 
-  annotateG _ (GHC.HsSCC _ csFStr e) = do
-    printAnnString GHC.AnnOpen "{-# SCC"
+  annotateG _ (GHC.HsSCC src csFStr e) = do
+    printAnnString GHC.AnnOpen src -- "{-# SCC"
     printAnnString GHC.AnnVal (GHC.unpackFS csFStr)
     printAnnString GHC.AnnValStr ("\"" ++ GHC.unpackFS csFStr ++ "\"")
     printAnnString GHC.AnnClose "#-}"
     annotatePC e
 
-  annotateG _ (GHC.HsCoreAnn _ csFStr e) = do
-    printAnnString GHC.AnnOpen "{-# CORE"
+  annotateG _ (GHC.HsCoreAnn src csFStr e) = do
+    printAnnString GHC.AnnOpen src -- "{-# CORE"
     printAnnString GHC.AnnVal (GHC.unpackFS csFStr)
     printAnnString GHC.AnnClose "#-}"
     annotatePC e
@@ -2449,9 +2449,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
   annotateG _ (GHC.HsTick _ _) = return ()
   annotateG _ (GHC.HsBinTick _ _ _) = return ()
 
-  annotateG _ (GHC.HsTickPragma _ (str,(v1,v2),(v3,v4)) e) = do
+  annotateG _ (GHC.HsTickPragma src (str,(v1,v2),(v3,v4)) e) = do
     -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
-    printAnnString       GHC.AnnOpen  "{-# GENERATED"
+    printAnnString       GHC.AnnOpen  src
     printAnnStringLs GHC.AnnVal (show (GHC.unpackFS str)) 0 -- STRING
     printAnnStringLs GHC.AnnVal (show v1)  1 -- INTEGER
     addDeltaAnnotationLs GHC.AnnColon 0 -- ':'
