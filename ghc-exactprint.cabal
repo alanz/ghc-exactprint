@@ -32,6 +32,7 @@ library
                      , Language.Haskell.GHC.ExactPrint.Common
                      , Language.Haskell.GHC.ExactPrint.Lookup
                      , Language.Haskell.GHC.ExactPrint.Annotate
+                     , Language.Haskell.GHC.ExactPrint.Print
   GHC-Options:         -Wall
   -- other-modules:
   -- other-extensions:
