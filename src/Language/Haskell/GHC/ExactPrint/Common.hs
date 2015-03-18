@@ -1200,7 +1200,7 @@ instance (AnnotateGen name)
     mapM_ annotatePC mr
 
 instance AnnotateGen (Maybe GHC.Role) where
-  annotateG _ Nothing  = printAnnString GHC.AnnVal "_"
+  annotateG l Nothing  = printAnnStringExt l GHC.AnnVal "_"
   annotateG l (Just r) = printAnnStringExt l GHC.AnnVal (GHC.unpackFS $ GHC.fsFromRole r)
 
 -- ---------------------------------------------------------------------
