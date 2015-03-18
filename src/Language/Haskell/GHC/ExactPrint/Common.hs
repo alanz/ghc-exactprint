@@ -1551,7 +1551,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
 -- ---------------------------------------------------------------------
 
 instance AnnotateGen GHC.HsIPName where
-  annotateG l (GHC.HsIPName n) = printAnnStringExt l GHC.AnnVal ("?" ++ (GHC.unpackFS n))
+  annotateG l (GHC.HsIPName n) = printAnnStringExt l (GHC.AnnVal) (GHC.unpackFS n)
 
 -- ---------------------------------------------------------------------
 
@@ -1777,8 +1777,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
     annotatePC t
     addDeltaAnnotation GHC.AnnCloseP -- ')'
 
-  annotateG l (GHC.HsIParamTy n t) = do
-    annotateG l n
+  annotateG l (GHC.HsIParamTy (GHC.HsIPName n) t) = do
+    printAnnString GHC.AnnVal ("?" ++ (GHC.unpackFS n))
     addDeltaAnnotation GHC.AnnDcolon
     annotatePC t
 
