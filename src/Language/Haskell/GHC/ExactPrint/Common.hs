@@ -1355,7 +1355,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
       then return ()
       else annotatePC safety
     -- annotateMaybe mh
-    printAnnStringExt ls GHC.AnnVal src
+    printAnnStringExt ls GHC.AnnVal ("\"" ++ src ++ "\"")
     annotatePC ln
     addDeltaAnnotation GHC.AnnDcolon
     annotatePC typ
@@ -1365,7 +1365,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
     addDeltaAnnotation GHC.AnnForeign
     addDeltaAnnotation GHC.AnnExport
     annotatePC spec
-    printAnnStringExt ls GHC.AnnVal src
+    printAnnStringExt ls GHC.AnnVal ("\"" ++ src ++ "\"")
     annotatePC ln
     addDeltaAnnotation GHC.AnnDcolon
     annotatePC typ
