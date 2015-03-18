@@ -1017,8 +1017,9 @@ instance AnnotateGen (GHC.HsModule GHC.RdrName) where
         addDeltaAnnotation GHC.AnnModule
         printAnnStringExt ln GHC.AnnVal (GHC.moduleNameString mn)
 
-
-    annotateMaybe mdepr
+    case mdepr of
+      Nothing -> return ()
+      Just depr -> annotatePC depr
 
     case mexp of
       Nothing   -> return ()
@@ -1339,7 +1340,7 @@ instance (AnnotateGen name)
      addDeltaAnnotation GHC.AnnCloseS -- "]"
 
 instance AnnotateGen GHC.FastString where
-  annotateG l fs = printAnnStringExt l GHC.AnnVal (GHC.unpackFS fs)
+  annotateG l fs = printAnnStringExt l GHC.AnnVal (show (GHC.unpackFS fs))
 
 -- ---------------------------------------------------------------------
 
