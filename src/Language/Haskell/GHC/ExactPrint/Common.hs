@@ -1667,8 +1667,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
     printAnnString GHC.AnnClose "#-}" -- '#-}'
 
 
-  annotateG _ (GHC.SpecSig ln typs _inl) = do
-    printAnnString GHC.AnnOpen "{-# SPECIALISE" -- '{-# SPECIALISE'
+  annotateG _ (GHC.SpecSig ln typs inl) = do
+    printAnnString GHC.AnnOpen (GHC.inl_src inl)
     addDeltaAnnotation GHC.AnnOpenS --  '['
     addDeltaAnnotation GHC.AnnTilde -- ~
     printAnnString GHC.AnnVal  "TODO: What here"
