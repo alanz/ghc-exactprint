@@ -1227,15 +1227,15 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
 
 instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
    => AnnotateGen (GHC.VectDecl name) where
-  annotateG _ (GHC.HsVect _src ln e) = do
-    printAnnString GHC.AnnOpen "{-# VECTORISE" -- "{-# VECTORISE"
+  annotateG _ (GHC.HsVect src ln e) = do
+    printAnnString GHC.AnnOpen src -- "{-# VECTORISE"
     annotatePC ln
     addDeltaAnnotation GHC.AnnEqual
     annotatePC e
     printAnnString GHC.AnnClose "#-}" -- "#-}"
 
-  annotateG _ (GHC.HsNoVect _src ln) = do
-    printAnnString GHC.AnnOpen "{-# NOVECTORISE" -- "{-# NOVECTORISE"
+  annotateG _ (GHC.HsNoVect src ln) = do
+    printAnnString GHC.AnnOpen src -- "{-# NOVECTORISE"
     annotatePC ln
     printAnnString GHC.AnnClose "#-}" -- "#-}"
 
@@ -1249,8 +1249,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
 
   annotateG _ (GHC.HsVectTypeOut {}) = error $ "annotateP.HsVectTypeOut: only valid after type checker"
 
-  annotateG _ (GHC.HsVectClassIn _src ln) = do
-    printAnnString GHC.AnnOpen "{-# VECTORISE"-- "{-# VECTORISE"
+  annotateG _ (GHC.HsVectClassIn src ln) = do
+    printAnnString GHC.AnnOpen src -- "{-# VECTORISE"
     addDeltaAnnotation GHC.AnnClass
     annotatePC ln
     printAnnString GHC.AnnClose "#-}" -- "#-}"
@@ -1552,7 +1552,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
 -- ---------------------------------------------------------------------
 
 instance AnnotateGen GHC.HsIPName where
-  annotateG l (GHC.HsIPName n) = printAnnStringExt l (GHC.AnnVal) (GHC.unpackFS n)
+  annotateG l (GHC.HsIPName n) = printAnnStringExt l (GHC.AnnVal) ("?" ++ GHC.unpackFS n)
 
 -- ---------------------------------------------------------------------
 
@@ -1658,7 +1658,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
           GHC.AlwaysActive -> ""
           GHC.ActiveBefore np -> show np
           GHC.ActiveAfter  np -> show np
-    printAnnString GHC.AnnOpen  "{-# INLINE"  -- '{-# INLINE'
+    printAnnString GHC.AnnOpen (GHC.inl_src inl) -- '{-# INLINE'
     addDeltaAnnotation GHC.AnnOpenS  -- '['
     addDeltaAnnotation  GHC.AnnTilde -- ~
     printAnnString  GHC.AnnVal actStr -- e.g. 34
