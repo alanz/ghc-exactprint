@@ -26,6 +26,8 @@ module Language.Haskell.GHC.ExactPrint.Types
   , getAnnotationEP
   , getAndRemoveAnnotationEP
 
+  , LayoutFlag(..)
+
   ) where
 
 import Data.Data
@@ -34,6 +36,7 @@ import qualified GHC           as GHC
 import qualified Outputable    as GHC
 
 import qualified Data.Map as Map
+import Data.Monoid
 
 -- ---------------------------------------------------------------------
 
@@ -133,6 +136,14 @@ data KeywordId = G GHC.AnnKeywordId
                                      -- exactPC can find it, after
                                      -- potential AST edits.
                deriving (Eq,Show,Ord)
+
+data LayoutFlag = LayoutRules | NoLayoutRules deriving (Show, Eq)
+
+instance Monoid LayoutFlag where
+  mempty = NoLayoutRules
+  LayoutRules `mappend` _ = LayoutRules
+  _ `mappend` LayoutRules = LayoutRules
+  _ `mappend` _           = NoLayoutRules
 
 -- ---------------------------------------------------------------------
 
