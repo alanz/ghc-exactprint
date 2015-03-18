@@ -69,7 +69,7 @@ runEP action ss ans =
 printInterpret :: Wrapped a -> EP a
 printInterpret = iterTM go
   where
-    go :: AnnotationF (AnnKey, Annotation) (EP a) -> EP a
+    go :: AnnotationF (EP a) -> EP a
     go (Output _ next) = next
     go (AddEofAnnotation next) = printStringAtMaybeAnn (G GHC.AnnEofPos) "" >> next
     go (AddDeltaAnnotation kwid next) =

@@ -19,6 +19,8 @@ import qualified SrcLoc         as GHC
 
 import qualified Data.Map as Map
 
+import Debug.Trace
+
 
 -- ---------------------------------------------------------------------
 
@@ -114,7 +116,7 @@ runAP action ga priorEnd =
 simpleInterpret :: Wrapped a -> AP a
 simpleInterpret = iterTM go
   where
-    go :: AnnotationF (AnnKey, Annotation) (AP a) -> AP a
+    go :: AnnotationF (AP a) -> AP a
     go (Output _ next) = next
     go (AddEofAnnotation next) = addEofAnnotation' >> next
     go (AddDeltaAnnotation kwid next) =
@@ -338,7 +340,9 @@ addDeltaComment (Comment paspan str) = do
 addDeltaAnnotation' :: GHC.AnnKeywordId -> AP ()
 addDeltaAnnotation' ann = do
   ss <- getSrcSpanAP
+  when (ann == GHC.AnnVal) (traceM (showGhc ss))
   ma <- getAnnotationAP ann
+  when (ann == GHC.AnnVal && null ma) (traceM "empty")
   case nub ma of -- ++AZ++ TODO: get rid of duplicates earlier
     [] -> return () `debug` ("addDeltaAnnotation empty ma for:" ++ show ann)
     [pa] -> addAnnotationWorker (G ann) pa
@@ -385,7 +389,8 @@ addDeltaAnnotationsInside' ann = do
   ma <- getAnnotationAP ann
   let do_one ap' = addAnnotationWorker (G ann) ap'
                     -- `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
-  mapM_ do_one (sort $ filter (\s -> GHC.isSubspanOf s ss) ma)
+  let filtered = (sort $ filter (\s -> GHC.isSubspanOf s ss) ma)
+  mapM_ do_one filtered
 
 -- | Look up and add possibly multiple Delta annotations not enclosed by
 -- the current SrcSpan at the current position, and advance the
@@ -443,7 +448,7 @@ annotateLHsModule modu@(GHC.L ss _) ghcAnns
    = runAP (annotatePC modu) ghcAnns ss
 
 annotateAST :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns -> Anns
-annotateAST ast ghcAnns = annotateLHsModule ast ghcAnns
+annotateAST ast ghcAnns = trace (showGhc ghcAnns) $ annotateLHsModule ast ghcAnns
 
 -- ---------------------------------------------------------------------
 

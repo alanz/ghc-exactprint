@@ -11,5 +11,3 @@ module Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Annotate
 import Language.Haskell.GHC.ExactPrint.Print
-
-

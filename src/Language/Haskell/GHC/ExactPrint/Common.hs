@@ -9,7 +9,11 @@
 {-# LANGUAGE RankNTypes #-} -- for GHC.DataId
 {-# LANGUAGE GADTs #-} -- for GHC.DataId
 {-# LANGUAGE KindSignatures #-} -- for GHC.DataId
-module Language.Haskell.GHC.ExactPrint.Common where
+module Language.Haskell.GHC.ExactPrint.Common
+       ( AnnotationF(..)
+       , annotatePC
+       , Wrapped
+       , AnnotateGen(..)) where
 
 import Control.Monad.Identity
 import Control.Exception
@@ -32,123 +36,55 @@ import qualified SrcLoc         as GHC
 
 
 import Control.Monad.Trans.Free
+import Control.Monad.Free.TH
 
 -- ---------------------------------------------------------------------
 
 
-data AnnotationF w next where
---  AddAnnotationWorker :: KeywordId -> GHC.SrcSpan -> next -> AnnotationF w next
-  Output :: w -> next -> AnnotationF w next
-  OutputKD :: (DeltaPos, (GHC.SrcSpan, KeywordId)) -> next -> AnnotationF w next
-  AddEofAnnotation  :: next -> AnnotationF w next
-  AddDeltaAnnotation :: GHC.AnnKeywordId -> next -> AnnotationF w next
-  AddDeltaAnnotationsOutside :: GHC.AnnKeywordId -> KeywordId -> next -> AnnotationF w next
-  AddDeltaAnnotationsInside :: GHC.AnnKeywordId -> next -> AnnotationF w next
-  AddDeltaAnnotations :: GHC.AnnKeywordId -> next -> AnnotationF w next
-  AddDeltaAnnotationLs :: GHC.AnnKeywordId -> Int -> next -> AnnotationF w next
-  AddDeltaAnnotationAfter :: GHC.AnnKeywordId -> next -> AnnotationF w next
-  AddDeltaAnnotationExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> next ->  AnnotationF w next {-
-  Before :: Data a => GHC.Located a -> (GHC.SrcSpan -> DeltaPos -> GHC.SrcSpan -> DeltaPos -> next) -> AnnotationF w next
-  Middle :: Data a => GHC.Located a -> DeltaPos -> Wrapped b -> ((b, APWriter) -> next) -> AnnotationF w next
-  After  :: b -> LayoutFlag -> LayoutFlag -> GHC.SrcSpan -> [(KeywordId, DeltaPos)]
-          -> (b -> next) -> AnnotationF w next -}
-  WithAST  :: Data a => GHC.Located a -> LayoutFlag -> Wrapped b -> (b -> next) -> AnnotationF w next
-  CountAnnsAP ::  GHC.AnnKeywordId -> (Int -> next) -> AnnotationF w next
-  SetLayoutFlag ::  next -> AnnotationF w next
-  PrintAnnString :: GHC.AnnKeywordId -> String -> next -> AnnotationF w next
-  PrintAnnStringExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> String -> next -> AnnotationF w next
-  PrintAnnStringLs :: GHC.AnnKeywordId -> String -> Int -> next -> AnnotationF w next
+data AnnotationF next where
+  Output :: (AnnKey, Annotation) -> next -> AnnotationF next
+  OutputKD :: (DeltaPos, (GHC.SrcSpan, KeywordId)) -> next -> AnnotationF next
+  AddEofAnnotation  :: next -> AnnotationF next
+  AddDeltaAnnotation :: GHC.AnnKeywordId -> next -> AnnotationF next
+  AddDeltaAnnotationsOutside :: GHC.AnnKeywordId -> KeywordId -> next -> AnnotationF next
+  AddDeltaAnnotationsInside :: GHC.AnnKeywordId -> next -> AnnotationF next
+  AddDeltaAnnotations :: GHC.AnnKeywordId -> next -> AnnotationF next
+  AddDeltaAnnotationLs :: GHC.AnnKeywordId -> Int -> next -> AnnotationF next
+  AddDeltaAnnotationAfter :: GHC.AnnKeywordId -> next -> AnnotationF next
+  AddDeltaAnnotationExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> next ->  AnnotationF next
+  WithAST  :: Data a => GHC.Located a -> LayoutFlag -> Wrapped b -> (b -> next) -> AnnotationF next
+  CountAnnsAP ::  GHC.AnnKeywordId -> (Int -> next) -> AnnotationF next
+  SetLayoutFlag ::  next -> AnnotationF next
+  PrintAnnString :: GHC.AnnKeywordId -> String -> next -> AnnotationF next
+  PrintAnnStringExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> String -> next -> AnnotationF next
+  PrintAnnStringLs :: GHC.AnnKeywordId -> String -> Int -> next -> AnnotationF next
 
---  Middle :: Data a => GHC.Located a -> DeltaPos -> Wrapped b
---          -> ((b, APWriter) -> next) -> AnnotationF w next
+deriving instance Functor (AnnotationF)
 
-deriving instance Functor (AnnotationF w)
 
---makeFree ''AnnotationF
--- Generate by TH
-output ::
-  forall m_a19g1 w_a1908. MonadFree (AnnotationF w_a1908) m_a19g1 =>
-  w_a1908 -> m_a19g1 ()
-output p_a19g3 = liftF (Output p_a19g3 ())
-addEofAnnotation ::
-  forall m_a19g4 w_a1908. MonadFree (AnnotationF w_a1908) m_a19g4 =>
-  m_a19g4 ()
-addEofAnnotation = liftF (AddEofAnnotation ())
-addDeltaAnnotation ::
-  forall m_a19g6 w_a1908. MonadFree (AnnotationF w_a1908) m_a19g6 =>
-  GHC.AnnKeywordId -> m_a19g6 ()
-addDeltaAnnotation p_a19g8 = liftF (AddDeltaAnnotation p_a19g8 ())
-addDeltaAnnotationsOutside ::
-  forall m_a19g9 w_a1908. MonadFree (AnnotationF w_a1908) m_a19g9 =>
-  GHC.AnnKeywordId -> KeywordId -> m_a19g9 ()
-addDeltaAnnotationsOutside p_a19gb p_a19gc
-  = liftF (AddDeltaAnnotationsOutside p_a19gb p_a19gc ())
-addDeltaAnnotationsInside ::
-  forall m_a19gd w_a1908. MonadFree (AnnotationF w_a1908) m_a19gd =>
-  GHC.AnnKeywordId -> m_a19gd ()
-addDeltaAnnotationsInside p_a19gf
-  = liftF (AddDeltaAnnotationsInside p_a19gf ())
-addDeltaAnnotations ::
-  forall m_a19gg w_a1908. MonadFree (AnnotationF w_a1908) m_a19gg =>
-  GHC.AnnKeywordId -> m_a19gg ()
-addDeltaAnnotations p_a19gi
-  = liftF (AddDeltaAnnotations p_a19gi ())
-addDeltaAnnotationLs ::
-  forall m_a19gj w_a1908. MonadFree (AnnotationF w_a1908) m_a19gj =>
-  GHC.AnnKeywordId -> Int -> m_a19gj ()
-addDeltaAnnotationLs p_a19gl p_a19gm
-  = liftF (AddDeltaAnnotationLs p_a19gl p_a19gm ())
-addDeltaAnnotationAfter ::
-  forall m_a19gn w_a1908. MonadFree (AnnotationF w_a1908) m_a19gn =>
-  GHC.AnnKeywordId -> m_a19gn ()
-addDeltaAnnotationAfter p_a19gp
-  = liftF (AddDeltaAnnotationAfter p_a19gp ())
-addDeltaAnnotationExt ::
-  forall
-         m_a19gq
-         w_a1908. MonadFree (AnnotationF w_a1908) m_a19gq =>
-  GHC.SrcSpan -> GHC.AnnKeywordId ->  m_a19gq ()
-addDeltaAnnotationExt p_a19gs p_a19gt
-  = liftF (AddDeltaAnnotationExt p_a19gs p_a19gt ())
-
-countAnnsAP :: GHC.AnnKeywordId -> Wrapped Int
-countAnnsAP kwid = liftF (CountAnnsAP kwid (\i -> i))
-
-setLayoutFlag :: Wrapped ()
-setLayoutFlag = liftF (SetLayoutFlag ())
-
-outputKD :: (DeltaPos, (GHC.SrcSpan, KeywordId)) -> Wrapped ()
-outputKD kd = liftF (OutputKD kd ())
-
-printAnnString :: GHC.AnnKeywordId -> String -> Wrapped ()
-printAnnString kwid s = liftF (PrintAnnString kwid s ())
-
-printAnnStringExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> String -> Wrapped ()
-printAnnStringExt ss kwid s = liftF (PrintAnnStringExt ss kwid s ())
-
-printAnnStringLs :: GHC.AnnKeywordId -> String -> Int -> Wrapped ()
-printAnnStringLs  kwid s n = liftF (PrintAnnStringLs kwid s n ())
-
-class Data ast => AnnotateGen ast where
-  annotateG :: GHC.SrcSpan -> ast -> Wrapped ()
-
-type AnnotateT w m = FreeT (AnnotationF w)  m
+type Marked = Free AnnotationF
 
 -- ---------------------------------------------------------------------
 
+type Wrapped a = Marked a
 
-
-
--- | Type used in the AP Monad. The state variables maintain
---    - the current SrcSpan and the constructor of the thing it encloses
---      as a stack to the root of the AST as it is traversed,
---    - the srcspan of the last thing annotated, to calculate delta's from
---    - extra data needing to be stored in the monad
---    - the annotations provided by GHC
-type Wrapped a = AnnotateT (AnnKey, Annotation) Identity a
-
+makeFreeCon  'Output
+makeFreeCon  'OutputKD
+makeFreeCon  'AddEofAnnotation
+makeFreeCon  'AddDeltaAnnotation
+makeFreeCon  'AddDeltaAnnotationsOutside
+makeFreeCon  'AddDeltaAnnotationsInside
+makeFreeCon  'AddDeltaAnnotations
+makeFreeCon  'AddDeltaAnnotationLs
+makeFreeCon  'AddDeltaAnnotationAfter
+makeFreeCon  'AddDeltaAnnotationExt
+makeFreeCon  'CountAnnsAP
+makeFreeCon  'SetLayoutFlag
+makeFreeCon  'PrintAnnString
+makeFreeCon  'PrintAnnStringExt
+makeFreeCon  'PrintAnnStringLs
 -- ---------------------------------------------------------------------
-
+--
 withAST :: Data a => GHC.Located a -> LayoutFlag -> Wrapped b -> Wrapped b
 withAST lss layout action = liftF (WithAST lss layout prog (\b -> b))
   where
@@ -158,7 +94,6 @@ withAST lss layout action = liftF (WithAST lss layout prog (\b -> b))
       addDeltaAnnotationAfter GHC.AnnComma
       addDeltaAnnotationsOutside GHC.AnnSemi AnnSemiSep
       return r
-
 -- ---------------------------------------------------------------------
 
 
@@ -189,13 +124,6 @@ annotateListWithLayout l ls = do
   annotateWithLayout (GHC.L ss ls)
 
 -- ---------------------------------------------------------------------
-
--- ---------------------------------------------------------------------
-
--- ---------------------------------------------------------------------
-
-
--- ---------------------------------------------------------------------
 -- Managing lists which have been separated, e.g. Sigs and Binds
 
 prepareListAnnotation :: AnnotateGen a => [GHC.Located a] -> [(GHC.SrcSpan,Wrapped ())]
@@ -206,9 +134,9 @@ applyListAnnotations ls
   = mapM_ snd $ sortBy (\(a,_) (b,_) -> compare a b) ls
 
 -- ---------------------------------------------------------------------
--- Start of application specific part
 
--- ---------------------------------------------------------------------
+class Data ast => AnnotateGen ast where
+  annotateG :: GHC.SrcSpan -> ast -> Wrapped ()
 
 -- ---------------------------------------------------------------------
 
@@ -585,7 +513,7 @@ instance (AnnotateGen GHC.CExportSpec) where
 -- ---------------------------------------------------------------------
 
 instance (AnnotateGen GHC.CCallConv) where
-  annotateG l GHC.StdCallConv        =  printAnnStringExt l GHC.AnnVal "stdcall"
+  annotateG l GHC.StdCallConv        =  printAnnStringExt l  GHC.AnnVal "stdcall"
   annotateG l GHC.CCallConv          =  printAnnStringExt l GHC.AnnVal "ccall"
   annotateG l GHC.CApiConv           =  printAnnStringExt l GHC.AnnVal "capi"
   annotateG l GHC.PrimCallConv       =  printAnnStringExt l GHC.AnnVal "prim"
