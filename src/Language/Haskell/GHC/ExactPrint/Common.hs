@@ -2452,7 +2452,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
   annotateG _ (GHC.HsTickPragma _ (str,(v1,v2),(v3,v4)) e) = do
     -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
     printAnnString       GHC.AnnOpen  "{-# GENERATED"
-    printAnnStringLs GHC.AnnVal (GHC.unpackFS str) 0 -- STRING
+    printAnnStringLs GHC.AnnVal (show (GHC.unpackFS str)) 0 -- STRING
     printAnnStringLs GHC.AnnVal (show v1)  1 -- INTEGER
     addDeltaAnnotationLs GHC.AnnColon 0 -- ':'
     printAnnStringLs GHC.AnnVal (show v2)  2 -- INTEGER
