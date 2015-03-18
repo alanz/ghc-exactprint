@@ -2362,7 +2362,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
   annotateG _ (GHC.HsSCC _ csFStr e) = do
     printAnnString GHC.AnnOpen "{-# SCC"
     printAnnString GHC.AnnVal (GHC.unpackFS csFStr)
-    addDeltaAnnotation GHC.AnnValStr
+    printAnnString GHC.AnnValStr ("\"" ++ GHC.unpackFS csFStr ++ "\"")
     printAnnString GHC.AnnClose "#-}"
     annotatePC e
 
