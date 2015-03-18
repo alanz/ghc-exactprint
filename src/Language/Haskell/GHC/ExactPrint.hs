@@ -1413,13 +1413,6 @@ instance ExactP (GHC.HsExpr GHC.RdrName) where
     if single then printStringAtMaybeAnn (G GHC.AnnVal) ("'"  ++ rdrName2String v)
               else printStringAtMaybeAnn (G GHC.AnnVal) ("''" ++ rdrName2String v)
   exactP (GHC.HsBracket (GHC.DecBrL ds)) = do
-    cnt <- countAnns (G GHC.AnnOpen)
-    case cnt of
-      1 -> do
-        printStringAtMaybeAnn (G GHC.AnnOpen)  "[d|"
-        mapM_ exactPC ds
-        printStringAtMaybeAnn (G GHC.AnnClose) "|]"
-      _ -> do
         printStringAtMaybeAnn (G GHC.AnnOpen)  "[d|"
         printStringAtMaybeAnn (G GHC.AnnOpenC) "{"
         mapM_ exactPC ds

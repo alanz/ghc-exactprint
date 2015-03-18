@@ -131,6 +131,7 @@ tests = TestList
   , mkTestMod "LayoutWhere.hs"           "Main"
   , mkTestMod "LayoutLet.hs"             "Main"
   , mkTestMod "LayoutIn1.hs"             "LayoutIn1"
+  , mkTestMod "LayoutIn3.hs"             "LayoutIn3"
   , mkTestMod "LayoutIn4.hs"             "LayoutIn4"
   , mkTestMod "Deprecation.hs"           "Deprecation"
   , mkTestMod "Infix.hs"                 "Main"
@@ -265,11 +266,14 @@ tt = do
     manipulateAstTest "FooExpected.hs"          "Main"
     manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
     manipulateAstTest "LayoutIn1.hs"                 "LayoutIn1"
+    manipulateAstTest "LayoutIn3.hs"                 "LayoutIn3"
     manipulateAstTestWithMod changeLayoutIn1  "LayoutIn1.hs" "LayoutIn1"
     manipulateAstTest "LocToName.hs"                 "LocToName"
+    manipulateAstTest "Cg008.hs"                 "Cg008"
     -}
     -- manipulateAstTestWithMod changeLayoutIn4  "LayoutIn4.hs" "LayoutIn4"
-    manipulateAstTestWithMod changeLocToName  "LocToName.hs" "LocToName"
+    manipulateAstTestWithMod changeLayoutIn3  "LayoutIn3.hs" "LayoutIn3"
+    -- manipulateAstTestWithMod changeLocToName  "LocToName.hs" "LocToName"
     -- manipulateAstTestWithMod changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
     -- manipulateAstTestWithMod changeRename1    "Rename1.hs"  "Main"
     -- manipulateAstTest    "Rename1.hs"  "Main"
@@ -290,6 +294,9 @@ changeLayoutLet2 parsed = rename "xxxlonger" [((7,5),(7,8)),((8,24),(8,27))] par
 
 changeLocToName :: GHC.ParsedSource -> GHC.ParsedSource
 changeLocToName parsed = rename "LocToName.newPoint" [((20,1),(20,11)),((20,28),(20,38)),((24,1),(24,11))] parsed
+
+changeLayoutIn3 :: GHC.ParsedSource -> GHC.ParsedSource
+changeLayoutIn3 parsed = rename "anotherX" [((7,13),(7,14)),((8,37),(8,38))] parsed
 
 changeLayoutIn4 :: GHC.ParsedSource -> GHC.ParsedSource
 changeLayoutIn4 parsed = rename "io" [((7,8),(7,13)),((7,28),(7,33))] parsed
@@ -398,6 +405,7 @@ manipulateAstTest' mchange useTH file' modname = do
   writeFile out $ result
   -- putStrLn $ "Test:parsed=" ++ parsedAST
   -- putStrLn $ "Test:ann :" ++ showGhc ann
+  -- putStrLn $ "Test:ghcAnns :" ++ showGhc ghcAnns
   -- putStrLn $ "Test:showdata:" ++ showAnnData ann 0 parsed
   -- putStrLn $ "Test:showdata:parsed'" ++ showAnnData ann 0 parsed'
   return ("Match\n" == result)
@@ -553,4 +561,3 @@ getTempDir dflags
        case Map.lookup tmp_dir mapping of
            Nothing -> error "should already be a tmpDir"
            Just d -> return d
-
