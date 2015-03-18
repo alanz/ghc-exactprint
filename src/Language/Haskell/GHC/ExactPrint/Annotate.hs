@@ -167,7 +167,11 @@ getPriorSrcSpanAP = asks prevSrcSpan
 withSrcSpanAP :: Data a => (GHC.Located a) -> DeltaPos -> AP b -> AP b
 withSrcSpanAP (GHC.L l a) edp =
   local (\s -> let previousSrcSpan = curSrcSpan s in
-                   StackItem l previousSrcSpan edp (annGetConstr a))
+               s { curSrcSpan = l
+                 , prevSrcSpan = previousSrcSpan
+                 , offset = edp
+                 , annConName = annGetConstr a
+                 })
 
 getEntryDP :: AP DeltaPos
 getEntryDP = asks offset
@@ -405,11 +409,13 @@ addDeltaAnnotationsInside' ann = do
 addDeltaAnnotationsOutside' :: GHC.AnnKeywordId -> KeywordId -> AP ()
 addDeltaAnnotationsOutside' gann ann = do
   ss <- getSrcSpanAP
-  -- ma <- getAnnotationAP ss gann
-  ma <- getAndRemoveAnnotationAP ss gann
-  let do_one ap' = addAnnotationWorker ann ap'
-                    -- `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
-  mapM_ do_one (sort $ filter (\s -> not (GHC.isSubspanOf s ss)) ma)
+  if ss2span ss == ((1,1),(1,1))
+    then return ()
+    else do
+      -- ma <- getAnnotationAP ss gann
+      ma <- getAndRemoveAnnotationAP ss gann
+      let do_one ap' = addAnnotationWorker ann ap'
+      mapM_ do_one (sort $ filter (\s -> not (GHC.isSubspanOf s ss)) ma)
 
 -- | Add a Delta annotation at the current position, and advance the
 -- position to the end of the annotation
