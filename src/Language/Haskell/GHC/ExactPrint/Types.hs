@@ -36,7 +36,6 @@ import qualified GHC           as GHC
 import qualified Outputable    as GHC
 
 import qualified Data.Map as Map
-import Data.Monoid
 
 -- ---------------------------------------------------------------------
 

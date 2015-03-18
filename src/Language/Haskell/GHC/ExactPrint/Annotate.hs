@@ -6,32 +6,16 @@ import Control.Monad.Writer
 import Control.Monad.RWS
 import Control.Applicative
 import Control.Monad.Trans.Free
-import Control.Exception
 import Data.Data
-import Data.Generics
 import Data.List
 
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Common
 
-import qualified Bag            as GHC
-import qualified BasicTypes     as GHC
-import qualified BooleanFormula as GHC
-import qualified Class          as GHC
-import qualified CoAxiom        as GHC
-import qualified DynFlags       as GHC
-import qualified FastString     as GHC
-import qualified ForeignCall    as GHC
 import qualified GHC            as GHC
-import qualified Name           as GHC
-import qualified NameSet        as GHC
-import qualified Outputable     as GHC
-import qualified RdrName        as GHC
 import qualified SrcLoc         as GHC
-import qualified Var            as GHC
 
-import qualified OccName(occNameString)
 
 import qualified Data.Map as Map
 
@@ -123,7 +107,7 @@ type AP a = RWS StackItem APWriter APState a
 runAP :: Wrapped () -> GHC.ApiAnns -> GHC.SrcSpan -> Anns
 runAP action ga priorEnd =
   ($ mempty) . appEndo . finalAnns . snd
-  . (\action -> execRWS action initialStackItem (defaultAPState priorEnd ga))
+  . (\next -> execRWS next initialStackItem (defaultAPState priorEnd ga))
   . simpleInterpret $ action
 
 
@@ -131,7 +115,7 @@ simpleInterpret :: Wrapped a -> AP a
 simpleInterpret = iterTM go
   where
     go :: AnnotationF (AnnKey, Annotation) (AP a) -> AP a
-    go (Output w next) = next
+    go (Output _ next) = next
     go (AddEofAnnotation next) = addEofAnnotation' >> next
     go (AddDeltaAnnotation kwid next) =
       addDeltaAnnotation' kwid >> next
@@ -146,7 +130,7 @@ simpleInterpret = iterTM go
     go (OutputKD (kwid, (_, dp)) next) = tellKd (dp, kwid) >> next
     go (CountAnnsAP kwid next) = countAnnsAP' kwid >>= next
     go (SetLayoutFlag next) = setLayoutFlag' >> next
-    go (PrintAnnString akwid s next) = addDeltaAnnotation' akwid >> next
+    go (PrintAnnString akwid _ next) = addDeltaAnnotation' akwid >> next
     go (PrintAnnStringExt ss akwid _ next) = addDeltaAnnotationExt' ss akwid >> next
     go (PrintAnnStringLs akwid _ n next) = addDeltaAnnotationLs' akwid n >> next
 

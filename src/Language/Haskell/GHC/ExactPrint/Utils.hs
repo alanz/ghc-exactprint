@@ -44,11 +44,6 @@ module Language.Haskell.GHC.ExactPrint.Utils
   ) where
 
 
-import Control.Monad.State
-import Control.Monad.Writer
-import Control.Monad.RWS
-import Control.Applicative
-import Control.Exception
 import Data.Data
 import Data.Generics
 import Data.List
@@ -57,23 +52,17 @@ import Language.Haskell.GHC.ExactPrint.Types
 
 import qualified Bag            as GHC
 import qualified BasicTypes     as GHC
-import qualified BooleanFormula as GHC
-import qualified Class          as GHC
-import qualified CoAxiom        as GHC
 import qualified DynFlags       as GHC
 import qualified FastString     as GHC
-import qualified ForeignCall    as GHC
 import qualified GHC            as GHC
 import qualified Name           as GHC
 import qualified NameSet        as GHC
 import qualified Outputable     as GHC
 import qualified RdrName        as GHC
-import qualified SrcLoc         as GHC
 import qualified Var            as GHC
 
 import qualified OccName(occNameString)
 
-import qualified Data.Map as Map
 
 debug :: c -> String -> c
 --debug = flip trace

@@ -27,7 +27,6 @@ import Language.Haskell.GHC.ExactPrint.Lookup
 import Language.Haskell.GHC.ExactPrint.Annotate
 
 import Control.Applicative
-import Control.Exception
 import Control.Monad.RWS
 import Data.Data
 import Data.List
@@ -35,14 +34,7 @@ import Data.Maybe
 
 import Control.Monad.Trans.Free
 
-import qualified Bag           as GHC
-import qualified BasicTypes    as GHC
-import qualified Class         as GHC
-import qualified CoAxiom       as GHC
-import qualified FastString    as GHC
-import qualified ForeignCall   as GHC
 import qualified GHC           as GHC
-import qualified SrcLoc        as GHC
 
 import qualified Data.Map as Map
 
@@ -70,7 +62,7 @@ type EP a = RWS EPLocal (Endo String) EPState a
 runEP :: Wrapped () -> GHC.SrcSpan -> Anns -> String
 runEP action ss ans =
   flip appEndo "" . snd
-  . (\action -> execRWS action (initialEPStack ss) (defaultEPState ans))
+  . (\next -> execRWS next (initialEPStack ss) (defaultEPState ans))
   . printInterpret $ action
 
 
@@ -78,11 +70,11 @@ printInterpret :: Wrapped a -> EP a
 printInterpret = iterTM go
   where
     go :: AnnotationF (AnnKey, Annotation) (EP a) -> EP a
-    go (Output w next) = next
+    go (Output _ next) = next
     go (AddEofAnnotation next) = printStringAtMaybeAnn (G GHC.AnnEofPos) "" >> next
     go (AddDeltaAnnotation kwid next) =
       justOne kwid  >> next
-    go (AddDeltaAnnotationsOutside akwid kwid next) =
+    go (AddDeltaAnnotationsOutside _ kwid next) =
       printStringAtMaybeAnnAll kwid ";"  >> next
     go (AddDeltaAnnotationsInside akwid next) =
       allAnns akwid >> next
@@ -92,9 +84,9 @@ printInterpret = iterTM go
       justOne akwid >> next
     go (AddDeltaAnnotationAfter akwid next) =
       justOne akwid >> next
-    go (AddDeltaAnnotationExt ss akwid next) =
+    go (AddDeltaAnnotationExt _ akwid next) =
       justOne akwid >> next
-    go (WithAST lss layoutflag action next) =
+    go (WithAST lss _ action next) =
       exactPC lss (printInterpret action) >>= next
     go (OutputKD _ next) =
       next
@@ -106,6 +98,7 @@ printInterpret = iterTM go
     go (PrintAnnStringExt _ akwid s next) = printStringAtMaybeAnn (G akwid) s >> next
     go (PrintAnnStringLs akwid s _ next) = printStringAtMaybeAnn (G akwid) s >> next
 
+justOne, allAnns :: GHC.AnnKeywordId -> EP ()
 justOne kwid = printStringAtMaybeAnn (G kwid) (keywordToString kwid)
 allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString kwid)
 
@@ -356,7 +349,7 @@ exactPrintAnnotation ast@(GHC.L l _) an = runEP (annotatePC ast) l an
 
 -- |First move to the given location, then call exactP
 exactPC :: Data ast => GHC.Located ast -> EP a -> EP a
-exactPC a@(GHC.L l ast) action =
+exactPC a@(GHC.L l _ast) action =
     do return () `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAndRemoveAnnotation a
        let an@(Ann _edp _nl _sc _dc kds) = fromMaybe annNone ma

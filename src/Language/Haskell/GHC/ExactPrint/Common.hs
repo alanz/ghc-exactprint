@@ -11,19 +11,13 @@
 {-# LANGUAGE KindSignatures #-} -- for GHC.DataId
 module Language.Haskell.GHC.ExactPrint.Common where
 
-import Control.Monad.State
-import Control.Monad.Writer
-import Control.Monad.RWS
 import Control.Monad.Identity
-import Control.Applicative
 import Control.Exception
 import Data.Data
-import Data.Maybe
 import Data.List
 
 import Language.Haskell.GHC.ExactPrint.Types
-import Language.Haskell.GHC.ExactPrint.Lookup
-import Language.Haskell.GHC.ExactPrint.Utils (srcSpanStartColumn, srcSpanStartLine, debug, showGhc, isListComp, ss2posEnd, deltaFromSrcSpans, rdrName2String, ss2span, ghcCommentText, isPointSrcSpan, span2ss, ss2deltaP, ghead, undelta, isGoodDelta)
+import Language.Haskell.GHC.ExactPrint.Utils (rdrName2String, showGhc, isListComp, debug)
 
 import qualified Bag            as GHC
 import qualified BasicTypes     as GHC
@@ -37,9 +31,6 @@ import qualified Outputable     as GHC
 import qualified SrcLoc         as GHC
 
 
-import qualified Data.Map as Map
-
-import Control.Monad.Free.TH
 import Control.Monad.Trans.Free
 
 -- ---------------------------------------------------------------------
@@ -222,7 +213,7 @@ applyListAnnotations ls
 -- ---------------------------------------------------------------------
 
 instance AnnotateGen (GHC.HsModule GHC.RdrName) where
-  annotateG lm (GHC.HsModule mmn mexp imps decs mdepr _haddock) = do
+  annotateG _ (GHC.HsModule mmn mexp imps decs mdepr _haddock) = do
 
 
     case mmn of
@@ -992,7 +983,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
     annotatePC t
     addDeltaAnnotation GHC.AnnCloseP -- ')'
 
-  annotateG l (GHC.HsIParamTy (GHC.HsIPName n) t) = do
+  annotateG _ (GHC.HsIParamTy (GHC.HsIPName n) t) = do
     printAnnString GHC.AnnVal ("?" ++ (GHC.unpackFS n))
     addDeltaAnnotation GHC.AnnDcolon
     annotatePC t
@@ -1246,7 +1237,7 @@ instance (GHC.DataId name) => AnnotateGen (GHC.HsOverLit name) where
   annotateG l ol =
     let str = case GHC.ol_val ol of
                 GHC.HsIntegral src _ -> src
-                GHC.HsFractional l   -> (GHC.fl_text l)
+                GHC.HsFractional l2   -> (GHC.fl_text l2)
                 GHC.HsIsString src _ -> src
     in
     printAnnStringExt l GHC.AnnVal str
@@ -1472,7 +1463,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
 
   annotateG l (GHC.HsDo cts es _) = do
     addDeltaAnnotation GHC.AnnDo
-    let (ostr,cstr,isComp) =
+    let (ostr,cstr,_isComp) =
           if isListComp cts
             then case cts of
                    GHC.PArrComp -> ("[:",":]",True)
