@@ -1308,7 +1308,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
 instance (GHC.DataId name,GHC.OutputableBndr name,AnnotateGen name)
    => AnnotateGen (GHC.AnnDecl name) where
    annotateG _ (GHC.HsAnnotation _src prov e) = do
-     printAnnString GHC.AnnOpen "{-# Ann" -- "{-# Ann"
+     printAnnString GHC.AnnOpen "{-# ANN"
      addDeltaAnnotation GHC.AnnType
      addDeltaAnnotation GHC.AnnModule
      case prov of
