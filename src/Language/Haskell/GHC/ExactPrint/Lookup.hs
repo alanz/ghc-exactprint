@@ -6,7 +6,7 @@ keywordToString :: AnnKeywordId -> String
 keywordToString kw =
   case kw of
       AnnAs    -> "as"
-      AnnAt   -> "at"
+      AnnAt   -> "@"
       AnnBang  -> "!"
       AnnBackquote   -> "`"
       AnnBy   -> "by"
