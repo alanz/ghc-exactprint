@@ -70,33 +70,32 @@ printInterpret :: Wrapped a -> EP a
 printInterpret = iterTM go
   where
     go :: AnnotationF (EP a) -> EP a
-    go (Output _ next) = next
-    go (AddEofAnnotation next) = printStringAtMaybeAnn (G GHC.AnnEofPos) "" >> next
-    go (AddDeltaAnnotation kwid next) =
-      justOne kwid  >> next
-    go (AddDeltaAnnotationsOutside _ kwid next) =
+    go (MarkEOF next) =
+      printStringAtMaybeAnn (G GHC.AnnEofPos) "" >> next
+    go (MarkPrim kwid mstr next) =
+      let annString = fromMaybe (keywordToString kwid) mstr in
+        printStringAtMaybeAnn (G kwid) annString >> next
+    go (MarkOutside _ kwid next) =
       printStringAtMaybeAnnAll kwid ";"  >> next
-    go (AddDeltaAnnotationsInside akwid next) =
+    go (MarkInside akwid next) =
       allAnns akwid >> next
-    go (AddDeltaAnnotations akwid next) =
+    go (MarkMany akwid next) =
       allAnns akwid >> next
-    go (AddDeltaAnnotationLs akwid _ next) =
-      justOne akwid >> next
-    go (AddDeltaAnnotationAfter akwid next) =
-      justOne akwid >> next
-    go (AddDeltaAnnotationExt _ akwid next) =
+    go (MarkOffsetPrim kwid _ mstr next) =
+      let annString = fromMaybe (keywordToString kwid) mstr in
+        printStringAtMaybeAnn (G kwid) annString >> next
+    go (MarkAfter akwid next) =
       justOne akwid >> next
     go (WithAST lss _ action next) =
       exactPC lss (printInterpret action) >>= next
     go (OutputKD _ next) =
       next
-    go (CountAnnsAP kwid next) =
+    go (CountAnns kwid next) =
       countAnnsEP (G kwid) >>= next
     go (SetLayoutFlag next) =
       next
-    go (PrintAnnString akwid s next) = printStringAtMaybeAnn (G akwid) s >> next
-    go (PrintAnnStringExt _ akwid s next) = printStringAtMaybeAnn (G akwid) s >> next
-    go (PrintAnnStringLs akwid s _ next) = printStringAtMaybeAnn (G akwid) s >> next
+    go (MarkExternal _ akwid s next) =
+      printStringAtMaybeAnn (G akwid) s >> next
 
 justOne, allAnns :: GHC.AnnKeywordId -> EP ()
 justOne kwid = printStringAtMaybeAnn (G kwid) (keywordToString kwid)

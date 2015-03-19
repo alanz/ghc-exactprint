@@ -114,24 +114,22 @@ simpleInterpret :: Wrapped a -> AP a
 simpleInterpret = iterTM go
   where
     go :: AnnotationF (AP a) -> AP a
-    go (Output _ next) = next
-    go (AddEofAnnotation next) = addEofAnnotation' >> next
-    go (AddDeltaAnnotation kwid next) =
+    go (MarkEOF next) = addEofAnnotation' >> next
+    go (MarkPrim kwid _ next) =
       addDeltaAnnotation' kwid >> next
-    go (AddDeltaAnnotationsOutside akwid kwid next) = addDeltaAnnotationsOutside' akwid kwid >> next
-    go (AddDeltaAnnotationsInside akwid next) = addDeltaAnnotationsInside' akwid >> next
-    go (AddDeltaAnnotations akwid next) = addDeltaAnnotations' akwid >> next
-    go (AddDeltaAnnotationLs akwid n next) = addDeltaAnnotationLs' akwid n >> next
-    go (AddDeltaAnnotationAfter akwid next) = addDeltaAnnotationAfter' akwid >> next
-    go (AddDeltaAnnotationExt ss akwid next) = addDeltaAnnotationExt' ss akwid >> next
+    go (MarkOutside akwid kwid next) =
+      addDeltaAnnotationsOutside' akwid kwid >> next
+    go (MarkInside akwid next) =
+      addDeltaAnnotationsInside' akwid >> next
+    go (MarkMany akwid next) = addDeltaAnnotations' akwid >> next
+    go (MarkOffsetPrim akwid n _ next) = addDeltaAnnotationLs' akwid n >> next
+    go (MarkAfter akwid next) = addDeltaAnnotationAfter' akwid >> next
     go (WithAST lss layoutflag prog next) =
       withAST' lss layoutflag (simpleInterpret prog) >>= next
     go (OutputKD (kwid, (_, dp)) next) = tellKd (dp, kwid) >> next
-    go (CountAnnsAP kwid next) = countAnnsAP' kwid >>= next
+    go (CountAnns kwid next) = countAnnsAP' kwid >>= next
     go (SetLayoutFlag next) = setLayoutFlag' >> next
-    go (PrintAnnString akwid _ next) = addDeltaAnnotation' akwid >> next
-    go (PrintAnnStringExt ss akwid _ next) = addDeltaAnnotationExt' ss akwid >> next
-    go (PrintAnnStringLs akwid _ n next) = addDeltaAnnotationLs' akwid n >> next
+    go (MarkExternal ss akwid _ next) = addDeltaAnnotationExt' ss akwid >> next
 
 
 -- ---------------------------------------------------------------------
