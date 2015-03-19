@@ -11,9 +11,8 @@
 --
 -----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint.Print
-        ( annotateAST
-        , Anns
-        , exactPrintAnnotated
+        (
+          Anns
         , exactPrintAnnotation
 
         , exactPrint
@@ -21,10 +20,11 @@ module Language.Haskell.GHC.ExactPrint.Print
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Types
-import Language.Haskell.GHC.ExactPrint.Utils
-import Language.Haskell.GHC.ExactPrint.Common
-import Language.Haskell.GHC.ExactPrint.Lookup
+import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta, showGhc)
 import Language.Haskell.GHC.ExactPrint.Annotate
+  (AnnotationF(..), Wrapped, Annotate(..), markLocated)
+import Language.Haskell.GHC.ExactPrint.Lookup (keywordToString)
+import Language.Haskell.GHC.ExactPrint.Delta ( relativiseAST )
 
 import Control.Applicative
 import Control.Monad.RWS
@@ -37,6 +37,22 @@ import Control.Monad.Trans.Free
 import qualified GHC           as GHC
 
 import qualified Data.Map as Map
+
+------------------------------------------------------------------------------
+-- Printing of source elements
+
+-- | Print an AST exactly as specified by the annotations on the nodes in the tree.
+exactPrint :: Annotate ast => GHC.Located ast -> GHC.ApiAnns -> String
+exactPrint ast ghcAnns = exactPrintAnnotation ast relativeAnns
+  where
+    relativeAnns = relativiseAST ast ghcAnns
+
+exactPrintAnnotation :: Annotate ast
+                     => GHC.Located ast
+                     -> Anns
+                     -> String
+exactPrintAnnotation ast@(GHC.L l _) an = runEP (markLocated ast) l an
+
 
 ------------------------------------------------------
 -- The EP monad and basic combinators
@@ -309,28 +325,6 @@ countAnnsEP :: KeywordId -> EP Int
 countAnnsEP an = do
   ma <- peekAnnFinal an
   return (length ma)
-
-------------------------------------------------------------------------------
--- Printing of source elements
-
--- | Print an AST exactly as specified by the annotations on the nodes in the tree.
--- exactPrint :: (ExactP ast) => ast -> [Comment] -> String
-exactPrint :: (AnnotateGen ast) => GHC.Located ast -> String
-exactPrint ast@(GHC.L l _) = runEP (annotatePC ast) l Map.empty
-
-
-exactPrintAnnotated ::
-     GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns -> String
-exactPrintAnnotated ast@(GHC.L l _) ghcAnns = runEP (annotatePC ast) l an
-  where
-    an = annotateLHsModule ast ghcAnns
-
-exactPrintAnnotation :: AnnotateGen ast =>
-  GHC.Located ast -> Anns -> String
-exactPrintAnnotation ast@(GHC.L l _) an = runEP (annotatePC ast) l an
-  -- `debug` ("exactPrintAnnotation:an=" ++ (concatMap (\(l,a) -> show (ss2span l,a)) $ Map.toList an ))
-
-
 
 -- ---------------------------------------------------------------------
 

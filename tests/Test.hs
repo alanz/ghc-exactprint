@@ -426,7 +426,7 @@ manipulateAstTest' mchange useTH file' modname = do
     -- parsedAST = showGhc parsed
        -- `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
     -- try to pretty-print; summarize the test result
-    ann = annotateAST parsed ghcAnns
+    ann = relativiseAST parsed ghcAnns
       `debug` ("ghcAnns:" ++ showGhc ghcAnns)
 
     parsed' = case mchange of
