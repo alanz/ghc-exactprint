@@ -23,7 +23,7 @@ install:
 # build to fail.
 script:
  - if [ -f configure.ac ]; then autoreconf -i; fi
- - cabal configure --enable-tests --enable-benchmarks -v2  # -v2 provides useful information for debugging
+ - cabal configure --enable-coverage --enable-tests --enable-benchmarks -v2  # -v2 provides useful information for debugging
  - cabal build   # this builds all libraries and executables (including tests/benchmarks)
  - cabal test
  - cabal check
@@ -37,6 +37,10 @@ script:
  #   else
  #      echo "expected '$SRC_TGZ' not found";
  #      exit 1;
+
+after_script:
+ - cabal install hpc-coveralls
+ - hpc-coveralls test
 
 notifications:
   irc: "irc.freenode.org#haskell-refactorer"
