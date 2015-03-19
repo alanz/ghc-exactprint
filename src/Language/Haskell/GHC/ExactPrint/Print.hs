@@ -52,12 +52,12 @@ data EPState = EPState
                                                         -- AZ, it is already in the last element of Annotation, for withOffset
              }
 
-data EPLocal = EPLocal
+data EPStack = EPStack
              { epStack     :: (ColOffset,ColDelta) -- ^ stack of offsets that currently apply
              , epSrcSpan  :: GHC.SrcSpan
              }
 
-type EP a = RWS EPLocal (Endo String) EPState a
+type EP a = RWS EPStack (Endo String) EPState a
 
 runEP :: Wrapped () -> GHC.SrcSpan -> Anns -> String
 runEP action ss ans =
@@ -109,8 +109,8 @@ defaultEPState as = EPState
              , epAnnKds = []
              }
 
-initialEPStack :: GHC.SrcSpan -> EPLocal
-initialEPStack ss = EPLocal
+initialEPStack :: GHC.SrcSpan -> EPStack
+initialEPStack ss = EPStack
              { epStack     = (0,0)
              , epSrcSpan   = ss
              }
@@ -207,19 +207,6 @@ getAnnFinal kw = do
                           dcs' = concatMap keywordIdToDComment cs'
   modify (\s -> s { epAnnKds = kd' })
   return (dcs, r)
-
--- ---------------------------------------------------------------------
-
-getStoredListSrcSpan :: EP GHC.SrcSpan
-getStoredListSrcSpan = do
-  kd <- gets epAnnKds
-  let
-    isAnnList ((AnnList _),_) = True
-    isAnnList _               = False
-
-    kdf = ghead "getStoredListSrcSpan.1" kd
-    (AnnList ss,_) = ghead "getStoredListSrcSpan.2" $ filter isAnnList kdf
-  return ss
 
 -- ---------------------------------------------------------------------
 

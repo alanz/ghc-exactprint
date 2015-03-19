@@ -19,7 +19,17 @@ import qualified SrcLoc         as GHC
 
 import qualified Data.Map as Map
 
-import Debug.Trace
+-- ---------------------------------------------------------------------
+
+annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns
+                  -> Anns
+annotateLHsModule modu@(GHC.L ss _) ghcAnns
+   = runAP (annotatePC modu) ghcAnns ss
+
+annotateAST :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns -> Anns
+annotateAST ast ghcAnns = annotateLHsModule ast ghcAnns `debug`(showGhc ghcAnns)
+
+-- ---------------------------------------------------------------------
 
 data APState = APState
              { priorEndPosition :: GHC.SrcSpan
@@ -29,7 +39,7 @@ data APState = APState
              , apAnns :: GHC.ApiAnns
              }
 
-data StackItem = StackItem
+data APStack = APStack
                { -- | Current `SrcSpan`
                  curSrcSpan :: GHC.SrcSpan
                  -- |  `SrcSpan` of the immediately prior scope
@@ -47,9 +57,9 @@ data StackItem = StackItem
                , annConName :: AnnConName
                }
 
-initialStackItem :: StackItem
-initialStackItem =
-  StackItem
+initialAPStack :: APStack
+initialAPStack =
+  APStack
     { curSrcSpan = GHC.noSrcSpan
     , prevSrcSpan = GHC.noSrcSpan
     , offset = DP (0,0)
@@ -98,12 +108,12 @@ instance Monoid APWriter where
 --    - the srcspan of the last thing annotated, to calculate delta's from
 --    - extra data needing to be stored in the monad
 --    - the annotations provided by GHC
-type AP a = RWS StackItem APWriter APState a
+type AP a = RWS APStack APWriter APState a
 
 runAP :: Wrapped () -> GHC.ApiAnns -> GHC.SrcSpan -> Anns
 runAP action ga priorEnd =
   ($ mempty) . appEndo . finalAnns . snd
-  . (\next -> execRWS next initialStackItem (defaultAPState priorEnd ga))
+  . (\next -> execRWS next initialAPStack (defaultAPState priorEnd ga))
   . simpleInterpret $ action
 
 
@@ -232,8 +242,8 @@ addAnnotationsAP ann = do
     l <- ask
     tellFinalAnn ((getAnnKey l),ann)
 
-getAnnKey :: StackItem -> AnnKey
-getAnnKey StackItem {curSrcSpan, annConName} = AnnKey curSrcSpan annConName
+getAnnKey :: APStack -> AnnKey
+getAnnKey APStack {curSrcSpan, annConName} = AnnKey curSrcSpan annConName
 
 -- -------------------------------------
 
@@ -425,22 +435,5 @@ countAnnsAP ann = do
   ma <- getAnnotationAP ann
   return (length ma)
 
--- ---------------------------------------------------------------------
--- Managing lists which have been separated, e.g. Sigs and Binds
 
-
--- ---------------------------------------------------------------------
--- Start of application specific part
-
--- ---------------------------------------------------------------------
-
-annotateLHsModule :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns
-                  -> Anns
-annotateLHsModule modu@(GHC.L ss _) ghcAnns
-   = runAP (annotatePC modu) ghcAnns ss
-
-annotateAST :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns -> Anns
-annotateAST ast ghcAnns = annotateLHsModule ast ghcAnns `debug`(showGhc ghcAnns)
-
--- ---------------------------------------------------------------------
 
