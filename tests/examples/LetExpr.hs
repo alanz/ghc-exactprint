@@ -20,7 +20,7 @@
 import Data.List
 -- A comment in the middle
 import {-# SOURCE #-} BootImport ( Foo(..) )
-import {-# SOURCE  #-} safe   qualified  BootImport   as    BI
+import {-# SoURCE  #-} safe   qualified  BootImport   as    BI
 import qualified Data.Map as {- blah -}  Foo.Map
 
 import Control.Monad  (   )

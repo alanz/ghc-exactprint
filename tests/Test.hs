@@ -426,13 +426,13 @@ manipulateAstTest' mchange useTH file' modname = do
     -- parsedAST = showGhc parsed
        -- `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
     -- try to pretty-print; summarize the test result
-    ann = annotateAST parsed ghcAnns
+    ann = relativiseApiAnns parsed ghcAnns
       `debug` ("ghcAnns:" ++ showGhc ghcAnns)
 
     parsed' = case mchange of
                    Nothing -> parsed
                    Just change -> change parsed
-    printed = exactPrintAnnotation parsed' ann -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
+    printed = exactPrintWithAnns parsed' ann -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
     result =
             if printed == contents
               then "Match\n"

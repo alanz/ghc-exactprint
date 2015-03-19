@@ -29,7 +29,7 @@ library
   exposed-modules:     Language.Haskell.GHC.ExactPrint
                      , Language.Haskell.GHC.ExactPrint.Types
                      , Language.Haskell.GHC.ExactPrint.Utils
-                     , Language.Haskell.GHC.ExactPrint.Common
+                     , Language.Haskell.GHC.ExactPrint.Delta
                      , Language.Haskell.GHC.ExactPrint.Lookup
                      , Language.Haskell.GHC.ExactPrint.Annotate
                      , Language.Haskell.GHC.ExactPrint.Print

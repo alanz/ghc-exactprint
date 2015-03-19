@@ -1,13 +1,14 @@
 module Language.Haskell.GHC.ExactPrint
-        ( annotateAST
+        ( -- * Relativising
+          relativiseApiAnns
         , Anns
-        , exactPrintAnnotated
-        , exactPrintAnnotation
 
+        -- * Printing
+        , exactPrintWithAnns
         , exactPrint
 
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Types
-import Language.Haskell.GHC.ExactPrint.Annotate
+import Language.Haskell.GHC.ExactPrint.Delta
 import Language.Haskell.GHC.ExactPrint.Print
