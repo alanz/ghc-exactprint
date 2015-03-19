@@ -11,6 +11,8 @@ before_install:
  - travis_retry sudo apt-get update
  - travis_retry sudo apt-get install cabal-install-$CABALVER ghc-$GHCVER # see note about happy/alex
  - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
+ - travis_retry cabal update
+ - cabal install hpc-coveralls
 
 install:
  - cabal --version
@@ -25,7 +27,7 @@ script:
  - if [ -f configure.ac ]; then autoreconf -i; fi
  - cabal configure --enable-coverage --enable-tests --enable-benchmarks -v2  # -v2 provides useful information for debugging
  - cabal build   # this builds all libraries and executables (including tests/benchmarks)
- - cabal test
+ - run-cabal-test
  - cabal check
  - cabal sdist   # tests that a source-distribution can be generated
 
@@ -39,7 +41,6 @@ script:
  #      exit 1;
 
 after_script:
- - cabal install hpc-coveralls
  - hpc-coveralls test
 
 notifications:
