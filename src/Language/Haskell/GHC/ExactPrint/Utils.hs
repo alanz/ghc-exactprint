@@ -33,6 +33,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
 
   -- * For tests
   , debug
+  , debugM
   , warn
 
 
@@ -44,6 +45,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   ) where
 
 
+import Control.Monad.State
 import Data.Data
 import Data.Generics
 import Data.List
@@ -63,10 +65,26 @@ import qualified Var            as GHC
 
 import qualified OccName(occNameString)
 
+import Debug.Trace
 
+-- ---------------------------------------------------------------------
+
+-- |Global switch to enable debug tracing in ghc-exactprint
+debugEnabledFlag :: Bool
+-- debugEnabledFlag = True
+debugEnabledFlag = False
+
+-- |Provide a version of trace the comes at the end of the line, so it can
+-- easily be commented out when debugging different things.
 debug :: c -> String -> c
---debug = flip trace
-debug c _ = c
+debug c s = if debugEnabledFlag
+              then trace s c
+              else c
+
+debugM :: Monad m => String -> m () 
+debugM s = when debugEnabledFlag $ traceM s
+
+-- ---------------------------------------------------------------------
 
 warn :: c -> String -> c
 -- warn = flip trace

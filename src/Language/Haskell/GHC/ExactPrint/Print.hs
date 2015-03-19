@@ -305,7 +305,8 @@ printStringAtMaybeAnn :: KeywordId -> String -> EP ()
 printStringAtMaybeAnn an str = do
   (comments, ma) <- getAnnFinal an
   printStringAtLsDelta comments (maybeToList ma) str
-    `debug` ("printStringAtMaybeAnn:(an,ma,str)=" ++ show (an,ma,str))
+    -- ++AZ++: Enabling the following line causes a very weird error associated with AnnPackageName. I suspect it is because it is forcing the evaluation of a non-existent an or str
+    -- `debug` ("printStringAtMaybeAnn:(an,ma,str)=" ++ show (an,ma,str))
 
 printStringAtMaybeAnnAll :: KeywordId -> String -> EP ()
 printStringAtMaybeAnnAll an str = go

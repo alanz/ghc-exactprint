@@ -21,9 +21,6 @@ import qualified Data.Map as Map
 
 import Debug.Trace
 
-
--- ---------------------------------------------------------------------
-
 data APState = APState
              { priorEndPosition :: GHC.SrcSpan
                -- | Ordered list of comments still to be allocated
@@ -340,9 +337,9 @@ addDeltaComment (Comment paspan str) = do
 addDeltaAnnotation' :: GHC.AnnKeywordId -> AP ()
 addDeltaAnnotation' ann = do
   ss <- getSrcSpanAP
-  when (ann == GHC.AnnVal) (traceM (showGhc ss))
+  when (ann == GHC.AnnVal) (debugM (showGhc ss))
   ma <- getAnnotationAP ann
-  when (ann == GHC.AnnVal && null ma) (traceM "empty")
+  when (ann == GHC.AnnVal && null ma) (debugM "empty")
   case nub ma of -- ++AZ++ TODO: get rid of duplicates earlier
     [] -> return () `debug` ("addDeltaAnnotation empty ma for:" ++ show ann)
     [pa] -> addAnnotationWorker (G ann) pa
@@ -448,7 +445,7 @@ annotateLHsModule modu@(GHC.L ss _) ghcAnns
    = runAP (annotatePC modu) ghcAnns ss
 
 annotateAST :: GHC.Located (GHC.HsModule GHC.RdrName) -> GHC.ApiAnns -> Anns
-annotateAST ast ghcAnns = trace (showGhc ghcAnns) $ annotateLHsModule ast ghcAnns
+annotateAST ast ghcAnns = annotateLHsModule ast ghcAnns `debug`(showGhc ghcAnns)
 
 -- ---------------------------------------------------------------------
 

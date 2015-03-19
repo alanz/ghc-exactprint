@@ -79,3 +79,4 @@ keywordToString kw =
       AnnRarrowtail  -> ">>-"
       AnnEofPos -> ""
 
+      x -> error $ "keywordToString: missing case for:" ++ show x

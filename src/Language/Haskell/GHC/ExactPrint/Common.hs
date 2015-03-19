@@ -281,7 +281,7 @@ instance (GHC.DataId name,AnnotateGen name)
    addDeltaAnnotation GHC.AnnImport
 
    -- "{-# SOURCE" and "#-}"
-   printAnnString GHC.AnnOpen "{-# SOURCE"
+   printAnnString GHC.AnnOpen "{-# SOURCE" -- ++AZ++:TODO: use _msrc here
    printAnnString GHC.AnnClose "#-}"
    addDeltaAnnotation GHC.AnnSafe
    addDeltaAnnotation GHC.AnnQualified
