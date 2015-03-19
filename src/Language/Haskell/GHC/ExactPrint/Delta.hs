@@ -22,7 +22,8 @@ import qualified Data.Map as Map
 
 -- ---------------------------------------------------------------------
 
--- | Transform concrete annotations into relative annotations
+-- | Transform concrete annotations into relative annotations which are
+-- more useful when transforming an AST.
 relativiseApiAnns :: Annotate ast
                   => GHC.Located ast
                   -> GHC.ApiAnns

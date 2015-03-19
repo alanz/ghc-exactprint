@@ -6,8 +6,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Language.Haskell.GHC.ExactPrint.Annotate
-       ( AnnotationF(..)
-       , markLocated
+       (
+         markLocated
+       , AnnotationF(..)
        , Annotated
        , Annotate(..)) where
 
@@ -98,7 +99,8 @@ withAST lss layout action = liftF (WithAST lss layout prog id)
 -- ---------------------------------------------------------------------
 
 
--- |First move to the given location, then call exactP
+-- | Constructs a syntax tree which contains information about which
+-- annotations are required by each element.
 markLocated :: (Annotate ast) => GHC.Located ast -> Annotated ()
 markLocated a = withLocated a NoLayoutRules markAST
 

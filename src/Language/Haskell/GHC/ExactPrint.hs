@@ -1,9 +1,10 @@
 module Language.Haskell.GHC.ExactPrint
-        ( relativiseApiAnns
+        ( -- * Relativising
+          relativiseApiAnns
         , Anns
 
+        -- * Printing
         , exactPrintWithAnns
-
         , exactPrint
 
         ) where

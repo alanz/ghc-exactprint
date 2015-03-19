@@ -36,12 +36,11 @@ import Control.Monad.Trans.Free
 
 import qualified GHC           as GHC
 
-import qualified Data.Map as Map
-
 ------------------------------------------------------------------------------
 -- Printing of source elements
 
 -- | Print an AST exactly as specified by the annotations on the nodes in the tree.
+-- The output of this function should exactly match the source file.
 exactPrint :: Annotate ast => GHC.Located ast -> GHC.ApiAnns -> String
 exactPrint ast ghcAnns = exactPrintWithAnns ast relativeAnns
   where
