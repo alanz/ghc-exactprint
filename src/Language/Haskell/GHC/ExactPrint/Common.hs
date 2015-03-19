@@ -19,6 +19,7 @@ import Control.Monad.Identity
 import Control.Exception
 import Data.Data
 import Data.List
+import Data.Maybe
 
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils (rdrName2String, showGhc, isListComp, debug)
@@ -275,15 +276,15 @@ instance AnnotateGen GHC.Name where
 
 instance (GHC.DataId name,AnnotateGen name)
   => AnnotateGen (GHC.ImportDecl name) where
- annotateG _ imp@(GHC.ImportDecl _msrc (GHC.L ln _) _pkg _src _safe _qual _impl _as hiding) = do
+ annotateG _ imp@(GHC.ImportDecl msrc (GHC.L ln _) _pkg src safeflag _qual _impl _as hiding) = do
 
    -- 'import' maybe_src maybe_safe optqualified maybe_pkg modid maybeas maybeimpspec
    addDeltaAnnotation GHC.AnnImport
 
    -- "{-# SOURCE" and "#-}"
-   printAnnString GHC.AnnOpen "{-# SOURCE" -- ++AZ++:TODO: use _msrc here
-   printAnnString GHC.AnnClose "#-}"
-   addDeltaAnnotation GHC.AnnSafe
+   when src (printAnnString GHC.AnnOpen (fromMaybe "{-# SOURCE" msrc)
+             >> printAnnString GHC.AnnClose "#-}")
+   when safeflag (addDeltaAnnotation GHC.AnnSafe)
    addDeltaAnnotation GHC.AnnQualified
    addDeltaAnnotation GHC.AnnPackageName
 
