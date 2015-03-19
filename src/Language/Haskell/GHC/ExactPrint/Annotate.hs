@@ -11,7 +11,7 @@ import Data.List
 
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
-import Language.Haskell.GHC.ExactPrint.Common
+import Language.Haskell.GHC.ExactPrint.Common (AnnotationF(..), Wrapped, annotatePC)
 
 import qualified GHC            as GHC
 import qualified SrcLoc         as GHC
@@ -77,9 +77,6 @@ data APWriter = APWriter
   }
 
 
-
-
-
 tellFinalAnn :: (AnnKey, Annotation) -> AP ()
 tellFinalAnn (k, v) =
   tell (mempty { finalAnns = Endo (Map.insertWith (<>) k v) })
@@ -87,8 +84,8 @@ tellFinalAnn (k, v) =
 tellKd :: (KeywordId, DeltaPos) -> AP ()
 tellKd kd = tell (mempty { annKds = [kd] })
 
-setLayoutFlag' :: AP ()
-setLayoutFlag' = tell (mempty {layoutFlag = LayoutRules})
+setLayoutFlag :: AP ()
+setLayoutFlag = tell (mempty {layoutFlag = LayoutRules})
 
 instance Monoid APWriter where
   mempty = APWriter mempty mempty mempty
@@ -114,22 +111,22 @@ simpleInterpret :: Wrapped a -> AP a
 simpleInterpret = iterTM go
   where
     go :: AnnotationF (AP a) -> AP a
-    go (MarkEOF next) = addEofAnnotation' >> next
+    go (MarkEOF next) = addEofAnnotation >> next
     go (MarkPrim kwid _ next) =
-      addDeltaAnnotation' kwid >> next
+      addDeltaAnnotation kwid >> next
     go (MarkOutside akwid kwid next) =
-      addDeltaAnnotationsOutside' akwid kwid >> next
+      addDeltaAnnotationsOutside akwid kwid >> next
     go (MarkInside akwid next) =
-      addDeltaAnnotationsInside' akwid >> next
-    go (MarkMany akwid next) = addDeltaAnnotations' akwid >> next
-    go (MarkOffsetPrim akwid n _ next) = addDeltaAnnotationLs' akwid n >> next
-    go (MarkAfter akwid next) = addDeltaAnnotationAfter' akwid >> next
+      addDeltaAnnotationsInside akwid >> next
+    go (MarkMany akwid next) = addDeltaAnnotations akwid >> next
+    go (MarkOffsetPrim akwid n _ next) = addDeltaAnnotationLs akwid n >> next
+    go (MarkAfter akwid next) = addDeltaAnnotationAfter akwid >> next
     go (WithAST lss layoutflag prog next) =
-      withAST' lss layoutflag (simpleInterpret prog) >>= next
+      withAST lss layoutflag (simpleInterpret prog) >>= next
     go (OutputKD (kwid, (_, dp)) next) = tellKd (dp, kwid) >> next
-    go (CountAnns kwid next) = countAnnsAP' kwid >>= next
-    go (SetLayoutFlag next) = setLayoutFlag' >> next
-    go (MarkExternal ss akwid _ next) = addDeltaAnnotationExt' ss akwid >> next
+    go (CountAnns kwid next) = countAnnsAP kwid >>= next
+    go (SetLayoutFlag next) = setLayoutFlag >> next
+    go (MarkExternal ss akwid _ next) = addDeltaAnnotationExt ss akwid >> next
 
 
 -- ---------------------------------------------------------------------
@@ -246,8 +243,8 @@ addAnnDeltaPos (_s,kw) dp = tellKd (kw, dp)
 -- -------------------------------------
 
 -- | Enter a new AST element. Maintain SrcSpan stack
-withAST' :: Data a => GHC.Located a -> LayoutFlag -> AP b -> AP b
-withAST' lss layout action = do
+withAST :: Data a => GHC.Located a -> LayoutFlag -> AP b -> AP b
+withAST lss layout action = do
   -- Calculate offset required to get to the start of the SrcSPan
   pe <- getPriorEnd
   let ss = (GHC.getLoc lss)
@@ -332,8 +329,8 @@ addDeltaComment (Comment paspan str) = do
 
 -- | Look up and add a Delta annotation at the current position, and
 -- advance the position to the end of the annotation
-addDeltaAnnotation' :: GHC.AnnKeywordId -> AP ()
-addDeltaAnnotation' ann = do
+addDeltaAnnotation :: GHC.AnnKeywordId -> AP ()
+addDeltaAnnotation ann = do
   ss <- getSrcSpanAP
   when (ann == GHC.AnnVal) (debugM (showGhc ss))
   ma <- getAnnotationAP ann
@@ -346,8 +343,8 @@ addDeltaAnnotation' ann = do
 -- | Look up and add a Delta annotation appearing beyond the current
 -- SrcSpan at the current position, and advance the position to the
 -- end of the annotation
-addDeltaAnnotationAfter' :: GHC.AnnKeywordId -> AP ()
-addDeltaAnnotationAfter' ann = do
+addDeltaAnnotationAfter :: GHC.AnnKeywordId -> AP ()
+addDeltaAnnotationAfter ann = do
   ss <- getSrcSpanAP
   ma <- getAnnotationAP ann
   let ma' = filter (\s -> not (GHC.isSubspanOf s ss)) ma
@@ -358,8 +355,8 @@ addDeltaAnnotationAfter' ann = do
 
 -- | Look up and add a Delta annotation at the current position, and
 -- advance the position to the end of the annotation
-addDeltaAnnotationLs' :: GHC.AnnKeywordId -> Int -> AP ()
-addDeltaAnnotationLs' ann off = do
+addDeltaAnnotationLs :: GHC.AnnKeywordId -> Int -> AP ()
+addDeltaAnnotationLs ann off = do
   ma <- getAnnotationAP ann
   case (drop off ma) of
     [] -> return ()
@@ -368,8 +365,8 @@ addDeltaAnnotationLs' ann off = do
 
 -- | Look up and add possibly multiple Delta annotation at the current
 -- position, and advance the position to the end of the annotations
-addDeltaAnnotations' :: GHC.AnnKeywordId -> AP ()
-addDeltaAnnotations' ann = do
+addDeltaAnnotations :: GHC.AnnKeywordId -> AP ()
+addDeltaAnnotations ann = do
   ma <- getAnnotationAP ann
   let do_one ap' = addAnnotationWorker (G ann) ap'
                     -- `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
@@ -378,8 +375,8 @@ addDeltaAnnotations' ann = do
 -- | Look up and add possibly multiple Delta annotations enclosed by
 -- the current SrcSpan at the current position, and advance the
 -- position to the end of the annotations
-addDeltaAnnotationsInside' :: GHC.AnnKeywordId -> AP ()
-addDeltaAnnotationsInside' ann = do
+addDeltaAnnotationsInside :: GHC.AnnKeywordId -> AP ()
+addDeltaAnnotationsInside ann = do
   ss <- getSrcSpanAP
   ma <- getAnnotationAP ann
   let do_one ap' = addAnnotationWorker (G ann) ap'
@@ -390,8 +387,8 @@ addDeltaAnnotationsInside' ann = do
 -- | Look up and add possibly multiple Delta annotations not enclosed by
 -- the current SrcSpan at the current position, and advance the
 -- position to the end of the annotations
-addDeltaAnnotationsOutside' :: GHC.AnnKeywordId -> KeywordId -> AP ()
-addDeltaAnnotationsOutside' gann ann = do
+addDeltaAnnotationsOutside :: GHC.AnnKeywordId -> KeywordId -> AP ()
+addDeltaAnnotationsOutside gann ann = do
   ss <- getSrcSpanAP
   if ss2span ss == ((1,1),(1,1))
     then return ()
@@ -403,13 +400,13 @@ addDeltaAnnotationsOutside' gann ann = do
 
 -- | Add a Delta annotation at the current position, and advance the
 -- position to the end of the annotation
-addDeltaAnnotationExt' :: GHC.SrcSpan -> GHC.AnnKeywordId -> AP ()
-addDeltaAnnotationExt' s ann = do
+addDeltaAnnotationExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> AP ()
+addDeltaAnnotationExt s ann = do
   addAnnotationWorker (G ann) s
 
 
-addEofAnnotation' :: AP ()
-addEofAnnotation' = do
+addEofAnnotation :: AP ()
+addEofAnnotation = do
   pe <- getPriorEnd
   ss <- getSrcSpanAP
   ma <- withSrcSpanAP (GHC.noLoc ()) (DP (0,0)) (getAnnotationAP GHC.AnnEofPos)
@@ -423,8 +420,8 @@ addEofAnnotation' = do
       setPriorEnd pa `warn` ("Trailing annotations after Eof: " ++ showGhc pss)
 
 
-countAnnsAP' :: GHC.AnnKeywordId -> AP Int
-countAnnsAP' ann = do
+countAnnsAP :: GHC.AnnKeywordId -> AP Int
+countAnnsAP ann = do
   ma <- getAnnotationAP ann
   return (length ma)
 
