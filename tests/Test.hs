@@ -312,11 +312,11 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname    "Rename1.hs"  "Main"
     -}
     , manipulateAstTestWFname "Rules.hs"                 "Rules"
-    , manipulateAstTestWFname "LayoutIn3.hs"             "LayoutIn3"
+    -- , manipulateAstTestWFname "LayoutIn3.hs"             "LayoutIn3"
+    , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3.hs" "LayoutIn3"
     {-
     , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
     , manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
-    , manipulateAstTestWithMod changeLayoutIn3  "LayoutIn3.hs" "LayoutIn3"
     , manipulateAstTestWFname "Cpp.hs"                   "Main"
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
     , manipulateAstTestWFname "Foo.hs"                   "Main"
@@ -399,6 +399,11 @@ examplesDir2 = "examples"
 
 manipulateAstTestWithMod :: (GHC.ParsedSource -> GHC.ParsedSource) -> FilePath -> String -> IO Bool
 manipulateAstTestWithMod change file modname = manipulateAstTest' (Just change) False file modname
+
+manipulateAstTestWFnameMod :: (GHC.ParsedSource -> GHC.ParsedSource) -> FilePath -> String -> IO (FilePath,Bool)
+manipulateAstTestWFnameMod change fileName modname
+  = do r <- manipulateAstTestWithMod change fileName modname
+       return (fileName,r)
 
 manipulateAstTest :: FilePath -> String -> IO Bool
 manipulateAstTest file modname = manipulateAstTest' Nothing False file modname
