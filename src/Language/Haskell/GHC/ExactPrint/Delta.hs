@@ -1,5 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
-module Language.Haskell.GHC.ExactPrint.Delta  (relativiseAST) where
+module Language.Haskell.GHC.ExactPrint.Delta  (relativiseApiAnns) where
 
 import Control.Monad.State
 import Control.Monad.Writer
@@ -23,11 +23,11 @@ import qualified Data.Map as Map
 -- ---------------------------------------------------------------------
 
 -- | Transform concrete annotations into relative annotations
-relativiseAST :: Annotate ast
-              => GHC.Located ast
-              -> GHC.ApiAnns
-              -> Anns
-relativiseAST modu@(GHC.L ss _) ghcAnns
+relativiseApiAnns :: Annotate ast
+                  => GHC.Located ast
+                  -> GHC.ApiAnns
+                  -> Anns
+relativiseApiAnns modu@(GHC.L ss _) ghcAnns
    = runDelta (markLocated modu) ghcAnns ss
 
 -- ---------------------------------------------------------------------

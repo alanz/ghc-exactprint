@@ -13,7 +13,7 @@
 module Language.Haskell.GHC.ExactPrint.Print
         (
           Anns
-        , exactPrintAnnotation
+        , exactPrintWithAnns
 
         , exactPrint
 
@@ -24,7 +24,7 @@ import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta, show
 import Language.Haskell.GHC.ExactPrint.Annotate
   (AnnotationF(..), Annotated, Annotate(..), markLocated)
 import Language.Haskell.GHC.ExactPrint.Lookup (keywordToString)
-import Language.Haskell.GHC.ExactPrint.Delta ( relativiseAST )
+import Language.Haskell.GHC.ExactPrint.Delta ( relativiseApiAnns )
 
 import Control.Applicative
 import Control.Monad.RWS
@@ -43,15 +43,17 @@ import qualified Data.Map as Map
 
 -- | Print an AST exactly as specified by the annotations on the nodes in the tree.
 exactPrint :: Annotate ast => GHC.Located ast -> GHC.ApiAnns -> String
-exactPrint ast ghcAnns = exactPrintAnnotation ast relativeAnns
+exactPrint ast ghcAnns = exactPrintWithAnns ast relativeAnns
   where
-    relativeAnns = relativiseAST ast ghcAnns
+    relativeAnns = relativiseApiAnns ast ghcAnns
 
-exactPrintAnnotation :: Annotate ast
+-- | Print an AST with a map of potential modified `Anns`. The usual way to
+-- generate such a map is by calling `relativiseApiAnns`.
+exactPrintWithAnns :: Annotate ast
                      => GHC.Located ast
                      -> Anns
                      -> String
-exactPrintAnnotation ast@(GHC.L l _) an = runEP (markLocated ast) l an
+exactPrintWithAnns ast@(GHC.L l _) an = runEP (markLocated ast) l an
 
 
 ------------------------------------------------------

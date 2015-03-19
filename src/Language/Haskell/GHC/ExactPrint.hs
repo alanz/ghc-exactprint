@@ -1,7 +1,8 @@
 module Language.Haskell.GHC.ExactPrint
-        ( relativiseAST
+        ( relativiseApiAnns
         , Anns
-        , exactPrintAnnotation
+
+        , exactPrintWithAnns
 
         , exactPrint
 
