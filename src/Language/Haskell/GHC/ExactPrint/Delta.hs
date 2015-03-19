@@ -11,7 +11,7 @@ import Data.List
 
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
-import Language.Haskell.GHC.ExactPrint.Annotate (AnnotationF(..), Wrapped
+import Language.Haskell.GHC.ExactPrint.Annotate (AnnotationF(..), Annotated
                                                 , markLocated, Annotate(..))
 
 import qualified GHC            as GHC
@@ -111,14 +111,14 @@ instance Monoid DeltaWriter where
 --    - the annotations provided by GHC
 type Delta a = RWS DeltaStack DeltaWriter DeltaState a
 
-runDelta :: Wrapped () -> GHC.ApiAnns -> GHC.SrcSpan -> Anns
+runDelta :: Annotated () -> GHC.ApiAnns -> GHC.SrcSpan -> Anns
 runDelta action ga priorEnd =
   ($ mempty) . appEndo . finalAnns . snd
   . (\next -> execRWS next initialDeltaStack (defaultDeltaState priorEnd ga))
   . simpleInterpret $ action
 
 
-simpleInterpret :: Wrapped a -> Delta a
+simpleInterpret :: Annotated a -> Delta a
 simpleInterpret = iterTM go
   where
     go :: AnnotationF (Delta a) -> Delta a

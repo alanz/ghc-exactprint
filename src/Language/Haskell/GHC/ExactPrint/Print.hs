@@ -22,7 +22,7 @@ module Language.Haskell.GHC.ExactPrint.Print
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta, showGhc)
 import Language.Haskell.GHC.ExactPrint.Annotate
-  (AnnotationF(..), Wrapped, Annotate(..), markLocated)
+  (AnnotationF(..), Annotated, Annotate(..), markLocated)
 import Language.Haskell.GHC.ExactPrint.Lookup (keywordToString)
 import Language.Haskell.GHC.ExactPrint.Delta ( relativiseAST )
 
@@ -75,14 +75,14 @@ data EPStack = EPStack
 
 type EP a = RWS EPStack (Endo String) EPState a
 
-runEP :: Wrapped () -> GHC.SrcSpan -> Anns -> String
+runEP :: Annotated () -> GHC.SrcSpan -> Anns -> String
 runEP action ss ans =
   flip appEndo "" . snd
   . (\next -> execRWS next (initialEPStack ss) (defaultEPState ans))
   . printInterpret $ action
 
 
-printInterpret :: Wrapped a -> EP a
+printInterpret :: Annotated a -> EP a
 printInterpret = iterTM go
   where
     go :: AnnotationF (EP a) -> EP a
