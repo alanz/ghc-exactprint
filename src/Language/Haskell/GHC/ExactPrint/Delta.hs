@@ -44,12 +44,9 @@ data DeltaState = DeltaState
 data DeltaStack = DeltaStack
                { -- | Current `SrcSpan`
                  curSrcSpan :: GHC.SrcSpan
-                 -- |  `SrcSpan` of the immediately prior scope
-               , prevSrcSpan :: GHC.SrcSpan
                  -- | The offset required to get from the prior end point to the
                  -- | The offset required to get from the prior end point to the
                  -- start of the current SrcSpan. Accessed via `getEntryDP`
-               , offset     :: DeltaPos
                  -- | Offsets for the elements annotated in this `SrcSpan`
                -- | Indicates whether the contents of this SrcSpan are
                -- subject to vertical alignment layout rules
@@ -63,8 +60,6 @@ initialDeltaStack :: DeltaStack
 initialDeltaStack =
   DeltaStack
     { curSrcSpan = GHC.noSrcSpan
-    , prevSrcSpan = GHC.noSrcSpan
-    , offset = DP (0,0)
     , annConName = annGetConstr ()
     }
 
@@ -151,20 +146,11 @@ flattenedComments (_,cm) = map tokComment . GHC.sortLocated . concat $ Map.elems
 getSrcSpanDelta :: Delta GHC.SrcSpan
 getSrcSpanDelta = asks curSrcSpan
 
-getPriorSrcSpanDelta :: Delta GHC.SrcSpan
-getPriorSrcSpanDelta = asks prevSrcSpan
-
-withSrcSpanDelta :: Data a => (GHC.Located a) -> DeltaPos -> Delta b -> Delta b
-withSrcSpanDelta (GHC.L l a) edp =
-  local (\s -> let previousSrcSpan = curSrcSpan s in
-               s { curSrcSpan = l
-                 , prevSrcSpan = previousSrcSpan
-                 , offset = edp
+withSrcSpanDelta :: Data a => (GHC.Located a) -> Delta b -> Delta b
+withSrcSpanDelta (GHC.L l a) =
+  local (\s -> s { curSrcSpan = l
                  , annConName = annGetConstr a
                  })
-
-getEntryDP :: Delta DeltaPos
-getEntryDP = asks offset
 
 getUnallocatedComments :: Delta [Comment]
 getUnallocatedComments = gets apComments
@@ -242,9 +228,8 @@ withAST lss layout action = do
   pe <- getPriorEnd
   let ss = (GHC.getLoc lss)
   edp <- adjustDeltaForOffsetM (deltaFromSrcSpans pe ss)
-  -- need to save edp', and put it in Annotation
   prior <- getSrcSpanDelta
-  withSrcSpanDelta lss edp (do
+  withSrcSpanDelta lss (do
 
     let maskWriter s = s { annKds = []
                          , layoutFlag = NoLayoutRules }
@@ -417,7 +402,7 @@ addEofAnnotation :: Delta ()
 addEofAnnotation = do
   pe <- getPriorEnd
   ss <- getSrcSpanDelta
-  ma <- withSrcSpanDelta (GHC.noLoc ()) (DP (0,0)) (getAnnotationDelta GHC.AnnEofPos)
+  ma <- withSrcSpanDelta (GHC.noLoc ()) (getAnnotationDelta GHC.AnnEofPos)
   case ma of
     [] -> return ()
     (pa:pss) -> do
