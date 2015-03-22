@@ -266,3 +266,211 @@ Things we know
    In addition, every time we hit a new line we need to start a new
    sub-stack of nested offsets, based on the ruling offset of the
    prior sub-stack.
+
+
+Worked example
+--------------
+
+Working through the `LayoutLet2.hs` file in `tests/examples`
+
+```haskell
+module LayoutLet2 where
+
+-- Simple let expression, rename xxx to something longer or shorter
+-- and the let/in layout should adjust accordingly
+-- In this case the tokens for xxx + a + b should also shift out
+
+foo xxx = let a = 1
+              b = 2 in xxx + a + b
+
+```
+
+The AST for this is as follows
+
+```
+(L {tests/examples/LayoutLet2.hs:1:1} 
+ (HsModule 
+  (Just 
+   (L {tests/examples/LayoutLet2.hs:1:8-17} {ModuleName: LayoutLet2})) 
+  (Nothing) 
+  [] 
+  [
+   (L {tests/examples/LayoutLet2.hs:(7,1)-(8,34)} 
+    (ValD 
+     (FunBind 
+      (L {tests/examples/LayoutLet2.hs:7:1-3} 
+       (Unqual {OccName: foo})) 
+      (False) 
+      (MG 
+       [
+        (L {tests/examples/LayoutLet2.hs:(7,1)-(8,34)} 
+         (Match 
+          (Just 
+           ((,) 
+            (L {tests/examples/LayoutLet2.hs:7:1-3} 
+             (Unqual {OccName: foo})) 
+            (False))) 
+          [
+           (L {tests/examples/LayoutLet2.hs:7:5-7} 
+            (VarPat 
+             (Unqual {OccName: xxx})))] 
+          (Nothing) 
+          (GRHSs 
+           [
+            (L {tests/examples/LayoutLet2.hs:(7,9)-(8,34)} 
+             (GRHS 
+              [] 
+              (L {tests/examples/LayoutLet2.hs:(7,11)-(8,34)} 
+               (HsLet 
+                (HsValBinds 
+                 (ValBindsIn {Bag(Located (HsBind RdrName)): 
+                  [
+                   (L {tests/examples/LayoutLet2.hs:7:15-19} 
+                    (FunBind 
+                     (L {tests/examples/LayoutLet2.hs:7:15} 
+                      (Unqual {OccName: a})) 
+                     (False) 
+                     (MG 
+                      [
+                       (L {tests/examples/LayoutLet2.hs:7:15-19} 
+                        (Match 
+                         (Just 
+                          ((,) 
+                           (L {tests/examples/LayoutLet2.hs:7:15} 
+                            (Unqual {OccName: a})) 
+                           (False))) 
+                         [] 
+                         (Nothing) 
+                         (GRHSs 
+                          [
+                           (L {tests/examples/LayoutLet2.hs:7:17-19} 
+                            (GRHS 
+                             [] 
+                             (L {tests/examples/LayoutLet2.hs:7:19} 
+                              (HsOverLit {HsOverLit:1}))))] 
+                          (EmptyLocalBinds))))] 
+                      [] 
+                      (PlaceHolder) 
+                      (FromSource)) 
+                     (WpHole) 
+                     (PlaceHolder) 
+                     [])),
+                   (L {tests/examples/LayoutLet2.hs:8:15-19} 
+                    (FunBind 
+                     (L {tests/examples/LayoutLet2.hs:8:15} 
+                      (Unqual {OccName: b})) 
+                     (False) 
+                     (MG 
+                      [
+                       (L {tests/examples/LayoutLet2.hs:8:15-19} 
+                        (Match 
+                         (Just 
+                          ((,) 
+                           (L {tests/examples/LayoutLet2.hs:8:15} 
+                            (Unqual {OccName: b})) 
+                           (False))) 
+                         [] 
+                         (Nothing) 
+                         (GRHSs 
+                          [
+                           (L {tests/examples/LayoutLet2.hs:8:17-19} 
+                            (GRHS 
+                             [] 
+                             (L {tests/examples/LayoutLet2.hs:8:19} 
+                              (HsOverLit {HsOverLit:2}))))] 
+                          (EmptyLocalBinds))))] 
+                      [] 
+                      (PlaceHolder) 
+                      (FromSource)) 
+                     (WpHole) 
+                     (PlaceHolder) 
+                     []))]} 
+                  [])) 
+                (L {tests/examples/LayoutLet2.hs:8:24-34} 
+                 (OpApp 
+                  (L {tests/examples/LayoutLet2.hs:8:24-30} 
+                   (OpApp 
+                    (L {tests/examples/LayoutLet2.hs:8:24-26} 
+                     (HsVar 
+                      (Unqual {OccName: xxx}))) 
+                    (L {tests/examples/LayoutLet2.hs:8:28} 
+                     (HsVar 
+                      (Unqual {OccName: +}))) 
+                    (PlaceHolder) 
+                    (L {tests/examples/LayoutLet2.hs:8:30} 
+                     (HsVar 
+                      (Unqual {OccName: a}))))) 
+                  (L {tests/examples/LayoutLet2.hs:8:32} 
+                   (HsVar 
+                    (Unqual {OccName: +}))) 
+                  (PlaceHolder) 
+                  (L {tests/examples/LayoutLet2.hs:8:34} 
+                   (HsVar 
+                    (Unqual {OccName: b})))))))))] 
+           (EmptyLocalBinds))))] 
+       [] 
+       (PlaceHolder) 
+       (FromSource)) 
+      (WpHole) 
+      (PlaceHolder) 
+      [])))] 
+  (Nothing) 
+  (Nothing)))
+```
+
+This has the following nesting structure
+
+````
+   (L {tests/examples/LayoutLet2.hs:(7,1)-(8,34)} 
+      (L {tests/examples/LayoutLet2.hs:7:1-3} 
+        (L {tests/examples/LayoutLet2.hs:(7,1)-(8,34)} 
+            (L {tests/examples/LayoutLet2.hs:7:1-3} 
+           (L {tests/examples/LayoutLet2.hs:7:5-7} 
+            (L {tests/examples/LayoutLet2.hs:(7,9)-(8,34)} 
+              (L {tests/examples/LayoutLet2.hs:(7,11)-(8,34)} 
+                   (L {tests/examples/LayoutLet2.hs:7:15-19} 
+                     (L {tests/examples/LayoutLet2.hs:7:15} 
+                       (L {tests/examples/LayoutLet2.hs:7:15-19} 
+                           (L {tests/examples/LayoutLet2.hs:7:15} 
+                           (L {tests/examples/LayoutLet2.hs:7:17-19} 
+                             (L {tests/examples/LayoutLet2.hs:7:19} 
+                   (L {tests/examples/LayoutLet2.hs:8:15-19} 
+                     (L {tests/examples/LayoutLet2.hs:8:15} 
+                       (L {tests/examples/LayoutLet2.hs:8:15-19} 
+                           (L {tests/examples/LayoutLet2.hs:8:15} 
+                           (L {tests/examples/LayoutLet2.hs:8:17-19} 
+                             (L {tests/examples/LayoutLet2.hs:8:19} 
+                (L {tests/examples/LayoutLet2.hs:8:24-34} 
+                  (L {tests/examples/LayoutLet2.hs:8:24-30} 
+                    (L {tests/examples/LayoutLet2.hs:8:24-26} 
+                    (L {tests/examples/LayoutLet2.hs:8:28} 
+                    (L {tests/examples/LayoutLet2.hs:8:30} 
+                  (L {tests/examples/LayoutLet2.hs:8:32} 
+                  (L {tests/examples/LayoutLet2.hs:8:34} 
+````
+
+When this is broken down into its properly nested structure, and duplicates removed, we have
+
+````
+   (L {tests/examples/LayoutLet2.hs:(7,1)-(8,34)} 
+      (L {tests/examples/LayoutLet2.hs:7:1-3}                  foo
+      (L {tests/examples/LayoutLet2.hs:7:5-7}                      xxx
+      (L {tests/examples/LayoutLet2.hs:(7,9)-(8,34)}                   =
+         (L {tests/examples/LayoutLet2.hs:(7,11)-(8,34)}                 let        in
+            (L {tests/examples/LayoutLet2.hs:7:15-19} 
+               (L {tests/examples/LayoutLet2.hs:7:15}                        a
+               (L {tests/examples/LayoutLet2.hs:7:17-19}                       =
+                  (L {tests/examples/LayoutLet2.hs:7:19}                         1
+            (L {tests/examples/LayoutLet2.hs:8:15-19} 
+            (L {tests/examples/LayoutLet2.hs:8:15}                           b
+               (L {tests/examples/LayoutLet2.hs:8:15-19}
+               (L {tests/examples/LayoutLet2.hs:8:17-19}                       =
+                  (L {tests/examples/LayoutLet2.hs:8:19}                          2
+                (L {tests/examples/LayoutLet2.hs:8:24-34} 
+                  (L {tests/examples/LayoutLet2.hs:8:24-30}
+                    (L {tests/examples/LayoutLet2.hs:8:24-26}                           xxx
+                    (L {tests/examples/LayoutLet2.hs:8:28}                                  +
+                    (L {tests/examples/LayoutLet2.hs:8:30}                                    a
+                  (L {tests/examples/LayoutLet2.hs:8:32}                                        +
+                  (L {tests/examples/LayoutLet2.hs:8:34}                                          b
+````
