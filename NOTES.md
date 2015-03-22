@@ -418,99 +418,156 @@ The AST for this is as follows
   (Nothing)))
 ```
 
-This has the following nesting structure
-
-````
-   (L {tests/examples/LayoutLet2.hs:(7,1)-(8,34)} 
-      (L {tests/examples/LayoutLet2.hs:7:1-3} 
-        (L {tests/examples/LayoutLet2.hs:(7,1)-(8,34)} 
-            (L {tests/examples/LayoutLet2.hs:7:1-3} 
-           (L {tests/examples/LayoutLet2.hs:7:5-7} 
-            (L {tests/examples/LayoutLet2.hs:(7,9)-(8,34)} 
-              (L {tests/examples/LayoutLet2.hs:(7,11)-(8,34)} 
-                   (L {tests/examples/LayoutLet2.hs:7:15-19} 
-                     (L {tests/examples/LayoutLet2.hs:7:15} 
-                       (L {tests/examples/LayoutLet2.hs:7:15-19} 
-                           (L {tests/examples/LayoutLet2.hs:7:15} 
-                           (L {tests/examples/LayoutLet2.hs:7:17-19} 
-                             (L {tests/examples/LayoutLet2.hs:7:19} 
-                   (L {tests/examples/LayoutLet2.hs:8:15-19} 
-                     (L {tests/examples/LayoutLet2.hs:8:15} 
-                       (L {tests/examples/LayoutLet2.hs:8:15-19} 
-                           (L {tests/examples/LayoutLet2.hs:8:15} 
-                           (L {tests/examples/LayoutLet2.hs:8:17-19} 
-                             (L {tests/examples/LayoutLet2.hs:8:19} 
-                (L {tests/examples/LayoutLet2.hs:8:24-34} 
-                  (L {tests/examples/LayoutLet2.hs:8:24-30} 
-                    (L {tests/examples/LayoutLet2.hs:8:24-26} 
-                    (L {tests/examples/LayoutLet2.hs:8:28} 
-                    (L {tests/examples/LayoutLet2.hs:8:30} 
-                  (L {tests/examples/LayoutLet2.hs:8:32} 
-                  (L {tests/examples/LayoutLet2.hs:8:34} 
-````
-
 When this is broken down into its properly nested structure, and duplicates removed, we have
 
 ````
-   (L {tests/examples/LayoutLet2.hs:(7,1)-(8,34)} 
-      (L {tests/examples/LayoutLet2.hs:7:1-3}                  foo
-      (L {tests/examples/LayoutLet2.hs:7:5-7}                  |   xxx
-      (L {tests/examples/LayoutLet2.hs:(7,9)-(8,34)}           |   |   =
-         (L {tests/examples/LayoutLet2.hs:(7,11)-(8,34)}       |   |     let        in
-            (L {tests/examples/LayoutLet2.hs:7:15-19}          |   |     *          |
-               (L {tests/examples/LayoutLet2.hs:7:15}          |   |     |   a      |
-               (L {tests/examples/LayoutLet2.hs:7:17-19}       |   |     |   * =    |
-                  (L {tests/examples/LayoutLet2.hs:7:19}       |   |     |   |   1  |
-                                                         --------------------------------------------
-            (L {tests/examples/LayoutLet2.hs:8:15-19}          |   |     |   |      |
-            (L {tests/examples/LayoutLet2.hs:8:15}             |   |     |   b      |
-               (L {tests/examples/LayoutLet2.hs:8:15-19}       |   |     |   |      |
-               (L {tests/examples/LayoutLet2.hs:8:17-19}       |   |     |   | =    |
-                  (L {tests/examples/LayoutLet2.hs:8:19}       |   |     |   |    2 |
-                (L {tests/examples/LayoutLet2.hs:8:24-34}      |   |     |   |      |
-                  (L {tests/examples/LayoutLet2.hs:8:24-30}    |   |     |   |      |
-                    (L {tests/examples/LayoutLet2.hs:8:24-26}  |   |     |   |      |   xxx
-                    (L {tests/examples/LayoutLet2.hs:8:28}     |   |     |   |      |       +
-                    (L {tests/examples/LayoutLet2.hs:8:30}     |   |     |   |      |         a
-                  (L {tests/examples/LayoutLet2.hs:8:32}       |   |     |   |      |           +
-                  (L {tests/examples/LayoutLet2.hs:8:34}       |   |     |   |      |             b
+   (L {LayoutLet2.hs:(7,1)-(8,34)} 
+      (L {LayoutLet2.hs:7:1-3}                  foo
+      (L {LayoutLet2.hs:7:5-7}                  |   xxx
+      (L {LayoutLet2.hs:(7,9)-(8,34)}           |   |   =
+         (L {LayoutLet2.hs:(7,11)-(8,34)}       |   |     let        in
+ ===SYN=====(L {LayoutLet2.hs:(7,15)-(8,19)}    |   |     ^
+               (L {LayoutLet2.hs:7:15-19}       |   |     |          |
+                  (L {LayoutLet2.hs:7:15}       |   |     |   a      |
+                  (L {LayoutLet2.hs:7:17-19}    |   |     |   ^ =    |
+                     (L {LayoutLet2.hs:7:19}    |   |     |   |   1  |
+                                              --------------------------------------------
+               (L {LayoutLet2.hs:8:15-19}       |   |     |   |      |
+                  (L {LayoutLet2.hs:8:15}       |   |     |   b      |
+                  (L {LayoutLet2.hs:8:17-19}    |   |     |   | =    |
+                     (L {LayoutLet2.hs:8:19}    |   |     |   |    2 |
+            (L {LayoutLet2.hs:8:24-34}          |   |     |          |
+              (L {LayoutLet2.hs:8:24-30}        |   |     |          |
+                (L {LayoutLet2.hs:8:24-26}      |   |     |          |   xxx
+                (L {LayoutLet2.hs:8:28}         |   |     |          |       +
+                (L {LayoutLet2.hs:8:30}         |   |     |          |         a
+              (L {LayoutLet2.hs:8:32}           |   |     |          |           +
+              (L {LayoutLet2.hs:8:34}           |   |     |          |             b
 ````
 
-The * at the top of a vertical line indicates points where layout is flagged,
-and the horizontal line is where the source text moves on to the next line.
+The ^ at the top of a vertical line indicates points where layout is flagged in
+the above span, and the horizontal line is where the source text moves on to the
+next line.
+
+Note the SYN span, this is synthesised during the delta phase to provide an
+appropriate SrcSpan to capture the layout annotation
 
 If we now replace `xxx` with `xxxlonger`, we expect the following output
 
 ````
-   (L {tests/examples/LayoutLet2.hs:(7,1)-(8,34)} 
-      (L {tests/examples/LayoutLet2.hs:7:1-3}                  foo
-      (L {tests/examples/LayoutLet2.hs:7:5-7}                  |   xxxlonger
-      (L {tests/examples/LayoutLet2.hs:(7,9)-(8,34)}           |   |  ...... =
-         (L {tests/examples/LayoutLet2.hs:(7,11)-(8,34)}       |   |  ......   let        in
-            (L {tests/examples/LayoutLet2.hs:7:15-19}          |   |  ......   *          |
-               (L {tests/examples/LayoutLet2.hs:7:15}          |   |  ......   |   a      |
-               (L {tests/examples/LayoutLet2.hs:7:17-19}       |   |  ......   |   * =    |
-                  (L {tests/examples/LayoutLet2.hs:7:19}       |   |  ......   |   |   1  |
+   (L {LayoutLet2.hs:(7,1)-(8,34)} 
+      (L {LayoutLet2.hs:7:1-3}                  foo
+      (L {LayoutLet2.hs:7:5-7}                  |   xxxlonger
+      (L {LayoutLet2.hs:(7,9)-(8,34)}           |   |  ...... =
+         (L {LayoutLet2.hs:(7,11)-(8,34)}       |   |  ......   let        in
+ ===SYN=====(L {LayoutLet2.hs:(7,15)-(8,19)}    |   |  ......   ^
+               (L {LayoutLet2.hs:7:15-19}       |   |  ......   |          |
+                  (L {LayoutLet2.hs:7:15}       |   |  ......   |   a      |
+                  (L {LayoutLet2.hs:7:17-19}    |   |  ......   |   ^ =    |
+                     (L {LayoutLet2.hs:7:19}    |   |  ......   |   |   1  |
                                                          --------------------------------------------
-            (L {tests/examples/LayoutLet2.hs:8:15-19}          |   |  ......   |   |      |
-            (L {tests/examples/LayoutLet2.hs:8:15}             |   |  ......   |   b      |
-               (L {tests/examples/LayoutLet2.hs:8:15-19}       |   |  ......   |   |      |
-               (L {tests/examples/LayoutLet2.hs:8:17-19}       |   |  ......   |   | =    |
-                  (L {tests/examples/LayoutLet2.hs:8:19}       |   |  ......   |   |    2 |
-                (L {tests/examples/LayoutLet2.hs:8:24-34}      |   |  ......   |   |      |
-                  (L {tests/examples/LayoutLet2.hs:8:24-30}    |   |  ......   |   |      |
-                    (L {tests/examples/LayoutLet2.hs:8:24-26}  |   |  ......   |   |      |   xxxlonger
-                    (L {tests/examples/LayoutLet2.hs:8:28}     |   |  ......   |   |      |      ...... +
-                    (L {tests/examples/LayoutLet2.hs:8:30}     |   |  ......   |   |      |      ......   a
-                  (L {tests/examples/LayoutLet2.hs:8:32}       |   |  ......   |   |      |      ......     +
-                  (L {tests/examples/LayoutLet2.hs:8:34}       |   |  ......   |   |      |      ......       b
+               (L {LayoutLet2.hs:8:15-19}       |   |  ......   |   |      |
+                  (L {LayoutLet2.hs:8:15}       |   |  ......   |   b      |
+                  (L {LayoutLet2.hs:8:17-19}    |   |  ......   |   | =    |
+                     (L {LayoutLet2.hs:8:19}    |   |  ......   |   |    2 |
+            (L {LayoutLet2.hs:8:24-34}          |   |  ......   |          |
+              (L {LayoutLet2.hs:8:24-30}        |   |  ......   |          |
+                (L {LayoutLet2.hs:8:24-26}      |   |  ......   |          |   xxxlonger
+                (L {LayoutLet2.hs:8:28}         |   |  ......   |          |      ...... +
+                (L {LayoutLet2.hs:8:30}         |   |  ......   |          |      ......   a
+              (L {LayoutLet2.hs:8:32}           |   |  ......   |          |      ......     +
+              (L {LayoutLet2.hs:8:34}           |   |  ......   |          |      ......       b
 ````
 
 The changes within line 7 are all handled naturally by the DP values, since they
-are on the same line so the spacing flows naturally.
+are on the same line so the spacing just flows.
 
 The start of line 8 needs to be moved in by six spaces, and this is a block
-indent. If xxx was even longer, or shorter, this distance would change.
+indent, signified by `......`. If xxx was even longer, or shorter, this distance
+would change.
+
+No further indentation change is required for the layout starting at `a = 1`, as
+the change in indentation can only be captured once per line, and there is no
+additional change between the `let` and the `a`
 
 The second instance of `xxx`, on line 8, also flows naturally because it is on
 the same line.
+
+Example 2
+---------
+
+```haskell
+module LayoutIn3 where
+
+--Layout rule applies after 'where','let','do' and 'of'
+
+--In this Example: rename 'x' after 'let'  to 'anotherX'.
+
+foo x = let x = 12 in (let y = 3
+                           z = 2 in x * y * z * w) where   y = 2
+                                                           --there is a comment.
+                                                           w = x
+                                                             where
+                                                               x = let y = 5 in y + 3
+
+```
+
+This results in the following tree structure
+
+```
+(L {LayoutIn3.hs:(7,1)-(12,85)} 
+   (L {LayoutIn3.hs:7:1-3}                              foo 
+   (L {LayoutIn3.hs:7:5}                                |   x
+   (L {LayoutIn3.hs:(7,7)-(12,85)}                      |     =
+      (L {LayoutIn3.hs:(7,9)-(8,50)}                    |       let        in                              where 
+=SYN=====(L {LayoutIn3.hs:7:13-18}                      |                                                |
+      |  (L {LayoutIn3.hs:7:13-18}                      |                                                |
+      |     (L {LayoutIn3.hs:7:13}                      |           x                                    |
+      |     (L {LayoutIn3.hs:7:17-18}                   |           ^ = 12                               |
+      |   (L {LayoutIn3.hs:(7,23)-(8,50)}               |           |         (                          )
+      |      (L {LayoutIn3.hs:(7,24)-(8,49)}            |                      let       in              |
+=SYN=========   (L {LayoutIn3.hs:(7,28)-(8,32)}         |                                                |
+      |            (L {LayoutIn3.hs:7:28-32}            |                          y                     |
+      |               (L {LayoutIn3.hs:7:28}            |                          ^ =                   |
+      |               (L {LayoutIn3.hs:7:30-32}         |                          |   3                 |
+      |               (L {LayoutIn3.hs:7:32}            |                          |                     |
+      |--------------------------------------------------------------------------------            
+      |            (L {LayoutIn3.hs:8:28-32}            |                          |                     |
+      |               (L {LayoutIn3.hs:8:28}            |                          z                     |
+      |               (L {LayoutIn3.hs:8:30-32}         |                          | =                   |
+      |               (L {LayoutIn3.hs:8:32}            |                          |   2                 |
+      |         (L {LayoutIn3.hs:8:37-49}               |                                                |
+      |            (L {LayoutIn3.hs:8:37-45}            |                                                |
+      |               (L {LayoutIn3.hs:8:37-41}         |                                                |
+      |                  (L {LayoutIn3.hs:8:37}         |                                   x            |
+      |                  (L {LayoutIn3.hs:8:39}         |                                     *          |
+      |                  (L {LayoutIn3.hs:8:41}         |                                       y        |
+      |               (L {LayoutIn3.hs:8:43}            |                                         *      |
+      |               (L {LayoutIn3.hs:8:45}            |                                           z    |
+      |            (L {LayoutIn3.hs:8:47}               |                                             *  |
+      |            (L {LayoutIn3.hs:8:49}               |                                               w|
+=SYN==(L {LayoutIn3.hs:(8,60)-(12,85)}=======           |
+         (L {LayoutIn3.hs:8:60-64}                      |
+         |  (L {LayoutIn3.hs:8:60}                      |                                                        y
+         |  (L {LayoutIn3.hs:8:62-64}                   |                                                        ^ =
+         |  (L {LayoutIn3.hs:8:64}                      |                                                        |   2
+          --------------------------------------------------------------------------------------------
+         (L {LayoutIn3.hs:(10,60)-(12,85)}              |                                                        |
+         |  (L {LayoutIn3.hs:10:60}                     |                                                        w
+         |  (L {LayoutIn3.hs:(10,62)-(12,85)}           |                                                          =
+         |     (L {LayoutIn3.hs:10:64}                  |                                                            x
+         --------------------------------------------------------------------------------------
+         |     (L {LayoutIn3.hs:12:64-85}               |
+         |        (L {LayoutIn3.hs:12:64-85}            |
+         |           (L {LayoutIn3.hs:12:64}            |
+         |           (L {LayoutIn3.hs:12:66-85}         |
+         |              (L {LayoutIn3.hs:12:68-85}      |
+         |              (L {LayoutIn3.hs:12:72-76}      |
+         |                 (L {LayoutIn3.hs:12:72}      |
+         |                 (L {LayoutIn3.hs:12:74-76}   |
+         |                 (L {LayoutIn3.hs:12:76}      |
+         |              (L {LayoutIn3.hs:12:81-85}      |
+         |                 (L {LayoutIn3.hs:12:81}      |
+         |                 (L {LayoutIn3.hs:12:83}      |
+         |                 (L {LayoutIn3.hs:12:85}      |
+```
