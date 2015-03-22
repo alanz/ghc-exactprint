@@ -454,23 +454,63 @@ When this is broken down into its properly nested structure, and duplicates remo
 ````
    (L {tests/examples/LayoutLet2.hs:(7,1)-(8,34)} 
       (L {tests/examples/LayoutLet2.hs:7:1-3}                  foo
-      (L {tests/examples/LayoutLet2.hs:7:5-7}                      xxx
-      (L {tests/examples/LayoutLet2.hs:(7,9)-(8,34)}                   =
-         (L {tests/examples/LayoutLet2.hs:(7,11)-(8,34)}                 let        in
-            (L {tests/examples/LayoutLet2.hs:7:15-19} 
-               (L {tests/examples/LayoutLet2.hs:7:15}                        a
-               (L {tests/examples/LayoutLet2.hs:7:17-19}                       =
-                  (L {tests/examples/LayoutLet2.hs:7:19}                         1
-            (L {tests/examples/LayoutLet2.hs:8:15-19} 
-            (L {tests/examples/LayoutLet2.hs:8:15}                           b
-               (L {tests/examples/LayoutLet2.hs:8:15-19}
-               (L {tests/examples/LayoutLet2.hs:8:17-19}                       =
-                  (L {tests/examples/LayoutLet2.hs:8:19}                          2
-                (L {tests/examples/LayoutLet2.hs:8:24-34} 
-                  (L {tests/examples/LayoutLet2.hs:8:24-30}
-                    (L {tests/examples/LayoutLet2.hs:8:24-26}                           xxx
-                    (L {tests/examples/LayoutLet2.hs:8:28}                                  +
-                    (L {tests/examples/LayoutLet2.hs:8:30}                                    a
-                  (L {tests/examples/LayoutLet2.hs:8:32}                                        +
-                  (L {tests/examples/LayoutLet2.hs:8:34}                                          b
+      (L {tests/examples/LayoutLet2.hs:7:5-7}                  |   xxx
+      (L {tests/examples/LayoutLet2.hs:(7,9)-(8,34)}           |   |   =
+         (L {tests/examples/LayoutLet2.hs:(7,11)-(8,34)}       |   |     let        in
+            (L {tests/examples/LayoutLet2.hs:7:15-19}          |   |     *          |
+               (L {tests/examples/LayoutLet2.hs:7:15}          |   |     |   a      |
+               (L {tests/examples/LayoutLet2.hs:7:17-19}       |   |     |   * =    |
+                  (L {tests/examples/LayoutLet2.hs:7:19}       |   |     |   |   1  |
+                                                         --------------------------------------------
+            (L {tests/examples/LayoutLet2.hs:8:15-19}          |   |     |   |      |
+            (L {tests/examples/LayoutLet2.hs:8:15}             |   |     |   b      |
+               (L {tests/examples/LayoutLet2.hs:8:15-19}       |   |     |   |      |
+               (L {tests/examples/LayoutLet2.hs:8:17-19}       |   |     |   | =    |
+                  (L {tests/examples/LayoutLet2.hs:8:19}       |   |     |   |    2 |
+                (L {tests/examples/LayoutLet2.hs:8:24-34}      |   |     |   |      |
+                  (L {tests/examples/LayoutLet2.hs:8:24-30}    |   |     |   |      |
+                    (L {tests/examples/LayoutLet2.hs:8:24-26}  |   |     |   |      |   xxx
+                    (L {tests/examples/LayoutLet2.hs:8:28}     |   |     |   |      |       +
+                    (L {tests/examples/LayoutLet2.hs:8:30}     |   |     |   |      |         a
+                  (L {tests/examples/LayoutLet2.hs:8:32}       |   |     |   |      |           +
+                  (L {tests/examples/LayoutLet2.hs:8:34}       |   |     |   |      |             b
 ````
+
+The * at the top of a vertical line indicates points where layout is flagged,
+and the horizontal line is where the source text moves on to the next line.
+
+If we now replace `xxx` with `xxxlonger`, we expect the following output
+
+````
+   (L {tests/examples/LayoutLet2.hs:(7,1)-(8,34)} 
+      (L {tests/examples/LayoutLet2.hs:7:1-3}                  foo
+      (L {tests/examples/LayoutLet2.hs:7:5-7}                  |   xxxlonger
+      (L {tests/examples/LayoutLet2.hs:(7,9)-(8,34)}           |   |  ...... =
+         (L {tests/examples/LayoutLet2.hs:(7,11)-(8,34)}       |   |  ......   let        in
+            (L {tests/examples/LayoutLet2.hs:7:15-19}          |   |  ......   *          |
+               (L {tests/examples/LayoutLet2.hs:7:15}          |   |  ......   |   a      |
+               (L {tests/examples/LayoutLet2.hs:7:17-19}       |   |  ......   |   * =    |
+                  (L {tests/examples/LayoutLet2.hs:7:19}       |   |  ......   |   |   1  |
+                                                         --------------------------------------------
+            (L {tests/examples/LayoutLet2.hs:8:15-19}          |   |  ......   |   |      |
+            (L {tests/examples/LayoutLet2.hs:8:15}             |   |  ......   |   b      |
+               (L {tests/examples/LayoutLet2.hs:8:15-19}       |   |  ......   |   |      |
+               (L {tests/examples/LayoutLet2.hs:8:17-19}       |   |  ......   |   | =    |
+                  (L {tests/examples/LayoutLet2.hs:8:19}       |   |  ......   |   |    2 |
+                (L {tests/examples/LayoutLet2.hs:8:24-34}      |   |  ......   |   |      |
+                  (L {tests/examples/LayoutLet2.hs:8:24-30}    |   |  ......   |   |      |
+                    (L {tests/examples/LayoutLet2.hs:8:24-26}  |   |  ......   |   |      |   xxxlonger
+                    (L {tests/examples/LayoutLet2.hs:8:28}     |   |  ......   |   |      |      ...... +
+                    (L {tests/examples/LayoutLet2.hs:8:30}     |   |  ......   |   |      |      ......   a
+                  (L {tests/examples/LayoutLet2.hs:8:32}       |   |  ......   |   |      |      ......     +
+                  (L {tests/examples/LayoutLet2.hs:8:34}       |   |  ......   |   |      |      ......       b
+````
+
+The changes within line 7 are all handled naturally by the DP values, since they
+are on the same line so the spacing flows naturally.
+
+The start of line 8 needs to be moved in by six spaces, and this is a block
+indent. If xxx was even longer, or shorter, this distance would change.
+
+The second instance of `xxx`, on line 8, also flows naturally because it is on
+the same line.
