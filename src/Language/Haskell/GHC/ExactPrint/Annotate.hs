@@ -640,6 +640,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name) =>
                                                   Annotate (GHC.HsBind name) where
   markAST _ (GHC.FunBind (GHC.L _ln _n) _ (GHC.MG matches _ _ _) _ _ _) = do
     mapM_ markLocated matches
+    -- markMatchGroup l mg
 
   markAST _ (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
     markLocated lhs
@@ -727,7 +728,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,
     mark GHC.AnnWhere
     mark GHC.AnnOpenC -- '{'
     markInside GHC.AnnSemi
-    -- markHsLocalBinds lb
     markWithLayout (GHC.L (getLocalBindsSrcSpan lb) lb)
     mark GHC.AnnCloseC -- '}'
 

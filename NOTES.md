@@ -268,6 +268,8 @@ Things we know
    prior sub-stack.
 
 
+
+
 Worked example
 --------------
 
@@ -492,6 +494,10 @@ additional change between the `let` and the `a`
 
 The second instance of `xxx`, on line 8, also flows naturally because it is on
 the same line.
+
+
+
+
 
 Example 2
 ---------

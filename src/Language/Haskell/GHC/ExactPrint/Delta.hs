@@ -197,17 +197,17 @@ getCurrentDP layoutOn = do
   -- indentation should be fully nested in an AST element
   ss <- getSrcSpanDelta
   ps <- getPriorSrcSpanDelta
-  let boolLayoutFlag = case layoutOn of { LayoutRules -> True; NoLayoutRules -> False}
+  let
       colOffset = if srcSpanStartLine ss == srcSpanStartLine ps
                     then srcSpanStartColumn ss - srcSpanStartColumn ps
                     else srcSpanStartColumn ss
-      r = case ( boolLayoutFlag , srcSpanStartLine ss == srcSpanStartLine ps) of
-             (True,  True) -> (colOffset, LayoutLineSame)
-             (True, False) -> (colOffset, LayoutLineChanged)
-             (False, True) -> (colOffset, LineSame)
-             (False,False) -> (colOffset, LineChanged)
+      r = case (layoutOn, srcSpanStartLine ss == srcSpanStartLine ps) of
+             (LayoutRules,    True) -> (colOffset, LayoutLineSame)
+             (LayoutRules,   False) -> (colOffset, LayoutLineChanged)
+             (NoLayoutRules,  True) -> (colOffset, LineSame)
+             (NoLayoutRules, False) -> (colOffset, LineChanged)
   return r
-    `debug` ("getCurrentDP:layoutOn=" ++ show layoutOn)
+    `debug` ("getCurrentDP:(layoutOn=" ++ show layoutOn)
 
 -- ---------------------------------------------------------------------
 
@@ -276,7 +276,7 @@ withAST lss layout action = do
     finaledp <- getEntryDP
     let kds = annKds w
     addAnnotationsDelta (Ann finaledp nl (srcSpanStartColumn ss) dp kds)
-      `debug` ("leaveAST:(ss,edp,dp,kds)=" ++ show (showGhc ss,edp,dp,kds,dp))
+      `debug` ("leaveAST:(ss,(edp,finaledp),dp,nl,kds)=" ++ show (showGhc ss,(edp,finaledp),dp,nl,kds))
     return res)
 
 -- ---------------------------------------------------------------------

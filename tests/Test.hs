@@ -193,7 +193,7 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     {-
     , manipulateAstTestWFname "LetExpr.hs"               "LetExpr"
     -}
-    , manipulateAstTestWFname "ExprPragmas.hs"           "ExprPragmas"
+    -- , manipulateAstTestWFname "ExprPragmas.hs"           "ExprPragmas"
     {-
     , manipulateAstTestWFname "ListComprehensions.hs"    "Main"
     , manipulateAstTestWFname "MonadComprehensions.hs"   "Main"
@@ -207,7 +207,7 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname "ForeignDecl.hs"           "ForeignDecl"
     , manipulateAstTestWFname "Warning.hs"               "Warning"
     -}
-    , manipulateAstTestWFname "Annotations.hs"           "Annotations"
+    -- , manipulateAstTestWFname "Annotations.hs"           "Annotations"
     {-
     , manipulateAstTestWFnameTH "QuasiQuote.hs"          "QuasiQuote"
     , manipulateAstTestWFname "Roles.hs"                 "Roles"
@@ -215,18 +215,18 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname "ImportsSemi.hs"           "ImportsSemi"
     , manipulateAstTestWFname "Stmts.hs"                 "Stmts"
     -}
-    , manipulateAstTestWFname "Mixed.hs"                 "Main"
+    -- , manipulateAstTestWFname "Mixed.hs"                 "Main"
     {-
     , manipulateAstTestWFname "Arrow.hs"                 "Arrow"
     , manipulateAstTestWFname "PatSynBind.hs"            "Main"
     -}
-    , manipulateAstTestWFname "HsDo.hs"                  "HsDo"
+    -- , manipulateAstTestWFname "HsDo.hs"                  "HsDo"
     {-
     , manipulateAstTestWFname "ForAll.hs"                "ForAll"
     , manipulateAstTestWFname "BangPatterns.hs"          "Main"
     , manipulateAstTestWFname "Associated.hs"            "Main"
     -}
-    , manipulateAstTestWFname "Move1.hs"                 "Move1"
+    -- , manipulateAstTestWFname "Move1.hs"                 "Move1"
     {-
     , manipulateAstTestWFname "TypeOperators.hs"         "Main"
     ,  manipulateAstTestWFname "NullaryTypeClasses.hs"    "Main"
@@ -236,7 +236,7 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname "OverloadedStrings.hs"     "Main"
     , manipulateAstTestWFname "RankNTypes.hs"            "Main"
     -}
-    , manipulateAstTestWFname "Existential.hs"           "Main"
+    -- , manipulateAstTestWFname "Existential.hs"           "Main"
     {-
     , manipulateAstTestWFname "ScopedTypeVariables.hs"   "Main"
     , manipulateAstTestWFname "Arrows.hs"                "Main"
@@ -246,14 +246,14 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname "Guards.hs"                "Main"
     , manipulateAstTestWFname "RdrNames.hs"              "RdrNames"
     -}
-    , manipulateAstTestWFname "Vect.hs"                  "Vect"
+    -- , manipulateAstTestWFname "Vect.hs"                  "Vect"
     {-
     , manipulateAstTestWFname "Tuple.hs"                 "Main"
     , manipulateAstTestWFname "ExtraConstraints1.hs"     "ExtraConstraints1"
     , manipulateAstTestWFname "AddAndOr3.hs"             "AddAndOr3"
     -}
-    , manipulateAstTestWFname "Ann01.hs"                 "Ann01"
-    , manipulateAstTestWFname "StrictLet.hs"             "Main"
+    -- , manipulateAstTestWFname "Ann01.hs"                 "Ann01"
+    -- , manipulateAstTestWFname "StrictLet.hs"             "Main"
     {-
     , manipulateAstTestWFname "Cg008.hs"                 "Cg008"
     , manipulateAstTestWFname "T2388.hs"                 "T2388"
@@ -263,8 +263,8 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname "DataDecl.hs"              "Main"
     , manipulateAstTestWFname "Zipper.hs"                "Zipper"
     -}
-    , manipulateAstTestWFname "Sigs.hs"                  "Sigs"
-    , manipulateAstTestWFname "Utils2.hs"                "Utils2"
+    -- , manipulateAstTestWFname "Sigs.hs"                  "Sigs"
+    -- , manipulateAstTestWFname "Utils2.hs"                "Utils2"
     {-
     , manipulateAstTestWFname "EmptyMostlyInst.hs"       "EmptyMostlyInst"
     , manipulateAstTestWFname "EmptyMostlyNoSemis.hs"    "EmptyMostlyNoSemis"
@@ -276,7 +276,7 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname "B.hs"                     "Main"
     , manipulateAstTestWFname "LayoutWhere.hs"           "Main"
     -}
-    , manipulateAstTestWFname "Deprecation.hs"           "Deprecation"
+    -- , manipulateAstTestWFname "Deprecation.hs"           "Deprecation"
     {-
     , manipulateAstTestWFname "Infix.hs"                 "Main"
     , manipulateAstTestWFname "BCase.hs"                 "Main"
@@ -285,7 +285,7 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname "LetStmt.hs"               "Layout.LetStmt"
     , manipulateAstTestWFname "LayoutLet.hs"             "Main"
     -}
-    , manipulateAstTestWFname "ImplicitParams.hs"        "Main"
+    -- , manipulateAstTestWFname "ImplicitParams.hs"        "Main"
     {-
     , manipulateAstTestWFname "RebindableSyntax.hs"      "Main"
     , manipulateAstTestWithMod changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
@@ -295,7 +295,7 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname "AltsSemis.hs"             "Main"
     , manipulateAstTestWFname "PArr.hs"                  "PArr"
     -}
-    , manipulateAstTestWFname "Dead1.hs"                 "Dead1"
+    -- , manipulateAstTestWFname "Dead1.hs"                 "Dead1"
     {-
     , manipulateAstTestWFname "DocDecls.hs"              "DocDecls"
     , manipulateAstTestWFname "ViewPatterns.hs"          "Main"
@@ -311,9 +311,10 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWithMod changeRename1    "Rename1.hs"  "Main"
     , manipulateAstTestWFname    "Rename1.hs"  "Main"
     -}
-    , manipulateAstTestWFname "Rules.hs"                 "Rules"
-    -- , manipulateAstTestWFname "LayoutIn3.hs"             "LayoutIn3"
-    , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3.hs" "LayoutIn3"
+    -- , manipulateAstTestWFname "Rules.hs"                 "Rules"
+    , manipulateAstTestWFname "LayoutIn3.hs"             "LayoutIn3"
+    -- , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3.hs" "LayoutIn3"
+    -- , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
     {-
     , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
     , manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
@@ -451,6 +452,7 @@ manipulateAstTest' mchange useTH file' modname = do
   -- putStrLn $ "Test:ann :" ++ showGhc ann
   -- putStrLn $ "Test:ghcAnns :" ++ showGhc ghcAnns
   -- putStrLn $ "Test:showdata:" ++ showAnnData ann 0 parsed
+  -- putStrLn $ "Test:showdata:parsed'" ++ SYB.showData SYB.Parser 0 parsed'
   -- putStrLn $ "Test:showdata:parsed'" ++ showAnnData ann 0 parsed'
   return ("Match\n" == result)
 

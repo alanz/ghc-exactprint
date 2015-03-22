@@ -70,7 +70,11 @@ data EPState = EPState
              }
 
 data EPStack = EPStack
-             { epStack     :: (ColOffset,ColDelta) -- ^ stack of offsets that currently apply
+             { epStack     :: (ColOffset,ColDelta)
+               -- ^ stack of offsets that currently apply. The first is the
+               -- current offset, the seccond is how far the indentation has
+               -- changed from the original source. It is a meashure of the
+               -- shift applied to the entire contents of the current span.
              , epSrcSpan  :: GHC.SrcSpan
              }
 
@@ -150,19 +154,21 @@ withOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) k
   (colOffset, colIndent) <- asks epStack
   (_l, currentColumn) <- getPos
   let
+     -- Work out if the indentation level has changed
+     newColIndent = newStartColumn - originalStartCol
+       where
+         newStartColumn = if edLine == 0
+                            then edColumn + currentColumn -- same line, use entry delta
+                            else colOffset -- different line, use current offset
+
       -- Add extra indentation for this SrcSpan
      colOffset' = annDelta + colOffset
-     -- Work out where new column starts, based on the entry delta
-     newStartColumn = if edLine == 0
-                          then edColumn + currentColumn -- same line, use entry delta
-                          else colOffset -- different line, use current offset
-     newColIndent        = newStartColumn - originalStartCol
 
-     offsetValNewIndent  = (colOffset' + (newColIndent - colIndent), newColIndent)
-     offsetValSameIndent = (colOffset'            ,                  colIndent)
      offsetValNewline    = (annDelta   + colIndent,                  colIndent)
+     offsetValSameIndent = (colOffset'            ,                  colIndent)
+     offsetValNewIndent  = (colOffset' + (newColIndent - colIndent), newColIndent)
 
-     newOffset =
+     newOffsets =
         case newline of
           -- For use by AST modifiers, to preserve the indentation
           -- level for the next line after an AST modification
@@ -174,9 +180,9 @@ withOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) k
 
           LineSame          -> offsetValSameIndent
           LayoutLineSame    -> offsetValNewIndent
-  local (\s -> s {epStack = newOffset }) k
-    `debug` ("pushOffset:(a, colOffset, colIndent, currentColumn, newOffset)="
-                 ++ show (a, colOffset, colIndent, currentColumn, newOffset))
+  local (\s -> s {epStack = newOffsets }) k
+    `debug` ("pushOffset:(a, colOffset, colIndent, currentColumn, newOffsets)="
+                 ++ show (a, colOffset, colIndent, currentColumn, newOffsets))
 
 -- |Get the current column offset
 getOffset :: EP ColOffset
