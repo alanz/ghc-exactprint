@@ -44,12 +44,9 @@ data DeltaState = DeltaState
 data DeltaStack = DeltaStack
                { -- | Current `SrcSpan`
                  curSrcSpan :: GHC.SrcSpan
-                 -- |  `SrcSpan` of the immediately prior scope
-               , prevSrcSpan :: GHC.SrcSpan
                  -- | The offset required to get from the prior end point to the
                  -- | The offset required to get from the prior end point to the
                  -- start of the current SrcSpan. Accessed via `getEntryDP`
-               , offset     :: DeltaPos
                  -- | Offsets for the elements annotated in this `SrcSpan`
                -- | Indicates whether the contents of this SrcSpan are
                -- subject to vertical alignment layout rules
@@ -63,8 +60,6 @@ initialDeltaStack :: DeltaStack
 initialDeltaStack =
   DeltaStack
     { curSrcSpan = GHC.noSrcSpan
-    , prevSrcSpan = GHC.noSrcSpan
-    , offset = DP (0,0)
     , annConName = annGetConstr ()
     }
 
@@ -151,20 +146,11 @@ flattenedComments (_,cm) = map tokComment . GHC.sortLocated . concat $ Map.elems
 getSrcSpanDelta :: Delta GHC.SrcSpan
 getSrcSpanDelta = asks curSrcSpan
 
-getPriorSrcSpanDelta :: Delta GHC.SrcSpan
-getPriorSrcSpanDelta = asks prevSrcSpan
-
-withSrcSpanDelta :: Data a => (GHC.Located a) -> DeltaPos -> Delta b -> Delta b
-withSrcSpanDelta (GHC.L l a) edp =
-  local (\s -> let previousSrcSpan = curSrcSpan s in
-               s { curSrcSpan = l
-                 , prevSrcSpan = previousSrcSpan
-                 , offset = edp
+withSrcSpanDelta :: Data a => (GHC.Located a) -> Delta b -> Delta b
+withSrcSpanDelta (GHC.L l a) =
+  local (\s -> s { curSrcSpan = l
                  , annConName = annGetConstr a
                  })
-
-getEntryDP :: Delta DeltaPos
-getEntryDP = asks offset
 
 getUnallocatedComments :: Delta [Comment]
 getUnallocatedComments = gets apComments
@@ -189,25 +175,6 @@ adjustDeltaForOffset  colOffset    (DP (l,c)) = DP (l,c - colOffset)
 getCurrentColOffset :: Delta ColOffset
 getCurrentColOffset = srcSpanStartColumn <$> getSrcSpanDelta
 
--- |Get the difference between the current and the previous
--- colOffsets, if they are on the same line
-getCurrentDP :: LayoutFlag -> Delta (ColOffset,LineChanged)
-getCurrentDP layoutOn = do
-  -- Note: the current col offsets are not needed here, any
-  -- indentation should be fully nested in an AST element
-  ss <- getSrcSpanDelta
-  ps <- getPriorSrcSpanDelta
-  let
-      colOffset = if srcSpanStartLine ss == srcSpanStartLine ps
-                    then srcSpanStartColumn ss - srcSpanStartColumn ps
-                    else srcSpanStartColumn ss
-      r = case (layoutOn, srcSpanStartLine ss == srcSpanStartLine ps) of
-             (LayoutRules,    True) -> (colOffset, LayoutLineSame)
-             (LayoutRules,   False) -> (colOffset, LayoutLineChanged)
-             (NoLayoutRules,  True) -> (colOffset, LineSame)
-             (NoLayoutRules, False) -> (colOffset, LineChanged)
-  return r
-    `debug` ("getCurrentDP:(layoutOn=" ++ show layoutOn)
 
 -- ---------------------------------------------------------------------
 
@@ -260,11 +227,9 @@ withAST lss layout action = do
   -- Calculate offset required to get to the start of the SrcSPan
   pe <- getPriorEnd
   let ss = (GHC.getLoc lss)
-  let edp = deltaFromSrcSpans pe ss
-  edp' <- adjustDeltaForOffsetM edp
-  -- need to save edp', and put it in Annotation
-
-  withSrcSpanDelta lss edp' (do
+  edp <- adjustDeltaForOffsetM (deltaFromSrcSpans pe ss)
+  prior <- getSrcSpanDelta
+  withSrcSpanDelta lss (do
 
     let maskWriter s = s { annKds = []
                          , layoutFlag = NoLayoutRules }
@@ -272,14 +237,30 @@ withAST lss layout action = do
     (res, w) <-
       (censor maskWriter (listen action))
 
-    (dp,nl)  <- getCurrentDP (layout <> layoutFlag w)
-    finaledp <- getEntryDP
+    let (dp,nl) = getCurrentDP (layout <> layoutFlag w) ss prior
     let kds = annKds w
-    addAnnotationsDelta (Ann finaledp nl (srcSpanStartColumn ss) dp kds)
-      `debug` ("leaveAST:(ss,(edp,finaledp),dp,nl,kds)=" ++ show (showGhc ss,(edp,finaledp),dp,nl,kds))
+    addAnnotationsDelta (Ann edp nl (srcSpanStartColumn ss) dp kds)
+      `debug` ("leaveAST:(ss,finaledp,dp,nl,kds)=" ++ show (showGhc ss,edp,dp,nl,kds))
     return res)
 
 -- ---------------------------------------------------------------------
+-- |Get the difference between the current and the previous
+-- colOffsets, if they are on the same line
+getCurrentDP :: LayoutFlag -> GHC.SrcSpan -> GHC.SrcSpan -> (ColOffset,LineChanged)
+getCurrentDP layoutOn ss ps =
+  -- Note: the current col offsets are not needed here, any
+  -- indentation should be fully nested in an AST element
+  let
+      colOffset = if srcSpanStartLine ss == srcSpanStartLine ps
+                    then srcSpanStartColumn ss - srcSpanStartColumn ps
+                    else srcSpanStartColumn ss
+      r = case (layoutOn, srcSpanStartLine ss == srcSpanStartLine ps) of
+             (LayoutRules,    True) -> (colOffset, LayoutLineSame)
+             (LayoutRules,   False) -> (colOffset, LayoutLineChanged)
+             (NoLayoutRules,  True) -> (colOffset, LineSame)
+             (NoLayoutRules, False) -> (colOffset, LineChanged)
+  in r
+    `debug` ("getCurrentDP:(layoutOn=" ++ show layoutOn)
 
 -- ---------------------------------------------------------------------
 
@@ -421,7 +402,7 @@ addEofAnnotation :: Delta ()
 addEofAnnotation = do
   pe <- getPriorEnd
   ss <- getSrcSpanDelta
-  ma <- withSrcSpanDelta (GHC.noLoc ()) (DP (0,0)) (getAnnotationDelta GHC.AnnEofPos)
+  ma <- withSrcSpanDelta (GHC.noLoc ()) (getAnnotationDelta GHC.AnnEofPos)
   case ma of
     [] -> return ()
     (pa:pss) -> do
