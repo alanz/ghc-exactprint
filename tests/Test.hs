@@ -140,6 +140,8 @@ tests = TestList
   , mkTestMod "LayoutLet4.hs"            "LayoutLet4"
   , mkTestMod "LayoutIn1.hs"             "LayoutIn1"
   , mkTestMod "LayoutIn3.hs"             "LayoutIn3"
+  , mkTestMod "LayoutIn3a.hs"            "LayoutIn3a"
+  , mkTestMod "LayoutIn3b.hs"            "LayoutIn3b"
   , mkTestMod "LayoutIn4.hs"             "LayoutIn4"
   , mkTestMod "Deprecation.hs"           "Deprecation"
   , mkTestMod "Infix.hs"                 "Main"
@@ -157,6 +159,9 @@ tests = TestList
   , mkTestModChange changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
   , mkTestModChange changeRename1    "Rename1.hs"    "Main"
   , mkTestModChange changeLayoutIn1  "LayoutIn1.hs"  "LayoutIn1"
+  , mkTestModChange changeLayoutIn3  "LayoutIn3.hs"  "LayoutIn3"
+  , mkTestModChange changeLayoutIn3  "LayoutIn3a.hs" "LayoutIn3a"
+  , mkTestModChange changeLayoutIn3  "LayoutIn3b.hs" "LayoutIn3b"
   , mkTestModChange changeLayoutIn4  "LayoutIn4.hs"  "LayoutIn4"
   , mkTestModChange changeLocToName  "LocToName.hs"  "LocToName"
 
