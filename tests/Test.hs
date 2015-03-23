@@ -135,8 +135,13 @@ tests = TestList
   , mkTestMod "B.hs"                     "Main"
   , mkTestMod "LayoutWhere.hs"           "Main"
   , mkTestMod "LayoutLet.hs"             "Main"
+  , mkTestMod "LayoutLet2.hs"            "LayoutLet2"
+  , mkTestMod "LayoutLet3.hs"            "LayoutLet3"
+  , mkTestMod "LayoutLet4.hs"            "LayoutLet4"
   , mkTestMod "LayoutIn1.hs"             "LayoutIn1"
   , mkTestMod "LayoutIn3.hs"             "LayoutIn3"
+  , mkTestMod "LayoutIn3a.hs"            "LayoutIn3a"
+  , mkTestMod "LayoutIn3b.hs"            "LayoutIn3b"
   , mkTestMod "LayoutIn4.hs"             "LayoutIn4"
   , mkTestMod "Deprecation.hs"           "Deprecation"
   , mkTestMod "Infix.hs"                 "Main"
@@ -154,6 +159,9 @@ tests = TestList
   , mkTestModChange changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
   , mkTestModChange changeRename1    "Rename1.hs"    "Main"
   , mkTestModChange changeLayoutIn1  "LayoutIn1.hs"  "LayoutIn1"
+  , mkTestModChange changeLayoutIn3  "LayoutIn3.hs"  "LayoutIn3"
+  , mkTestModChange changeLayoutIn3  "LayoutIn3a.hs" "LayoutIn3a"
+  , mkTestModChange changeLayoutIn3  "LayoutIn3b.hs" "LayoutIn3b"
   , mkTestModChange changeLayoutIn4  "LayoutIn4.hs"  "LayoutIn4"
   , mkTestModChange changeLocToName  "LocToName.hs"  "LocToName"
 
@@ -301,7 +309,6 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     {-
     , manipulateAstTestWFname "DocDecls.hs"              "DocDecls"
     , manipulateAstTestWFname "ViewPatterns.hs"          "Main"
-    , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
     , manipulateAstTestWFname "FooExpected.hs"          "Main"
     , manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
     , manipulateAstTestWFname "LayoutIn1.hs"                 "LayoutIn1"
@@ -314,7 +321,11 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname    "Rename1.hs"  "Main"
     -}
     -- , manipulateAstTestWFname "Rules.hs"                 "Rules"
-    , manipulateAstTestWFname "LayoutIn3.hs"             "LayoutIn3"
+    -- , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
+    -- , manipulateAstTestWFname "LayoutIn3.hs"             "LayoutIn3"
+    -- , manipulateAstTestWFname "LayoutIn3a.hs"             "LayoutIn3a"
+    , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3a.hs" "LayoutIn3a"
+    -- , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3b.hs" "LayoutIn3b"
     -- , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3.hs" "LayoutIn3"
     -- , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
     {-
@@ -335,7 +346,8 @@ changeLocToName :: GHC.ParsedSource -> GHC.ParsedSource
 changeLocToName parsed = rename "LocToName.newPoint" [((20,1),(20,11)),((20,28),(20,38)),((24,1),(24,11))] parsed
 
 changeLayoutIn3 :: GHC.ParsedSource -> GHC.ParsedSource
-changeLayoutIn3 parsed = rename "anotherX" [((7,13),(7,14)),((8,37),(8,38))] parsed
+changeLayoutIn3 parsed = rename "anotherX" [((7,13),(7,14)),((7,37),(7,38)),((8,37),(8,38))] parsed
+-- changeLayoutIn3 parsed = rename "anotherX" [((7,13),(7,14)),((7,37),(7,38))] parsed
 
 changeLayoutIn4 :: GHC.ParsedSource -> GHC.ParsedSource
 changeLayoutIn4 parsed = rename "io" [((7,8),(7,13)),((7,28),(7,33))] parsed
