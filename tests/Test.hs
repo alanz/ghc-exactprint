@@ -182,11 +182,13 @@ mkTestModTH fileName modName
 
 formatTT :: ([([Char], Bool)], [([Char], Bool)]) -> IO ()
 formatTT (ts, fs) = do
-  putStrLn "Pass"
-  mapM_ (putStrLn . fst) (tail ts)
-  putStrLn ""
-  putStrLn "Fail"
-  mapM_ (putStrLn . fst) fs
+  when (not . null $ tail ts) (do
+    putStrLn "Pass"
+    mapM_ (putStrLn . fst) (tail ts)
+    )
+  when (not . null $ fs) (do
+    putStrLn "Fail"
+    mapM_ (putStrLn . fst) fs)
 
 tt :: IO ()
 tt = formatTT =<< partition snd <$> sequence [ return ("", True)
