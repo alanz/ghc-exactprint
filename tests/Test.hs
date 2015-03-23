@@ -316,9 +316,12 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname    "Rename1.hs"  "Main"
     -}
     -- , manipulateAstTestWFname "Rules.hs"                 "Rules"
-    , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
+    -- , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
     -- , manipulateAstTestWFname "LayoutIn3.hs"             "LayoutIn3"
-    -- , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3.hs" "LayoutIn3"
+    -- , manipulateAstTestWFname "LayoutIn3a.hs"             "LayoutIn3a"
+    , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3a.hs" "LayoutIn3a"
+    , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3b.hs" "LayoutIn3a"
+    , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3.hs" "LayoutIn3"
     -- , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
     {-
     , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
@@ -338,7 +341,8 @@ changeLocToName :: GHC.ParsedSource -> GHC.ParsedSource
 changeLocToName parsed = rename "LocToName.newPoint" [((20,1),(20,11)),((20,28),(20,38)),((24,1),(24,11))] parsed
 
 changeLayoutIn3 :: GHC.ParsedSource -> GHC.ParsedSource
-changeLayoutIn3 parsed = rename "anotherX" [((7,13),(7,14)),((8,37),(8,38))] parsed
+changeLayoutIn3 parsed = rename "anotherX" [((7,13),(7,14)),((7,37),(7,38)),((8,37),(8,38))] parsed
+-- changeLayoutIn3 parsed = rename "anotherX" [((7,13),(7,14)),((7,37),(7,38))] parsed
 
 changeLayoutIn4 :: GHC.ParsedSource -> GHC.ParsedSource
 changeLayoutIn4 parsed = rename "io" [((7,8),(7,13)),((7,28),(7,33))] parsed

@@ -164,22 +164,17 @@ withOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) k
       -- Add extra indentation for this SrcSpan
      colOffset' = annDelta + colOffset
 
-     offsetValNewline    = (annDelta   + colIndent,                  colIndent)
-     offsetValSameIndent = (colOffset'            ,                  colIndent)
-     offsetValNewIndent  = (colOffset' + (newColIndent - colIndent), newColIndent)
-
      newOffsets =
         case newline of
           -- For use by AST modifiers, to preserve the indentation
           -- level for the next line after an AST modification
-          KeepOffset  -> offsetValNewline
+          KeepOffset     -> (annDelta   + colIndent,                  colIndent)
 
           -- Generated during the annotation phase
-          LineChanged       -> offsetValNewline
-          LayoutLineChanged -> offsetValNewline
+          LineChanged    -> (annDelta   + colIndent,                  colIndent)
+          LineSame       -> (colOffset'            ,                  colIndent)
+          LayoutLineSame -> (colOffset' + (newColIndent - colIndent), newColIndent)
 
-          LineSame          -> offsetValSameIndent
-          LayoutLineSame    -> offsetValNewIndent
   local (\s -> s {epStack = newOffsets }) k
     `debug` ("pushOffset:(a, colOffset, colIndent, currentColumn, newOffsets)="
                  ++ show (a, colOffset, colIndent, currentColumn, newOffsets))

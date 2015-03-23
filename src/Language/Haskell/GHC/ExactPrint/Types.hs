@@ -70,9 +70,8 @@ combineAnns :: Annotation -> Annotation -> Annotation
 combineAnns (Ann ed1 nl1 c1 dp1 dps1) (Ann _ed2 _nl2 _c2 _dp2 dps2)
   = Ann ed1 nl1 c1 dp1 (dps1 ++ dps2)
 
-data LineChanged = LineSame | LineChanged
+data LineChanged = LineSame | LineChanged | LayoutLineSame
                  | KeepOffset -- ^ For use in AST editing
-                 | LayoutLineSame | LayoutLineChanged -- experimental, may replace LineSame and LineChanged
                  deriving (Show,Eq,Typeable)
 
 data Annotation = Ann

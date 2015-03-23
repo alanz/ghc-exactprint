@@ -231,6 +231,8 @@ withAST lss layout action = do
   prior <- getSrcSpanDelta
   withSrcSpanDelta lss (do
 
+    -- edp <- adjustDeltaForOffsetM (deltaFromSrcSpans pe ss)
+
     let maskWriter s = s { annKds = []
                          , layoutFlag = NoLayoutRules }
 
@@ -256,8 +258,8 @@ getCurrentDP layoutOn ss ps =
                     else srcSpanStartColumn ss
       r = case (layoutOn, srcSpanStartLine ss == srcSpanStartLine ps) of
              (LayoutRules,    True) -> (colOffset, LayoutLineSame)
-             (LayoutRules,   False) -> (colOffset, LayoutLineChanged)
              (NoLayoutRules,  True) -> (colOffset, LineSame)
+             (LayoutRules,   False) -> (colOffset, LineChanged)
              (NoLayoutRules, False) -> (colOffset, LineChanged)
   in r
     `debug` ("getCurrentDP:(layoutOn=" ++ show layoutOn)

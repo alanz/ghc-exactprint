@@ -1,5 +1,8 @@
 Annotation values from the Delta phase.
 
+In withAST
+----------
+
 edp : entry delta.
   This is the offset from the previous output item and the current item.
   Initially just the straight (deltaLine,deltaCol) value
@@ -15,6 +18,104 @@ nl : Did the original span start on a new line wrt to the prior one?
      prior meaning higher up the stack
 
      This encodes Line same/changed, as well as Layout on/off
+
+--------------------------------------------------
+Attempt at formalisation
+
+Delta phase (withAST)
+=====================
+Let
+  (pr,pc), be the row and column of the most recently processed annotated item.
+          This corresponds to the current output position in the Print phase.
+
+  ((sr,sc)(er,ec)) be the start and end row/col of the SrcSpan we are currently
+                 entering.
+
+  ((psr,psc)(per,pec)) be the start and end row/col of the SrcSpan prior to
+                 this on the stack
+
+So
+  Ann has
+    DP (sr - pr,if sr - pr == 0 then sc - pr else sc - psc)
+        the entry delta position (edp) as derived below
+
+    nl = if sr /= psr then LineChanged else if layout == LayoutRules then LayoutLineSame else LineSame 
+
+    sc
+
+    dp = if sr == psr then sc - psc else sc
+
+Print phase (withOffset)
+========================
+Let
+  (co,ci) be the current column offset and column indent
+  cc      be the column where current output will happen
+
+Using the annotation from the Delta phase then
+the new (co,ci) is
+
+  case nl of
+    LineChanged    : (if sr == psr then sc - psc else sc) + ci
+                     ci
+    LineSame       : (if sr == psr then sc - psc else sc) + co
+                     ci
+    LayoutLineSame : (if sr == psr then sc - psc else sc) + co +
+                       ((if sr == psr then sc - psc + cc else co)
+                         - sc)
+                     (if sr == psr then sc - psc + cc else co)
+LayoutLineSame derivation
+--------------------------
+(if sr == psr then sc - psc else sc) + co + (if sr == psr then sc - psc + cc else co) - sc)
+(if sr == psr then sc - psc + cc else co)
+============ In the sr == psr case
+(sc - psc ) + co + (sc - psc + cc) - sc)
+(sc - psc + cc)
+==
+sc - psc + co - psc + cc 
+(sc - psc + cc)
+==
+sc - (2 * psc) + co + cc 
+(sc - psc + cc)
+
+============ In the sr /= psr case
+sc + co + co - sc
+co
+==
+2 * co
+co
+
+nl derivation
+-------------
+      getCurrentDP layout ((sr,sc)(er,ec)) ((psr,psc)(per,pec))
+      ==
+      colOffset = if sr == psr then sc - psc else sc
+      nl = if sr /= psr then LineChanged else if layout == LayoutRules then LayoutLineSame else LineSame 
+      
+edp derivation
+--------------
+      deltaFromSrcSpans pe ss
+      ==
+      deltaFromSrcSpans (_,(pr,pc)), ((sr,sc),(er,ec))
+      ==
+      ss2delta (ss2posEnd (_,(pr,pc))) ((sr,sc),(er,ec)) 
+      ==
+      ss2delta (pr,pc) ((sr,sc),(er,ec)) 
+      ==
+      ss2deltaP (pr,pc) (ss2pos ((sr,sc),(er,ec)))
+      ==
+      ss2deltaP (pr,pc) (sr,sc)
+      ==
+      lo = sr - pr
+      co = if lo == 0 then sc - pr else sc
+      DP (sr - pr,if sr - pr == 0 then sc - pr else sc)
+      ================
+      adjustDeltaForOffsetM (DP (sr - pr,if sr - pr == 0 then sc - pr else sc))
+      ==
+      adjustDeltaForOffset psc (DP (sr - pr,if sr - pr == 0 then sc - pr else sc))
+      ==
+      DP (sr - pr,if sr - pr == 0 then sc - pr else sc - psc)
+
+--------------------------------------------------
 
 getCurrentDP
   ss = span we are annotating
