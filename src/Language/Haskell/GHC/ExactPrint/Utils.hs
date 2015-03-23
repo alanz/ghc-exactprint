@@ -81,7 +81,7 @@ debug c s = if debugEnabledFlag
               then trace s c
               else c
 
-debugM :: Monad m => String -> m () 
+debugM :: Monad m => String -> m ()
 debugM s = when debugEnabledFlag $ traceM s
 
 -- ---------------------------------------------------------------------
@@ -302,8 +302,8 @@ showAnnData anns n =
                       ++ indent (n + 1) ++
                       show (getAnnotationEP (GHC.L s a) anns)
                     Nothing -> "nnnnnnnn"
-                      ++ showAnnData anns (n+1) a
-                      ++ ")"
+                  ++ showAnnData anns (n+1) a
+                  ++ ")"
 
 -- ---------------------------------------------------------------------
 

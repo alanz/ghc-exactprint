@@ -76,6 +76,7 @@ data EPStack = EPStack
                -- changed from the original source. It is a meashure of the
                -- shift applied to the entire contents of the current span.
              , epSrcSpan  :: GHC.SrcSpan
+             , epLHS      :: Int -- Marks the column of the LHS of the current block
              }
 
 type EP a = RWS EPStack (Endo String) EPState a
@@ -113,14 +114,17 @@ printInterpret = iterTM go
       next
     go (CountAnns kwid next) =
       countAnnsEP (G kwid) >>= next
-    go (SetLayoutFlag next) =
-      next
+    go (SetLayoutFlag action next) =
+      setLayout (printInterpret action) >> next
     go (MarkExternal _ akwid s next) =
       printStringAtMaybeAnn (G akwid) s >> next
 
 justOne, allAnns :: GHC.AnnKeywordId -> EP ()
 justOne kwid = printStringAtMaybeAnn (G kwid) (keywordToString kwid)
 allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString kwid)
+
+setLayout :: EP () -> EP ()
+setLayout = id
 
 
 defaultEPState :: Anns -> EPState
@@ -134,6 +138,7 @@ initialEPStack :: GHC.SrcSpan -> EPStack
 initialEPStack ss = EPStack
              { epStack     = (0,0)
              , epSrcSpan   = ss
+             , epLHS = 0
              }
 
 getPos :: EP Pos

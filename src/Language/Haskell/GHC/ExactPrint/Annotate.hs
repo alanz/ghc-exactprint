@@ -51,7 +51,7 @@ data AnnotationF next where
   WithAST  :: Data a => GHC.Located a -> LayoutFlag -> Annotated b -> (b -> next) -> AnnotationF next
   CountAnns ::  GHC.AnnKeywordId -> (Int -> next) -> AnnotationF next
   -- Abstraction breakers
-  SetLayoutFlag ::  next -> AnnotationF next
+  SetLayoutFlag ::  Annotated () -> next -> AnnotationF next
   OutputKD :: (DeltaPos, (GHC.SrcSpan, KeywordId)) -> next -> AnnotationF next
 
 deriving instance Functor (AnnotationF)
@@ -1386,14 +1386,14 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mapM_ markLocated rhs
 
   markAST _ (GHC.HsLet binds e) = do
-    setLayoutFlag -- Make sure the 'in' gets indented too
-    mark GHC.AnnLet
-    mark GHC.AnnOpenC
-    markInside GHC.AnnSemi
-    markWithLayout (GHC.L (getLocalBindsSrcSpan binds) binds)
-    mark GHC.AnnCloseC
-    mark GHC.AnnIn
-    markLocated e
+    setLayoutFlag (do -- Make sure the 'in' gets indented too
+      mark GHC.AnnLet
+      mark GHC.AnnOpenC
+      markInside GHC.AnnSemi
+      markWithLayout (GHC.L (getLocalBindsSrcSpan binds) binds)
+      mark GHC.AnnCloseC
+      mark GHC.AnnIn
+      markLocated e)
 
   markAST l (GHC.HsDo cts es _) = do
     mark GHC.AnnDo

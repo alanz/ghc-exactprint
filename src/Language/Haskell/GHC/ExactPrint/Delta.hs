@@ -20,6 +20,8 @@ import qualified SrcLoc         as GHC
 
 import qualified Data.Map as Map
 
+import Debug.Trace
+
 -- ---------------------------------------------------------------------
 
 -- | Transform concrete annotations into relative annotations which are
@@ -54,6 +56,7 @@ data DeltaStack = DeltaStack
                  -- distinguish between nested elements that have the same
                  -- `SrcSpan` in the AST.
                , annConName :: AnnConName
+               , depth :: Int
                }
 
 initialDeltaStack :: DeltaStack
@@ -61,6 +64,7 @@ initialDeltaStack =
   DeltaStack
     { curSrcSpan = GHC.noSrcSpan
     , annConName = annGetConstr ()
+    , depth = 0
     }
 
 defaultDeltaState :: GHC.SrcSpan -> GHC.ApiAnns -> DeltaState
@@ -91,8 +95,8 @@ tellFinalAnn (k, v) =
 tellKd :: (KeywordId, DeltaPos) -> Delta ()
 tellKd kd = tell (mempty { annKds = [kd] })
 
-setLayoutFlag :: Delta ()
-setLayoutFlag = tell (mempty {layoutFlag = LayoutRules})
+setLayoutFlag :: Delta () -> Delta ()
+setLayoutFlag action = tell (mempty {layoutFlag = LayoutRules}) >> action
 
 instance Monoid DeltaWriter where
   mempty = DeltaWriter mempty mempty mempty
@@ -132,7 +136,7 @@ simpleInterpret = iterTM go
       withAST lss layoutflag (simpleInterpret prog) >>= next
     go (OutputKD (kwid, (_, dp)) next) = tellKd (dp, kwid) >> next
     go (CountAnns kwid next) = countAnnsDelta kwid >>= next
-    go (SetLayoutFlag next) = setLayoutFlag >> next
+    go (SetLayoutFlag action next) = setLayoutFlag (simpleInterpret action)  >> next
     go (MarkExternal ss akwid _ next) = addDeltaAnnotationExt ss akwid >> next
 
 
@@ -150,6 +154,7 @@ withSrcSpanDelta :: Data a => (GHC.Located a) -> Delta b -> Delta b
 withSrcSpanDelta (GHC.L l a) =
   local (\s -> s { curSrcSpan = l
                  , annConName = annGetConstr a
+                 , depth = (depth s) + 1
                  })
 
 getUnallocatedComments :: Delta [Comment]
@@ -223,11 +228,12 @@ addAnnDeltaPos (_s,kw) dp = tellKd (kw, dp)
 
 -- | Enter a new AST element. Maintain SrcSpan stack
 withAST :: Data a => GHC.Located a -> LayoutFlag -> Delta b -> Delta b
-withAST lss layout action = do
+withAST lss@(GHC.L _ ast) layout action = do
   -- Calculate offset required to get to the start of the SrcSPan
   pe <- getPriorEnd
   let ss = (GHC.getLoc lss)
   edp <- adjustDeltaForOffsetM (deltaFromSrcSpans pe ss)
+  -- need to save edp', and put it in Annotation
   prior <- getSrcSpanDelta
   withSrcSpanDelta lss (do
 
@@ -239,6 +245,9 @@ withAST lss layout action = do
 
     let (dp,nl) = getCurrentDP (layout <> layoutFlag w) ss prior
     let kds = annKds w
+    let a = (Ann edp nl (srcSpanStartColumn ss) dp kds)
+    d <- asks depth
+    traceM $ (replicate (2*d) ' ') ++ ( show (toConstr ast, ss, a))
     addAnnotationsDelta (Ann edp nl (srcSpanStartColumn ss) dp kds)
       `debug` ("leaveAST:(ss,finaledp,dp,nl,kds)=" ++ show (showGhc ss,edp,dp,nl,kds))
     return res)
