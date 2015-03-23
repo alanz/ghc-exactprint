@@ -135,6 +135,9 @@ tests = TestList
   , mkTestMod "B.hs"                     "Main"
   , mkTestMod "LayoutWhere.hs"           "Main"
   , mkTestMod "LayoutLet.hs"             "Main"
+  , mkTestMod "LayoutLet2.hs"            "LayoutLet2"
+  , mkTestMod "LayoutLet3.hs"            "LayoutLet3"
+  , mkTestMod "LayoutLet4.hs"            "LayoutLet4"
   , mkTestMod "LayoutIn1.hs"             "LayoutIn1"
   , mkTestMod "LayoutIn3.hs"             "LayoutIn3"
   , mkTestMod "LayoutIn4.hs"             "LayoutIn4"
@@ -299,7 +302,6 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     {-
     , manipulateAstTestWFname "DocDecls.hs"              "DocDecls"
     , manipulateAstTestWFname "ViewPatterns.hs"          "Main"
-    , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
     , manipulateAstTestWFname "FooExpected.hs"          "Main"
     , manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
     , manipulateAstTestWFname "LayoutIn1.hs"                 "LayoutIn1"
@@ -312,7 +314,8 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname    "Rename1.hs"  "Main"
     -}
     -- , manipulateAstTestWFname "Rules.hs"                 "Rules"
-    , manipulateAstTestWFname "LayoutIn3.hs"             "LayoutIn3"
+    , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
+    -- , manipulateAstTestWFname "LayoutIn3.hs"             "LayoutIn3"
     -- , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3.hs" "LayoutIn3"
     -- , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
     {-

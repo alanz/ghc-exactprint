@@ -302,8 +302,8 @@ showAnnData anns n =
                       ++ indent (n + 1) ++
                       show (getAnnotationEP (GHC.L s a) anns)
                     Nothing -> "nnnnnnnn"
-                      ++ showAnnData anns (n+1) a
-                      ++ ")"
+            ++ showAnnData anns (n+1) a
+            ++ ")"
 
 -- ---------------------------------------------------------------------
 
