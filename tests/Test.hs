@@ -320,8 +320,8 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "LayoutIn3.hs"             "LayoutIn3"
     -- , manipulateAstTestWFname "LayoutIn3a.hs"             "LayoutIn3a"
     , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3a.hs" "LayoutIn3a"
-    , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3b.hs" "LayoutIn3a"
-    , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3.hs" "LayoutIn3"
+    -- , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3b.hs" "LayoutIn3b"
+    -- , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3.hs" "LayoutIn3"
     -- , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
     {-
     , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"

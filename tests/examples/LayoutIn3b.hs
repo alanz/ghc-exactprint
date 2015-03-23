@@ -1,4 +1,4 @@
-module LayoutIn3a where
+module LayoutIn3b where
 
 --Layout rule applies after 'where','let','do' and 'of'
 

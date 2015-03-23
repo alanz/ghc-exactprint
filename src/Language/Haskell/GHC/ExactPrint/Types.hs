@@ -160,6 +160,12 @@ instance GHC.Outputable AnnKey where
 instance GHC.Outputable DeltaPos where
   ppr a     = GHC.text (show a)
 
+instance GHC.Outputable LayoutFlag where
+  ppr a     = GHC.text (show a)
+
+instance GHC.Outputable LineChanged where
+  ppr a     = GHC.text (show a)
+
 -- ---------------------------------------------------------------------
 
 -- ResTyGADT has a SrcSpan for the original sigtype, we need to create
