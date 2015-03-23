@@ -64,11 +64,11 @@ type ColDelta  = Int -- ^ difference between two cols
 type Col       = Int
 
 annNone :: Annotation
-annNone = Ann (DP (0,0)) LineSame 0 0 []
+annNone = Ann (DP (0,0)) 0 []
 
 combineAnns :: Annotation -> Annotation -> Annotation
-combineAnns (Ann ed1 nl1 c1 dp1 dps1) (Ann _ed2 _nl2 _c2 _dp2 dps2)
-  = Ann ed1 nl1 c1 dp1 (dps1 ++ dps2)
+combineAnns (Ann ed1 c1 dps1) (Ann _ed2  _c2  dps2)
+  = Ann ed1 c1 (dps1 ++ dps2)
 
 data LineChanged = LineSame | LineChanged
                  | KeepOffset -- ^ For use in AST editing
@@ -80,12 +80,12 @@ data Annotation = Ann
     ann_entry_delta  :: !DeltaPos -- ^ Offset used to get to the start
                                   -- of the SrcSpan, during the
                                   -- annotatePC phase
-  , ann_original_nl  :: !LineChanged -- ^ Did the original span start
+--  , ann_original_nl  :: !LineChanged -- ^ Did the original span start
                                      -- on a new line wrt to the prior
                                      -- one?
   , ann_original_col :: !Col      -- ^ Start of the SrcSpan, as used
                                   -- during the annotatePC phase
-  , ann_delta        :: !ColOffset -- ^ Indentation level introduced
+--  , ann_delta        :: !ColOffset -- ^ Indentation level introduced
                                    -- by this SrcSpan, for other items
                                    -- at same layout level
   , anns             :: [(KeywordId, DeltaPos)] -- TODO:AZ change this to ann_dps
@@ -93,7 +93,7 @@ data Annotation = Ann
   } deriving (Typeable,Eq)
 
 instance Show Annotation where
-  show (Ann dp nl c d ans) = "(Ann (" ++ show dp ++ ") " ++ show nl ++ " " ++ show c ++ " " ++ show d ++ " " ++ show ans ++ ")"
+  show (Ann dp c ans) = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ " " ++ show ans ++ ")"
 
 instance Monoid Annotation where
   mempty = annNone

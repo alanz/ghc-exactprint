@@ -1,4 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ViewPatterns #-}
 module Language.Haskell.GHC.ExactPrint.Delta  (relativiseApiAnns) where
 
 import Control.Monad.State
@@ -57,6 +59,7 @@ data DeltaStack = DeltaStack
                  -- `SrcSpan` in the AST.
                , annConName :: AnnConName
                , depth :: Int
+               , layoutStart :: Int
                }
 
 initialDeltaStack :: DeltaStack
@@ -65,6 +68,7 @@ initialDeltaStack =
     { curSrcSpan = GHC.noSrcSpan
     , annConName = annGetConstr ()
     , depth = 0
+    , layoutStart = 0
     }
 
 defaultDeltaState :: GHC.SrcSpan -> GHC.ApiAnns -> DeltaState
@@ -95,8 +99,11 @@ tellFinalAnn (k, v) =
 tellKd :: (KeywordId, DeltaPos) -> Delta ()
 tellKd kd = tell (mempty { annKds = [kd] })
 
-setLayoutFlag :: Delta () -> Delta ()
-setLayoutFlag action = tell (mempty {layoutFlag = LayoutRules}) >> action
+setLayoutFlag :: GHC.AnnKeywordId -> Delta () -> Delta ()
+setLayoutFlag kwid action = do
+  c <-  srcSpanStartColumn . head <$> getAnnotationDelta kwid
+  traceShowM c
+  local (\s -> s { layoutStart = c }) action
 
 instance Monoid DeltaWriter where
   mempty = DeltaWriter mempty mempty mempty
@@ -136,7 +143,7 @@ simpleInterpret = iterTM go
       withAST lss layoutflag (simpleInterpret prog) >>= next
     go (OutputKD (kwid, (_, dp)) next) = tellKd (dp, kwid) >> next
     go (CountAnns kwid next) = countAnnsDelta kwid >>= next
-    go (SetLayoutFlag action next) = setLayoutFlag (simpleInterpret action)  >> next
+    go (SetLayoutFlag kwid action next) = setLayoutFlag kwid (simpleInterpret action)  >> next
     go (MarkExternal ss akwid _ next) = addDeltaAnnotationExt ss akwid >> next
 
 
@@ -167,7 +174,7 @@ putUnallocatedComments cs = modify (\s -> s { apComments = cs } )
 
 adjustDeltaForOffsetM :: DeltaPos -> Delta DeltaPos
 adjustDeltaForOffsetM dp = do
-  colOffset <- getCurrentColOffset
+  colOffset <- asks layoutStart
   return (adjustDeltaForOffset colOffset dp)
 
 adjustDeltaForOffset :: Int -> DeltaPos -> DeltaPos
@@ -226,33 +233,40 @@ addAnnDeltaPos (_s,kw) dp = tellKd (kw, dp)
 
 -- -------------------------------------
 
+setLayoutOffset :: Int -> Delta a -> Delta a
+setLayoutOffset (traceShowId -> lhs) = local (\s -> s { layoutStart = lhs })
+
 -- | Enter a new AST element. Maintain SrcSpan stack
 withAST :: Data a => GHC.Located a -> LayoutFlag -> Delta b -> Delta b
-withAST lss@(GHC.L _ ast) layout action = do
+withAST lss@(GHC.L ss ast) layout action = do
   -- Calculate offset required to get to the start of the SrcSPan
   pe <- getPriorEnd
-  let ss = (GHC.getLoc lss)
+  off <- asks layoutStart
+  let x = (deltaFromSrcSpans pe ss)
+  traceShowM ("aj", off, adjustDeltaForOffset off x , x, pe, ss)
   edp <- adjustDeltaForOffsetM (deltaFromSrcSpans pe ss)
   -- need to save edp', and put it in Annotation
   prior <- getSrcSpanDelta
-  withSrcSpanDelta lss (do
+  let whenLayout = case layout of
+                        LayoutRules -> setLayoutOffset (srcSpanStartColumn ss)
+                        NoLayoutRules -> id
+  (whenLayout .  withSrcSpanDelta lss) (do
 
-    let maskWriter s = s { annKds = []
-                         , layoutFlag = NoLayoutRules }
+    let maskWriter s = s { annKds = [] }
 
     (res, w) <-
       (censor maskWriter (listen action))
 
-    let (dp,nl) = getCurrentDP (layout <> layoutFlag w) ss prior
+--    let (dp) = getCurrentDP layout  ss prior
     let kds = annKds w
-    let a = (Ann edp nl (srcSpanStartColumn ss) dp kds)
+    let a = (Ann edp (srcSpanStartColumn ss) kds)
     d <- asks depth
-    traceM $ (replicate (2*d) ' ') ++ ( show (toConstr ast, ss, a))
-    addAnnotationsDelta (Ann edp nl (srcSpanStartColumn ss) dp kds)
-      `debug` ("leaveAST:(ss,finaledp,dp,nl,kds)=" ++ show (showGhc ss,edp,dp,nl,kds))
+    addAnnotationsDelta (Ann edp (srcSpanStartColumn ss) kds)
+    --  `debug` ("leaveAST:(ss,finaledp,dp,nl,kds)=" ++ show (showGhc ss,edp,dp,nl,kds))
     return res)
 
 -- ---------------------------------------------------------------------
+{-
 -- |Get the difference between the current and the previous
 -- colOffsets, if they are on the same line
 getCurrentDP :: LayoutFlag -> GHC.SrcSpan -> GHC.SrcSpan -> (ColOffset,LineChanged)
@@ -263,13 +277,10 @@ getCurrentDP layoutOn ss ps =
       colOffset = if srcSpanStartLine ss == srcSpanStartLine ps
                     then srcSpanStartColumn ss - srcSpanStartColumn ps
                     else srcSpanStartColumn ss
-      r = case (layoutOn, srcSpanStartLine ss == srcSpanStartLine ps) of
-             (LayoutRules,    True) -> (colOffset, LayoutLineSame)
-             (LayoutRules,   False) -> (colOffset, LayoutLineChanged)
-             (NoLayoutRules,  True) -> (colOffset, LineSame)
-             (NoLayoutRules, False) -> (colOffset, LineChanged)
-  in r
+
+  in colOffset
     `debug` ("getCurrentDP:(layoutOn=" ++ show layoutOn)
+    -}
 
 -- ---------------------------------------------------------------------
 
@@ -316,7 +327,7 @@ addAnnotationWorker ann pa = do
 -- ---------------------------------------------------------------------
 
 addDeltaComment :: Comment -> Delta ()
-addDeltaComment (Comment paspan str) = do
+addDeltaComment c@(Comment paspan str) = do
   let pa = span2ss paspan
   pe <- getPriorEnd
   ss <- getSrcSpanDelta

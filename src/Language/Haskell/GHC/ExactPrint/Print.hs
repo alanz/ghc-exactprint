@@ -20,7 +20,7 @@ module Language.Haskell.GHC.ExactPrint.Print
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Types
-import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta, showGhc)
+import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta, showGhc, srcSpanStartColumn)
 import Language.Haskell.GHC.ExactPrint.Annotate
   (AnnotationF(..), Annotated, Annotate(..), markLocated)
 import Language.Haskell.GHC.ExactPrint.Lookup (keywordToString)
@@ -31,6 +31,8 @@ import Control.Monad.RWS
 import Data.Data
 import Data.List
 import Data.Maybe
+
+import Debug.Trace
 
 import Control.Monad.Trans.Free
 
@@ -108,14 +110,14 @@ printInterpret = iterTM go
         printStringAtMaybeAnn (G kwid) annString >> next
     go (MarkAfter akwid next) =
       justOne akwid >> next
-    go (WithAST lss _ action next) =
-      exactPC lss (printInterpret action) >>= next
+    go (WithAST lss flag action next) =
+      exactPC lss flag (printInterpret action) >>= next
     go (OutputKD _ next) =
       next
     go (CountAnns kwid next) =
       countAnnsEP (G kwid) >>= next
-    go (SetLayoutFlag action next) =
-      setLayout (printInterpret action) >> next
+    go (SetLayoutFlag kwid action next) =
+      setLayout kwid (printInterpret action) >> next
     go (MarkExternal _ akwid s next) =
       printStringAtMaybeAnn (G akwid) s >> next
 
@@ -123,8 +125,12 @@ justOne, allAnns :: GHC.AnnKeywordId -> EP ()
 justOne kwid = printStringAtMaybeAnn (G kwid) (keywordToString kwid)
 allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString kwid)
 
-setLayout :: EP () -> EP ()
-setLayout = id
+setLayout :: GHC.AnnKeywordId -> EP () -> EP ()
+setLayout akiwd k = do
+  p <- gets epPos
+  DP (_, offset)  <- fromJust . lookup (G akiwd) . head <$> gets epAnnKds
+  local (\s -> s {epLHS = snd p + offset }) k
+
 
 
 defaultEPState :: Anns -> EPState
@@ -152,46 +158,25 @@ setPos l = modify (\s -> s {epPos = l})
 -- | Given an annotation associated with a specific SrcSpan, determines a new offset relative to the previous
 -- offset
 --
-withOffset :: Annotation -> (EP a -> EP a)
-withOffset a@(Ann (DP (edLine, edColumn)) newline originalStartCol annDelta _) k = do
+withOffset :: Annotation -> LayoutFlag -> (EP a -> EP a)
+withOffset a@(Ann (DP (edLine, edColumn)) originalStartCol  _) flag k = do
   -- The colOffset is the offset to be used when going to the next line.
   -- The colIndent is how far the current code block has been indented.
-  (colOffset, colIndent) <- asks epStack
-  (_l, currentColumn) <- getPos
-  let
-     -- Work out if the indentation level has changed
-     newColIndent = newStartColumn - originalStartCol
-       where
-         newStartColumn = if edLine == 0
-                            then edColumn + currentColumn -- same line, use entry delta
-                            else colOffset -- different line, use current offset
-
-      -- Add extra indentation for this SrcSpan
-     colOffset' = annDelta + colOffset
-
-     offsetValNewline    = (annDelta   + colIndent,                  colIndent)
-     offsetValSameIndent = (colOffset'            ,                  colIndent)
-     offsetValNewIndent  = (colOffset' + (newColIndent - colIndent), newColIndent)
-
-     newOffsets =
-        case newline of
-          -- For use by AST modifiers, to preserve the indentation
-          -- level for the next line after an AST modification
-          KeepOffset  -> offsetValNewline
-
-          -- Generated during the annotation phase
-          LineChanged       -> offsetValNewline
-          LayoutLineChanged -> offsetValNewline
-
-          LineSame          -> offsetValSameIndent
-          LayoutLineSame    -> offsetValNewIndent
-  local (\s -> s {epStack = newOffsets }) k
-    `debug` ("pushOffset:(a, colOffset, colIndent, currentColumn, newOffsets)="
-                 ++ show (a, colOffset, colIndent, currentColumn, newOffsets))
+  oldOffset <-  asks epLHS -- Shift from left hand column
+  p@(_l, currentColumn) <- getPos
+  start <- srcSpanStartColumn <$> asks epSrcSpan
+--  traceShowM (p, currentColumn, edColumn, oldOffset)
+--  traceShowM a
+  let offset = case flag of
+                  LayoutRules ->  if edLine == 0
+                                    then currentColumn + edColumn
+                                    else originalStartCol
+                  NoLayoutRules -> oldOffset
+  local (\s -> s {epLHS = offset}) k
 
 -- |Get the current column offset
 getOffset :: EP ColOffset
-getOffset = asks (fst . epStack)
+getOffset = asks epLHS
 
 -- ---------------------------------------------------------------------
 
@@ -341,18 +326,19 @@ countAnnsEP an = do
 -- ---------------------------------------------------------------------
 
 -- |First move to the given location, then call exactP
-exactPC :: Data ast => GHC.Located ast -> EP a -> EP a
-exactPC a@(GHC.L l _ast) action =
+exactPC :: Data ast => GHC.Located ast -> LayoutFlag -> EP a -> EP a
+exactPC a@(GHC.L l _ast) flag action =
     do return () `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAndRemoveAnnotation a
-       let an@(Ann _edp _nl _sc _dc kds) = fromMaybe annNone ma
-       withContext kds l an action
+       let an@(Ann _ _ kds) = fromMaybe annNone ma
+       withContext kds l an flag action
 
 withContext :: [(KeywordId, DeltaPos)]
             -> GHC.SrcSpan
             -> Annotation
+            -> LayoutFlag
             -> EP a -> EP a
-withContext kds l an = withKds kds . withSrcSpan l . withOffset an
+withContext kds l an flag = withKds kds . withOffset an flag . withSrcSpan l
 
 -- ---------------------------------------------------------------------
 

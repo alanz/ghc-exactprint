@@ -32,6 +32,8 @@ import qualified GHC            as GHC
 import qualified Outputable     as GHC
 import qualified SrcLoc         as GHC
 
+import Debug.Trace
+
 
 import Control.Monad.Trans.Free
 import Control.Monad.Free.TH (makeFreeCon)
@@ -51,7 +53,7 @@ data AnnotationF next where
   WithAST  :: Data a => GHC.Located a -> LayoutFlag -> Annotated b -> (b -> next) -> AnnotationF next
   CountAnns ::  GHC.AnnKeywordId -> (Int -> next) -> AnnotationF next
   -- Abstraction breakers
-  SetLayoutFlag ::  Annotated () -> next -> AnnotationF next
+  SetLayoutFlag ::  GHC.AnnKeywordId -> Annotated () -> next -> AnnotationF next
   OutputKD :: (DeltaPos, (GHC.SrcSpan, KeywordId)) -> next -> AnnotationF next
 
 deriving instance Functor (AnnotationF)
@@ -1386,7 +1388,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mapM_ markLocated rhs
 
   markAST _ (GHC.HsLet binds e) = do
-    setLayoutFlag (do -- Make sure the 'in' gets indented too
+    setLayoutFlag GHC.AnnLet (do -- Make sure the 'in' gets indented too
       mark GHC.AnnLet
       mark GHC.AnnOpenC
       markInside GHC.AnnSemi
