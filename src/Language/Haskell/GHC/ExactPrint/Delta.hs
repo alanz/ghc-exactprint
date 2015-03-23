@@ -10,6 +10,7 @@ import Control.Applicative
 import Control.Monad.Trans.Free
 import Data.Data
 import Data.List
+import Data.Maybe
 
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
@@ -22,7 +23,6 @@ import qualified SrcLoc         as GHC
 
 import qualified Data.Map as Map
 
-import Debug.Trace
 
 -- ---------------------------------------------------------------------
 
@@ -88,7 +88,7 @@ data DeltaWriter = DeltaWriter
   , annKds :: [(KeywordId, DeltaPos)]
     -- Used locally to report a subtrees aderhence to haskell's layout
     -- rules.
-  , layoutFlag :: LayoutFlag
+  , propOffset :: First Int -- Used to pass the offset upwards
   }
 
 
@@ -102,7 +102,7 @@ tellKd kd = tell (mempty { annKds = [kd] })
 setLayoutFlag :: GHC.AnnKeywordId -> Delta () -> Delta ()
 setLayoutFlag kwid action = do
   c <-  srcSpanStartColumn . head <$> getAnnotationDelta kwid
-  traceShowM c
+  tell (mempty { propOffset = First (Just c) })
   local (\s -> s { layoutStart = c }) action
 
 instance Monoid DeltaWriter where
@@ -140,7 +140,7 @@ simpleInterpret = iterTM go
     go (MarkOffsetPrim akwid n _ next) = addDeltaAnnotationLs akwid n >> next
     go (MarkAfter akwid next) = addDeltaAnnotationAfter akwid >> next
     go (WithAST lss layoutflag prog next) =
-      withAST lss layoutflag (simpleInterpret prog) >>= next
+      withAST lss layoutflag (simpleInterpret prog) >> next
     go (OutputKD (kwid, (_, dp)) next) = tellKd (dp, kwid) >> next
     go (CountAnns kwid next) = countAnnsDelta kwid >>= next
     go (SetLayoutFlag kwid action next) = setLayoutFlag kwid (simpleInterpret action)  >> next
@@ -234,7 +234,7 @@ addAnnDeltaPos (_s,kw) dp = tellKd (kw, dp)
 -- -------------------------------------
 
 setLayoutOffset :: Int -> Delta a -> Delta a
-setLayoutOffset (traceShowId -> lhs) = local (\s -> s { layoutStart = lhs })
+setLayoutOffset lhs = local (\s -> s { layoutStart = lhs })
 
 -- | Enter a new AST element. Maintain SrcSpan stack
 withAST :: Data a => GHC.Located a -> LayoutFlag -> Delta b -> Delta b
@@ -243,8 +243,6 @@ withAST lss@(GHC.L ss ast) layout action = do
   pe <- getPriorEnd
   off <- asks layoutStart
   let x = (deltaFromSrcSpans pe ss)
-  traceShowM ("aj", off, adjustDeltaForOffset off x , x, pe, ss)
-  edp <- adjustDeltaForOffsetM (deltaFromSrcSpans pe ss)
   -- need to save edp', and put it in Annotation
   prior <- getSrcSpanDelta
   let whenLayout = case layout of
@@ -252,11 +250,14 @@ withAST lss@(GHC.L ss ast) layout action = do
                         NoLayoutRules -> id
   (whenLayout .  withSrcSpanDelta lss) (do
 
-    let maskWriter s = s { annKds = [] }
+    let maskWriter s = s { annKds = []
+                         , propOffset = First Nothing }
 
     (res, w) <-
       (censor maskWriter (listen action))
-
+    let poff = propOffset w
+    let edp = adjustDeltaForOffset (fromMaybe off (getFirst $ propOffset w))
+                (deltaFromSrcSpans pe ss)
 --    let (dp) = getCurrentDP layout  ss prior
     let kds = annKds w
     let a = (Ann edp (srcSpanStartColumn ss) kds)

@@ -50,7 +50,7 @@ data AnnotationF next where
   MarkMany :: GHC.AnnKeywordId -> next -> AnnotationF next
   MarkOffsetPrim :: GHC.AnnKeywordId -> Int -> Maybe String -> next -> AnnotationF next
   MarkAfter :: GHC.AnnKeywordId -> next -> AnnotationF next
-  WithAST  :: Data a => GHC.Located a -> LayoutFlag -> Annotated b -> (b -> next) -> AnnotationF next
+  WithAST  :: Data a => GHC.Located a -> LayoutFlag -> Annotated b ->  next -> AnnotationF next
   CountAnns ::  GHC.AnnKeywordId -> (Int -> next) -> AnnotationF next
   -- Abstraction breakers
   SetLayoutFlag ::  GHC.AnnKeywordId -> Annotated () -> next -> AnnotationF next
@@ -89,15 +89,14 @@ markOffsetWithString kwid n s = markOffsetPrim kwid n (Just s)
 markOffset :: GHC.AnnKeywordId -> Int -> Annotated ()
 markOffset kwid n = markOffsetPrim kwid n Nothing
 
-withAST :: Data a => GHC.Located a -> LayoutFlag -> Annotated b -> Annotated b
-withAST lss layout action = liftF (WithAST lss layout prog id)
+withAST :: Data a => GHC.Located a -> LayoutFlag -> Annotated () -> Annotated ()
+withAST lss layout action = liftF (WithAST lss layout prog ())
   where
     prog = do
-      r <- action
+      action
       -- Automatically add any trailing comma or semi
       markAfter GHC.AnnComma
       markOutside GHC.AnnSemi AnnSemiSep
-      return r
 -- ---------------------------------------------------------------------
 
 
@@ -1388,8 +1387,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mapM_ markLocated rhs
 
   markAST _ (GHC.HsLet binds e) = do
+    mark GHC.AnnLet
     setLayoutFlag GHC.AnnLet (do -- Make sure the 'in' gets indented too
-      mark GHC.AnnLet
       mark GHC.AnnOpenC
       markInside GHC.AnnSemi
       markWithLayout (GHC.L (getLocalBindsSrcSpan binds) binds)

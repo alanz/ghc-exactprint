@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE RecursiveDo #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -32,7 +33,6 @@ import Data.Data
 import Data.List
 import Data.Maybe
 
-import Debug.Trace
 
 import Control.Monad.Trans.Free
 
@@ -81,11 +81,19 @@ data EPStack = EPStack
              , epLHS      :: Int -- Marks the column of the LHS of the current block
              }
 
-type EP a = RWS EPStack (Endo String) EPState a
+data EPWriter = EPWriter
+              { output :: Endo String
+              , propLayout :: LayoutFlag }
+
+instance Monoid EPWriter where
+  mempty = EPWriter mempty mempty
+  (EPWriter a b) `mappend` (EPWriter c d) = EPWriter (a <> c) (b <> d)
+
+type EP a = RWS EPStack EPWriter EPState a
 
 runEP :: Annotated () -> GHC.SrcSpan -> Anns -> String
 runEP action ss ans =
-  flip appEndo "" . snd
+  flip appEndo "" . output . snd
   . (\next -> execRWS next (initialEPStack ss) (defaultEPState ans))
   . printInterpret $ action
 
@@ -111,7 +119,7 @@ printInterpret = iterTM go
     go (MarkAfter akwid next) =
       justOne akwid >> next
     go (WithAST lss flag action next) =
-      exactPC lss flag (printInterpret action) >>= next
+      exactPC lss flag (NoLayoutRules <$ (printInterpret action)) >> next
     go (OutputKD _ next) =
       next
     go (CountAnns kwid next) =
@@ -125,11 +133,11 @@ justOne, allAnns :: GHC.AnnKeywordId -> EP ()
 justOne kwid = printStringAtMaybeAnn (G kwid) (keywordToString kwid)
 allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString kwid)
 
-setLayout :: GHC.AnnKeywordId -> EP () -> EP ()
+setLayout :: GHC.AnnKeywordId -> EP () -> EP LayoutFlag
 setLayout akiwd k = do
   p <- gets epPos
-  DP (_, offset)  <- fromJust . lookup (G akiwd) . head <$> gets epAnnKds
-  local (\s -> s {epLHS = snd p + offset }) k
+  as <- gets epAnnKds
+  local (\s -> s {epLHS = snd p - 3}) (LayoutRules <$ k)
 
 
 
@@ -158,21 +166,22 @@ setPos l = modify (\s -> s {epPos = l})
 -- | Given an annotation associated with a specific SrcSpan, determines a new offset relative to the previous
 -- offset
 --
-withOffset :: Annotation -> LayoutFlag -> (EP a -> EP a)
+withOffset :: Annotation -> LayoutFlag -> (EP LayoutFlag -> EP LayoutFlag)
 withOffset a@(Ann (DP (edLine, edColumn)) originalStartCol  _) flag k = do
   -- The colOffset is the offset to be used when going to the next line.
   -- The colIndent is how far the current code block has been indented.
   oldOffset <-  asks epLHS -- Shift from left hand column
   p@(_l, currentColumn) <- getPos
   start <- srcSpanStartColumn <$> asks epSrcSpan
---  traceShowM (p, currentColumn, edColumn, oldOffset)
---  traceShowM a
-  let offset = case flag of
-                  LayoutRules ->  if edLine == 0
-                                    then currentColumn + edColumn
-                                    else originalStartCol
-                  NoLayoutRules -> oldOffset
-  local (\s -> s {epLHS = offset}) k
+  let maskWriter s = s { propLayout = NoLayoutRules }
+  rec
+    let offset = case (flag <> f) of
+                       LayoutRules ->  if edLine == 0
+                        then currentColumn + edColumn
+                        else originalStartCol
+                       NoLayoutRules -> oldOffset
+    f <-  (local (\s -> s {epLHS = offset})) k
+  return f
 
 -- |Get the current column offset
 getOffset :: EP ColOffset
@@ -239,7 +248,7 @@ printString :: String -> EP ()
 printString str = do
   (l,c) <- gets epPos
   setPos (l, c + length str)
-  tell (Endo $ showString str)
+  tell (mempty {output = Endo $ showString str })
 
 newLine :: EP ()
 newLine = do
@@ -326,7 +335,7 @@ countAnnsEP an = do
 -- ---------------------------------------------------------------------
 
 -- |First move to the given location, then call exactP
-exactPC :: Data ast => GHC.Located ast -> LayoutFlag -> EP a -> EP a
+exactPC :: Data ast => GHC.Located ast -> LayoutFlag -> EP LayoutFlag -> EP LayoutFlag
 exactPC a@(GHC.L l _ast) flag action =
     do return () `debug` ("exactPC entered for:" ++ showGhc l)
        ma <- getAndRemoveAnnotation a
@@ -337,7 +346,7 @@ withContext :: [(KeywordId, DeltaPos)]
             -> GHC.SrcSpan
             -> Annotation
             -> LayoutFlag
-            -> EP a -> EP a
+            -> EP LayoutFlag -> EP LayoutFlag
 withContext kds l an flag = withKds kds . withOffset an flag . withSrcSpan l
 
 -- ---------------------------------------------------------------------
