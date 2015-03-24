@@ -2,9 +2,25 @@ module Language.Haskell.GHC.ExactPrint.Lookup (keywordToString) where
 
 import GHC (AnnKeywordId(..))
 
+-- | Maps `AnnKeywordId` to the corresponding String representation.
+-- There is no specific mapping for the following constructors.
+-- `AnnOpen`, `AnnClose`, `AnnVal`, `AnnPackageName`, `AnnHeader`, `AnnFunId`,
+-- `AnnInfix`
 keywordToString :: AnnKeywordId -> String
 keywordToString kw =
+  let mkErr x = error $ "keywordToString: missing case for:" ++ show x
+  in
   case kw of
+      -- Specifically handle all cases so that there are pattern match
+      -- warnings if new constructors are added.
+      AnnOpen  -> mkErr kw
+      AnnClose -> mkErr kw
+      AnnVal   -> mkErr kw
+      AnnPackageName -> mkErr kw
+      AnnHeader -> mkErr kw
+      AnnFunId -> mkErr kw
+      AnnInfix  -> mkErr kw
+      AnnValStr -> mkErr kw
       AnnAs    -> "as"
       AnnAt   -> "@"
       AnnBang  -> "!"
@@ -12,7 +28,6 @@ keywordToString kw =
       AnnBy   -> "by"
       AnnCase  -> "case"
       AnnClass    -> "class"
---      AnnClose   -> ""
       AnnCloseC  -> "}"
       AnnCloseP  -> ")"
       AnnCloseS  -> "]"
@@ -33,15 +48,11 @@ keywordToString kw =
       AnnFamily   -> "family"
       AnnForall   -> "forall"
       AnnForeign    -> "foreign"
---      AnnFunId   -> ""
       AnnGroup    -> "group"
---      AnnHeader  -> ""
---      for CType
       AnnHiding   -> "hiding"
       AnnIf   -> "if"
       AnnImport   -> "import"
       AnnIn   -> "in"
---      AnnInfix   -> ""
       AnnInstance   -> "instance"
       AnnLam    -> "\\"
       AnnLarrow  -> "<-"
@@ -51,11 +62,9 @@ keywordToString kw =
       AnnModule   -> "module"
       AnnNewtype   -> "newtype"
       AnnOf   -> "of"
-      AnnOpen  -> ""
       AnnOpenC   -> "{"
       AnnOpenP   -> "("
       AnnOpenS   -> "["
---      AnnPackageName    -> "?"
       AnnPattern    -> "pattern"
       AnnProc   -> "proc"
       AnnQualified   -> "qualified"
@@ -79,4 +88,3 @@ keywordToString kw =
       AnnRarrowtail  -> ">>-"
       AnnEofPos -> ""
 
-      x -> error $ "keywordToString: missing case for:" ++ show x
