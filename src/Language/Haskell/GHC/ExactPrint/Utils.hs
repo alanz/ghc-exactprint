@@ -215,9 +215,11 @@ rdrName2String r =
     Just n  -> name2String n
     Nothing ->
       case r of
-        GHC.Unqual _occ -> GHC.occNameString $ GHC.rdrNameOcc r
+        GHC.Unqual _occ       -> GHC.occNameString $ GHC.rdrNameOcc r
         GHC.Qual modname _occ -> GHC.moduleNameString modname ++ "."
                             ++ (GHC.occNameString $ GHC.rdrNameOcc r)
+        GHC.Orig _ _          -> error "GHC.Orig introduced after renaming"
+        GHC.Exact _           -> error "GHC.Exact introduced after renaming"
 
 name2String :: GHC.Name -> String
 name2String name = showGhc name
