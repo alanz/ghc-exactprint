@@ -10,7 +10,6 @@ module Language.Haskell.GHC.ExactPrint.Types
   , PosToken
   , DeltaPos(..)
   , ColOffset,ColDelta,Col
-  , LineChanged(..)
   , Annotation(..)
   , combineAnns
   , annNone
@@ -19,7 +18,6 @@ module Language.Haskell.GHC.ExactPrint.Types
   , mkAnnKey
   , AnnConName(..)
   , annGetConstr
-  , unConName
 
   , ResTyGADTHook(..)
 
@@ -70,25 +68,14 @@ combineAnns :: Annotation -> Annotation -> Annotation
 combineAnns (Ann ed1 c1 dps1) (Ann _ed2  _c2  dps2)
   = Ann ed1 c1 (dps1 ++ dps2)
 
-data LineChanged = LineSame | LineChanged
-                 | KeepOffset -- ^ For use in AST editing
-                 | LayoutLineSame | LayoutLineChanged -- experimental, may replace LineSame and LineChanged
-                 deriving (Show,Eq,Typeable)
-
 data Annotation = Ann
   {
-    ann_entry_delta  :: !DeltaPos -- ^ Offset used to get to the start
-                                  -- of the SrcSpan, during the
-                                  -- annotatePC phase
---  , ann_original_nl  :: !LineChanged -- ^ Did the original span start
-                                     -- on a new line wrt to the prior
-                                     -- one?
-  , ann_original_col :: !Col      -- ^ Start of the SrcSpan, as used
-                                  -- during the annotatePC phase
---  , ann_delta        :: !ColOffset -- ^ Indentation level introduced
-                                   -- by this SrcSpan, for other items
-                                   -- at same layout level
-  , anns             :: [(KeywordId, DeltaPos)] -- TODO:AZ change this to ann_dps
+    annEntryDelta      :: !DeltaPos -- ^ Offset used to get to the start
+                                  --    of the SrcSpan.
+  , annDelta           :: !ColOffset -- ^ Offset from the start of the current layout
+                                   --  block. This is used when moving onto new
+                                   --  lines when layout rules must be obeyed.
+  , annsDP             :: [(KeywordId, DeltaPos)]  -- ^ Annotations associated with this element.
 
   } deriving (Typeable,Eq)
 
@@ -111,14 +98,11 @@ mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
 mkAnnKey (GHC.L l a) = AnnKey l (annGetConstr a)
 
 -- Holds the name of a constructor
-data AnnConName = CN String
+data AnnConName = CN { unConName :: String }
                  deriving (Eq,Show,Ord)
 
 annGetConstr :: (Data a) => a -> AnnConName
 annGetConstr a = CN (show $ toConstr a)
-
-unConName :: AnnConName -> String
-unConName (CN s) = s
 
 -- |We need our own version of keywordid to distinguish between a
 -- semi-colon appearing within an AST element and one separating AST

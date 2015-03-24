@@ -21,7 +21,7 @@ module Language.Haskell.GHC.ExactPrint.Print
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Types
-import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta, showGhc, srcSpanStartColumn)
+import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta, showGhc, )
 import Language.Haskell.GHC.ExactPrint.Annotate
   (AnnotationF(..), Annotated, Annotate(..), markLocated)
 import Language.Haskell.GHC.ExactPrint.Lookup (keywordToString)
@@ -32,7 +32,6 @@ import Control.Monad.RWS
 import Data.Data
 import Data.List
 import Data.Maybe
-
 
 import Control.Monad.Trans.Free
 
@@ -54,15 +53,11 @@ exactPrintWithAnns :: Annotate ast
                      => GHC.Located ast
                      -> Anns
                      -> String
-exactPrintWithAnns ast@(GHC.L l _) an = runEP (markLocated ast) l an
+exactPrintWithAnns ast an = runEP (markLocated ast) an
 
 
 ------------------------------------------------------
 -- The EP monad and basic combinators
-
--- The (ColOffset,ColOffset) value carries the normal and current
--- column offset. The second one captures the difference between the
--- original col when the DP was captured and the current one.
 
 data EPState = EPState
              { epPos       :: Pos -- ^ Current output position
@@ -72,29 +67,23 @@ data EPState = EPState
              }
 
 data EPStack = EPStack
-             { epStack     :: (ColOffset,ColDelta)
-               -- ^ stack of offsets that currently apply. The first is the
-               -- current offset, the seccond is how far the indentation has
-               -- changed from the original source. It is a meashure of the
-               -- shift applied to the entire contents of the current span.
-             , epSrcSpan  :: GHC.SrcSpan
-             , epLHS      :: Int -- Marks the column of the LHS of the current block
+             {  epLHS      :: Int -- ^ Marks the column of the LHS of the i
+                                  --   current layout block
              }
 
 data EPWriter = EPWriter
-              { output :: Endo String
-              , propLayout :: LayoutFlag }
+              { output :: Endo String }
 
 instance Monoid EPWriter where
-  mempty = EPWriter mempty mempty
-  (EPWriter a b) `mappend` (EPWriter c d) = EPWriter (a <> c) (b <> d)
+  mempty = EPWriter mempty
+  (EPWriter a) `mappend` (EPWriter c) = EPWriter (a <> c)
 
 type EP a = RWS EPStack EPWriter EPState a
 
-runEP :: Annotated () -> GHC.SrcSpan -> Anns -> String
-runEP action ss ans =
+runEP :: Annotated () -> Anns -> String
+runEP action ans =
   flip appEndo "" . output . snd
-  . (\next -> execRWS next (initialEPStack ss) (defaultEPState ans))
+  . (\next -> execRWS next initialEPStack (defaultEPState ans))
   . printInterpret $ action
 
 
@@ -136,8 +125,8 @@ allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString kwid)
 setLayout :: GHC.AnnKeywordId -> EP () -> EP LayoutFlag
 setLayout akiwd k = do
   p <- gets epPos
-  as <- gets epAnnKds
-  local (\s -> s {epLHS = snd p - 3}) (LayoutRules <$ k)
+  local (\s -> s { epLHS = snd p - (length (keywordToString akiwd))})
+                  (LayoutRules <$ k)
 
 
 
@@ -148,11 +137,9 @@ defaultEPState as = EPState
              , epAnnKds = []
              }
 
-initialEPStack :: GHC.SrcSpan -> EPStack
-initialEPStack ss = EPStack
-             { epStack     = (0,0)
-             , epSrcSpan   = ss
-             , epLHS = 0
+initialEPStack :: EPStack
+initialEPStack  = EPStack
+             { epLHS = 0
              }
 
 getPos :: EP Pos
@@ -167,20 +154,16 @@ setPos l = modify (\s -> s {epPos = l})
 -- offset
 --
 withOffset :: Annotation -> LayoutFlag -> (EP LayoutFlag -> EP LayoutFlag)
-withOffset a@(Ann (DP (edLine, edColumn)) originalStartCol  _) flag k = do
-  -- The colOffset is the offset to be used when going to the next line.
-  -- The colIndent is how far the current code block has been indented.
+withOffset (Ann (DP (edLine, edColumn)) annOffset  _) flag k = do
   oldOffset <-  asks epLHS -- Shift from left hand column
-  p@(_l, currentColumn) <- getPos
-  start <- srcSpanStartColumn <$> asks epSrcSpan
-  let maskWriter s = s { propLayout = NoLayoutRules }
+  (_l, currentColumn) <- getPos
   rec
     let offset = case (flag <> f) of
                        LayoutRules ->  if edLine == 0
                         then currentColumn + edColumn
-                        else originalStartCol
+                        else oldOffset + annOffset
                        NoLayoutRules -> oldOffset
-    f <-  (local (\s -> s {epLHS = offset})) k
+    f <-  (local (\s -> s { epLHS = offset }) k)
   return f
 
 -- |Get the current column offset
@@ -188,9 +171,6 @@ getOffset :: EP ColOffset
 getOffset = asks epLHS
 
 -- ---------------------------------------------------------------------
-
-withSrcSpan :: GHC.SrcSpan -> (EP a -> EP a)
-withSrcSpan ss = local (\s -> s {epSrcSpan = ss})
 
 getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
 getAndRemoveAnnotation a = do
@@ -336,18 +316,17 @@ countAnnsEP an = do
 
 -- |First move to the given location, then call exactP
 exactPC :: Data ast => GHC.Located ast -> LayoutFlag -> EP LayoutFlag -> EP LayoutFlag
-exactPC a@(GHC.L l _ast) flag action =
-    do return () `debug` ("exactPC entered for:" ++ showGhc l)
-       ma <- getAndRemoveAnnotation a
+exactPC ast flag action =
+    do return () `debug` ("exactPC entered for:" ++ showGhc (GHC.getLoc ast))
+       ma <- getAndRemoveAnnotation ast
        let an@(Ann _ _ kds) = fromMaybe annNone ma
-       withContext kds l an flag action
+       withContext kds an flag action
 
 withContext :: [(KeywordId, DeltaPos)]
-            -> GHC.SrcSpan
             -> Annotation
             -> LayoutFlag
             -> EP LayoutFlag -> EP LayoutFlag
-withContext kds l an flag = withKds kds . withOffset an flag . withSrcSpan l
+withContext kds an flag = withKds kds . withOffset an flag
 
 -- ---------------------------------------------------------------------
 

@@ -41,24 +41,17 @@ data DeltaState = DeltaState
              { priorEndPosition :: GHC.SrcSpan
                -- | Ordered list of comments still to be allocated
              , apComments :: [Comment]
-               -- | The original GHC DeltaI Annotations
+               -- | The original GHC Delta Annotations
              , apAnns :: GHC.ApiAnns
              }
 
 data DeltaStack = DeltaStack
                { -- | Current `SrcSpan`
                  curSrcSpan :: GHC.SrcSpan
-                 -- | The offset required to get from the prior end point to the
-                 -- | The offset required to get from the prior end point to the
-                 -- start of the current SrcSpan. Accessed via `getEntryDP`
-                 -- | Offsets for the elements annotated in this `SrcSpan`
-               -- | Indicates whether the contents of this SrcSpan are
-               -- subject to vertical alignment layout rules
-                 -- | The constructor name of the AST element, to
-                 -- distinguish between nested elements that have the same
-                 -- `SrcSpan` in the AST.
+                 -- | Constuctor of current AST element, useful for
+                 -- debugging
                , annConName :: AnnConName
-               , depth :: Int
+                 -- | Start column of the current layout block
                , layoutStart :: Int
                }
 
@@ -67,7 +60,6 @@ initialDeltaStack =
   DeltaStack
     { curSrcSpan = GHC.noSrcSpan
     , annConName = annGetConstr ()
-    , depth = 0
     , layoutStart = 0
     }
 
@@ -161,7 +153,6 @@ withSrcSpanDelta :: Data a => (GHC.Located a) -> Delta b -> Delta b
 withSrcSpanDelta (GHC.L l a) =
   local (\s -> s { curSrcSpan = l
                  , annConName = annGetConstr a
-                 , depth = (depth s) + 1
                  })
 
 getUnallocatedComments :: Delta [Comment]
@@ -183,14 +174,6 @@ adjustDeltaForOffset  colOffset    (DP (l,c)) = DP (l,c - colOffset)
 
 -- ---------------------------------------------------------------------
 
--- | Get the current column offset
-getCurrentColOffset :: Delta ColOffset
-getCurrentColOffset = srcSpanStartColumn <$> getSrcSpanDelta
-
-
--- ---------------------------------------------------------------------
-
--- |Note: assumes the prior end SrcSpan stack is nonempty
 getPriorEnd :: Delta GHC.SrcSpan
 getPriorEnd = gets priorEndPosition
 
@@ -238,13 +221,10 @@ setLayoutOffset lhs = local (\s -> s { layoutStart = lhs })
 
 -- | Enter a new AST element. Maintain SrcSpan stack
 withAST :: Data a => GHC.Located a -> LayoutFlag -> Delta b -> Delta b
-withAST lss@(GHC.L ss ast) layout action = do
+withAST lss@(GHC.L ss _) layout action = do
   -- Calculate offset required to get to the start of the SrcSPan
   pe <- getPriorEnd
   off <- asks layoutStart
-  let x = (deltaFromSrcSpans pe ss)
-  -- need to save edp', and put it in Annotation
-  prior <- getSrcSpanDelta
   let whenLayout = case layout of
                         LayoutRules -> setLayoutOffset (srcSpanStartColumn ss)
                         NoLayoutRules -> id
@@ -255,14 +235,15 @@ withAST lss@(GHC.L ss ast) layout action = do
 
     (res, w) <-
       (censor maskWriter (listen action))
-    let poff = propOffset w
-    let edp = adjustDeltaForOffset (fromMaybe off (getFirst $ propOffset w))
-                (deltaFromSrcSpans pe ss)
---    let (dp) = getCurrentDP layout  ss prior
+    let edp = adjustDeltaForOffset
+                -- Use the propagated offset if one is set
+                (fromMaybe off (getFirst $ propOffset w))
+                  (deltaFromSrcSpans pe ss)
     let kds = annKds w
-    let a = (Ann edp (srcSpanStartColumn ss) kds)
-    d <- asks depth
-    addAnnotationsDelta (Ann edp (srcSpanStartColumn ss) kds)
+    addAnnotationsDelta Ann
+                          { annEntryDelta = edp
+                          , annDelta   = (srcSpanStartColumn ss - off)
+                          , annsDP     = kds }
     --  `debug` ("leaveAST:(ss,finaledp,dp,nl,kds)=" ++ show (showGhc ss,edp,dp,nl,kds))
     return res)
 
@@ -328,7 +309,7 @@ addAnnotationWorker ann pa = do
 -- ---------------------------------------------------------------------
 
 addDeltaComment :: Comment -> Delta ()
-addDeltaComment c@(Comment paspan str) = do
+addDeltaComment (Comment paspan str) = do
   let pa = span2ss paspan
   pe <- getPriorEnd
   ss <- getSrcSpanDelta
