@@ -10,7 +10,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , Span
   , PosToken
   , DeltaPos(..)
-  , ColOffset(..) , ColDelta(..)
+  , LayoutStartCol(..) , ColDelta(..)
   , Annotation(..)
   , combineAnns
   , annNone
@@ -59,8 +59,8 @@ type Span = (Pos,Pos)
 
 newtype DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
 
--- | Marks the start of a layout block.
-newtype ColOffset = ColOffset { getColOffset :: Int }
+-- | Marks the start column of a layout block.
+newtype LayoutStartCol = LayoutStartCol { getLayoutStartCol :: Int }
   deriving (Eq, Show, Num)
 -- | Marks the distance from the start of the layout block to the element.
 newtype ColDelta  = ColDelta { getColDelta :: Int }

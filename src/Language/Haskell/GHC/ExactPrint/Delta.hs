@@ -64,7 +64,7 @@ data DeltaStack = DeltaStack
                  -- debugging
                , annConName :: AnnConName
                  -- | Start column of the current layout block
-               , layoutStart :: ColOffset
+               , layoutStart :: LayoutStartCol
                }
 
 initialDeltaStack :: DeltaStack
@@ -102,7 +102,7 @@ data DeltaWriter = DeltaWriter
   , annKds :: [(KeywordId, DeltaPos)]
     -- Used locally to report a subtrees aderhence to haskell's layout
     -- rules.
-  , propOffset :: First ColOffset -- Used to pass the offset upwards
+  , propOffset :: First LayoutStartCol -- Used to pass the offset upwards
   }
 
 -- Writer helpers
@@ -148,8 +148,8 @@ simpleInterpret = iterTM go
 setLayoutFlag :: GHC.AnnKeywordId -> Delta () -> Delta ()
 setLayoutFlag kwid action = do
   c <-  srcSpanStartColumn . head <$> getAnnotationDelta kwid
-  tell (mempty { propOffset = First  (Just (ColOffset c)) })
-  local (\s -> s { layoutStart = ColOffset c }) action
+  tell (mempty { propOffset = First  (Just (LayoutStartCol c)) })
+  local (\s -> s { layoutStart = LayoutStartCol c }) action
 
 
 -- -------------------------------------
@@ -178,9 +178,9 @@ adjustDeltaForOffsetM dp = do
   colOffset <- asks layoutStart
   return (adjustDeltaForOffset colOffset dp)
 
-adjustDeltaForOffset :: ColOffset -> DeltaPos -> DeltaPos
+adjustDeltaForOffset :: LayoutStartCol -> DeltaPos -> DeltaPos
 adjustDeltaForOffset _colOffset dp@(DP (0,_)) = dp -- same line
-adjustDeltaForOffset  (ColOffset colOffset) (DP (l,c)) = DP (l,c - colOffset)
+adjustDeltaForOffset  (LayoutStartCol colOffset) (DP (l,c)) = DP (l,c - colOffset)
 
 -- ---------------------------------------------------------------------
 
@@ -190,7 +190,7 @@ getPriorEnd = gets priorEndPosition
 setPriorEnd :: GHC.SrcSpan -> Delta ()
 setPriorEnd pe = modify (\s -> s { priorEndPosition = pe })
 
-setLayoutOffset :: ColOffset -> Delta a -> Delta a
+setLayoutOffset :: LayoutStartCol -> Delta a -> Delta a
 setLayoutOffset lhs = local (\s -> s { layoutStart = lhs })
 
 -- -------------------------------------
@@ -235,7 +235,7 @@ withAST lss@(GHC.L ss _) layout action = do
   let whenLayout = case layout of
                         LayoutRules ->
                           setLayoutOffset
-                            (ColOffset (srcSpanStartColumn ss))
+                            (LayoutStartCol (srcSpanStartColumn ss))
                         NoLayoutRules -> id
   (whenLayout .  withSrcSpanDelta lss) (do
 
@@ -252,7 +252,7 @@ withAST lss@(GHC.L ss _) layout action = do
     addAnnotationsDelta Ann
                           { annEntryDelta = edp
                           , annDelta   = ColDelta (srcSpanStartColumn ss
-                                                    - getColOffset off)
+                                                    - getLayoutStartCol off)
                           , annsDP     = kds }
     --  `debug` ("leaveAST:(ss,finaledp,dp,nl,kds)=" ++ show (showGhc ss,edp,dp,nl,kds))
     return res)
