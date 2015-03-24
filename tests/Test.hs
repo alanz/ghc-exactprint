@@ -39,6 +39,10 @@ import Data.List (partition)
 
 -- ---------------------------------------------------------------------
 
+ghead :: String -> [a] -> a
+ghead s [] = error ("Empty list at: " ++ s)
+ghead s (x:xs) = x
+
 main :: IO ()
 main = do
   cnts <- runTestTT tests
