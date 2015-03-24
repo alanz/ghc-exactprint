@@ -13,8 +13,6 @@
 	The top level module `ExactPrint` now just reexports a consistent interface
 	from the base modules.
 
-	The `Utils` module is now hidden.
-
 	Introduced a new module `Lookup` which contains a mapping from AnnKeywordId
 	to their String representation.
 
