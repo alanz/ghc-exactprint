@@ -56,7 +56,7 @@ type PosToken = (GHC.Located GHC.Token, String)
 type Pos = (Int,Int)
 type Span = (Pos,Pos)
 
-data DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
+newtype DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
 type ColOffset = Int -- ^ indentation point for a new line
 type ColDelta  = Int -- ^ difference between two cols
 type Col       = Int
