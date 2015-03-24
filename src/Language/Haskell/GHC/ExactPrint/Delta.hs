@@ -25,6 +25,14 @@ import qualified Data.Map as Map
 
 
 -- ---------------------------------------------------------------------
+--
+-- | Type used in the Delta Monad. The state variables maintain
+--    - the current SrcSpan and the constructor of the thing it encloses
+--      as a stack to the root of the AST as it is traversed,
+--    - the srcspan of the last thing annotated, to calculate delta's from
+--    - extra data needing to be stored in the monad
+--    - the annotations provided by GHC
+type Delta a = RWS DeltaStack DeltaWriter DeltaState a
 
 -- | Transform concrete annotations into relative annotations which are
 -- more useful when transforming an AST.
@@ -35,10 +43,18 @@ relativiseApiAnns :: Annotate ast
 relativiseApiAnns modu@(GHC.L ss _) ghcAnns
    = runDelta (markLocated modu) ghcAnns ss
 
+
+runDelta :: Annotated () -> GHC.ApiAnns -> GHC.SrcSpan -> Anns
+runDelta action ga priorEnd =
+  ($ mempty) . appEndo . finalAnns . snd
+  . (\next -> execRWS next initialDeltaStack (defaultDeltaState priorEnd ga))
+  . simpleInterpret $ action
+
 -- ---------------------------------------------------------------------
 
 data DeltaState = DeltaState
-             { priorEndPosition :: GHC.SrcSpan
+             { -- | Position reached when processing the last element
+               priorEndPosition :: GHC.SrcSpan
                -- | Ordered list of comments still to be allocated
              , apComments :: [Comment]
                -- | The original GHC Delta Annotations
@@ -65,12 +81,22 @@ initialDeltaStack =
 
 defaultDeltaState :: GHC.SrcSpan -> GHC.ApiAnns -> DeltaState
 defaultDeltaState priorEnd ga =
-  let cs = flattenedComments ga in
     DeltaState
       { priorEndPosition = priorEnd
       , apComments = cs
       , apAnns     = ga    -- $
       }
+  where
+    cs :: [Comment]
+    cs = flattenedComments ga
+
+    flattenedComments :: GHC.ApiAnns -> [Comment]
+    flattenedComments (_,cm) =
+      map tokComment . GHC.sortLocated . concat $ Map.elems cm
+
+    tokComment :: GHC.Located GHC.AnnotationComment -> Comment
+    tokComment t@(GHC.L lt _) = Comment (ss2span lt) (ghcCommentText t)
+
 
 data DeltaWriter = DeltaWriter
   { -- Final list of annotations
@@ -83,6 +109,7 @@ data DeltaWriter = DeltaWriter
   , propOffset :: First Int -- Used to pass the offset upwards
   }
 
+-- Writer helpers
 
 tellFinalAnn :: (AnnKey, Annotation) -> Delta ()
 tellFinalAnn (k, v) =
@@ -91,31 +118,13 @@ tellFinalAnn (k, v) =
 tellKd :: (KeywordId, DeltaPos) -> Delta ()
 tellKd kd = tell (mempty { annKds = [kd] })
 
-setLayoutFlag :: GHC.AnnKeywordId -> Delta () -> Delta ()
-setLayoutFlag kwid action = do
-  c <-  srcSpanStartColumn . head <$> getAnnotationDelta kwid
-  tell (mempty { propOffset = First (Just c) })
-  local (\s -> s { layoutStart = c }) action
 
 instance Monoid DeltaWriter where
   mempty = DeltaWriter mempty mempty mempty
   (DeltaWriter a b e) `mappend` (DeltaWriter c d f) = DeltaWriter (a <> c) (b <> d) (e <> f)
 
-
--- | Type used in the Delta Monad. The state variables maintain
---    - the current SrcSpan and the constructor of the thing it encloses
---      as a stack to the root of the AST as it is traversed,
---    - the srcspan of the last thing annotated, to calculate delta's from
---    - extra data needing to be stored in the monad
---    - the annotations provided by GHC
-type Delta a = RWS DeltaStack DeltaWriter DeltaState a
-
-runDelta :: Annotated () -> GHC.ApiAnns -> GHC.SrcSpan -> Anns
-runDelta action ga priorEnd =
-  ($ mempty) . appEndo . finalAnns . snd
-  . (\next -> execRWS next initialDeltaStack (defaultDeltaState priorEnd ga))
-  . simpleInterpret $ action
-
+-----------------------------------
+-- Interpretation code
 
 simpleInterpret :: Annotated a -> Delta a
 simpleInterpret = iterTM go
@@ -139,21 +148,26 @@ simpleInterpret = iterTM go
     go (MarkExternal ss akwid _ next) = addDeltaAnnotationExt ss akwid >> next
 
 
--- ---------------------------------------------------------------------
+-- | Used specifically for "HsLet"
+setLayoutFlag :: GHC.AnnKeywordId -> Delta () -> Delta ()
+setLayoutFlag kwid action = do
+  c <-  srcSpanStartColumn . head <$> getAnnotationDelta kwid
+  tell (mempty { propOffset = First (Just c) })
+  local (\s -> s { layoutStart = c }) action
 
-flattenedComments :: GHC.ApiAnns -> [Comment]
-flattenedComments (_,cm) = map tokComment . GHC.sortLocated . concat $ Map.elems cm
 
 -- -------------------------------------
 
-getSrcSpanDelta :: Delta GHC.SrcSpan
-getSrcSpanDelta = asks curSrcSpan
+getSrcSpan :: Delta GHC.SrcSpan
+getSrcSpan = asks curSrcSpan
 
 withSrcSpanDelta :: Data a => (GHC.Located a) -> Delta b -> Delta b
 withSrcSpanDelta (GHC.L l a) =
   local (\s -> s { curSrcSpan = l
                  , annConName = annGetConstr a
                  })
+
+
 
 getUnallocatedComments :: Delta [Comment]
 getUnallocatedComments = gets apComments
@@ -180,12 +194,15 @@ getPriorEnd = gets priorEndPosition
 setPriorEnd :: GHC.SrcSpan -> Delta ()
 setPriorEnd pe = modify (\s -> s { priorEndPosition = pe })
 
+setLayoutOffset :: Int -> Delta a -> Delta a
+setLayoutOffset lhs = local (\s -> s { layoutStart = lhs })
+
 -- -------------------------------------
 
 getAnnotationDelta :: GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
 getAnnotationDelta an = do
     ga <- gets apAnns
-    ss <- getSrcSpanDelta
+    ss <- getSrcSpan
     return $ GHC.getAnnotation ga ss an
 
 getAndRemoveAnnotationDelta :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
@@ -193,10 +210,6 @@ getAndRemoveAnnotationDelta sp an = do
     ga <- gets apAnns
     let (r,ga') = GHC.getAndRemoveAnnotation ga sp an
     r <$ modify (\s -> s { apAnns = ga' })
-
-
-tokComment :: GHC.Located GHC.AnnotationComment -> Comment
-tokComment t@(GHC.L lt _) = Comment (ss2span lt) (ghcCommentText t)
 
 -- -------------------------------------
 
@@ -211,13 +224,11 @@ getAnnKey DeltaStack {curSrcSpan, annConName} = AnnKey curSrcSpan annConName
 
 -- -------------------------------------
 
-addAnnDeltaPos :: (GHC.SrcSpan,KeywordId) -> DeltaPos -> Delta ()
-addAnnDeltaPos (_s,kw) dp = tellKd (kw, dp)
+addAnnDeltaPos :: KeywordId -> DeltaPos -> Delta ()
+addAnnDeltaPos kw dp = tellKd (kw, dp)
 
 -- -------------------------------------
 
-setLayoutOffset :: Int -> Delta a -> Delta a
-setLayoutOffset lhs = local (\s -> s { layoutStart = lhs })
 
 -- | Enter a new AST element. Maintain SrcSpan stack
 withAST :: Data a => GHC.Located a -> LayoutFlag -> Delta b -> Delta b
@@ -248,26 +259,6 @@ withAST lss@(GHC.L ss _) layout action = do
     return res)
 
 -- ---------------------------------------------------------------------
-{-
--- |Get the difference between the current and the previous
--- colOffsets, if they are on the same line
-getCurrentDP :: LayoutFlag -> GHC.SrcSpan -> GHC.SrcSpan -> (ColOffset,LineChanged)
-getCurrentDP layoutOn ss ps =
-  -- Note: the current col offsets are not needed here, any
-  -- indentation should be fully nested in an AST element
-  let
-      colOffset = if srcSpanStartLine ss == srcSpanStartLine ps
-                    then srcSpanStartColumn ss - srcSpanStartColumn ps
-                    else srcSpanStartColumn ss
-
-  in colOffset
-    `debug` ("getCurrentDP:(layoutOn=" ++ show layoutOn)
-    -}
-
--- ---------------------------------------------------------------------
-
-
--- ---------------------------------------------------------------------
 
 -- |Split the ordered list of comments into ones that occur prior to
 -- the given SrcSpan and the rest
@@ -285,7 +276,7 @@ addAnnotationWorker ann pa = do
   if not (isPointSrcSpan pa)
     then do
       pe <- getPriorEnd
-      ss <- getSrcSpanDelta
+      ss <- getSrcSpan
       let p = deltaFromSrcSpans pe pa
       case (ann,isGoodDelta p) of
         (G GHC.AnnComma,False) -> return ()
@@ -299,7 +290,7 @@ addAnnotationWorker ann pa = do
           return () `debug`("addAnnotationWorker:(ss,pa,allocated,cs)=" ++ showGhc (ss,pa,allocated,cs))
           mapM_ addDeltaComment allocated
           p' <- adjustDeltaForOffsetM p
-          addAnnDeltaPos (ss,ann) p'
+          addAnnDeltaPos ann p'
           setPriorEnd pa
               -- `debug` ("addDeltaAnnotationWorker:(ss,pe,pa,p,ann)=" ++ show (ss2span ss,ss2span pe,ss2span pa,p,ann))
     else do
@@ -312,13 +303,12 @@ addDeltaComment :: Comment -> Delta ()
 addDeltaComment (Comment paspan str) = do
   let pa = span2ss paspan
   pe <- getPriorEnd
-  ss <- getSrcSpanDelta
   let p = deltaFromSrcSpans pe pa
   p' <- adjustDeltaForOffsetM p
   setPriorEnd pa
   let e = ss2deltaP (ss2posEnd pe) (snd paspan)
   e' <- adjustDeltaForOffsetM e
-  addAnnDeltaPos (ss,AnnComment (DComment (p',e') str)) p'
+  addAnnDeltaPos (AnnComment (DComment (p',e') str)) p'
 
 -- ---------------------------------------------------------------------
 
@@ -326,7 +316,7 @@ addDeltaComment (Comment paspan str) = do
 -- advance the position to the end of the annotation
 addDeltaAnnotation :: GHC.AnnKeywordId -> Delta ()
 addDeltaAnnotation ann = do
-  ss <- getSrcSpanDelta
+  ss <- getSrcSpan
   when (ann == GHC.AnnVal) (debugM (showGhc ss))
   ma <- getAnnotationDelta ann
   when (ann == GHC.AnnVal && null ma) (debugM "empty")
@@ -340,7 +330,7 @@ addDeltaAnnotation ann = do
 -- end of the annotation
 addDeltaAnnotationAfter :: GHC.AnnKeywordId -> Delta ()
 addDeltaAnnotationAfter ann = do
-  ss <- getSrcSpanDelta
+  ss <- getSrcSpan
   ma <- getAnnotationDelta ann
   let ma' = filter (\s -> not (GHC.isSubspanOf s ss)) ma
   case ma' of
@@ -372,7 +362,7 @@ addDeltaAnnotations ann = do
 -- position to the end of the annotations
 addDeltaAnnotationsInside :: GHC.AnnKeywordId -> Delta ()
 addDeltaAnnotationsInside ann = do
-  ss <- getSrcSpanDelta
+  ss <- getSrcSpan
   ma <- getAnnotationDelta ann
   let do_one ap' = addAnnotationWorker (G ann) ap'
                     -- `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
@@ -384,7 +374,7 @@ addDeltaAnnotationsInside ann = do
 -- position to the end of the annotations
 addDeltaAnnotationsOutside :: GHC.AnnKeywordId -> KeywordId -> Delta ()
 addDeltaAnnotationsOutside gann ann = do
-  ss <- getSrcSpanDelta
+  ss <- getSrcSpan
   if ss2span ss == ((1,1),(1,1))
     then return ()
     else do
@@ -399,11 +389,9 @@ addDeltaAnnotationExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta ()
 addDeltaAnnotationExt s ann = do
   addAnnotationWorker (G ann) s
 
-
 addEofAnnotation :: Delta ()
 addEofAnnotation = do
   pe <- getPriorEnd
-  ss <- getSrcSpanDelta
   ma <- withSrcSpanDelta (GHC.noLoc ()) (getAnnotationDelta GHC.AnnEofPos)
   case ma of
     [] -> return ()
@@ -411,7 +399,7 @@ addEofAnnotation = do
       cs <- getUnallocatedComments
       mapM_ addDeltaComment cs
       let DP (r,c) = deltaFromSrcSpans pe pa
-      addAnnDeltaPos (ss,G GHC.AnnEofPos) (DP (r, c - 1))
+      addAnnDeltaPos (G GHC.AnnEofPos) (DP (r, c - 1))
       setPriorEnd pa `warn` ("Trailing annotations after Eof: " ++ showGhc pss)
 
 
