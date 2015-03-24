@@ -31,7 +31,7 @@ import Control.Applicative
 import Control.Monad.RWS
 import Data.Data
 import Data.List
-import Data.Maybe
+import Data.Maybe (mapMaybe, fromMaybe, maybeToList)
 
 import Control.Monad.Trans.Free
 
@@ -71,12 +71,26 @@ data EPStack = EPStack
                                   --   current layout block
              }
 
+defaultEPState :: Anns -> EPState
+defaultEPState as = EPState
+             { epPos    = (1,1)
+             , epAnns   = as
+             , epAnnKds = []
+             }
+
+initialEPStack :: EPStack
+initialEPStack  = EPStack
+             { epLHS = 0
+             }
+
 data EPWriter = EPWriter
               { output :: Endo String }
 
 instance Monoid EPWriter where
   mempty = EPWriter mempty
   (EPWriter a) `mappend` (EPWriter c) = EPWriter (a <> c)
+
+---------------------------------------------------------
 
 type EP a = RWS EPStack EPWriter EPState a
 
@@ -85,6 +99,8 @@ runEP action ans =
   flip appEndo "" . output . snd
   . (\next -> execRWS next initialEPStack (defaultEPState ans))
   . printInterpret $ action
+
+
 
 
 printInterpret :: Annotated a -> EP a
@@ -122,34 +138,29 @@ justOne, allAnns :: GHC.AnnKeywordId -> EP ()
 justOne kwid = printStringAtMaybeAnn (G kwid) (keywordToString kwid)
 allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString kwid)
 
-setLayout :: GHC.AnnKeywordId -> EP () -> EP LayoutFlag
-setLayout akiwd k = do
-  p <- gets epPos
-  local (\s -> s { epLHS = snd p - (length (keywordToString akiwd))})
-                  (LayoutRules <$ k)
+-------------------------------------------------------------------------
+-- |First move to the given location, then call exactP
+exactPC :: Data ast => GHC.Located ast -> LayoutFlag -> EP LayoutFlag -> EP LayoutFlag
+exactPC ast flag action =
+    do return () `debug` ("exactPC entered for:" ++ showGhc (GHC.getLoc ast))
+       ma <- getAndRemoveAnnotation ast
+       let an@(Ann _ _ kds) = fromMaybe annNone ma
+       withContext kds an flag action
 
+getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
+getAndRemoveAnnotation a = do
+  (r, an') <- gets (getAndRemoveAnnotationEP a . epAnns)
+  modify (\s -> s { epAnns = an' })
+  return r
 
-
-defaultEPState :: Anns -> EPState
-defaultEPState as = EPState
-             { epPos    = (1,1)
-             , epAnns   = as
-             , epAnnKds = []
-             }
-
-initialEPStack :: EPStack
-initialEPStack  = EPStack
-             { epLHS = 0
-             }
-
-getPos :: EP Pos
-getPos = gets epPos
-
-setPos :: Pos -> EP ()
-setPos l = modify (\s -> s {epPos = l})
+withContext :: [(KeywordId, DeltaPos)]
+            -> Annotation
+            -> LayoutFlag
+            -> EP LayoutFlag -> EP LayoutFlag
+withContext kds an flag = withKds kds . withOffset an flag
 
 -- ---------------------------------------------------------------------
-
+--
 -- | Given an annotation associated with a specific SrcSpan, determines a new offset relative to the previous
 -- offset
 --
@@ -158,13 +169,48 @@ withOffset (Ann (DP (edLine, edColumn)) annOffset  _) flag k = do
   oldOffset <-  asks epLHS -- Shift from left hand column
   (_l, currentColumn) <- getPos
   rec
+    -- Calculate the new offset
+    -- 1. If the LayoutRules flag is set then we need to mark this position
+    -- as the start of a new layout block.
+    -- There are two cases (1) If we are on the same line  and (2) if we
+    -- move to a new line.
+    -- (1) The start of the layout block is the current position added to
+    -- the delta
+    -- (2) The start of the layout block is the old offset added to the
+    -- "annOffset" (i.e., how far this annotation was from the edge)
     let offset = case (flag <> f) of
-                       LayoutRules ->  if edLine == 0
-                        then currentColumn + edColumn
-                        else oldOffset + annOffset
+                       LayoutRules ->
+                        if edLine == 0
+                          then currentColumn + edColumn
+                          else oldOffset + annOffset
                        NoLayoutRules -> oldOffset
     f <-  (local (\s -> s { epLHS = offset }) k)
   return f
+
+
+-- ---------------------------------------------------------------------
+--
+-- Necessary as there are destructive gets of Kds across scopes
+withKds :: [(KeywordId, DeltaPos)] -> EP a -> EP a
+withKds kd action = do
+  modify (\s -> s { epAnnKds = kd : (epAnnKds s) })
+  r <- action
+  modify (\s -> s { epAnnKds = tail (epAnnKds s) })
+  return r
+
+------------------------------------------------------------------------
+
+setLayout :: GHC.AnnKeywordId -> EP () -> EP LayoutFlag
+setLayout akiwd k = do
+  p <- gets epPos
+  local (\s -> s { epLHS = snd p - (length (keywordToString akiwd))})
+                  (LayoutRules <$ k)
+
+getPos :: EP Pos
+getPos = gets epPos
+
+setPos :: Pos -> EP ()
+setPos l = modify (\s -> s {epPos = l})
 
 -- |Get the current column offset
 getOffset :: EP ColOffset
@@ -172,18 +218,40 @@ getOffset = asks epLHS
 
 -- ---------------------------------------------------------------------
 
-getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
-getAndRemoveAnnotation a = do
-  (r, an') <- gets (getAndRemoveAnnotationEP a . epAnns)
-  modify (\s -> s { epAnns = an' })
-  return r
+printStringAtMaybeAnn :: KeywordId -> String -> EP ()
+printStringAtMaybeAnn an str = do
+  (comments, ma) <- getAnnFinal an
+  printStringAtLsDelta comments (maybeToList ma) str
+    -- ++AZ++: Enabling the following line causes a very weird error associated with AnnPackageName. I suspect it is because it is forcing the evaluation of a non-existent an or str
+    -- `debug` ("printStringAtMaybeAnn:(an,ma,str)=" ++ show (an,ma,str))
 
-withKds :: [(KeywordId, DeltaPos)] -> EP a -> EP a
-withKds kd action = do
-  modify (\s -> s { epAnnKds = kd : (epAnnKds s) })
-  r <- action
-  modify (\s -> s { epAnnKds = tail (epAnnKds s) })
-  return r
+printStringAtMaybeAnnAll :: KeywordId -> String -> EP ()
+printStringAtMaybeAnnAll an str = go
+  where
+    go = do
+      (comments, ma) <- getAnnFinal an
+      case ma of
+        Nothing -> return ()
+        Just d  -> printStringAtLsDelta comments [d] str >> go
+
+-- ---------------------------------------------------------------------
+
+
+-- |destructive get, hence use an annotation once only
+getAnnFinal :: KeywordId -> EP ([DComment], Maybe DeltaPos)
+getAnnFinal kw = do
+  kd <- gets epAnnKds
+  let (r, kd', dcs) = case kd of
+                  []    -> (Nothing ,[], [])
+                  (k:kds) -> (r',kk:kds, dcs')
+                    where (cs', r',kk) = destructiveGetFirst kw ([],k)
+                          dcs' = mapMaybe keywordIdToDComment cs'
+  modify (\s -> s { epAnnKds = kd' })
+  return (dcs, r)
+
+keywordIdToDComment :: (KeywordId, DeltaPos) -> Maybe DComment
+keywordIdToDComment (AnnComment comment,_dp) = Just comment
+keywordIdToDComment _                   = Nothing
 
 -- | Get and remove the first item in the (k,v) list for which the k matches.
 -- Return the value, together with any comments skipped over to get there.
@@ -197,60 +265,6 @@ destructiveGetFirst  key (acc,((k,v):kvs))
     commentsAndOthers kvs' = partition isComment kvs'
     isComment ((AnnComment _),_) = True
     isComment _              = False
-
--- |destructive get, hence use an annotation once only
-getAnnFinal :: KeywordId -> EP ([DComment], Maybe DeltaPos)
-getAnnFinal kw = do
-  kd <- gets epAnnKds
-  let (r, kd', dcs) = case kd of
-                  []    -> (Nothing ,[], [])
-                  (k:kds) -> (r',kk:kds, dcs')
-                    where (cs', r',kk) = destructiveGetFirst kw ([],k)
-                          dcs' = concatMap keywordIdToDComment cs'
-  modify (\s -> s { epAnnKds = kd' })
-  return (dcs, r)
-
--- ---------------------------------------------------------------------
-
-keywordIdToDComment :: (KeywordId, DeltaPos) -> [DComment]
-keywordIdToDComment (AnnComment comment,_dp) = [comment]
-keywordIdToDComment _                   = []
-
--- |non-destructive get
-peekAnnFinal :: KeywordId -> EP (Maybe DeltaPos)
-peekAnnFinal kw = do
-  (_, r, _) <- (\kd -> destructiveGetFirst kw ([], kd)) <$> gets (head . epAnnKds)
-  return r
-
--- ---------------------------------------------------------------------
-
-printString :: String -> EP ()
-printString str = do
-  (l,c) <- gets epPos
-  setPos (l, c + length str)
-  tell (mempty {output = Endo $ showString str })
-
-newLine :: EP ()
-newLine = do
-    (l,_) <- getPos
-    printString "\n"
-    setPos (l+1,1)
-
-padUntil :: Pos -> EP ()
-padUntil (l,c) = do
-    (l1,c1) <- getPos
-    case  {- trace (show ((l,c), (l1,c1))) -} () of
-     _ {-()-} | l1 >= l && c1 <= c -> printString $ replicate (c - c1) ' '
-              | l1 < l             -> newLine >> padUntil (l,c)
-              | otherwise          -> return ()
-
-printWhitespace :: Pos -> EP ()
-printWhitespace p = do
-  -- mPrintComments p >> padUntil p
-  padUntil p
-
-printStringAt :: Pos -> String -> EP ()
-printStringAt p str = printWhitespace p >> printString str
 
 -- ---------------------------------------------------------------------
 
@@ -289,45 +303,42 @@ printQueuedComment (DComment (dp,de) s) = do
 
 -- ---------------------------------------------------------------------
 
-printStringAtMaybeAnn :: KeywordId -> String -> EP ()
-printStringAtMaybeAnn an str = do
-  (comments, ma) <- getAnnFinal an
-  printStringAtLsDelta comments (maybeToList ma) str
-    -- ++AZ++: Enabling the following line causes a very weird error associated with AnnPackageName. I suspect it is because it is forcing the evaluation of a non-existent an or str
-    -- `debug` ("printStringAtMaybeAnn:(an,ma,str)=" ++ show (an,ma,str))
-
-printStringAtMaybeAnnAll :: KeywordId -> String -> EP ()
-printStringAtMaybeAnnAll an str = go
-  where
-    go = do
-      (comments, ma) <- getAnnFinal an
-      case ma of
-        Nothing -> return ()
-        Just d  -> printStringAtLsDelta comments [d] str >> go
-
--- ---------------------------------------------------------------------
+-- |non-destructive get
+peekAnnFinal :: KeywordId -> EP (Maybe DeltaPos)
+peekAnnFinal kw = do
+  (_, r, _) <- (\kd -> destructiveGetFirst kw ([], kd)) <$> gets (head . epAnnKds)
+  return r
 
 countAnnsEP :: KeywordId -> EP Int
-countAnnsEP an = do
-  ma <- peekAnnFinal an
-  return (length ma)
+countAnnsEP an = length <$> peekAnnFinal an
 
 -- ---------------------------------------------------------------------
+-- Printing functions
 
--- |First move to the given location, then call exactP
-exactPC :: Data ast => GHC.Located ast -> LayoutFlag -> EP LayoutFlag -> EP LayoutFlag
-exactPC ast flag action =
-    do return () `debug` ("exactPC entered for:" ++ showGhc (GHC.getLoc ast))
-       ma <- getAndRemoveAnnotation ast
-       let an@(Ann _ _ kds) = fromMaybe annNone ma
-       withContext kds an flag action
+printString :: String -> EP ()
+printString str = do
+  (l,c) <- gets epPos
+  setPos (l, c + length str)
+  tell (mempty {output = Endo $ showString str })
 
-withContext :: [(KeywordId, DeltaPos)]
-            -> Annotation
-            -> LayoutFlag
-            -> EP LayoutFlag -> EP LayoutFlag
-withContext kds an flag = withKds kds . withOffset an flag
+newLine :: EP ()
+newLine = do
+    (l,_) <- getPos
+    printString "\n"
+    setPos (l+1,1)
 
--- ---------------------------------------------------------------------
+padUntil :: Pos -> EP ()
+padUntil (l,c) = do
+    (l1,c1) <- getPos
+    case  {- trace (show ((l,c), (l1,c1))) -} () of
+     _ {-()-} | l1 >= l && c1 <= c -> printString $ replicate (c - c1) ' '
+              | l1 < l             -> newLine >> padUntil (l,c)
+              | otherwise          -> return ()
 
+printWhitespace :: Pos -> EP ()
+printWhitespace p = do
+  -- mPrintComments p >> padUntil p
+  padUntil p
 
+printStringAt :: Pos -> String -> EP ()
+printStringAt p str = printWhitespace p >> printString str
