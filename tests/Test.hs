@@ -9,16 +9,16 @@ import Language.Haskell.GHC.ExactPrint.Types
 
 import GHC.Paths ( libdir )
 
-
+import qualified Bag           as GHC
 import qualified DynFlags      as GHC
 import qualified FastString    as GHC
 import qualified GHC           as GHC
-import qualified HscTypes              as GHC
+import qualified HscTypes      as GHC
 import qualified MonadUtils    as GHC
 import qualified OccName       as GHC
-import qualified Outputable            as GHC
+import qualified Outputable    as GHC
 import qualified RdrName       as GHC
-import qualified StringBuffer          as GHC
+import qualified StringBuffer  as GHC
 
 import qualified Data.Generics as SYB
 import qualified GHC.SYB.Utils as SYB
@@ -150,6 +150,7 @@ tests = TestList
   , mkTestMod "IfThenElse1.hs"           "Main"
   , mkTestMod "IfThenElse2.hs"           "Main"
   , mkTestMod "IfThenElse3.hs"           "Main"
+  , mkTestMod "LetIn1.hs"                "LetIn1"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
   , mkTestModChange changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
@@ -161,6 +162,7 @@ tests = TestList
   , mkTestModChange changeLayoutIn3  "LayoutIn3b.hs" "LayoutIn3b"
   , mkTestModChange changeLayoutIn4  "LayoutIn4.hs"  "LayoutIn4"
   , mkTestModChange changeLocToName  "LocToName.hs"  "LocToName"
+  , mkTestModChange changeLetIn1     "LetIn1.hs"     "LetIn1"
 
   ]
 
@@ -321,7 +323,9 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
     -- , manipulateAstTestWFname "LayoutIn3.hs"             "LayoutIn3"
     -- , manipulateAstTestWFname "LayoutIn3a.hs"             "LayoutIn3a"
-    , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3a.hs" "LayoutIn3a"
+    -- , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3a.hs" "LayoutIn3a"
+    -- , manipulateAstTestWFname "LetIn1.hs"             "LetIn1"
+    , manipulateAstTestWFnameMod changeLetIn1  "LetIn1.hs" "LetIn1"
     -- , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3b.hs" "LayoutIn3b"
     -- , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3.hs" "LayoutIn3"
     -- , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
@@ -398,6 +402,21 @@ changeWhereIn4 parsed
     replace :: GHC.Located GHC.RdrName -> GHC.Located GHC.RdrName
     replace (GHC.L ln _n)
       | ss2span ln == ((12,16),(12,17)) = GHC.L ln (GHC.mkRdrUnqual (GHC.mkVarOcc "p_2"))
+    replace x = x
+
+-- ---------------------------------------------------------------------
+
+changeLetIn1 :: GHC.ParsedSource -> GHC.ParsedSource
+changeLetIn1 parsed
+  = SYB.everywhere (SYB.mkT replace) parsed
+  where
+    replace :: GHC.HsExpr GHC.RdrName -> GHC.HsExpr GHC.RdrName
+    replace x@(GHC.HsLet localDecls expr@(GHC.L _ _))
+      = 
+         let (GHC.HsValBinds (GHC.ValBindsIn bagDecls sigs)) = localDecls
+             bagDecls' = GHC.listToBag $ init $ GHC.bagToList bagDecls
+         in (GHC.HsLet (GHC.HsValBinds (GHC.ValBindsIn bagDecls' sigs)) expr)
+
     replace x = x
 
 -- ---------------------------------------------------------------------
