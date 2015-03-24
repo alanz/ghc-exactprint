@@ -31,7 +31,7 @@ module Language.Haskell.GHC.ExactPrint.Types
 
 import Data.Data (Data, Typeable, toConstr)
 
-import qualified GHC           as GHC
+import qualified GHC
 import qualified Outputable    as GHC
 
 import qualified Data.Map as Map

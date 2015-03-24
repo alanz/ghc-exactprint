@@ -30,7 +30,7 @@ import Data.Maybe (mapMaybe, fromMaybe, maybeToList)
 
 import Control.Monad.Trans.Free
 
-import qualified GHC           as GHC
+import qualified GHC
 
 ------------------------------------------------------------------------------
 -- Printing of source elements
@@ -119,7 +119,7 @@ printInterpret = iterTM go
     go (MarkAfter akwid next) =
       justOne akwid >> next
     go (WithAST lss flag action next) =
-      exactPC lss flag (NoLayoutRules <$ (printInterpret action)) >> next
+      exactPC lss flag (NoLayoutRules <$ printInterpret action) >> next
     go (OutputKD _ next) =
       next
     go (CountAnns kwid next) =
@@ -174,13 +174,13 @@ withOffset Ann{annEntryDelta, annDelta} flag k = do
     -- the delta
     -- (2) The start of the layout block is the old offset added to the
     -- "annOffset" (i.e., how far this annotation was from the edge)
-    let offset = case (flag <> f) of
+    let offset = case flag <> f of
                        LayoutRules -> LayoutStartCol $
                         if edLine == 0
                           then currentColumn + edColumn
-                          else (getLayoutStartCol oldOffset) + (getColDelta annDelta)
+                          else getLayoutStartCol oldOffset + getColDelta annDelta
                        NoLayoutRules -> oldOffset
-    f <-  (local (\s -> s { epLHS = offset }) k)
+    f <-  local (\s -> s { epLHS = offset }) k
   return f
 
 
@@ -189,7 +189,7 @@ withOffset Ann{annEntryDelta, annDelta} flag k = do
 -- Necessary as there are destructive gets of Kds across scopes
 withKds :: [(KeywordId, DeltaPos)] -> EP a -> EP a
 withKds kd action = do
-  modify (\s -> s { epAnnKds = kd : (epAnnKds s) })
+  modify (\s -> s { epAnnKds = kd : epAnnKds s })
   r <- action
   modify (\s -> s { epAnnKds = tail (epAnnKds s) })
   return r
@@ -199,7 +199,7 @@ withKds kd action = do
 setLayout :: GHC.AnnKeywordId -> EP () -> EP LayoutFlag
 setLayout akiwd k = do
   p <- gets epPos
-  local (\s -> s { epLHS = LayoutStartCol (snd p - (length (keywordToString akiwd)))})
+  local (\s -> s { epLHS = LayoutStartCol (snd p - length (keywordToString akiwd))})
                   (LayoutRules <$ k)
 
 getPos :: EP Pos
@@ -254,12 +254,12 @@ keywordIdToDComment _                   = Nothing
 destructiveGetFirst :: KeywordId -> ([(KeywordId,v)],[(KeywordId,v)])
                     -> ([(KeywordId,v)], Maybe v,[(KeywordId,v)])
 destructiveGetFirst _key (acc,[]) = ([], Nothing ,acc)
-destructiveGetFirst  key (acc,((k,v):kvs))
+destructiveGetFirst  key (acc, (k,v):kvs )
   | k == key = let (cs,others) = commentsAndOthers acc in (cs, Just v ,others++kvs)
   | otherwise = destructiveGetFirst key (acc++[(k,v)],kvs)
   where
     commentsAndOthers kvs' = partition isComment kvs'
-    isComment ((AnnComment _),_) = True
+    isComment (AnnComment _ , _ ) = True
     isComment _              = False
 
 -- ---------------------------------------------------------------------
@@ -332,9 +332,7 @@ padUntil (l,c) = do
               | otherwise          -> return ()
 
 printWhitespace :: Pos -> EP ()
-printWhitespace p = do
-  -- mPrintComments p >> padUntil p
-  padUntil p
+printWhitespace = padUntil
 
 printStringAt :: Pos -> String -> EP ()
 printStringAt p str = printWhitespace p >> printString str

@@ -14,7 +14,7 @@ import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Annotate (AnnotationF(..), Annotated
                                                 , markLocated, Annotate(..))
 
-import qualified GHC            as GHC
+import qualified GHC
 import qualified SrcLoc         as GHC
 
 import qualified Data.Map as Map
@@ -157,7 +157,7 @@ setLayoutFlag kwid action = do
 getSrcSpan :: Delta GHC.SrcSpan
 getSrcSpan = asks curSrcSpan
 
-withSrcSpanDelta :: Data a => (GHC.Located a) -> Delta b -> Delta b
+withSrcSpanDelta :: Data a => GHC.Located a -> Delta b -> Delta b
 withSrcSpanDelta (GHC.L l a) =
   local (\s -> s { curSrcSpan = l
                  , annConName = annGetConstr a
@@ -213,7 +213,7 @@ getAndRemoveAnnotationDelta sp an = do
 addAnnotationsDelta :: Annotation -> Delta ()
 addAnnotationsDelta ann = do
     l <- ask
-    tellFinalAnn ((getAnnKey l),ann)
+    tellFinalAnn (getAnnKey l ,ann)
 
 getAnnKey :: DeltaStack -> AnnKey
 getAnnKey DeltaStack {curSrcSpan, annConName} = AnnKey curSrcSpan annConName
@@ -242,8 +242,7 @@ withAST lss@(GHC.L ss _) layout action = do
     let maskWriter s = s { annKds = []
                          , propOffset = First Nothing }
 
-    (res, w) <-
-      (censor maskWriter (listen action))
+    (res, w) <- censor maskWriter (listen action)
     let edp = adjustDeltaForOffset
                 -- Use the propagated offset if one is set
                 (fromMaybe off (getFirst $ propOffset w))
@@ -265,15 +264,15 @@ allocatePriorComments :: [Comment] -> GHC.SrcSpan -> ([Comment],[Comment])
 allocatePriorComments cs ss = partition isPrior cs
   where
     (start,_) = ss2span ss
-    isPrior (Comment s _)  = (fst s) < start
+    isPrior (Comment s _)  = fst s < start
       `debug` ("allocatePriorComments:(s,ss,cond)=" ++ showGhc (s,ss,(fst s) < start))
 
 -- ---------------------------------------------------------------------
 
 addAnnotationWorker :: KeywordId -> GHC.SrcSpan -> Delta ()
 addAnnotationWorker ann pa = do
-  if not (isPointSrcSpan pa)
-    then do
+  unless (isPointSrcSpan pa) $
+    do
       pe <- getPriorEnd
       ss <- getSrcSpan
       let p = deltaFromSrcSpans pe pa
@@ -292,9 +291,6 @@ addAnnotationWorker ann pa = do
           addAnnDeltaPos ann p'
           setPriorEnd pa
               -- `debug` ("addDeltaAnnotationWorker:(ss,pe,pa,p,ann)=" ++ show (ss2span ss,ss2span pe,ss2span pa,p,ann))
-    else do
-      return ()
-          -- `debug` ("addDeltaAnnotationWorker::point span:(ss,ma,ann)=" ++ show (ss2span pa,ann))
 
 -- ---------------------------------------------------------------------
 
@@ -333,7 +329,7 @@ addDeltaAnnotationAfter ann = do
   ma <- getAnnotationDelta ann
   let ma' = filter (\s -> not (GHC.isSubspanOf s ss)) ma
   case ma' of
-    [] -> return () `debug` ("addDeltaAnnotation empty ma")
+    [] -> return () `debug` "addDeltaAnnotation empty ma"
     [pa] -> addAnnotationWorker (G ann) pa
     _ -> error $ "addDeltaAnnotation:(ss,ann,ma)=" ++ showGhc (ss,ann,ma)
 
@@ -342,7 +338,7 @@ addDeltaAnnotationAfter ann = do
 addDeltaAnnotationLs :: GHC.AnnKeywordId -> Int -> Delta ()
 addDeltaAnnotationLs ann off = do
   ma <- getAnnotationDelta ann
-  case (drop off ma) of
+  case drop off ma of
     [] -> return ()
         -- `debug` ("addDeltaAnnotationLs:missed:(off,pe,ann,ma)=" ++ show (off,ss2span pe,ann,fmap ss2span ma))
     (pa:_) -> addAnnotationWorker (G ann) pa
@@ -365,7 +361,7 @@ addDeltaAnnotationsInside ann = do
   ma <- getAnnotationDelta ann
   let do_one ap' = addAnnotationWorker (G ann) ap'
                     -- `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
-  let filtered = (sort $ filter (\s -> GHC.isSubspanOf s ss) ma)
+  let filtered = sort $ filter (\s -> GHC.isSubspanOf s ss) ma
   mapM_ do_one filtered
 
 -- | Look up and add possibly multiple Delta annotations not enclosed by
@@ -374,9 +370,8 @@ addDeltaAnnotationsInside ann = do
 addDeltaAnnotationsOutside :: GHC.AnnKeywordId -> KeywordId -> Delta ()
 addDeltaAnnotationsOutside gann ann = do
   ss <- getSrcSpan
-  if ss2span ss == ((1,1),(1,1))
-    then return ()
-    else do
+  unless (ss2span ss == ((1,1),(1,1))) $
+    do
       -- ma <- getAnnotationDelta ss gann
       ma <- getAndRemoveAnnotationDelta ss gann
       let do_one ap' = addAnnotationWorker ann ap'
@@ -385,8 +380,7 @@ addDeltaAnnotationsOutside gann ann = do
 -- | Add a Delta annotation at the current position, and advance the
 -- position to the end of the annotation
 addDeltaAnnotationExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta ()
-addDeltaAnnotationExt s ann = do
-  addAnnotationWorker (G ann) s
+addDeltaAnnotationExt s ann = addAnnotationWorker (G ann) s
 
 addEofAnnotation :: Delta ()
 addEofAnnotation = do

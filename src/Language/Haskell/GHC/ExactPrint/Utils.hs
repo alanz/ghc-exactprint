@@ -37,15 +37,14 @@ module Language.Haskell.GHC.ExactPrint.Utils
 import Control.Monad (when)
 import Data.Data (Data, toConstr, showConstr, cast)
 import Data.Generics (extQ, ext1Q, ext2Q, gmapQ)
-import Data.List (intersperse)
+import Data.List (intercalate)
 
 import Language.Haskell.GHC.ExactPrint.Types
 
+import qualified GHC
 import qualified Bag            as GHC
-import qualified BasicTypes     as GHC
 import qualified DynFlags       as GHC
 import qualified FastString     as GHC
-import qualified GHC            as GHC
 import qualified Name           as GHC
 import qualified NameSet        as GHC
 import qualified Outputable     as GHC
@@ -140,7 +139,7 @@ srcSpanStartLine _ = 0
 span2ss :: Span -> GHC.SrcSpan
 span2ss ((sr,sc),(er,ec)) = l
   where
-   filename = (GHC.mkFastString "f")
+   filename = GHC.mkFastString "f"
    l = GHC.mkSrcSpan (GHC.mkSrcLoc filename sr sc) (GHC.mkSrcLoc filename er ec)
 
 -- ---------------------------------------------------------------------
@@ -190,16 +189,16 @@ rdrName2String r =
       case r of
         GHC.Unqual _occ       -> GHC.occNameString $ GHC.rdrNameOcc r
         GHC.Qual modname _occ -> GHC.moduleNameString modname ++ "."
-                            ++ (GHC.occNameString $ GHC.rdrNameOcc r)
+                            ++ GHC.occNameString (GHC.rdrNameOcc r)
         GHC.Orig _ _          -> error "GHC.Orig introduced after renaming"
         GHC.Exact _           -> error "GHC.Exact introduced after renaming"
 
 name2String :: GHC.Name -> String
-name2String name = showGhc name
+name2String = showGhc
 
 -- |Show a GHC API structure
 showGhc :: (GHC.Outputable a) => a -> String
-showGhc x = GHC.showPpr GHC.unsafeGlobalDynFlags x
+showGhc = GHC.showPpr GHC.unsafeGlobalDynFlags
 
 -- ---------------------------------------------------------------------
 
@@ -217,14 +216,14 @@ showAnnData anns n =
           `ext2Q` located
   where generic :: Data a => a -> String
         generic t = indent n ++ "(" ++ showConstr (toConstr t)
-                 ++ space (concat (intersperse " " (gmapQ (showAnnData anns (n+1)) t))) ++ ")"
+                 ++ space (unwords (gmapQ (showAnnData anns (n+1)) t)) ++ ")"
         space "" = ""
         space s  = ' ':s
         indent i = "\n" ++ replicate i ' '
         string     = show :: String -> String
         fastString = ("{FastString: "++) . (++"}") . show :: GHC.FastString -> String
         list l     = indent n ++ "["
-                              ++ concat (intersperse "," (map (showAnnData anns (n+1)) l)) ++ "]"
+                              ++ intercalate "," (map (showAnnData anns (n+1)) l) ++ "]"
 
         name       = ("{Name: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Name -> String
         occName    = ("{OccName: "++) . (++"}") .  OccName.occNameString
@@ -232,16 +231,16 @@ showAnnData anns n =
 
         -- srcSpan    = ("{"++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.SrcSpan -> String
         srcSpan :: GHC.SrcSpan -> String
-        srcSpan ss = "{ "++ (showSDoc_ (GHC.hang (GHC.ppr ss) (n+2)
+        srcSpan ss = "{ "++ showSDoc_ (GHC.hang (GHC.ppr ss) (n+2)
                                                  -- (GHC.ppr (Map.lookup ss anns)
                                                  (GHC.text "")
-                                                 ))
+                                                 )
                       ++"}"
 
         var        = ("{Var: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Var -> String
         dataCon    = ("{DataCon: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.DataCon -> String
 
-        overLit :: (GHC.HsOverLit GHC.RdrName) -> String
+        overLit :: GHC.HsOverLit GHC.RdrName -> String
         overLit    = ("{HsOverLit:"++) . (++"}") . showSDoc_ . GHC.ppr
 
         bagRdrName:: GHC.Bag (GHC.Located (GHC.HsBind GHC.RdrName)) -> String
@@ -259,7 +258,7 @@ showAnnData anns n =
         -- located la = show (getAnnotationEP la anns)
         located (GHC.L ss a) =
           indent n ++ "("
-            ++ case (cast ss) of
+            ++ case cast ss of
                     Just (s :: GHC.SrcSpan) ->
                       srcSpan s
                       ++ indent (n + 1) ++
