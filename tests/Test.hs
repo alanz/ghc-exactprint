@@ -10,20 +10,15 @@ import Language.Haskell.GHC.ExactPrint.Types
 import GHC.Paths ( libdir )
 
 
-import qualified Bag                   as GHC
 import qualified DynFlags      as GHC
-import qualified ErrUtils              as GHC
 import qualified FastString    as GHC
 import qualified GHC           as GHC
 import qualified HscTypes              as GHC
-import qualified Lexer                 as GHC
 import qualified MonadUtils    as GHC
 import qualified OccName       as GHC
 import qualified Outputable            as GHC
 import qualified RdrName       as GHC
-import qualified SrcLoc                as GHC
 import qualified StringBuffer          as GHC
--- import qualified Outputable    as GHC
 
 import qualified Data.Generics as SYB
 import qualified GHC.SYB.Utils as SYB
@@ -41,8 +36,6 @@ import Test.HUnit
 
 import Control.Applicative
 import Data.List (partition)
-
--- import qualified Data.Map as Map
 
 -- ---------------------------------------------------------------------
 
