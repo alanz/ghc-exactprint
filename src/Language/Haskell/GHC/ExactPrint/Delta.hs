@@ -3,14 +3,13 @@
 {-# LANGUAGE ViewPatterns #-}
 module Language.Haskell.GHC.ExactPrint.Delta  (relativiseApiAnns) where
 
-import Control.Monad.State
-import Control.Monad.Writer
 import Control.Monad.RWS
 import Control.Applicative
 import Control.Monad.Trans.Free
-import Data.Data
-import Data.List
-import Data.Maybe
+
+import Data.Data (Data)
+import Data.List (sort, nub, partition)
+import Data.Maybe (fromMaybe)
 
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
@@ -19,7 +18,6 @@ import Language.Haskell.GHC.ExactPrint.Annotate (AnnotationF(..), Annotated
 
 import qualified GHC            as GHC
 import qualified SrcLoc         as GHC
-
 
 import qualified Data.Map as Map
 

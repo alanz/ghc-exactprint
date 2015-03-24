@@ -28,7 +28,7 @@ module Language.Haskell.GHC.ExactPrint.Types
 
   ) where
 
-import Data.Data
+import Data.Data (Data, Typeable, toConstr)
 
 import qualified GHC           as GHC
 import qualified Outputable    as GHC

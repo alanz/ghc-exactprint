@@ -32,8 +32,6 @@ import qualified GHC            as GHC
 import qualified Outputable     as GHC
 import qualified SrcLoc         as GHC
 
-import Debug.Trace
-
 
 import Control.Monad.Trans.Free
 import Control.Monad.Free.TH (makeFreeCon)
@@ -737,7 +735,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,
     mark GHC.AnnWhere
     mark GHC.AnnOpenC -- '{'
     markInside GHC.AnnSemi
-    markWithLayout (GHC.L (traceShowId $ getLocalBindsSrcSpan lb) lb)
+    markWithLayout (GHC.L (getLocalBindsSrcSpan lb) lb)
     mark GHC.AnnCloseC -- '}'
 
 -- ---------------------------------------------------------------------

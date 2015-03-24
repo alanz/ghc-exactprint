@@ -38,10 +38,10 @@ module Language.Haskell.GHC.ExactPrint.Utils
   ) where
 
 
-import Control.Monad.State
-import Data.Data
-import Data.Generics
-import Data.List
+import Control.Monad (when)
+import Data.Data (Data, toConstr, showConstr, cast)
+import Data.Generics (extQ, ext1Q, ext2Q, gmapQ)
+import Data.List (intersperse)
 
 import Language.Haskell.GHC.ExactPrint.Types
 

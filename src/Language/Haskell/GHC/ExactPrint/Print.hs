@@ -6,9 +6,7 @@
 
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Language.Haskell.GHC.ExactPrint
---
--- Based on Language.Haskell.Exts.Annotated.ExactPrint
+-- Module      :  Language.Haskell.GHC.ExactPrint.Print
 --
 -----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint.Print
@@ -29,8 +27,8 @@ import Language.Haskell.GHC.ExactPrint.Delta ( relativiseApiAnns )
 
 import Control.Applicative
 import Control.Monad.RWS
-import Data.Data
-import Data.List
+import Data.Data (Data)
+import Data.List (partition)
 import Data.Maybe (mapMaybe, fromMaybe, maybeToList)
 
 import Control.Monad.Trans.Free
