@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE UndecidableInstances #-} -- for GHC.DataId
 module Language.Haskell.GHC.ExactPrint.Types
   (
@@ -9,7 +10,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , Span
   , PosToken
   , DeltaPos(..)
-  , ColOffset,ColDelta,Col
+  , ColOffset(..) , ColDelta(..)
   , Annotation(..)
   , combineAnns
   , annNone
@@ -57,9 +58,13 @@ type Pos = (Int,Int)
 type Span = (Pos,Pos)
 
 newtype DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
-type ColOffset = Int -- ^ indentation point for a new line
-type ColDelta  = Int -- ^ difference between two cols
-type Col       = Int
+
+-- | Marks the start of a layout block.
+newtype ColOffset = ColOffset { getColOffset :: Int }
+  deriving (Eq, Show, Num)
+-- | Marks the distance from the start of the layout block to the element.
+newtype ColDelta  = ColDelta { getColDelta :: Int }
+  deriving (Eq, Show, Num)
 
 annNone :: Annotation
 annNone = Ann (DP (0,0)) 0 []
@@ -71,8 +76,8 @@ combineAnns (Ann ed1 c1 dps1) (Ann _ed2  _c2  dps2)
 data Annotation = Ann
   {
     annEntryDelta      :: !DeltaPos -- ^ Offset used to get to the start
-                                  --    of the SrcSpan.
-  , annDelta           :: !ColOffset -- ^ Offset from the start of the current layout
+                                    --    of the SrcSpan.
+  , annDelta           :: !ColDelta -- ^ Offset from the start of the current layout
                                    --  block. This is used when moving onto new
                                    --  lines when layout rules must be obeyed.
   , annsDP             :: [(KeywordId, DeltaPos)]  -- ^ Annotations associated with this element.

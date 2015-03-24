@@ -102,7 +102,7 @@ ss2deltaP (refl,refc) (l,c) = DP (lo,co)
 -- | Apply the delta to the current position, taking into account the
 -- current column offset if advancing to a new line
 undelta :: Pos -> DeltaPos -> ColOffset -> Pos
-undelta (l,c) (DP (dl,dc)) co = (fl,fc)
+undelta (l,c) (DP (dl,dc)) (ColOffset co) = (fl,fc)
   where
     fl = l + dl
     fc = if dl == 0 then c  + dc

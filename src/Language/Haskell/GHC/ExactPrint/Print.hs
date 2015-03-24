@@ -1,4 +1,5 @@
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -61,7 +62,7 @@ data EPState = EPState
              }
 
 data EPStack = EPStack
-             {  epLHS      :: Int -- ^ Marks the column of the LHS of the i
+             {  epLHS      :: ColOffset -- ^ Marks the column of the LHS of the i
                                   --   current layout block
              }
 
@@ -159,7 +160,8 @@ withContext kds an flag = withKds kds . withOffset an flag
 -- offset
 --
 withOffset :: Annotation -> LayoutFlag -> (EP LayoutFlag -> EP LayoutFlag)
-withOffset (Ann (DP (edLine, edColumn)) annOffset  _) flag k = do
+withOffset Ann{annEntryDelta, annDelta} flag k = do
+  let DP (edLine, edColumn) = annEntryDelta
   oldOffset <-  asks epLHS -- Shift from left hand column
   (_l, currentColumn) <- getPos
   rec
@@ -173,10 +175,10 @@ withOffset (Ann (DP (edLine, edColumn)) annOffset  _) flag k = do
     -- (2) The start of the layout block is the old offset added to the
     -- "annOffset" (i.e., how far this annotation was from the edge)
     let offset = case (flag <> f) of
-                       LayoutRules ->
+                       LayoutRules -> ColOffset $
                         if edLine == 0
                           then currentColumn + edColumn
-                          else oldOffset + annOffset
+                          else (getColOffset oldOffset) + (getColDelta annDelta)
                        NoLayoutRules -> oldOffset
     f <-  (local (\s -> s { epLHS = offset }) k)
   return f
@@ -197,7 +199,7 @@ withKds kd action = do
 setLayout :: GHC.AnnKeywordId -> EP () -> EP LayoutFlag
 setLayout akiwd k = do
   p <- gets epPos
-  local (\s -> s { epLHS = snd p - (length (keywordToString akiwd))})
+  local (\s -> s { epLHS = ColOffset (snd p - (length (keywordToString akiwd)))})
                   (LayoutRules <$ k)
 
 getPos :: EP Pos
@@ -207,8 +209,8 @@ setPos :: Pos -> EP ()
 setPos l = modify (\s -> s {epPos = l})
 
 -- |Get the current column offset
-getOffset :: EP ColOffset
-getOffset = asks epLHS
+getLayoutOffset :: EP ColOffset
+getLayoutOffset = asks epLHS
 
 -- ---------------------------------------------------------------------
 
@@ -269,7 +271,7 @@ printStringAtLsDelta cs mc s =
   case reverse mc of
     (cl:_) -> do
       p <- getPos
-      colOffset <- getOffset
+      colOffset <- getLayoutOffset
       if isGoodDeltaWithOffset cl colOffset
         then do
           mapM_ printQueuedComment cs
@@ -279,14 +281,14 @@ printStringAtLsDelta cs mc s =
     _ -> return ()
 
 
-isGoodDeltaWithOffset :: DeltaPos -> Int -> Bool
+isGoodDeltaWithOffset :: DeltaPos -> ColOffset -> Bool
 isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP (undelta (0,0) dp colOffset))
 
 -- AZ:TODO: harvest the commonality between this and printStringAtLsDelta
 printQueuedComment :: DComment -> EP ()
 printQueuedComment (DComment (dp,de) s) = do
   p <- getPos
-  colOffset <- getOffset
+  colOffset <- getLayoutOffset
   let (dr,dc) = undelta (0,0) dp colOffset
   if isGoodDelta (DP (dr,max 0 dc)) -- do not lose comments against the left margin
     then do
