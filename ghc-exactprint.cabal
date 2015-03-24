@@ -23,6 +23,9 @@ maintainer:          alan.zimm@gmail.com
 category:            Development
 build-type:          Simple
 extra-source-files:  ChangeLog
+                     tests/examples/*.hs
+                     tests/examples/*.hs.expected
+                     tests/examples/*.hs-boot
 cabal-version:       >=1.10
 
 source-repository head
