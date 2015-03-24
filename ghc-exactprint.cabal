@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                ghc-exactprint
-version:             0.1.1.0
+version:             0.2
 synopsis:            ExactPrint for GHC
 description:         Using the API Annotations available from GHC 7.10 RC2, this
                      library provides a means to round trip any* code that can
@@ -17,13 +17,17 @@ description:         Using the API Annotations available from GHC 7.10 RC2, this
 
 license:             BSD3
 license-file:        LICENSE
-author:              Alan Zimmerman, Matt Pickering
+author:              Alan Zimmerman, Matthew Pickering
 maintainer:          alan.zimm@gmail.com
 -- copyright:
 category:            Development
 build-type:          Simple
 extra-source-files:  ChangeLog
 cabal-version:       >=1.10
+
+source-repository head
+  type:     git
+  location: https://github.com/alanz/ghc-exactprint.git
 
 library
   exposed-modules:     Language.Haskell.GHC.ExactPrint
@@ -72,8 +76,5 @@ Test-Suite test
                      , stm
                      , syb
 
-source-repository head
-  type:     git
-  location: https://github.com/alanz/ghc-exactprint.git
 
 
