@@ -1,6 +1,4 @@
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ViewPatterns #-}
 module Language.Haskell.GHC.ExactPrint.Delta  (relativiseApiAnns) where
 
 import Control.Monad.RWS
