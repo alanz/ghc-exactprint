@@ -1,3 +1,46 @@
+2015-03-24 v0.2
+	This release contains a major rewrite of all internal modules.
+
+	The external interface has also changed significantly. A description is
+	omitted.
+
+	# Top-level changes
+	The most notable change is that the common structor of the modules known as
+	`ExactPrint` and `Annotate` has been factored out into a common module
+	(`Annotate`). The aforementioned modules are now known as `Delta` and
+	`Print` and contain functions to interpret this common structure.
+
+	The top level module `ExactPrint` now just reexports a consistent interface
+	from the base modules.
+
+	The `Utils` module is now hidden.
+
+	Introduced a new module `Lookup` which contains a mapping from AnnKeywordId
+	to their String representation.
+
+	# Internal Changes
+
+	`Annotate` contains all the information about which annotations appear on
+	each AST element. This is achieved by building up a syntax tree (using a
+	free monad) which can then be interpreted by programs requiring access to
+	this information.
+
+	# Layout compensation
+
+	The method which compensates for layout rules has been clarified.
+
+		1. When the Layout Flag is activated in `Annotate`. When it is activated, we mark
+	the current column as the start of the layout block.
+
+		2. This is important when we move to a new line. We take the offset at
+		that current point to be the baseline and calculate the correct next
+		position based on this.
+
+		3. This method is very general as one can think of a entire source file as
+		obeying layout rules where the offset is equal to zero.
+
+
+
 2015-03-11 v0.1.1.0
 	Handles indentation when the AST is edited
 	Major rework of internal monads by @mpickering
