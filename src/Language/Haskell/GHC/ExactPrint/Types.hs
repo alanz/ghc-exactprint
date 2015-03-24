@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE UndecidableInstances #-} -- for GHC.DataId
 module Language.Haskell.GHC.ExactPrint.Types
   (
@@ -9,8 +10,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , Span
   , PosToken
   , DeltaPos(..)
-  , ColOffset,ColDelta,Col
-  , LineChanged(..)
+  , LayoutStartCol(..) , ColDelta(..)
   , Annotation(..)
   , combineAnns
   , annNone
@@ -19,16 +19,17 @@ module Language.Haskell.GHC.ExactPrint.Types
   , mkAnnKey
   , AnnConName(..)
   , annGetConstr
-  , unConName
 
   , ResTyGADTHook(..)
 
   , getAnnotationEP
   , getAndRemoveAnnotationEP
 
+  , LayoutFlag(..)
+
   ) where
 
-import Data.Data
+import Data.Data (Data, Typeable, toConstr)
 
 import qualified GHC           as GHC
 import qualified Outputable    as GHC
@@ -56,42 +57,35 @@ type PosToken = (GHC.Located GHC.Token, String)
 type Pos = (Int,Int)
 type Span = (Pos,Pos)
 
-data DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
-type ColOffset = Int -- ^ indentation point for a new line
-type ColDelta  = Int -- ^ difference between two cols
-type Col       = Int
+newtype DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
+
+-- | Marks the start column of a layout block.
+newtype LayoutStartCol = LayoutStartCol { getLayoutStartCol :: Int }
+  deriving (Eq, Show, Num)
+-- | Marks the distance from the start of the layout block to the element.
+newtype ColDelta  = ColDelta { getColDelta :: Int }
+  deriving (Eq, Show, Num)
 
 annNone :: Annotation
-annNone = Ann (DP (0,0)) LineSame 0 0 []
+annNone = Ann (DP (0,0)) 0 []
 
 combineAnns :: Annotation -> Annotation -> Annotation
-combineAnns (Ann ed1 nl1 c1 dp1 dps1) (Ann _ed2 _nl2 _c2 _dp2 dps2)
-  = Ann ed1 nl1 c1 dp1 (dps1 ++ dps2)
-
-data LineChanged = LineSame | LineChanged
-                 | KeepOffset -- ^ For use in AST editing
-                 | LayoutLineSame | LayoutLineChanged -- experimental, may replace LineSame and LineChanged
-                 deriving (Show,Eq,Typeable)
+combineAnns (Ann ed1 c1 dps1) (Ann _ed2  _c2  dps2)
+  = Ann ed1 c1 (dps1 ++ dps2)
 
 data Annotation = Ann
   {
-    ann_entry_delta  :: !DeltaPos -- ^ Offset used to get to the start
-                                  -- of the SrcSpan, during the
-                                  -- annotatePC phase
-  , ann_original_nl  :: !LineChanged -- ^ Did the original span start
-                                     -- on a new line wrt to the prior
-                                     -- one?
-  , ann_original_col :: !Col      -- ^ Start of the SrcSpan, as used
-                                  -- during the annotatePC phase
-  , ann_delta        :: !ColOffset -- ^ Indentation level introduced
-                                   -- by this SrcSpan, for other items
-                                   -- at same layout level
-  , anns             :: [(KeywordId, DeltaPos)] -- TODO:AZ change this to ann_dps
+    annEntryDelta      :: !DeltaPos -- ^ Offset used to get to the start
+                                    --    of the SrcSpan.
+  , annDelta           :: !ColDelta -- ^ Offset from the start of the current layout
+                                   --  block. This is used when moving onto new
+                                   --  lines when layout rules must be obeyed.
+  , annsDP             :: [(KeywordId, DeltaPos)]  -- ^ Annotations associated with this element.
 
   } deriving (Typeable,Eq)
 
 instance Show Annotation where
-  show (Ann dp nl c d ans) = "(Ann (" ++ show dp ++ ") " ++ show nl ++ " " ++ show c ++ " " ++ show d ++ " " ++ show ans ++ ")"
+  show (Ann dp c ans) = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ " " ++ show ans ++ ")"
 
 instance Monoid Annotation where
   mempty = annNone
@@ -109,25 +103,11 @@ mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
 mkAnnKey (GHC.L l a) = AnnKey l (annGetConstr a)
 
 -- Holds the name of a constructor
-data AnnConName = CN String
+data AnnConName = CN { unConName :: String }
                  deriving (Eq,Show,Ord)
 
 annGetConstr :: (Data a) => a -> AnnConName
 annGetConstr a = CN (show $ toConstr a)
-{-
-annGetConstr a = CN con
-  where
-    -- map all RdrName constuctors to the same field.
-    con = case show $ toConstr a of
-      "Unqual" -> "RdrName"
-      "Qual"   -> "RdrName"
-      "Orig"   -> "RdrName"
-      "Exact"  -> "RdrName"
-      s        -> s
--}
-
-unConName :: AnnConName -> String
-unConName (CN s) = s
 
 -- |We need our own version of keywordid to distinguish between a
 -- semi-colon appearing within an AST element and one separating AST
@@ -144,6 +124,14 @@ data KeywordId = G GHC.AnnKeywordId
                                      -- exactPC can find it, after
                                      -- potential AST edits.
                deriving (Eq,Show,Ord)
+
+data LayoutFlag = LayoutRules | NoLayoutRules deriving (Show, Eq)
+
+instance Monoid LayoutFlag where
+  mempty = NoLayoutRules
+  LayoutRules `mappend` _ = LayoutRules
+  _ `mappend` LayoutRules = LayoutRules
+  _ `mappend` _           = NoLayoutRules
 
 -- ---------------------------------------------------------------------
 
