@@ -29,7 +29,7 @@
 
 	The method which compensates for layout rules has been clarified.
 
-		1. When the Layout Flag is activated in `Annotate`. When it is activated, we mark
+		1. When the Layout Flag is activated in `Annotate`, we mark
 	the current column as the start of the layout block.
 
 		2. This is important when we move to a new line. We take the offset at
@@ -38,7 +38,6 @@
 
 		3. This method is very general as one can think of a entire source file as
 		obeying layout rules where the offset is equal to zero.
-
 
 
 2015-03-11 v0.1.1.0
