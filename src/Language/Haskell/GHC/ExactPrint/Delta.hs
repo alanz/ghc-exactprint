@@ -2,7 +2,6 @@
 module Language.Haskell.GHC.ExactPrint.Delta  (relativiseApiAnns) where
 
 import Control.Monad.RWS
-import Control.Applicative
 import Control.Monad.Trans.Free
 
 import Data.Data (Data)
@@ -138,11 +137,10 @@ simpleInterpret = iterTM go
     go (MarkAfter akwid next) = addDeltaAnnotationAfter akwid >> next
     go (WithAST lss layoutflag prog next) =
       withAST lss layoutflag (simpleInterpret prog) >> next
-    go (OutputKD (kwid, (_, dp)) next) = tellKd (dp, kwid) >> next
     go (CountAnns kwid next) = countAnnsDelta kwid >>= next
     go (SetLayoutFlag kwid action next) = setLayoutFlag kwid (simpleInterpret action)  >> next
     go (MarkExternal ss akwid _ next) = addDeltaAnnotationExt ss akwid >> next
-
+    go (StoreOriginalSrcSpan ss next) = storeOriginalSrcSpanDelta ss >>= next
 
 -- | Used specifically for "HsLet"
 setLayoutFlag :: GHC.AnnKeywordId -> Delta () -> Delta ()
@@ -151,8 +149,14 @@ setLayoutFlag kwid action = do
   tell (mempty { propOffset = First  (Just (LayoutStartCol c)) })
   local (\s -> s { layoutStart = LayoutStartCol c }) action
 
+-- ---------------------------------------------------------------------
 
--- -------------------------------------
+storeOriginalSrcSpanDelta :: GHC.SrcSpan -> Delta GHC.SrcSpan
+storeOriginalSrcSpanDelta ss = do
+  tellKd (AnnList ss,DP (0,0))
+  return ss
+
+-- ---------------------------------------------------------------------
 
 getSrcSpan :: Delta GHC.SrcSpan
 getSrcSpan = asks curSrcSpan
@@ -400,6 +404,5 @@ countAnnsDelta :: GHC.AnnKeywordId -> Delta Int
 countAnnsDelta ann = do
   ma <- getAnnotationDelta ann
   return (length ma)
-
 
 

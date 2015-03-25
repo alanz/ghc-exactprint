@@ -40,28 +40,26 @@ import Control.Monad.Free.TH (makeFreeCon)
 
 
 data AnnotationF next where
-  MarkEOF  :: next -> AnnotationF next
-  MarkPrim :: GHC.AnnKeywordId -> Maybe String -> next -> AnnotationF next
-  MarkExternal :: GHC.SrcSpan -> GHC.AnnKeywordId -> String -> next -> AnnotationF next
-  MarkOutside :: GHC.AnnKeywordId -> KeywordId -> next -> AnnotationF next
-  MarkInside :: GHC.AnnKeywordId -> next -> AnnotationF next
-  MarkMany :: GHC.AnnKeywordId -> next -> AnnotationF next
-  MarkOffsetPrim :: GHC.AnnKeywordId -> Int -> Maybe String -> next -> AnnotationF next
-  MarkAfter :: GHC.AnnKeywordId -> next -> AnnotationF next
-  WithAST  :: Data a => GHC.Located a -> LayoutFlag -> Annotated b ->  next -> AnnotationF next
-  CountAnns ::  GHC.AnnKeywordId -> (Int -> next) -> AnnotationF next
+  MarkEOF  ::                                                         next -> AnnotationF next
+  MarkPrim :: GHC.AnnKeywordId -> Maybe String                     -> next -> AnnotationF next
+  MarkExternal :: GHC.SrcSpan -> GHC.AnnKeywordId -> String        -> next -> AnnotationF next
+  MarkOutside :: GHC.AnnKeywordId -> KeywordId                     -> next -> AnnotationF next
+  MarkInside :: GHC.AnnKeywordId                                   -> next -> AnnotationF next
+  MarkMany :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
+  MarkOffsetPrim :: GHC.AnnKeywordId -> Int -> Maybe String        -> next -> AnnotationF next
+  MarkAfter :: GHC.AnnKeywordId                                    -> next -> AnnotationF next
+  WithAST  :: Data a => GHC.Located a -> LayoutFlag -> Annotated b -> next -> AnnotationF next
+  CountAnns ::  GHC.AnnKeywordId                          -> (Int -> next) -> AnnotationF next
   -- Abstraction breakers
-  SetLayoutFlag ::  GHC.AnnKeywordId -> Annotated () -> next -> AnnotationF next
-  OutputKD :: (DeltaPos, (GHC.SrcSpan, KeywordId)) -> next -> AnnotationF next
+  SetLayoutFlag ::  GHC.AnnKeywordId -> Annotated ()               -> next -> AnnotationF next
+  StoreOriginalSrcSpan :: GHC.SrcSpan             -> (GHC.SrcSpan -> next) -> AnnotationF next
 
 deriving instance Functor (AnnotationF)
-
 
 type Annotated = Free AnnotationF
 
 -- ---------------------------------------------------------------------
 
-makeFreeCon  'OutputKD
 makeFreeCon  'MarkEOF
 makeFreeCon  'MarkPrim
 makeFreeCon  'MarkOutside
@@ -72,6 +70,8 @@ makeFreeCon  'MarkOffsetPrim
 makeFreeCon  'MarkAfter
 makeFreeCon  'CountAnns
 makeFreeCon  'SetLayoutFlag
+makeFreeCon  'StoreOriginalSrcSpan
+
 -- ---------------------------------------------------------------------
 -- Additional smart constructors
 
@@ -122,11 +122,18 @@ markList xs = mapM_ markLocated xs
 markWithLayout :: Annotate ast => GHC.Located ast -> Annotated ()
 markWithLayout a = withLocated a LayoutRules markAST
 
-markListWithLayout :: Annotate [GHC.Located ast] => GHC.SrcSpan -> [GHC.Located ast] -> Annotated ()
-markListWithLayout l ls = do
+markListWithLayout :: Annotate [GHC.Located ast] => [GHC.Located ast] -> Annotated ()
+markListWithLayout ls = do
   let ss = getListSrcSpan ls
-  outputKD $ ((DP (0,0)), (l,AnnList ss))
-  markWithLayout (GHC.L ss ls)
+  ss' <- storeOriginalSrcSpan ss
+  markWithLayout (GHC.L ss' ls)
+
+markLocalBindsWithLayout :: (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
+  => GHC.HsLocalBinds name -> Annotated ()
+markLocalBindsWithLayout binds = do
+  let ss = getLocalBindsSrcSpan binds
+  ss' <- storeOriginalSrcSpan ss
+  markWithLayout (GHC.L ss' binds)
 
 -- ---------------------------------------------------------------------
 -- Managing lists which have been separated, e.g. Sigs and Binds
@@ -1306,10 +1313,10 @@ markHsLocalBinds (GHC.EmptyLocalBinds)                 = return ()
 
 markMatchGroup :: (GHC.DataId name,GHC.OutputableBndr name,Annotate name,
                                                Annotate body)
-                   => GHC.SrcSpan -> (GHC.MatchGroup name (GHC.Located body))
+                   => GHC.SrcSpan -> GHC.MatchGroup name (GHC.Located body)
                    -> Annotated ()
-markMatchGroup l (GHC.MG matches _ _ _)
-  = markListWithLayout l matches
+markMatchGroup _ (GHC.MG matches _ _ _)
+  = markListWithLayout matches
 
 -- ---------------------------------------------------------------------
 
@@ -1397,12 +1404,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     setLayoutFlag GHC.AnnLet (do -- Make sure the 'in' gets indented too
       mark GHC.AnnOpenC
       markInside GHC.AnnSemi
-      markWithLayout (GHC.L (getLocalBindsSrcSpan binds) binds)
+      markLocalBindsWithLayout binds
       mark GHC.AnnCloseC
       mark GHC.AnnIn
       markLocated e)
 
-  markAST l (GHC.HsDo cts es _) = do
+  markAST _ (GHC.HsDo cts es _) = do
     mark GHC.AnnDo
     let (ostr,cstr,_isComp) =
           if isListComp cts
@@ -1421,7 +1428,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
         mark GHC.AnnVbar
         mapM_ markLocated (init es)
       else do
-        markListWithLayout l es
+        markListWithLayout es
     mark GHC.AnnCloseS
     mark GHC.AnnCloseC
     markWithString GHC.AnnClose cstr
@@ -1716,11 +1723,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mark GHC.AnnIn
     markLocated e
 
-  markAST l (GHC.HsCmdDo es _) = do
+  markAST _ (GHC.HsCmdDo es _) = do
     mark GHC.AnnDo
     mark GHC.AnnOpenC
-    -- mapM_ markLocated es
-    markListWithLayout l es
+    markListWithLayout es
     mark GHC.AnnCloseC
 
   markAST _ (GHC.HsCmdCast {}) = error $ "markP.HsCmdCast: only valid after type checker"

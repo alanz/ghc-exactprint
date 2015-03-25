@@ -22,7 +22,6 @@ import Language.Haskell.GHC.ExactPrint.Annotate
 import Language.Haskell.GHC.ExactPrint.Lookup (keywordToString)
 import Language.Haskell.GHC.ExactPrint.Delta ( relativiseApiAnns )
 
-import Control.Applicative
 import Control.Monad.RWS
 import Data.Data (Data)
 import Data.List (partition)
@@ -61,9 +60,9 @@ data EPState = EPState
                                                         -- AZ, it is already in the last element of Annotation, for withOffset
              }
 
-data EPStack = EPStack
-            {  epLHS      :: LayoutStartCol -- ^ Marks the column of the LHS of the i
-                                  --   current layout block
+data EPReader = EPReader
+            {  epLHS      :: LayoutStartCol -- ^ Marks the column of the LHS of
+                                            -- the current layout block
              }
 
 defaultEPState :: Anns -> EPState
@@ -73,8 +72,8 @@ defaultEPState as = EPState
              , epAnnKds = []
              }
 
-initialEPStack :: EPStack
-initialEPStack  = EPStack
+initialEPReader :: EPReader
+initialEPReader  = EPReader
              { epLHS = 0
              }
 
@@ -87,12 +86,12 @@ instance Monoid EPWriter where
 
 ---------------------------------------------------------
 
-type EP a = RWS EPStack EPWriter EPState a
+type EP a = RWS EPReader EPWriter EPState a
 
 runEP :: Annotated () -> Anns -> String
 runEP action ans =
   flip appEndo "" . output . snd
-  . (\next -> execRWS next initialEPStack (defaultEPState ans))
+  . (\next -> execRWS next initialEPReader (defaultEPState ans))
   . printInterpret $ action
 
 
@@ -120,15 +119,29 @@ printInterpret = iterTM go
       justOne akwid >> next
     go (WithAST lss flag action next) =
       exactPC lss flag (NoLayoutRules <$ printInterpret action) >> next
-    go (OutputKD _ next) =
-      next
     go (CountAnns kwid next) =
       countAnnsEP (G kwid) >>= next
     go (SetLayoutFlag kwid action next) =
       setLayout kwid (printInterpret action) >> next
     go (MarkExternal _ akwid s next) =
       printStringAtMaybeAnn (G akwid) s >> next
+    go (StoreOriginalSrcSpan ss next) = storeOriginalSrcSpanPrint ss >>= next
 
+-------------------------------------------------------------------------
+
+storeOriginalSrcSpanPrint :: GHC.SrcSpan -> EP GHC.SrcSpan
+storeOriginalSrcSpanPrint _ss = do
+  kd <- gets epAnnKds
+
+  let
+    isAnnList (AnnList _,_) = True
+    isAnnList _             = False
+
+  case filter isAnnList (head kd) of
+    ((AnnList ss,_):_) -> return ss
+    _                  -> return GHC.noSrcSpan
+
+-------------------------------------------------------------------------
 justOne, allAnns :: GHC.AnnKeywordId -> EP ()
 justOne kwid = printStringAtMaybeAnn (G kwid) (keywordToString kwid)
 allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString kwid)
