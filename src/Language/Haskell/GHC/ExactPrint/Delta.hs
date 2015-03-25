@@ -20,15 +20,6 @@ import qualified Data.Map as Map
 
 
 -- ---------------------------------------------------------------------
---
--- | Type used in the Delta Monad. The state variables maintain
---    - the current SrcSpan and the constructor of the thing it encloses
---      as a stack to the root of the AST as it is traversed,
---    - the srcspan of the last thing annotated, to calculate delta's from
---    - extra data needing to be stored in the monad
---    - the annotations provided by GHC
-type Delta a = RWS DeltaStack DeltaWriter DeltaState a
-
 -- | Transform concrete annotations into relative annotations which are
 -- more useful when transforming an AST.
 relativiseApiAnns :: Annotate ast
@@ -37,6 +28,16 @@ relativiseApiAnns :: Annotate ast
                   -> Anns
 relativiseApiAnns modu@(GHC.L ss _) ghcAnns
    = runDelta (markLocated modu) ghcAnns ss
+
+-- ---------------------------------------------------------------------
+--
+-- | Type used in the Delta Monad. The state variables maintain
+--    - the current SrcSpan and the constructor of the thing it encloses
+--      as a stack to the root of the AST as it is traversed,
+--    - the srcspan of the last thing annotated, to calculate delta's from
+--    - extra data needing to be stored in the monad
+--    - the annotations provided by GHC
+type Delta a = RWS DeltaStack DeltaWriter DeltaState a
 
 
 runDelta :: Annotated () -> GHC.ApiAnns -> GHC.SrcSpan -> Anns
@@ -246,12 +247,18 @@ withAST lss@(GHC.L ss _) layout action = do
     let maskWriter s = s { annKds = []
                          , propOffset = First Nothing }
 
+    -- make sure all kds are relative to the start of the SrcSpan
+    when (GHC.isGoodSrcSpan ss) $
+      setPriorEnd (GHC.mkSrcSpan (GHC.srcSpanEnd ss) (GHC.srcSpanEnd ss))
+
     (res, w) <- censor maskWriter (listen action)
     let edp = adjustDeltaForOffset
                 -- Use the propagated offset if one is set
                 (fromMaybe off (getFirst $ propOffset w))
                   (deltaFromSrcSpans pe ss)
+
     let kds = annKds w
+
     addAnnotationsDelta Ann
                           { annEntryDelta = edp
                           , annDelta   = ColDelta (srcSpanStartColumn ss

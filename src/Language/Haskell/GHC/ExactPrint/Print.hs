@@ -94,8 +94,7 @@ runEP action ans =
   . (\next -> execRWS next initialEPReader (defaultEPState ans))
   . printInterpret $ action
 
-
-
+-- ---------------------------------------------------------------------
 
 printInterpret :: Annotated a -> EP a
 printInterpret = iterTM go
@@ -142,8 +141,9 @@ storeOriginalSrcSpanPrint _ss = do
     _                  -> return GHC.noSrcSpan
 
 -------------------------------------------------------------------------
+
 justOne, allAnns :: GHC.AnnKeywordId -> EP ()
-justOne kwid = printStringAtMaybeAnn (G kwid) (keywordToString kwid)
+justOne kwid = printStringAtMaybeAnn    (G kwid) (keywordToString kwid)
 allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString kwid)
 
 -------------------------------------------------------------------------
@@ -152,14 +152,20 @@ exactPC :: Data ast => GHC.Located ast -> LayoutFlag -> EP LayoutFlag -> EP Layo
 exactPC ast flag action =
     do return () `debug` ("exactPC entered for:" ++ showGhc (GHC.getLoc ast))
        ma <- getAndRemoveAnnotation ast
-       let an@(Ann _ _ kds) = fromMaybe annNone ma
-       withContext kds an flag action
+       let an@(Ann edp _ kds) = fromMaybe annNone ma
+       withContext kds an flag (advanceToDP edp >> action)
 
 getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
 getAndRemoveAnnotation a = do
   (r, an') <- gets (getAndRemoveAnnotationEP a . epAnns)
   modify (\s -> s { epAnns = an' })
   return r
+
+advanceToDP :: DeltaPos -> EP ()
+advanceToDP dp = do
+  p <- getPos
+  colOffset <- getLayoutOffset
+  printStringAt (undelta p dp colOffset) ""
 
 withContext :: [(KeywordId, DeltaPos)]
             -> Annotation

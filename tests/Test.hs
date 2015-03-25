@@ -200,7 +200,6 @@ formatTT (ts, fs) = do
 tt :: IO ()
 tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     {-
-    , manipulateAstTestWFname "LetExpr.hs"               "LetExpr"
     -}
     -- , manipulateAstTestWFname "ExprPragmas.hs"           "ExprPragmas"
     {-
@@ -292,7 +291,6 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname "LetExprSemi.hs"           "LetExprSemi"
     , manipulateAstTestWFname "LetExpr2.hs"              "Main"
     , manipulateAstTestWFname "LetStmt.hs"               "Layout.LetStmt"
-    , manipulateAstTestWFname "LayoutLet.hs"             "Main"
     -}
     -- , manipulateAstTestWFname "ImplicitParams.hs"        "Main"
     {-
@@ -319,16 +317,18 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWithMod changeRename1    "Rename1.hs"  "Main"
     , manipulateAstTestWFname    "Rename1.hs"  "Main"
     -}
+    -- , manipulateAstTestWFname "LetExpr.hs"               "LetExpr"
     -- , manipulateAstTestWFname "Rules.hs"                 "Rules"
     -- , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
     -- , manipulateAstTestWFname "LayoutIn3.hs"             "LayoutIn3"
     -- , manipulateAstTestWFname "LayoutIn3a.hs"             "LayoutIn3a"
     -- , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3a.hs" "LayoutIn3a"
     -- , manipulateAstTestWFname "LetIn1.hs"             "LetIn1"
-    , manipulateAstTestWFnameMod changeLetIn1  "LetIn1.hs" "LetIn1"
+    -- , manipulateAstTestWFnameMod changeLetIn1  "LetIn1.hs" "LetIn1"
     -- , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3b.hs" "LayoutIn3b"
     -- , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3.hs" "LayoutIn3"
     -- , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
+    , manipulateAstTestWFname "LayoutLet.hs"             "Main"
     {-
     , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
     , manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"

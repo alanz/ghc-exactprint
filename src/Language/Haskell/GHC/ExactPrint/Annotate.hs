@@ -73,6 +73,17 @@ makeFreeCon  'SetLayoutFlag
 makeFreeCon  'StoreOriginalSrcSpan
 
 -- ---------------------------------------------------------------------
+-- |Main driver point for annotations.
+withAST :: Data a => GHC.Located a -> LayoutFlag -> Annotated () -> Annotated ()
+withAST lss layout action = liftF (WithAST lss layout prog ())
+  where
+    prog = do
+      action
+      -- Automatically add any trailing comma or semi
+      markAfter GHC.AnnComma
+      markOutside GHC.AnnSemi AnnSemiSep
+
+-- ---------------------------------------------------------------------
 -- Additional smart constructors
 
 mark :: GHC.AnnKeywordId -> Annotated ()
@@ -87,21 +98,18 @@ markOffsetWithString kwid n s = markOffsetPrim kwid n (Just s)
 markOffset :: GHC.AnnKeywordId -> Int -> Annotated ()
 markOffset kwid n = markOffsetPrim kwid n Nothing
 
-withAST :: Data a => GHC.Located a -> LayoutFlag -> Annotated () -> Annotated ()
-withAST lss layout action = liftF (WithAST lss layout prog ())
-  where
-    prog = do
-      action
-      -- Automatically add any trailing comma or semi
-      markAfter GHC.AnnComma
-      markOutside GHC.AnnSemi AnnSemiSep
 -- ---------------------------------------------------------------------
-
 
 -- | Constructs a syntax tree which contains information about which
 -- annotations are required by each element.
 markLocated :: (Annotate ast) => GHC.Located ast -> Annotated ()
 markLocated a = withLocated a NoLayoutRules markAST
+
+-- | Constructs a syntax tree which contains information about which
+-- annotations are required by each element, flagging the item to be annotated
+-- as requiring layout according to the haskell layout rules.
+markWithLayout :: Annotate ast => GHC.Located ast -> Annotated ()
+markWithLayout a = withLocated a LayoutRules markAST
 
 withLocated :: Data a
             => GHC.Located a
@@ -111,16 +119,7 @@ withLocated :: Data a
 withLocated a@(GHC.L l ast) layoutFlag action =
   withAST a layoutFlag (action l ast)
 
-markMaybe :: (Annotate ast) => Maybe (GHC.Located ast) -> Annotated ()
-markMaybe Nothing    = return ()
-markMaybe (Just ast) = markLocated ast
-
-markList :: (Annotate ast) => [GHC.Located ast] -> Annotated ()
-markList xs = mapM_ markLocated xs
-
--- | Flag the item to be annotated as requiring layout.
-markWithLayout :: Annotate ast => GHC.Located ast -> Annotated ()
-markWithLayout a = withLocated a LayoutRules markAST
+-- ---------------------------------------------------------------------
 
 markListWithLayout :: Annotate [GHC.Located ast] => [GHC.Located ast] -> Annotated ()
 markListWithLayout ls = do
@@ -134,6 +133,15 @@ markLocalBindsWithLayout binds = do
   let ss = getLocalBindsSrcSpan binds
   ss' <- storeOriginalSrcSpan ss
   markWithLayout (GHC.L ss' binds)
+
+-- ---------------------------------------------------------------------
+
+markMaybe :: (Annotate ast) => Maybe (GHC.Located ast) -> Annotated ()
+markMaybe Nothing    = return ()
+markMaybe (Just ast) = markLocated ast
+
+markList :: (Annotate ast) => [GHC.Located ast] -> Annotated ()
+markList xs = mapM_ markLocated xs
 
 -- ---------------------------------------------------------------------
 -- Managing lists which have been separated, e.g. Sigs and Binds
