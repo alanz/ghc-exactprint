@@ -19,7 +19,7 @@ import Data.Maybe (fromMaybe)
 import Control.Monad (when)
 
 import Language.Haskell.GHC.ExactPrint.Types
-import Language.Haskell.GHC.ExactPrint.Utils (rdrName2String, showGhc, isListComp, debug)
+import Language.Haskell.GHC.ExactPrint.Utils (rdrName2String, isListComp, debug)
 
 import qualified Bag            as GHC
 import qualified BasicTypes     as GHC

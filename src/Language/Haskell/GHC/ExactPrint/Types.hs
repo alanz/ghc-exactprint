@@ -27,10 +27,12 @@ module Language.Haskell.GHC.ExactPrint.Types
 
   , LayoutFlag(..)
 
+  , showGhc
   ) where
 
 import Data.Data (Data, Typeable, toConstr)
 
+import qualified DynFlags       as GHC
 import qualified GHC
 import qualified Outputable    as GHC
 
@@ -97,14 +99,22 @@ type Anns = Map.Map AnnKey Annotation
 -- a as the key, to store the standard annotation.
 -- These are used to maintain context in the AP and EP monads
 data AnnKey   = AnnKey GHC.SrcSpan AnnConName
-                  deriving (Eq, Show, Ord)
+                  deriving (Eq, Ord)
+
+-- More compact Show instance
+instance Show AnnKey where
+  show (AnnKey ss cn) = "AnnKey " ++ showGhc ss ++ " " ++ show cn
 
 mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
 mkAnnKey (GHC.L l a) = AnnKey l (annGetConstr a)
 
 -- Holds the name of a constructor
 data AnnConName = CN { unConName :: String }
-                 deriving (Eq,Show,Ord)
+                 deriving (Eq,Ord)
+
+-- More compact show instance
+instance Show AnnConName where
+  show (CN s) = "CN " ++ show s
 
 annGetConstr :: (Data a) => a -> AnnConName
 annGetConstr a = CN (show $ toConstr a)
@@ -175,5 +185,11 @@ getAndRemoveAnnotationEP (GHC.L ss a) annotations
     case Map.lookup key annotations of
          Nothing  -> (Nothing, annotations)
          Just av -> (Just av, Map.delete key annotations)
+
+-- ---------------------------------------------------------------------
+
+-- |Show a GHC API structure
+showGhc :: (GHC.Outputable a) => a -> String
+showGhc = GHC.showPpr GHC.unsafeGlobalDynFlags
 
 -- ---------------------------------------------------------------------

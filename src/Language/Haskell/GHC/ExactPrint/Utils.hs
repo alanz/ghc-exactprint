@@ -196,10 +196,6 @@ rdrName2String r =
 name2String :: GHC.Name -> String
 name2String = showGhc
 
--- |Show a GHC API structure
-showGhc :: (GHC.Outputable a) => a -> String
-showGhc = GHC.showPpr GHC.unsafeGlobalDynFlags
-
 -- ---------------------------------------------------------------------
 
 -- Based on ghc-syb-utils version, but adding the annotation

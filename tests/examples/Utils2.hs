@@ -13,7 +13,7 @@ import Data.Maybe
 import Data.Monoid
 
 -- import Language.Haskell.GHC.ExactPrint.Utils
-import Language.Haskell.GHC.ExactPrint.Types
+import Language.Haskell.GHC.ExactPrint.Types hiding (showGhc)
 
 import qualified Bag            as GHC
 import qualified BasicTypes     as GHC
