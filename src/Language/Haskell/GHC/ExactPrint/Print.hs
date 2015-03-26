@@ -153,8 +153,8 @@ exactPC ast flag action =
     do return () `debug` ("exactPC entered for:" ++ showGhc (GHC.getLoc ast))
        ma <- getAndRemoveAnnotation ast
        let an@(Ann edp _ kds) = fromMaybe annNone ma
-       -- withContext kds an flag (advanceToDP edp >> action)
-       withContext kds an flag action
+       withContext kds an flag (advanceToDP edp >> action)
+       -- withContext kds an flag action
 
 getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
 getAndRemoveAnnotation a = do

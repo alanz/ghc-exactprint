@@ -249,8 +249,8 @@ withAST lss@(GHC.L ss _) layout action = do
                          , propOffset = First Nothing }
 
     -- make sure all kds are relative to the start of the SrcSpan
-    -- when (GHC.isGoodSrcSpan ss) $
-    --   setPriorEnd (GHC.mkSrcSpan (GHC.srcSpanEnd ss) (GHC.srcSpanEnd ss))
+    when (GHC.isGoodSrcSpan ss) $
+      setPriorEnd (max pe (ss2pos ss))
 
     (res, w) <- censor maskWriter (listen action)
     let edp = adjustDeltaForOffset
@@ -297,7 +297,7 @@ addAnnotationWorker ann pa = do
           cs <- getUnallocatedComments
           let (allocated,cs') = allocatePriorComments cs pa
           putUnallocatedComments cs'
-          return () `debug`("addAnnotationWorker:(ss,pa,allocated,cs)=" ++ showGhc (ss,pa,allocated,cs))
+          -- return () `debug`("addAnnotationWorker:(ss,pa,allocated,cs)=" ++ showGhc (ss,pa,allocated,cs))
           mapM_ addDeltaComment allocated
           p' <- adjustDeltaForOffsetM p
           addAnnDeltaPos ann p'

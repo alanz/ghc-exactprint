@@ -299,7 +299,6 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWithMod changeLayoutLet5 "LayoutLet5.hs" "LayoutLet5"
     , manipulateAstTestWFname "EmptyMostly2.hs"          "EmptyMostly2"
     , manipulateAstTestWFname "WhereIn4.hs"              "WhereIn4"
-    , manipulateAstTestWFname "AltsSemis.hs"             "Main"
     , manipulateAstTestWFname "PArr.hs"                  "PArr"
     -}
     -- , manipulateAstTestWFname "Dead1.hs"                 "Dead1"
@@ -317,6 +316,7 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWithMod changeRename1    "Rename1.hs"  "Main"
     , manipulateAstTestWFname    "Rename1.hs"  "Main"
     -}
+    , manipulateAstTestWFname "AltsSemis.hs"             "Main"
     -- , manipulateAstTestWFname "LetExpr.hs"               "LetExpr"
     -- , manipulateAstTestWFname "Rules.hs"                 "Rules"
     -- , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
@@ -329,7 +329,7 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3.hs" "LayoutIn3"
     -- , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
     -- , manipulateAstTestWFname "LayoutLet.hs"             "Main"
-    , manipulateAstTestWFname "Simple.hs"             "Main"
+    -- , manipulateAstTestWFname "Simple.hs"             "Main"
     {-
     , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
     , manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"

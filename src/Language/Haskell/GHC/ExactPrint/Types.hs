@@ -141,7 +141,13 @@ data KeywordId = G GHC.AnnKeywordId
                                      -- needs to be preserved so that
                                      -- exactPC can find it, after
                                      -- potential AST edits.
-               deriving (Eq,Show,Ord)
+               deriving (Eq,Ord)
+
+instance Show KeywordId where
+  show (G gc)          = "(G " ++ show gc ++ ")"
+  show AnnSemiSep      = "AnnSemiSep"
+  show (AnnComment dc) = "(AnnComment " ++ show dc ++ ")"
+  show (AnnList ss)    = "(AnnList " ++ showGhc ss ++ ")"
 
 data LayoutFlag = LayoutRules | NoLayoutRules deriving (Show, Eq)
 

@@ -730,10 +730,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,
       (True,[a,b]) -> do
         markLocated a
         case mln of
-          Nothing -> do
-            markWithString GHC.AnnOpen "`" -- possible '`'
-            mark GHC.AnnFunId
-            markWithString GHC.AnnClose "`"-- possible '`'
+          Nothing -> return ()
           Just (n,_) -> markLocated n
         markLocated b
       _ -> do
@@ -742,6 +739,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,
           Just (n,_) -> markLocated n
         mapM_ markLocated pats
 
+    -- TODO: The AnnEqual annotation actually belongs in the first GRHS value
     mark GHC.AnnEqual
     mark GHC.AnnRarrow -- For HsLam
 
