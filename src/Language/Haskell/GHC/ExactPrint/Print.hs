@@ -153,7 +153,8 @@ exactPC ast flag action =
     do return () `debug` ("exactPC entered for:" ++ showGhc (GHC.getLoc ast))
        ma <- getAndRemoveAnnotation ast
        let an@(Ann edp _ kds) = fromMaybe annNone ma
-       withContext kds an flag (advanceToDP edp >> action)
+       -- withContext kds an flag (advanceToDP edp >> action)
+       withContext kds an flag action
 
 getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
 getAndRemoveAnnotation a = do
@@ -161,11 +162,13 @@ getAndRemoveAnnotation a = do
   modify (\s -> s { epAnns = an' })
   return r
 
+-- ++AZ++ TODO: this is the same as printWhitespace, remove it in favour of that
 advanceToDP :: DeltaPos -> EP ()
 advanceToDP dp = do
   p <- getPos
   colOffset <- getLayoutOffset
   printStringAt (undelta p dp colOffset) ""
+    `debug` ("advanceToDp:(p,colOffset,pos)=" ++ show (p,colOffset,p,undelta p dp colOffset))
 
 withContext :: [(KeywordId, DeltaPos)]
             -> Annotation

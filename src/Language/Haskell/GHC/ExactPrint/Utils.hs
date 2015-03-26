@@ -83,8 +83,8 @@ isGoodDelta (DP (ro,co)) = ro >= 0 && co >= 0
 
 -- | Create a delta covering the gap between the end of the first
 -- @SrcSpan@ and the start of the second.
-deltaFromSrcSpans :: GHC.SrcSpan -> GHC.SrcSpan -> DeltaPos
-deltaFromSrcSpans ss1 ss2 = ss2delta (ss2posEnd ss1) ss2
+deltaFromSrcSpans :: Pos -> GHC.SrcSpan -> DeltaPos
+deltaFromSrcSpans p1 ss2 = ss2delta p1 ss2
 
 ss2delta :: Pos -> GHC.SrcSpan -> DeltaPos
 ss2delta ref ss = ss2deltaP ref (ss2pos ss)

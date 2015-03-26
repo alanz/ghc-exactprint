@@ -27,7 +27,7 @@ relativiseApiAnns :: Annotate ast
                   -> GHC.ApiAnns
                   -> Anns
 relativiseApiAnns modu@(GHC.L ss _) ghcAnns
-   = runDelta (markLocated modu) ghcAnns ss
+   = runDelta (markLocated modu) ghcAnns (ss2pos ss)
 
 -- ---------------------------------------------------------------------
 --
@@ -40,7 +40,7 @@ relativiseApiAnns modu@(GHC.L ss _) ghcAnns
 type Delta a = RWS DeltaStack DeltaWriter DeltaState a
 
 
-runDelta :: Annotated () -> GHC.ApiAnns -> GHC.SrcSpan -> Anns
+runDelta :: Annotated () -> GHC.ApiAnns -> Pos -> Anns
 runDelta action ga priorEnd =
   ($ mempty) . appEndo . finalAnns . snd
   . (\next -> execRWS next initialDeltaStack (defaultDeltaState priorEnd ga))
@@ -50,7 +50,7 @@ runDelta action ga priorEnd =
 
 data DeltaState = DeltaState
              { -- | Position reached when processing the last element
-               priorEndPosition :: GHC.SrcSpan
+               priorEndPosition :: Pos
                -- | Ordered list of comments still to be allocated
              , apComments :: [Comment]
                -- | The original GHC Delta Annotations
@@ -75,12 +75,12 @@ initialDeltaStack =
     , layoutStart = 0
     }
 
-defaultDeltaState :: GHC.SrcSpan -> GHC.ApiAnns -> DeltaState
+defaultDeltaState :: Pos -> GHC.ApiAnns -> DeltaState
 defaultDeltaState priorEnd ga =
     DeltaState
       { priorEndPosition = priorEnd
       , apComments = cs
-      , apAnns     = ga    -- $
+      , apAnns     = ga
       }
   where
     cs :: [Comment]
@@ -189,10 +189,10 @@ adjustDeltaForOffset  (LayoutStartCol colOffset) (DP (l,c)) = DP (l,c - colOffse
 
 -- ---------------------------------------------------------------------
 
-getPriorEnd :: Delta GHC.SrcSpan
+getPriorEnd :: Delta Pos
 getPriorEnd = gets priorEndPosition
 
-setPriorEnd :: GHC.SrcSpan -> Delta ()
+setPriorEnd :: Pos -> Delta ()
 setPriorEnd pe = modify (\s -> s { priorEndPosition = pe })
 
 setLayoutOffset :: LayoutStartCol -> Delta a -> Delta a
@@ -234,6 +234,7 @@ addAnnDeltaPos kw dp = tellKd (kw, dp)
 -- | Enter a new AST element. Maintain SrcSpan stack
 withAST :: Data a => GHC.Located a -> LayoutFlag -> Delta b -> Delta b
 withAST lss@(GHC.L ss _) layout action = do
+  return () `debug` ("enterAST:(ss,layout)=" ++ show (showGhc ss,layout))
   -- Calculate offset required to get to the start of the SrcSPan
   pe <- getPriorEnd
   off <- asks layoutStart
@@ -248,8 +249,8 @@ withAST lss@(GHC.L ss _) layout action = do
                          , propOffset = First Nothing }
 
     -- make sure all kds are relative to the start of the SrcSpan
-    when (GHC.isGoodSrcSpan ss) $
-      setPriorEnd (GHC.mkSrcSpan (GHC.srcSpanEnd ss) (GHC.srcSpanEnd ss))
+    -- when (GHC.isGoodSrcSpan ss) $
+    --   setPriorEnd (GHC.mkSrcSpan (GHC.srcSpanEnd ss) (GHC.srcSpanEnd ss))
 
     (res, w) <- censor maskWriter (listen action)
     let edp = adjustDeltaForOffset
@@ -258,13 +259,13 @@ withAST lss@(GHC.L ss _) layout action = do
                   (deltaFromSrcSpans pe ss)
 
     let kds = annKds w
-
-    addAnnotationsDelta Ann
-                          { annEntryDelta = edp
-                          , annDelta   = ColDelta (srcSpanStartColumn ss
-                                                    - getLayoutStartCol off)
-                          , annsDP     = kds }
-    --  `debug` ("leaveAST:(ss,finaledp,dp,nl,kds)=" ++ show (showGhc ss,edp,dp,nl,kds))
+        an = Ann
+               { annEntryDelta = edp
+               , annDelta   = ColDelta (srcSpanStartColumn ss
+                                         - getLayoutStartCol off)
+               , annsDP     = kds }
+    addAnnotationsDelta an
+     `debug` ("leaveAST:(ss,an)=" ++ show (showGhc ss,an))
     return res)
 
 -- ---------------------------------------------------------------------
@@ -300,7 +301,7 @@ addAnnotationWorker ann pa = do
           mapM_ addDeltaComment allocated
           p' <- adjustDeltaForOffsetM p
           addAnnDeltaPos ann p'
-          setPriorEnd pa
+          setPriorEnd (ss2posEnd pa)
               -- `debug` ("addDeltaAnnotationWorker:(ss,pe,pa,p,ann)=" ++ show (ss2span ss,ss2span pe,ss2span pa,p,ann))
 
 -- ---------------------------------------------------------------------
@@ -311,8 +312,8 @@ addDeltaComment (Comment paspan str) = do
   pe <- getPriorEnd
   let p = deltaFromSrcSpans pe pa
   p' <- adjustDeltaForOffsetM p
-  setPriorEnd pa
-  let e = ss2deltaP (ss2posEnd pe) (snd paspan)
+  setPriorEnd (ss2posEnd pa)
+  let e = ss2deltaP pe (snd paspan)
   e' <- adjustDeltaForOffsetM e
   addAnnDeltaPos (AnnComment (DComment (p',e') str)) p'
 
@@ -404,7 +405,7 @@ addEofAnnotation = do
       mapM_ addDeltaComment cs
       let DP (r,c) = deltaFromSrcSpans pe pa
       addAnnDeltaPos (G GHC.AnnEofPos) (DP (r, c - 1))
-      setPriorEnd pa `warn` ("Trailing annotations after Eof: " ++ showGhc pss)
+      setPriorEnd (ss2posEnd pa) `warn` ("Trailing annotations after Eof: " ++ showGhc pss)
 
 
 countAnnsDelta :: GHC.AnnKeywordId -> Delta Int

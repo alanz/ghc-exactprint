@@ -63,10 +63,18 @@ newtype DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
 
 -- | Marks the start column of a layout block.
 newtype LayoutStartCol = LayoutStartCol { getLayoutStartCol :: Int }
-  deriving (Eq, Show, Num)
+  deriving (Eq, Num)
+
+instance Show LayoutStartCol where
+  show (LayoutStartCol sc) = "(LayoutStartCol " ++ show sc ++ ")"
+
+
 -- | Marks the distance from the start of the layout block to the element.
 newtype ColDelta  = ColDelta { getColDelta :: Int }
-  deriving (Eq, Show, Num)
+  deriving (Eq, Num)
+
+instance Show ColDelta where
+  show (ColDelta v) = "(ColDelta " ++ show v ++ ")"
 
 annNone :: Annotation
 annNone = Ann (DP (0,0)) 0 []
