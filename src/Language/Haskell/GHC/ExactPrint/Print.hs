@@ -53,29 +53,10 @@ exactPrintWithAnns ast an = runEP (markLocated ast) an
 ------------------------------------------------------
 -- The EP monad and basic combinators
 
-data EPState = EPState
-             { epPos       :: Pos -- ^ Current output position
-             , epAnns      :: Anns
-             , epAnnKds    :: [[(KeywordId, DeltaPos)]] -- MP: Could this be moved to the local state with suitable refactoring?
-                                                        -- AZ, it is already in the last element of Annotation, for withOffset
-             }
-
 data EPReader = EPReader
             {  epLHS      :: LayoutStartCol -- ^ Marks the column of the LHS of
                                             -- the current layout block
-             }
-
-defaultEPState :: Anns -> EPState
-defaultEPState as = EPState
-             { epPos    = (1,1)
-             , epAnns   = as
-             , epAnnKds = []
-             }
-
-initialEPReader :: EPReader
-initialEPReader  = EPReader
-             { epLHS = 0
-             }
+            }
 
 data EPWriter = EPWriter
               { output :: Endo String }
@@ -83,6 +64,13 @@ data EPWriter = EPWriter
 instance Monoid EPWriter where
   mempty = EPWriter mempty
   (EPWriter a) `mappend` (EPWriter c) = EPWriter (a <> c)
+
+data EPState = EPState
+             { epPos       :: Pos -- ^ Current output position
+             , epAnns      :: Anns
+             , epAnnKds    :: [[(KeywordId, DeltaPos)]] -- MP: Could this be moved to the local state with suitable refactoring?
+                                                        -- AZ, it is already in the last element of Annotation, for withOffset
+             }
 
 ---------------------------------------------------------
 
@@ -96,6 +84,20 @@ runEP action ans =
 
 -- ---------------------------------------------------------------------
 
+defaultEPState :: Anns -> EPState
+defaultEPState as = EPState
+             { epPos    = (1,1)
+             , epAnns   = as
+             , epAnnKds = []
+             }
+
+initialEPReader :: EPReader
+initialEPReader  = EPReader
+             { epLHS = 0
+             }
+
+-- ---------------------------------------------------------------------
+
 printInterpret :: Annotated a -> EP a
 printInterpret = iterTM go
   where
@@ -103,8 +105,9 @@ printInterpret = iterTM go
     go (MarkEOF next) =
       printStringAtMaybeAnn (G GHC.AnnEofPos) "" >> next
     go (MarkPrim kwid mstr next) =
-      let annString = fromMaybe (keywordToString kwid) mstr in
-        printStringAtMaybeAnn (G kwid) annString >> next
+      markPrim kwid mstr >> next
+      -- let annString = fromMaybe (keywordToString kwid) mstr in
+      --   printStringAtMaybeAnn (G kwid) annString >> next
     go (MarkOutside _ kwid next) =
       printStringAtMaybeAnnAll kwid ";"  >> next
     go (MarkInside akwid next) =
@@ -153,7 +156,8 @@ exactPC ast flag action =
     do return () `debug` ("exactPC entered for:" ++ showGhc (GHC.getLoc ast))
        ma <- getAndRemoveAnnotation ast
        let an@(Ann edp _ kds) = fromMaybe annNone ma
-       withContext kds an flag (advanceToDP edp >> action)
+       -- withContext kds an flag (advanceToDP edp >> action)
+       withContext kds an flag (printStringAtMaybeAnn AnnSpanEntry "" >> action)
        -- withContext kds an flag action
 
 getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
@@ -161,6 +165,11 @@ getAndRemoveAnnotation a = do
   (r, an') <- gets (getAndRemoveAnnotationEP a . epAnns)
   modify (\s -> s { epAnns = an' })
   return r
+
+markPrim :: GHC.AnnKeywordId -> Maybe String -> EP ()
+markPrim kwid mstr =
+  let annString = fromMaybe (keywordToString kwid) mstr
+  in printStringAtMaybeAnn (G kwid) annString
 
 -- ++AZ++ TODO: this is the same as printWhitespace, remove it in favour of that
 advanceToDP :: DeltaPos -> EP ()

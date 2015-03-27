@@ -127,10 +127,12 @@ instance Show AnnConName where
 annGetConstr :: (Data a) => a -> AnnConName
 annGetConstr a = CN (show $ toConstr a)
 
--- |We need our own version of keywordid to distinguish between a
--- semi-colon appearing within an AST element and one separating AST
--- elements in a list.
+-- |We need our own version of keywordid to manage various special cases
 data KeywordId = G GHC.AnnKeywordId
+               | AnnSpanEntry -- ^ Marks the entry position of a SrcSpan, does
+                              -- not generate specific output but does adjust
+                              -- last output position, and cause comment
+                              -- processing.
                | AnnSemiSep
                | AnnComment DComment
                | AnnList GHC.SrcSpan -- ^ In some circumstances we
@@ -145,6 +147,7 @@ data KeywordId = G GHC.AnnKeywordId
 
 instance Show KeywordId where
   show (G gc)          = "(G " ++ show gc ++ ")"
+  show AnnSpanEntry    = "AnnSpanEntry"
   show AnnSemiSep      = "AnnSemiSep"
   show (AnnComment dc) = "(AnnComment " ++ show dc ++ ")"
   show (AnnList ss)    = "(AnnList " ++ showGhc ss ++ ")"
