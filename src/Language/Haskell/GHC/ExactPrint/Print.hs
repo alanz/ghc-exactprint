@@ -153,7 +153,7 @@ allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString kwid)
 -- |First move to the given location, then call exactP
 exactPC :: Data ast => GHC.Located ast -> LayoutFlag -> EP LayoutFlag -> EP LayoutFlag
 exactPC ast flag action =
-    do return () `debug` ("exactPC entered for:" ++ showGhc (GHC.getLoc ast))
+    do return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
        ma <- getAndRemoveAnnotation ast
        let an@(Ann edp _ kds) = fromMaybe annNone ma
        -- withContext kds an flag (advanceToDP edp >> action)

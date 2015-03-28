@@ -6,6 +6,6 @@
 #(cd ../../DanielG/ghc-mod           && cabal clean && cabal install --allow-newer)
 #(cd ../ghc-exactprint               && cabal clean && cabal install --allow-newer)
 
-cabal clean && cabal install   --allow-newer --enable-tests --dependencies-only
-cabal clean && cabal configure --allow-newer --enable-tests
+cabal clean && cabal install   --enable-tests --dependencies-only
+cabal clean && cabal configure --enable-tests
 

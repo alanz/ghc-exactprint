@@ -57,7 +57,8 @@ main = do
 tests :: Test
 tests = TestList
   [
-    mkTestMod "LetStmt.hs"               "Layout.LetStmt"
+    mkTestMod "Simple.hs"                "Main"
+  , mkTestMod "LetStmt.hs"               "Layout.LetStmt"
   , mkTestMod "LetExpr.hs"               "LetExpr"
   , mkTestMod "ExprPragmas.hs"           "ExprPragmas"
   , mkTestMod "ListComprehensions.hs"    "Main"
@@ -205,7 +206,6 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     {-
     , manipulateAstTestWFname "ListComprehensions.hs"    "Main"
     , manipulateAstTestWFname "MonadComprehensions.hs"   "Main"
-    , manipulateAstTestWFname "FunDeps.hs"               "Main"
     , manipulateAstTestWFname "RecursiveDo.hs"           "Main"
     , manipulateAstTestWFname "TypeFamilies.hs"          "Main"
     , manipulateAstTestWFname "MultiParamTypeClasses.hs" "Main"
@@ -299,7 +299,6 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWithMod changeLayoutLet5 "LayoutLet5.hs" "LayoutLet5"
     , manipulateAstTestWFname "EmptyMostly2.hs"          "EmptyMostly2"
     , manipulateAstTestWFname "WhereIn4.hs"              "WhereIn4"
-    , manipulateAstTestWFname "PArr.hs"                  "PArr"
     -}
     -- , manipulateAstTestWFname "Dead1.hs"                 "Dead1"
     {-
@@ -316,7 +315,7 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWithMod changeRename1    "Rename1.hs"  "Main"
     , manipulateAstTestWFname    "Rename1.hs"  "Main"
     -}
-    , manipulateAstTestWFname "AltsSemis.hs"             "Main"
+    -- , manipulateAstTestWFname "AltsSemis.hs"             "Main"
     -- , manipulateAstTestWFname "LetExpr.hs"               "LetExpr"
     -- , manipulateAstTestWFname "Rules.hs"                 "Rules"
     -- , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
@@ -330,6 +329,8 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
     -- , manipulateAstTestWFname "LayoutLet.hs"             "Main"
     -- , manipulateAstTestWFname "Simple.hs"             "Main"
+    -- , manipulateAstTestWFname "FunDeps.hs"               "Main"
+    , manipulateAstTestWFname "PArr.hs"                  "PArr"
     {-
     , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
     , manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
@@ -475,9 +476,13 @@ manipulateAstTest' mchange useTH file' modname = do
               then "Match\n"
               else printed ++ "\n==============\n"
                     ++ "lengths:" ++ show (length printed,length contents) ++ "\n"
-                    ++ parsedAST
-                    ++ "\n========================\n"
                     ++ showAnnData ann 0 parsed'
+                    ++ "\n========================\n"
+                    ++ showGhc ann
+                    ++ "\n========================\n"
+                    ++ showGhc ghcAnns
+                    ++ "\n========================\n"
+                    ++ parsedAST
   writeFile out $ result
   -- putStrLn $ "Test:parsed=" ++ parsedAST
   -- putStrLn $ "Test:ann :" ++ showGhc ann

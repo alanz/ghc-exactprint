@@ -178,8 +178,8 @@ adjustDeltaForOffsetM dp = do
   return (adjustDeltaForOffset colOffset dp)
 
 adjustDeltaForOffset :: LayoutStartCol -> DeltaPos -> DeltaPos
-adjustDeltaForOffset _colOffset dp@(DP (0,_)) = dp -- same line
-adjustDeltaForOffset  (LayoutStartCol colOffset) (DP (l,c)) = DP (l,c - colOffset)
+adjustDeltaForOffset _colOffset              dp@(DP (0,_)) = dp -- same line
+adjustDeltaForOffset (LayoutStartCol colOffset) (DP (l,c)) = DP (l,c - colOffset)
 
 -- ---------------------------------------------------------------------
 
@@ -226,40 +226,53 @@ addAnnDeltaPos kw dp = tellKd (kw, dp)
 
 -- | Enter a new AST element. Maintain SrcSpan stack
 withAST :: Data a => GHC.Located a -> LayoutFlag -> Delta b -> Delta b
-withAST lss@(GHC.L ss _) layout action = do
-  return () `debug` ("enterAST:(ss,layout)=" ++ show (showGhc ss,layout))
+withAST lss' layout action = do
+  return () `debug` ("enterAST:(annkey,layout)=" ++ show (mkAnnKey lss',layout))
+  let lss@(GHC.L ss _) = fixBuggySrcSpan lss'
   -- Calculate offset required to get to the start of the SrcSPan
   pe <- getPriorEnd
   off <- asks layoutStart
-  let whenLayout = case layout of
-                        LayoutRules ->
-                          setLayoutOffset
-                            (LayoutStartCol (srcSpanStartColumn ss))
-                        NoLayoutRules -> id
+  let whenLayout =
+        case layout of
+          LayoutRules   -> setLayoutOffset (LayoutStartCol (srcSpanStartColumn ss))
+          NoLayoutRules -> id
+
   (whenLayout .  withSrcSpanDelta lss) (do
 
     let maskWriter s = s { annKds = []
                          , propOffset = First Nothing }
 
-    -- make sure all kds are relative to the start of the SrcSpan
-    when (GHC.isGoodSrcSpan ss) $
-      -- setPriorEnd (max pe (ss2pos ss))
-      addAnnotationWorker AnnSpanEntry (GHC.mkSrcSpan (GHC.srcSpanStart ss) (GHC.srcSpanStart ss))
+    let captureSpanStart =
+          -- make sure all kds are relative to the start of the SrcSpan
+          when (GHC.isGoodSrcSpan ss && pe < ss2pos ss) $ do
+            -- setPriorEnd (max pe (ss2pos ss))
+            addAnnotationWorker' True AnnSpanEntry (GHC.mkSrcSpan (GHC.srcSpanStart ss) (GHC.srcSpanStart ss))
+                `debug` ("withAST: added annotation for AnnSpanEntry at " ++ showGhc (GHC.mkSrcSpan (GHC.srcSpanStart ss) (GHC.srcSpanStart ss)))
+            pe' <- getPriorEnd
+            return () `debug` ("withAST: After adding AnnSpanEntry:(pe,pe'):  " ++ show (pe,pe'))
 
-    (res, w) <- censor maskWriter (listen action)
+    -- Preparation complete, perform the action
+    (res, w) <- censor maskWriter (listen (captureSpanStart >> action))
+
     let edp = adjustDeltaForOffset
                 -- Use the propagated offset if one is set
                 (fromMaybe off (getFirst $ propOffset w))
                   (deltaFromSrcSpans pe ss)
 
     let kds = annKds w
+    {-
+    let kds = case annKds w of
+                []           -> [(AnnSpanEntry,DP (0,0))] -- AZ: We may need to bubble this value up from a sub span
+                ((kw,dp):ks) -> (AnnSpanEntry,dp):(kw,DP (0,0)):ks
+    -}
         an = Ann
                { annEntryDelta = edp
                , annDelta   = ColDelta (srcSpanStartColumn ss
                                          - getLayoutStartCol off)
                , annsDP     = kds }
+    return ()`debug` ("leaveAST:(annKey,annKds w)=" ++ show (mkAnnKey lss,annKds w)  )
     addAnnotationsDelta an
-     `debug` ("leaveAST:(ss,an)=" ++ show (showGhc ss,an))
+     `debug` ("leaveAST:(annkey,an)=" ++ show (mkAnnKey lss,an))
     return res)
 
 -- ---------------------------------------------------------------------
@@ -271,13 +284,16 @@ allocatePriorComments cs ss = partition isPrior cs
   where
     (start,_) = ss2span ss
     isPrior (Comment s _)  = fst s < start
-      `debug` ("allocatePriorComments:(s,ss,cond)=" ++ showGhc (s,ss,(fst s) < start))
+      `debug` ("allocatePriorComments:(s,ss,cond)=" ++ showGhc (s,ss,fst s < start))
 
 -- ---------------------------------------------------------------------
 
 addAnnotationWorker :: KeywordId -> GHC.SrcSpan -> Delta ()
-addAnnotationWorker ann pa = do
-  unless (isPointSrcSpan pa) $
+addAnnotationWorker = addAnnotationWorker' False
+
+addAnnotationWorker' :: Bool -> KeywordId -> GHC.SrcSpan -> Delta ()
+addAnnotationWorker' addPointSpan ann pa =
+  unless (not addPointSpan && isPointSrcSpan pa) $
     do
       pe <- getPriorEnd
       ss <- getSrcSpan
@@ -291,12 +307,12 @@ addAnnotationWorker ann pa = do
           cs <- getUnallocatedComments
           let (allocated,cs') = allocatePriorComments cs pa
           putUnallocatedComments cs'
-          return () `debug`("addAnnotationWorker:(ss,pa,allocated,cs)=" ++ showGhc (ss,pa,allocated,cs))
+          -- return () `debug`("addAnnotationWorker:(ss,pa,allocated,cs)=" ++ showGhc (ss,pa,allocated,cs))
           mapM_ addDeltaComment allocated
           p' <- adjustDeltaForOffsetM p
           addAnnDeltaPos ann p'
           setPriorEnd (ss2posEnd pa)
-              -- `debug` ("addDeltaAnnotationWorker:(ss,pe,pa,p,ann)=" ++ show (ss2span ss,ss2span pe,ss2span pa,p,ann))
+              `debug` ("addAnnotationWorker:(ss,ss,pe,pa,p,p',ann)=" ++ show (showGhc ss,ss2span ss,pe,ss2span pa,p,p',ann))
 
 -- ---------------------------------------------------------------------
 
@@ -405,5 +421,3 @@ countAnnsDelta :: GHC.AnnKeywordId -> Delta Int
 countAnnsDelta ann = do
   ma <- getAnnotationDelta ann
   return (length ma)
-
-

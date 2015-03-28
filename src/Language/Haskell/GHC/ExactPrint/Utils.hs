@@ -25,6 +25,8 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , showGhc
   , showAnnData
 
+  , fixBuggySrcSpan
+
 
   -- * For tests
   , debug
@@ -53,14 +55,17 @@ import qualified Var            as GHC
 
 import qualified OccName(occNameString)
 
+import qualified Data.Generics as SYB
+import qualified GHC.SYB.Utils as SYB
+
 import Debug.Trace
 
 -- ---------------------------------------------------------------------
 
 -- |Global switch to enable debug tracing in ghc-exactprint
 debugEnabledFlag :: Bool
--- debugEnabledFlag = True
-debugEnabledFlag = False
+debugEnabledFlag = True
+-- debugEnabledFlag = False
 
 -- |Provide a version of trace the comes at the end of the line, so it can
 -- easily be commented out when debugging different things.
@@ -267,5 +272,20 @@ showAnnData anns n =
 
 showSDoc_ :: GHC.SDoc -> String
 showSDoc_ = GHC.showSDoc GHC.unsafeGlobalDynFlags
+
+-- ---------------------------------------------------------------------
+-- | In GHC 7.10.1 the HsPar statement has an incorrect SrcSpan.
+-- See https://ghc.haskell.org/trac/ghc/ticket/10207
+-- This provides a workaround for it
+fixBuggySrcSpan :: (SYB.Data a) => GHC.Located a -> GHC.Located a
+fixBuggySrcSpan orig@(GHC.L l a) = r
+  where
+    isStmt :: (Data t) => t -> Maybe (GHC.Stmt GHC.RdrName (GHC.Located (GHC.HsExpr GHC.RdrName)))
+    isStmt = SYB.gfindtype
+
+    r = case isStmt a of
+      Nothing -> orig
+      Just (GHC.ParStmt pbs _ _) -> orig `debug` ("fixBuggySrcSpan:found ParStmt")
+      _    -> orig
 
 -- ---------------------------------------------------------------------
