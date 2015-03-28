@@ -45,6 +45,11 @@ runDelta action ga priorEnd =
 data DeltaReader = DeltaReader
                { -- | Current `SrcSpan`
                  curSrcSpan :: GHC.SrcSpan
+                 -- |Because of https://ghc.haskell.org/trac/ghc/ticket/10207
+                 -- the curSrcSpan may have to be corrected from the original
+                 -- GHC one by fixBuggySrcSpan. Ih this case the original GHC
+                 -- one is preserved for GHC ApiAnnotation lookups
+               , curGhcSrcSpan :: GHC.SrcSpan
                  -- | Constuctor of current AST element, useful for
                  -- debugging
                , annConName :: AnnConName
@@ -78,6 +83,7 @@ initialDeltaReader :: DeltaReader
 initialDeltaReader =
   DeltaReader
     { curSrcSpan = GHC.noSrcSpan
+    , curGhcSrcSpan = GHC.noSrcSpan
     , annConName = annGetConstr ()
     , layoutStart = 0
     }
@@ -157,9 +163,13 @@ storeOriginalSrcSpanDelta ss = do
 getSrcSpan :: Delta GHC.SrcSpan
 getSrcSpan = asks curSrcSpan
 
-withSrcSpanDelta :: Data a => GHC.Located a -> Delta b -> Delta b
-withSrcSpanDelta (GHC.L l a) =
+getGhcSrcSpan :: Delta GHC.SrcSpan
+getGhcSrcSpan = asks curGhcSrcSpan
+
+withSrcSpanDelta :: Data a => GHC.SrcSpan -> GHC.Located a -> Delta b -> Delta b
+withSrcSpanDelta gl (GHC.L l a) =
   local (\s -> s { curSrcSpan = l
+                 , curGhcSrcSpan= gl
                  , annConName = annGetConstr a
                  })
 
@@ -197,7 +207,7 @@ setLayoutOffset lhs = local (\s -> s { layoutStart = lhs })
 getAnnotationDelta :: GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
 getAnnotationDelta an = do
     ga <- gets apAnns
-    ss <- getSrcSpan
+    ss <- getGhcSrcSpan
     return $ GHC.getAnnotation ga ss an
 
 getAndRemoveAnnotationDelta :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
@@ -237,7 +247,7 @@ withAST lss' layout action = do
           LayoutRules   -> setLayoutOffset (LayoutStartCol (srcSpanStartColumn ss))
           NoLayoutRules -> id
 
-  (whenLayout .  withSrcSpanDelta lss) (do
+  (whenLayout .  withSrcSpanDelta (GHC.getLoc lss') lss) (do
 
     let maskWriter s = s { annKds = []
                          , propOffset = First Nothing }
@@ -406,7 +416,7 @@ addDeltaAnnotationExt s ann = addAnnotationWorker (G ann) s
 addEofAnnotation :: Delta ()
 addEofAnnotation = do
   pe <- getPriorEnd
-  ma <- withSrcSpanDelta (GHC.noLoc ()) (getAnnotationDelta GHC.AnnEofPos)
+  ma <- withSrcSpanDelta GHC.noSrcSpan (GHC.noLoc ()) (getAnnotationDelta GHC.AnnEofPos)
   case ma of
     [] -> return ()
     (pa:pss) -> do

@@ -16,7 +16,7 @@ module Language.Haskell.GHC.ExactPrint.Print
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Types
-import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta)
+import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta, fixBuggySrcSpan )
 import Language.Haskell.GHC.ExactPrint.Annotate
   (AnnotationF(..), Annotated, Annotate(..), markLocated)
 import Language.Haskell.GHC.ExactPrint.Lookup (keywordToString)
@@ -152,8 +152,9 @@ allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString kwid)
 -------------------------------------------------------------------------
 -- |First move to the given location, then call exactP
 exactPC :: Data ast => GHC.Located ast -> LayoutFlag -> EP LayoutFlag -> EP LayoutFlag
-exactPC ast flag action =
-    do return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
+exactPC ast' flag action =
+    do return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast'))
+       let ast = fixBuggySrcSpan ast'
        ma <- getAndRemoveAnnotation ast
        let an@(Ann edp _ kds) = fromMaybe annNone ma
        -- withContext kds an flag (advanceToDP edp >> action)
