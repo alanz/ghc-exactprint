@@ -51,6 +51,7 @@ import qualified Name           as GHC
 import qualified NameSet        as GHC
 import qualified Outputable     as GHC
 import qualified RdrName        as GHC
+import qualified SrcLoc         as GHC
 import qualified Var            as GHC
 
 import qualified OccName(occNameString)
@@ -278,14 +279,21 @@ showSDoc_ = GHC.showSDoc GHC.unsafeGlobalDynFlags
 -- See https://ghc.haskell.org/trac/ghc/ticket/10207
 -- This provides a workaround for it
 fixBuggySrcSpan :: (SYB.Data a) => GHC.Located a -> GHC.Located a
-fixBuggySrcSpan orig@(GHC.L l a) = r
+fixBuggySrcSpan orig@(GHC.L _l a) = r -- `debug` ("fixBuggySrcSpan for " ++ show (mkAnnKey orig,SYB.typeOf a))
   where
-    isStmt :: (Data t) => t -> Maybe (GHC.Stmt GHC.RdrName (GHC.Located (GHC.HsExpr GHC.RdrName)))
-    isStmt = SYB.gfindtype
+    -- Need fully expanded type for the match
+    hasStmt :: (Data t) => t -> Maybe (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.GenLocated GHC.SrcSpan (GHC.HsExpr GHC.RdrName)))
+    hasStmt = SYB.gfindtype
 
-    r = case isStmt a of
-      Nothing -> orig
-      Just (GHC.ParStmt pbs _ _) -> orig `debug` ("fixBuggySrcSpan:found ParStmt")
-      _    -> orig
+    parStmtBlocSpan :: GHC.ParStmtBlock GHC.RdrName GHC.RdrName -> GHC.SrcSpan
+    parStmtBlocSpan (GHC.ParStmtBlock []    _ _) = GHC.noSrcSpan -- Should never happen
+    parStmtBlocSpan (GHC.ParStmtBlock stmts _ _) = GHC.combineLocs (head stmts) (last stmts)
+
+    r = case hasStmt orig of
+      Nothing -> orig `debug` ("fixBuggySrcSpan: got Nothing")
+      Just (GHC.ParStmt [] _ _) -> orig `debug` ("fixBuggySrcSpan:found empty ParStmt")
+      Just (GHC.ParStmt pbs _ _) -> GHC.L ss' a `debug` ("fixBuggySrcSpan:found ParStmt:returning:" ++ showGhc ss')
+           where ss' = GHC.combineSrcSpans (parStmtBlocSpan $ head pbs) (parStmtBlocSpan $ last pbs)
+      _ -> orig
 
 -- ---------------------------------------------------------------------
