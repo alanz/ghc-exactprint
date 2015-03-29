@@ -45,6 +45,7 @@ import Data.List (intercalate)
 import Language.Haskell.GHC.ExactPrint.Types
 
 import qualified GHC
+import qualified ApiAnnotation  as GHC
 import qualified Bag            as GHC
 import qualified DynFlags       as GHC
 import qualified FastString     as GHC
@@ -60,14 +61,16 @@ import qualified OccName(occNameString)
 import qualified Data.Generics as SYB
 import qualified GHC.SYB.Utils as SYB
 
+import qualified Data.Map as Map
+
 import Debug.Trace
 
 -- ---------------------------------------------------------------------
 
 -- |Global switch to enable debug tracing in ghc-exactprint
 debugEnabledFlag :: Bool
-debugEnabledFlag = True
--- debugEnabledFlag = False
+-- debugEnabledFlag = True
+debugEnabledFlag = False
 
 -- |Provide a version of trace the comes at the end of the line, so it can
 -- easily be commented out when debugging different things.
@@ -318,6 +321,8 @@ fixBugsInAst anns t = (anns',t')
 
     f = SYB.everywhereM (SYB.mkM parStmtBlock `SYB.extM` hsKind) t
 
+    -- ---------------------------------
+
     changeAnnSpan :: GHC.SrcSpan -> GHC.SrcSpan -> FB ()
     changeAnnSpan old new = do
       (anKW,anComments) <- get
@@ -325,11 +330,24 @@ fixBugsInAst anns t = (anns',t')
         changeSrcSpan ss
           | ss == old = new
           | otherwise = ss
-        change :: (SYB.Data t) => t -> t
-        change = SYB.everywhere (SYB.mkT changeSrcSpan)
-        anKW'       = change anKW
-        anComments' = change anComments
+
+        changeAnnKey :: GHC.ApiAnnKey -> GHC.ApiAnnKey
+        changeAnnKey (ss,kw) = (changeSrcSpan ss,kw)
+
+        changeAnnKeys :: (SYB.Data t) => t -> t
+        changeAnnKeys = SYB.everywhere (SYB.mkT changeAnnKey)
+
+        changeSpans :: (SYB.Data t) => t -> t
+        changeSpans = SYB.everywhere (SYB.mkT changeSrcSpan)
+        anKW'       = changeAnnKeys anKW
+        anComments' = changeSpans anComments
       put (anKW',anComments')
+
+    addAnnotation :: GHC.SrcSpan -> GHC.SrcSpan -> GHC.AnnKeywordId -> FB ()
+    addAnnotation parent loc kw = do
+      (anKW,anComments) <- get
+      let anKW' = Map.insertWith (++) (parent,kw) [loc] anKW
+      put (anKW',anComments)
 
     -- ---------------------------------
 
@@ -348,6 +366,7 @@ fixBugsInAst anns t = (anns',t')
            -> FB (GHC.GenLocated GHC.SrcSpan (GHC.HsType GHC.RdrName))
     hsKind (GHC.L ss k) = do
       changeAnnSpan ss ss'
+      addAnnotation ss' ss GHC.AnnVal
       return (GHC.L ss' k)
       where
         ss' = case GHC.getAnnotation anns ss GHC.AnnDcolon of

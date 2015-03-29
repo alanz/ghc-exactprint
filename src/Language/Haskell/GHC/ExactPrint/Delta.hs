@@ -137,6 +137,7 @@ deltaInterpret = iterTM go
     go (SetLayoutFlag kwid action next) = setLayoutFlag kwid (deltaInterpret action)  >> next
     go (MarkExternal ss akwid _ next) = addDeltaAnnotationExt ss akwid >> next
     go (StoreOriginalSrcSpan ss next) = storeOriginalSrcSpanDelta ss >>= next
+    go (GetSrcSpanForKw kw next) = getSrcSpanForKw kw >>= next
 
 -- | Used specifically for "HsLet"
 setLayoutFlag :: GHC.AnnKeywordId -> Delta () -> Delta ()
@@ -151,6 +152,20 @@ storeOriginalSrcSpanDelta :: GHC.SrcSpan -> Delta GHC.SrcSpan
 storeOriginalSrcSpanDelta ss = do
   tellKd (AnnList ss,DP (0,0))
   return ss
+
+-- ---------------------------------------------------------------------
+
+-- | This function exists to overcome a shortcoming in the GHC AST for 7.10.1
+getSrcSpanForKw :: GHC.AnnKeywordId -> Delta GHC.SrcSpan
+getSrcSpanForKw kw = do
+    s <- get
+    let ga = apAnns s
+    ss <- getSrcSpan
+    let (sss,ga') = GHC.getAndRemoveAnnotation ga ss kw
+    put s { apAnns = ga' }
+    case sss of
+      []     -> return GHC.noSrcSpan
+      (sp:_) -> return sp
 
 -- ---------------------------------------------------------------------
 

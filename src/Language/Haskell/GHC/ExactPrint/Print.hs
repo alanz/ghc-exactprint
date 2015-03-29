@@ -128,6 +128,7 @@ printInterpret = iterTM go
     go (MarkExternal _ akwid s next) =
       printStringAtMaybeAnn (G akwid) s >> next
     go (StoreOriginalSrcSpan ss next) = storeOriginalSrcSpanPrint ss >>= next
+    go (GetSrcSpanForKw kw next) = return GHC.noSrcSpan >>= next
 
 -------------------------------------------------------------------------
 

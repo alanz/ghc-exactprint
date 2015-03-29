@@ -40,19 +40,22 @@ import Control.Monad.Free.TH (makeFreeCon)
 
 
 data AnnotationF next where
-  MarkEOF  ::                                                         next -> AnnotationF next
-  MarkPrim :: GHC.AnnKeywordId -> Maybe String                     -> next -> AnnotationF next
-  MarkExternal :: GHC.SrcSpan -> GHC.AnnKeywordId -> String        -> next -> AnnotationF next
-  MarkOutside :: GHC.AnnKeywordId -> KeywordId                     -> next -> AnnotationF next
-  MarkInside :: GHC.AnnKeywordId                                   -> next -> AnnotationF next
-  MarkMany :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
-  MarkOffsetPrim :: GHC.AnnKeywordId -> Int -> Maybe String        -> next -> AnnotationF next
-  MarkAfter :: GHC.AnnKeywordId                                    -> next -> AnnotationF next
-  WithAST  :: Data a => GHC.Located a -> LayoutFlag -> Annotated b -> next -> AnnotationF next
-  CountAnns ::  GHC.AnnKeywordId                          -> (Int -> next) -> AnnotationF next
-  -- Abstraction breakers
-  SetLayoutFlag ::  GHC.AnnKeywordId -> Annotated ()               -> next -> AnnotationF next
-  StoreOriginalSrcSpan :: GHC.SrcSpan             -> (GHC.SrcSpan -> next) -> AnnotationF next
+  MarkEOF        ::                                                         next -> AnnotationF next
+  MarkPrim       :: GHC.AnnKeywordId -> Maybe String                     -> next -> AnnotationF next
+  MarkExternal   :: GHC.SrcSpan -> GHC.AnnKeywordId -> String            -> next -> AnnotationF next
+  MarkOutside    :: GHC.AnnKeywordId -> KeywordId                        -> next -> AnnotationF next
+  MarkInside     :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
+  MarkMany       :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
+  MarkOffsetPrim :: GHC.AnnKeywordId -> Int -> Maybe String              -> next -> AnnotationF next
+  MarkAfter      :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
+  WithAST        :: Data a => GHC.Located a -> LayoutFlag -> Annotated b -> next -> AnnotationF next
+  CountAnns      ::  GHC.AnnKeywordId                           -> (Int -> next) -> AnnotationF next
+  -- | Abstraction breakers
+  SetLayoutFlag  ::  GHC.AnnKeywordId -> Annotated ()                    -> next -> AnnotationF next
+
+  -- | Required to work around deficiencies in the GHC AST
+  StoreOriginalSrcSpan :: GHC.SrcSpan                   -> (GHC.SrcSpan -> next) -> AnnotationF next
+  GetSrcSpanForKw :: GHC.AnnKeywordId                   -> (GHC.SrcSpan -> next) -> AnnotationF next
 
 deriving instance Functor (AnnotationF)
 
@@ -71,6 +74,7 @@ makeFreeCon  'MarkAfter
 makeFreeCon  'CountAnns
 makeFreeCon  'SetLayoutFlag
 makeFreeCon  'StoreOriginalSrcSpan
+makeFreeCon  'GetSrcSpanForKw
 
 -- ---------------------------------------------------------------------
 -- |Main driver point for annotations.
@@ -133,6 +137,15 @@ markLocalBindsWithLayout binds = do
   let ss = getLocalBindsSrcSpan binds
   ss' <- storeOriginalSrcSpan ss
   markWithLayout (GHC.L ss' binds)
+
+-- ---------------------------------------------------------------------
+
+-- |This function is used to get around shortcomings in the GHC AST for 7.10.1
+markLocatedFromKw :: (Annotate ast) => GHC.AnnKeywordId -> ast -> Annotated ()
+markLocatedFromKw kw a = do
+  ss <- getSrcSpanForKw kw
+  ss' <- storeOriginalSrcSpan ss
+  markLocated (GHC.L ss' a)
 
 -- ---------------------------------------------------------------------
 
@@ -894,7 +907,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   markAST l (GHC.HsTyVar n) = do
     mark GHC.AnnDcolon -- for HsKind, alias for HsType
-    markAST l n
+    -- markAST l n -- ++AZ++ change here
+    markLocatedFromKw GHC.AnnVal n
 
   markAST _ (GHC.HsAppTy t1 t2) = do
     mark GHC.AnnDcolon -- for HsKind, alias for HsType
@@ -1004,6 +1018,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   -- HsTyLit HsTyLit
   markAST l (GHC.HsTyLit lit) = do
+ -- ++AZ++ change here
     case lit of
       (GHC.HsNumTy s _) ->
         markExternal l GHC.AnnVal s
@@ -1014,10 +1029,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   markAST _ (GHC.HsWrapTy _ _) = return ()
 
   markAST l (GHC.HsWildcardTy) = do
+ -- ++AZ++ change here
     markExternal l GHC.AnnVal "_"
     mark GHC.AnnDarrow -- if only part of a partial type signature context
 -- TODO: Probably wrong
   markAST l (GHC.HsNamedWildcardTy n) = do
+ -- ++AZ++ change here
     markExternal l GHC.AnnVal  (showGhc n)
 
 -- ---------------------------------------------------------------------
