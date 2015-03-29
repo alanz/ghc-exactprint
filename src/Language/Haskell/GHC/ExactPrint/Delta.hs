@@ -158,6 +158,7 @@ storeOriginalSrcSpanDelta ss = do
 -- | This function exists to overcome a shortcoming in the GHC AST for 7.10.1
 getSrcSpanForKw :: GHC.AnnKeywordId -> Delta GHC.SrcSpan
 getSrcSpanForKw kw = do
+-- ++AZ++ TODO: Now using AnnEofPos, no need to remove it and update state
     s <- get
     let ga = apAnns s
     ss <- getSrcSpan

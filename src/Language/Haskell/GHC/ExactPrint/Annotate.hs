@@ -908,7 +908,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   markAST l (GHC.HsTyVar n) = do
     mark GHC.AnnDcolon -- for HsKind, alias for HsType
     -- markAST l n -- ++AZ++ change here
-    markLocatedFromKw GHC.AnnVal n
+    markLocatedFromKw GHC.AnnEofPos n
 
   markAST _ (GHC.HsAppTy t1 t2) = do
     mark GHC.AnnDcolon -- for HsKind, alias for HsType

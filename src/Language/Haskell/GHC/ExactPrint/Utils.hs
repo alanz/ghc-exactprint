@@ -319,7 +319,8 @@ fixBugsInAst anns t = (anns',t')
   where
     (t',anns') = runState f anns
 
-    f = SYB.everywhereM (SYB.mkM parStmtBlock `SYB.extM` hsKind) t
+    -- Note: bottom up
+    f = SYB.everywhereM (SYB.mkM parStmtBlock `SYB.extM` parStmt `SYB.extM` hsKind) t
 
     -- ---------------------------------
 
@@ -351,6 +352,20 @@ fixBugsInAst anns t = (anns',t')
 
     -- ---------------------------------
 
+    parStmtBlockSpan :: GHC.ParStmtBlock GHC.RdrName GHC.RdrName -> GHC.SrcSpan
+    parStmtBlockSpan (GHC.ParStmtBlock []    _ _) = GHC.noSrcSpan -- Should never happen
+    parStmtBlockSpan (GHC.ParStmtBlock stmts _ _) = GHC.combineLocs (head stmts) (last stmts)
+
+    parStmt :: GHC.Located (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.GenLocated GHC.SrcSpan (GHC.HsExpr GHC.RdrName)))
+        -> FB (GHC.Located (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.GenLocated GHC.SrcSpan (GHC.HsExpr GHC.RdrName))))
+    parStmt ps@(GHC.L _(GHC.ParStmt [] _ _)) = return ps
+    parStmt (GHC.L _ ps@(GHC.ParStmt pbs _ _)) = do
+      let ss = GHC.combineSrcSpans (parStmtBlockSpan $ head pbs) (parStmtBlockSpan $ last pbs)
+      return (GHC.L ss ps)
+    parStmt x = return x
+
+    -- ---------------------------------
+
     parStmtBlock :: GHC.GenLocated GHC.SrcSpan (GHC.ParStmtBlock GHC.RdrName GHC.RdrName)
                  -> FB (GHC.GenLocated GHC.SrcSpan (GHC.ParStmtBlock GHC.RdrName GHC.RdrName))
     parStmtBlock psb@(GHC.L _  (GHC.ParStmtBlock []    _  _ )) = return psb
@@ -366,7 +381,7 @@ fixBugsInAst anns t = (anns',t')
            -> FB (GHC.GenLocated GHC.SrcSpan (GHC.HsType GHC.RdrName))
     hsKind (GHC.L ss k) = do
       changeAnnSpan ss ss'
-      addAnnotation ss' ss GHC.AnnVal
+      addAnnotation ss' ss GHC.AnnEofPos
       return (GHC.L ss' k)
       where
         ss' = case GHC.getAnnotation anns ss GHC.AnnDcolon of

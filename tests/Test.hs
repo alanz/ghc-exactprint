@@ -290,7 +290,6 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname "LetExpr2.hs"              "Main"
     , manipulateAstTestWFname "LetStmt.hs"               "Layout.LetStmt"
     -}
-    -- , manipulateAstTestWFname "ImplicitParams.hs"        "Main"
     {-
     , manipulateAstTestWFname "RebindableSyntax.hs"      "Main"
     , manipulateAstTestWithMod changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
@@ -328,8 +327,10 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "LayoutLet.hs"             "Main"
     -- , manipulateAstTestWFname "Simple.hs"             "Main"
     -- , manipulateAstTestWFname "FunDeps.hs"               "Main"
+    -- , manipulateAstTestWFname "IfThenElse3.hs"              "Main"
+    , manipulateAstTestWFname "ImplicitParams.hs"        "Main"
     -- , manipulateAstTestWFname "PArr.hs"                  "PArr"
-    , manipulateAstTestWFname "DataDecl.hs"              "Main"
+    -- , manipulateAstTestWFname "DataDecl.hs"              "Main"
     {-
     , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
     , manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
@@ -485,8 +486,10 @@ manipulateAstTest' mchange useTH file' modname = do
                     ++ parsedAST
   writeFile out $ result
   -- putStrLn $ "Test:parsed=" ++ parsedAST
+  -- putStrLn $ "Test:showdata:parsedOrig" ++ SYB.showData SYB.Parser 0 parsedOrig
   -- putStrLn $ "Test:ann :" ++ showGhc ann
   -- putStrLn $ "Test:ghcAnns :" ++ showGhc ghcAnns
+  -- putStrLn $ "Test:ghcAnns' :" ++ showGhc ghcAnns'
   -- putStrLn $ "Test:showdata:" ++ showAnnData ann 0 parsed
   -- putStrLn $ "Test:showdata:parsed'" ++ SYB.showData SYB.Parser 0 parsed'
   -- putStrLn $ "Test:showdata:parsed'" ++ showAnnData ann 0 parsed'
