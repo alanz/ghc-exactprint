@@ -26,7 +26,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , showAnnData
 
   , fixBuggySrcSpan
-
+  , fixBugsInAst
 
   -- * For tests
   , debug
@@ -37,6 +37,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
 
 
 import Control.Monad (when)
+import Control.Monad.State
 import Data.Data (Data, toConstr, showConstr, cast)
 import Data.Generics (extQ, ext1Q, ext2Q, gmapQ)
 import Data.List (intercalate)
@@ -65,8 +66,8 @@ import Debug.Trace
 
 -- |Global switch to enable debug tracing in ghc-exactprint
 debugEnabledFlag :: Bool
--- debugEnabledFlag = True
-debugEnabledFlag = False
+debugEnabledFlag = True
+-- debugEnabledFlag = False
 
 -- |Provide a version of trace the comes at the end of the line, so it can
 -- easily be commented out when debugging different things.
@@ -275,11 +276,12 @@ showSDoc_ :: GHC.SDoc -> String
 showSDoc_ = GHC.showSDoc GHC.unsafeGlobalDynFlags
 
 -- ---------------------------------------------------------------------
+
 -- | In GHC 7.10.1 the HsPar statement has an incorrect SrcSpan.
 -- See https://ghc.haskell.org/trac/ghc/ticket/10207
 -- This provides a workaround for it
-fixBuggySrcSpan :: (SYB.Data a) => GHC.Located a -> GHC.Located a
-fixBuggySrcSpan orig@(GHC.L _l a) = r -- `debug` ("fixBuggySrcSpan for " ++ show (mkAnnKey orig,SYB.typeOf a))
+fixBuggySrcSpan :: (SYB.Data a) => Maybe GHC.SrcSpan -> GHC.Located a -> GHC.Located a
+fixBuggySrcSpan mbegin orig@(GHC.L _l a) = r -- `debug` ("fixBuggySrcSpan for " ++ show (mkAnnKey orig,SYB.typeOf a))
   where
     -- Need fully expanded type for the match
     hasStmt :: (Data t) => t -> Maybe (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.GenLocated GHC.SrcSpan (GHC.HsExpr GHC.RdrName)))
@@ -289,11 +291,67 @@ fixBuggySrcSpan orig@(GHC.L _l a) = r -- `debug` ("fixBuggySrcSpan for " ++ show
     parStmtBlocSpan (GHC.ParStmtBlock []    _ _) = GHC.noSrcSpan -- Should never happen
     parStmtBlocSpan (GHC.ParStmtBlock stmts _ _) = GHC.combineLocs (head stmts) (last stmts)
 
-    r = case hasStmt orig of
+    r1@(GHC.L l1 a1) = case hasStmt orig of
       Nothing -> orig `debug` ("fixBuggySrcSpan: got Nothing")
       Just (GHC.ParStmt [] _ _) -> orig `debug` ("fixBuggySrcSpan:found empty ParStmt")
       Just (GHC.ParStmt pbs _ _) -> GHC.L ss' a `debug` ("fixBuggySrcSpan:found ParStmt:returning:" ++ showGhc ss')
            where ss' = GHC.combineSrcSpans (parStmtBlocSpan $ head pbs) (parStmtBlocSpan $ last pbs)
       _ -> orig
+
+    r = case mbegin of
+      Nothing -> r1
+      Just begin -> GHC.L (GHC.combineSrcSpans begin l1) a1
+
+-- ---------------------------------------------------------------------
+
+-- |There are a number of bugs in GHC 7.10.1 which result in incorrect
+-- SrcSpans being allocated to AST elements, such that they do not
+-- include all the annotated items in the SrcSpan.
+-- See https://ghc.haskell.org/trac/ghc/ticket/10207
+-- and https://ghc.haskell.org/trac/ghc/ticket/10209
+type FB a = State GHC.ApiAnns a
+ -- runState  :: State s a -> s -> (a, s)
+fixBugsInAst :: (SYB.Data t) => GHC.ApiAnns -> t -> (GHC.ApiAnns,t)
+fixBugsInAst anns t = (anns',t')
+  where
+    (t',anns') = runState f anns
+
+    f = SYB.everywhereM (SYB.mkM parStmtBlock `SYB.extM` hsKind) t
+
+    changeAnnSpan :: GHC.SrcSpan -> GHC.SrcSpan -> FB ()
+    changeAnnSpan old new = do
+      (anKW,anComments) <- get
+      let
+        changeSrcSpan ss
+          | ss == old = new
+          | otherwise = ss
+        change :: (SYB.Data t) => t -> t
+        change = SYB.everywhere (SYB.mkT changeSrcSpan)
+        anKW'       = change anKW
+        anComments' = change anComments
+      put (anKW',anComments')
+
+    -- ---------------------------------
+
+    parStmtBlock :: GHC.GenLocated GHC.SrcSpan (GHC.ParStmtBlock GHC.RdrName GHC.RdrName)
+                 -> FB (GHC.GenLocated GHC.SrcSpan (GHC.ParStmtBlock GHC.RdrName GHC.RdrName))
+    parStmtBlock psb@(GHC.L _  (GHC.ParStmtBlock []    _  _ )) = return psb
+    parStmtBlock     (GHC.L ss (GHC.ParStmtBlock stmts ns se)) = do
+      changeAnnSpan ss ss'
+      return (GHC.L ss' (GHC.ParStmtBlock stmts ns se))
+      where
+        ss' = GHC.combineLocs (head stmts) (last stmts)
+
+    -- ---------------------------------
+
+    hsKind :: (GHC.GenLocated GHC.SrcSpan (GHC.HsType GHC.RdrName))
+           -> FB (GHC.GenLocated GHC.SrcSpan (GHC.HsType GHC.RdrName))
+    hsKind (GHC.L ss k) = do
+      changeAnnSpan ss ss'
+      return (GHC.L ss' k)
+      where
+        ss' = case GHC.getAnnotation anns ss GHC.AnnDcolon of
+          []     -> ss
+          (ld:_) -> GHC.combineSrcSpans ld ss
 
 -- ---------------------------------------------------------------------

@@ -43,39 +43,34 @@ runDelta action ga priorEnd =
 -- ---------------------------------------------------------------------
 
 data DeltaReader = DeltaReader
-               { -- | Current `SrcSpan`
-                 curSrcSpan :: GHC.SrcSpan
-                 -- |Because of https://ghc.haskell.org/trac/ghc/ticket/10207
-                 -- the curSrcSpan may have to be corrected from the original
-                 -- GHC one by fixBuggySrcSpan. Ih this case the original GHC
-                 -- one is preserved for GHC ApiAnnotation lookups
-               , curGhcSrcSpan :: GHC.SrcSpan
-                 -- | Constuctor of current AST element, useful for
-                 -- debugging
-               , annConName :: AnnConName
-                 -- | Start column of the current layout block
-               , layoutStart :: LayoutStartCol
-               }
+       { -- | Current `SrcSpan`
+         curSrcSpan :: GHC.SrcSpan
+         -- | Constuctor of current AST element, useful for
+         -- debugging
+       , annConName :: AnnConName
+         -- | Start column of the current layout block
+       , layoutStart :: LayoutStartCol
+       }
 
 data DeltaWriter = DeltaWriter
-  { -- Final list of annotations
-    finalAnns :: Endo (Map.Map AnnKey Annotation)
-    -- Used locally to pass Keywords, delta pairs relevant to a specific
-    -- subtree to the parent.
-  , annKds :: [(KeywordId, DeltaPos)]
-    -- Used locally to report a subtrees aderhence to haskell's layout
-    -- rules.
-  , propOffset :: First LayoutStartCol -- Used to pass the offset upwards
-  }
+       { -- | Final list of annotations
+         finalAnns :: Endo (Map.Map AnnKey Annotation)
+         -- | Used locally to pass Keywords, delta pairs relevant to a specific
+         -- subtree to the parent.
+       , annKds :: [(KeywordId, DeltaPos)]
+         -- | Used locally to report a subtrees aderhence to haskell's layout
+         -- rules, to pass the offset upwards
+       , propOffset :: First LayoutStartCol
+       }
 
 data DeltaState = DeltaState
-             { -- | Position reached when processing the last element
-               priorEndPosition :: Pos
-               -- | Ordered list of comments still to be allocated
-             , apComments :: [Comment]
-               -- | The original GHC Delta Annotations
-             , apAnns :: GHC.ApiAnns
-             }
+       { -- | Position reached when processing the last element
+         priorEndPosition :: Pos
+         -- | Ordered list of comments still to be allocated
+       , apComments :: [Comment]
+         -- | The original GHC Delta Annotations
+       , apAnns :: GHC.ApiAnns
+       }
 
 -- ---------------------------------------------------------------------
 
@@ -83,7 +78,6 @@ initialDeltaReader :: DeltaReader
 initialDeltaReader =
   DeltaReader
     { curSrcSpan = GHC.noSrcSpan
-    , curGhcSrcSpan = GHC.noSrcSpan
     , annConName = annGetConstr ()
     , layoutStart = 0
     }
@@ -163,13 +157,9 @@ storeOriginalSrcSpanDelta ss = do
 getSrcSpan :: Delta GHC.SrcSpan
 getSrcSpan = asks curSrcSpan
 
-getGhcSrcSpan :: Delta GHC.SrcSpan
-getGhcSrcSpan = asks curGhcSrcSpan
-
-withSrcSpanDelta :: Data a => GHC.SrcSpan -> GHC.Located a -> Delta b -> Delta b
-withSrcSpanDelta gl (GHC.L l a) =
+withSrcSpanDelta :: Data a => GHC.Located a -> Delta b -> Delta b
+withSrcSpanDelta (GHC.L l a) =
   local (\s -> s { curSrcSpan = l
-                 , curGhcSrcSpan= gl
                  , annConName = annGetConstr a
                  })
 
@@ -207,7 +197,7 @@ setLayoutOffset lhs = local (\s -> s { layoutStart = lhs })
 getAnnotationDelta :: GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
 getAnnotationDelta an = do
     ga <- gets apAnns
-    ss <- getGhcSrcSpan
+    ss <- getSrcSpan
     return $ GHC.getAnnotation ga ss an
 
 getAndRemoveAnnotationDelta :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
@@ -216,7 +206,7 @@ getAndRemoveAnnotationDelta sp an = do
     let (r,ga') = GHC.getAndRemoveAnnotation ga sp an
     r <$ modify (\s -> s { apAnns = ga' })
 
--- -------------------------------------
+-- ---------------------------------------------------------------------
 
 -- |Add some annotation to the currently active SrcSpan
 addAnnotationsDelta :: Annotation -> Delta ()
@@ -236,9 +226,10 @@ addAnnDeltaPos kw dp = tellKd (kw, dp)
 
 -- | Enter a new AST element. Maintain SrcSpan stack
 withAST :: Data a => GHC.Located a -> LayoutFlag -> Delta b -> Delta b
-withAST lss' layout action = do
-  return () `debug` ("enterAST:(annkey,layout)=" ++ show (mkAnnKey lss',layout))
-  let lss@(GHC.L ss _) = fixBuggySrcSpan lss'
+withAST lss@(GHC.L ss _) layout action = do
+  return () `debug` ("enterAST:(annkey,layout)=" ++ show (mkAnnKey lss,layout))
+  -- mbegin <- getLeadingSpanMaybe (GHC.getLoc lss')
+  -- let lss@(GHC.L ss _) = fixBuggySrcSpan mbegin lss'
   -- Calculate offset required to get to the start of the SrcSPan
   pe <- getPriorEnd
   off <- asks layoutStart
@@ -247,7 +238,7 @@ withAST lss' layout action = do
           LayoutRules   -> setLayoutOffset (LayoutStartCol (srcSpanStartColumn ss))
           NoLayoutRules -> id
 
-  (whenLayout .  withSrcSpanDelta (GHC.getLoc lss') lss) (do
+  (whenLayout .  withSrcSpanDelta lss) (do
 
     let maskWriter s = s { annKds = []
                          , propOffset = First Nothing }
@@ -255,11 +246,8 @@ withAST lss' layout action = do
     let captureSpanStart =
           -- make sure all kds are relative to the start of the SrcSpan
           when (GHC.isGoodSrcSpan ss && pe < ss2pos ss) $ do
-            -- setPriorEnd (max pe (ss2pos ss))
             addAnnotationWorker' True AnnSpanEntry (GHC.mkSrcSpan (GHC.srcSpanStart ss) (GHC.srcSpanStart ss))
-                `debug` ("withAST: added annotation for AnnSpanEntry at " ++ showGhc (GHC.mkSrcSpan (GHC.srcSpanStart ss) (GHC.srcSpanStart ss)))
-            pe' <- getPriorEnd
-            return () `debug` ("withAST: After adding AnnSpanEntry:(pe,pe'):  " ++ show (pe,pe'))
+            return ()
 
     -- Preparation complete, perform the action
     (res, w) <- censor maskWriter (listen (captureSpanStart >> action))
@@ -270,17 +258,12 @@ withAST lss' layout action = do
                   (deltaFromSrcSpans pe ss)
 
     let kds = annKds w
-    {-
-    let kds = case annKds w of
-                []           -> [(AnnSpanEntry,DP (0,0))] -- AZ: We may need to bubble this value up from a sub span
-                ((kw,dp):ks) -> (AnnSpanEntry,dp):(kw,DP (0,0)):ks
-    -}
         an = Ann
                { annEntryDelta = edp
                , annDelta   = ColDelta (srcSpanStartColumn ss
                                          - getLayoutStartCol off)
                , annsDP     = kds }
-    return ()`debug` ("leaveAST:(annKey,annKds w)=" ++ show (mkAnnKey lss,annKds w)  )
+
     addAnnotationsDelta an
      `debug` ("leaveAST:(annkey,an)=" ++ show (mkAnnKey lss,an))
     return res)
@@ -416,7 +399,7 @@ addDeltaAnnotationExt s ann = addAnnotationWorker (G ann) s
 addEofAnnotation :: Delta ()
 addEofAnnotation = do
   pe <- getPriorEnd
-  ma <- withSrcSpanDelta GHC.noSrcSpan (GHC.noLoc ()) (getAnnotationDelta GHC.AnnEofPos)
+  ma <- withSrcSpanDelta (GHC.noLoc ()) (getAnnotationDelta GHC.AnnEofPos)
   case ma of
     [] -> return ()
     (pa:pss) -> do
