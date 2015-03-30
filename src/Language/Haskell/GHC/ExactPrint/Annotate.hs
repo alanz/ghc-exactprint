@@ -143,6 +143,8 @@ markLocalBindsWithLayout binds = do
 -- |This function is used to get around shortcomings in the GHC AST for 7.10.1
 markLocatedFromKw :: (Annotate ast) => GHC.AnnKeywordId -> ast -> Annotated ()
 markLocatedFromKw kw a = do
+  -- ++AZ++ TODO: We always use GHC.AnnEofPos here, maybe use it as a constant
+  -- here rather than a param. And rename the fn appropriately.
   ss <- getSrcSpanForKw kw
   ss' <- storeOriginalSrcSpan ss
   markLocated (GHC.L ss' a)
@@ -905,9 +907,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markLocated typ
     mark GHC.AnnCloseP -- ")"
 
-  markAST l (GHC.HsTyVar n) = do
+  markAST _ (GHC.HsTyVar n) = do
     mark GHC.AnnDcolon -- for HsKind, alias for HsType
-    -- markAST l n -- ++AZ++ change here
     markLocatedFromKw GHC.AnnEofPos n
 
   markAST _ (GHC.HsAppTy t1 t2) = do
@@ -1018,7 +1019,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   -- HsTyLit HsTyLit
   markAST l (GHC.HsTyLit lit) = do
- -- ++AZ++ change here
     case lit of
       (GHC.HsNumTy s _) ->
         markExternal l GHC.AnnVal s
@@ -1029,12 +1029,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   markAST _ (GHC.HsWrapTy _ _) = return ()
 
   markAST l (GHC.HsWildcardTy) = do
- -- ++AZ++ change here
     markExternal l GHC.AnnVal "_"
     mark GHC.AnnDarrow -- if only part of a partial type signature context
 -- TODO: Probably wrong
   markAST l (GHC.HsNamedWildcardTy n) = do
- -- ++AZ++ change here
     markExternal l GHC.AnnVal  (showGhc n)
 
 -- ---------------------------------------------------------------------

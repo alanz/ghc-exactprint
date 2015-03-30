@@ -494,7 +494,7 @@ manipulateAstTest' mchange useTH file' modname = do
   -- putStrLn $ "Test:ghcAnns' :" ++ showGhc ghcAnns'
   -- putStrLn $ "Test:showdata:" ++ showAnnData ann 0 parsed
   -- putStrLn $ "Test:showdata:parsed'" ++ SYB.showData SYB.Parser 0 parsed'
-  putStrLn $ "Test:showdata:parsed'" ++ showAnnData ann 0 parsed'
+  -- putStrLn $ "Test:showdata:parsed'" ++ showAnnData ann 0 parsed'
   return ("Match\n" == result)
 
 

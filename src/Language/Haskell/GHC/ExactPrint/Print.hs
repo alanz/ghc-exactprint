@@ -69,7 +69,6 @@ data EPState = EPState
              { epPos       :: Pos -- ^ Current output position
              , epAnns      :: Anns
              , epAnnKds    :: [[(KeywordId, DeltaPos)]] -- MP: Could this be moved to the local state with suitable refactoring?
-                                                        -- AZ, it is already in the last element of Annotation, for withOffset
              }
 
 ---------------------------------------------------------
