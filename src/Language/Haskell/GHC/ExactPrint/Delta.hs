@@ -26,8 +26,10 @@ relativiseApiAnns :: Annotate ast
                   => GHC.Located ast
                   -> GHC.ApiAnns
                   -> Anns
-relativiseApiAnns modu@(GHC.L ss _) ghcAnns
+relativiseApiAnns modu' ghcAnns'
    = runDelta (markLocated modu) ghcAnns (ss2pos ss)
+     where
+      (ghcAnns,modu@(GHC.L ss _)) = fixBugsInAst ghcAnns' modu'
 
 -- ---------------------------------------------------------------------
 --
@@ -159,6 +161,12 @@ storeOriginalSrcSpanDelta ss = do
 getSrcSpanForKw :: GHC.AnnKeywordId -> Delta GHC.SrcSpan
 getSrcSpanForKw kw = do
 -- ++AZ++ TODO: Now using AnnEofPos, no need to remove it and update state
+    ga <- gets apAnns
+    ss <- getSrcSpan
+    case GHC.getAnnotation ga ss kw of
+      []     -> return GHC.noSrcSpan
+      (sp:_) -> return sp
+    {-
     s <- get
     let ga = apAnns s
     ss <- getSrcSpan
@@ -167,6 +175,7 @@ getSrcSpanForKw kw = do
     case sss of
       []     -> return GHC.noSrcSpan
       (sp:_) -> return sp
+    -}
 
 -- ---------------------------------------------------------------------
 
