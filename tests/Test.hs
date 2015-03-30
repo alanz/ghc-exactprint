@@ -416,7 +416,7 @@ changeLetIn1 parsed
   where
     replace :: GHC.HsExpr GHC.RdrName -> GHC.HsExpr GHC.RdrName
     replace x@(GHC.HsLet localDecls expr@(GHC.L _ _))
-      = 
+      =
          let (GHC.HsValBinds (GHC.ValBindsIn bagDecls sigs)) = localDecls
              bagDecls' = GHC.listToBag $ init $ GHC.bagToList bagDecls
          in (GHC.HsLet (GHC.HsValBinds (GHC.ValBindsIn bagDecls' sigs)) expr)
@@ -475,7 +475,7 @@ manipulateAstTest' mchange useTH file' modname = do
                    Just change -> change parsed
     printed = exactPrintWithAnns parsed' ann -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
     result =
-            if printed == contents
+            if False
               then "Match\n"
               else printed ++ "\n==============\n"
                     ++ "lengths:" ++ show (length printed,length contents) ++ "\n"
@@ -495,7 +495,7 @@ manipulateAstTest' mchange useTH file' modname = do
   -- putStrLn $ "Test:showdata:" ++ showAnnData ann 0 parsed
   -- putStrLn $ "Test:showdata:parsed'" ++ SYB.showData SYB.Parser 0 parsed'
   -- putStrLn $ "Test:showdata:parsed'" ++ showAnnData ann 0 parsed'
-  return ("Match\n" == result)
+  return (printed == contents)
 
 
 -- ---------------------------------------------------------------------
