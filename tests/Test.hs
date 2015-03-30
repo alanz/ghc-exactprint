@@ -140,6 +140,7 @@ tests = TestList
   , mkTestMod "T3132.hs"                 "T3132"
   , mkTestMod "TH.hs"                    "Main"
   , mkTestMod "Trit.hs"                  "Trit"
+  , mkTestMod "TransformListComp.hs"     "Main"
   , mkTestMod "Tuple.hs"                 "Main"
   , mkTestMod "TypeFamilies.hs"          "Main"
   , mkTestMod "TypeOperators.hs"         "Main"
@@ -203,7 +204,6 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     -}
     -- , manipulateAstTestWFname "ExprPragmas.hs"           "ExprPragmas"
     {-
-    , manipulateAstTestWFname "ListComprehensions.hs"    "Main"
     , manipulateAstTestWFname "MonadComprehensions.hs"   "Main"
     , manipulateAstTestWFname "RecursiveDo.hs"           "Main"
     , manipulateAstTestWFname "TypeFamilies.hs"          "Main"
@@ -295,7 +295,6 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWithMod changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
     , manipulateAstTestWithMod changeLayoutLet5 "LayoutLet5.hs" "LayoutLet5"
     , manipulateAstTestWFname "EmptyMostly2.hs"          "EmptyMostly2"
-    , manipulateAstTestWFname "WhereIn4.hs"              "WhereIn4"
     -}
     -- , manipulateAstTestWFname "Dead1.hs"                 "Dead1"
     {-
@@ -328,9 +327,12 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "Simple.hs"             "Main"
     -- , manipulateAstTestWFname "FunDeps.hs"               "Main"
     -- , manipulateAstTestWFname "IfThenElse3.hs"              "Main"
-    , manipulateAstTestWFname "ImplicitParams.hs"        "Main"
+    -- , manipulateAstTestWFname "ImplicitParams.hs"        "Main"
+    -- , manipulateAstTestWFname "ListComprehensions.hs"    "Main"
+    -- , manipulateAstTestWFname "TransformListComp.hs"     "Main"
     -- , manipulateAstTestWFname "PArr.hs"                  "PArr"
     -- , manipulateAstTestWFname "DataDecl.hs"              "Main"
+    , manipulateAstTestWFname "WhereIn4.hs"              "WhereIn4"
     {-
     , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
     , manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
@@ -465,7 +467,7 @@ manipulateAstTest' mchange useTH file' modname = do
     -- parsedAST = showGhc parsed
        -- `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
     -- try to pretty-print; summarize the test result
-    ann = relativiseApiAnns parsed ghcAnns
+    ann = relativiseApiAnns parsedOrig ghcAnns'
       `debug` ("ghcAnns:" ++ showGhc ghcAnns)
 
     parsed' = case mchange of
@@ -492,7 +494,7 @@ manipulateAstTest' mchange useTH file' modname = do
   -- putStrLn $ "Test:ghcAnns' :" ++ showGhc ghcAnns'
   -- putStrLn $ "Test:showdata:" ++ showAnnData ann 0 parsed
   -- putStrLn $ "Test:showdata:parsed'" ++ SYB.showData SYB.Parser 0 parsed'
-  -- putStrLn $ "Test:showdata:parsed'" ++ showAnnData ann 0 parsed'
+  putStrLn $ "Test:showdata:parsed'" ++ showAnnData ann 0 parsed'
   return ("Match\n" == result)
 
 
