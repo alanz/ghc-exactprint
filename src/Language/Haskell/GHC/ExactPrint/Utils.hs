@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RecordWildCards #-}
 module Language.Haskell.GHC.ExactPrint.Utils
   (
 
@@ -312,6 +313,7 @@ fixBuggySrcSpan mbegin orig@(GHC.L _l a) = r -- `debug` ("fixBuggySrcSpan for " 
 -- include all the annotated items in the SrcSpan.
 -- See https://ghc.haskell.org/trac/ghc/ticket/10207
 -- and https://ghc.haskell.org/trac/ghc/ticket/10209
+-- and https://ghc.haskell.org/trac/ghc/ticket/10214
 type FB a = State GHC.ApiAnns a
  -- runState  :: State s a -> s -> (a, s)
 fixBugsInAst :: (SYB.Data t) => GHC.ApiAnns -> t -> (GHC.ApiAnns,t)
@@ -320,7 +322,8 @@ fixBugsInAst anns t = (anns',t')
     (t',anns') = runState f anns
 
     -- Note: bottom up
-    f = SYB.everywhereM (SYB.mkM parStmtBlock `SYB.extM` parStmt `SYB.extM` hsKind) t
+    f = SYB.everywhereM (SYB.mkM parStmtBlock `SYB.extM` parStmt
+                                              `SYB.extM` hsKind) t
 
     -- ---------------------------------
 
@@ -362,6 +365,9 @@ fixBugsInAst anns t = (anns',t')
     parStmt (GHC.L _ ps@(GHC.ParStmt pbs _ _)) = do
       let ss = GHC.combineSrcSpans (parStmtBlockSpan $ head pbs) (parStmtBlockSpan $ last pbs)
       return (GHC.L ss ps)
+    parStmt (GHC.L ss ast@GHC.TransStmt{..}) =
+      let ss' = GHC.combineLocs (head trS_stmts) trS_using in
+        changeAnnSpan ss ss' >> return (GHC.L ss' ast)
     parStmt x = return x
 
     -- ---------------------------------
