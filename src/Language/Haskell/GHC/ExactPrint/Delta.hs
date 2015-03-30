@@ -258,12 +258,12 @@ withAST lss@(GHC.L ss _) layout action = do
   -- Calculate offset required to get to the start of the SrcSPan
   pe <- getPriorEnd
   off <- asks layoutStart
-  let whenLayout =
+  let newOff =
         case layout of
-          LayoutRules   -> setLayoutOffset (LayoutStartCol (srcSpanStartColumn ss))
-          NoLayoutRules -> id
+          LayoutRules   -> (LayoutStartCol (srcSpanStartColumn ss))
+          NoLayoutRules -> off
 
-  (whenLayout .  withSrcSpanDelta lss) (do
+  (setLayoutOffset newOff .  withSrcSpanDelta lss) (do
 
     let maskWriter s = s { annKds = []
                          , propOffset = First Nothing }
@@ -276,10 +276,11 @@ withAST lss@(GHC.L ss _) layout action = do
 
     -- Preparation complete, perform the action
     (res, w) <- censor maskWriter (listen (captureSpanStart >> action))
-
     let edp = adjustDeltaForOffset
                 -- Use the propagated offset if one is set
-                (fromMaybe off (getFirst $ propOffset w))
+                -- Note that we need to use the new offset if it has
+                -- changed.
+                (fromMaybe newOff (getFirst $ propOffset w))
                   (deltaFromSrcSpans pe ss)
 
     let kds = annKds w
