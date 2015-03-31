@@ -4,7 +4,7 @@ module Language.Haskell.GHC.ExactPrint.Delta  (relativiseApiAnns) where
 import Control.Monad.RWS
 import Control.Monad.Trans.Free
 
-import Data.Data (Data)
+import Data.Data (Data, toConstr)
 import Data.List (sort, nub, partition)
 import Data.Maybe (fromMaybe)
 
@@ -17,6 +17,8 @@ import qualified GHC
 import qualified SrcLoc         as GHC
 
 import qualified Data.Map as Map
+
+import Debug.Trace
 
 
 -- ---------------------------------------------------------------------
@@ -251,7 +253,7 @@ addAnnDeltaPos kw dp = tellKd (kw, dp)
 
 -- | Enter a new AST element. Maintain SrcSpan stack
 withAST :: Data a => GHC.Located a -> LayoutFlag -> Delta b -> Delta b
-withAST lss@(GHC.L ss _) layout action = do
+withAST lss@(GHC.L ss ast) layout action = do
   return () `debug` ("enterAST:(annkey,layout)=" ++ show (mkAnnKey lss,layout))
   -- mbegin <- getLeadingSpanMaybe (GHC.getLoc lss')
   -- let lss@(GHC.L ss _) = fixBuggySrcSpan mbegin lss'
@@ -268,11 +270,16 @@ withAST lss@(GHC.L ss _) layout action = do
     let maskWriter s = s { annKds = []
                          , propOffset = First Nothing }
 
-    let captureSpanStart =
+    let captureSpanStart = do
           -- make sure all kds are relative to the start of the SrcSpan
           when (GHC.isGoodSrcSpan ss && pe < ss2pos ss) $ do
-            addAnnotationWorker' True AnnSpanEntry (GHC.mkSrcSpan (GHC.srcSpanStart ss) (GHC.srcSpanStart ss))
-            return ()
+            setPriorEnd (ss2pos ss)
+            --traceShowM (toConstr ast,ss2pos ss)
+          cs <- getUnallocatedComments
+          let (allocated,cs') = allocatePriorComments cs (ss2pos ss)
+          putUnallocatedComments cs'
+          mapM_ (addDeltaComment False) allocated
+          return ()
 
     -- Preparation complete, perform the action
     (res, w) <- censor maskWriter (listen (captureSpanStart >> action))
@@ -298,12 +305,11 @@ withAST lss@(GHC.L ss _) layout action = do
 
 -- |Split the ordered list of comments into ones that occur prior to
 -- the given SrcSpan and the rest
-allocatePriorComments :: [Comment] -> GHC.SrcSpan -> ([Comment],[Comment])
-allocatePriorComments cs ss = partition isPrior cs
+allocatePriorComments :: [Comment] -> Pos -> ([Comment],[Comment])
+allocatePriorComments cs start = partition isPrior cs
   where
-    (start,_) = ss2span ss
     isPrior (Comment s _)  = fst s < start
-      `debug` ("allocatePriorComments:(s,ss,cond)=" ++ showGhc (s,ss,fst s < start))
+      `debug` ("allocatePriorComments:(s,cond)=" ++ showGhc (s,fst s < start))
 
 -- ---------------------------------------------------------------------
 
@@ -323,25 +329,24 @@ addAnnotationWorker' addPointSpan ann pa =
         (G GHC.AnnOpen, False) -> return ()
         (G GHC.AnnClose,False) -> return ()
         _ -> do
-          cs <- getUnallocatedComments
-          let (allocated,cs') = allocatePriorComments cs pa
-          putUnallocatedComments cs'
-          -- return () `debug`("addAnnotationWorker:(ss,pa,allocated,cs)=" ++ showGhc (ss,pa,allocated,cs))
-          mapM_ addDeltaComment allocated
           p' <- adjustDeltaForOffsetM p
+          cs <- getUnallocatedComments
+          let (allocated,cs') = allocatePriorComments cs (ss2pos pa)
+          putUnallocatedComments cs'
+          mapM_ (addDeltaComment True) allocated
           addAnnDeltaPos ann p'
           setPriorEnd (ss2posEnd pa)
               `debug` ("addAnnotationWorker:(ss,ss,pe,pa,p,p',ann)=" ++ show (showGhc ss,ss2span ss,pe,ss2span pa,p,p',ann))
 
 -- ---------------------------------------------------------------------
 
-addDeltaComment :: Comment -> Delta ()
-addDeltaComment (Comment paspan str) = do
+addDeltaComment :: Bool -> Comment -> Delta ()
+addDeltaComment flag (Comment paspan str) = do
   let pa = span2ss paspan
   pe <- getPriorEnd
   let p = deltaFromSrcSpans pe pa
   p' <- adjustDeltaForOffsetM p
-  setPriorEnd (ss2posEnd pa)
+  when flag (setPriorEnd (ss2posEnd pa))
   let e = ss2deltaP pe (snd paspan)
   e' <- adjustDeltaForOffsetM e
   addAnnDeltaPos (AnnComment (DComment (p',e') str)) p'
@@ -430,7 +435,7 @@ addEofAnnotation = do
     [] -> return ()
     (pa:pss) -> do
       cs <- getUnallocatedComments
-      mapM_ addDeltaComment cs
+      mapM_ (addDeltaComment True) cs
       let DP (r,c) = deltaFromSrcSpans pe pa
       addAnnDeltaPos (G GHC.AnnEofPos) (DP (r, c - 1))
       setPriorEnd (ss2posEnd pa) `warn` ("Trailing annotations after Eof: " ++ showGhc pss)

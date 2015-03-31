@@ -31,6 +31,8 @@ import Control.Monad.Trans.Free
 
 import qualified GHC
 
+import Debug.Trace
+
 ------------------------------------------------------------------------------
 -- Printing of source elements
 
@@ -156,8 +158,39 @@ exactPC ast flag action =
     do return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
        -- let ast = fixBuggySrcSpan Nothing ast'
        ma <- getAndRemoveAnnotation ast
-       let an@(Ann _ _ kds) = fromMaybe annNone ma
-       withContext kds an flag (printStringAtMaybeAnn AnnSpanEntry "" >> action)
+       let an@(Ann edp _ kds) = fromMaybe annNone ma
+       traceShowM ((mkAnnKey ast))
+       withContext kds an flag (action)
+
+
+-- |This should be the final point where things are mode concrete,
+-- before output. Hence the point where comments can be inserted
+advance :: DeltaPos -> LayoutStartCol -> EP ()
+advance cl colOffset = do
+  p <- getPos
+  when (isGoodDeltaWithOffset cl colOffset) (do
+    cs <- getNegComments
+    let newPos = (undelta p cl colOffset)
+    mapM_ (printComment newPos) cs
+    traceShowM (newPos, colOffset)
+    printWhitespace newPos)
+
+printComment :: Pos -> DComment -> EP ()
+printComment p d@(DComment (start, end) s) = do
+  colOffset <- getLayoutOffset
+  let (dr,dc) = undelta p start colOffset
+  printStringAt (undelta p start colOffset) s
+
+getNegComments :: EP [DComment]
+getNegComments = do
+  kd <- gets epAnnKds
+  case kd of
+    []    -> return [] -- Should never be triggered
+    (k:kds) -> return . map kwidToComment . takeWhile negComment $ k
+  where
+          negComment (AnnComment (DComment (_, DP (x, y)) _) , _ ) = x < 0 || y < 0
+          negComment _ = False
+          kwidToComment (AnnComment comment, _) = comment
 
 getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
 getAndRemoveAnnotation a = do
@@ -193,7 +226,7 @@ withOffset :: Annotation -> LayoutFlag -> (EP LayoutFlag -> EP LayoutFlag)
 withOffset Ann{annEntryDelta, annDelta} flag k = do
   let DP (edLine, edColumn) = annEntryDelta
   oldOffset <-  asks epLHS -- Shift from left hand column
-  (_l, currentColumn) <- getPos
+  p@(_l, currentColumn) <- getPos
   rec
     -- Calculate the new offset
     -- 1. If the LayoutRules flag is set then we need to mark this position
@@ -204,13 +237,14 @@ withOffset Ann{annEntryDelta, annDelta} flag k = do
     -- the delta
     -- (2) The start of the layout block is the old offset added to the
     -- "annOffset" (i.e., how far this annotation was from the edge)
+    traceShowM f
     let offset = case flag <> f of
                        LayoutRules -> LayoutStartCol $
                         if edLine == 0
                           then currentColumn + edColumn
                           else getLayoutStartCol oldOffset + getColDelta annDelta
                        NoLayoutRules -> oldOffset
-    f <-  local (\s -> s { epLHS = offset }) k
+    f <-  local (\s -> s { epLHS = offset }) (advance annEntryDelta offset *> k)
   return f
 
 
@@ -229,6 +263,7 @@ withKds kd action = do
 setLayout :: GHC.AnnKeywordId -> EP () -> EP LayoutFlag
 setLayout akiwd k = do
   p <- gets epPos
+  let newscol = LayoutStartCol (snd p - length (keywordToString akiwd))
   local (\s -> s { epLHS = LayoutStartCol (snd p - length (keywordToString akiwd))})
                   (LayoutRules <$ k)
 
@@ -247,6 +282,7 @@ getLayoutOffset = asks epLHS
 printStringAtMaybeAnn :: KeywordId -> String -> EP ()
 printStringAtMaybeAnn an str = do
   annFinal <- getAnnFinal an
+--  when (an == AnnSpanEntry) (traceShowM annFinal)
   case annFinal of
     Nothing -> return ()
     Just (comments, ma) -> printStringAtLsDelta comments ma str
@@ -289,6 +325,7 @@ destructiveGetFirst  key (acc, (k,v):kvs )
     comments (AnnComment comment , _ ) (cs, kws) = (comment : cs, kws)
     comments kw (cs, kws)                        = (cs, kw : kws)
 
+
 -- ---------------------------------------------------------------------
 
 -- |This should be the final point where things are mode concrete,
@@ -310,7 +347,7 @@ isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP (undelta (0,0) dp colOffset
 
 -- AZ:TODO: harvest the commonality between this and printStringAtLsDelta
 printQueuedComment :: DComment -> EP ()
-printQueuedComment (DComment (dp,de) s) = do
+printQueuedComment d@(DComment (dp,de) s) = do
   p <- getPos
   colOffset <- getLayoutOffset
   let (dr,dc) = undelta (0,0) dp colOffset
