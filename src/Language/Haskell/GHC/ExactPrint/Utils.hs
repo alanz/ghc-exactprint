@@ -37,7 +37,6 @@ module Language.Haskell.GHC.ExactPrint.Utils
   ) where
 
 
-import Control.Monad (when)
 import Control.Monad.State
 import Data.Data (Data, toConstr, showConstr, cast)
 import Data.Generics (extQ, ext1Q, ext2Q, gmapQ)
@@ -60,7 +59,6 @@ import qualified Var            as GHC
 import qualified OccName(occNameString)
 
 import qualified Data.Generics as SYB
-import qualified GHC.SYB.Utils as SYB
 
 import qualified Data.Map as Map
 

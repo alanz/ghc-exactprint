@@ -17,7 +17,7 @@ module Language.Haskell.GHC.ExactPrint.Print
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Types
-import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta, fixBuggySrcSpan )
+import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta )
 import Language.Haskell.GHC.ExactPrint.Annotate
   (AnnotationF(..), Annotated, Annotate(..), markLocated)
 import Language.Haskell.GHC.ExactPrint.Lookup (keywordToString)
@@ -25,8 +25,7 @@ import Language.Haskell.GHC.ExactPrint.Delta ( relativiseApiAnns )
 
 import Control.Monad.RWS
 import Data.Data (Data)
-import Data.List (partition)
-import Data.Maybe (mapMaybe, fromMaybe, maybeToList)
+import Data.Maybe (fromMaybe)
 
 import Control.Monad.Trans.Free
 
@@ -128,7 +127,7 @@ printInterpret = iterTM go
     go (MarkExternal _ akwid s next) =
       printStringAtMaybeAnn (G akwid) s >> next
     go (StoreOriginalSrcSpan ss next) = storeOriginalSrcSpanPrint ss >>= next
-    go (GetSrcSpanForKw kw next) = return GHC.noSrcSpan >>= next
+    go (GetSrcSpanForKw _ next) = return GHC.noSrcSpan >>= next
 
 -------------------------------------------------------------------------
 
@@ -157,7 +156,7 @@ exactPC ast flag action =
     do return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
        -- let ast = fixBuggySrcSpan Nothing ast'
        ma <- getAndRemoveAnnotation ast
-       let an@(Ann edp _ kds) = fromMaybe annNone ma
+       let an@(Ann _ _ kds) = fromMaybe annNone ma
        withContext kds an flag (printStringAtMaybeAnn AnnSpanEntry "" >> action)
 
 getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
