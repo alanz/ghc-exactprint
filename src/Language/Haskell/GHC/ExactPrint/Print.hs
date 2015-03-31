@@ -247,10 +247,10 @@ getLayoutOffset = asks epLHS
 
 printStringAtMaybeAnn :: KeywordId -> String -> EP ()
 printStringAtMaybeAnn an str = do
-  (comments, ma) <- getAnnFinal an
-  case ma of
+  annFinal <- getAnnFinal an
+  case annFinal of
     Nothing -> return ()
-    Just maDeltaPos -> printStringAtLsDelta comments maDeltaPos str
+    Just (comments, ma) -> printStringAtLsDelta comments ma str
     -- ++AZ++: Enabling the following line causes a very weird error associated with AnnPackageName. I suspect it is because it is forcing the evaluation of a non-existent an or str
     -- `debug` ("printStringAtMaybeAnn:(an,ma,str)=" ++ show (an,ma,str))
 
@@ -258,42 +258,37 @@ printStringAtMaybeAnnAll :: KeywordId -> String -> EP ()
 printStringAtMaybeAnnAll an str = go
   where
     go = do
-      (comments, ma) <- getAnnFinal an
-      case ma of
+      annFinal <- getAnnFinal an
+      case annFinal of
         Nothing -> return ()
-        Just d  -> printStringAtLsDelta comments d str >> go
+        Just (comments, d)  -> printStringAtLsDelta comments d str >> go
 
 -- ---------------------------------------------------------------------
 
-
 -- |destructive get, hence use an annotation once only
-getAnnFinal :: KeywordId -> EP ([DComment], Maybe DeltaPos)
+getAnnFinal :: KeywordId -> EP (Maybe ([DComment], DeltaPos))
 getAnnFinal kw = do
   kd <- gets epAnnKds
-  let (r, kd', dcs) = case kd of
-                  []    -> (Nothing ,[], [])
-                  (k:kds) -> (r',kk:kds, dcs')
-                    where (cs', r',kk) = destructiveGetFirst kw ([],k)
-                          dcs' = mapMaybe keywordIdToDComment cs'
-  modify (\s -> s { epAnnKds = kd' })
-  return (dcs, r)
-
-keywordIdToDComment :: (KeywordId, DeltaPos) -> Maybe DComment
-keywordIdToDComment (AnnComment comment,_dp) = Just comment
-keywordIdToDComment _                   = Nothing
+  case kd of
+    []    -> return Nothing -- Should never be triggered
+    (k:kds) -> do
+      let (res, kd') = destructiveGetFirst kw ([],k)
+      modify (\s -> s { epAnnKds = kd' : kds })
+      return res
 
 -- | Get and remove the first item in the (k,v) list for which the k matches.
 -- Return the value, together with any comments skipped over to get there.
-destructiveGetFirst :: KeywordId -> ([(KeywordId,v)],[(KeywordId,v)])
-                    -> ([(KeywordId,v)], Maybe v,[(KeywordId,v)])
-destructiveGetFirst _key (acc,[]) = ([], Nothing ,acc)
+destructiveGetFirst :: KeywordId
+                    -> ([(KeywordId, v)],[(KeywordId,v)])
+                    -> (Maybe ([DComment], v),[(KeywordId,v)])
+destructiveGetFirst _key (acc,[]) = (Nothing, acc)
 destructiveGetFirst  key (acc, (k,v):kvs )
-  | k == key = let (cs,others) = commentsAndOthers acc in (cs, Just v ,others++kvs)
-  | otherwise = destructiveGetFirst key (acc++[(k,v)],kvs)
+  | k == key = (Just (skippedComments, v), others ++ kvs)
+  | otherwise = destructiveGetFirst key (acc ++ [(k,v)], kvs)
   where
-    commentsAndOthers kvs' = partition isComment kvs'
-    isComment (AnnComment _ , _ ) = True
-    isComment _              = False
+    (skippedComments, others) = foldr comments ([], []) acc
+    comments (AnnComment comment , _ ) (cs, kws) = (comment : cs, kws)
+    comments kw (cs, kws)                        = (cs, kw : kws)
 
 -- ---------------------------------------------------------------------
 
@@ -332,8 +327,8 @@ printQueuedComment (DComment (dp,de) s) = do
 -- |non-destructive get
 peekAnnFinal :: KeywordId -> EP (Maybe DeltaPos)
 peekAnnFinal kw = do
-  (_, r, _) <- (\kd -> destructiveGetFirst kw ([], kd)) <$> gets (head . epAnnKds)
-  return r
+  (r, _) <- (\kd -> destructiveGetFirst kw ([], kd)) <$> gets (head . epAnnKds)
+  return (snd <$> r)
 
 countAnnsEP :: KeywordId -> EP Int
 countAnnsEP an = length <$> peekAnnFinal an
