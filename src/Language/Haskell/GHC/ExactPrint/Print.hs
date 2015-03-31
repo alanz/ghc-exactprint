@@ -247,7 +247,9 @@ getLayoutOffset = asks epLHS
 printStringAtMaybeAnn :: KeywordId -> String -> EP ()
 printStringAtMaybeAnn an str = do
   (comments, ma) <- getAnnFinal an
-  printStringAtLsDelta comments (maybeToList ma) str
+  case ma of
+    Nothing -> return ()
+    Just maDeltaPos -> printStringAtLsDelta comments maDeltaPos str
     -- ++AZ++: Enabling the following line causes a very weird error associated with AnnPackageName. I suspect it is because it is forcing the evaluation of a non-existent an or str
     -- `debug` ("printStringAtMaybeAnn:(an,ma,str)=" ++ show (an,ma,str))
 
@@ -258,7 +260,7 @@ printStringAtMaybeAnnAll an str = go
       (comments, ma) <- getAnnFinal an
       case ma of
         Nothing -> return ()
-        Just d  -> printStringAtLsDelta comments [d] str >> go
+        Just d  -> printStringAtLsDelta comments d str >> go
 
 -- ---------------------------------------------------------------------
 
@@ -296,19 +298,16 @@ destructiveGetFirst  key (acc, (k,v):kvs )
 
 -- |This should be the final point where things are mode concrete,
 -- before output. Hence the point where comments can be inserted
-printStringAtLsDelta :: [DComment] -> [DeltaPos] -> String -> EP ()
-printStringAtLsDelta cs mc s =
-  case reverse mc of
-    (cl:_) -> do
-      p <- getPos
-      colOffset <- getLayoutOffset
-      if isGoodDeltaWithOffset cl colOffset
-        then do
-          mapM_ printQueuedComment cs
-          printStringAt (undelta p cl colOffset) s
-            `debug` ("printStringAtLsDelta:(pos,s):" ++ show (undelta p cl colOffset,s))
-        else return () `debug` ("printStringAtLsDelta:bad delta for (mc,s):" ++ show (mc,s))
-    _ -> return ()
+printStringAtLsDelta :: [DComment] -> DeltaPos -> String -> EP ()
+printStringAtLsDelta cs cl s = do
+  p <- getPos
+  colOffset <- getLayoutOffset
+  if isGoodDeltaWithOffset cl colOffset
+    then do
+      mapM_ printQueuedComment cs
+      printStringAt (undelta p cl colOffset) s
+        `debug` ("printStringAtLsDelta:(pos,s):" ++ show (undelta p cl colOffset,s))
+    else return () `debug` ("printStringAtLsDelta:bad delta for (mc,s):" ++ show (cl,s))
 
 
 isGoodDeltaWithOffset :: DeltaPos -> LayoutStartCol -> Bool
