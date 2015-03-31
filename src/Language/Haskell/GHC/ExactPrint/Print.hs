@@ -1,5 +1,6 @@
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE MultiWayIf #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -355,10 +356,9 @@ newLine = do
 padUntil :: Pos -> EP ()
 padUntil (l,c) = do
     (l1,c1) <- getPos
-    case  {- trace (show ((l,c), (l1,c1))) -} () of
-     _ {-()-} | l1 >= l && c1 <= c -> printString $ replicate (c - c1) ' '
-              | l1 < l             -> newLine >> padUntil (l,c)
-              | otherwise          -> return ()
+    if | l1 >= l && c1 <= c -> printString $ replicate (c - c1) ' '
+       | l1 < l             -> newLine >> padUntil (l,c)
+       | otherwise          -> return ()
 
 printWhitespace :: Pos -> EP ()
 printWhitespace = padUntil
