@@ -452,7 +452,7 @@ manipulateAstTestTH :: FilePath -> String -> IO Bool
 manipulateAstTestTH file modname = manipulateAstTest' Nothing True file modname
 
 manipulateAstTest' :: Maybe (GHC.ParsedSource -> GHC.ParsedSource) -> Bool -> FilePath -> String -> IO Bool
-manipulateAstTest' mchange useTH file' modname = hSilence [stderr] $ do
+manipulateAstTest' mchange useTH file' modname = do
   let testpath = "./tests/examples/"
       file     = testpath </> file'
       out      = file <.> "out"
@@ -461,7 +461,7 @@ manipulateAstTest' mchange useTH file' modname = hSilence [stderr] $ do
   contents <- case mchange of
                    Nothing -> readUTF8File file
                    Just _  -> readUTF8File expected
-  (ghcAnns',t) <- parsedFileGhc file modname useTH
+  (ghcAnns',t) <- hSilence [stderr] $ parsedFileGhc file modname useTH
   let
     parsedOrig = GHC.pm_parsed_source $ GHC.tm_parsed_module t
     (ghcAnns,parsed) = fixBugsInAst ghcAnns' parsedOrig
