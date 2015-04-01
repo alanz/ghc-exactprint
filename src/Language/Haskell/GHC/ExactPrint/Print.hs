@@ -175,23 +175,26 @@ advance cl colOffset = do
   when (isGoodDeltaWithOffset cl colOffset) (do
     cs <- getNegComments
     let newPos = (undelta p cl colOffset)
-    mapM_ (printComment newPos) cs
+    traceShowM newPos
+    mapM_ (printComment newPos) (traceShowId cs)
     printWhitespace newPos)
 
 printComment :: Pos -> DComment -> EP ()
 printComment p d@(DComment (start, end) s) = do
   colOffset <- getLayoutOffset
   let (dr,dc) = undelta p start colOffset
+  traceShowM (dr, dc)
   printStringAt (undelta p start colOffset) s
+  setPos (undelta p end colOffset)
 
 getNegComments :: EP [DComment]
 getNegComments = do
   kd <- gets epAnnKds
   case kd of
     []    -> return [] -- Should never be triggered
-    (k:kds) -> return . map kwidToComment . takeWhile negComment $ k
+    (k:kds) -> return . map kwidToComment . takeWhile negComment . traceShowId $ k
   where
-          negComment (AnnComment (DComment (_, DP (x, y)) _) , _ ) = x < 0 || y < 0
+          negComment (AnnComment (DComment _ _) , DP (x, y) ) = x < 0 || y < 0
           negComment _ = False
           kwidToComment (AnnComment comment, _) = comment
 
@@ -272,7 +275,7 @@ setLayout k = do
   let DP (edLine, edColumn) = annEntryDelta
       newOffset =
         if edLine == 0
-            then currentColumn + edColumn
+            then currentColumn
             else getLayoutStartCol oldOffset + getColDelta annDelta
   traceShowM (newOffset, p)
   traceShowM a
