@@ -37,6 +37,8 @@ import Test.HUnit
 import Control.Applicative
 import Data.List (partition)
 
+import System.IO.Silently
+
 -- ---------------------------------------------------------------------
 
 ghead :: String -> [a] -> a
@@ -44,8 +46,8 @@ ghead s [] = error ("Empty list at: " ++ s)
 ghead s (x:xs) = x
 
 main :: IO ()
-main = do
-  cnts <- runTestTT tests
+main = hSilence [stderr] $ do
+  cnts <- fst <$> runTestText (putTextToHandle stdout True) tests
   putStrLn $ show cnts
   if errors cnts > 0 || failures cnts > 0
      then exitFailure
@@ -243,7 +245,7 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname "OverloadedStrings.hs"     "Main"
     , manipulateAstTestWFname "RankNTypes.hs"            "Main"
     -}
-    -- , manipulateAstTestWFname "Existential.hs"           "Main"
+    , manipulateAstTestWFname "Existential.hs"           "Main"
     {-
     , manipulateAstTestWFname "ScopedTypeVariables.hs"   "Main"
     , manipulateAstTestWFname "Arrows.hs"                "Main"
@@ -332,7 +334,7 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "TransformListComp.hs"     "Main"
     -- , manipulateAstTestWFname "PArr.hs"                  "PArr"
     -- , manipulateAstTestWFname "DataDecl.hs"              "Main"
-    , manipulateAstTestWFname "WhereIn4.hs"              "WhereIn4"
+    -- , manipulateAstTestWFname "WhereIn4.hs"              "WhereIn4"
     {-
     , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
     , manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
@@ -450,7 +452,7 @@ manipulateAstTestTH :: FilePath -> String -> IO Bool
 manipulateAstTestTH file modname = manipulateAstTest' Nothing True file modname
 
 manipulateAstTest' :: Maybe (GHC.ParsedSource -> GHC.ParsedSource) -> Bool -> FilePath -> String -> IO Bool
-manipulateAstTest' mchange useTH file' modname = do
+manipulateAstTest' mchange useTH file' modname = hSilence [stderr] $ do
   let testpath = "./tests/examples/"
       file     = testpath </> file'
       out      = file <.> "out"

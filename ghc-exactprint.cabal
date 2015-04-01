@@ -78,6 +78,7 @@ Test-Suite test
                      , random
                      , stm
                      , syb
+                     , silently
 
 
 
