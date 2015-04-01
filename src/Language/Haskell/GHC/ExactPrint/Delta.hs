@@ -138,15 +138,15 @@ deltaInterpret = iterTM go
     go (WithAST lss layoutflag prog next) =
       withAST lss layoutflag (deltaInterpret prog) >> next
     go (CountAnns kwid next) = countAnnsDelta kwid >>= next
-    go (SetLayoutFlag kwid action next) = setLayoutFlag kwid (deltaInterpret action)  >> next
+    go (SetLayoutFlag action next) = setLayoutFlag (deltaInterpret action)  >> next
     go (MarkExternal ss akwid _ next) = addDeltaAnnotationExt ss akwid >> next
     go (StoreOriginalSrcSpan ss next) = storeOriginalSrcSpanDelta ss >>= next
     go (GetSrcSpanForKw kw next) = getSrcSpanForKw kw >>= next
 
 -- | Used specifically for "HsLet"
-setLayoutFlag :: GHC.AnnKeywordId -> Delta () -> Delta ()
-setLayoutFlag kwid action = do
-  c <-  srcSpanStartColumn . head <$> getAnnotationDelta kwid
+setLayoutFlag :: Delta () -> Delta ()
+setLayoutFlag action = do
+  c <- srcSpanStartColumn <$> getSrcSpan
   tell (mempty { propOffset = First  (Just (LayoutStartCol c)) })
   local (\s -> s { layoutStart = LayoutStartCol c }) action
 
@@ -287,7 +287,7 @@ withAST lss@(GHC.L ss ast) layout action = do
                 -- Use the propagated offset if one is set
                 -- Note that we need to use the new offset if it has
                 -- changed.
-                (fromMaybe newOff (getFirst $ propOffset w))
+                (fromMaybe off (getFirst $ propOffset w))
                   (deltaFromSrcSpans pe ss)
 
     let kds = annKds w

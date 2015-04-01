@@ -1,6 +1,8 @@
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -58,14 +60,16 @@ exactPrintWithAnns ast an = runEP (markLocated ast) an
 data EPReader = EPReader
             {  epLHS      :: LayoutStartCol -- ^ Marks the column of the LHS of
                                             -- the current layout block
+            ,  epAnn      :: Annotation
             }
 
 data EPWriter = EPWriter
-              { output :: Endo String }
+              { output :: Endo String
+              , lf     :: LayoutFlag }
 
 instance Monoid EPWriter where
-  mempty = EPWriter mempty
-  (EPWriter a) `mappend` (EPWriter c) = EPWriter (a <> c)
+  mempty = EPWriter mempty mempty
+  (EPWriter a c) `mappend` (EPWriter b d) = EPWriter (a <> b) (c <> d)
 
 data EPState = EPState
              { epPos       :: Pos -- ^ Current output position
@@ -95,6 +99,7 @@ defaultEPState as = EPState
 initialEPReader :: EPReader
 initialEPReader  = EPReader
              { epLHS = 0
+             , epAnn = mempty
              }
 
 -- ---------------------------------------------------------------------
@@ -121,11 +126,11 @@ printInterpret = iterTM go
     go (MarkAfter akwid next) =
       justOne akwid >> next
     go (WithAST lss flag action next) =
-      exactPC lss flag (NoLayoutRules <$ printInterpret action) >> next
+      exactPC lss flag (printInterpret action) >> next
     go (CountAnns kwid next) =
       countAnnsEP (G kwid) >>= next
-    go (SetLayoutFlag kwid action next) =
-      setLayout kwid (printInterpret action) >> next
+    go (SetLayoutFlag action next) =
+      setLayout (printInterpret action) >> next
     go (MarkExternal _ akwid s next) =
       printStringAtMaybeAnn (G akwid) s >> next
     go (StoreOriginalSrcSpan ss next) = storeOriginalSrcSpanPrint ss >>= next
@@ -153,14 +158,13 @@ allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString kwid)
 
 -------------------------------------------------------------------------
 -- |First move to the given location, then call exactP
-exactPC :: Data ast => GHC.Located ast -> LayoutFlag -> EP LayoutFlag -> EP LayoutFlag
+exactPC :: Data ast => GHC.Located ast -> LayoutFlag -> EP a -> EP a
 exactPC ast flag action =
     do return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
        -- let ast = fixBuggySrcSpan Nothing ast'
        ma <- getAndRemoveAnnotation ast
        let an@(Ann edp _ kds) = fromMaybe annNone ma
-       traceShowM ((mkAnnKey ast))
-       withContext kds an flag (action)
+       withContext kds an flag action
 
 
 -- |This should be the final point where things are mode concrete,
@@ -172,7 +176,6 @@ advance cl colOffset = do
     cs <- getNegComments
     let newPos = (undelta p cl colOffset)
     mapM_ (printComment newPos) cs
-    traceShowM (newPos, colOffset)
     printWhitespace newPos)
 
 printComment :: Pos -> DComment -> EP ()
@@ -214,7 +217,7 @@ advanceToDP dp = do
 withContext :: [(KeywordId, DeltaPos)]
             -> Annotation
             -> LayoutFlag
-            -> EP LayoutFlag -> EP LayoutFlag
+            -> EP a -> EP a
 withContext kds an flag = withKds kds . withOffset an flag
 
 -- ---------------------------------------------------------------------
@@ -222,8 +225,8 @@ withContext kds an flag = withKds kds . withOffset an flag
 -- | Given an annotation associated with a specific SrcSpan, determines a new offset relative to the previous
 -- offset
 --
-withOffset :: Annotation -> LayoutFlag -> (EP LayoutFlag -> EP LayoutFlag)
-withOffset Ann{annEntryDelta, annDelta} flag k = do
+withOffset :: Annotation -> LayoutFlag -> (EP a -> EP a)
+withOffset a@Ann{annEntryDelta, annDelta} flag k = do
   let DP (edLine, edColumn) = annEntryDelta
   oldOffset <-  asks epLHS -- Shift from left hand column
   p@(_l, currentColumn) <- getPos
@@ -237,15 +240,16 @@ withOffset Ann{annEntryDelta, annDelta} flag k = do
     -- the delta
     -- (2) The start of the layout block is the old offset added to the
     -- "annOffset" (i.e., how far this annotation was from the edge)
-    traceShowM f
-    let offset = case flag <> f of
+    let offset = case flag of
                        LayoutRules -> LayoutStartCol $
                         if edLine == 0
                           then currentColumn + edColumn
                           else getLayoutStartCol oldOffset + getColDelta annDelta
                        NoLayoutRules -> oldOffset
-    f <-  local (\s -> s { epLHS = offset }) (advance annEntryDelta offset *> k)
-  return f
+    r <-  local (\s -> s { epLHS = offset
+                         , epAnn = a }) $
+                     (advance annEntryDelta offset >> k)
+  return r
 
 
 -- ---------------------------------------------------------------------
@@ -260,12 +264,21 @@ withKds kd action = do
 
 ------------------------------------------------------------------------
 
-setLayout :: GHC.AnnKeywordId -> EP () -> EP LayoutFlag
-setLayout akiwd k = do
-  p <- gets epPos
-  let newscol = LayoutStartCol (snd p - length (keywordToString akiwd))
-  local (\s -> s { epLHS = LayoutStartCol (snd p - length (keywordToString akiwd))})
-                  (LayoutRules <$ k)
+setLayout :: EP () -> EP ()
+setLayout k = do
+  p@(_, currentColumn) <- gets epPos
+  a@Ann{..} <- asks epAnn
+  oldOffset <-  asks epLHS -- Shift from left hand column
+  let DP (edLine, edColumn) = annEntryDelta
+      newOffset =
+        if edLine == 0
+            then currentColumn + edColumn
+            else getLayoutStartCol oldOffset + getColDelta annDelta
+  traceShowM (newOffset, p)
+  traceShowM a
+  local
+    (\s -> s { epLHS = LayoutStartCol (newOffset)})
+      k
 
 getPos :: EP Pos
 getPos = gets epPos

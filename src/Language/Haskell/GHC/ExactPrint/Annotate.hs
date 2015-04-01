@@ -51,7 +51,7 @@ data AnnotationF next where
   WithAST        :: Data a => GHC.Located a -> LayoutFlag -> Annotated b -> next -> AnnotationF next
   CountAnns      ::  GHC.AnnKeywordId                           -> (Int -> next) -> AnnotationF next
   -- | Abstraction breakers
-  SetLayoutFlag  ::  GHC.AnnKeywordId -> Annotated ()                    -> next -> AnnotationF next
+  SetLayoutFlag  ::  Annotated ()                    -> next -> AnnotationF next
 
   -- | Required to work around deficiencies in the GHC AST
   StoreOriginalSrcSpan :: GHC.SrcSpan                   -> (GHC.SrcSpan -> next) -> AnnotationF next
@@ -1421,8 +1421,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mapM_ markLocated rhs
 
   markAST _ (GHC.HsLet binds e) = do
-    mark GHC.AnnLet
-    setLayoutFlag GHC.AnnLet (do -- Make sure the 'in' gets indented too
+    setLayoutFlag (do -- Make sure the 'in' gets indented too
+      mark GHC.AnnLet
       mark GHC.AnnOpenC
       markInside GHC.AnnSemi
       markLocalBindsWithLayout binds
