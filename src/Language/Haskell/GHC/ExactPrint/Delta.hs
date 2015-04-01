@@ -287,7 +287,7 @@ withAST lss@(GHC.L ss ast) layout action = do
                 -- Use the propagated offset if one is set
                 -- Note that we need to use the new offset if it has
                 -- changed.
-                (fromMaybe off (getFirst $ propOffset w))
+                (fromMaybe newOff (getFirst $ propOffset w))
                   (deltaFromSrcSpans pe ss)
 
     let kds = annKds w

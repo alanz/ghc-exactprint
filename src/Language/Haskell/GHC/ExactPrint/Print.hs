@@ -276,6 +276,9 @@ setLayout k = do
             else getLayoutStartCol oldOffset + getColDelta annDelta
   traceShowM (newOffset, p)
   traceShowM a
+  if edLine > 0
+    then printWhitespace (fst p, newOffset)
+    else return ()
   local
     (\s -> s { epLHS = LayoutStartCol (newOffset)})
       k
