@@ -275,10 +275,7 @@ withAST lss@(GHC.L ss ast) layout action = do
           when (GHC.isGoodSrcSpan ss && pe < ss2pos ss) $ do
             setPriorEnd (ss2pos ss)
             --traceShowM (toConstr ast,ss2pos ss)
-          cs <- getUnallocatedComments
-          let (allocated,cs') = allocatePriorComments cs (ss2pos ss)
-          putUnallocatedComments cs'
-          mapM_ (addDeltaComment False) allocated
+          commentAllocation False (priorComment (ss2pos ss))
           return ()
 
     -- Preparation complete, perform the action
@@ -301,15 +298,28 @@ withAST lss@(GHC.L ss ast) layout action = do
      `debug` ("leaveAST:(annkey,an)=" ++ show (mkAnnKey lss,an))
     return res)
 
+
+---
+-- Comment allocation rules
+--
+-- 1. Allocate trailing comments to the outermost immediately preceding
+-- SrcSpan
+-- 2. If a commnt is on it's own line then allocate the comment to the
+-- succeeding SrcSpan.
 -- ---------------------------------------------------------------------
 
 -- |Split the ordered list of comments into ones that occur prior to
--- the given SrcSpan and the rest
-allocatePriorComments :: [Comment] -> Pos -> ([Comment],[Comment])
-allocatePriorComments cs start = partition isPrior cs
-  where
-    isPrior (Comment s _)  = fst s < start
-      `debug` ("allocatePriorComments:(s,cond)=" ++ showGhc (s,fst s < start))
+-- the give SrcSpan and the rest
+priorComment :: Pos -> Comment -> Bool
+priorComment start (Comment s _) = fst s < start
+
+trailingComment :: Pos -> Comment -> Bool
+trailingComment (ol, oc) (Comment s _) =
+  let (l, c) = fst s in
+       l == ol && c > oc
+
+allocateComments :: (Comment -> Bool) -> [Comment] -> ([Comment], [Comment])
+allocateComments = partition
 
 -- ---------------------------------------------------------------------
 
@@ -330,15 +340,19 @@ addAnnotationWorker' addPointSpan ann pa =
         (G GHC.AnnClose,False) -> return ()
         _ -> do
           p' <- adjustDeltaForOffsetM p
-          cs <- getUnallocatedComments
-          let (allocated,cs') = allocatePriorComments cs (ss2pos pa)
-          putUnallocatedComments cs'
-          mapM_ (addDeltaComment True) allocated
+          commentAllocation True (priorComment (ss2pos pa))
           addAnnDeltaPos ann p'
           setPriorEnd (ss2posEnd pa)
               `debug` ("addAnnotationWorker:(ss,ss,pe,pa,p,p',ann)=" ++ show (showGhc ss,ss2span ss,pe,ss2span pa,p,p',ann))
 
 -- ---------------------------------------------------------------------
+
+commentAllocation :: Bool -> (Comment -> Bool) ->  Delta ()
+commentAllocation flag pred = do
+  cs <- getUnallocatedComments
+  let (allocated,cs') = allocateComments pred cs
+  putUnallocatedComments cs'
+  mapM_ (addDeltaComment flag) allocated
 
 addDeltaComment :: Bool -> Comment -> Delta ()
 addDeltaComment flag (Comment paspan str) = do
