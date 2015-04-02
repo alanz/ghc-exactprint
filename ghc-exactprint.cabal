@@ -40,6 +40,7 @@ library
                      , Language.Haskell.GHC.ExactPrint.Lookup
                      , Language.Haskell.GHC.ExactPrint.Annotate
                      , Language.Haskell.GHC.ExactPrint.Print
+                     , Language.Haskell.GHC.ExactPrint.Transform
   GHC-Options:         -Wall
   -- other-modules:
   -- other-extensions:
