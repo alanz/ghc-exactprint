@@ -289,9 +289,9 @@ withAST lss@(GHC.L ss _) layout action = do
                 -- Use the propagated offset if one is set
                 -- Note that we need to use the new offset if it has
                 -- changed.
-                newOff (deltaFromSrcSpans pe ss)
+                newOff (ss2delta pe ss)
     let edpAST = adjustDeltaForOffset
-                  newOff (deltaFromSrcSpans peAST ss)
+                  newOff (ss2delta peAST ss)
     -- Preparation complete, perform the action
     (res, w) <- censor maskWriter (listen action)
 
@@ -326,7 +326,7 @@ addAnnotationWorker ann pa =
     do
       pe <- getPriorEnd
       ss <- getSrcSpan
-      let p = deltaFromSrcSpans pe pa
+      let p = ss2delta pe pa
       case (ann,isGoodDelta p) of
         (G GHC.AnnComma,False) -> return ()
         (G GHC.AnnSemi, False) -> return ()
@@ -355,10 +355,10 @@ makeDeltaComment :: Comment -> Delta DComment
 makeDeltaComment (Comment paspan str) = do
   let pa = span2ss paspan
   pe <- getPriorEnd
-  let p = deltaFromSrcSpans pe pa
+  let p = ss2delta pe pa
   p' <- adjustDeltaForOffsetM p
   setPriorEnd (ss2posEnd pa)
-  let e = ss2deltaP pe (snd paspan)
+  let e = pos2delta pe (snd paspan)
   e' <- adjustDeltaForOffsetM e
   return $ DComment (p', e') str
 
@@ -450,7 +450,7 @@ addEofAnnotation = do
     [] -> return ()
     (pa:pss) -> do
       commentAllocation (const True) (mapM_ addDeltaComment)
-      let DP (r,c) = deltaFromSrcSpans pe pa
+      let DP (r,c) = ss2delta pe pa
       addAnnDeltaPos (G GHC.AnnEofPos) (DP (r, c - 1))
       setPriorEndAST (ss2posEnd pa) `warn` ("Trailing annotations after Eof: " ++ showGhc pss)
 

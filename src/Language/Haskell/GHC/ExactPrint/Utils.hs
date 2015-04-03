@@ -15,10 +15,10 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , undelta
   , rdrName2String
   , isSymbolRdrName
-  , deltaFromSrcSpans
   , ghcCommentText
   , isPointSrcSpan
-  , ss2deltaP
+  , pos2delta
+  , ss2delta
   , isGoodDelta
 
   , isListComp
@@ -90,18 +90,16 @@ warn c _ = c
 isGoodDelta :: DeltaPos -> Bool
 isGoodDelta (DP (ro,co)) = ro >= 0 && co >= 0
 
--- | Create a delta covering the gap between the end of the first
--- @SrcSpan@ and the start of the second.
-deltaFromSrcSpans :: Pos -> GHC.SrcSpan -> DeltaPos
-deltaFromSrcSpans p1 ss2 = ss2delta p1 ss2
 
+-- | Create a delta from the current position to the start of the given
+-- @SrcSpan@.
 ss2delta :: Pos -> GHC.SrcSpan -> DeltaPos
-ss2delta ref ss = ss2deltaP ref (ss2pos ss)
+ss2delta ref ss = pos2delta ref (ss2pos ss)
 
 -- | Convert the start of the second @Pos@ to be an offset from the
 -- first. The assumption is the reference starts before the second @Pos@
-ss2deltaP :: Pos -> Pos -> DeltaPos
-ss2deltaP (refl,refc) (l,c) = DP (lo,co)
+pos2delta :: Pos -> Pos -> DeltaPos
+pos2delta (refl,refc) (l,c) = DP (lo,co)
   where
     lo = l - refl
     co = if lo == 0 then c - refc
