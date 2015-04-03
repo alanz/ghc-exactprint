@@ -77,11 +77,13 @@ instance Show ColDelta where
   show (ColDelta v) = "(ColDelta " ++ show v ++ ")"
 
 annNone :: Annotation
-annNone = Ann (DP (0,0)) 0 []
+annNone = Ann (DP (0,0)) 0  (DP (0,0)) [] []
 
+
+-- TODO: This is wrong
 combineAnns :: Annotation -> Annotation -> Annotation
-combineAnns (Ann ed1 c1 dps1) (Ann _ed2  _c2  dps2)
-  = Ann ed1 c1 (dps1 ++ dps2)
+combineAnns (Ann ed1 c1 comments toStart dps1) (Ann _ed2  _c2  _comments _toStart dps2)
+  = Ann ed1 c1 comments toStart (dps1 ++ dps2)
 
 data Annotation = Ann
   {
@@ -90,12 +92,14 @@ data Annotation = Ann
   , annDelta           :: !ColDelta -- ^ Offset from the start of the current layout
                                    --  block. This is used when moving onto new
                                    --  lines when layout rules must be obeyed.
+  , annTrueEntryDelta       :: DeltaPos -- | Entry without comments
+  , annPriorComments   :: [DComment]
   , annsDP             :: [(KeywordId, DeltaPos)]  -- ^ Annotations associated with this element.
 
   } deriving (Typeable,Eq)
 
 instance Show Annotation where
-  show (Ann dp c ans) = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ " " ++ show ans ++ ")"
+  show (Ann dp c comments toStart ans) = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ show comments ++ " " ++ show toStart ++ " " ++ show ans ++ ")"
 
 instance Monoid Annotation where
   mempty = annNone

@@ -1,12 +1,12 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE RecursiveDo #-}
 module Language.Haskell.GHC.ExactPrint.Delta  (relativiseApiAnns) where
 
 import Control.Monad.RWS
 import Control.Monad.Trans.Free
 
-import Data.Data (Data, toConstr)
+import Data.Data (Data)
 import Data.List (sort, nub, partition)
-import Data.Maybe (fromMaybe)
 
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
@@ -17,8 +17,6 @@ import qualified GHC
 import qualified SrcLoc         as GHC
 
 import qualified Data.Map as Map
-
-import Debug.Trace
 
 
 -- ---------------------------------------------------------------------
@@ -70,6 +68,9 @@ data DeltaWriter = DeltaWriter
 data DeltaState = DeltaState
        { -- | Position reached when processing the last element
          priorEndPosition :: Pos
+         -- | Position reached when processing last AST element
+         --   this is necessary to enforce layout rules.
+       , priorEndASTPosition :: Pos
          -- | Ordered list of comments still to be allocated
        , apComments :: [Comment]
          -- | The original GHC Delta Annotations
@@ -90,6 +91,7 @@ defaultDeltaState :: Pos -> GHC.ApiAnns -> DeltaState
 defaultDeltaState priorEnd ga =
     DeltaState
       { priorEndPosition = priorEnd
+      , priorEndASTPosition = priorEnd
       , apComments = cs
       , apAnns     = ga
       }
@@ -147,7 +149,6 @@ deltaInterpret = iterTM go
 setLayoutFlag :: Delta () -> Delta ()
 setLayoutFlag action = do
   c <- srcSpanStartColumn <$> getSrcSpan
-  tell (mempty { propOffset = First  (Just (LayoutStartCol c)) })
   local (\s -> s { layoutStart = LayoutStartCol c }) action
 
 -- ---------------------------------------------------------------------
@@ -213,8 +214,18 @@ adjustDeltaForOffset (LayoutStartCol colOffset) (DP (l,c)) = DP (l,c - colOffset
 getPriorEnd :: Delta Pos
 getPriorEnd = gets priorEndPosition
 
+getPriorEndAST :: Delta Pos
+getPriorEndAST = gets priorEndASTPosition
+
 setPriorEnd :: Pos -> Delta ()
-setPriorEnd pe = modify (\s -> s { priorEndPosition = pe })
+setPriorEnd pe =
+  modify (\s -> s { priorEndPosition = pe })
+
+setPriorEndAST :: Pos -> Delta ()
+setPriorEndAST pe =
+  modify (\s -> s { priorEndPosition = pe
+                  , priorEndASTPosition = pe })
+
 
 setLayoutOffset :: LayoutStartCol -> Delta a -> Delta a
 setLayoutOffset lhs = local (\s -> s { layoutStart = lhs })
@@ -258,7 +269,6 @@ withAST lss@(GHC.L ss ast) layout action = do
   -- mbegin <- getLeadingSpanMaybe (GHC.getLoc lss')
   -- let lss@(GHC.L ss _) = fixBuggySrcSpan mbegin lss'
   -- Calculate offset required to get to the start of the SrcSPan
-  pe <- getPriorEnd
   off <- asks layoutStart
   let newOff =
         case layout of
@@ -267,31 +277,37 @@ withAST lss@(GHC.L ss ast) layout action = do
 
   (setLayoutOffset newOff .  withSrcSpanDelta lss) (do
 
-    let maskWriter s = s { annKds = []
-                         , propOffset = First Nothing }
+    let maskWriter s = s { annKds = [] }
 
-    let captureSpanStart = do
-          -- make sure all kds are relative to the start of the SrcSpan
-          when (GHC.isGoodSrcSpan ss && pe < ss2pos ss) $ do
-            setPriorEnd (ss2pos ss)
-            --traceShowM (toConstr ast,ss2pos ss)
-          commentAllocation False (priorComment (ss2pos ss))
-          return ()
+    -- make sure all kds are relative to the start of the SrcSpan
+    let spanStart = ss2pos ss
+    pe <- getPriorEnd
 
-    -- Preparation complete, perform the action
-    (res, w) <- censor maskWriter (listen (captureSpanStart >> action))
+    cs <-
+      if GHC.isGoodSrcSpan ss && pe < ss2pos ss
+        then
+          startOfSpan spanStart
+        else
+          return []
+    pe <- getPriorEnd
+    peAST <- getPriorEndAST
     let edp = adjustDeltaForOffset
                 -- Use the propagated offset if one is set
                 -- Note that we need to use the new offset if it has
                 -- changed.
-                (fromMaybe newOff (getFirst $ propOffset w))
-                  (deltaFromSrcSpans pe ss)
+                newOff (deltaFromSrcSpans pe ss)
+    let edpAST = adjustDeltaForOffset
+                  newOff (deltaFromSrcSpans peAST ss)
+    -- Preparation complete, perform the action
+    (res, w) <- censor maskWriter (listen action)
 
     let kds = annKds w
         an = Ann
                { annEntryDelta = edp
                , annDelta   = ColDelta (srcSpanStartColumn ss
                                          - getLayoutStartCol off)
+               , annTrueEntryDelta  = edpAST
+               , annPriorComments = cs
                , annsDP     = kds }
 
     addAnnotationsDelta an
@@ -321,6 +337,10 @@ trailingComment (ol, oc) (Comment s _) =
 allocateComments :: (Comment -> Bool) -> [Comment] -> ([Comment], [Comment])
 allocateComments = partition
 
+--
+startOfSpan :: Pos -> Delta [DComment]
+startOfSpan p = commentAllocation (priorComment p) return
+
 -- ---------------------------------------------------------------------
 
 addAnnotationWorker :: KeywordId -> GHC.SrcSpan -> Delta ()
@@ -340,30 +360,37 @@ addAnnotationWorker' addPointSpan ann pa =
         (G GHC.AnnClose,False) -> return ()
         _ -> do
           p' <- adjustDeltaForOffsetM p
-          commentAllocation True (priorComment (ss2pos pa))
+          commentAllocation (priorComment (ss2pos pa)) (mapM_ addDeltaComment)
           addAnnDeltaPos ann p'
-          setPriorEnd (ss2posEnd pa)
+          setPriorEndAST (ss2posEnd pa)
               `debug` ("addAnnotationWorker:(ss,ss,pe,pa,p,p',ann)=" ++ show (showGhc ss,ss2span ss,pe,ss2span pa,p,p',ann))
 
 -- ---------------------------------------------------------------------
 
-commentAllocation :: Bool -> (Comment -> Bool) ->  Delta ()
-commentAllocation flag pred = do
+commentAllocation :: (Comment -> Bool)
+                  -> ([DComment] -> Delta a)
+                  -> Delta a
+commentAllocation pred k = do
   cs <- getUnallocatedComments
   let (allocated,cs') = allocateComments pred cs
   putUnallocatedComments cs'
-  mapM_ (addDeltaComment flag) allocated
+  k =<< mapM makeDeltaComment allocated
 
-addDeltaComment :: Bool -> Comment -> Delta ()
-addDeltaComment flag (Comment paspan str) = do
+
+makeDeltaComment :: Comment -> Delta DComment
+makeDeltaComment (Comment paspan str) = do
   let pa = span2ss paspan
   pe <- getPriorEnd
   let p = deltaFromSrcSpans pe pa
   p' <- adjustDeltaForOffsetM p
-  when flag (setPriorEnd (ss2posEnd pa))
+  setPriorEnd (ss2posEnd pa)
   let e = ss2deltaP pe (snd paspan)
   e' <- adjustDeltaForOffsetM e
-  addAnnDeltaPos (AnnComment (DComment (p',e') str)) p'
+  return $ DComment (p', e') str
+
+addDeltaComment :: DComment -> Delta ()
+addDeltaComment d@(DComment (p, _) _) = do
+  addAnnDeltaPos (AnnComment d) p
 
 -- ---------------------------------------------------------------------
 
@@ -448,11 +475,10 @@ addEofAnnotation = do
   case ma of
     [] -> return ()
     (pa:pss) -> do
-      cs <- getUnallocatedComments
-      mapM_ (addDeltaComment True) cs
+      commentAllocation (const True) (mapM_ addDeltaComment)
       let DP (r,c) = deltaFromSrcSpans pe pa
       addAnnDeltaPos (G GHC.AnnEofPos) (DP (r, c - 1))
-      setPriorEnd (ss2posEnd pa) `warn` ("Trailing annotations after Eof: " ++ showGhc pss)
+      setPriorEndAST (ss2posEnd pa) `warn` ("Trailing annotations after Eof: " ++ showGhc pss)
 
 
 countAnnsDelta :: GHC.AnnKeywordId -> Delta Int

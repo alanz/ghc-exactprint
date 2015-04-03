@@ -33,8 +33,6 @@ import Control.Monad.Trans.Free
 
 import qualified GHC
 
-import Debug.Trace
-
 ------------------------------------------------------------------------------
 -- Printing of source elements
 
@@ -163,40 +161,11 @@ exactPC ast flag action =
     do return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
        -- let ast = fixBuggySrcSpan Nothing ast'
        ma <- getAndRemoveAnnotation ast
-       let an@(Ann edp _ kds) = fromMaybe annNone ma
-       withContext kds an flag action
+       let an@(Ann edp _ _ comments kds) = fromMaybe annNone ma
+       withContext kds an flag
+        (mapM_ printQueuedComment comments
+        >> action)
 
-
--- |This should be the final point where things are mode concrete,
--- before output. Hence the point where comments can be inserted
-advance :: DeltaPos -> LayoutStartCol -> EP ()
-advance cl colOffset = do
-  p <- getPos
-  when (isGoodDeltaWithOffset cl colOffset) (do
-    cs <- getNegComments
-    let newPos = (undelta p cl colOffset)
-    traceShowM newPos
-    mapM_ (printComment newPos) (traceShowId cs)
-    printWhitespace newPos)
-
-printComment :: Pos -> DComment -> EP ()
-printComment p d@(DComment (start, end) s) = do
-  colOffset <- getLayoutOffset
-  let (dr,dc) = undelta p start colOffset
-  traceShowM (dr, dc)
-  printStringAt (undelta p start colOffset) s
-  setPos (undelta p end colOffset)
-
-getNegComments :: EP [DComment]
-getNegComments = do
-  kd <- gets epAnnKds
-  case kd of
-    []    -> return [] -- Should never be triggered
-    (k:kds) -> return . map kwidToComment . takeWhile negComment . traceShowId $ k
-  where
-          negComment (AnnComment (DComment _ _) , DP (x, y) ) = x < 0 || y < 0
-          negComment _ = False
-          kwidToComment (AnnComment comment, _) = comment
 
 getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
 getAndRemoveAnnotation a = do
@@ -229,8 +198,8 @@ withContext kds an flag = withKds kds . withOffset an flag
 -- offset
 --
 withOffset :: Annotation -> LayoutFlag -> (EP a -> EP a)
-withOffset a@Ann{annEntryDelta, annDelta} flag k = do
-  let DP (edLine, edColumn) = annEntryDelta
+withOffset a@Ann{annEntryDelta, annDelta, annTrueEntryDelta} flag k = do
+  let DP (edLine, edColumn) = annTrueEntryDelta
   oldOffset <-  asks epLHS -- Shift from left hand column
   p@(_l, currentColumn) <- getPos
   rec
@@ -251,7 +220,7 @@ withOffset a@Ann{annEntryDelta, annDelta} flag k = do
                        NoLayoutRules -> oldOffset
     r <-  local (\s -> s { epLHS = offset
                          , epAnn = a }) $
-                     (advance annEntryDelta offset >> k)
+                     k
   return r
 
 
@@ -275,10 +244,8 @@ setLayout k = do
   let DP (edLine, edColumn) = annEntryDelta
       newOffset =
         if edLine == 0
-            then currentColumn
+            then currentColumn + edColumn
             else getLayoutStartCol oldOffset + getColDelta annDelta
-  traceShowM (newOffset, p)
-  traceShowM a
   if edLine > 0
     then printWhitespace (fst p, newOffset)
     else return ()
@@ -301,7 +268,6 @@ getLayoutOffset = asks epLHS
 printStringAtMaybeAnn :: KeywordId -> String -> EP ()
 printStringAtMaybeAnn an str = do
   annFinal <- getAnnFinal an
---  when (an == AnnSpanEntry) (traceShowM annFinal)
   case annFinal of
     Nothing -> return ()
     Just (comments, ma) -> printStringAtLsDelta comments ma str
