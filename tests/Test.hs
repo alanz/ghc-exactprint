@@ -5,10 +5,11 @@ module Main where
 import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Types
-
+import Language.Haskell.GHC.ExactPrint.Transform
 
 import GHC.Paths ( libdir )
 
+import qualified BasicTypes    as GHC
 import qualified Bag           as GHC
 import qualified DynFlags      as GHC
 import qualified FastString    as GHC
@@ -41,10 +42,6 @@ import System.IO.Silently
 
 -- ---------------------------------------------------------------------
 
-ghead :: String -> [a] -> a
-ghead s [] = error ("Empty list at: " ++ s)
-ghead s (x:xs) = x
-
 main :: IO ()
 main = hSilence [stderr] $ do
   cnts <- fst <$> runTestText (putTextToHandle stdout True) tests
@@ -67,6 +64,7 @@ tests = TestList
   , mkTestMod "Arrows.hs"                "Main"
   , mkTestMod "Associated.hs"            "Main"
   , mkTestMod "B.hs"                     "Main"
+  , mkTestMod "C.hs"                     "C"
   , mkTestMod "BCase.hs"                 "Main"
   , mkTestMod "BangPatterns.hs"          "Main"
   , mkTestMod "Cg008.hs"                 "Cg008"
@@ -171,7 +169,8 @@ tests = TestList
   , mkTestModChange changeLayoutIn4  "LayoutIn4.hs"  "LayoutIn4"
   , mkTestModChange changeLocToName  "LocToName.hs"  "LocToName"
   , mkTestModChange changeLetIn1     "LetIn1.hs"     "LetIn1"
-  , mkTestModChange changeWhereIn4 "WhereIn4.hs" "WhereIn4"
+  , mkTestModChange changeWhereIn4   "WhereIn4.hs"   "WhereIn4"
+  , mkTestModChange changeCifToCase  "C.hs"          "C"
 
   ]
 
@@ -184,7 +183,7 @@ mkTestMod fileName modName
   = TestCase (do r <- manipulateAstTest fileName modName
                  assertBool fileName r )
 
-mkTestModChange :: (GHC.ParsedSource -> GHC.ParsedSource) -> FilePath -> String -> Test
+mkTestModChange :: (Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)) -> FilePath -> String -> Test
 mkTestModChange change fileName modName
   = TestCase (do r <- manipulateAstTestWithMod change fileName modName
                  assertBool fileName r )
@@ -341,6 +340,7 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "PArr.hs"                  "PArr"
     -- , manipulateAstTestWFname "DataDecl.hs"              "Main"
     -- , manipulateAstTestWFname "WhereIn4.hs"              "WhereIn4"
+    , manipulateAstTestWFname "C.hs"                        "C"
     {-
     , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
     , manipulateAstTestWFname "Cpp.hs"                   "Main"
@@ -356,30 +356,130 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
 
 -- ---------------------------------------------------------------------
 
-changeLayoutLet2 :: GHC.ParsedSource -> GHC.ParsedSource
-changeLayoutLet2 parsed = rename "xxxlonger" [((7,5),(7,8)),((8,24),(8,27))] parsed
+-- |Convert the if statement in C.hs to a case, adjusting layout appropriately.
+changeCifToCase :: Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)
+changeCifToCase ans p = (ans',p')
+  where
+    (p',(ans',_),_) = runTransform ans doTransform
+    doTransform = SYB.everywhereM (SYB.mkM ifToCaseTransform) p
 
-changeLocToName :: GHC.ParsedSource -> GHC.ParsedSource
-changeLocToName parsed = rename "LocToName.newPoint" [((20,1),(20,11)),((20,28),(20,38)),((24,1),(24,11))] parsed
+    ifToCaseTransform :: GHC.Located (GHC.HsExpr GHC.RdrName)
+                      -> Transform (GHC.Located (GHC.HsExpr GHC.RdrName))
+    ifToCaseTransform li@(GHC.L l (GHC.HsIf _se e1 e2 e3)) = do
+      caseLoc        <- uniqueSrcSpan -- HaRe:-1:1
+      trueMatchLoc   <- uniqueSrcSpan -- HaRe:-1:2
+      trueLoc1       <- uniqueSrcSpan -- HaRe:-1:3
+      trueLoc        <- uniqueSrcSpan -- HaRe:-1:4
+      trueRhsLoc     <- uniqueSrcSpan -- HaRe:-1:5
+      falseLoc1      <- uniqueSrcSpan -- HaRe:-1:6
+      falseLoc       <- uniqueSrcSpan -- HaRe:-1:7
+      falseMatchLoc  <- uniqueSrcSpan -- HaRe:-1:8
+      falseRhsLoc    <- uniqueSrcSpan -- HaRe:-1:9
+      caseVirtualLoc <- uniqueSrcSpan -- HaRe:-1:10
+      let trueName  = mkRdrName "True"
+      let falseName = mkRdrName "False"
+      let ret = GHC.L caseLoc (GHC.HsCase e1
+                 (GHC.MG
+                  [
+                    (GHC.L trueMatchLoc $ GHC.Match
+                     Nothing
+                     [
+                       GHC.L trueLoc1 $ GHC.ConPatIn (GHC.L trueLoc trueName) (GHC.PrefixCon [])
+                     ]
+                     Nothing
+                     (GHC.GRHSs
+                       [
+                         GHC.L trueRhsLoc $ GHC.GRHS [] e2
+                       ] GHC.EmptyLocalBinds)
+                    )
+                  , (GHC.L falseMatchLoc $ GHC.Match
+                     Nothing
+                     [
+                       GHC.L falseLoc1 $ GHC.ConPatIn (GHC.L falseLoc falseName) (GHC.PrefixCon [])
+                     ]
+                     Nothing
+                     (GHC.GRHSs
+                       [
+                         GHC.L falseRhsLoc $ GHC.GRHS [] e3
+                       ] GHC.EmptyLocalBinds)
+                    )
+                  ] [] GHC.placeHolderType GHC.FromSource))
 
-changeLayoutIn3 :: GHC.ParsedSource -> GHC.ParsedSource
-changeLayoutIn3 parsed = rename "anotherX" [((7,13),(7,14)),((7,37),(7,38)),((8,37),(8,38))] parsed
+      oldAnns <- getAnnsT
+      let annIf   = gfromJust "Case.annIf"   $ getAnnotationEP li oldAnns
+      let annCond = gfromJust "Case.annCond" $ getAnnotationEP e1 oldAnns
+      let annThen = gfromJust "Case.annThen" $ getAnnotationEP e2 oldAnns
+      let annElse = gfromJust "Case.annElse" $ getAnnotationEP e3 oldAnns
+      logTr $ "Case:annIf="   ++ show annIf
+      logTr $ "Case:annThen=" ++ show annThen
+      logTr $ "Case:annElse=" ++ show annElse
+
+      -- let ((_ifr,    ifc),  ifDP) = getOriginalPos oldAnns li (G GHC.AnnIf)
+      -- let ((_thenr,thenc),thenDP) = getOriginalPos oldAnns li (G GHC.AnnThen)
+      -- let ((_elser,elsec),elseDP) = getOriginalPos oldAnns li (G GHC.AnnElse)
+      -- let newCol = ifc + 2
+      let newCol = 6
+
+      -- AZ:TODO: under some circumstances the GRHS annotations need LineSame, in others LineChanged.
+      let ifDelta     = gfromJust "Case.ifDelta"     $ lookup (G GHC.AnnIf) (annsDP annIf)
+      let ifSpanEntry = gfromJust "Case.ifSpanEntry" $ lookup (AnnSpanEntry) (annsDP annIf)
+      let anne2' =
+            [ ( AnnKey caseLoc       (CN "HsCase"),   annIf { annsDP = [ (AnnSpanEntry,ifSpanEntry),(G GHC.AnnCase, ifDelta)
+                                                                     , (G GHC.AnnOf,     DP (0,1))
+                                                                     ,(AnnList caseVirtualLoc,DP (0,0))] } )
+            , ( AnnKey caseVirtualLoc (CN "(:)"),     Ann (DP (1,newCol)) (ColDelta newCol) (DP (1,newCol)) [] [(AnnSpanEntry,DP (1,0))])
+            , ( AnnKey trueMatchLoc  (CN "Match"),    Ann (DP (0,0)) 0 (DP (0,0)) [] [] )
+            , ( AnnKey trueLoc1      (CN "ConPatIn"), Ann (DP (0,0)) 0 (DP (0,0)) [] [] )
+            , ( AnnKey trueLoc       (CN "Unqual"),   Ann (DP (0,0)) 0 (DP (0,0)) [] [(G GHC.AnnVal, DP (0,0))] )
+            , ( AnnKey trueRhsLoc    (CN "GRHS"),     Ann (DP (0,2)) 6 (DP (0,0)) [] [(AnnSpanEntry,DP (0,2)),(G GHC.AnnRarrow, DP (0,0))] )
+
+            , ( AnnKey falseMatchLoc (CN "Match"),    Ann (DP (1,0)) 0 (DP (0,0)) []  [(AnnSpanEntry,DP (1,0))] )
+            , ( AnnKey falseLoc1     (CN "ConPatIn"), Ann (DP (0,0)) 0 (DP (0,0)) []  [] )
+            , ( AnnKey falseLoc      (CN "Unqual"),   Ann (DP (0,0)) 0 (DP (0,0)) []  [ (G GHC.AnnVal, DP (0,0))] )
+            , ( AnnKey falseRhsLoc   (CN "GRHS"),     Ann (DP (0,1)) 6 (DP (0,0)) []  [(AnnSpanEntry,DP (0,1)),(G GHC.AnnRarrow, DP (0,0))] )
+            ]
+
+      let annThen' = adjustAnnOffset (ColDelta 6) annThen
+      let anne1 = Map.delete (AnnKey l (CN "HsIf")) oldAnns
+          final = mergeAnns anne1 (Map.fromList anne2')
+          anne3 = setLocatedAnns final
+                    [ (e1, annCond)
+                    , (e2, annThen')
+                    , (e3, annElse)
+                    ]
+      putAnnsT anne3
+      return ret
+    ifToCaseTransform x = return x
+
+    mkRdrName :: String -> GHC.RdrName
+    mkRdrName s = GHC.mkVarUnqual (GHC.mkFastString s)
+
+-- ---------------------------------------------------------------------
+
+changeLayoutLet2 :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
+changeLayoutLet2 ans parsed = (ans,rename "xxxlonger" [((7,5),(7,8)),((8,24),(8,27))] parsed)
+
+changeLocToName :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
+changeLocToName ans parsed = (ans,rename "LocToName.newPoint" [((20,1),(20,11)),((20,28),(20,38)),((24,1),(24,11))] parsed)
+
+changeLayoutIn3 :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
+changeLayoutIn3 ans parsed = (ans,rename "anotherX" [((7,13),(7,14)),((7,37),(7,38)),((8,37),(8,38))] parsed)
 -- changeLayoutIn3 parsed = rename "anotherX" [((7,13),(7,14)),((7,37),(7,38))] parsed
 
-changeLayoutIn4 :: GHC.ParsedSource -> GHC.ParsedSource
-changeLayoutIn4 parsed = rename "io" [((7,8),(7,13)),((7,28),(7,33))] parsed
+changeLayoutIn4 :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
+changeLayoutIn4 ans parsed = (ans,rename "io" [((7,8),(7,13)),((7,28),(7,33))] parsed)
 
-changeLayoutIn1 :: GHC.ParsedSource -> GHC.ParsedSource
-changeLayoutIn1 parsed = rename "square" [((7,17),(7,19)),((7,24),(7,26))] parsed
+changeLayoutIn1 :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
+changeLayoutIn1 ans parsed = (ans,rename "square" [((7,17),(7,19)),((7,24),(7,26))] parsed)
 
-changeRename1 :: GHC.ParsedSource -> GHC.ParsedSource
-changeRename1 parsed = rename "bar2" [((3,1),(3,4))] parsed
+changeRename1 :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
+changeRename1 ans parsed = (ans,rename "bar2" [((3,1),(3,4))] parsed)
 
-changeLayoutLet3 :: GHC.ParsedSource -> GHC.ParsedSource
-changeLayoutLet3 parsed = rename "xxxlonger" [((7,5),(7,8)),((9,14),(9,17))] parsed
+changeLayoutLet3 :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
+changeLayoutLet3 ans parsed = (ans,rename "xxxlonger" [((7,5),(7,8)),((9,14),(9,17))] parsed)
 
-changeLayoutLet5 :: GHC.ParsedSource -> GHC.ParsedSource
-changeLayoutLet5 parsed = rename "x" [((7,5),(7,8)),((9,14),(9,17))] parsed
+changeLayoutLet5 :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
+changeLayoutLet5 ans parsed = (ans,rename "x" [((7,5),(7,8)),((9,14),(9,17))] parsed)
 
 rename :: (SYB.Data a) => String -> [Span] -> a -> a
 rename newNameStr spans a
@@ -411,9 +511,9 @@ rename newNameStr spans a
 
 -- ---------------------------------------------------------------------
 
-changeWhereIn4 :: GHC.ParsedSource -> GHC.ParsedSource
-changeWhereIn4 parsed
-  = SYB.everywhere (SYB.mkT replace) parsed
+changeWhereIn4 :: Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)
+changeWhereIn4 ans parsed
+  = (ans,SYB.everywhere (SYB.mkT replace) parsed)
   where
     replace :: GHC.Located GHC.RdrName -> GHC.Located GHC.RdrName
     replace (GHC.L ln _n)
@@ -422,9 +522,9 @@ changeWhereIn4 parsed
 
 -- ---------------------------------------------------------------------
 
-changeLetIn1 :: GHC.ParsedSource -> GHC.ParsedSource
-changeLetIn1 parsed
-  = SYB.everywhere (SYB.mkT replace) parsed
+changeLetIn1 :: Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)
+changeLetIn1 ans parsed
+  = (ans,SYB.everywhere (SYB.mkT replace) parsed)
   where
     replace :: GHC.HsExpr GHC.RdrName -> GHC.HsExpr GHC.RdrName
     replace x@(GHC.HsLet localDecls expr@(GHC.L _ _))
@@ -444,10 +544,10 @@ examplesDir = "tests" </> "examples"
 examplesDir2 :: FilePath
 examplesDir2 = "examples"
 
-manipulateAstTestWithMod :: (GHC.ParsedSource -> GHC.ParsedSource) -> FilePath -> String -> IO Bool
+manipulateAstTestWithMod :: (Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)) -> FilePath -> String -> IO Bool
 manipulateAstTestWithMod change file modname = manipulateAstTest' (Just change) False file modname
 
-manipulateAstTestWFnameMod :: (GHC.ParsedSource -> GHC.ParsedSource) -> FilePath -> String -> IO (FilePath,Bool)
+manipulateAstTestWFnameMod :: (Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)) -> FilePath -> String -> IO (FilePath,Bool)
 manipulateAstTestWFnameMod change fileName modname
   = do r <- manipulateAstTestWithMod change fileName modname
        return (fileName,r)
@@ -461,7 +561,7 @@ manipulateAstTestWFname file modname = (file,) <$> manipulateAstTest file modnam
 manipulateAstTestTH :: FilePath -> String -> IO Bool
 manipulateAstTestTH file modname = manipulateAstTest' Nothing True file modname
 
-manipulateAstTest' :: Maybe (GHC.ParsedSource -> GHC.ParsedSource) -> Bool -> FilePath -> String -> IO Bool
+manipulateAstTest' :: Maybe (Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)) -> Bool -> FilePath -> String -> IO Bool
 manipulateAstTest' mchange useTH file' modname = do
   let testpath = "./tests/examples/"
       file     = testpath </> file'
@@ -482,10 +582,10 @@ manipulateAstTest' mchange useTH file' modname = do
     ann = relativiseApiAnns parsedOrig ghcAnns'
       `debug` ("ghcAnns:" ++ showGhc ghcAnns)
 
-    parsed' = case mchange of
-                   Nothing -> parsed
-                   Just change -> change parsed
-    printed = exactPrintWithAnns parsed' ann -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
+    (ann',parsed') = case mchange of
+                   Nothing     -> (ann,parsed)
+                   Just change -> change ann parsed
+    printed = exactPrintWithAnns parsed' ann' -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
     result =
             if False
               then "Match\n"
@@ -493,11 +593,13 @@ manipulateAstTest' mchange useTH file' modname = do
                     ++ "lengths:" ++ show (length printed,length contents) ++ "\n"
                     ++ showAnnData ann 0 parsed'
                     ++ "\n========================\n"
-                    ++ showGhc ann
+                    ++ showGhc ann'
                     ++ "\n========================\n"
                     ++ showGhc ghcAnns
                     ++ "\n========================\n"
                     ++ parsedAST
+                    ++ "\n========================\n"
+                    ++ showGhc ann
   writeFile out $ result
   -- putStrLn $ "Test:parsed=" ++ parsedAST
   -- putStrLn $ "Test:showdata:parsedOrig" ++ SYB.showData SYB.Parser 0 parsedOrig
@@ -660,3 +762,21 @@ getTempDir dflags
        case Map.lookup tmp_dir mapping of
            Nothing -> error "should already be a tmpDir"
            Just d -> return d
+-- ---------------------------------------------------------------------
+-- Putting these here for the time being, to avoid import loops
+
+ghead :: String -> [a] -> a
+ghead  info []    = error $ "ghead "++info++" []"
+ghead _info (h:_) = h
+
+glast :: String -> [a] -> a
+glast  info []    = error $ "glast " ++ info ++ " []"
+glast _info h     = last h
+
+gtail :: String -> [a] -> [a]
+gtail  info []   = error $ "gtail " ++ info ++ " []"
+gtail _info h    = tail h
+
+gfromJust :: String -> Maybe a -> a
+gfromJust _info (Just h) = h
+gfromJust  info Nothing = error $ "gfromJust " ++ info ++ " Nothing"
