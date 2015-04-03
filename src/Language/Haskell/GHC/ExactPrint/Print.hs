@@ -160,11 +160,17 @@ exactPC ast flag action =
     do return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
        -- let ast = fixBuggySrcSpan Nothing ast'
        ma <- getAndRemoveAnnotation ast
-       let an@(Ann _ _ _ comments kds) = fromMaybe annNone ma
+       let an@(Ann edp _ _ comments kds) = fromMaybe annNone ma
        withContext kds an flag
         (mapM_ printQueuedComment comments
+        >> advance edp
         >> action)
 
+advance :: DeltaPos -> EP ()
+advance cl = do
+  p <- getPos
+  colOffset <- getLayoutOffset
+  printWhitespace (undelta p cl colOffset)
 
 getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
 getAndRemoveAnnotation a = do
@@ -232,7 +238,7 @@ setLayout k = do
   let DP (edLine, edColumn) = annEntryDelta
       newOffset =
         if edLine == 0
-            then currentColumn + edColumn
+            then currentColumn
             else getLayoutStartCol oldOffset + getColDelta annDelta
   if edLine > 0
     then printWhitespace (curLine, newOffset)
