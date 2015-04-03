@@ -276,25 +276,25 @@ withAST lss@(GHC.L ss _) layout action = do
 
     -- make sure all kds are relative to the start of the SrcSpan
     let spanStart = ss2pos ss
-    pe <- getPriorEnd
 
-    cs <-
-      if GHC.isGoodSrcSpan ss && pe < ss2pos ss
+    cs <- do
+      priorEndBeforeComments <- getPriorEnd
+      if GHC.isGoodSrcSpan ss && priorEndBeforeComments < ss2pos ss
         then
           commentAllocation (priorComment spanStart) return
         else
           return []
-    peAST <- getPriorEndAST
-    pe <- getPriorEnd
+    priorEndAfterComments <- getPriorEnd
     let edp = adjustDeltaForOffset
                 -- Use the propagated offset if one is set
                 -- Note that we need to use the new offset if it has
                 -- changed.
-                newOff (ss2delta pe ss)
+                newOff (ss2delta priorEndAfterComments ss)
+    peAST <- getPriorEndAST
     let edpAST = adjustDeltaForOffset
                   newOff (ss2delta peAST ss)
     -- Preparation complete, perform the action
-    when (GHC.isGoodSrcSpan ss && pe < ss2pos ss)
+    when (GHC.isGoodSrcSpan ss && priorEndAfterComments < ss2pos ss)
             (setPriorEndAST (ss2pos ss))
     (res, w) <- censor maskWriter (listen action)
 
