@@ -62,12 +62,11 @@ data EPReader = EPReader
             }
 
 data EPWriter = EPWriter
-              { output :: Endo String
-              , lf     :: LayoutFlag }
+              { output :: Endo String }
 
 instance Monoid EPWriter where
-  mempty = EPWriter mempty mempty
-  (EPWriter a c) `mappend` (EPWriter b d) = EPWriter (a <> b) (c <> d)
+  mempty = EPWriter mempty
+  (EPWriter a) `mappend` (EPWriter b) = EPWriter (a <> b)
 
 data EPState = EPState
              { epPos       :: Pos -- ^ Current output position
@@ -161,7 +160,7 @@ exactPC ast flag action =
     do return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
        -- let ast = fixBuggySrcSpan Nothing ast'
        ma <- getAndRemoveAnnotation ast
-       let an@(Ann edp _ _ comments kds) = fromMaybe annNone ma
+       let an@(Ann _ _ _ comments kds) = fromMaybe annNone ma
        withContext kds an flag
         (mapM_ printQueuedComment comments
         >> action)
@@ -178,14 +177,6 @@ markPrim kwid mstr =
   let annString = fromMaybe (keywordToString kwid) mstr
   in printStringAtMaybeAnn (G kwid) annString
 
--- ++AZ++ TODO: this is the same as printWhitespace, remove it in favour of that
-advanceToDP :: DeltaPos -> EP ()
-advanceToDP dp = do
-  p <- getPos
-  colOffset <- getLayoutOffset
-  printStringAt (undelta p dp colOffset) ""
-    `debug` ("advanceToDp:(p,colOffset,pos)=" ++ show (p,colOffset,p,undelta p dp colOffset))
-
 withContext :: [(KeywordId, DeltaPos)]
             -> Annotation
             -> LayoutFlag
@@ -198,11 +189,10 @@ withContext kds an flag = withKds kds . withOffset an flag
 -- offset
 --
 withOffset :: Annotation -> LayoutFlag -> (EP a -> EP a)
-withOffset a@Ann{annEntryDelta, annDelta, annTrueEntryDelta} flag k = do
+withOffset a@Ann{annDelta, annTrueEntryDelta} flag k = do
   let DP (edLine, edColumn) = annTrueEntryDelta
   oldOffset <-  asks epLHS -- Shift from left hand column
-  p@(_l, currentColumn) <- getPos
-  rec
+  (_l, currentColumn) <- getPos
     -- Calculate the new offset
     -- 1. If the LayoutRules flag is set then we need to mark this position
     -- as the start of a new layout block.
@@ -212,16 +202,14 @@ withOffset a@Ann{annEntryDelta, annDelta, annTrueEntryDelta} flag k = do
     -- the delta
     -- (2) The start of the layout block is the old offset added to the
     -- "annOffset" (i.e., how far this annotation was from the edge)
-    let offset = case flag of
-                       LayoutRules -> LayoutStartCol $
-                        if edLine == 0
-                          then currentColumn + edColumn
-                          else getLayoutStartCol oldOffset + getColDelta annDelta
-                       NoLayoutRules -> oldOffset
-    r <-  local (\s -> s { epLHS = offset
-                         , epAnn = a }) $
-                     k
-  return r
+  let offset = case flag of
+                     LayoutRules -> LayoutStartCol $
+                      if edLine == 0
+                        then currentColumn + edColumn
+                        else getLayoutStartCol oldOffset + getColDelta annDelta
+                     NoLayoutRules -> oldOffset
+  local (\s -> s { epLHS = offset
+                 , epAnn = a }) k
 
 
 -- ---------------------------------------------------------------------
@@ -238,8 +226,8 @@ withKds kd action = do
 
 setLayout :: EP () -> EP ()
 setLayout k = do
-  p@(_, currentColumn) <- gets epPos
-  a@Ann{..} <- asks epAnn
+  (curLine, currentColumn) <- gets epPos
+  Ann{..} <- asks epAnn
   oldOffset <-  asks epLHS -- Shift from left hand column
   let DP (edLine, edColumn) = annEntryDelta
       newOffset =
@@ -247,7 +235,7 @@ setLayout k = do
             then currentColumn + edColumn
             else getLayoutStartCol oldOffset + getColDelta annDelta
   if edLine > 0
-    then printWhitespace (fst p, newOffset)
+    then printWhitespace (curLine, newOffset)
     else return ()
   local
     (\s -> s { epLHS = LayoutStartCol (newOffset)})
@@ -332,7 +320,7 @@ isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP (undelta (0,0) dp colOffset
 
 -- AZ:TODO: harvest the commonality between this and printStringAtLsDelta
 printQueuedComment :: DComment -> EP ()
-printQueuedComment d@(DComment (dp,de) s) = do
+printQueuedComment (DComment (dp,de) s) = do
   p <- getPos
   colOffset <- getLayoutOffset
   let (dr,dc) = undelta (0,0) dp colOffset

@@ -60,9 +60,6 @@ data DeltaWriter = DeltaWriter
          -- | Used locally to pass Keywords, delta pairs relevant to a specific
          -- subtree to the parent.
        , annKds :: [(KeywordId, DeltaPos)]
-         -- | Used locally to report a subtrees aderhence to haskell's layout
-         -- rules, to pass the offset upwards
-       , propOffset :: First LayoutStartCol
        }
 
 data DeltaState = DeltaState
@@ -117,8 +114,8 @@ tellKd kd = tell (mempty { annKds = [kd] })
 
 
 instance Monoid DeltaWriter where
-  mempty = DeltaWriter mempty mempty mempty
-  (DeltaWriter a b e) `mappend` (DeltaWriter c d f) = DeltaWriter (a <> c) (b <> d) (e <> f)
+  mempty = DeltaWriter mempty mempty
+  (DeltaWriter a b) `mappend` (DeltaWriter c d) = DeltaWriter (a <> c) (b <> d)
 
 -----------------------------------
 -- Free Monad Interpretation code
@@ -264,10 +261,8 @@ addAnnDeltaPos kw dp = tellKd (kw, dp)
 
 -- | Enter a new AST element. Maintain SrcSpan stack
 withAST :: Data a => GHC.Located a -> LayoutFlag -> Delta b -> Delta b
-withAST lss@(GHC.L ss ast) layout action = do
+withAST lss@(GHC.L ss _) layout action = do
   return () `debug` ("enterAST:(annkey,layout)=" ++ show (mkAnnKey lss,layout))
-  -- mbegin <- getLeadingSpanMaybe (GHC.getLoc lss')
-  -- let lss@(GHC.L ss _) = fixBuggySrcSpan mbegin lss'
   -- Calculate offset required to get to the start of the SrcSPan
   off <- asks layoutStart
   let newOff =
@@ -286,10 +281,9 @@ withAST lss@(GHC.L ss ast) layout action = do
     cs <-
       if GHC.isGoodSrcSpan ss && pe < ss2pos ss
         then
-          startOfSpan spanStart
+          commentAllocation (priorComment spanStart) return
         else
           return []
-    pe <- getPriorEnd
     peAST <- getPriorEndAST
     let edp = adjustDeltaForOffset
                 -- Use the propagated offset if one is set
@@ -315,40 +309,20 @@ withAST lss@(GHC.L ss ast) layout action = do
     return res)
 
 
----
--- Comment allocation rules
---
--- 1. Allocate trailing comments to the outermost immediately preceding
--- SrcSpan
--- 2. If a commnt is on it's own line then allocate the comment to the
--- succeeding SrcSpan.
 -- ---------------------------------------------------------------------
-
 -- |Split the ordered list of comments into ones that occur prior to
 -- the give SrcSpan and the rest
 priorComment :: Pos -> Comment -> Bool
 priorComment start (Comment s _) = fst s < start
 
-trailingComment :: Pos -> Comment -> Bool
-trailingComment (ol, oc) (Comment s _) =
-  let (l, c) = fst s in
-       l == ol && c > oc
-
 allocateComments :: (Comment -> Bool) -> [Comment] -> ([Comment], [Comment])
 allocateComments = partition
-
---
-startOfSpan :: Pos -> Delta [DComment]
-startOfSpan p = commentAllocation (priorComment p) return
 
 -- ---------------------------------------------------------------------
 
 addAnnotationWorker :: KeywordId -> GHC.SrcSpan -> Delta ()
-addAnnotationWorker = addAnnotationWorker' False
-
-addAnnotationWorker' :: Bool -> KeywordId -> GHC.SrcSpan -> Delta ()
-addAnnotationWorker' addPointSpan ann pa =
-  unless (not addPointSpan && isPointSrcSpan pa) $
+addAnnotationWorker ann pa =
+  unless (isPointSrcSpan pa) $
     do
       pe <- getPriorEnd
       ss <- getSrcSpan
@@ -370,9 +344,9 @@ addAnnotationWorker' addPointSpan ann pa =
 commentAllocation :: (Comment -> Bool)
                   -> ([DComment] -> Delta a)
                   -> Delta a
-commentAllocation pred k = do
+commentAllocation p k = do
   cs <- getUnallocatedComments
-  let (allocated,cs') = allocateComments pred cs
+  let (allocated,cs') = allocateComments p cs
   putUnallocatedComments cs'
   k =<< mapM makeDeltaComment allocated
 
