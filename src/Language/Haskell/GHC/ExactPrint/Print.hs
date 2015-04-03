@@ -235,16 +235,14 @@ setLayout k = do
   (curLine, currentColumn) <- gets epPos
   Ann{..} <- asks epAnn
   oldOffset <-  asks epLHS -- Shift from left hand column
-  let DP (edLine, edColumn) = annEntryDelta
+  let DP (edLine, _) = annEntryDelta
       newOffset =
         if edLine == 0
-            then currentColumn
+            then currentColumn --Already advanced to correct position
             else getLayoutStartCol oldOffset + getColDelta annDelta
-  if edLine > 0
-    then printWhitespace (curLine, newOffset)
-    else return ()
+  when (edLine > 0) (printWhitespace (curLine, newOffset))
   local
-    (\s -> s { epLHS = LayoutStartCol (newOffset)})
+    (\s -> s { epLHS = LayoutStartCol newOffset})
       k
 
 getPos :: EP Pos
