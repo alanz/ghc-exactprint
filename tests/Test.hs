@@ -153,6 +153,7 @@ tests = TestList
   , mkTestMod "WhereIn4.hs"              "WhereIn4"
   , mkTestMod "Zipper.hs"                "Zipper"
   , mkTestModTH "QuasiQuote.hs"          "QuasiQuote"
+  , mkTestMod "Pseudonym.hs"             "Main"
   -- , mkTestMod "Unicode.hs"               "Main"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
@@ -342,6 +343,7 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
     , manipulateAstTestWFname "Foo.hs"                   "Main"
 -}
+    , manipulateAstTestWFname "Pseudonym.hs"             "Main"
     ]
 
 -- ---------------------------------------------------------------------
