@@ -166,6 +166,7 @@ tests = TestList
   , mkTestModChange changeLayoutIn4  "LayoutIn4.hs"  "LayoutIn4"
   , mkTestModChange changeLocToName  "LocToName.hs"  "LocToName"
   , mkTestModChange changeLetIn1     "LetIn1.hs"     "LetIn1"
+  , mkTestModChange changeWhereIn4 "WhereIn4.hs" "WhereIn4"
 
   ]
 
@@ -337,7 +338,6 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "WhereIn4.hs"              "WhereIn4"
     {-
     , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
-    , manipulateAstTestWithMod changeWhereIn4 "WhereIn4.hs" "WhereIn4"
     , manipulateAstTestWFname "Cpp.hs"                   "Main"
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
     , manipulateAstTestWFname "Foo.hs"                   "Main"
