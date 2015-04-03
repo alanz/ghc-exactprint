@@ -285,6 +285,7 @@ withAST lss@(GHC.L ss _) layout action = do
         else
           return []
     peAST <- getPriorEndAST
+    pe <- getPriorEnd
     let edp = adjustDeltaForOffset
                 -- Use the propagated offset if one is set
                 -- Note that we need to use the new offset if it has
@@ -293,6 +294,8 @@ withAST lss@(GHC.L ss _) layout action = do
     let edpAST = adjustDeltaForOffset
                   newOff (ss2delta peAST ss)
     -- Preparation complete, perform the action
+    when (GHC.isGoodSrcSpan ss && pe < ss2pos ss)
+            (setPriorEndAST (ss2pos ss))
     (res, w) <- censor maskWriter (listen action)
 
     let kds = annKds w
