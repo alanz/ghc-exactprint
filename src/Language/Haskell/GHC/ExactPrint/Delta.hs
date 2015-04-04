@@ -46,32 +46,38 @@ runDelta action ga priorEnd =
 
 data DeltaReader = DeltaReader
        { -- | Current `SrcSpan`
-         curSrcSpan :: GHC.SrcSpan
+         curSrcSpan  :: !GHC.SrcSpan
+
          -- | Constuctor of current AST element, useful for
          -- debugging
-       , annConName :: AnnConName
+       , annConName  :: !AnnConName
+
          -- | Start column of the current layout block
-       , layoutStart :: LayoutStartCol
+       , layoutStart :: !LayoutStartCol
        }
 
 data DeltaWriter = DeltaWriter
        { -- | Final list of annotations
-         finalAnns :: Endo (Map.Map AnnKey Annotation)
+         finalAnns :: !(Endo (Map.Map AnnKey Annotation))
+
          -- | Used locally to pass Keywords, delta pairs relevant to a specific
          -- subtree to the parent.
-       , annKds :: [(KeywordId, DeltaPos)]
+       , annKds    :: ![(KeywordId, DeltaPos)]
        }
 
 data DeltaState = DeltaState
        { -- | Position reached when processing the last element
-         priorEndPosition :: Pos
+         priorEndPosition    :: !Pos
+
          -- | Position reached when processing last AST element
          --   this is necessary to enforce layout rules.
-       , priorEndASTPosition :: Pos
+       , priorEndASTPosition :: !Pos
+
          -- | Ordered list of comments still to be allocated
-       , apComments :: [Comment]
+       , apComments :: ![Comment]
+
          -- | The original GHC Delta Annotations
-       , apAnns :: GHC.ApiAnns
+       , apAnns :: !GHC.ApiAnns
        }
 
 -- ---------------------------------------------------------------------

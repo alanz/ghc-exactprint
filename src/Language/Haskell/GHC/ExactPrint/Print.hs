@@ -56,22 +56,22 @@ exactPrintWithAnns ast an = runEP (markLocated ast) an
 -- The EP monad and basic combinators
 
 data EPReader = EPReader
-            {  epLHS      :: LayoutStartCol -- ^ Marks the column of the LHS of
+            {  epLHS :: !LayoutStartCol -- ^ Marks the column of the LHS of
                                             -- the current layout block
-            ,  epAnn      :: Annotation
+            ,  epAnn :: !Annotation
             }
 
 data EPWriter = EPWriter
-              { output :: Endo String }
+              { output :: !(Endo String) }
 
 instance Monoid EPWriter where
   mempty = EPWriter mempty
   (EPWriter a) `mappend` (EPWriter b) = EPWriter (a <> b)
 
 data EPState = EPState
-             { epPos       :: Pos -- ^ Current output position
-             , epAnns      :: Anns
-             , epAnnKds    :: [[(KeywordId, DeltaPos)]] -- MP: Could this be moved to the local state with suitable refactoring?
+             { epPos    :: !Pos -- ^ Current output position
+             , epAnns   :: !Anns
+             , epAnnKds :: ![[(KeywordId, DeltaPos)]] -- MP: Could this be moved to the local state with suitable refactoring?
              }
 
 ---------------------------------------------------------

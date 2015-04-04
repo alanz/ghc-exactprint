@@ -92,9 +92,9 @@ data Annotation = Ann
   , annDelta           :: !ColDelta -- ^ Offset from the start of the current layout
                                    --  block. This is used when moving onto new
                                    --  lines when layout rules must be obeyed.
-  , annTrueEntryDelta       :: DeltaPos -- | Entry without comments
-  , annPriorComments   :: [DComment]
-  , annsDP             :: [(KeywordId, DeltaPos)]  -- ^ Annotations associated with this element.
+  , annTrueEntryDelta  :: !DeltaPos -- ^ Entry without comments
+  , annPriorComments   :: ![DComment]
+  , annsDP             :: ![(KeywordId, DeltaPos)]  -- ^ Annotations associated with this element.
 
   } deriving (Typeable,Eq)
 
