@@ -5,11 +5,13 @@
 -----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint.Transform
         (
+        -- * The Transform Monad
           Transform
         , runTransform
         , logTr
         , getAnnsT, putAnnsT
 
+        -- * Operations
         , uniqueSrcSpan
         , isUniqueSrcSpan
 
