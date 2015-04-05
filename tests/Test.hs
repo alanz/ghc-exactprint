@@ -324,11 +324,12 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "C.hs"                        "C"
     -- , manipulateAstTestWFnameMod changeCifToCase  "C.hs"    "C"
     -- , manipulateAstTestWFname "WhereIn3.hs"                 "WhereIn3"
-    , manipulateAstTestWFnameMod changeWhereIn3 "WhereIn3.hs"    "WhereIn3"
+    --, manipulateAstTestWFnameMod changeWhereIn3 "WhereIn3.hs"    "WhereIn3"
 
-    {-
     -- Future tests to pass, after appropriate dev is done
     , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
+    , manipulateAstTestWFname "MultipleInferredContexts.hs"   "Main"
+    {-
     , manipulateAstTestWFname "Cpp.hs"                   "Main"
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
     , manipulateAstTestWFname "Foo.hs"                   "Main"
