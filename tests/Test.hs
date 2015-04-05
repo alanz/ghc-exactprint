@@ -318,7 +318,7 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "WhereIn4.hs"              "WhereIn4"
     -- , manipulateAstTestWFname "Pseudonym.hs"             "Main"
     -- , manipulateAstTestWFname "Obscure.hs"             "Main"
-    -- , manipulateAstTestWFname "Remorse.hs"             "Main"
+    , manipulateAstTestWFname "Remorse.hs"             "Main"
     -- , manipulateAstTestWFname "Jon.hs"             "Main"
     -- , manipulateAstTestWFname "RSA.hs"             "Main"
     , manipulateAstTestWFname "CExpected.hs"                "CExpected"
@@ -328,9 +328,13 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFnameMod (changeWhereIn3 2) "WhereIn3.hs"    "WhereIn3"
     -- , manipulateAstTestWFnameMod (changeWhereIn3 2) "WhereIn3.hs"    "WhereIn3"
 
-    {-
     -- Future tests to pass, after appropriate dev is done
     , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
+    , manipulateAstTestWFname "MultipleInferredContexts.hs"   "Main"
+    , manipulateAstTestWFname "DoParens.hs"   "Main"
+    , manipulateAstTestWFname "ArgPuncParens.hs"   "Main"
+    , manipulateAstTestWFname "SimpleComplexTuple.hs" "Main"
+    {-
     , manipulateAstTestWFname "Cpp.hs"                   "Main"
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
     , manipulateAstTestWFname "Foo.hs"                   "Main"
