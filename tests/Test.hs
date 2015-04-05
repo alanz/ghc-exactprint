@@ -330,6 +330,8 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
     , manipulateAstTestWFname "MultipleInferredContexts.hs"   "Main"
     , manipulateAstTestWFname "DoParens.hs"   "Main"
+    , manipulateAstTestWFname "ArgPuncParens.hs"   "Main"
+    , manipulateAstTestWFname "SimpleComplexTuple.hs" "Main"
     {-
     , manipulateAstTestWFname "Cpp.hs"                   "Main"
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"

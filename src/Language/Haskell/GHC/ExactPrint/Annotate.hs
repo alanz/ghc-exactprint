@@ -1057,7 +1057,11 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
   => Annotate (GHC.Pat name) where
   markAST l (GHC.WildPat _) = markExternal l GHC.AnnVal "_"
   -- TODO: probably wrong
-  markAST l (GHC.VarPat n)  = markExternal l GHC.AnnVal (showGhc n)
+  markAST l (GHC.VarPat n)  = do
+    mark (GHC.AnnOpenP)
+    markLocated (GHC.L l n)
+    --markWithString GHC.AnnVal (showGhc n)
+    mark (GHC.AnnCloseP)
   markAST _ (GHC.LazyPat p) = do
     mark GHC.AnnTilde
     markLocated p
