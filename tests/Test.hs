@@ -318,7 +318,7 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "WhereIn4.hs"              "WhereIn4"
     -- , manipulateAstTestWFname "Pseudonym.hs"             "Main"
     -- , manipulateAstTestWFname "Obscure.hs"             "Main"
-    -- , manipulateAstTestWFname "Remorse.hs"             "Main"
+    , manipulateAstTestWFname "Remorse.hs"             "Main"
     -- , manipulateAstTestWFname "Jon.hs"             "Main"
     -- , manipulateAstTestWFname "RSA.hs"             "Main"
     -- , manipulateAstTestWFname "C.hs"                        "C"
@@ -329,6 +329,7 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- Future tests to pass, after appropriate dev is done
     , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
     , manipulateAstTestWFname "MultipleInferredContexts.hs"   "Main"
+    , manipulateAstTestWFname "DoParens.hs"   "Main"
     {-
     , manipulateAstTestWFname "Cpp.hs"                   "Main"
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
