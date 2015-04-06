@@ -167,6 +167,7 @@ tests = TestList
   , mkParserTest "TemplateHaskell.hs"
   , mkParserTest "TypeBrackets.hs"
   , mkParserTest "SlidingDoClause.hs"
+  , mkParserTest "SlidingListComp.hs"
   -- , mkTestMod "Unicode.hs"               "Main"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
