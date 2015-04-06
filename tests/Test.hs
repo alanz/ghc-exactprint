@@ -169,6 +169,7 @@ tests = TestList
   , mkParserTest "SlidingDoClause.hs"
   , mkParserTest "SlidingListComp.hs"
   , mkParserTest "LiftedConstructors.hs"
+  , mkParserTest "LambdaCase.hs"
   -- , mkTestMod "Unicode.hs"               "Main"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
