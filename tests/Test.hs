@@ -159,6 +159,7 @@ tests = TestList
   , mkTestMod "RSA.hs"                   "Main"
   , mkTestMod "WhereIn3.hs"              "WhereIn3"
   , mkTestMod "Backquote.hs"              "Main"
+  , mkTestMod "PatternGuards.hs"              "Main"
   -- , mkTestMod "Unicode.hs"               "Main"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
@@ -330,6 +331,7 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname "SimpleComplexTuple.hs" "Main"
     , manipulateAstTestWFname "Backquote.hs" "Main"
     , manipulateAstTestWFname "HangingRecord.hs" "Main"
+    , manipulateAstTestWFname "PatternGuards.hs"              "Main"
 
     -- Future tests to pass, after appropriate dev is done
     , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
