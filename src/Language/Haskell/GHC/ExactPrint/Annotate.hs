@@ -32,7 +32,6 @@ import qualified GHC            as GHC
 import qualified Outputable     as GHC
 import qualified SrcLoc         as GHC
 
-
 import Control.Monad.Trans.Free
 import Control.Monad.Free.TH (makeFreeCon)
 
@@ -1242,8 +1241,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,Annotate body) =
     mark GHC.AnnCloseC -- '}'
     -- return () `debug` ("markP.LetStmt done")
 
-  markAST _ (GHC.ParStmt pbs _ _) = do
-    mapM_ markParStmtBlock pbs
+  markAST l (GHC.ParStmt pbs _ _) = do
+    mapM_ (markAST l) pbs
 
   markAST _ (GHC.TransStmt form stmts _b using by _ _ _) = do
     mapM_ markLocated stmts
@@ -1274,10 +1273,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,Annotate body) =
 
 -- ---------------------------------------------------------------------
 
-markParStmtBlock :: (GHC.DataId name,GHC.OutputableBndr name, Annotate name)
-  =>  GHC.ParStmtBlock name name -> Annotated ()
-markParStmtBlock (GHC.ParStmtBlock stmts _ns _) =
-  mapM_ markLocated stmts
+instance  (GHC.DataId name,GHC.OutputableBndr name, Annotate name)
+  =>  Annotate (GHC.ParStmtBlock name name) where
+  markAST l (GHC.ParStmtBlock stmts _ns _) =
+    mapM_ markLocated stmts
 
 -- ---------------------------------------------------------------------
 

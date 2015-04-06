@@ -41,7 +41,6 @@ library
                      , Language.Haskell.GHC.ExactPrint.Annotate
                      , Language.Haskell.GHC.ExactPrint.Print
                      , Language.Haskell.GHC.ExactPrint.Transform
-  GHC-Options:         -Wall
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.7 && <4.9
@@ -59,6 +58,12 @@ library
   -- Note: the following constraint actually requires RC2 or better
   if impl (ghc < 7.10)
       buildable: False
+  ghc-options:
+    -O2
+    -threaded
+    -auto-all
+    -caf-all
+    "-with-rtsopts=-N -p -s -hy -i0.1"
 
 Test-Suite test
   type:                exitcode-stdio-1.0
@@ -80,6 +85,26 @@ Test-Suite test
                      , stm
                      , syb
                      , silently
+                     , filemanip
 
-
+executable roundtrip
+  main-is: Roundtrip.hs
+  hs-source-dirs: tests
+  build-depends: ghc-exactprint
+               , filemanip
+               , HUnit
+               , ghc
+               , base
+               , directory
+               , filepath
+               , containers
+               , ghc-paths
+               , temporary
+               , text
+  ghc-options:
+    -O2
+    -threaded
+    -auto-all
+    -caf-all
+    "-with-rtsopts=-N -p -s -hy -i0.1"
 

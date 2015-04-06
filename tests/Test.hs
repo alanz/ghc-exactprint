@@ -158,6 +158,7 @@ tests = TestList
   , mkTestMod "Jon.hs"                   "Main"
   , mkTestMod "RSA.hs"                   "Main"
   , mkTestMod "WhereIn3.hs"              "WhereIn3"
+  , mkTestMod "Backquote.hs"              "Main"
   -- , mkTestMod "Unicode.hs"               "Main"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
@@ -327,6 +328,8 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     --, manipulateAstTestWFnameMod changeWhereIn3 "WhereIn3.hs"    "WhereIn3"
     , manipulateAstTestWFname "DoParens.hs"   "Main"
     , manipulateAstTestWFname "SimpleComplexTuple.hs" "Main"
+    , manipulateAstTestWFname "Backquote.hs" "Main"
+    , manipulateAstTestWFname "HangingRecord.hs" "Main"
 
     -- Future tests to pass, after appropriate dev is done
     , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
@@ -563,6 +566,9 @@ manipulateAstTestWFname file modname = (file,) <$> manipulateAstTest file modnam
 manipulateAstTestTH :: FilePath -> String -> IO Bool
 manipulateAstTestTH file modname = manipulateAstTest' Nothing True file modname
 
+
+
+
 manipulateAstTest' :: Maybe (Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)) -> Bool -> FilePath -> String -> IO Bool
 manipulateAstTest' mchange useTH file' modname = do
   let testpath = "./tests/examples/"
@@ -573,9 +579,9 @@ manipulateAstTest' mchange useTH file' modname = do
   contents <- case mchange of
                    Nothing -> readUTF8File file
                    Just _  -> readUTF8File expected
-  (ghcAnns',t) <- hSilence [stderr] $ parsedFileGhc file modname useTH
+  (ghcAnns',p) <- hSilence [stderr] $  parsedFileGhc file modname useTH
   let
-    parsedOrig = GHC.pm_parsed_source $ GHC.tm_parsed_module t
+    parsedOrig = GHC.pm_parsed_source $ p
     (ghcAnns,parsed) = fixBugsInAst ghcAnns' parsedOrig
     parsedAST = SYB.showData SYB.Parser 0 parsed
     -- parsedAST = showGhc parsed
@@ -617,7 +623,7 @@ manipulateAstTest' mchange useTH file' modname = do
 -- ---------------------------------------------------------------------
 -- |Result of parsing a Haskell source file. It is simply the
 -- TypeCheckedModule produced by GHC.
-type ParseResult = GHC.TypecheckedModule
+type ParseResult = GHC.ParsedModule
 
 parsedFileGhc :: String -> String -> Bool -> IO (GHC.ApiAnns,ParseResult)
 parsedFileGhc fileName modname useTH = do
@@ -667,13 +673,13 @@ parsedFileGhc fileName modname useTH = do
 -}
         p <- GHC.parseModule modSum
         -- GHC.liftIO $ putStrLn $ "got parsedModule"
-        t <- GHC.typecheckModule p
+--        t <- GHC.typecheckModule p
         -- GHC.liftIO $ putStrLn $ "typechecked"
         -- toks <- GHC.getRichTokenStream (GHC.ms_mod modSum)
         -- GHC.liftIO $ putStrLn $ "toks" ++ show toks
         let anns = GHC.pm_annotations p
         -- GHC.liftIO $ putStrLn $ "anns"
-        return (anns,t)
+        return (anns,p)
 
 readUTF8File :: FilePath -> IO String
 readUTF8File fp = openFile fp ReadMode >>= \h -> do
