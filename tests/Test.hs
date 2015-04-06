@@ -164,6 +164,7 @@ tests = TestList
   , mkTestMod "PatternGuards.hs"              "Main"
   , mkParserTest "Undefined.hs"
   , mkParserTest "TypeSynOperator.hs"
+  , mkParserTest "TemplateHaskell.hs"
   -- , mkTestMod "Unicode.hs"               "Main"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
