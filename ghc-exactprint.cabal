@@ -87,6 +87,7 @@ executable roundtrip
   main-is: Roundtrip.hs
   hs-source-dirs: tests
   other-modules: Common
+  default-language:    Haskell2010
   build-depends: ghc-exactprint
                , filemanip
                , HUnit
@@ -99,12 +100,12 @@ executable roundtrip
                , temporary
                , text
   ghc-options:
-    -O2
     -threaded
 
 executable static
   main-is: Static.hs
   hs-source-dirs: tests
+  default-language:    Haskell2010
   build-depends: base
                , directory
                , filepath
