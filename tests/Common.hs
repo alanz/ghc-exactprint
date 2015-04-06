@@ -43,6 +43,13 @@ data Report =
  | RoundTripFailure String
  | CPP
 
+instance Eq Report where
+  Success == Success = True
+  ParseFailure _ _ == ParseFailure _ _ = True
+  RoundTripFailure _ == RoundTripFailure _ = True
+  CPP == CPP = True
+  _ == _ = False
+
 
 instance Show Report where
   show Success = "Success"
