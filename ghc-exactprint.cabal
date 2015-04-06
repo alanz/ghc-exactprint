@@ -66,6 +66,7 @@ Test-Suite test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      tests
   main-is:             Test.hs
+  other-modules:      Common
   GHC-Options:         -threaded
   Default-language:    Haskell2010
   Build-depends:       HUnit
@@ -83,10 +84,12 @@ Test-Suite test
                      , syb
                      , silently
                      , filemanip
+                     , text
 
 executable roundtrip
   main-is: Roundtrip.hs
   hs-source-dirs: tests
+  other-modules: Common
   build-depends: ghc-exactprint
                , filemanip
                , HUnit
@@ -101,4 +104,12 @@ executable roundtrip
   ghc-options:
     -O2
     -threaded
+
+executable static
+  main-is: Static.hs
+  hs-source-dirs: tests
+  build-depends: base
+               , directory
+               , filepath
+               , Diff
 

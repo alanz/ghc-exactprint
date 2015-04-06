@@ -383,13 +383,11 @@ addDeltaComment d@(DComment (p, _) _) = do
 addDeltaAnnotation :: GHC.AnnKeywordId -> Delta ()
 addDeltaAnnotation ann = do
   ss <- getSrcSpan
-  when (ann == GHC.AnnVal) (debugM (showGhc ss))
   ma <- getAnnotationDelta ann
-  when (ann == GHC.AnnVal && null ma) (debugM "empty")
   case nub ma of -- ++AZ++ TODO: get rid of duplicates earlier
     [] -> return () `debug` ("addDeltaAnnotation empty ma for:" ++ show ann)
     [pa] -> addAnnotationWorker (G ann) pa
-    _ -> error $ "addDeltaAnnotation:(ss,ann,ma)=" ++ showGhc (ss,ann,ma)
+    (pa:_) -> addAnnotationWorker (G ann) pa `warn` ("addDeltaAnnotation:(ss,ann,ma)=" ++ showGhc (ss,ann,ma))
 
 -- | Look up and add a Delta annotation appearing beyond the current
 -- SrcSpan at the current position, and advance the position to the
@@ -402,7 +400,7 @@ addDeltaAnnotationAfter ann = do
   case ma' of
     [] -> return () `debug` "addDeltaAnnotation empty ma"
     [pa] -> addAnnotationWorker (G ann) pa
-    _ -> error $ "addDeltaAnnotation:(ss,ann,ma)=" ++ showGhc (ss,ann,ma)
+    (pa:_) -> addAnnotationWorker (G ann) pa `warn` ("addDeltaAnnotationAfter:(ss,ann,ma)=" ++ showGhc (ss,ann,ma))
 
 -- | Look up and add a Delta annotation at the current position, and
 -- advance the position to the end of the annotation

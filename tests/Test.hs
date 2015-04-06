@@ -41,6 +41,8 @@ import Data.List (partition)
 
 import System.IO.Silently
 
+import Common
+
 -- ---------------------------------------------------------------------
 
 main :: IO ()
@@ -178,6 +180,7 @@ tests = TestList
 
   ]
 
+
 mkTestMain :: FilePath -> Test
 mkTestMain fileName = TestCase (do r <- manipulateAstTest fileName "Main"
                                    assertBool fileName r )
@@ -196,7 +199,6 @@ mkTestModTH :: FilePath -> String -> Test
 mkTestModTH fileName modName
   = TestCase (do r <- manipulateAstTestTH fileName modName
                  assertBool fileName r )
-
 -- ---------------------------------------------------------------------
 
 formatTT :: ([([Char], Bool)], [([Char], Bool)]) -> IO ()

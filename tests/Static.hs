@@ -13,9 +13,22 @@ import Control.Monad
 import Debug.Trace
 
 import Data.List
+import System.Environment
+import Data.Maybe
+import Text.Read
 
-site = do
-  failPaths <- filterM doesFileExist =<< (map ("tests/roundtrip" </>) <$> getDirectoryContents "tests/roundtrip")
+main :: IO ()
+main = do
+  n <- getArgs
+  case readMaybe =<< listToMaybe n of
+    Nothing -> site 100
+    Just k  -> site k
+
+site :: Int -> IO ()
+site n = do
+  putStrLn $ "Generating site for first: " ++ show n
+  failPaths <- filterM doesFileExist =<< (map ("tests/roundtrip" </>)  . take n <$> getDirectoryContents "tests/roundtrip")
+  traceShowM failPaths
   fails <- mapM parseFail failPaths
   writeFile "failures/failures.html" (makeIndex failPaths)
   let padded = "failures.html" : (map makeFailLink failPaths ++ ["failures.html"])
@@ -35,6 +48,7 @@ makeIndex files =
 
 page :: (FilePath, FilePath, FilePath) -> Failure -> IO ()
 page (prev, out, next) (Failure res fname) = do
+  traceM out
   original <- readFile fname
   let diff = getDiff (tokenize original) (tokenize res)
   writeFile ("failures" </> out) (mkPage (ppDiff diff) prev next original res)
