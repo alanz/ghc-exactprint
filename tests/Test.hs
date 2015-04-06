@@ -171,6 +171,7 @@ tests = TestList
   , mkParserTest "LiftedConstructors.hs"
   , mkParserTest "LambdaCase.hs"
   , mkParserTest "PuncFunctions.hs"
+  , mkParserTest "TupleSections.hs"
   -- , mkTestMod "Unicode.hs"               "Main"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
