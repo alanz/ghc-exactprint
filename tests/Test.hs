@@ -172,6 +172,9 @@ tests = TestList
   , mkParserTest "LambdaCase.hs"
   , mkParserTest "PuncFunctions.hs"
   , mkParserTest "TupleSections.hs"
+  , mkParserTest "TypeFamilies2.hs"
+  , mkParserTest "TypeSynParens.hs"
+  , mkParserTest "SlidingRecordSetter.hs"
   -- , mkTestMod "Unicode.hs"               "Main"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
@@ -195,6 +198,8 @@ mkParserTest fp =
   TestCase (do r <- roundTripTest ("tests" </> "examples" </> fp)
                case r of
                 RoundTripFailure debug -> writeFile ("tests" </> "examples" </> fp <.> "out") debug
+                ParseFailure _ _ -> exitFailure
+                CPP -> exitFailure
                 _ -> return ()
                assertBool fp (r == Success))
 
