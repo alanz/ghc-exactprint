@@ -43,6 +43,8 @@ import qualified Data.Map as Map
 import Control.Monad.RWS
 import Control.Monad.Trans.Free
 
+import Debug.Trace
+
 ------------------------------------------------------------------------------
 -- Transformoation of source elements
 
@@ -182,8 +184,9 @@ interpretChange old new = iterTM go
       let r = Map.lookup (old, kwid) as
       case r of
         Nothing -> return ()
-        Just v  ->
-          let as' = Map.insert (new,kwid) v as in
+        Just v  -> do
+          traceShowM (old, kwid)
+          let as' = Map.insert (new,kwid) v (Map.delete (old, kwid) as)
           put (as', cs)
 
 

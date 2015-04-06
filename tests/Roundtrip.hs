@@ -230,7 +230,7 @@ runRoundTrip :: GHC.ApiAnns -> GHC.Located (GHC.HsModule GHC.RdrName)
 runRoundTrip !anns !parsedOrig =
   let
     (!ghcAnns, !parsed) = fixBugsInAst anns parsedOrig
-    !relAnns = relativiseApiAnns parsed ghcAnns
+    !relAnns = relativiseApiAnns parsedOrig anns
     !printed = exactPrintWithAnns parsed relAnns
   in (printed,  relAnns)
 

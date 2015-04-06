@@ -61,9 +61,6 @@ library
   ghc-options:
     -O2
     -threaded
-    -auto-all
-    -caf-all
-    "-with-rtsopts=-N -p -s -hy -i0.1"
 
 Test-Suite test
   type:                exitcode-stdio-1.0
@@ -104,7 +101,4 @@ executable roundtrip
   ghc-options:
     -O2
     -threaded
-    -auto-all
-    -caf-all
-    "-with-rtsopts=-N -p -s -hy -i0.1"
 
