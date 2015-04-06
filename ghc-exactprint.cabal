@@ -58,9 +58,6 @@ library
   -- Note: the following constraint actually requires RC2 or better
   if impl (ghc < 7.10)
       buildable: False
-  ghc-options:
-    -O2
-    -threaded
 
 Test-Suite test
   type:                exitcode-stdio-1.0
