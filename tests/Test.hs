@@ -175,6 +175,7 @@ tests = TestList
   , mkParserTest "TypeFamilies2.hs"
   , mkParserTest "TypeSynParens.hs"
   , mkParserTest "SlidingRecordSetter.hs"
+  , mkParserTest "MultiLineCommentWithPragmas.hs"
   -- , mkTestMod "Unicode.hs"               "Main"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
