@@ -163,6 +163,7 @@ tests = TestList
   , mkTestMod "Backquote.hs"              "Main"
   , mkTestMod "PatternGuards.hs"              "Main"
   , mkParserTest "Undefined.hs"
+  , mkParserTest "TypeSynOperator.hs"
   -- , mkTestMod "Unicode.hs"               "Main"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
