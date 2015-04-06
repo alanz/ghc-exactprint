@@ -1,4 +1,4 @@
-
+{-# LANGUAGE DataKinds, TypeOperators #-}
 
 give :: b -> Pattern '[b] a
 give b = Pattern (const (Just $ oneT b))
