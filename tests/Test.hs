@@ -185,6 +185,9 @@ tests = TestList
 mkParserTest :: FilePath -> Test
 mkParserTest fp =
   TestCase (do r <- roundTripTest ("tests" </> "examples" </> fp)
+               case r of
+                RoundTripFailure debug -> writeFile ("tests" </> "examples" </> fp <.> "out") debug
+                _ -> return ()
                assertBool fp (r == Success))
 
 
