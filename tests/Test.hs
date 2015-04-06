@@ -162,6 +162,7 @@ tests = TestList
   , mkTestMod "WhereIn3.hs"              "WhereIn3"
   , mkTestMod "Backquote.hs"              "Main"
   , mkTestMod "PatternGuards.hs"              "Main"
+  , mkParserTest "Undefined.hs"
   -- , mkTestMod "Unicode.hs"               "Main"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
@@ -179,6 +180,11 @@ tests = TestList
   , mkTestModChange changeCifToCase  "C.hs"          "C"
 
   ]
+
+mkParserTest :: FilePath -> Test
+mkParserTest fp =
+  TestCase (do r <- roundTripTest ("tests" </> "examples" </> fp)
+               assertBool fp (r == Success))
 
 
 mkTestMain :: FilePath -> Test
