@@ -1432,6 +1432,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   markAST _ (GHC.HsDo cts es _) = do
     mark GHC.AnnDo
+    mark GHC.AnnMdo
     let (ostr,cstr,_isComp) =
           if isListComp cts
             then case cts of

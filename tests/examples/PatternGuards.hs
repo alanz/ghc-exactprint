@@ -2,6 +2,6 @@
 
 match n
       | Just 5 <- Just n
-      , Just 5 <- Nothing
-      , Just 5 <- Just 5
-      = Just 5
+      , Just 6 <- Nothing
+      , Just 7 <- Just 9
+      = Just 8
