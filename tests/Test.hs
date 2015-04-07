@@ -181,6 +181,10 @@ tests = TestList
   , mkParserTest "AnnPackageName.hs"
   , mkParserTest "NestedLambda.hs"
   , mkParserTest "DefaultTypeInstance.hs"
+  , mkParserTest "RecordWildcard.hs"
+  , mkParserTest "MagicHash.hs"
+  , mkParserTest "GADTRecords.hs"
+  , mkParserTest "MangledSemiLet.hs"
   -- , mkTestMod "Unicode.hs"               "Main"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"

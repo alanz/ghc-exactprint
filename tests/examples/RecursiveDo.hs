@@ -52,3 +52,6 @@ inviteTree = RoseTree "Ada" [ RoseTree "Dijkstra" []
 
 ti = impureMin budget inviteTree
 
+simplemdo = mdo
+  return 5
+
