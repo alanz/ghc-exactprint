@@ -180,6 +180,7 @@ tests = TestList
   , mkParserTest "DoubleForall.hs"
   , mkParserTest "AnnPackageName.hs"
   , mkParserTest "NestedLambda.hs"
+  , mkParserTest "DefaultTypeInstance.hs"
   -- , mkTestMod "Unicode.hs"               "Main"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
