@@ -340,7 +340,7 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "FunDeps.hs"               "Main"
     -- , manipulateAstTestWFname "IfThenElse3.hs"              "Main"
     -- , manipulateAstTestWFname "ImplicitParams.hs"        "Main"
-    -- , manipulateAstTestWFname "ListComprehensions.hs"    "Main"
+    , manipulateAstTestWFname "ListComprehensions.hs"    "Main"
     -- , manipulateAstTestWFname "TransformListComp.hs"     "Main"
     -- , manipulateAstTestWFname "PArr.hs"                  "PArr"
     -- , manipulateAstTestWFname "DataDecl.hs"              "Main"
@@ -350,8 +350,9 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname "Remorse.hs"             "Main"
     -- , manipulateAstTestWFname "Jon.hs"             "Main"
     -- , manipulateAstTestWFname "RSA.hs"             "Main"
+    , manipulateAstTestWFname "CExpected.hs"                "CExpected"
     -- , manipulateAstTestWFname "C.hs"                        "C"
-    -- , manipulateAstTestWFnameMod changeCifToCase  "C.hs"    "C"
+    , manipulateAstTestWFnameMod changeCifToCase  "C.hs"    "C"
     -- , manipulateAstTestWFname "WhereIn3.hs"                 "WhereIn3"
     --, manipulateAstTestWFnameMod changeWhereIn3 "WhereIn3.hs"    "WhereIn3"
     , manipulateAstTestWFname "DoParens.hs"   "Main"
@@ -359,10 +360,15 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname "Backquote.hs" "Main"
     , manipulateAstTestWFname "HangingRecord.hs" "Main"
     , manipulateAstTestWFname "PatternGuards.hs"              "Main"
+    -- , manipulateAstTestWFnameMod (changeWhereIn3 2) "WhereIn3.hs"    "WhereIn3"
+    -- , manipulateAstTestWFnameMod (changeWhereIn3 2) "WhereIn3.hs"    "WhereIn3"
+    -- , manipulateAstTestWFname "DoParens.hs"   "Main"
 
     -- Future tests to pass, after appropriate dev is done
-    , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
-    , manipulateAstTestWFname "MultipleInferredContexts.hs"   "Main"
+    -- , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
+    -- , manipulateAstTestWFname "MultipleInferredContexts.hs"   "Main"
+    -- , manipulateAstTestWFname "ArgPuncParens.hs"   "Main"
+    , manipulateAstTestWFname "SimpleComplexTuple.hs" "Main"
     {-
     , manipulateAstTestWFname "Cpp.hs"                   "Main"
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
@@ -373,15 +379,15 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
 -- ---------------------------------------------------------------------
 
 -- |Remove a decl with a trailing comment, and remove the trailing comment too
-changeWhereIn3 :: Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)
-changeWhereIn3 ans p = (ans',p')
+changeWhereIn3 :: Int -> Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)
+changeWhereIn3 declIndex ans p = (ans',p')
   where
     (p',(ans',_),_) = runTransform ans doTransform
     doTransform = doRmDecl p
 
     doRmDecl (GHC.L l (GHC.HsModule mmn mexp imps decls mdepr haddock)) = do
       let
-        declIndex = 2 -- zero based
+        -- declIndex = 2 -- zero based
         decls1 = take declIndex decls
         decls2 = drop (declIndex + 1) decls
         decls' = decls1 ++ decls2
@@ -456,7 +462,8 @@ changeCifToCase ans p = (ans',p')
 
       -- AZ:TODO: under some circumstances the GRHS annotations need LineSame, in others LineChanged.
       let ifDelta     = gfromJust "Case.ifDelta"     $ lookup (G GHC.AnnIf) (annsDP annIf)
-      let ifSpanEntry = gfromJust "Case.ifSpanEntry" $ lookup AnnSpanEntry (annsDP annIf)
+      -- let ifSpanEntry = gfromJust "Case.ifSpanEntry" $ lookup AnnSpanEntry (annsDP annIf)
+      let ifSpanEntry = annEntryDelta annIf
       let anne2' =
             [ ( AnnKey caseLoc       (CN "HsCase"),   annIf { annsDP = [ (AnnSpanEntry,ifSpanEntry),(G GHC.AnnCase, ifDelta)
                                                                      , (G GHC.AnnOf,     DP (0,1))
@@ -623,20 +630,21 @@ manipulateAstTest' mchange useTH file' modname = do
                    Nothing     -> (ann,parsed)
                    Just change -> change ann parsed
     printed = exactPrintWithAnns parsed' ann' -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
-    result =
-            if False
-              then "Match\n"
-              else printed ++ "\n==============\n"
-                    ++ "lengths:" ++ show (length printed,length contents) ++ "\n"
-                    ++ showAnnData ann 0 parsed'
-                    ++ "\n========================\n"
-                    ++ showGhc ann'
-                    ++ "\n========================\n"
-                    ++ showGhc ghcAnns
-                    ++ "\n========================\n"
-                    ++ parsedAST
-                    ++ "\n========================\n"
-                    ++ showGhc ann
+    outcome = if printed == contents
+                then "Match\n"
+                else "Fail\n"
+    result = printed ++ "\n==============\n"
+             ++ outcome ++ "\n==============\n"
+             ++ "lengths:" ++ show (length printed,length contents) ++ "\n"
+             ++ showAnnData ann 0 parsed'
+             ++ "\n========================\n"
+             ++ showGhc ann'
+             ++ "\n========================\n"
+             ++ showGhc ghcAnns
+             ++ "\n========================\n"
+             ++ parsedAST
+             ++ "\n========================\n"
+             ++ showGhc ann
   writeFile out $ result
   -- putStrLn $ "Test:parsed=" ++ parsedAST
   -- putStrLn $ "Test:showdata:parsedOrig" ++ SYB.showData SYB.Parser 0 parsedOrig
