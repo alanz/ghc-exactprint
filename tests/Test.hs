@@ -177,6 +177,7 @@ tests = TestList
   , mkParserTest "SlidingRecordSetter.hs"
   , mkParserTest "MultiLineCommentWithPragmas.hs"
   , mkParserTest "GHCOrig.hs"
+  , mkParserTest "DoubleForall.hs"
   -- , mkTestMod "Unicode.hs"               "Main"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
