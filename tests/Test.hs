@@ -178,6 +178,7 @@ tests = TestList
   , mkParserTest "MultiLineCommentWithPragmas.hs"
   , mkParserTest "GHCOrig.hs"
   , mkParserTest "DoubleForall.hs"
+  , mkParserTest "AnnPackageName.hs"
   -- , mkTestMod "Unicode.hs"               "Main"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
