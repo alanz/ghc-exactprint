@@ -1008,7 +1008,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   markAST _ (GHC.HsExplicitListTy _ ts) = do
     -- TODO: what about SIMPLEQUOTE?
-    markWithString GHC.AnnOpen "'[" -- "'["
+    markWithString GHC.AnnOpenS "'[" -- "'["
     mapM_ markLocated ts
     mark GHC.AnnCloseS -- ']'
 
@@ -1360,7 +1360,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mark GHC.AnnLam
     markMatchGroup l match
 
-  markAST l (GHC.HsLamCase _ match) = markMatchGroup l match
+  markAST l (GHC.HsLamCase _ match) = do
+    mark GHC.AnnLam
+    mark GHC.AnnCase
+    markMatchGroup l match
 
   markAST _ (GHC.HsApp e1 e2) = do
     markLocated e1
@@ -1468,15 +1471,15 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   markAST _ (GHC.RecordCon n _ (GHC.HsRecFields fs _)) = do
     markLocated n
     mark GHC.AnnOpenC
-    mark GHC.AnnDotdot
     mapM_ markLocated fs
+    mark GHC.AnnDotdot
     mark GHC.AnnCloseC
 
   markAST _ (GHC.RecordUpd e (GHC.HsRecFields fs _) _cons _ _) = do
     markLocated e
     mark GHC.AnnOpenC
-    mark GHC.AnnDotdot
     mapM_ markLocated fs
+    mark GHC.AnnDotdot
     mark GHC.AnnCloseC
 
   markAST _ (GHC.ExprWithTySig e typ _) = do
