@@ -9,3 +9,9 @@ data H1 a b where
         } -> H1 Int Int
   C4 :: { field2 :: a -- ^ hello2 docs
         } -> H1 Int a
+
+  FwdDataflowAnalysis :: (Eq f, Monad m) => { analysisTop :: f
+                                            , analysisMeet :: f -> f -> f
+                                            , analysisTransfer :: f -> Instruction -> m f
+                                            , analysisFwdEdgeTransfer :: Maybe (f -> Instruction -> m [(BasicBlock, f)])
+                                            } -> DataflowAnalysis m f

@@ -172,7 +172,6 @@ tests = TestList
   , mkParserTest "LambdaCase.hs"
   , mkParserTest "PuncFunctions.hs"
   , mkParserTest "TupleSections.hs"
-  , mkParserTest "TypeFamilies2.hs"
   , mkParserTest "TypeSynParens.hs"
   , mkParserTest "SlidingRecordSetter.hs"
   , mkParserTest "MultiLineCommentWithPragmas.hs"
@@ -185,6 +184,9 @@ tests = TestList
   , mkParserTest "MagicHash.hs"
   , mkParserTest "GADTRecords.hs"
   , mkParserTest "MangledSemiLet.hs"
+  , mkParserTest "MultiImplicitParams.hs"
+  , mkParserTest "UnicodeSyntaxFailure.hs"
+
   -- , mkTestMod "Unicode.hs"               "Main"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
