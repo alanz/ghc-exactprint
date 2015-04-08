@@ -1,0 +1,14 @@
+In hand
+
+PatternGuards : GHC D818
+TypeBrackets : Trac #10255 D823
+SlidingDoClause : Semi allowed in if stmt, need to only take it if inside the span
+
+LiftedConstructors : Trac #10268
+TemplateHaskell.hs : Trac #10268
+PuncFunctions : Trac #10268
+TypeSynParens : Fix in Annotate.hs
+
+Needs work
+
+TupleSections

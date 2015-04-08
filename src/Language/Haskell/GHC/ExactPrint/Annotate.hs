@@ -1854,8 +1854,10 @@ instance (GHC.DataId name,Annotate name, GHC.OutputableBndr name)
 instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
    => Annotate (GHC.TyFamInstEqn name) where
   markAST _ (GHC.TyFamEqn ln (GHC.HsWB pats _ _ _) typ) = do
+    mark GHC.AnnOpenP
     markLocated ln
     mapM_ markLocated pats
+    mark GHC.AnnCloseP
     mark GHC.AnnEqual
     markLocated typ
 
