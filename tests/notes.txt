@@ -8,7 +8,19 @@ LiftedConstructors : Trac #10268
 TemplateHaskell.hs : Trac #10268
 PuncFunctions : Trac #10268
 TypeSynParens : Fix in Annotate.hs
+GHC.Orig : fix rdrName2String in ghc-exactprint
+AnnPackageName : fix in ghc-exactprint
+NestedLambda : AnnLambda is in the GHC Anns attached to an AST span. Fix in ghc-exactprint
+DefaultTypeInstance : fix in ghc-exactprint
+MagicHash : HsCharPrim must always have a trailing '#' char. ghc-exactprint
+GADTRecords : ghc-exactprint issue, anns are there.
+MangledSemiLet : looks like annotations are ok, so ghc issue
 
 Needs work
 
-TupleSections
+TupleSections : AnnComma missing, issue in Parser
+
+MultiLineCommentWithPragmas : Lexer.x problem with nested #-}. Discards -} from it
+
+DoubleForall : Annotation is added, but span is not in AST. Need to find the
+            place where nested HsForAllTy's get collapsed, that is where we lose the span.

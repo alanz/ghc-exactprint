@@ -196,8 +196,8 @@ rdrName2String r =
         GHC.Unqual _occ       -> GHC.occNameString $ GHC.rdrNameOcc r
         GHC.Qual modname _occ -> GHC.moduleNameString modname ++ "."
                             ++ GHC.occNameString (GHC.rdrNameOcc r)
-        GHC.Orig _ _          -> error "GHC.Orig introduced after renaming"
-        GHC.Exact _           -> error "GHC.Exact introduced after renaming"
+        GHC.Orig _ _          -> error $ "GHC.Orig introduced after renaming" ++ showGhc r
+        GHC.Exact _           -> error $ "GHC.Exact introduced after renaming" ++ showGhc r
 
 name2String :: GHC.Name -> String
 name2String = showGhc
