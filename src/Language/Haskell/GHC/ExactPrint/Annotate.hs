@@ -863,16 +863,18 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
 
   -- MinimalSig (BooleanFormula (Located name))
-  markAST _ (GHC.MinimalSig src  formula) = do
+  markAST l (GHC.MinimalSig src  formula) = do
     markWithString GHC.AnnOpen src
-    markBooleanFormula formula
+    markBooleanFormula l formula
     markWithString GHC.AnnClose "#-}"
 
 
 -- ---------------------------------------------------------------------
 
-markBooleanFormula :: GHC.BooleanFormula (GHC.Located name) -> Annotated ()
-markBooleanFormula = assert False undefined
+markBooleanFormula :: GHC.SrcSpan -> GHC.BooleanFormula (GHC.Located name) -> Annotated ()
+markBooleanFormula l x =
+  -- ++AZ++: TODO: This is a complete kludge, just to get ANY output
+  markOffsetWithString GHC.AnnVal 2 "ghc-exactprint: BooleanFormula not processed"
 
 -- ---------------------------------------------------------------------
 
@@ -1327,7 +1329,7 @@ markHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
 markHsLocalBinds (GHC.HsValBinds (GHC.ValBindsOut {}))
    = error $ "markHsLocalBinds: only valid after type checking"
 
-markHsLocalBinds (GHC.HsIPBinds (GHC.IPBinds binds _)) = mapM_ markLocated binds
+markHsLocalBinds (GHC.HsIPBinds (GHC.IPBinds binds _)) = mapM_ markLocated (reverse binds)
 markHsLocalBinds (GHC.EmptyLocalBinds)                 = return ()
 
 -- ---------------------------------------------------------------------

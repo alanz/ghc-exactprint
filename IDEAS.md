@@ -12,3 +12,8 @@
 ## For GHC 7.12
 
 Make sure that all names are located, so e.g. HsTyVar will take a Located name
+
+
+Make BooleanFormula properly Located, or provide original source representation
+
+Show instance for BooleanFormula

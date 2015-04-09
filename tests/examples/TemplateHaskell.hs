@@ -1,5 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 foo = $footemplate
 
-foo = [e| quasi |]
+bar = [e| quasi |]
+
+baz = [quoter| quasi |]

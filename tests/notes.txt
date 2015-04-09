@@ -1,22 +1,50 @@
 In hand
+--------
 
 PatternGuards : GHC D818
+
+TemplateHaskell.hs 1 : Trac #10268
+
 TypeBrackets : Trac #10255 D823
 SlidingDoClause : Semi allowed in if stmt, need to only take it if inside the span
 
 LiftedConstructors : Trac #10268
-TemplateHaskell.hs : Trac #10268
+
 PuncFunctions : Trac #10268
+
 TypeSynParens : Fix in Annotate.hs
+
 GHC.Orig : fix rdrName2String in ghc-exactprint
+
 AnnPackageName : fix in ghc-exactprint
+
 NestedLambda : AnnLambda is in the GHC Anns attached to an AST span. Fix in ghc-exactprint
+
 DefaultTypeInstance : fix in ghc-exactprint
+
 MagicHash : HsCharPrim must always have a trailing '#' char. ghc-exactprint
+
 GADTRecords : ghc-exactprint issue, anns are there.
-MangledSemiLet : looks like annotations are ok, so ghc issue
+
+MangledSemiLet : looks like annotations are ok, so ghc-exactprint issue
+
+SlidingListComp : The AnnVbar in GRHS is capturing the annotation that belongs in the enclosed HsDo.
+                - need to work around in ghc-exactprint
+
+MultiImplicitParams : IPBinds provides its dbinds in reverse order. Fix in ghc-exactprint
+
+
+GHC tickets still to be done
+----------------------------
+
+TemplateHaskell  2 : ITopenExpQuote can be either '[|' or '[e|'. Need to capture src
+                   : workaround : the annotated SrcSpan is either 2 or 3 chars long.
+                   Trac ticket #10276
 
 Needs work
+----------
+
+Undefined : BooleanFormula is not implemented.
 
 TupleSections : AnnComma missing, issue in Parser
 
@@ -24,3 +52,6 @@ MultiLineCommentWithPragmas : Lexer.x problem with nested #-}. Discards -} from 
 
 DoubleForall : Annotation is added, but span is not in AST. Need to find the
             place where nested HsForAllTy's get collapsed, that is where we lose the span.
+
+
+UnicodeSyntaxFailure : policy decision. Defer until others are resolved.
