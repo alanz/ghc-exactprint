@@ -316,7 +316,7 @@ instance Annotate GHC.Name where
 
 instance (GHC.DataId name,Annotate name)
   => Annotate (GHC.ImportDecl name) where
- markAST _ imp@(GHC.ImportDecl msrc (GHC.L ln _) _pkg src safeflag _qual _impl _as hiding) = do
+ markAST _ imp@(GHC.ImportDecl msrc (GHC.L ln _) mpkg src safeflag _qual _impl _as hiding) = do
 
    -- 'import' maybe_src maybe_safe optqualified maybe_pkg modid maybeas maybeimpspec
    mark GHC.AnnImport
@@ -326,7 +326,9 @@ instance (GHC.DataId name,Annotate name)
              >> markWithString GHC.AnnClose "#-}")
    when safeflag (mark GHC.AnnSafe)
    mark GHC.AnnQualified
-   mark GHC.AnnPackageName
+   case mpkg of
+    Nothing -> return ()
+    Just pkg -> markWithString GHC.AnnPackageName (show (GHC.unpackFS pkg))
 
    markExternal ln GHC.AnnVal (GHC.moduleNameString $ GHC.unLoc $ GHC.ideclName imp)
 
