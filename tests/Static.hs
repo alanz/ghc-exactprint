@@ -30,13 +30,14 @@ site n = do
   failPaths <- filterM doesFileExist =<< (map ("tests/roundtrip" </>)  . take n <$> getDirectoryContents "tests/roundtrip")
   traceShowM failPaths
   fails <- mapM parseFail failPaths
+  writeFile "origfailures.txt" (intercalate "\n" (map getfname fails))
   writeFile "failures/failures.html" (makeIndex failPaths)
   let padded = "failures.html" : (map makeFailLink failPaths ++ ["failures.html"])
   let resolved = zipWith (\x (y,z) -> (x, y, z)) padded (zip (tail padded) (tail (tail padded)))
   mapM_ (uncurry page) (zip resolved fails)
 
 makeFailLink :: FilePath -> String
-makeFailLink fp = (takeFileName fp  <.> "html"  )
+makeFailLink fp = takeFileName fp  <.> "html"
 
 makeIndex :: [FilePath] -> String
 makeIndex files =
@@ -75,6 +76,8 @@ mkLink s label =
   "<a href=\"" ++ s ++ "\">" ++ label ++ "</a>"
 
 data Failure = Failure String FilePath
+
+getfname (Failure _ fp) = fp
 
 parseFail :: FilePath -> IO Failure
 parseFail fp = do

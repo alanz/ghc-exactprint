@@ -1,4 +1,4 @@
-
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -42,6 +42,7 @@ data Report =
  | ParseFailure GHC.SrcSpan String
  | RoundTripFailure String
  | CPP
+ | UnicodeSyntax
 
 instance Eq Report where
   Success == Success = True
@@ -55,7 +56,8 @@ instance Show Report where
   show Success = "Success"
   show (ParseFailure _ s) = "ParseFailure: " ++ s
   show (RoundTripFailure _) = "RoundTripFailure"
-  show (CPP)              = "CPP"
+  show CPP              = "CPP"
+  show UnicodeSyntax    = "UnicodeSyntax"
 
 runParser :: GHC.P a -> GHC.DynFlags -> FilePath -> String -> GHC.ParseResult a
 runParser parser flags filename str = GHC.unP parser parseState
@@ -84,9 +86,10 @@ roundTripTest file = do
   src_opts <- GHC.getOptionsFromFile dflags1 file
   (!dflags2, _, _)
            <- GHC.parseDynamicFilePragma dflags1 src_opts
-  if GHC.xopt GHC.Opt_Cpp dflags2
-    then return $ CPP
-    else do
+  if
+    | GHC.xopt GHC.Opt_Cpp dflags2 -> return $ CPP
+    | GHC.xopt GHC.Opt_UnicodeSyntax dflags2 -> return $ UnicodeSyntax
+    | otherwise -> do
       contents <- T.unpack <$> T.readFile file
       case parseFile dflags2 file contents of
         GHC.PFailed ss m -> return $ ParseFailure ss (GHC.showSDoc dflags2 m)

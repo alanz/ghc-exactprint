@@ -49,11 +49,15 @@ writeProcessed :: FilePath -> IO ()
 writeProcessed fp = T.appendFile processed (T.pack ('\n' : fp))
 
 
+
 main :: IO ()
 main = do
   as <- getArgs
   case as of
     [] -> putStrLn "Must enter directory to process"
+    ["failures"] -> do
+      fs <- lines <$> readFile "origfailures.txt"
+      () <$ runTests (TestList (map mkParserTest fs))
     ds -> () <$ (runTests =<< (TestList <$> mapM tests ds))
 
 runTests :: Test -> IO Counts
@@ -118,6 +122,7 @@ mkParserTest fp =
                 RoundTripFailure debug -> writeFailure fp debug
                 ParseFailure _ m -> writeParseFail fp m >> exitFailure
                 CPP -> writeCPP fp >> exitFailure
+                UnicodeSyntax -> exitFailure
                 _ -> return ()
                assertBool fp (r == Success))
 
