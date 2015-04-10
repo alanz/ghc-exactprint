@@ -39,7 +39,7 @@ import Test.HUnit
 
 data Report =
    Success
- | ParseFailure GHC.SrcSpan GHC.SDoc
+ | ParseFailure GHC.SrcSpan String
  | RoundTripFailure String
  | CPP
 
@@ -53,7 +53,7 @@ instance Eq Report where
 
 instance Show Report where
   show Success = "Success"
-  show (ParseFailure _ s) = "ParseFailure: " ++ GHC.showSDocUnsafe s
+  show (ParseFailure _ s) = "ParseFailure: " ++ s
   show (RoundTripFailure _) = "RoundTripFailure"
   show (CPP)              = "CPP"
 
@@ -89,7 +89,7 @@ roundTripTest file = do
     else do
       contents <- T.unpack <$> T.readFile file
       case parseFile dflags2 file contents of
-        GHC.PFailed ss m -> return $ ParseFailure ss m
+        GHC.PFailed ss m -> return $ ParseFailure ss (GHC.showSDoc dflags2 m)
         GHC.POk s pmod   -> do
           let (printed, anns) = runRoundTrip (mkApiAnns s) pmod
               debugtxt = mkDebugOutput file printed contents (mkApiAnns s) anns pmod

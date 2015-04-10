@@ -26,6 +26,9 @@ import qualified Data.Set as S
 
 import Common
 
+import System.IO.Temp
+import System.IO (hClose)
+
 data Verbosity = Debug | Status | None deriving (Eq, Show, Ord, Enum)
 
 verb :: Verbosity
@@ -64,9 +67,6 @@ tests :: FilePath -> IO Test
 tests dir = do
   done <- S.fromList . lines . T.unpack <$> T.readFile processed
   roundTripHackage done dir
-
-mkDirTest :: FilePath -> [(FilePath, Report)] -> Test
-mkDirTest d ts = TestLabel d (TestList (map (uncurry mkTest) ts))
 
 -- Selection:
 
@@ -108,11 +108,22 @@ roundTripPackage done (n, dir) = do
   when (verb <= Status) (traceM dir)
   hsFiles <- filter (flip S.notMember done)  <$> findSrcFiles dir
 
-  r <- mapM roundTripTest hsFiles
-  return (TestLabel (dropFileName dir) (TestList $ zipWith mkTest (map takeFileName hsFiles) r))
+  return (TestLabel (dropFileName dir) (TestList $ map mkParserTest hsFiles))
 
-mkTest :: FilePath -> Report -> Test
-mkTest file r =
-  case r of
-    Success -> TestLabel file (TestCase (return ()))
-    a -> traceShow a $ TestLabel file (TestCase exitFailure)
+mkParserTest :: FilePath -> Test
+mkParserTest fp =
+  TestCase (do r <- roundTripTest fp
+               writeProcessed fp
+               case r of
+                RoundTripFailure debug -> writeFailure fp debug
+                ParseFailure _ m -> writeParseFail fp m >> exitFailure
+                CPP -> writeCPP fp >> exitFailure
+                _ -> return ()
+               assertBool fp (r == Success))
+
+writeFailure :: FilePath -> String -> IO ()
+writeFailure fp db = do
+  let outdir      = "tests" </> "roundtrip"
+      outname     = takeFileName fp <.> "out"
+  (fname, handle) <- openTempFile outdir outname
+  (T.hPutStr handle (T.pack db) >> hClose handle)
