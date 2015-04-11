@@ -12,7 +12,6 @@ module Language.Haskell.GHC.ExactPrint.Annotate
        , Annotated
        , Annotate(..)) where
 
-import Control.Exception (assert)
 import Data.Data (Data)
 import Data.List (sort, sortBy)
 import Data.Maybe (fromMaybe)
@@ -298,7 +297,7 @@ instance Annotate GHC.RdrName where
                  then return ()
                  else markExternal l GHC.AnnVal str
           1 -> markWithString GHC.AnnVal str
-          x -> error $ "markP.RdrName: too many AnnVal :" ++ showGhc (l,x)
+          x -> return ()
         mark GHC.AnnTildehsh
         mark GHC.AnnTilde
         mark GHC.AnnRarrow
@@ -384,7 +383,7 @@ instance Annotate (Maybe GHC.Role) where
 
 instance (Annotate name)
    => Annotate (GHC.HsQuasiQuote name) where
-  markAST _ (GHC.HsQuasiQuote _n _ss _fs) = assert False undefined
+  markAST _ (GHC.HsQuasiQuote _n _ss _fs) = return ()
 
 -- ---------------------------------------------------------------------
 
@@ -423,7 +422,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markMaybe mln
     markWithString GHC.AnnClose "#-}" -- "#-}"
 
-  markAST _ (GHC.HsVectTypeOut {}) = error $ "markP.HsVectTypeOut: only valid after type checker"
+  markAST _ (GHC.HsVectTypeOut {}) = return ()
 
   markAST _ (GHC.HsVectClassIn src ln) = do
     markWithString GHC.AnnOpen src -- "{-# VECTORISE"
@@ -431,9 +430,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markLocated ln
     markWithString GHC.AnnClose "#-}" -- "#-}"
 
-  markAST _ (GHC.HsVectClassOut {}) = error $ "markP.HsVectClassOut: only valid after type checker"
-  markAST _ (GHC.HsVectInstIn {})   = error $ "markP.HsVectInstIn: not supported?"
-  markAST _ (GHC.HsVectInstOut {})   = error $ "markP.HsVectInstOut: not supported?"
+  markAST _ (GHC.HsVectClassOut {}) = return ()
+  markAST _ (GHC.HsVectInstIn {})   = return ()
+  markAST _ (GHC.HsVectInstOut {})   =  return ()
 
 -- ---------------------------------------------------------------------
 
@@ -724,7 +723,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   markAST _ (GHC.IPBind en e) = do
     case en of
       Left n -> markLocated n
-      Right _i -> error $ "markP.IPBind:should not happen"
+      Right _i -> return ()
     mark GHC.AnnEqual
     markLocated e
 
@@ -1296,7 +1295,7 @@ getLocalBindsSrcSpan (GHC.HsValBinds (GHC.ValBindsIn binds sigs))
     spans = sort (map GHC.getLoc (GHC.bagToList binds) ++ map GHC.getLoc sigs)
 
 getLocalBindsSrcSpan (GHC.HsValBinds (GHC.ValBindsOut {}))
-   = error "getLocalBindsSrcSpan: only valid after type checking"
+   = GHC.noSrcSpan
 
 getLocalBindsSrcSpan (GHC.HsIPBinds (GHC.IPBinds binds _))
   = case sort (map GHC.getLoc binds) of
@@ -1329,7 +1328,7 @@ markHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
                        ++ prepareListAnnotation sigs
                          )
 markHsLocalBinds (GHC.HsValBinds (GHC.ValBindsOut {}))
-   = error $ "markHsLocalBinds: only valid after type checking"
+   = return ()
 
 markHsLocalBinds (GHC.HsIPBinds (GHC.IPBinds binds _)) = mapM_ markLocated (reverse binds)
 markHsLocalBinds (GHC.EmptyLocalBinds)                 = return ()
@@ -1758,7 +1757,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markListWithLayout es
     mark GHC.AnnCloseC
 
-  markAST _ (GHC.HsCmdCast {}) = error $ "markP.HsCmdCast: only valid after type checker"
+  markAST _ (GHC.HsCmdCast {}) = return ()
 
 
 -- ---------------------------------------------------------------------
