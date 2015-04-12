@@ -34,6 +34,8 @@ import qualified SrcLoc         as GHC
 import Control.Monad.Trans.Free
 import Control.Monad.Free.TH (makeFreeCon)
 
+import Debug.Trace
+
 
 -- ---------------------------------------------------------------------
 
@@ -362,7 +364,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
       GHC.VectD d       -> markAST l d
       GHC.SpliceD d     -> markAST l d
       GHC.DocD d        -> markAST l d
-      GHC.QuasiQuoteD d -> markAST l d
       GHC.RoleAnnotD d  -> markAST l d
 
 -- ---------------------------------------------------------------------
@@ -381,22 +382,18 @@ instance Annotate (Maybe GHC.Role) where
 
 -- ---------------------------------------------------------------------
 
-instance (Annotate name)
-   => Annotate (GHC.HsQuasiQuote name) where
-  markAST _ (GHC.HsQuasiQuote _n _ss _fs) = return ()
-
--- ---------------------------------------------------------------------
-
 instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
    => Annotate (GHC.SpliceDecl name) where
-  markAST _ (GHC.SpliceDecl (GHC.L _ (GHC.HsSplice _n e)) flag) = do
+  markAST l (GHC.SpliceDecl e _flag) = do
+    {-
     case flag of
       GHC.ExplicitSplice ->
         markWithString GHC.AnnOpen "$("
       GHC.ImplicitSplice ->
         markWithString GHC.AnnOpen "$$("
+    -}
     markLocated e
-    markWithString GHC.AnnClose ")"
+--    markWithString GHC.AnnClose ")"
 
 -- ---------------------------------------------------------------------
 
@@ -910,9 +907,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markLocated typ
     mark GHC.AnnCloseP -- ")"
 
-  markAST _ (GHC.HsTyVar n) = do
+  markAST l (GHC.HsTyVar n) = do
     mark GHC.AnnDcolon -- for HsKind, alias for HsType
-    markLocatedFromKw GHC.AnnEofPos n
+    traceM (showGhc n)
+    markAST l n
+--    markLocatedFromKw GHC.AnnEofPos n
 
   markAST _ (GHC.HsAppTy t1 t2) = do
     mark GHC.AnnDcolon -- for HsKind, alias for HsType
@@ -974,15 +973,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   -- HsQuasiQuoteTy (HsQuasiQuote name)
   -- TODO: Probably wrong
-  markAST l (GHC.HsQuasiQuoteTy (GHC.HsQuasiQuote n _ss q)) = do
-    markExternal l GHC.AnnVal
-      ("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS q) ++ "|]")
+      --("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS q) ++ "|]")
 
   -- HsSpliceTy (HsSplice name) (PostTc name Kind)
-  markAST _ (GHC.HsSpliceTy (GHC.HsSplice _is e) _) = do
-    markWithString GHC.AnnOpen "$(" -- '$('
-    markLocated e
-    markWithString GHC.AnnClose ")" -- ')'
+  markAST l (GHC.HsSpliceTy s _) = do
+    markAST l s
 
   markAST _ (GHC.HsDocTy t ds) = do
     markLocated t
@@ -1037,6 +1032,20 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 -- TODO: Probably wrong
   markAST l (GHC.HsNamedWildcardTy n) = do
     markExternal l GHC.AnnVal  (showGhc n)
+
+instance
+  (GHC.DataId name,GHC.OutputableBndr name,Annotate name)  =>
+  Annotate (GHC.HsSplice name) where
+  markAST l c =
+    case c of
+      GHC.HsQuasiQuote _ _n pos fs -> return ()
+      GHC.HsTypedSplice _n ex -> defaultSplice "$$(" ex
+      GHC.HsUntypedSplice _n ex -> defaultSplice "$(" ex
+    where
+      defaultSplice s v = do
+        markWithString GHC.AnnOpen s -- '$('
+        markLocated v
+        markWithString GHC.AnnClose ")"
 
 -- ---------------------------------------------------------------------
 
@@ -1108,16 +1117,15 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
     markLocated pat
 
   -- SplicePat (HsSplice id)
-  markAST _ (GHC.SplicePat (GHC.HsSplice _ e)) = do
-    markWithString GHC.AnnOpen "$(" -- '$('
-    markLocated e
-    markWithString GHC.AnnClose ")" -- ')'
+  markAST l (GHC.SplicePat s) = do
+    markAST l s
 
-  -- QuasiQuotePat (HsQuasiQuote id)
+{-  -- QuasiQuotePat (HsQuasiQuote id)
   -- TODO
   markAST l (GHC.QuasiQuotePat (GHC.HsQuasiQuote n _ q)) = do
     markExternal l GHC.AnnVal
       ("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS q) ++ "|]")
+      -}
 
   -- LitPat HsLit
   markAST l (GHC.LitPat lp) = markExternal l GHC.AnnVal (hsLit2String lp)
@@ -1588,20 +1596,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   markAST _ (GHC.HsRnBracketOut _ _) = return ()
   markAST _ (GHC.HsTcBracketOut _ _) = return ()
 
-  markAST _ (GHC.HsSpliceE False (GHC.HsSplice _ e)) = do
-    markWithString GHC.AnnOpen "$("
-    markLocated e
-    markWithString GHC.AnnClose ")"
-
-  markAST _ (GHC.HsSpliceE True (GHC.HsSplice _ e)) = do
-    markWithString GHC.AnnOpen "$$("
-    markLocated e
-    markWithString GHC.AnnClose ")"
-
-  markAST l (GHC.HsQuasiQuoteE (GHC.HsQuasiQuote n _ q)) = do
-    markExternal l GHC.AnnVal
-      ("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS q) ++ "|]")
-
+  markAST l (GHC.HsSpliceE e) = do
+    markAST l e
 
   markAST _ (GHC.HsProc p c) = do
     mark GHC.AnnProc
@@ -1950,7 +1946,6 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
 
         markLocated ctx
         mark GHC.AnnDarrow
-
         markLocated ty
 
 

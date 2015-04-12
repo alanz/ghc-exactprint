@@ -363,7 +363,7 @@ fixBugsInAst anns t = (anns',t')
     parStmt (GHC.L _ ps@(GHC.ParStmt pbs _ _)) = do -- #10207
       let ss = GHC.combineSrcSpans (parStmtBlockSpan $ head pbs) (parStmtBlockSpan $ last pbs)
       return (GHC.L ss ps)
-    
+
     parStmt (GHC.L ss ast@GHC.TransStmt{..}) = -- #10214
       let ss' = GHC.combineLocs (head trS_stmts) trS_using in
         changeAnnSpan ss ss' >> return (GHC.L ss' ast)
