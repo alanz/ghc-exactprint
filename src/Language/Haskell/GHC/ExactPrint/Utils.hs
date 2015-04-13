@@ -19,6 +19,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , isPointSrcSpan
   , pos2delta
   , ss2delta
+  , spanLength
   , isGoodDelta
 
   , isListComp
@@ -139,6 +140,9 @@ srcSpanEndLine _ = 0
 srcSpanStartLine :: GHC.SrcSpan -> Int
 srcSpanStartLine (GHC.RealSrcSpan s) = GHC.srcSpanStartLine s
 srcSpanStartLine _ = 0
+
+spanLength :: GHC.SrcSpan -> Int
+spanLength = (-) <$> srcSpanEndColumn <*> srcSpanStartColumn
 
 -- ---------------------------------------------------------------------
 
