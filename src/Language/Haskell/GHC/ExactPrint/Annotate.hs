@@ -18,7 +18,7 @@ import Data.Maybe (fromMaybe)
 import Control.Monad (when)
 
 import Language.Haskell.GHC.ExactPrint.Types
-import Language.Haskell.GHC.ExactPrint.Utils (rdrName2String, isListComp, debug)
+import Language.Haskell.GHC.ExactPrint.Utils (rdrName2String, isListComp, debug, span2ss, ss2span)
 
 import qualified Bag            as GHC
 import qualified BasicTypes     as GHC
@@ -909,7 +909,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   markAST l (GHC.HsTyVar n) = do
     mark GHC.AnnDcolon -- for HsKind, alias for HsType
-    traceM (showGhc n)
     markAST l n
 --    markLocatedFromKw GHC.AnnEofPos n
 
@@ -1038,9 +1037,27 @@ instance
   Annotate (GHC.HsSplice name) where
   markAST l c =
     case c of
-      GHC.HsQuasiQuote _ _n pos fs -> return ()
-      GHC.HsTypedSplice _n ex -> defaultSplice "$$(" ex
-      GHC.HsUntypedSplice _n ex -> defaultSplice "$(" ex
+      GHC.HsQuasiQuote _ n pos fs -> do
+        markExternal l GHC.AnnVal
+              ("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS fs) ++ "|]")
+      GHC.HsTypedSplice _n b@(GHC.L l' ex) -> do
+        n <- countAnns  GHC.AnnOpen
+        let ((startline, startcol), (oldline, oldcol)) = ss2span l'
+            newSS = span2ss ((startline, startcol), (startline, startcol+2))
+            bodySS = span2ss ((startline, startcol+2), (oldline, oldcol))
+        case n of
+          0 -> markExternal newSS GHC.AnnThIdTySplice "$$"
+                >> markAST bodySS ex
+          1 -> defaultSplice "$$(" b
+      GHC.HsUntypedSplice _n b@(GHC.L l' ex) -> do
+        n <- countAnns  GHC.AnnOpen
+        let ((startline, startcol), (oldline, oldcol)) = ss2span l
+            newSS = span2ss ((startline, startcol), (startline, startcol+1))
+            bodySS = span2ss ((startline, startcol+1), (oldline, oldcol))
+        case n of
+          0 -> markExternal newSS GHC.AnnThIdSplice "$"
+                >> markAST bodySS ex
+          1 -> defaultSplice "$(" b
     where
       defaultSplice s v = do
         markWithString GHC.AnnOpen s -- '$('
