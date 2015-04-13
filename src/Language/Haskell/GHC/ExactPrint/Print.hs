@@ -132,6 +132,8 @@ printInterpret = iterTM go
       printStringAtMaybeAnn (G akwid) s >> next
     go (StoreOriginalSrcSpan ss next) = storeOriginalSrcSpanPrint ss >>= next
     go (GetSrcSpanForKw _ next) = return GHC.noSrcSpan >>= next
+    go (StoreString _ _ next) =
+      printStoredString >> next
 
 -------------------------------------------------------------------------
 
@@ -146,6 +148,18 @@ storeOriginalSrcSpanPrint _ss = do
   case filter isAnnList (head kd) of
     ((AnnList ss,_):_) -> return ss
     _                  -> return GHC.noSrcSpan
+
+
+printStoredString = do
+  kd <- gets epAnnKds
+
+  let
+    isAnnString (AnnString _,_) = True
+    isAnnString _             = False
+
+  case filter isAnnString (head kd) of
+    ((AnnString ss,_):_) -> printStringAtMaybeAnn (AnnString ss) ss
+    _                    -> return ()
 
 -------------------------------------------------------------------------
 

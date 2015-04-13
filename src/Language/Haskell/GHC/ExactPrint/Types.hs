@@ -147,6 +147,10 @@ data KeywordId = G GHC.AnnKeywordId
                                      -- needs to be preserved so that
                                      -- exactPC can find it, after
                                      -- potential AST edits.
+               | AnnString String    -- ^ Used to pass information from
+                                     -- Delta to Print when we have to work
+                                     -- out details from the original
+                                     -- SrcSpan.
                deriving (Eq,Ord)
 
 instance Show KeywordId where
@@ -155,6 +159,7 @@ instance Show KeywordId where
   show AnnSemiSep      = "AnnSemiSep"
   show (AnnComment dc) = "(AnnComment " ++ show dc ++ ")"
   show (AnnList ss)    = "(AnnList " ++ showGhc ss ++ ")"
+  show (AnnString s)    = "(AnnString " ++ s ++ ")"
 
 data LayoutFlag = LayoutRules | NoLayoutRules deriving (Show, Eq)
 

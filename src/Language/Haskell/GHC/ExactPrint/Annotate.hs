@@ -57,6 +57,7 @@ data AnnotationF next where
   -- | Required to work around deficiencies in the GHC AST
   StoreOriginalSrcSpan :: GHC.SrcSpan                   -> (GHC.SrcSpan -> next) -> AnnotationF next
   GetSrcSpanForKw :: GHC.AnnKeywordId                   -> (GHC.SrcSpan -> next) -> AnnotationF next
+  StoreString :: String -> GHC.SrcSpan                  -> next -> AnnotationF next
 
 deriving instance Functor (AnnotationF)
 
@@ -76,6 +77,12 @@ makeFreeCon  'CountAnns
 makeFreeCon  'SetLayoutFlag
 makeFreeCon  'StoreOriginalSrcSpan
 makeFreeCon  'GetSrcSpanForKw
+makeFreeCon  'StoreString
+
+workOutString :: GHC.AnnKeywordId -> (GHC.SrcSpan -> String) -> Annotated ()
+workOutString kw f = do
+  ss <- getSrcSpanForKw kw
+  storeString (f ss) ss
 
 -- ---------------------------------------------------------------------
 -- |Main driver point for annotations.

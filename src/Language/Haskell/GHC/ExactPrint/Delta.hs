@@ -148,6 +148,7 @@ deltaInterpret = iterTM go
     go (MarkExternal ss akwid _ next) = addDeltaAnnotationExt ss akwid >> next
     go (StoreOriginalSrcSpan ss next) = storeOriginalSrcSpanDelta ss >>= next
     go (GetSrcSpanForKw kw next) = getSrcSpanForKw kw >>= next
+    go (StoreString s ss next) = storeString s ss >> next
 
 -- | Used specifically for "HsLet"
 setLayoutFlag :: Delta () -> Delta ()
@@ -161,6 +162,9 @@ storeOriginalSrcSpanDelta :: GHC.SrcSpan -> Delta GHC.SrcSpan
 storeOriginalSrcSpanDelta ss = do
   tellKd (AnnList ss,DP (0,0))
   return ss
+
+storeString :: String -> GHC.SrcSpan -> Delta ()
+storeString s ss = addAnnotationWorker (AnnString s) ss
 
 -- ---------------------------------------------------------------------
 
