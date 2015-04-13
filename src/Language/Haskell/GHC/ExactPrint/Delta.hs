@@ -406,8 +406,10 @@ addDeltaAnnotationAfter ann = do
 -- advance the position to the end of the annotation
 addDeltaAnnotationLs :: GHC.AnnKeywordId -> Int -> Delta ()
 addDeltaAnnotationLs ann off = do
+  ss <- getSrcSpan
   ma <- getAnnotationDelta ann
-  case drop off ma of
+  let ma' = filter (\s -> (GHC.isSubspanOf s ss)) ma
+  case drop off ma' of
     [] -> return ()
         -- `debug` ("addDeltaAnnotationLs:missed:(off,pe,ann,ma)=" ++ show (off,ss2span pe,ann,fmap ss2span ma))
     (pa:_) -> addAnnotationWorker (G ann) pa
