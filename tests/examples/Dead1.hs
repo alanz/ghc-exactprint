@@ -1,4 +1,4 @@
-{-# OPTIONS -fglasgow-exts -O -ddump-stranal #-}
+{-# OPTIONS  -O -ddump-stranal #-}
 
 module Dead1(foo) where
 
