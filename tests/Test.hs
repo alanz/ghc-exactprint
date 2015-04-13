@@ -43,6 +43,8 @@ import System.IO.Silently
 
 import Common
 
+import Debug.Trace
+
 -- ---------------------------------------------------------------------
 
 main :: IO ()
@@ -64,7 +66,7 @@ tests = TestList
   , mkTestMod "Ann01.hs"                 "Ann01"
   , mkTestMod "Annotations.hs"           "Annotations"
   , mkTestMod "Arrow.hs"                 "Arrow"
-  , mkTestMod "Arrows.hs"                "Main"
+  , mkParserTest "Arrows.hs"
   , mkTestMod "Associated.hs"            "Main"
   , mkTestMod "B.hs"                     "Main"
   , mkTestMod "C.hs"                     "C"
@@ -77,7 +79,7 @@ tests = TestList
   , mkTestMod "Default.hs"               "Main"
   , mkTestMod "Deprecation.hs"           "Deprecation"
   , mkTestMod "Deriving.hs"              "Main"
-  , mkTestMod "DerivingOC.hs"            "Main"
+  , mkParserTest "DerivingOC.hs"
   , mkTestMod "DocDecls.hs"              "DocDecls"
   , mkTestMod "DocDecls.hs"              "DocDecls"
   , mkTestMod "EmptyMostly.hs"           "EmptyMostly"
@@ -128,7 +130,7 @@ tests = TestList
   , mkTestMod "RdrNames.hs"              "RdrNames"
   , mkTestMod "RebindableSyntax.hs"      "Main"
   , mkTestMod "RecordUpdate.hs"          "Main"
-  , mkTestMod "RecursiveDo.hs"           "Main"
+  , mkParserTest "RecursiveDo.hs"
   , mkTestMod "Roles.hs"                 "Roles"
   , mkTestMod "Rules.hs"                 "Rules"
   , mkTestMod "ScopedTypeVariables.hs"   "Main"
@@ -217,13 +219,14 @@ tests = TestList
 
   ]
 
+
 mkParserTest :: FilePath -> Test
 mkParserTest fp =
   TestCase (do r <- roundTripTest ("tests" </> "examples" </> fp)
                case r of
                 RoundTripFailure debug -> writeFile ("tests" </> "examples" </> fp <.> "out") debug
-                ParseFailure _ _ -> exitFailure
-                CPP -> exitFailure
+                ParseFailure _ s -> error s
+                CPP -> error fp
                 _ -> return ()
                assertBool fp (r == Success))
 
@@ -234,8 +237,7 @@ mkTestMain fileName = TestCase (do r <- manipulateAstTest fileName "Main"
 
 mkTestMod :: FilePath -> String -> Test
 mkTestMod fileName modName
-  = TestCase (do r <- manipulateAstTest fileName modName
-                 assertBool fileName r )
+  =  mkParserTest fileName
 
 mkTestModChange :: (Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)) -> FilePath -> String -> Test
 mkTestModChange change fileName modName
