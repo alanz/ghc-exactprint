@@ -180,7 +180,7 @@ ghcCommentText (GHC.L _ (GHC.AnnDocSection _ s))    = s
 ghcCommentText (GHC.L _ (GHC.AnnDocOptions s))      = s
 ghcCommentText (GHC.L _ (GHC.AnnDocOptionsOld s))   = s
 ghcCommentText (GHC.L _ (GHC.AnnLineComment s))     = s
-ghcCommentText (GHC.L _ (GHC.AnnBlockComment s))    = "{-" ++ s ++ "-}"
+ghcCommentText (GHC.L _ (GHC.AnnBlockComment s))    = s
 
 -- ---------------------------------------------------------------------
 
