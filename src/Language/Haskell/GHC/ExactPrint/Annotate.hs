@@ -18,7 +18,7 @@ import Data.Maybe (fromMaybe)
 import Control.Monad (when)
 
 import Language.Haskell.GHC.ExactPrint.Types
-import Language.Haskell.GHC.ExactPrint.Utils (rdrName2String, isListComp, debug, span2ss, ss2span)
+import Language.Haskell.GHC.ExactPrint.Utils (rdrName2String, isListComp, debug, span2ss, ss2span, spanLength)
 
 import qualified Bag            as GHC
 import qualified BasicTypes     as GHC
@@ -1601,7 +1601,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   -- Introduced after the renamer
   markAST _ (GHC.HsBracket (GHC.DecBrG _)) = return ()
   markAST _ (GHC.HsBracket (GHC.ExpBr e)) = do
-    markWithString GHC.AnnOpen "[|"
+--    markWithString GHC.AnnOpen "[|"
+    workOutString GHC.AnnOpen
+      (\ss -> if spanLength ss == 2
+                then "[|"
+                else "[e|")
     markLocated e
     markWithString GHC.AnnClose "|]"
   markAST _ (GHC.HsBracket (GHC.TExpBr e)) = do
