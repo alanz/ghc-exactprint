@@ -28,9 +28,9 @@ relativiseApiAnns :: Annotate ast
                   -> GHC.ApiAnns
                   -> Anns
 relativiseApiAnns modu' ghcAnns'
-   = runDelta (markLocated modu') ghcAnns' (ss2pos ss)
-     where
-      (ghcAnns,modu@(GHC.L ss _)) = fixBugsInAst ghcAnns' modu'
+   = runDelta (markLocated modu') ghcAnns' (ss2pos $ GHC.getLoc modu')
+--     where
+--      (ghcAnns,modu@(GHC.L ss _)) = fixBugsInAst ghcAnns' modu'
 
 -- ---------------------------------------------------------------------
 --
