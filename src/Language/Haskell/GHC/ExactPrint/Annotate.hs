@@ -1913,6 +1913,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
 instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
   => Annotate (GHC.TyFamDefltEqn name) where
   markAST _ (GHC.TyFamEqn ln (GHC.HsQTvs _ns bndrs) typ) = do
+    mark GHC.AnnType
     markLocated ln
     mapM_ markLocated bndrs
     mark GHC.AnnEqual
