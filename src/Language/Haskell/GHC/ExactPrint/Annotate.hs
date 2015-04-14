@@ -15,7 +15,7 @@ module Language.Haskell.GHC.ExactPrint.Annotate
 import Data.Data (Data)
 import Data.List (sort, sortBy)
 import Data.Maybe (fromMaybe)
-import Control.Monad (when)
+import Control.Monad (when, zipWithM_)
 
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils (rdrName2String, isListComp, debug, span2ss, ss2span, spanLength)
@@ -870,16 +870,17 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   -- MinimalSig (BooleanFormula (Located name))
   markAST l (GHC.MinimalSig src  formula) = do
     markWithString GHC.AnnOpen src
-    markBooleanFormula l formula
+    markAST l formula
     markWithString GHC.AnnClose "#-}"
 
 
--- ---------------------------------------------------------------------
+-- --------------------------------------------------------------------
 
-markBooleanFormula :: GHC.SrcSpan -> GHC.BooleanFormula (GHC.Located name) -> Annotated ()
-markBooleanFormula l x =
-  -- ++AZ++: TODO: This is a complete kludge, just to get ANY output
-  markOffsetWithString GHC.AnnVal 2 "ghc-exactprint: BooleanFormula not processed"
+instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) where
+  markAST l (GHC.Var x) = markLocated x
+  markAST l (GHC.Or bs) = zipWithM_ (\n s -> markAST l s >> markOffset GHC.AnnVbar n) [0..] bs
+  markAST l (GHC.And bs) = zipWithM_ (\n s -> markAST l s >> markOffset GHC.AnnComma n) [0..] bs
+
 
 -- ---------------------------------------------------------------------
 
