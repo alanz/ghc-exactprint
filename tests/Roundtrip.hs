@@ -58,6 +58,14 @@ main = do
     ["failures"] -> do
       fs <- lines <$> readFile "origfailures.txt"
       () <$ runTests (TestList (map mkParserTest fs))
+    ["clean"] -> do
+      putStrLn "Cleaning..."
+      writeFile "processed.txt" ""
+      writeFile "pfail.txt" ""
+      writeFile "cpp.txt" ""
+      removeDirectoryRecursive "tests/roundtrip"
+      createDirectory "tests/roundtrip"
+      putStrLn "Done."
     ds -> () <$ (runTests =<< (TestList <$> mapM tests ds))
 
 runTests :: Test -> IO Counts
