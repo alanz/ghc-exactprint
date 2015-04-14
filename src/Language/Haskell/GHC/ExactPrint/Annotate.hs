@@ -1073,19 +1073,23 @@ instance
         let ((startline, startcol), (oldline, oldcol)) = ss2span l'
             newSS = span2ss ((startline, startcol), (startline, startcol+2))
             bodySS = span2ss ((startline, startcol+2), (oldline, oldcol))
-        case n of
-          0 -> markExternal newSS GHC.AnnThIdTySplice "$$"
+        m <- countAnns GHC.AnnThIdTySplice
+        case (n,m) of
+          (0,1) -> markExternal newSS GHC.AnnThIdTySplice "$$"
                 >> markAST bodySS ex
-          1 -> defaultSplice "$$(" b
+          (1,0) -> defaultSplice "$$(" b
+          (0,0) -> markLocated b
       GHC.HsUntypedSplice _n b@(GHC.L l' ex) -> do
         n <- countAnns  GHC.AnnOpen
         let ((startline, startcol), (oldline, oldcol)) = ss2span l
             newSS = span2ss ((startline, startcol), (startline, startcol+1))
             bodySS = span2ss ((startline, startcol+1), (oldline, oldcol))
-        case n of
-          0 -> markExternal newSS GHC.AnnThIdSplice "$"
+        m <- countAnns GHC.AnnThIdSplice
+        case (n,m) of
+          (0,1) -> markExternal newSS GHC.AnnThIdSplice "$"
                 >> markAST bodySS ex
-          1 -> defaultSplice "$(" b
+          (1,0) -> defaultSplice "$(" b
+          (0,0) -> markLocated b
     where
       defaultSplice s v = do
         markWithString GHC.AnnOpen s -- '$('
