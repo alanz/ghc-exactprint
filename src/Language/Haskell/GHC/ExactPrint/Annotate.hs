@@ -800,7 +800,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,
       [] -> return ()
       xs -> mark GHC.AnnVbar >> mapM_ markLocated guards
     mark GHC.AnnEqual
-    mark GHC.AnnRarrow -- in case alts
+    st <- ask
+    when (st == Case) (mark GHC.AnnRarrow) -- in case alts
     markLocated expr
 
 -- ---------------------------------------------------------------------
@@ -1416,7 +1417,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   markAST l (GHC.HsLamCase _ match) = do
     mark GHC.AnnLam
     mark GHC.AnnCase
-    markMatchGroup l match
+    local (const Case) (markMatchGroup l match)
 
   markAST _ (GHC.HsApp e1 e2) = do
     markLocated e1
@@ -1459,7 +1460,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mark GHC.AnnOf
     mark GHC.AnnOpenC
     markInside GHC.AnnSemi
-    markMatchGroup l matches
+    local (const Case) (markMatchGroup l matches)
     mark GHC.AnnCloseC
 
   markAST _ (GHC.HsIf _ e1 e2 e3) = do
