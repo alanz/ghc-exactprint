@@ -747,12 +747,15 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,
       get_infix Nothing = False
       get_infix (Just (_,f)) = f
     case (get_infix mln,pats) of
-      (True,[a,b]) -> do
+      (True, (a:b:xs)) -> do
+        mark GHC.AnnOpenP
         markLocated a
         case mln of
           Nothing -> return ()
           Just (n,_) -> markLocated n
         markLocated b
+        mark GHC.AnnCloseP
+        mapM_ markLocated xs
       _ -> do
         case mln of
           Nothing -> mark GHC.AnnFunId
