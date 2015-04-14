@@ -16,7 +16,7 @@ keywordToString kw =
       AnnOpen  -> mkErr kw
       AnnClose -> mkErr kw
       AnnVal   -> mkErr kw
-      AnnPackageName -> ""
+      AnnPackageName -> mkErr kw
       AnnHeader -> mkErr kw
       AnnFunId -> mkErr kw
       AnnInfix  -> mkErr kw
@@ -86,5 +86,6 @@ keywordToString kw =
       Annrarrowtail  -> "->"
       AnnLarrowtail  -> "-<<"
       AnnRarrowtail  -> ">>-"
+      AnnSimpleQuote  -> "'"
       AnnEofPos -> ""
 
