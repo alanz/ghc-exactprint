@@ -777,9 +777,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,
                                                   Annotate body)
   => Annotate (GHC.GRHS name (GHC.Located body)) where
   markAST _ (GHC.GRHS guards expr) = do
-
-    mark GHC.AnnVbar
-    mapM_ markLocated guards
+    case guards of
+      [] -> return ()
+      xs -> mark GHC.AnnVbar >> mapM_ markLocated guards
     mark GHC.AnnEqual
     mark GHC.AnnRarrow -- in case alts
     markLocated expr
