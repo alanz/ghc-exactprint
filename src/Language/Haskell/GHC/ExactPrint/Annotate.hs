@@ -1012,8 +1012,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   markAST _ (GHC.HsCoreTy _t) = return ()
 
   markAST _ (GHC.HsExplicitListTy _ ts) = do
-    -- TODO: what about SIMPLEQUOTE?
-    markWithString GHC.AnnOpenS "'[" -- "'["
+    mark GHC.AnnSimpleQuote
+    mark GHC.AnnOpenS  -- "["
     mapM_ markLocated ts
     mark GHC.AnnCloseS -- ']'
 
