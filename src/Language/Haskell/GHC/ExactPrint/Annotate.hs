@@ -1993,17 +1993,16 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
 
         when (not depc_syntax) ( do
           mark GHC.AnnDcolon
+          markLocated (GHC.L ls (ResTyGADTHook bndrs))
           markLocated ctx
           traceShowM l
           mark GHC.AnnDarrow
-          markHsConDeclDetails lns dets
+          markHsConDeclDetails lns dets )
           -- TODO: Surely this can be better
-          traceShowM ls
-          withAST (GHC.L ls res) NoLayoutRules (mark GHC.AnnRarrow)
-          markLocated ty )
+        --  withAST (GHC.L ls res) NoLayoutRules (mark GHC.AnnRarrow)
 
-        markLocated (GHC.L ls (ResTyGADTHook bndrs))
 
+        markLocated ty
         --markLocated ctx
         --mark GHC.AnnDarrow
         --mark GHC.AnnRarrow
