@@ -1963,17 +1963,17 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
 instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
       => Annotate (GHC.ConDecl name) where
-  markAST _ (GHC.ConDecl lns _expr (GHC.HsQTvs _ns bndrs) ctx
-                         dets res _ _) = do
+  markAST l (GHC.ConDecl lns _expr (GHC.HsQTvs _ns bndrs) ctx
+                         dets res _ depc_syntax) = do
     case res of
       GHC.ResTyH98 -> do
+
         mark GHC.AnnForall
         mapM_ markLocated bndrs
         mark GHC.AnnDot
 
         markLocated ctx
         mark GHC.AnnDarrow
-
         case dets of
           GHC.InfixCon _ _ -> return ()
           _ -> mapM_ markLocated lns
@@ -1986,15 +1986,28 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
           GHC.InfixCon _ _ -> return ()
           _ -> mapM_ markLocated lns
 
-        markHsConDeclDetails lns dets
 
-        mark GHC.AnnDcolon
+        when depc_syntax ( do
+          markHsConDeclDetails lns dets
+          mark GHC.AnnDcolon)
+
+        when (not depc_syntax) ( do
+          mark GHC.AnnDcolon
+          markLocated ctx
+          traceShowM l
+          mark GHC.AnnDarrow
+          markHsConDeclDetails lns dets
+          -- TODO: Surely this can be better
+          traceShowM ls
+          withAST (GHC.L ls res) NoLayoutRules (mark GHC.AnnRarrow)
+          markLocated ty )
 
         markLocated (GHC.L ls (ResTyGADTHook bndrs))
 
-        markLocated ctx
-        mark GHC.AnnDarrow
-        markLocated ty
+        --markLocated ctx
+        --mark GHC.AnnDarrow
+        --mark GHC.AnnRarrow
+        --markLocated ty d
 
 
     mark GHC.AnnVbar
