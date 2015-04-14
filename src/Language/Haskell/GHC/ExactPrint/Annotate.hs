@@ -1289,16 +1289,14 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,Annotate body) =
       GHC.ThenForm -> do
         mark GHC.AnnThen
         markLocated using
-        mark GHC.AnnBy
         case by of
-          Just b -> markLocated b
+          Just b -> mark GHC.AnnBy >> markLocated b
           Nothing -> return ()
       GHC.GroupForm -> do
         mark GHC.AnnThen
         mark GHC.AnnGroup
-        mark GHC.AnnBy
         case by of
-          Just b -> markLocated b
+          Just b -> mark GHC.AnnBy >> markLocated b
           Nothing -> return ()
         mark GHC.AnnUsing
         markLocated using
