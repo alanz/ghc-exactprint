@@ -12,7 +12,7 @@ import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Transform
 import Language.Haskell.GHC.ExactPrint.Annotate (AnnotationF(..), Annotated
-                                                , markLocated, Annotate(..))
+                                                , annotate,  Annotate(..))
 
 import qualified GHC
 import qualified SrcLoc         as GHC
@@ -28,7 +28,7 @@ relativiseApiAnns :: Annotate ast
                   -> GHC.ApiAnns
                   -> Anns
 relativiseApiAnns modu' ghcAnns'
-   = runDelta (markLocated modu') ghcAnns' (ss2pos $ GHC.getLoc modu')
+   = runDelta (annotate modu') ghcAnns' (ss2pos $ GHC.getLoc modu')
 --     where
 --      (ghcAnns,modu@(GHC.L ss _)) = fixBugsInAst ghcAnns' modu'
 

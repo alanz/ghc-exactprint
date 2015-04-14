@@ -21,7 +21,7 @@ module Language.Haskell.GHC.ExactPrint.Print
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta )
 import Language.Haskell.GHC.ExactPrint.Annotate
-  (AnnotationF(..), Annotated, Annotate(..), markLocated)
+  (AnnotationF(..), Annotated, Annotate(..), annotate)
 import Language.Haskell.GHC.ExactPrint.Lookup (keywordToString)
 import Language.Haskell.GHC.ExactPrint.Delta ( relativiseApiAnns )
 
@@ -49,7 +49,7 @@ exactPrintWithAnns :: Annotate ast
                      => GHC.Located ast
                      -> Anns
                      -> String
-exactPrintWithAnns ast an = runEP (markLocated ast) an
+exactPrintWithAnns ast an = runEP (annotate ast) an
 
 
 ------------------------------------------------------

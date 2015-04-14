@@ -213,7 +213,7 @@ fixBugsInAst anns t = (anns',t')
 
     changeAnnSpan :: Annotate ast => GHC.Located ast -> GHC.SrcSpan -> GHC.SrcSpan -> FB ()
     changeAnnSpan ast old new = do
-      interpretChange old new (markLocated ast)
+      interpretChange old new (annotate ast)
 
 
     addAnnotation :: GHC.SrcSpan -> GHC.SrcSpan -> GHC.AnnKeywordId -> FB ()
