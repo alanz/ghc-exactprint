@@ -49,10 +49,14 @@ makeIndex files =
 
 page :: (FilePath, FilePath, FilePath) -> Failure -> IO ()
 page (prev, out, next) (Failure res fname) = do
-  traceM out
+--  traceM out
   original <- readFile fname
   let diff = getDiff (tokenize original) (tokenize res)
-  writeFile ("failures" </> out) (mkPage (ppDiff diff) prev next original res)
+  let l = length (lines res)
+  if (l > 10000)
+    then putStrLn ("Skipping: " ++ fname) >> print l
+    else
+      writeFile ("failures" </> out) (mkPage (ppDiff diff) prev next original res)
   where
     tokenize :: String -> [[String]]
     tokenize s = map (:[]) . lines $ s
