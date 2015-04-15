@@ -43,6 +43,7 @@ library
                      , Language.Haskell.GHC.ExactPrint.Transform
   -- other-modules:
   -- other-extensions:
+  GHC-Options:         -Wall
   build-depends:       base >=4.7 && <4.9
                      , containers
                      , directory
@@ -63,7 +64,7 @@ Test-Suite test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      tests
   main-is:             Test.hs
-  other-modules:      Common
+  other-modules:      Common, Consistency
   GHC-Options:         -threaded
   Default-language:    Haskell2010
   Build-depends:       HUnit

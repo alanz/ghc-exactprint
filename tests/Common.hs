@@ -2,6 +2,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
 module Common where
 
 import Language.Haskell.GHC.ExactPrint
@@ -32,6 +33,7 @@ import Data.List hiding (find)
 
 import Test.HUnit
 
+import Consistency
 
 -- Roundtrip machinery
 
@@ -43,12 +45,15 @@ data Report =
  | RoundTripFailure String
  | CPP
  | UnicodeSyntax
+ | InconsistentAnnotations String [(GHC.SrcSpan, (GHC.AnnKeywordId, [GHC.SrcSpan]))]
 
 instance Eq Report where
   Success == Success = True
   ParseFailure _ _ == ParseFailure _ _ = True
   RoundTripFailure _ == RoundTripFailure _ = True
   CPP == CPP = True
+  InconsistentAnnotations _ _ == InconsistentAnnotations _ _ = True
+  UnicodeSyntax == UnicodeSyntax = True
   _ == _ = False
 
 
@@ -58,6 +63,7 @@ instance Show Report where
   show (RoundTripFailure _) = "RoundTripFailure"
   show CPP              = "CPP"
   show UnicodeSyntax    = "UnicodeSyntax"
+  show (InconsistentAnnotations _ s) = "InconsistentAnnotations: " ++ showGhc s
 
 runParser :: GHC.P a -> GHC.DynFlags -> FilePath -> String -> GHC.ParseResult a
 runParser parser flags filename str = GHC.unP parser parseState
@@ -93,13 +99,14 @@ roundTripTest file = do
       contents <- T.unpack <$> T.readFile file
       case parseFile dflags2 file contents of
         GHC.PFailed ss m -> return $ ParseFailure ss (GHC.showSDoc dflags2 m)
-        GHC.POk s pmod   -> do
-          let (printed, anns) = runRoundTrip (mkApiAnns s) pmod
-              debugtxt = mkDebugOutput file printed contents (mkApiAnns s) anns pmod
-          if printed == contents
-            then return Success
-            else do
-              return $ RoundTripFailure debugtxt
+        GHC.POk (mkApiAnns -> apianns) pmod   -> do
+          let (printed, anns) = runRoundTrip apianns pmod
+              debugtxt = mkDebugOutput file printed contents apianns anns pmod
+              consistency = checkConsistency apianns pmod
+          if
+            | not (null consistency) -> return $ InconsistentAnnotations debugtxt consistency
+            | printed == contents -> return Success
+            | otherwise -> return $ RoundTripFailure debugtxt
 
 
 
@@ -110,10 +117,10 @@ mkDebugOutput :: FilePath -> String -> String
 mkDebugOutput filename printed original apianns anns parsed =
   intercalate sep [ printed
                  , filename
-                 , "lengths:" ++ show (length printed,length original) ++ "\n"
-                 , showAnnData anns 0 parsed
-                 , showGhc anns
-                 , showGhc apianns
+--                 , "lengths:" ++ show (length printed,length original) ++ "\n"
+--                 , showAnnData anns 0 parsed
+--                 , showGhc anns
+--                 , showGhc apianns
                 ]
   where
     sep = "\n==============\n"

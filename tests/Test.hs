@@ -230,11 +230,17 @@ tests = TestList
 
 mkParserTest :: FilePath -> Test
 mkParserTest fp =
+  let writeFailure s = writeFile ("tests" </> "examples" </> fp <.> "out") s in
   TestCase (do r <- roundTripTest ("tests" </> "examples" </> fp)
                case r of
-                RoundTripFailure debug -> writeFile ("tests" </> "examples" </> fp <.> "out") debug
+                RoundTripFailure debug -> writeFailure debug
                 ParseFailure _ s -> error s
                 CPP -> error fp
+                InconsistentAnnotations db s -> do
+                  putStrLn ("Inconsistency in: " ++ fp)
+                  writeFile ("tests" </> "examples" </> fp <.> "incons")
+                    (showGhc s)
+                  writeFailure db
                 _ -> return ()
                assertBool fp (r == Success))
 
