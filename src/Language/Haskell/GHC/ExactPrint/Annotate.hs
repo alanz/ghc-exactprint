@@ -66,7 +66,7 @@ type Annotated = Free AnnotationF
 
 type IAnnotated = ReaderT Context Annotated
 
-data Context = None | Case | Where | Lam deriving (Eq, Ord, Show)
+data Context = None | Case | Where | Lam | MultiIf deriving (Eq, Ord, Show)
 
 
 -- ---------------------------------------------------------------------
@@ -800,7 +800,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,
       (_:_) -> mark GHC.AnnVbar >> mapM_ markLocated guards
     mark GHC.AnnEqual
     st <- ask
-    when (st == Case) (mark GHC.AnnRarrow) -- in case alts
+    when (st `elem` [Case, MultiIf]) (mark GHC.AnnRarrow) -- in case alts
     markLocated expr
 
 -- ---------------------------------------------------------------------
@@ -1480,7 +1480,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   markAST _ (GHC.HsMultiIf _ rhs) = do
     mark GHC.AnnIf
-    mapM_ markLocated rhs
+    local (const MultiIf) (mapM_ markLocated rhs)
 
   markAST _ (GHC.HsLet binds e) = do
     setLayoutFlag (do -- Make sure the 'in' gets indented too
