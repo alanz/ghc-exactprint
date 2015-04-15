@@ -149,7 +149,7 @@ storeOriginalSrcSpanPrint _ss = do
     ((AnnList ss,_):_) -> return ss
     _                  -> return GHC.noSrcSpan
 
-
+printStoredString :: EP ()
 printStoredString = do
   kd <- gets epAnnKds
 

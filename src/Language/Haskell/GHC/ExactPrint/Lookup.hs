@@ -87,5 +87,7 @@ keywordToString kw =
       AnnLarrowtail  -> "-<<"
       AnnRarrowtail  -> ">>-"
       AnnSimpleQuote  -> "'"
+      AnnThIdSplice   -> "$"
+      AnnThIdTySplice   -> "$$"
       AnnEofPos -> ""
 

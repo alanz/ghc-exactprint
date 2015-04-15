@@ -30,7 +30,6 @@ import Language.Haskell.GHC.ExactPrint.Annotate
 import Control.Monad.RWS
 import Control.Monad.State
 import Data.List
-import Data.Maybe
 
 import Data.Data
 
@@ -42,7 +41,6 @@ import qualified Data.Generics as SYB
 
 import qualified Data.Map as Map
 
-import Control.Monad.RWS
 import Control.Monad.Trans.Free
 
 import Debug.Trace
@@ -84,7 +82,7 @@ isUniqueSrcSpan ss = srcSpanStartLine ss == -1
 -- ---------------------------------------------------------------------
 
 adjustAnnOffset :: ColDelta -> Annotation -> Annotation
-adjustAnnOffset (ColDelta cd) (Ann (DP (ro,co)) (ColDelta ad) edp cs kds) = Ann edp cd' edp cs kds'
+adjustAnnOffset (ColDelta cd) (Ann (DP (ro,co)) (ColDelta ad) _ cs kds) = Ann edp cd' edp cs kds'
   where
     edp = case ro of
       0 -> DP (ro,co)
@@ -153,32 +151,33 @@ interpretChange old new = iterTM go
     go :: AnnotationF (FB a) -> FB a
     go (MarkEOF next) =
       change GHC.AnnEofPos >> next
-    go (MarkPrim kwid mstr next) =
+    go (MarkPrim kwid _ next) =
       change kwid  >> next
       -- let annString = fromMaybe (keywordToString kwid) mstr in
       --   printStringAtMaybeAnn (G kwid) annString >> next
     go (MarkOutside _ (G kwid) next) =
       change kwid  >> next
-    go (MarkOutside _ kwid next) =
+    go (MarkOutside _ _ next) =
       next
     go (MarkInside akwid next) =
       change akwid >> next
     go (MarkMany akwid next) =
       change akwid >> next
-    go (MarkOffsetPrim kwid _ mstr next) =
+    go (MarkOffsetPrim kwid _ _ next) =
       change kwid >> next
     go (MarkAfter akwid next) =
       change akwid >> next
-    go (WithAST lss flag action next) =
+    go (WithAST _ _ action next) =
       (interpretChange old new action) >> next
-    go (CountAnns kwid next) = do
+    go (CountAnns _ next) = do
       next 0
     go (SetLayoutFlag action next) =
       (interpretChange old new action) >> next
-    go (MarkExternal _ akwid s next) =
+    go (MarkExternal _ akwid _ next) =
       change akwid  >> next
     go (StoreOriginalSrcSpan ss next) = next ss
     go (GetSrcSpanForKw _ next) = next GHC.noSrcSpan
+    go (StoreString _ _ next) = next
 
     change :: GHC.AnnKeywordId -> FB ()
     change kwid = do

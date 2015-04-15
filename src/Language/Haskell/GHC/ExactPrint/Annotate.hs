@@ -16,7 +16,6 @@ module Language.Haskell.GHC.ExactPrint.Annotate
 import Data.Data (Data)
 import Data.List (sort, sortBy)
 import Data.Maybe (fromMaybe)
-import Control.Monad (when, zipWithM_)
 
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils (rdrName2String, isListComp, debug, span2ss, ss2span, spanLength)
@@ -322,7 +321,7 @@ instance Annotate GHC.RdrName where
                  then return ()
                  else markExternal l GHC.AnnVal str
           1 -> markWithString GHC.AnnVal str
-          x -> return ()
+          _ -> return ()
         mark GHC.AnnTildehsh
         mark GHC.AnnTilde
         mark GHC.AnnRarrow
@@ -407,7 +406,7 @@ instance Annotate (Maybe GHC.Role) where
 
 instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
    => Annotate (GHC.SpliceDecl name) where
-  markAST l (GHC.SpliceDecl e _flag) = do
+  markAST _ (GHC.SpliceDecl e _flag) = do
     {-
     case flag of
       GHC.ExplicitSplice ->
@@ -798,7 +797,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,
   markAST _ (GHC.GRHS guards expr) = do
     case guards of
       [] -> return ()
-      xs -> mark GHC.AnnVbar >> mapM_ markLocated guards
+      (_:_) -> mark GHC.AnnVbar >> mapM_ markLocated guards
     mark GHC.AnnEqual
     st <- ask
     when (st == Case) (mark GHC.AnnRarrow) -- in case alts
@@ -897,7 +896,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 -- --------------------------------------------------------------------
 
 instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) where
-  markAST l (GHC.Var x) = markLocated x
+  markAST _ (GHC.Var x) = markLocated x
   markAST l (GHC.Or bs) = zipWithM_ (\n s -> markAST l s >> markOffset GHC.AnnVbar n) [0..] bs
   markAST l (GHC.And bs) = zipWithM_ (\n s -> markAST l s >> markOffset GHC.AnnComma n) [0..] bs
 
@@ -1065,7 +1064,7 @@ instance
   Annotate (GHC.HsSplice name) where
   markAST l c =
     case c of
-      GHC.HsQuasiQuote _ n pos fs -> do
+      GHC.HsQuasiQuote _ n _pos fs -> do
         markExternal l GHC.AnnVal
               ("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS fs) ++ "|]")
       GHC.HsTypedSplice _n b@(GHC.L l' ex) -> do
@@ -1079,7 +1078,8 @@ instance
                 >> markAST bodySS ex
           (1,0) -> defaultSplice "$$(" b
           (0,0) -> markLocated b
-      GHC.HsUntypedSplice _n b@(GHC.L l' ex) -> do
+          _     -> traceM "Incorrect number of AnnThIdTySplice and AnnOpen"
+      GHC.HsUntypedSplice _n b@(GHC.L _ ex) -> do
         n <- countAnns  GHC.AnnOpen
         let ((startline, startcol), (oldline, oldcol)) = ss2span l
             newSS = span2ss ((startline, startcol), (startline, startcol+1))
@@ -1090,6 +1090,7 @@ instance
                 >> markAST bodySS ex
           (1,0) -> defaultSplice "$(" b
           (0,0) -> markLocated b
+          _     -> traceM "Incorrect number of AnnThIdSplice and AnnOpen"
     where
       defaultSplice s v = do
         markWithString GHC.AnnOpen s -- '$('
@@ -1333,7 +1334,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,Annotate body) =
 
 instance  (GHC.DataId name,GHC.OutputableBndr name, Annotate name)
   =>  Annotate (GHC.ParStmtBlock name name) where
-  markAST l (GHC.ParStmtBlock stmts _ns _) =
+  markAST _ (GHC.ParStmtBlock stmts _ns _) =
     mapM_ markLocated stmts
 
 -- ---------------------------------------------------------------------
@@ -1967,7 +1968,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
 instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
       => Annotate (GHC.ConDecl name) where
-  markAST l (GHC.ConDecl lns _expr (GHC.HsQTvs _ns bndrs) ctx
+  markAST _ (GHC.ConDecl lns _expr (GHC.HsQTvs _ns bndrs) ctx
                          dets res _ depc_syntax) = do
     case res of
       GHC.ResTyH98 -> do

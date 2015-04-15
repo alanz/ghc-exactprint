@@ -45,7 +45,7 @@ import Language.Haskell.GHC.ExactPrint.Types
 
 
 import qualified GHC
-import qualified ApiAnnotation  as GHC
+--import qualified ApiAnnotation  as GHC
 import qualified Bag            as GHC
 import qualified DynFlags       as GHC
 import qualified FastString     as GHC
@@ -53,14 +53,14 @@ import qualified Name           as GHC
 import qualified NameSet        as GHC
 import qualified Outputable     as GHC
 import qualified RdrName        as GHC
-import qualified SrcLoc         as GHC
+--import qualified SrcLoc         as GHC
 import qualified Var            as GHC
 
 import qualified OccName(occNameString)
 
-import qualified Data.Generics as SYB
+--import qualified Data.Generics as SYB
 
-import qualified Data.Map as Map
+--import qualified Data.Map as Map
 
 import Debug.Trace
 
@@ -279,7 +279,7 @@ showSDoc_ :: GHC.SDoc -> String
 showSDoc_ = GHC.showSDoc GHC.unsafeGlobalDynFlags
 
 -- ---------------------------------------------------------------------
-
+{-
 -- | In GHC 7.10.1 the HsPar statement has an incorrect SrcSpan.
 -- See https://ghc.haskell.org/trac/ghc/ticket/10207
 -- This provides a workaround for it
@@ -400,3 +400,5 @@ fixBugsInAst anns t = (anns',t')
           (ld:_) -> GHC.combineSrcSpans ld ss
 
 -- ---------------------------------------------------------------------
+
+-}
