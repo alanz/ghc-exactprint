@@ -201,6 +201,14 @@ tests = TestList
   , mkParserTest "MultiImplicitParams.hs"
   , mkParserTest "UnicodeSyntaxFailure.hs"
 
+  , mkParserTest "HangingRecord.hs"
+  , mkParserTest  "InfixPatternSynonyms.hs"
+  , mkParserTest  "LiftedInfixConstructor.hs"
+  , mkParserTest  "MultiLineWarningPragma.hs"
+  , mkParserTest  "MultiWayIf.hs"
+  , mkParserTest  "OptSig.hs"
+  , mkParserTest  "StrangeTypeClass.hs"
+  , mkParserTest  "TypeSignatureParens.hs"
   -- , mkTestMod "Unicode.hs"               "Main"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"

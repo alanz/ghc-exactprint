@@ -61,3 +61,11 @@ storePresents xs = do
     put store (x : old)
   return store
 
+type family (++) (a :: [k]) (b :: [k]) :: [k] where
+    '[]       ++ b = b
+    (a ': as) ++ b = a ': (as ++ b)
+
+type family (f :: * -> *) |> (s :: * -> *) :: * -> *
+
+type instance f |> Union s = Union (f :> s)
+

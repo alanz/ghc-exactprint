@@ -74,3 +74,6 @@ bestBirthYears tbl = [ (the birthYear, firstName)
                      , then group by birthYear using groupByLargest
                      ]
 
+uniq_fs = [ (n, the p, the d') | (n, Fixity p d) <- fs
+                                   , let d' = ppDir d
+                                   , then group by Down (p,d') using groupWith ]
