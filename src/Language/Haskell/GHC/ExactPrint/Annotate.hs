@@ -1999,7 +1999,6 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
           mark GHC.AnnDcolon
           markLocated (GHC.L ls (ResTyGADTHook bndrs))
           markLocated ctx
-          traceShowM l
           mark GHC.AnnDarrow
           markHsConDeclDetails lns dets )
           -- TODO: Surely this can be better
