@@ -1452,7 +1452,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   markAST l (GHC.HsLamCase _ match) = do
     mark GHC.AnnLam
     mark GHC.AnnCase
+    mark GHC.AnnOpenC
     addContext Case (markMatchGroup l match)
+    mark GHC.AnnCloseC
 
   markAST _ (GHC.HsApp e1 e2) = do
     markLocated e1
