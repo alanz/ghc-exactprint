@@ -6,11 +6,12 @@ PatternGuards : GHC D818
 TemplateHaskell.hs 1 : Trac #10268
 
 TypeBrackets : Trac #10255 D823
+
 SlidingDoClause : Semi allowed in if stmt, need to only take it if inside the span
 
 LiftedConstructors : Trac #10268
 
-PuncFunctions : Trac #10268
+PuncFunctions : Trac #10269 / D832
 
 TypeSynParens : Fix in Annotate.hs
 
@@ -33,25 +34,126 @@ SlidingListComp : The AnnVbar in GRHS is capturing the annotation that belongs i
 
 MultiImplicitParams : IPBinds provides its dbinds in reverse order. Fix in ghc-exactprint
 
+UnicodeSyntaxFailure : workaround for the unicode.
 
-GHC tickets still to be done
-----------------------------
+See https://github.com/ghc/ghc/blob/master/compiler/parser/Lexer.x#L813
 
+If Unicode is enabled, those tokens, which are normally >1 char long, are now 1
+char long. We can use that to decide which string to output, pick it up in Delta
+and modify our anns to include the string.
+
+MultiLineCommentWithPragmas : Lexer.x problem with nested #-}. Discards -} from it
+           D829
+
+TupleSections : AnnComma missing, issue in Parser
+           D834
+           
+DoubleForall : Annotation is added, but span is not in AST. Need to find the
+            place where nested HsForAllTy's get collapsed, that is where we lose the span.
+                #10278
+          one option is D833
+          
 TemplateHaskell  2 : ITopenExpQuote can be either '[|' or '[e|'. Need to capture src
                    : workaround : the annotated SrcSpan is either 2 or 3 chars long.
                    Trac ticket #10276
 
+Undefined : BooleanFormula is not implemented.
+
+ListComprehensions.hs
+  - Comma annotation attached to wrong AST element, of the line before.
+    Trac #10312 / D846
+
+TypeFamilies.hs
+  fix in ghc-exactprint by sorting the potentially infix
+  operations in an applyListAnnotations, as per GHC.SynDecl
+
+Undefined.hs
+Undefined6.hs
+Undefined11.hs
+Undefined12.hs
+
+  {-# MINIMAL ... #-} Annotations are there, just not in a very user friendly
+  space. Must wait until 7.12 for a proper fix.
+
+
+TemplateHaskell.hs
+  In ghc-exactprint, use the first argument of HsBracket to determine what
+  string to use for AnnOpen
+  
+        | SIMPLEQUOTE  qvar     { sLL $1 $> $ HsBracket (VarBr True  (unLoc $2)) }
+        | SIMPLEQUOTE  qcon     { sLL $1 $> $ HsBracket (VarBr True  (unLoc $2)) }
+        | TH_TY_QUOTE tyvar     { sLL $1 $> $ HsBracket (VarBr False (unLoc $2)) }
+        | TH_TY_QUOTE gtycon    { sLL $1 $> $ HsBracket (VarBr False (unLoc $2)) }
+        | '[|' exp '|]'       {% ams (sLL $1 $> $ HsBracket (ExpBr $2)) [mo $1,mc $3] }
+        | '[||' exp '||]'     {% ams (sLL $1 $> $ HsBracket (TExpBr $2)) [mo $1,mc $3]}
+        | '[t|' ctype '|]'    {% checkNoPartialType
+                                   (text "in type brackets" <> colon
+                                    <+> quotes (text "[t|" <+> ppr $2 <+> text "|]")) $2 >>
+                                 ams (sLL $1 $> $ HsBracket (TypBr $2)) [mo $1,mc $3] }
+        | '[p|' infixexp '|]' {% checkPattern empty $2 >>= \p ->
+                                      ams (sLL $1 $> $ HsBracket (PatBr p))
+                                          [mo $1,mc $3] }
+        | '[d|' cvtopbody '|]' {% ams (sLL $1 $> $ HsBracket (DecBrL (snd $2)))
+                                      (mo $1:mc $3:fst $2) }
+
+TypeBrackets.hs
+  The parentheses are attached to the SynDecl span
+  fix in ghc-exactprint
+
+
+LiftedConstructors.hs
+  Annotations are there, fix in exactprint.
+
+LambdaCase.hs
+  Curly braces attached to HsLamCase SrcSpan, fix in ghc-exactprint
+
+
+DefaultTypeInstance.hs
+   Trac #10307 / D842
+
+
+InfixPatternSynonyms.hs
+   Manage print order in GHC.PatSynBind for the InfixPatSyn variant.
+     Should be la,ln,lb. Fix in ghc-exactprint
+
+LiftedInfixConstructor.hs
+
+    It needs the new D825, but in its absence we need to reconstruct the original
+    SrcSpan through knowing the length of the prefix for VarBr, then call mark on it
+    so the normal RdrName processing can take place. That's why the parens don't
+    show up
+
+OptSig.hs
+  The AnnDcolon is attached to the PatBind, same as the AnnEqual
+  Fix in ghc-exactprint
+
+
+GHC tickets still to be done
+----------------------------
+
+GADTRecords.hs
+  #10309
+
+MultiLineWarningPragma.hs
+  #10313. Unlikely to be fixed for 7.12
+
+StrangeTypeClass.hs
+  Investigate. Empty context, annotations are lost.
+  cvtBindsAndSigs possibly
+  
 Needs work
 ----------
 
-Undefined : BooleanFormula is not implemented.
-
-TupleSections : AnnComma missing, issue in Parser
-
-MultiLineCommentWithPragmas : Lexer.x problem with nested #-}. Discards -} from it
-
-DoubleForall : Annotation is added, but span is not in AST. Need to find the
-            place where nested HsForAllTy's get collapsed, that is where we lose the span.
+TypeSignatureParens.hs
 
 
-UnicodeSyntaxFailure : policy decision. Defer until others are resolved.
+mkHsForAllTy discards parens
+  - look for all paren type processing and make sure it is safe.
+    GHC.HsPArrTy
+    GHC.HsParTy
+    GHC.ParPat
+    GHC.PArrPat
+    GHC.HsPar
+    GHC.ExplicitPArr
+    GHC.HsCmdPar
+
