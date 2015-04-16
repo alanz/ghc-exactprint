@@ -335,6 +335,7 @@ allocateComments = partition
 
 addAnnotationWorker :: KeywordId -> GHC.SrcSpan -> Delta ()
 addAnnotationWorker ann pa =
+  -- Zero-width source spans are injected by the GHC Lexer.
   unless (isPointSrcSpan pa) $
     do
       pe <- getPriorEnd
