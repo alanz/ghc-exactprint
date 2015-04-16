@@ -16,3 +16,6 @@ bar = [| quasi |]
 baz = [quoter| quasi |]
 
 [t| Map.Map T.Text $tc |]
+
+{-# ANN module $([| 1 :: Int |]) #-}
+
