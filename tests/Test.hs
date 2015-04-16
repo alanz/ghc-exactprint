@@ -237,12 +237,18 @@ mkParserTest fp =
                 ParseFailure _ s -> error s
                 CPP -> error fp
                 InconsistentAnnotations db s -> do
-                  putStrLn ("Inconsistency in: " ++ fp)
+                  putStrLn ("\nInconsistency in: " ++ fp)
                   writeFile ("tests" </> "examples" </> fp <.> "incons")
                     (showGhc s)
                   writeFailure db
                 _ -> return ()
-               assertBool fp (r == Success))
+               assertBool fp (success r))
+
+
+success :: Report -> Bool
+success Success = True
+success (InconsistentAnnotations _ _) = True
+success _ = False
 
 
 mkTestMain :: FilePath -> Test

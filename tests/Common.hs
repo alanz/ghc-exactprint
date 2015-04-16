@@ -116,11 +116,11 @@ mkDebugOutput :: FilePath -> String -> String
               -> GHC.Located (GHC.HsModule GHC.RdrName) -> String
 mkDebugOutput filename printed original apianns anns parsed =
   intercalate sep [ printed
-                 , filename
---                 , "lengths:" ++ show (length printed,length original) ++ "\n"
---                 , showAnnData anns 0 parsed
---                 , showGhc anns
---                 , showGhc apianns
+               , filename
+                 , "lengths:" ++ show (length printed,length original) ++ "\n"
+                 , showAnnData anns 0 parsed
+                 , showGhc anns
+                 , showGhc apianns
                 ]
   where
     sep = "\n==============\n"
