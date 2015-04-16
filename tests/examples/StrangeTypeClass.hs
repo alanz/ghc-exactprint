@@ -10,3 +10,9 @@ instance
   getIdx !(ElmZ ix) = ix
   {-# INLINE getArg #-}
   {-# INLINE getIdx #-}
+
+foo :: (Eq a) => a-> Bool
+foo = undefined
+
+bar :: (   ) => a-> Bool
+bar = undefined

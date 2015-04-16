@@ -127,27 +127,17 @@ OptSig.hs
   The AnnDcolon is attached to the PatBind, same as the AnnEqual
   Fix in ghc-exactprint
 
+GADTRecords.hs
+  #10309 D848
 
 GHC tickets still to be done
 ----------------------------
 
-GADTRecords.hs
-  #10309
-
 MultiLineWarningPragma.hs
   #10313. Unlikely to be fixed for 7.12
 
-StrangeTypeClass.hs
-  Investigate. Empty context, annotations are lost.
-  cvtBindsAndSigs possibly
-  
-Needs work
-----------
-
 TypeSignatureParens.hs
-
-
-mkHsForAllTy discards parens
+  mkHsForAllTy discards parens
   - look for all paren type processing and make sure it is safe.
     GHC.HsPArrTy
     GHC.HsParTy
@@ -156,4 +146,15 @@ mkHsForAllTy discards parens
     GHC.HsPar
     GHC.ExplicitPArr
     GHC.HsCmdPar
+  #10314
+
+StrangeTypeClass.hs
+  Investigate. Empty context, annotations are lost.
+  mkHsForAllTy discards SrcSpan for empty context
+  #10315
+  
+Needs work
+----------
+
+
 
