@@ -6,6 +6,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE PatternSynonyms #-}
 module Language.Haskell.GHC.ExactPrint.Annotate
        (
          annotate
@@ -64,9 +65,24 @@ deriving instance Functor (AnnotationF)
 
 type Annotated = Free AnnotationF
 
-type IAnnotated = ReaderT Context Annotated
+type IAnnotated = ReaderT [Context] Annotated
 
-data Context = None | Case | Where | Lam | MultiIf deriving (Eq, Ord, Show)
+data Context = None | Case | Where | Lam | MultiIf
+             | HsSpliceE  -- Used for marking when an explicit template haskell
+                          -- splice has been used. $(foo) for example.
+             deriving (Eq, Ord, Show)
+
+addContext :: Context -> IAnnotated () -> IAnnotated ()
+addContext c = local (c:)
+
+check :: Context -> IAnnotated () -> IAnnotated ()
+check c = checkMany [c]
+
+checkMany :: [Context] -> IAnnotated () -> IAnnotated ()
+checkMany cs action = do
+  ctx <- ask
+  when (any (`elem` ctx) cs) action
+
 
 
 -- ---------------------------------------------------------------------
@@ -95,7 +111,7 @@ workOutString kw f = do
   storeString (f ss) ss
 
 annotate :: (Annotate ast) => GHC.Located ast -> Annotated ()
-annotate ast = runReaderT (markLocated ast) None
+annotate ast = runReaderT (markLocated ast) []
 
 -- ---------------------------------------------------------------------
 -- |Main driver point for annotations.
@@ -406,16 +422,18 @@ instance Annotate (Maybe GHC.Role) where
 
 instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
    => Annotate (GHC.SpliceDecl name) where
-  markAST _ (GHC.SpliceDecl e _flag) = do
-    {-
+  markAST _ (GHC.SpliceDecl e flag) = do
     case flag of
       GHC.ExplicitSplice ->
-        markWithString GHC.AnnOpen "$("
+        addContext HsSpliceE (markLocated e)
       GHC.ImplicitSplice ->
-        markWithString GHC.AnnOpen "$$("
-    -}
-    markLocated e
---    markWithString GHC.AnnClose ")"
+        markLocated e
+
+{-
+- data SpliceExplicitFlag = ExplicitSplice | -- <=> $(f x y)
+-                           ImplicitSplice   -- <=> f x y,  i.e. a naked
+-                           top level expression
+-                           -}
 
 -- ---------------------------------------------------------------------
 
@@ -799,8 +817,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,
       [] -> return ()
       (_:_) -> mark GHC.AnnVbar >> mapM_ markLocated guards
     mark GHC.AnnEqual
-    st <- ask
-    when (st `elem` [Case, MultiIf]) (mark GHC.AnnRarrow) -- in case alts
+    checkMany [Case, MultiIf] (mark GHC.AnnRarrow) -- in case alts
     markLocated expr
 
 -- ---------------------------------------------------------------------
@@ -1073,11 +1090,13 @@ instance
             newSS = span2ss ((startline, startcol), (startline, startcol+2))
             bodySS = span2ss ((startline, startcol+2), (oldline, oldcol))
         m <- countAnns GHC.AnnThIdTySplice
-        case (n,m) of
-          (0,1) -> markExternal newSS GHC.AnnThIdTySplice "$$"
-                >> markAST bodySS ex
-          (1,0) -> defaultSplice "$$(" b
-          (0,0) -> markLocated b
+        case (n,m, ex) of
+{-          (0,1) -> markExternal newSS GHC.AnnThIdTySplice "$$"
+                >> markAST bodySS ex -}
+          (1,0,_) -> defaultSplice "$$(" b
+          (_, _, IsHsVar) -> markExternal newSS GHC.AnnThIdSplice "$$"
+                          >> markAST bodySS ex -- nested $var
+          (0,0,_) -> markLocated b
           _     -> traceM "Incorrect number of AnnThIdTySplice and AnnOpen"
       GHC.HsUntypedSplice _n b@(GHC.L _ ex) -> do
         n <- countAnns  GHC.AnnOpen
@@ -1085,17 +1104,25 @@ instance
             newSS = span2ss ((startline, startcol), (startline, startcol+1))
             bodySS = span2ss ((startline, startcol+1), (oldline, oldcol))
         m <- countAnns GHC.AnnThIdSplice
-        case (n,m) of
-          (0,1) -> markExternal newSS GHC.AnnThIdSplice "$"
-                >> markAST bodySS ex
-          (1,0) -> defaultSplice "$(" b
-          (0,0) -> markLocated b
+        traceShowM (n,m)
+        case (n,m, ex) of
+          {-(0,1, _) -> markExternal newSS GHC.AnnThIdSplice "$"
+                >> markAST bodySS ex  -- toplevel $var -}
+          (1,0, _) -> defaultSplice "$(" b -- $(var)
+          (_, _, IsHsVar) -> markExternal newSS GHC.AnnThIdSplice "$"
+                          >> markAST bodySS ex -- nested $var
+          (0,0, _) -> markLocated b
           _     -> traceM "Incorrect number of AnnThIdSplice and AnnOpen"
     where
+--      defaultSplice _ b@(GHC.L _ (GHC.HsBracket _)) = markLocated b
       defaultSplice s v = do
-        markWithString GHC.AnnOpen s -- '$('
+        -- If the splice is explicit then we need to go and look for the
+        -- brackets!
+        check HsSpliceE (markWithString GHC.AnnOpen s) -- '$('
         markLocated v
-        markWithString GHC.AnnClose ")"
+        check HsSpliceE (markWithString GHC.AnnClose ")")
+
+pattern IsHsVar <- (GHC.HsVar _)
 
 -- ---------------------------------------------------------------------
 
@@ -1168,7 +1195,9 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
 
   -- SplicePat (HsSplice id)
   markAST l (GHC.SplicePat s) = do
-    markAST l s
+    -- SplicePats must always be explicit
+    -- https://github.com/ghc/ghc/blob/master/compiler/parser/RdrHsSyn.hs#L882
+    addContext HsSpliceE (markAST l s)
 
 {-  -- QuasiQuotePat (HsQuasiQuote id)
   -- TODO
@@ -1422,7 +1451,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   markAST l (GHC.HsLamCase _ match) = do
     mark GHC.AnnLam
     mark GHC.AnnCase
-    local (const Case) (markMatchGroup l match)
+    addContext Case (markMatchGroup l match)
 
   markAST _ (GHC.HsApp e1 e2) = do
     markLocated e1
@@ -1465,7 +1494,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mark GHC.AnnOf
     mark GHC.AnnOpenC
     markInside GHC.AnnSemi
-    local (const Case) (markMatchGroup l matches)
+    addContext Case (markMatchGroup l matches)
     mark GHC.AnnCloseC
 
   markAST _ (GHC.HsIf _ e1 e2 e3) = do
@@ -1480,7 +1509,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   markAST _ (GHC.HsMultiIf _ rhs) = do
     mark GHC.AnnIf
-    local (const MultiIf) (mapM_ markLocated rhs)
+    addContext MultiIf (mapM_ markLocated rhs)
 
   markAST _ (GHC.HsLet binds e) = do
     setLayoutFlag (do -- Make sure the 'in' gets indented too
@@ -1637,6 +1666,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markLocated e
     markWithString GHC.AnnClose "||]"
   markAST _ (GHC.HsBracket (GHC.TypBr e)) = do
+    traceM "herhe"
     markWithString GHC.AnnOpen "[t|"
     markLocated e
     markWithString GHC.AnnClose "|]"
@@ -1649,7 +1679,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   markAST _ (GHC.HsTcBracketOut _ _) = return ()
 
   markAST l (GHC.HsSpliceE e) = do
-    markAST l e
+    -- Explicit Splices are explicit
+    addContext HsSpliceE (markAST l e)
 
   markAST _ (GHC.HsProc p c) = do
     mark GHC.AnnProc
