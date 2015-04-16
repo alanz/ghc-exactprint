@@ -730,12 +730,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name) =>
 
   markAST l (GHC.PatSynBind (GHC.PSB ln _fvs args def dir)) = do
     mark GHC.AnnPattern
-    markLocated ln
     case args of
       GHC.InfixPatSyn la lb -> do
         markLocated la
+        markLocated ln
         markLocated lb
       GHC.PrefixPatSyn ns -> do
+        markLocated ln
         mapM_ markLocated ns
     mark GHC.AnnEqual
     mark GHC.AnnLarrow
