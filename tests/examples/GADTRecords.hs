@@ -15,3 +15,6 @@ data H1 a b where
                                             , analysisTransfer :: f -> Instruction -> m f
                                             , analysisFwdEdgeTransfer :: Maybe (f -> Instruction -> m [(BasicBlock, f)])
                                             } -> DataflowAnalysis m f
+
+data GADT :: * -> * where
+      Ctor :: { gadtField :: A } -> GADT A

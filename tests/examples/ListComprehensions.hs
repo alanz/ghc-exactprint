@@ -77,3 +77,23 @@ bestBirthYears tbl = [ (the birthYear, firstName)
 uniq_fs = [ (n, the p, the d') | (n, Fixity p d) <- fs
                                    , let d' = ppDir d
                                    , then group by Down (p,d') using groupWith ]
+
+legendres :: [Poly Rational]
+legendres = one : x :
+    [ multPoly
+        (poly LE [recip (n' + 1)])
+        (addPoly (poly LE [0, 2 * n' + 1] `multPoly` p_n)
+                 (poly LE           [-n'] `multPoly` p_nm1)
+        )
+    | n     <- [1..], let n' = fromInteger n
+    | p_n   <- tail legendres
+    | p_nm1 <- legendres
+    ]
+
+fromGroups' :: (Ord k) => a -> [a] -> Maybe (W.Stack k) -> Groups k -> [a]
+                    -> [(Bool,(a, W.Stack k))]
+fromGroups' defl defls st gs sls =
+    [ (isNew,fromMaybe2 (dl, single w) (l, M.lookup w gs))
+        | l <- map Just sls ++ repeat Nothing, let isNew = isNothing l
+        | dl <- defls ++ repeat defl
+        | w <- W.integrate' $ W.filter (`notElem` unfocs) =<< st ]

@@ -19,3 +19,6 @@ baz = [quoter| quasi |]
 
 {-# ANN module $([| 1 :: Int |]) #-}
 
+foo = [t| HT.HashTable $(varT s) Int
+                   (Result $(varT str) $tt) |]
+

@@ -83,3 +83,23 @@ foreign import ccall unsafe "dynamic"
 
 -- exports
 foreign export ccall "plusInt" (+) :: Int -> Int -> Int
+
+listToJSArray :: ToJSRef a => [a] -> IO (JSArray a)
+listToJSArray = toJSArray deconstr
+        where deconstr (x : xs) = Just (x, xs)
+              deconstr [] = Nothing
+
+foreign import javascript unsafe "$r = new Float32Array($1);"
+        float32Array :: JSArray Float -> IO Float32Array
+
+foreign import javascript unsafe "$r = new Int32Array($1);"
+        int32Array :: JSArray Int32 -> IO Int32Array
+
+foreign import javascript unsafe "$r = new Uint16Array($1);"
+        uint16Array :: JSArray Word16 -> IO Uint16Array
+
+foreign import javascript unsafe "$r = new Uint8Array($1);"
+        uint8Array :: JSArray Word8 -> IO Uint8Array
+
+foreign import javascript unsafe "$r = $1.getContext(\"webgl\");"
+        getCtx :: JSRef a -> IO Ctx

@@ -210,6 +210,17 @@ tests = TestList
   , mkParserTest  "TypeSignatureParens.hs"
   , mkParserTest "UnicodeSyntax.hs"
 
+  , mkParserTest "Shebang.hs"
+  , mkParserTest "PatSigBind.hs"
+  , mkParserTest "ProcNotation.hs"
+  , mkParserTest "DroppedDoSpace.hs"
+  , mkParserTest "IndentedDo.hs"
+  , mkParserTest "BraceSemiDataDecl.hs"
+  , mkParserTest "SpacesSplice.hs"
+  , mkParserTest "SemiWorkout.hs"
+  , mkParserTest "ShiftingLambda.hs"
+  , mkParserTest "NestedDoLambda.hs"
+
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
   , mkTestModChange changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
   , mkTestModChange changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"

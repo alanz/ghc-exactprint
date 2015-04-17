@@ -15,6 +15,9 @@ import GHC.Base
 i2d :: Int -> Char
 i2d (I# i#) = C# (chr# (ord# '0'# +# i#))
 
+main =
+  print (F# (expFloat# 3.45#))
+
 -- | The normal 'mappend' function with right associativity instead of
 -- left.
 (<>) :: Builder -> Builder -> Builder
@@ -22,3 +25,5 @@ i2d (I# i#) = C# (chr# (ord# '0'# +# i#))
 {-# INLINE (<>) #-}
 
 infixr 4 <>
+
+

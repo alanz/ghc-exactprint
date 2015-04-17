@@ -1,5 +1,6 @@
 {-# LANGUAGE ParallelListComp #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE MagicHash, NoImplicitPrelude, TypeFamilies, UnboxedTuples #-}
 module RdrNames where
 
 import Data.Monoid
@@ -110,6 +111,14 @@ lt = undefined
 -- primitive type?
 -- Refl Int :: ~# * Int Int
 -- Refl Maybe :: ~# (* -> *) Maybe Maybe
+
+-- | A data constructor used to box up all unlifted equalities
+--
+-- The type constructor is special in that GHC pretends that it
+-- has kind (? -> ? -> Fact) rather than (* -> * -> *)
+data (~) a b = Eq# ((~#) a b)
+
+data Coercible a b = MkCoercible ((~#) a b)
 
 
 -- ---------------------------------------------------------------------
