@@ -208,7 +208,7 @@ tests = TestList
   , mkParserTest  "OptSig.hs"
   , mkParserTest  "StrangeTypeClass.hs"
   , mkParserTest  "TypeSignatureParens.hs"
-  -- , mkTestMod "Unicode.hs"               "Main"
+  , mkParserTest "UnicodeSyntax.hs"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
   , mkTestModChange changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
