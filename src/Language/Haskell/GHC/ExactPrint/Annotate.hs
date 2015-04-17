@@ -710,12 +710,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 -- ---------------------------------------------------------------------
 -- We have to handle this seperately as the double colon is attached to the
 -- span above.
-markSigPatIn :: (Annotate t, GHC.DataId t, GHC.OutputableBndr t) => GHC.SrcSpan -> GHC.GenLocated GHC.SrcSpan (GHC.Pat t) -> IAnnotated ()
-markSigPatIn ss (GHC.L ss' (GHC.SigPatIn pat ty))  = do
+markSigPatIn :: (Annotate t, GHC.DataId t, GHC.OutputableBndr t) => GHC.GenLocated GHC.SrcSpan (GHC.Pat t) -> IAnnotated ()
+markSigPatIn (GHC.L ss' (GHC.SigPatIn pat ty))  = do
     markLocated pat
     mark GHC.AnnDcolon
     markAST ss' ty
-markSigPatIn _ r = markLocated r
+markSigPatIn r = markLocated r
 
 instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name) =>
                                                   Annotate (GHC.HsBind name) where
@@ -723,8 +723,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name) =>
     mapM_ markLocated matches
     -- markMatchGroup l mg
 
-  markAST l (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
-    markPatSigBind l lhs
+  markAST _ (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
+    markSigPatIn lhs
     mark GHC.AnnEqual
     mapM_ markLocated grhs
     mark GHC.AnnWhere
@@ -960,9 +960,17 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markLocated typ
     mark GHC.AnnCloseP -- ")"
 
-  markAST l (GHC.HsTyVar n) = do
+  markAST l (GHC.HsTyVar name) = do
     mark GHC.AnnDcolon -- for HsKind, alias for HsType
-    markAST l n
+    n <- countAnns  GHC.AnnSimpleQuote
+    case n of
+      1 ->
+        let ((startline, startcol), (oldline, oldcol)) = ss2span l
+            bodySS = span2ss ((startline, startcol+1), (oldline, oldcol))
+        in
+          mark GHC.AnnSimpleQuote >>
+          markAST bodySS name
+      _ -> markAST l name
 --    markLocatedFromKw GHC.AnnEofPos n
 
   markAST _ (GHC.HsAppTy t1 t2) = do
@@ -997,6 +1005,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   markAST _ (GHC.HsOpTy t1 (_,lo) t2) = do
     markLocated t1
+    mark GHC.AnnSimpleQuote
     markLocated lo
     markLocated t2
 
@@ -1063,9 +1072,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mark GHC.AnnCloseS -- ']'
 
   markAST _ (GHC.HsExplicitTupleTy _ ts) = do
-    markWithString GHC.AnnOpen "'(" -- "'("
+    mark GHC.AnnSimpleQuote
+    mark GHC.AnnOpenP
     mapM_ markLocated ts
-    markWithString GHC.AnnClose ")" -- ')'
+    mark GHC.AnnCloseP
 
   -- HsTyLit HsTyLit
   markAST l (GHC.HsTyLit lit) = do
@@ -1229,7 +1239,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
     markWithString GHC.AnnVal "+"  -- "+"
     markLocated ol
 
-  markAST l (GHC.SigPatIn pat ty) =
+  markAST _ (GHC.SigPatIn _ _) =
     traceM "SigPatIn should be handled in markSigPatIn"
 
   markAST _ (GHC.SigPatOut {}) = return ()
