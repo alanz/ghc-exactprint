@@ -474,9 +474,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   markAST _ (GHC.HsVectClassOut {}) =
     traceM "warning: HsVecClassOut appears after renaming"
-  markAST _ (GHC.HsVectInstIn {})   = return ()
+  markAST _ (GHC.HsVectInstIn {})   =
     traceM "warning: HsVecInstsIn appears after renaming"
-  markAST _ (GHC.HsVectInstOut {})   =  return ()
+  markAST _ (GHC.HsVectInstOut {})   =
     traceM "warning: HsVecInstOut appears after renaming"
 
 -- ---------------------------------------------------------------------
@@ -1254,12 +1254,12 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
   markAST _ (GHC.SigPatIn _ _) =
     traceM "SigPatIn should be handled in markSigPatIn"
 
-  markAST _ (GHC.SigPatOut {}) = return ()
-    traceM "warning: SigPatOut introduced after renaming""
+  markAST _ (GHC.SigPatOut {}) =
+    traceM "warning: SigPatOut introduced after renaming"
 
   -- CoPat HsAnnotated (Pat id) Type
-  markAST _ (GHC.CoPat {}) = return ()
-    traceM "warning: CoPat introduced after renaming""
+  markAST _ (GHC.CoPat {}) =
+    traceM "warning: CoPat introduced after renaming"
 
 -- ---------------------------------------------------------------------
 hsLit2String :: GHC.HsLit -> GHC.SourceText
@@ -1711,9 +1711,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markLocated e
     markWithString GHC.AnnClose "|]"
 
-  markAST _ (GHC.HsRnBracketOut _ _) = return ()
+  markAST _ (GHC.HsRnBracketOut _ _) =
     traceM "warning: HsRnBracketOut introduced after renamer"
-  markAST _ (GHC.HsTcBracketOut _ _) = return ()
+  markAST _ (GHC.HsTcBracketOut _ _) =
     traceM "warning: HsTcBracketOut introduced after renamer"
 
   markAST l (GHC.HsSpliceE e) = do
