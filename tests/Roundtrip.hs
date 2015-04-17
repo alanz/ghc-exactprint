@@ -130,7 +130,6 @@ mkParserTest fp =
                 RoundTripFailure debug -> writeFailure fp debug
                 ParseFailure _ m -> writeParseFail fp m >> exitFailure
                 CPP -> writeCPP fp >> exitFailure
-                UnicodeSyntax -> exitFailure
                 _ -> return ()
                assertBool fp (r == Success))
 

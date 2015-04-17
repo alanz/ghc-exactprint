@@ -44,7 +44,6 @@ data Report =
  | ParseFailure GHC.SrcSpan String
  | RoundTripFailure String
  | CPP
- | UnicodeSyntax
  | InconsistentAnnotations String [(GHC.SrcSpan, (GHC.AnnKeywordId, [GHC.SrcSpan]))]
 
 instance Eq Report where
@@ -53,7 +52,6 @@ instance Eq Report where
   RoundTripFailure _ == RoundTripFailure _ = True
   CPP == CPP = True
   InconsistentAnnotations _ _ == InconsistentAnnotations _ _ = True
-  UnicodeSyntax == UnicodeSyntax = True
   _ == _ = False
 
 
@@ -62,7 +60,6 @@ instance Show Report where
   show (ParseFailure _ s) = "ParseFailure: " ++ s
   show (RoundTripFailure _) = "RoundTripFailure"
   show CPP              = "CPP"
-  show UnicodeSyntax    = "UnicodeSyntax"
   show (InconsistentAnnotations _ s) = "InconsistentAnnotations: " ++ showGhc s
 
 runParser :: GHC.P a -> GHC.DynFlags -> FilePath -> String -> GHC.ParseResult a
@@ -94,7 +91,6 @@ roundTripTest file = do
            <- GHC.parseDynamicFilePragma dflags1 src_opts
   if
     | GHC.xopt GHC.Opt_Cpp dflags2 -> return $ CPP
-    | GHC.xopt GHC.Opt_UnicodeSyntax dflags2 -> return $ UnicodeSyntax
     | otherwise -> do
       contents <- T.unpack <$> T.readFile file
       case parseFile dflags2 file contents of
