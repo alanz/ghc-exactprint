@@ -222,7 +222,7 @@ tests = TestList
   , mkTestModChange changeLocToName  "LocToName.hs"  "LocToName"
   , mkTestModChange changeLetIn1     "LetIn1.hs"     "LetIn1"
   , mkTestModChange changeWhereIn4   "WhereIn4.hs"   "WhereIn4"
-  , mkTestModChange changeCifToCase  "C.hs"          "C"
+--  , mkTestModChange changeCifToCase  "C.hs"          "C"
 
   ]
 
