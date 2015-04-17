@@ -175,7 +175,6 @@ tests = TestList
   , mkParserTest "Undefined9.hs"
   , mkParserTest "Undefined10.hs"
   , mkParserTest "Undefined11.hs"
-  , mkParserTest "Undefined12.hs"
   , mkParserTest "Undefined13.hs"
   , mkParserTest "TypeSynOperator.hs"
   , mkParserTest "TemplateHaskell.hs"
@@ -237,7 +236,7 @@ mkParserTest fp =
                 ParseFailure _ s -> error s
                 CPP -> error fp
                 InconsistentAnnotations db s -> do
-                  putStrLn ("\nInconsistency in: " ++ fp)
+--                  putStrLn ("\nInconsistency in: " ++ fp)
                   writeFile ("tests" </> "examples" </> fp <.> "incons")
                     (showGhc s)
                   writeFailure db
