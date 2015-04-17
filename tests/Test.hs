@@ -164,7 +164,7 @@ tests = TestList
   , mkTestMod "WhereIn3.hs"              "WhereIn3"
   , mkTestMod "Backquote.hs"              "Main"
   , mkTestMod "PatternGuards.hs"              "Main"
-  , mkParserTest "Undefined.hs"
+  , mkParserTest "Minimal.hs"
   , mkParserTest "Undefined2.hs"
   , mkParserTest "Undefined3.hs"
   , mkParserTest "Undefined4.hs"
