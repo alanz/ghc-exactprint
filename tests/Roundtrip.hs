@@ -131,7 +131,13 @@ mkParserTest fp =
                 ParseFailure _ m -> writeParseFail fp m >> exitFailure
                 CPP -> writeCPP fp >> exitFailure
                 _ -> return ()
-               assertBool fp (r == Success))
+               assertBool fp (success r))
+
+
+success :: Report -> Bool
+success Success = True
+success (InconsistentAnnotations _ _) = True
+success _ = False
 
 writeFailure :: FilePath -> String -> IO ()
 writeFailure fp db = do
