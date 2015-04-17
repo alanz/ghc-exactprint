@@ -81,6 +81,9 @@ ng = undefined
 ft :: (->) a b
 ft = undefined
 
+fp :: (   ->    ) a b
+fp = undefined
+
 type family F a :: * -> * -> *
 type instance F Int = (->)
 type instance F Char = ( ,  )
