@@ -312,6 +312,7 @@ instance (GHC.DataId name,Annotate name)
 instance Annotate GHC.RdrName where
   markAST l n = do
     case rdrName2String n of
+      -- Special handling for atypical RdrNames.
       "[]" -> do
         mark GHC.AnnOpenS  -- '['
         mark GHC.AnnCloseS -- ']'
@@ -324,6 +325,10 @@ instance Annotate GHC.RdrName where
       "[::]" -> do
         markWithString GHC.AnnOpen  "[:" -- '[:'
         markWithString GHC.AnnClose ":]" -- ':]'
+      "(->)" -> do
+        mark GHC.AnnOpenP -- '('
+        mark GHC.AnnRarrow
+        mark GHC.AnnCloseP -- ')'
       str ->  do
         mark GHC.AnnType
         mark GHC.AnnOpenP -- '('
@@ -331,16 +336,15 @@ instance Annotate GHC.RdrName where
         markMany GHC.AnnCommaTuple -- For '(,,,)'
         cnt <- countAnns GHC.AnnVal
         cntT <- countAnns GHC.AnnCommaTuple
-        cntR <- countAnns GHC.AnnRarrow
         case cnt of
-          0 -> if cntT >0 || cntR >0
-                 then return ()
+          0 -> if cntT > 0
+                 then traceM "Printing RdrName, no AnnVal, multiple AnnCommTuple"
                  else markExternal l GHC.AnnVal str
           1 -> markWithString GHC.AnnVal str
-          _ -> return ()
+          _ -> traceM "Printing RdrName, more than 1 AnnVal"
+        -- TODO: Add tests for these and move to seperate branches
         mark GHC.AnnTildehsh
         mark GHC.AnnTilde
-        mark GHC.AnnRarrow
         markOffset GHC.AnnBackquote 1
         mark GHC.AnnCloseP -- ')'
 
