@@ -920,7 +920,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
 
 -- --------------------------------------------------------------------
-
 instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) where
   markAST _ (GHC.Var x) = markLocated x
   markAST l (GHC.Or bs) = zipWithM_ (\n s -> markAST l s >> markOffset GHC.AnnVbar n) [0..] bs
@@ -1252,7 +1251,9 @@ hsLit2String :: GHC.HsLit -> GHC.SourceText
 hsLit2String lit =
   case lit of
     GHC.HsChar       src _   -> src
-    GHC.HsCharPrim   src _   -> src
+    -- It should be included here
+    -- https://github.com/ghc/ghc/blob/master/compiler/parser/Lexer.x#L1471
+    GHC.HsCharPrim   src _   -> src ++ "#"
     GHC.HsString     src _   -> src
     GHC.HsStringPrim src _   -> src
     GHC.HsInt        src _   -> src
