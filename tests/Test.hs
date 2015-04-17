@@ -215,7 +215,7 @@ tests = TestList
   , mkParserTest "ProcNotation.hs"
   , mkParserTest "DroppedDoSpace.hs"
   , mkParserTest "IndentedDo.hs"
-  , mkParserTest "BraceSemiDataDecl.hs"
+  , mkParserTest "BracesSemiDataDecl.hs"
   , mkParserTest "SpacesSplice.hs"
   , mkParserTest "SemiWorkout.hs"
   , mkParserTest "ShiftingLambda.hs"
