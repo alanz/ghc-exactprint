@@ -698,7 +698,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   markAST _ (GHC.TyFamInstDecl eqn _) = do
     mark GHC.AnnType
     mark GHC.AnnInstance
-    markLocated eqn
+    markTyFamEqn eqn
 
 -- ---------------------------------------------------------------------
 
@@ -1965,22 +1965,21 @@ instance (GHC.DataId name,Annotate name, GHC.OutputableBndr name)
     mark GHC.AnnWhere
     mark GHC.AnnOpenC -- {
     case info of
-      GHC.ClosedTypeFamily eqns -> mapM_ markLocated eqns
+      GHC.ClosedTypeFamily eqns -> mapM_ markTyFamEqn eqns
       _ -> return ()
     case info of
-      GHC.ClosedTypeFamily eqns -> mapM_ markLocated eqns
+      GHC.ClosedTypeFamily eqns -> mapM_ markTyFamEqn eqns
       _ -> return ()
     mark GHC.AnnCloseC -- }
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
-   => Annotate (GHC.TyFamInstEqn name) where
-  markAST _ (GHC.TyFamEqn ln (GHC.HsWB pats _ _ _) typ) = do
-    mark GHC.AnnOpenP
-    applyListAnnotations (prepareListAnnotation [ln]
-                         ++ prepareListAnnotation pats)
-    mark GHC.AnnCloseP
+markTyFamEqn v@(GHC.L ss (GHC.TyFamEqn ln (GHC.HsWB pats _ _ _) typ)) = do
+    withAST v NoLayoutRules  (do
+      mark GHC.AnnOpenP
+      applyListAnnotations (prepareListAnnotation [ln]
+                           ++ prepareListAnnotation pats)
+      mark GHC.AnnCloseP)
     mark GHC.AnnEqual
     markLocated typ
 
