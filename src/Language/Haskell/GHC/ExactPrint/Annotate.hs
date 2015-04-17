@@ -1936,8 +1936,8 @@ instance (GHC.DataId name,Annotate name, GHC.OutputableBndr name)
     mark GHC.AnnType
     mark GHC.AnnData
     mark GHC.AnnFamily
-    markLocated ln
-    mapM_ markLocated tyvars
+    applyListAnnotations (prepareListAnnotation [ln]
+                         ++ prepareListAnnotation tyvars)
     mark GHC.AnnDcolon
     markMaybe mkind
     mark GHC.AnnWhere
@@ -1956,8 +1956,8 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
    => Annotate (GHC.TyFamInstEqn name) where
   markAST _ (GHC.TyFamEqn ln (GHC.HsWB pats _ _ _) typ) = do
     mark GHC.AnnOpenP
-    markLocated ln
-    mapM_ markLocated pats
+    applyListAnnotations (prepareListAnnotation [ln]
+                         ++ prepareListAnnotation pats)
     mark GHC.AnnCloseP
     mark GHC.AnnEqual
     markLocated typ
