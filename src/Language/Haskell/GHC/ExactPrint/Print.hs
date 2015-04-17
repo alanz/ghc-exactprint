@@ -22,7 +22,7 @@ import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta )
 import Language.Haskell.GHC.ExactPrint.Annotate
   (AnnotationF(..), Annotated, Annotate(..), annotate)
-import Language.Haskell.GHC.ExactPrint.Lookup (keywordToString)
+import Language.Haskell.GHC.ExactPrint.Lookup (keywordToString, unicodeString)
 import Language.Haskell.GHC.ExactPrint.Delta ( relativiseApiAnns )
 
 import Control.Monad.RWS
@@ -274,9 +274,15 @@ getLayoutOffset = asks epLHS
 printStringAtMaybeAnn :: KeywordId -> String -> EP ()
 printStringAtMaybeAnn an str = do
   annFinal <- getAnnFinal an
-  case annFinal of
-    Nothing -> return ()
-    Just (comments, ma) -> printStringAtLsDelta comments ma str
+  case (annFinal, an) of
+    -- Could be unicode syntax
+    (Nothing, G kw) -> do
+      res <- getAnnFinal (AnnUnicode kw)
+      forM_
+        res
+        (\(comments, ma) -> printStringAtLsDelta comments ma (unicodeString kw))
+    (Just (comments, ma),_) -> printStringAtLsDelta comments ma str
+    (Nothing, _) -> return ()
     -- ++AZ++: Enabling the following line causes a very weird error associated with AnnPackageName. I suspect it is because it is forcing the evaluation of a non-existent an or str
     -- `debug` ("printStringAtMaybeAnn:(an,ma,str)=" ++ show (an,ma,str))
 

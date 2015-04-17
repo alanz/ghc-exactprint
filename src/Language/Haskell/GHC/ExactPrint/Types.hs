@@ -151,6 +151,7 @@ data KeywordId = G GHC.AnnKeywordId
                                      -- Delta to Print when we have to work
                                      -- out details from the original
                                      -- SrcSpan.
+               | AnnUnicode GHC.AnnKeywordId -- ^ Used to indicate that we should print using unicode syntax if possible.
                deriving (Eq,Ord)
 
 instance Show KeywordId where
@@ -160,6 +161,7 @@ instance Show KeywordId where
   show (AnnComment dc) = "(AnnComment " ++ show dc ++ ")"
   show (AnnList ss)    = "(AnnList " ++ showGhc ss ++ ")"
   show (AnnString s)    = "(AnnString " ++ s ++ ")"
+  show (AnnUnicode gc)    = "(AnnUnicode " ++ show gc ++ ")"
 
 data LayoutFlag = LayoutRules | NoLayoutRules deriving (Show, Eq)
 

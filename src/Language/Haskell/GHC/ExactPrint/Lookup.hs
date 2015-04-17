@@ -1,6 +1,7 @@
-module Language.Haskell.GHC.ExactPrint.Lookup (keywordToString) where
+module Language.Haskell.GHC.ExactPrint.Lookup (keywordToString, unicodeString) where
 
 import GHC (AnnKeywordId(..))
+import Data.Maybe
 
 -- | Maps `AnnKeywordId` to the corresponding String representation.
 -- There is no specific mapping for the following constructors.
@@ -90,4 +91,20 @@ keywordToString kw =
       AnnThIdSplice   -> "$"
       AnnThIdTySplice   -> "$$"
       AnnEofPos -> ""
+
+unicodeString :: AnnKeywordId -> String
+unicodeString kw =
+  fromMaybe (keywordToString kw) (lookup kw unicodeChars)
+
+unicodeChars :: [(AnnKeywordId, String)]
+unicodeChars =
+      [(GHC.AnnDcolon, "∷")
+      , (GHC.AnnDarrow, "⇒")
+      , (GHC.AnnForall, "∀")
+      , (GHC.AnnRarrow, "→")
+      , (GHC.AnnLarrow, "←")
+      , (GHC.Annlarrowtail, "↢")
+      , (GHC.Annrarrowtail, "↣")
+      , (GHC.AnnLarrowtail, "⤛")
+      , (GHC.AnnRarrowtail, "⤜")]
 

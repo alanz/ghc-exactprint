@@ -10,6 +10,7 @@ import Data.List (sort, nub, partition)
 
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
+import Language.Haskell.GHC.ExactPrint.Lookup
 import Language.Haskell.GHC.ExactPrint.Annotate (AnnotationF(..), Annotated
                                                 , annotate,  Annotate(..))
 
@@ -349,9 +350,32 @@ addAnnotationWorker ann pa =
         _ -> do
           p' <- adjustDeltaForOffsetM p
           commentAllocation (priorComment (ss2pos pa)) (mapM_ addDeltaComment)
-          addAnnDeltaPos ann p'
+          addAnnDeltaPos (checkUnicode ann pa) p'
           setPriorEndAST (ss2posEnd pa)
               `debug` ("addAnnotationWorker:(ss,ss,pe,pa,p,p',ann)=" ++ show (showGhc ss,ss2span ss,pe,ss2span pa,p,p',ann))
+
+checkUnicode :: KeywordId -> GHC.SrcSpan -> KeywordId
+checkUnicode (G kw) ss =
+  if kw `elem` unicodeSyntax
+    then
+      let s = keywordToString kw in
+      if (length s /= spanLength ss)
+        then AnnUnicode kw
+        else G kw
+  else
+    G kw
+  where
+    unicodeSyntax =
+      [GHC.AnnDcolon
+      , GHC.AnnDarrow
+      , GHC.AnnForall
+      , GHC.AnnRarrow
+      , GHC.AnnLarrow
+      , GHC.Annlarrowtail
+      , GHC.Annrarrowtail
+      , GHC.AnnLarrowtail
+      , GHC.AnnLarrowtail]
+checkUnicode kwid _ = kwid
 
 -- ---------------------------------------------------------------------
 
