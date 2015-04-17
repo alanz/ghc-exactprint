@@ -1278,7 +1278,7 @@ hsLit2String lit =
     GHC.HsWord64Prim src _   -> src
     GHC.HsInteger    src _ _ -> src
     GHC.HsRat        (GHC.FL src _) _ -> src
-    GHC.HsFloatPrim  (GHC.FL src _)   -> src
+    GHC.HsFloatPrim  (GHC.FL src _)   -> src ++ "#"
     GHC.HsDoublePrim (GHC.FL src _)   -> src
 
 markHsConPatDetails :: (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
