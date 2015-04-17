@@ -459,7 +459,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markMaybe mln
     markWithString GHC.AnnClose "#-}" -- "#-}"
 
-  markAST _ (GHC.HsVectTypeOut {}) = return ()
+  markAST _ (GHC.HsVectTypeOut {}) =
+    traceM "warning: HsVectTypeOut appears after renaming"
 
   markAST _ (GHC.HsVectClassIn src ln) = do
     markWithString GHC.AnnOpen src -- "{-# VECTORISE"
@@ -467,9 +468,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markLocated ln
     markWithString GHC.AnnClose "#-}" -- "#-}"
 
-  markAST _ (GHC.HsVectClassOut {}) = return ()
+  markAST _ (GHC.HsVectClassOut {}) =
+    traceM "warning: HsVecClassOut appears after renaming"
   markAST _ (GHC.HsVectInstIn {})   = return ()
+    traceM "warning: HsVecInstsIn appears after renaming"
   markAST _ (GHC.HsVectInstOut {})   =  return ()
+    traceM "warning: HsVecInstOut appears after renaming"
 
 -- ---------------------------------------------------------------------
 
@@ -759,7 +763,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name) =>
     mark GHC.AnnCloseC -- '}'
 
   -- Introduced after renaming.
-  markAST _ (GHC.AbsBinds _ _ _ _ _) = return ()
+  markAST _ (GHC.AbsBinds _ _ _ _ _) =
+    traceM "warning: AbsBind introduced after renaming"
 
 
 -- ---------------------------------------------------------------------
@@ -862,7 +867,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mark GHC.AnnDcolon
     markLocated typ
 
-  markAST _ (GHC.IdSig _) = return ()
+  markAST _ (GHC.IdSig _) =
+    traceM "warning: Introduced after renaming"
 
   -- FixSig (FixitySig name)
   markAST _ (GHC.FixSig (GHC.FixitySig lns (GHC.Fixity v fdir))) = do
@@ -1062,7 +1068,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mark GHC.AnnCloseC -- '}'
 
   -- HsCoreTy Type
-  markAST _ (GHC.HsCoreTy _t) = return ()
+  markAST _ (GHC.HsCoreTy _t) =
+    traceM "warning: HsCoreTy Introduced after renaming"
 
   markAST _ (GHC.HsExplicitListTy _ ts) = do
     mark GHC.AnnSimpleQuote
@@ -1085,7 +1092,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
         markExternal l GHC.AnnVal s
 
   -- HsWrapTy HsTyAnnotated (HsType name)
-  markAST _ (GHC.HsWrapTy _ _) = return ()
+  markAST _ (GHC.HsWrapTy _ _) =
+    traceM "warning: HsWrapTyy Introduced after renaming"
 
   markAST l (GHC.HsWildcardTy) = do
     markExternal l GHC.AnnVal "_"
@@ -1203,7 +1211,8 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
   markAST _ (GHC.ConPatIn n dets) = do
     markHsConPatDetails n dets
 
-  markAST _ (GHC.ConPatOut {}) = return ()
+  markAST _ (GHC.ConPatOut {}) =
+    traceM "warning: ConPatOut Introduced after renaming"
 
   -- ViewPat (LHsExpr id) (LPat id) (PostTc id Type)
   markAST _ (GHC.ViewPat e pat _) = do
@@ -1242,9 +1251,11 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
     traceM "SigPatIn should be handled in markSigPatIn"
 
   markAST _ (GHC.SigPatOut {}) = return ()
+    traceM "warning: SigPatOut introduced after renaming""
 
   -- CoPat HsAnnotated (Pat id) Type
   markAST _ (GHC.CoPat {}) = return ()
+    traceM "warning: CoPat introduced after renaming""
 
 -- ---------------------------------------------------------------------
 hsLit2String :: GHC.HsLit -> GHC.SourceText
@@ -1431,7 +1442,7 @@ markHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
                        ++ prepareListAnnotation sigs
                          )
 markHsLocalBinds (GHC.HsValBinds (GHC.ValBindsOut {}))
-   = return ()
+   = traceM "warning: ValBindsOut introduced after renaming"
 
 markHsLocalBinds (GHC.HsIPBinds (GHC.IPBinds binds _)) = mapM_ markLocated (reverse binds)
 markHsLocalBinds (GHC.EmptyLocalBinds)                 = return ()
@@ -1672,7 +1683,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mark GHC.AnnCloseC
     markWithString GHC.AnnClose "|]"
   -- Introduced after the renamer
-  markAST _ (GHC.HsBracket (GHC.DecBrG _)) = return ()
+  markAST _ (GHC.HsBracket (GHC.DecBrG _)) =
+    traceM "warning: DecBrG introduced after renamer"
   markAST _ (GHC.HsBracket (GHC.ExpBr e)) = do
 --    markWithString GHC.AnnOpen "[|"
     workOutString GHC.AnnOpen
@@ -1696,7 +1708,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markWithString GHC.AnnClose "|]"
 
   markAST _ (GHC.HsRnBracketOut _ _) = return ()
+    traceM "warning: HsRnBracketOut introduced after renamer"
   markAST _ (GHC.HsTcBracketOut _ _) = return ()
+    traceM "warning: HsTcBracketOut introduced after renamer"
 
   markAST l (GHC.HsSpliceE e) = do
     -- Explicit Splices are explicit
@@ -1764,8 +1778,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   markAST _ (GHC.HsType ty) = markLocated ty
 
-  markAST _ (GHC.HsWrap _ _) = return ()
-  markAST _ (GHC.HsUnboundVar _) = return ()
+  markAST _ (GHC.HsWrap _ _) =
+    traceM "warning: HsWrap introduced after renaming"
+  markAST _ (GHC.HsUnboundVar _) =
+    traceM "warning: HsUnboundVar introduced after renaming"
 
 instance Annotate GHC.HsLit where
   markAST l lit = markExternal l GHC.AnnVal (hsLit2String lit)
@@ -1856,7 +1872,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markListWithLayout es
     mark GHC.AnnCloseC
 
-  markAST _ (GHC.HsCmdCast {}) = return ()
+  markAST _ (GHC.HsCmdCast {}) =
+    traceM "warning: HsCmdCast introduced after renaming"
 
 
 -- ---------------------------------------------------------------------
@@ -2008,7 +2025,6 @@ markDataDefn _ (GHC.HsDataDefn _ ctx typ mk cons mderivs) = do
 instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
      => Annotate [GHC.LHsType name] where
   markAST l ts = do
-    return () `debug` ("markP.HsContext:l=" ++ showGhc l)
     mark GHC.AnnDeriving
     mark GHC.AnnOpenP
     mapM_ markLocated ts
