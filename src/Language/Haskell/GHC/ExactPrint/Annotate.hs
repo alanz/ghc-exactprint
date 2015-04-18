@@ -835,7 +835,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,
       [] -> return ()
       (_:_) -> mark GHC.AnnVbar >> mapM_ markLocated guards
     mark GHC.AnnEqual
-    mark GHC.AnnRarrow
+--    mark GHC.AnnRarrow
     checkMany [Case, MultiIf] (mark GHC.AnnRarrow) -- in case alts
     markLocated expr
 
@@ -1852,7 +1852,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markLocated e1
     mark GHC.AnnOf
     mark GHC.AnnOpenC
-    markMatchGroup l matches
+    addContext Case (markMatchGroup l matches)
     mark GHC.AnnCloseC
 
   markAST _ (GHC.HsCmdIf _ e1 e2 e3) = do
