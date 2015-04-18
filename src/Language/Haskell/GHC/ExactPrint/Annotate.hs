@@ -835,6 +835,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,
       [] -> return ()
       (_:_) -> mark GHC.AnnVbar >> mapM_ markLocated guards
     mark GHC.AnnEqual
+    mark GHC.AnnRarrow
     checkMany [Case, MultiIf] (mark GHC.AnnRarrow) -- in case alts
     markLocated expr
 
@@ -1047,7 +1048,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   -- HsSpliceTy (HsSplice name) (PostTc name Kind)
   markAST l (GHC.HsSpliceTy s _) = do
+    markWithString GHC.AnnOpen "$("
     markAST l s
+    markWithString GHC.AnnClose ")"
 
   markAST _ (GHC.HsDocTy t ds) = do
     markLocated t
@@ -1914,8 +1917,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markMaybe mk
     mark GHC.AnnEqual
     mark GHC.AnnWhere
+    mark GHC.AnnOpenC
     mapM_ markLocated cons
     markMaybe mderivs
+    mark GHC.AnnCloseC
 
   -- -----------------------------------
 
@@ -1964,9 +1969,6 @@ instance (GHC.DataId name,Annotate name, GHC.OutputableBndr name)
     markMaybe mkind
     mark GHC.AnnWhere
     mark GHC.AnnOpenC -- {
-    case info of
-      GHC.ClosedTypeFamily eqns -> mapM_ markTyFamEqn eqns
-      _ -> return ()
     case info of
       GHC.ClosedTypeFamily eqns -> mapM_ markTyFamEqn eqns
       _ -> return ()

@@ -156,5 +156,72 @@ StrangeTypeClass.hs
 Needs work
 ----------
 
+------------------------------------------------------------------------
 
+Using GHC api-annotations 2015-04-17
+
+In hand
+-------
+
+ForeignDecl.hs
+
+    The correct string is there, it just needs to be rendered properly in
+    ghc-exactprint.  I think the same escape problem came up in the DEPRECATED
+    pragma, check how the faststring is rendered there.
+
+ListComprehensions.hs
+    GHC annotations look fine. Weird bug. Probably related to layout marking
+    on the HsLet
+
+RdrNames.hs
+    GHC annotations are fine, RdrName printing is broken in ghc-exactprint
+
+    
+TypeFamilies.hs
+    GHC annotations are fine, suspect some strange interaction with the
+    NoLayoutRules immediately before mark GHC.AnnEqual in markTyFamEqn
+    
+Minimal.hs
+    As before, needs hack in ghc-exactprint, proper fix in 7.12
+
+MangledSemiLet.hs
+  As before. Seems the AnnSemiSep is being attached to the lhs of the PatBind,
+  rather than the PatBind as a whole
+
+UnicodeSyntaxFailure.hs
+  A ghc-exactprint workaround would be to check the length of the span, and use
+  the unicode symbol if it is 1, or "forall" if it is 5.
+
+MultiLineWarningPragma.hs
+  As before. ignore before 7.12
+
+Shebang.hs
+  Will have to do a workaround somehow.
+
+PatSigBind.hs
+  Annotations seem ok, ghc-exactprint issue
+
+DroppedDoSpace.hs
+  Annotations seem ok, ghc-exactprint issue
+
+IndentedDo.hs
+  I suspect this is the same root cause as DroppedDoSpace, where the AnnLam is
+  getting a DP of (0,0)
+  Fix in ghc-exactprint
+  
+SpacesSplice.hs
+  Use AnnName for the name part of a VarBr
+  Fix in ghc-exactprint
+
+
+SemiWorkout.hs
+  I suspect this is also SigPatIn capturing the AnnSemiSep, as in MangledSemiLet
+  
+ShiftingLambda.hs
+NestedDoLambda.hs
+  Another instance of a lambda not getting annotated properly in a do expression
+
+
+Needs triage
+------------
 
