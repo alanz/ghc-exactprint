@@ -576,7 +576,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
       then return ()
       else markLocated safety
     -- markMaybe mh
-    markExternal ls GHC.AnnVal ("\"" ++ src ++ "\"")
+    markExternal ls GHC.AnnVal (show src)
     markLocated ln
     mark GHC.AnnDcolon
     markLocated typ
@@ -586,7 +586,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mark GHC.AnnForeign
     mark GHC.AnnExport
     markLocated spec
-    markExternal ls GHC.AnnVal ("\"" ++ src ++ "\"")
+    markExternal ls GHC.AnnVal (show src)
     markLocated ln
     mark GHC.AnnDcolon
     markLocated typ
