@@ -1,7 +1,9 @@
 module Language.Haskell.GHC.ExactPrint
         ( -- * Relativising
           relativiseApiAnns
+        , relativiseApiAnnsWithComments
         , Anns
+        , Comment
 
         -- * Printing
         , exactPrintWithAnns

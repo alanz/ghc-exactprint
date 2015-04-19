@@ -1,6 +1,8 @@
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE RecursiveDo #-}
-module Language.Haskell.GHC.ExactPrint.Delta  (relativiseApiAnns) where
+module Language.Haskell.GHC.ExactPrint.Delta
+  ( relativiseApiAnns
+  , relativiseApiAnnsWithComments
+  ) where
 
 import Control.Monad.RWS
 import Control.Monad.Trans.Free
@@ -27,10 +29,16 @@ relativiseApiAnns :: Annotate ast
                   => GHC.Located ast
                   -> GHC.ApiAnns
                   -> Anns
-relativiseApiAnns modu' ghcAnns'
-   = runDelta (annotate modu') ghcAnns' (ss2pos $ GHC.getLoc modu')
---     where
---      (ghcAnns,modu@(GHC.L ss _)) = fixBugsInAst ghcAnns' modu'
+relativiseApiAnns = relativiseApiAnnsWithComments []
+
+relativiseApiAnnsWithComments ::
+                     Annotate ast
+                  => [Comment]
+                  -> GHC.Located ast
+                  -> GHC.ApiAnns
+                  -> Anns
+relativiseApiAnnsWithComments cs modu ghcAnns
+   = runDeltaWithComments cs (annotate modu) ghcAnns (ss2pos $ GHC.getLoc modu)
 
 -- ---------------------------------------------------------------------
 --
@@ -38,9 +46,12 @@ relativiseApiAnns modu' ghcAnns'
 type Delta a = RWS DeltaReader DeltaWriter DeltaState a
 
 runDelta :: Annotated () -> GHC.ApiAnns -> Pos -> Anns
-runDelta action ga priorEnd =
+runDelta = runDeltaWithComments []
+
+runDeltaWithComments :: [Comment] -> Annotated () -> GHC.ApiAnns -> Pos -> Anns
+runDeltaWithComments cs action ga priorEnd =
   ($ mempty) . appEndo . finalAnns . snd
-  . (\next -> execRWS next initialDeltaReader (defaultDeltaState priorEnd ga))
+  . (\next -> execRWS next initialDeltaReader (defaultDeltaState cs priorEnd ga))
   . deltaInterpret $ action
 
 -- ---------------------------------------------------------------------
@@ -91,12 +102,12 @@ initialDeltaReader =
     , layoutStart = 0
     }
 
-defaultDeltaState :: Pos -> GHC.ApiAnns -> DeltaState
-defaultDeltaState priorEnd ga =
+defaultDeltaState :: [Comment] -> Pos -> GHC.ApiAnns -> DeltaState
+defaultDeltaState injectedComments priorEnd ga =
     DeltaState
       { priorEndPosition = priorEnd
       , priorEndASTPosition = priorEnd
-      , apComments = cs
+      , apComments = cs ++ injectedComments
       , apAnns     = ga
       }
   where
