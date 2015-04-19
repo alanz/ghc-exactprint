@@ -163,20 +163,10 @@ Using GHC api-annotations 2015-04-17
 In hand
 -------
 
-ForeignDecl.hs
-
-    The correct string is there, it just needs to be rendered properly in
-    ghc-exactprint.  I think the same escape problem came up in the DEPRECATED
-    pragma, check how the faststring is rendered there.
-
 ListComprehensions.hs
     GHC annotations look fine. Weird bug. Probably related to layout marking
     on the HsLet
 
-RdrNames.hs
-    GHC annotations are fine, RdrName printing is broken in ghc-exactprint
-
-    
 TypeFamilies.hs
     GHC annotations are fine, suspect some strange interaction with the
     NoLayoutRules immediately before mark GHC.AnnEqual in markTyFamEqn
@@ -197,9 +187,6 @@ MultiLineWarningPragma.hs
 
 Shebang.hs
   Will have to do a workaround somehow.
-
-PatSigBind.hs
-  Annotations seem ok, ghc-exactprint issue
 
 DroppedDoSpace.hs
   Annotations seem ok, ghc-exactprint issue
@@ -222,6 +209,21 @@ NestedDoLambda.hs
   Another instance of a lambda not getting annotated properly in a do expression
 
 
+NestedDoLambda.hs
+   `feedback` is being used as an infix operator in a HsCmdArrForm.
+  This is constructed in RdrHsSyn as
+
+    checkCmd _ (OpApp eLeft op _fixity eRight) = do
+        -- OpApp becomes a HsCmdArrForm with a (Just fixity) in it
+        c1 <- checkCommand eLeft
+        c2 <- checkCommand eRight
+        let arg1 = L (getLoc c1) $ HsCmdTop c1 placeHolderType placeHolderType []
+            arg2 = L (getLoc c2) $ HsCmdTop c2 placeHolderType placeHolderType []
+        return $ HsCmdArrForm op Nothing [arg1, arg2]
+
+  But it can also be constructed in prefix form.
+  We are going to have to sort the expr and cmds during printing.
+  
 Needs triage
 ------------
 

@@ -126,6 +126,7 @@ tests = TestList
   , mkTestMod "OverloadedStrings.hs"     "Main"
   , mkTestMod "PArr.hs"                  "PArr"
   , mkTestMod "PatSynBind.hs"            "Main"
+  , mkTestMod "ParensAroundContext.hs"   "ParensAroundContext"
   , mkTestMod "RankNTypes.hs"            "Main"
   , mkTestMod "RdrNames.hs"              "RdrNames"
   , mkTestMod "RebindableSyntax.hs"      "Main"
