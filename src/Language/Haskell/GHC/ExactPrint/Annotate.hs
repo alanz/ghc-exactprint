@@ -728,7 +728,6 @@ markSigPatIn :: (Annotate t, GHC.DataId t, GHC.OutputableBndr t) => GHC.GenLocat
 markSigPatIn (GHC.L ss' (GHC.SigPatIn pat ty))  = do
     -- Use instance to set the correct scope
     markLocated pat
-    traceM (showGhc ss')
     mark GHC.AnnDcolon
     markLocated (GHC.L ss' ty)
 markSigPatIn r =
@@ -1146,7 +1145,6 @@ instance
             newSS = span2ss ((startline, startcol), (startline, startcol+1))
             bodySS = span2ss ((startline, startcol+1), (oldline, oldcol))
         m <- countAnns GHC.AnnThIdSplice
-        traceShowM (n,m)
         case (n,m, ex) of
           {-(0,1, _) -> markExternal newSS GHC.AnnThIdSplice "$"
                 >> markAST bodySS ex  -- toplevel $var -}

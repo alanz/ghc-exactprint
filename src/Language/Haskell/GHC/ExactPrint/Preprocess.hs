@@ -31,15 +31,3 @@ getPragma s@(x:xs)
       let (prag, remline) = getPragma xs
       in (x:prag, ' ':remline)
 
-
-
-
-
-
-
-
-
-
-
-
-
