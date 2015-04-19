@@ -330,6 +330,14 @@ instance Annotate GHC.RdrName where
         mark GHC.AnnOpenP -- '('
         mark GHC.AnnRarrow
         mark GHC.AnnCloseP -- ')'
+      "~#"  -> do
+        mark GHC.AnnOpenP -- '('
+        mark GHC.AnnTildehsh
+        mark GHC.AnnCloseP
+      "~" -> do
+        mark GHC.AnnOpenP
+        mark GHC.AnnTilde
+        mark GHC.AnnCloseP
       str ->  do
         mark GHC.AnnType
         mark GHC.AnnOpenP -- '('
@@ -343,11 +351,8 @@ instance Annotate GHC.RdrName where
                  else markExternal l GHC.AnnVal str
           1 -> markWithString GHC.AnnVal str
           _ -> traceM "Printing RdrName, more than 1 AnnVal"
-        -- TODO: Add tests for these and move to seperate branches
-        mark GHC.AnnTildehsh
-        mark GHC.AnnTilde
         markOffset GHC.AnnBackquote 1
-        mark GHC.AnnCloseP -- ')'
+        mark GHC.AnnCloseP
 
 -- ---------------------------------------------------------------------
 
