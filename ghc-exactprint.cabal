@@ -41,6 +41,7 @@ library
                      , Language.Haskell.GHC.ExactPrint.Annotate
                      , Language.Haskell.GHC.ExactPrint.Print
                      , Language.Haskell.GHC.ExactPrint.Transform
+                     , Language.Haskell.GHC.ExactPrint.Preprocess
   -- other-modules:
   -- other-extensions:
   GHC-Options:         -Wall
