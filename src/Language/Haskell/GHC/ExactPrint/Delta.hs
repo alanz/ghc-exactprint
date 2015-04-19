@@ -386,7 +386,7 @@ commentAllocation p k = do
   cs <- getUnallocatedComments
   let (allocated,cs') = allocateComments p cs
   putUnallocatedComments cs'
-  k =<< mapM makeDeltaComment allocated
+  k =<< mapM makeDeltaComment (sort allocated)
 
 
 makeDeltaComment :: Comment -> Delta DComment
