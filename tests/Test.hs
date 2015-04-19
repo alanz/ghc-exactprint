@@ -222,6 +222,8 @@ tests = TestList
   , mkParserTest "ShiftingLambda.hs"
   , mkParserTest "NestedDoLambda.hs"
 
+  , mkParserTest "LinePragma.hs"
+
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
   , mkTestModChange changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
   , mkTestModChange changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
