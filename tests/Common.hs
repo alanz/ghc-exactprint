@@ -8,6 +8,7 @@ module Common where
 import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Transform
 import Language.Haskell.GHC.ExactPrint.Utils
+import Language.Haskell.GHC.ExactPrint.Preprocess
 
 import GHC.Paths (libdir)
 
@@ -92,16 +93,17 @@ roundTripTest file = do
   if
     | GHC.xopt GHC.Opt_Cpp dflags2 -> return $ CPP
     | otherwise -> do
-      contents <- T.unpack <$> T.readFile file
+      origContents <- T.unpack <$> T.readFile file
+      let (contents, linePragmas) = stripLinePragmas origContents
       case parseFile dflags2 file contents of
         GHC.PFailed ss m -> return $ ParseFailure ss (GHC.showSDoc dflags2 m)
         GHC.POk (mkApiAnns -> apianns) pmod   -> do
-          let (printed, anns) = runRoundTrip apianns pmod
+          let (printed, anns) = runRoundTrip apianns pmod linePragmas
               debugtxt = mkDebugOutput file printed contents apianns anns pmod
               consistency = checkConsistency apianns pmod
           if
             | not (null consistency) -> return $ InconsistentAnnotations debugtxt consistency
-            | printed == contents -> return Success
+            | printed == origContents -> return Success
             | otherwise -> return $ RoundTripFailure debugtxt
 
 
@@ -123,11 +125,12 @@ mkDebugOutput filename printed original apianns anns parsed =
 
 
 runRoundTrip :: GHC.ApiAnns -> GHC.Located (GHC.HsModule GHC.RdrName)
-              -> (String, Anns)
-runRoundTrip !anns !parsedOrig =
+             -> [Comment]
+             -> (String, Anns)
+runRoundTrip !anns !parsedOrig cs =
   let
 --    (!_, !parsed) = fixBugsInAst anns parsedOrig
-    !relAnns = relativiseApiAnns parsedOrig anns
+    !relAnns = relativiseApiAnnsWithComments cs parsedOrig anns
     !printed = exactPrintWithAnns parsedOrig relAnns
   in (printed,  relAnns)
 
