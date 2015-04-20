@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE LambdaCase #-}
 module Common where
 
 import Language.Haskell.GHC.ExactPrint
@@ -82,6 +83,9 @@ getDynFlags =
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
     GHC.runGhc (Just libdir) GHC.getSessionDynFlags
 
+removeSpaces :: String -> String
+removeSpaces = map (\case {'\160' -> ' '; s -> s})
+
 
 roundTripTest :: FilePath -> IO Report
 roundTripTest file = do
@@ -93,8 +97,8 @@ roundTripTest file = do
   if
     | GHC.xopt GHC.Opt_Cpp dflags2 -> return $ CPP
     | otherwise -> do
-      origContents <- T.unpack <$> T.readFile file
-      let (contents, linePragmas) = stripLinePragmas origContents
+      origContents <- removeSpaces . T.unpack <$> T.readFile file
+      let (contents, linePragmas) = stripLinePragmas $ origContents
       case parseFile dflags2 file contents of
         GHC.PFailed ss m -> return $ ParseFailure ss (GHC.showSDoc dflags2 m)
         GHC.POk (mkApiAnns -> apianns) pmod   -> do
