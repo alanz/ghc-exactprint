@@ -130,28 +130,19 @@ OptSig.hs
 GADTRecords.hs
   #10309 D848
 
+StrangeTypeClass.hs
+  Investigate. Empty context, annotations are lost.
+  mkHsForAllTy discards SrcSpan for empty context
+  #10315 D855
+
+
 GHC tickets still to be done
 ----------------------------
 
 MultiLineWarningPragma.hs
   #10313. Unlikely to be fixed for 7.12
 
-TypeSignatureParens.hs
-  mkHsForAllTy discards parens
-  - look for all paren type processing and make sure it is safe.
-    GHC.HsPArrTy
-    GHC.HsParTy
-    GHC.ParPat
-    GHC.PArrPat
-    GHC.HsPar
-    GHC.ExplicitPArr
-    GHC.HsCmdPar
-  #10314
 
-StrangeTypeClass.hs
-  Investigate. Empty context, annotations are lost.
-  mkHsForAllTy discards SrcSpan for empty context
-  #10315
   
 Needs work
 ----------
@@ -170,7 +161,7 @@ ListComprehensions.hs
 TypeFamilies.hs
     GHC annotations are fine, suspect some strange interaction with the
     NoLayoutRules immediately before mark GHC.AnnEqual in markTyFamEqn
-    
+
 Minimal.hs
     As before, needs hack in ghc-exactprint, proper fix in 7.12
 

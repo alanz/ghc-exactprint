@@ -1359,7 +1359,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,Annotate body) =
   markAST _ (GHC.LastStmt body _) = markLocated body
 
   markAST _ (GHC.BindStmt pat body _ _) = do
-    markSigPatIn pat
+    -- markSigPatIn pat
+    markLocated pat
     mark GHC.AnnLarrow
     markLocated body
     mark GHC.AnnVbar -- possible in list comprehension

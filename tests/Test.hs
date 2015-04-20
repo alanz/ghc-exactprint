@@ -221,6 +221,7 @@ tests = TestList
   , mkParserTest "SemiWorkout.hs"
   , mkParserTest "ShiftingLambda.hs"
   , mkParserTest "NestedDoLambda.hs"
+  , mkParserTest "DoPatBind.hs"
 
   , mkParserTest "LinePragma.hs"
 
@@ -425,9 +426,11 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
     -- , manipulateAstTestWFname "MultipleInferredContexts.hs"   "Main"
     -- , manipulateAstTestWFname "ArgPuncParens.hs"   "Main"
-    , manipulateAstTestWFname "SimpleComplexTuple.hs" "Main"
+    -- , manipulateAstTestWFname "SimpleComplexTuple.hs" "Main"
+    -- , manipulateAstTestWFname "DoPatBind.hs" "Main"
+    , manipulateAstTestWFname "DroppedDoSpace.hs" "Main"
 
-    , manipulateAstTestWFname "GHCOrig.hs" "GHC.Tuple"
+    -- , manipulateAstTestWFname "GHCOrig.hs" "GHC.Tuple"
     {-
     , manipulateAstTestWFname "Cpp.hs"                   "Main"
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"

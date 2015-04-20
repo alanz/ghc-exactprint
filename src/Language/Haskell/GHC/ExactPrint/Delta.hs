@@ -377,7 +377,7 @@ checkUnicode (G kw) ss =
     G kw
   where
     unicodeSyntax =
-      [GHC.AnnDcolon
+      [ GHC.AnnDcolon
       , GHC.AnnDarrow
       , GHC.AnnForall
       , GHC.AnnRarrow
