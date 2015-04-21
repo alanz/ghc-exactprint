@@ -34,6 +34,7 @@ import qualified SrcLoc         as GHC
 
 import Control.Monad.Trans.Free
 import Control.Monad.Free.TH (makeFreeCon)
+import Control.Monad.Identity
 import Control.Monad.Reader
 
 import Debug.Trace
@@ -52,19 +53,22 @@ data AnnotationF next where
   MarkMany       :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   MarkOffsetPrim :: GHC.AnnKeywordId -> Int -> Maybe String              -> next -> AnnotationF next
   MarkAfter      :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
-  WithAST        :: Data a => GHC.Located a -> LayoutFlag -> Annotated b -> next -> AnnotationF next
+  WithAST        :: Data a => GHC.Located a -> Disambiguator
+                           -> LayoutFlag -> Annotated b                  -> next -> AnnotationF next
   CountAnns      ::  GHC.AnnKeywordId                           -> (Int -> next) -> AnnotationF next
   -- | Abstraction breakers
-  SetLayoutFlag  ::  Annotated ()                    -> next -> AnnotationF next
+  SetLayoutFlag  ::  Annotated ()                                        -> next -> AnnotationF next
 
   -- | Required to work around deficiencies in the GHC AST
-  StoreOriginalSrcSpan :: GHC.SrcSpan                   -> (GHC.SrcSpan -> next) -> AnnotationF next
+  StoreOriginalSrcSpan :: GHC.SrcSpan -> Disambiguator  -> ((GHC.SrcSpan,Disambiguator) -> next) -> AnnotationF next
   GetSrcSpanForKw :: GHC.AnnKeywordId                   -> (GHC.SrcSpan -> next) -> AnnotationF next
   StoreString :: String -> GHC.SrcSpan                  -> next -> AnnotationF next
+  GetNextDisambiguator ::                                  (Disambiguator -> next) -> AnnotationF next
 
 deriving instance Functor (AnnotationF)
 
-type Annotated = Free AnnotationF
+-- type Annotated = Free AnnotationF
+type Annotated = FreeT AnnotationF Identity
 
 type IAnnotated = ReaderT [Context] Annotated
 
@@ -100,6 +104,15 @@ makeFreeCon  'CountAnns
 makeFreeCon  'StoreOriginalSrcSpan
 makeFreeCon  'GetSrcSpanForKw
 makeFreeCon  'StoreString
+makeFreeCon  'GetNextDisambiguator
+
+-- ---------------------------------------------------------------------
+
+-- |Main entry point
+annotate :: (Annotate ast) => GHC.Located ast -> Annotated ()
+annotate ast = runReaderT (markLocated ast) []
+
+-- ---------------------------------------------------------------------
 
 setLayoutFlag :: IAnnotated () -> IAnnotated ()
 setLayoutFlag prog = do
@@ -111,15 +124,13 @@ workOutString kw f = do
   ss <- getSrcSpanForKw kw
   storeString (f ss) ss
 
-annotate :: (Annotate ast) => GHC.Located ast -> Annotated ()
-annotate ast = runReaderT (markLocated ast) []
-
 -- ---------------------------------------------------------------------
+
 -- |Main driver point for annotations.
-withAST :: Data a => GHC.Located a -> LayoutFlag -> IAnnotated () -> IAnnotated ()
-withAST lss layout action = do
+withAST :: Data a => GHC.Located a -> Disambiguator -> LayoutFlag -> IAnnotated () -> IAnnotated ()
+withAST lss d layout action = do
   finalProg <- runReaderT prog <$> ask
-  liftF (WithAST lss layout finalProg ())
+  liftF (WithAST lss d layout finalProg ())
   where
     prog = do
       action
@@ -147,36 +158,39 @@ markOffset kwid n = markOffsetPrim kwid n Nothing
 -- | Constructs a syntax tree which contains information about which
 -- annotations are required by each element.
 markLocated :: (Annotate ast) => GHC.Located ast -> IAnnotated ()
-markLocated a = withLocated a NoLayoutRules markAST
+markLocated a = withLocated a NotNeeded NoLayoutRules markAST
 
 -- | Constructs a syntax tree which contains information about which
 -- annotations are required by each element, flagging the item to be IAnnotated
 -- as requiring layout according to the haskell layout rules.
-markWithLayout :: Annotate ast => GHC.Located ast -> IAnnotated ()
-markWithLayout a = withLocated a LayoutRules markAST
+markWithLayout :: Annotate ast => GHC.Located ast -> Disambiguator -> IAnnotated ()
+markWithLayout a d = withLocated a d LayoutRules markAST
 
 withLocated :: Data a
             => GHC.Located a
+            -> Disambiguator
             -> LayoutFlag
             -> (GHC.SrcSpan -> a -> IAnnotated ())
             -> IAnnotated ()
-withLocated a@(GHC.L l ast) layoutFlag action =
-  withAST a layoutFlag (action l ast)
+withLocated a@(GHC.L l ast) d layoutFlag action =
+  withAST a d layoutFlag (action l ast)
 
 -- ---------------------------------------------------------------------
 
 markListWithLayout :: Annotate [GHC.Located ast] => [GHC.Located ast] -> IAnnotated ()
 markListWithLayout ls = do
   let ss = getListSrcSpan ls
-  ss' <- storeOriginalSrcSpan ss
-  markWithLayout (GHC.L ss' ls)
+  d <- getNextDisambiguator
+  (ss',d') <- storeOriginalSrcSpan ss d
+  markWithLayout (GHC.L ss' ls) d'
 
 markLocalBindsWithLayout :: (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   => GHC.HsLocalBinds name -> IAnnotated ()
 markLocalBindsWithLayout binds = do
   let ss = getLocalBindsSrcSpan binds
-  ss' <- storeOriginalSrcSpan ss
-  markWithLayout (GHC.L ss' binds)
+      d  = NotNeeded
+  (ss',d) <- storeOriginalSrcSpan ss d
+  markWithLayout (GHC.L ss' binds) d
 
 -- ---------------------------------------------------------------------
 
@@ -186,7 +200,7 @@ markLocatedFromKw kw a = do
   -- ++AZ++ TODO: We always use GHC.AnnEofPos here, maybe use it as a constant
   -- here rather than a param. And rename the fn appropriately.
   ss <- getSrcSpanForKw kw
-  ss' <- storeOriginalSrcSpan ss
+  (ss',d') <- storeOriginalSrcSpan ss NotNeeded
   markLocated (GHC.L ss' a)
 
 -- ---------------------------------------------------------------------
@@ -830,7 +844,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,
     mark GHC.AnnWhere
     mark GHC.AnnOpenC -- '{'
     markInside GHC.AnnSemi
-    markWithLayout (GHC.L (getLocalBindsSrcSpan lb) lb)
+    markWithLayout (GHC.L (getLocalBindsSrcSpan lb) lb) NotNeeded
     mark GHC.AnnCloseC -- '}'
 
 -- ---------------------------------------------------------------------
@@ -1372,7 +1386,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,Annotate body) =
     -- return () `debug` ("markP.LetStmt entered")
     mark GHC.AnnLet
     mark GHC.AnnOpenC -- '{'
-    markWithLayout (GHC.L (getLocalBindsSrcSpan lb) lb)
+    markWithLayout (GHC.L (getLocalBindsSrcSpan lb) lb) NotNeeded
     mark GHC.AnnCloseC -- '}'
     -- return () `debug` ("markP.LetStmt done")
 
@@ -1877,7 +1891,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   markAST _ (GHC.HsCmdLet binds e) = do
     mark GHC.AnnLet
     mark GHC.AnnOpenC
-    markWithLayout (GHC.L (getLocalBindsSrcSpan binds) binds)
+    markWithLayout (GHC.L (getLocalBindsSrcSpan binds) binds) NotNeeded
     mark GHC.AnnCloseC
     mark GHC.AnnIn
     markLocated e
@@ -1986,7 +2000,7 @@ instance (GHC.DataId name,Annotate name, GHC.OutputableBndr name)
 -- ---------------------------------------------------------------------
 
 markTyFamEqn v@(GHC.L ss (GHC.TyFamEqn ln (GHC.HsWB pats _ _ _) typ)) = do
-    withAST v NoLayoutRules  (do
+    withAST v NotNeeded NoLayoutRules (do
       mark GHC.AnnOpenP
       applyListAnnotations (prepareListAnnotation [ln]
                            ++ prepareListAnnotation pats)

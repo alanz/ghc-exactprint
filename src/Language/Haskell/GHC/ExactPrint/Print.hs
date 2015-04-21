@@ -122,32 +122,33 @@ printInterpret = iterTM go
         printStringAtMaybeAnn (G kwid) annString >> next
     go (MarkAfter akwid next) =
       justOne akwid >> next
-    go (WithAST lss flag action next) =
-      exactPC lss flag (printInterpret action) >> next
+    go (WithAST lss d flag action next) =
+      exactPC lss d flag (printInterpret action) >> next
     go (CountAnns kwid next) =
       countAnnsEP (G kwid) >>= next
     go (SetLayoutFlag action next) =
       setLayout (printInterpret action) >> next
     go (MarkExternal _ akwid s next) =
       printStringAtMaybeAnn (G akwid) s >> next
-    go (StoreOriginalSrcSpan ss next) = storeOriginalSrcSpanPrint ss >>= next
+    go (StoreOriginalSrcSpan ss d next) = storeOriginalSrcSpanPrint ss d >>= next
     go (GetSrcSpanForKw _ next) = return GHC.noSrcSpan >>= next
     go (StoreString _ _ next) =
       printStoredString >> next
+    go (GetNextDisambiguator next) = return NotNeeded >>= next
 
 -------------------------------------------------------------------------
 
-storeOriginalSrcSpanPrint :: GHC.SrcSpan -> EP GHC.SrcSpan
-storeOriginalSrcSpanPrint _ss = do
+storeOriginalSrcSpanPrint :: GHC.SrcSpan -> Disambiguator -> EP (GHC.SrcSpan,Disambiguator)
+storeOriginalSrcSpanPrint _ss _d = do
   kd <- gets epAnnKds
 
   let
-    isAnnList (AnnList _,_) = True
+    isAnnList (AnnList _ _,_) = True
     isAnnList _             = False
 
   case filter isAnnList (head kd) of
-    ((AnnList ss,_):_) -> return ss
-    _                  -> return GHC.noSrcSpan
+    ((AnnList ss d,_):_) -> return (ss,d)
+    _                    -> return (GHC.noSrcSpan,NotNeeded)
 
 printStoredString :: EP ()
 printStoredString = do
@@ -169,11 +170,11 @@ allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString kwid)
 
 -------------------------------------------------------------------------
 -- |First move to the given location, then call exactP
-exactPC :: Data ast => GHC.Located ast -> LayoutFlag -> EP a -> EP a
-exactPC ast flag action =
+exactPC :: Data ast => GHC.Located ast -> Disambiguator -> LayoutFlag -> EP a -> EP a
+exactPC ast d flag action =
     do return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
        -- let ast = fixBuggySrcSpan Nothing ast'
-       ma <- getAndRemoveAnnotation ast
+       ma <- getAndRemoveAnnotation ast d
        let an@(Ann edp _ _ comments kds) = fromMaybe annNone ma
        withContext kds an flag
         (mapM_ printQueuedComment comments
@@ -186,9 +187,9 @@ advance cl = do
   colOffset <- getLayoutOffset
   printWhitespace (undelta p cl colOffset)
 
-getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
-getAndRemoveAnnotation a = do
-  (r, an') <- gets (getAndRemoveAnnotationEP a . epAnns)
+getAndRemoveAnnotation :: (Data a) => GHC.Located a -> Disambiguator -> EP (Maybe Annotation)
+getAndRemoveAnnotation a d = do
+  (r, an') <- gets ((getAndRemoveAnnotationEP a d) . epAnns)
   modify (\s -> s { epAnns = an' })
   return r
 

@@ -62,7 +62,9 @@ data DeltaReader = DeltaReader
 
          -- | Constuctor of current AST element, useful for
          -- debugging
-       , annConName  :: !AnnConName
+       , annConName       :: !AnnConName
+
+       , annDisambiguator :: !Disambiguator
 
          -- | Start column of the current layout block
        , layoutStart :: !LayoutStartCol
@@ -99,6 +101,7 @@ initialDeltaReader =
   DeltaReader
     { curSrcSpan = GHC.noSrcSpan
     , annConName = annGetConstr ()
+    , annDisambiguator = NotNeeded
     , layoutStart = 0
     }
 
@@ -152,14 +155,15 @@ deltaInterpret = iterTM go
     go (MarkMany akwid next) = addDeltaAnnotations akwid >> next
     go (MarkOffsetPrim akwid n _ next) = addDeltaAnnotationLs akwid n >> next
     go (MarkAfter akwid next) = addDeltaAnnotationAfter akwid >> next
-    go (WithAST lss layoutflag prog next) =
-      withAST lss layoutflag (deltaInterpret prog) >> next
+    go (WithAST lss d layoutflag prog next) =
+      withAST lss d layoutflag (deltaInterpret prog) >> next
     go (CountAnns kwid next) = countAnnsDelta kwid >>= next
     go (SetLayoutFlag action next) = setLayoutFlag (deltaInterpret action)  >> next
     go (MarkExternal ss akwid _ next) = addDeltaAnnotationExt ss akwid >> next
-    go (StoreOriginalSrcSpan ss next) = storeOriginalSrcSpanDelta ss >>= next
+    go (StoreOriginalSrcSpan ss d next) = storeOriginalSrcSpanDelta ss d >>= next
     go (GetSrcSpanForKw kw next) = getSrcSpanForKw kw >>= next
     go (StoreString s ss next) = storeString s ss >> next
+    go (GetNextDisambiguator next) = getNextDisambiguatorDelta >>= next
 
 -- | Used specifically for "HsLet"
 setLayoutFlag :: Delta () -> Delta ()
@@ -169,13 +173,17 @@ setLayoutFlag action = do
 
 -- ---------------------------------------------------------------------
 
-storeOriginalSrcSpanDelta :: GHC.SrcSpan -> Delta GHC.SrcSpan
-storeOriginalSrcSpanDelta ss = do
-  tellKd (AnnList ss,DP (0,0))
-  return ss
+storeOriginalSrcSpanDelta :: GHC.SrcSpan -> Disambiguator -> Delta (GHC.SrcSpan,Disambiguator)
+storeOriginalSrcSpanDelta ss d = do
+  tellKd (AnnList ss d,DP (0,0))
+  return (ss,d)
 
 storeString :: String -> GHC.SrcSpan -> Delta ()
 storeString s ss = addAnnotationWorker (AnnString s) ss
+
+-- ++AZ++ TODO: Once we are back to 11 failing, make this return an incremented value from state
+getNextDisambiguatorDelta :: Delta Disambiguator
+getNextDisambiguatorDelta = return (Ref "foo")
 
 -- ---------------------------------------------------------------------
 
@@ -204,10 +212,11 @@ getSrcSpanForKw kw = do
 getSrcSpan :: Delta GHC.SrcSpan
 getSrcSpan = asks curSrcSpan
 
-withSrcSpanDelta :: Data a => GHC.Located a -> Delta b -> Delta b
-withSrcSpanDelta (GHC.L l a) =
+withSrcSpanDelta :: Data a => GHC.Located a -> Disambiguator -> Delta b -> Delta b
+withSrcSpanDelta (GHC.L l a) d =
   local (\s -> s { curSrcSpan = l
                  , annConName = annGetConstr a
+                 , annDisambiguator = d
                  })
 
 
@@ -269,10 +278,11 @@ getAndRemoveAnnotationDelta sp an = do
 addAnnotationsDelta :: Annotation -> Delta ()
 addAnnotationsDelta ann = do
     l <- ask
-    tellFinalAnn (getAnnKey l ,ann)
+    tellFinalAnn (getAnnKey l,ann)
 
 getAnnKey :: DeltaReader -> AnnKey
-getAnnKey DeltaReader {curSrcSpan, annConName} = AnnKey curSrcSpan annConName
+getAnnKey DeltaReader {curSrcSpan, annConName,annDisambiguator}
+  = AnnKey curSrcSpan annConName annDisambiguator
 
 -- -------------------------------------
 
@@ -282,9 +292,9 @@ addAnnDeltaPos kw dp = tellKd (kw, dp)
 -- -------------------------------------
 
 -- | Enter a new AST element. Maintain SrcSpan stack
-withAST :: Data a => GHC.Located a -> LayoutFlag -> Delta b -> Delta b
-withAST lss@(GHC.L ss _) layout action = do
-  return () `debug` ("enterAST:(annkey,layout)=" ++ show (mkAnnKey lss,layout))
+withAST :: Data a => GHC.Located a -> Disambiguator -> LayoutFlag -> Delta b -> Delta b
+withAST lss@(GHC.L ss _) d layout action = do
+  return () `debug` ("enterAST:(annkey,d,layout)=" ++ show (mkAnnKey lss,d,layout))
   -- Calculate offset required to get to the start of the SrcSPan
   off <- asks layoutStart
   let newOff =
@@ -292,7 +302,7 @@ withAST lss@(GHC.L ss _) layout action = do
           LayoutRules   -> (LayoutStartCol (srcSpanStartColumn ss))
           NoLayoutRules -> off
 
-  (setLayoutOffset newOff .  withSrcSpanDelta lss) (do
+  (setLayoutOffset newOff .  withSrcSpanDelta lss d) (do
 
     let maskWriter s = s { annKds = [] }
 
@@ -494,7 +504,7 @@ addDeltaAnnotationExt s ann = addAnnotationWorker (G ann) s
 addEofAnnotation :: Delta ()
 addEofAnnotation = do
   pe <- getPriorEnd
-  ma <- withSrcSpanDelta (GHC.noLoc ()) (getAnnotationDelta GHC.AnnEofPos)
+  ma <- withSrcSpanDelta (GHC.noLoc ()) NotNeeded (getAnnotationDelta GHC.AnnEofPos)
   case ma of
     [] -> return ()
     (pa:pss) -> do

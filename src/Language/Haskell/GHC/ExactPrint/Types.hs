@@ -17,8 +17,10 @@ module Language.Haskell.GHC.ExactPrint.Types
   , Anns,AnnKey(..)
   , KeywordId(..)
   , mkAnnKey
+  , mkAnnKeyWithD
   , AnnConName(..)
   , annGetConstr
+  , Disambiguator(..)
 
   , ResTyGADTHook(..)
 
@@ -82,8 +84,9 @@ annNone = Ann (DP (0,0)) 0  (DP (0,0)) [] []
 
 -- TODO: This is wrong
 combineAnns :: Annotation -> Annotation -> Annotation
-combineAnns (Ann ed1 c1 comments toStart dps1) (Ann _ed2  _c2  _comments _toStart dps2)
-  = Ann ed1 c1 comments toStart (dps1 ++ dps2)
+combineAnns (Ann ed1 c1 comments1 toStart1 dps1) (Ann ed2  c2  comments2 toStart2 dps2)
+  -- = Ann ed1 c1 comments toStart (dps1 ++ dps2)
+  = Ann ed2 c2 comments2 toStart2 (dps1 ++ dps2)
 
 data Annotation = Ann
   {
@@ -110,15 +113,19 @@ type Anns = Map.Map AnnKey Annotation
 -- | For every @Located a@, use the @SrcSpan@ and constructor name of
 -- a as the key, to store the standard annotation.
 -- These are used to maintain context in the AP and EP monads
-data AnnKey   = AnnKey GHC.SrcSpan AnnConName
+data AnnKey   = AnnKey GHC.SrcSpan AnnConName Disambiguator
                   deriving (Eq, Ord)
 
 -- More compact Show instance
 instance Show AnnKey where
-  show (AnnKey ss cn) = "AnnKey " ++ showGhc ss ++ " " ++ show cn
+  show (AnnKey ss cn d) = "AnnKey " ++ showGhc ss ++ " " ++ show cn
+                                    ++ " " ++ show d
 
 mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
-mkAnnKey (GHC.L l a) = AnnKey l (annGetConstr a)
+mkAnnKey (GHC.L l a) = AnnKey l (annGetConstr a) NotNeeded
+
+mkAnnKeyWithD :: (Data a) => GHC.Located a -> Disambiguator -> AnnKey
+mkAnnKeyWithD (GHC.L l a) d = AnnKey l (annGetConstr a) d
 
 -- Holds the name of a constructor
 data AnnConName = CN { unConName :: String }
@@ -131,6 +138,11 @@ instance Show AnnConName where
 annGetConstr :: (Data a) => a -> AnnConName
 annGetConstr a = CN (show $ toConstr a)
 
+-- |Under certain circumstances we can have an AST element with the same SrcSpan
+-- and AnnConName. To disambiguate these we introduce this type.
+data Disambiguator = NotNeeded | Ref String
+                     deriving (Eq,Ord,Show)
+
 -- |We need our own version of keywordid to manage various special cases
 data KeywordId = G GHC.AnnKeywordId
                | AnnSpanEntry -- ^ Marks the entry position of a SrcSpan, does
@@ -139,7 +151,7 @@ data KeywordId = G GHC.AnnKeywordId
                               -- processing.
                | AnnSemiSep
                | AnnComment DComment
-               | AnnList GHC.SrcSpan -- ^ In some circumstances we
+               | AnnList GHC.SrcSpan Disambiguator -- ^ In some circumstances we
                                      -- need to annotate a list of
                                      -- statements (e.g. HsDo) and
                                      -- must synthesise a SrcSpan to
@@ -159,7 +171,7 @@ instance Show KeywordId where
   show AnnSpanEntry    = "AnnSpanEntry"
   show AnnSemiSep      = "AnnSemiSep"
   show (AnnComment dc) = "(AnnComment " ++ show dc ++ ")"
-  show (AnnList ss)    = "(AnnList " ++ showGhc ss ++ ")"
+  show (AnnList ss d)    = "(AnnList " ++ showGhc ss ++ " " ++ show d ++ ")"
   show (AnnString s)    = "(AnnString " ++ s ++ ")"
   show (AnnUnicode gc)    = "(AnnUnicode " ++ show gc ++ ")"
 
@@ -202,14 +214,14 @@ instance (GHC.OutputableBndr name) => GHC.Outputable (ResTyGADTHook name) where
 
 -- ---------------------------------------------------------------------
 
-getAnnotationEP :: (Data a) =>  GHC.Located a -> Anns -> Maybe Annotation
-getAnnotationEP  (GHC.L ss a) annotations =
-  Map.lookup (AnnKey ss (annGetConstr a)) annotations
+getAnnotationEP :: (Data a) =>  GHC.Located a -> Disambiguator -> Anns -> Maybe Annotation
+getAnnotationEP  la@(GHC.L ss a) d annotations =
+  Map.lookup (mkAnnKeyWithD la d) annotations
 
 getAndRemoveAnnotationEP :: (Data a)
-                         => GHC.Located a -> Anns -> (Maybe Annotation,Anns)
-getAndRemoveAnnotationEP (GHC.L ss a) annotations
- = let key = AnnKey ss (annGetConstr a) in
+                         => GHC.Located a -> Disambiguator -> Anns -> (Maybe Annotation,Anns)
+getAndRemoveAnnotationEP la@(GHC.L ss a) d annotations
+ = let key = mkAnnKeyWithD la d in
     case Map.lookup key annotations of
          Nothing  -> (Nothing, annotations)
          Just av -> (Just av, Map.delete key annotations)

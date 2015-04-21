@@ -167,7 +167,7 @@ interpretChange old new = iterTM go
       change kwid >> next
     go (MarkAfter akwid next) =
       change akwid >> next
-    go (WithAST _ _ action next) =
+    go (WithAST _ _ _ action next) =
       (interpretChange old new action) >> next
     go (CountAnns _ next) = do
       next 0
@@ -175,7 +175,7 @@ interpretChange old new = iterTM go
       (interpretChange old new action) >> next
     go (MarkExternal _ akwid _ next) =
       change akwid  >> next
-    go (StoreOriginalSrcSpan ss next) = next ss
+    go (StoreOriginalSrcSpan ss d next) = next (ss,d)
     go (GetSrcSpanForKw _ next) = next GHC.noSrcSpan
     go (StoreString _ _ next) = next
 

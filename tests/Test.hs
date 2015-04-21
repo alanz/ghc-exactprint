@@ -428,7 +428,8 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "ArgPuncParens.hs"   "Main"
     -- , manipulateAstTestWFname "SimpleComplexTuple.hs" "Main"
     -- , manipulateAstTestWFname "DoPatBind.hs" "Main"
-    , manipulateAstTestWFname "DroppedDoSpace.hs" "Main"
+    -- , manipulateAstTestWFname "DroppedDoSpace.hs" "Main"
+    , manipulateAstTestWFname "DroppedDoSpace2.hs" "Main"
 
     -- , manipulateAstTestWFname "GHCOrig.hs" "GHC.Tuple"
     {-
@@ -508,10 +509,10 @@ changeCifToCase ans p = (ans',p')
                   ] [] GHC.placeHolderType GHC.FromSource))
 
       oldAnns <- getAnnsT
-      let annIf   = gfromJust "Case.annIf"   $ getAnnotationEP li oldAnns
-      let annCond = gfromJust "Case.annCond" $ getAnnotationEP e1 oldAnns
-      let annThen = gfromJust "Case.annThen" $ getAnnotationEP e2 oldAnns
-      let annElse = gfromJust "Case.annElse" $ getAnnotationEP e3 oldAnns
+      let annIf   = gfromJust "Case.annIf"   $ getAnnotationEP li NotNeeded oldAnns
+      let annCond = gfromJust "Case.annCond" $ getAnnotationEP e1 NotNeeded oldAnns
+      let annThen = gfromJust "Case.annThen" $ getAnnotationEP e2 NotNeeded oldAnns
+      let annElse = gfromJust "Case.annElse" $ getAnnotationEP e3 NotNeeded oldAnns
       logTr $ "Case:annIf="   ++ show annIf
       logTr $ "Case:annThen=" ++ show annThen
       logTr $ "Case:annElse=" ++ show annElse
@@ -527,23 +528,23 @@ changeCifToCase ans p = (ans',p')
       -- let ifSpanEntry = gfromJust "Case.ifSpanEntry" $ lookup AnnSpanEntry (annsDP annIf)
       let ifSpanEntry = annEntryDelta annIf
       let anne2' =
-            [ ( AnnKey caseLoc       (CN "HsCase"),   annIf { annsDP = [ (AnnSpanEntry,ifSpanEntry),(G GHC.AnnCase, ifDelta)
+            [ ( AnnKey caseLoc       (CN "HsCase") NotNeeded,   annIf { annsDP = [ (AnnSpanEntry,ifSpanEntry),(G GHC.AnnCase, ifDelta)
                                                                      , (G GHC.AnnOf,     DP (0,1))
-                                                                     ,(AnnList caseVirtualLoc,DP (0,0))] } )
-            , ( AnnKey caseVirtualLoc (CN "(:)"),     Ann (DP (1,newCol)) (ColDelta newCol) (DP (1,newCol)) [] [(AnnSpanEntry,DP (1,0))])
-            , ( AnnKey trueMatchLoc  (CN "Match"),    Ann (DP (0,0)) 0 (DP (0,0)) [] [] )
-            , ( AnnKey trueLoc1      (CN "ConPatIn"), Ann (DP (0,0)) 0 (DP (0,0)) [] [] )
-            , ( AnnKey trueLoc       (CN "Unqual"),   Ann (DP (0,0)) 0 (DP (0,0)) [] [(G GHC.AnnVal, DP (0,0))] )
-            , ( AnnKey trueRhsLoc    (CN "GRHS"),     Ann (DP (0,2)) 6 (DP (0,0)) [] [(AnnSpanEntry,DP (0,2)),(G GHC.AnnRarrow, DP (0,0))] )
+                                                                     ,(AnnList caseVirtualLoc NotNeeded,DP (0,0))] } )
+            , ( AnnKey caseVirtualLoc (CN "(:)") NotNeeded,     Ann (DP (1,newCol)) (ColDelta newCol) (DP (1,newCol)) [] [(AnnSpanEntry,DP (1,0))])
+            , ( AnnKey trueMatchLoc  (CN "Match") NotNeeded,    Ann (DP (0,0)) 0 (DP (0,0)) [] [] )
+            , ( AnnKey trueLoc1      (CN "ConPatIn") NotNeeded, Ann (DP (0,0)) 0 (DP (0,0)) [] [] )
+            , ( AnnKey trueLoc       (CN "Unqual") NotNeeded,   Ann (DP (0,0)) 0 (DP (0,0)) [] [(G GHC.AnnVal, DP (0,0))] )
+            , ( AnnKey trueRhsLoc    (CN "GRHS") NotNeeded,     Ann (DP (0,2)) 6 (DP (0,0)) [] [(AnnSpanEntry,DP (0,2)),(G GHC.AnnRarrow, DP (0,0))] )
 
-            , ( AnnKey falseMatchLoc (CN "Match"),    Ann (DP (1,0)) 0 (DP (0,0)) []  [(AnnSpanEntry,DP (1,0))] )
-            , ( AnnKey falseLoc1     (CN "ConPatIn"), Ann (DP (0,0)) 0 (DP (0,0)) []  [] )
-            , ( AnnKey falseLoc      (CN "Unqual"),   Ann (DP (0,0)) 0 (DP (0,0)) []  [ (G GHC.AnnVal, DP (0,0))] )
-            , ( AnnKey falseRhsLoc   (CN "GRHS"),     Ann (DP (0,1)) 6 (DP (0,0)) []  [(AnnSpanEntry,DP (0,1)),(G GHC.AnnRarrow, DP (0,0))] )
+            , ( AnnKey falseMatchLoc (CN "Match") NotNeeded,    Ann (DP (1,0)) 0 (DP (0,0)) []  [(AnnSpanEntry,DP (1,0))] )
+            , ( AnnKey falseLoc1     (CN "ConPatIn") NotNeeded, Ann (DP (0,0)) 0 (DP (0,0)) []  [] )
+            , ( AnnKey falseLoc      (CN "Unqual") NotNeeded,   Ann (DP (0,0)) 0 (DP (0,0)) []  [ (G GHC.AnnVal, DP (0,0))] )
+            , ( AnnKey falseRhsLoc   (CN "GRHS") NotNeeded,     Ann (DP (0,1)) 6 (DP (0,0)) []  [(AnnSpanEntry,DP (0,1)),(G GHC.AnnRarrow, DP (0,0))] )
             ]
 
       let annThen' = adjustAnnOffset (ColDelta 6) annThen
-      let anne1 = Map.delete (AnnKey l (CN "HsIf")) oldAnns
+      let anne1 = Map.delete (AnnKey l (CN "HsIf") NotNeeded) oldAnns
           final = mergeAnns anne1 (Map.fromList anne2')
           anne3 = setLocatedAnns final
                     [ (e1, annCond)
