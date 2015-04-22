@@ -34,14 +34,15 @@ source-repository head
 
 library
   exposed-modules:     Language.Haskell.GHC.ExactPrint
-                     , Language.Haskell.GHC.ExactPrint.Types
-                     , Language.Haskell.GHC.ExactPrint.Utils
-                     , Language.Haskell.GHC.ExactPrint.Delta
-                     , Language.Haskell.GHC.ExactPrint.Lookup
                      , Language.Haskell.GHC.ExactPrint.Annotate
+                     , Language.Haskell.GHC.ExactPrint.Delta
+                     , Language.Haskell.GHC.ExactPrint.GhcInterim
+                     , Language.Haskell.GHC.ExactPrint.Lookup
+                     , Language.Haskell.GHC.ExactPrint.Preprocess
                      , Language.Haskell.GHC.ExactPrint.Print
                      , Language.Haskell.GHC.ExactPrint.Transform
-                     , Language.Haskell.GHC.ExactPrint.Preprocess
+                     , Language.Haskell.GHC.ExactPrint.Types
+                     , Language.Haskell.GHC.ExactPrint.Utils
   -- other-modules:
   -- other-extensions:
   GHC-Options:         -Wall

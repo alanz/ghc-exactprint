@@ -9,23 +9,24 @@ module Language.Haskell.GHC.ExactPrint.Preprocess
 
 import GHC.Paths (libdir)
 
-import qualified ApiAnnotation as GHC
-import qualified Bag           as GHC
-import qualified BasicTypes    as GHC
-import qualified DynFlags      as GHC
-import qualified ErrUtils      as GHC
-import qualified FastString    as GHC
-import qualified GHC           as GHC hiding (parseModule)
-import qualified HeaderInfo    as GHC
-import qualified HsSyn         as GHC
-import qualified HscTypes      as GHC
-import qualified Lexer         as GHC
-import qualified MonadUtils    as GHC
-import qualified Outputable    as GHC
-import qualified Parser        as GHC
-import qualified RdrName       as GHC
-import qualified SrcLoc        as GHC
-import qualified StringBuffer  as GHC
+import qualified ApiAnnotation  as GHC
+import qualified Bag            as GHC
+import qualified BasicTypes     as GHC
+import qualified DriverPipeline as GHC
+import qualified DynFlags       as GHC
+import qualified ErrUtils       as GHC
+import qualified FastString     as GHC
+import qualified GHC            as GHC hiding (parseModule)
+import qualified HeaderInfo     as GHC
+import qualified HsSyn          as GHC
+import qualified HscTypes       as GHC
+import qualified Lexer          as GHC
+import qualified MonadUtils     as GHC
+import qualified Outputable     as GHC
+import qualified Parser         as GHC
+import qualified RdrName        as GHC
+import qualified SrcLoc         as GHC
+import qualified StringBuffer   as GHC
 
 import Control.Applicative
 import Control.Exception
@@ -41,6 +42,8 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+
+import Debug.Trace
 
 -- ---------------------------------------------------------------------
 
@@ -139,14 +142,17 @@ combineTokens directiveToks origSrcToks postCppToks = toks
 -- | Replacement for original 'getRichTokenStream' which will return
 -- the tokens for a file processed by CPP.
 -- See bug <http://ghc.haskell.org/trac/ghc/ticket/8265>
-getCppTokensAsComments :: GHC.GhcMonad m => GHC.Module -> m [(GHC.Located GHC.Token, String)]
-getCppTokensAsComments modu = do
+-- getCppTokensAsComments :: GHC.GhcMonad m => GHC.DynFlags -> FilePath -> m [(GHC.Located GHC.Token, String)]
+getCppTokensAsComments :: GHC.GhcMonad m => GHC.DynFlags -> GHC.Module -> m [(GHC.Located GHC.Token, String)]
+getCppTokensAsComments _flags modu = do
   (sourceFile, source, flags) <- getModuleSourceAndFlags modu
+  -- source <- GHC.liftIO $ GHC.hGetStringBuffer sourceFile
   let startLoc = GHC.mkRealSrcLoc (GHC.mkFastString sourceFile) 1 1
   case GHC.lexTokenStream source startLoc flags of
     GHC.POk _ ts -> return []
     GHC.PFailed _span _err ->
         do
+           -- (_,strSrcBuf,flags) <- getPreprocessedSrcDirect sourceFile
            strSrcBuf <- getPreprocessedSrc sourceFile
            case GHC.lexTokenStream strSrcBuf startLoc flags of
              GHC.POk _ ts ->
@@ -252,6 +258,18 @@ getTempDir dflags
        case Map.lookup tmp_dir mapping of
            Nothing -> error "should already be a tmpDir"
            Just d -> return d
+
+-- ---------------------------------------------------------------------
+
+getPreprocessedSrcDirect :: (GHC.GhcMonad m) => FilePath -> m (String, GHC.StringBuffer, GHC.DynFlags)
+getPreprocessedSrcDirect src_fn = do
+  traceM $ "\ngetPreprocessedSrcDirect:src_fn=" ++ show src_fn
+  hsc_env <- GHC.getSession
+  traceM $ "\ngetPreprocessedSrcDirect:got hsc_env"
+  (dflags', hspp_fn) <- GHC.liftIO $ GHC.preprocess hsc_env (src_fn, Nothing)
+  traceM $ "\ngetPreprocessedSrcDirect:after preprocess"
+  buf <- GHC.liftIO $ GHC.hGetStringBuffer hspp_fn
+  return (hspp_fn, buf, dflags')
 
 -- ---------------------------------------------------------------------
 

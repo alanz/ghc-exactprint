@@ -49,6 +49,8 @@ import Test.HUnit
 
 import Consistency
 
+import Debug.Trace
+
 -- Roundtrip machinery
 
 
@@ -100,6 +102,7 @@ removeSpaces = map (\case {'\160' -> ' '; s -> s})
 
 roundTripTest :: (String -> IO ()) -> FilePath -> IO Report
 roundTripTest writeHsPP file = do
+  -- putStrLn  $ "roundTripTest:entry"
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
     GHC.runGhc (Just libdir) $ do
       dflags0 <- GHC.getSessionDynFlags
@@ -118,7 +121,8 @@ roundTripTest writeHsPP file = do
 
       let origContents = removeSpaces . T.unpack $ fileContents
       let (contents, linePragmas) = stripLinePragmas $ origContents
-      cppComments <- getCppTokensAsComments file
+      -- cppComments <- getCppTokensAsComments dflags2 file
+      -- traceM $ "\nroundTripTest:cppComments=" ++ showGhc cppComments
       case parseFile dflags2 file contents of
         GHC.PFailed ss m -> return $ ParseFailure ss (GHC.showSDoc dflags2 m)
         GHC.POk (mkApiAnns -> apianns) pmod   -> do

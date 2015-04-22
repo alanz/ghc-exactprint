@@ -2,6 +2,8 @@
 module Language.Haskell.GHC.ExactPrint.Delta
   ( relativiseApiAnns
   , relativiseApiAnnsWithComments
+
+  , tokComment
   ) where
 
 import Control.Monad.RWS
@@ -130,8 +132,8 @@ defaultDeltaState injectedComments priorEnd ga =
     flattenedComments (_,cm) =
       map tokComment . GHC.sortLocated . concat $ Map.elems cm
 
-    tokComment :: GHC.Located GHC.AnnotationComment -> Comment
-    tokComment t@(GHC.L lt _) = Comment (ss2span lt) (ghcCommentText t)
+tokComment :: GHC.Located GHC.AnnotationComment -> Comment
+tokComment t@(GHC.L lt _) = Comment (ss2span lt) (ghcCommentText t)
 
 -- Writer helpers
 
