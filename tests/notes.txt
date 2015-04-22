@@ -172,8 +172,6 @@ MangledSemiLet.hs
 MultiLineWarningPragma.hs
   As before. ignore before 7.12
 
-Shebang.hs
-  Will have to do a workaround somehow.
 
 Needs triage
 ------------

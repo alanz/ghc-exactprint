@@ -202,14 +202,15 @@ tests = TestList
   , mkParserTest "UnicodeSyntaxFailure.hs"
 
   , mkParserTest "HangingRecord.hs"
-  , mkParserTest  "InfixPatternSynonyms.hs"
-  , mkParserTest  "LiftedInfixConstructor.hs"
-  , mkParserTest  "MultiLineWarningPragma.hs"
-  , mkParserTest  "MultiWayIf.hs"
-  , mkParserTest  "OptSig.hs"
-  , mkParserTest  "StrangeTypeClass.hs"
-  , mkParserTest  "TypeSignatureParens.hs"
+  , mkParserTest "InfixPatternSynonyms.hs"
+  , mkParserTest "LiftedInfixConstructor.hs"
+  , mkParserTest "MultiLineWarningPragma.hs"
+  , mkParserTest "MultiWayIf.hs"
+  , mkParserTest "OptSig.hs"
+  , mkParserTest "StrangeTypeClass.hs"
+  , mkParserTest "TypeSignatureParens.hs"
   , mkParserTest "UnicodeSyntax.hs"
+  , mkParserTest "Cpp.hs"
 
   , mkParserTest "Shebang.hs"
   , mkParserTest "PatSigBind.hs"
@@ -244,23 +245,26 @@ tests = TestList
 
 mkParserTest :: FilePath -> Test
 mkParserTest fp =
-  let writeFailure s = writeFile ("tests" </> "examples" </> fp <.> "out") s in
-  TestCase (do r <- roundTripTest ("tests" </> "examples" </> fp)
-               case r of
-                RoundTripFailure debug -> writeFailure debug
-                ParseFailure _ s -> error s
-                CPP -> error fp
-                InconsistentAnnotations db s -> do
---                  putStrLn ("\nInconsistency in: " ++ fp)
-                  writeFile ("tests" </> "examples" </> fp <.> "incons")
-                    (showGhc s)
-                  writeFailure db
-                _ -> return ()
-               assertBool fp (success r))
+  let writeFailure s = writeFile ("tests" </> "examples" </> fp <.> "out") s
+      writeHspp s    = writeFile ("tests" </> "examples" </> fp <.> "hspp") s
+  in
+    TestCase (do r <- roundTripTest writeHspp ("tests" </> "examples" </> fp)
+                 case r of
+                  RoundTripFailure debug -> writeFailure debug
+                  ParseFailure _ s -> error s
+                  CPP -> error fp
+                  InconsistentAnnotations db s -> do
+  --                  putStrLn ("\nInconsistency in: " ++ fp)
+                    writeFile ("tests" </> "examples" </> fp <.> "incons")
+                      (showGhc s)
+                    writeFailure db
+                  -- Success debug -> return ()
+                  Success debug -> writeFailure debug
+                 assertBool fp (success r))
 
 
 success :: Report -> Bool
-success Success = True
+success (Success _) = True
 success (InconsistentAnnotations _ _) = True
 success _ = False
 
@@ -781,11 +785,6 @@ parsedFileGhc fileName modname useTH = do
         -- GHC.liftIO $ putStrLn $ "anns"
         return (anns,p)
 
-readUTF8File :: FilePath -> IO String
-readUTF8File fp = openFile fp ReadMode >>= \h -> do
-        hSetEncoding h utf8
-        hGetContents h
-
 -- ---------------------------------------------------------------------
 
 pwd :: IO FilePath
@@ -800,91 +799,5 @@ mkSs :: (Int,Int) -> (Int,Int) -> GHC.SrcSpan
 mkSs (sr,sc) (er,ec)
   = GHC.mkSrcSpan (GHC.mkSrcLoc (GHC.mkFastString "examples/PatBind.hs") sr sc)
                   (GHC.mkSrcLoc (GHC.mkFastString "examples/PatBind.hs") er ec)
--- ---------------------------------------------------------------------
-
--- | The preprocessed files are placed in a temporary directory, with
--- a temporary name, and extension .hscpp. Each of these files has
--- three lines at the top identifying the original origin of the
--- files, which is ignored by the later stages of compilation except
--- to contextualise error messages.
-getPreprocessedSrc ::
-  -- GHC.GhcMonad m => FilePath -> m GHC.StringBuffer
-  GHC.GhcMonad m => FilePath -> m String
-getPreprocessedSrc srcFile = do
-  df <- GHC.getSessionDynFlags
-  d <- GHC.liftIO $ getTempDir df
-  fileList <- GHC.liftIO $ getDirectoryContents d
-  let suffix = "hscpp"
-
-  let cppFiles = filter (\f -> getSuffix f == suffix) fileList
-  origNames <- GHC.liftIO $ mapM getOriginalFile $ map (\f -> d </> f) cppFiles
-  let tmpFile = ghead "getPreprocessedSrc" $ filter (\(o,_) -> o == srcFile) origNames
-  -- buf <- GHC.liftIO $ GHC.hGetStringBuffer $ snd tmpFile
-  -- return buf
-  GHC.liftIO $ readUTF8File (snd tmpFile)
 
 -- ---------------------------------------------------------------------
-
-getSuffix :: FilePath -> String
-getSuffix fname = reverse $ fst $ break (== '.') $ reverse fname
-
--- | A GHC preprocessed file has the following comments at the top
--- @
--- # 1 "./test/testdata/BCpp.hs"
--- # 1 "<command-line>"
--- # 1 "./test/testdata/BCpp.hs"
--- @
--- This function reads the first line of the file and returns the
--- string in it.
--- NOTE: no error checking, will blow up if it fails
-getOriginalFile :: FilePath -> IO (FilePath,FilePath)
-getOriginalFile fname = do
-  fcontents <- readFile fname
-  let firstLine = ghead "getOriginalFile" $ lines fcontents
-  let (_,originalFname) = break (== '"') firstLine
-  return $ (tail $ init $ originalFname,fname)
-
-
--- ---------------------------------------------------------------------
--- Copied from the GHC source, since not exported
-
-getModuleSourceAndFlags :: GHC.GhcMonad m => GHC.Module -> m (String, GHC.StringBuffer, GHC.DynFlags)
-getModuleSourceAndFlags modu = do
-  m <- GHC.getModSummary (GHC.moduleName modu)
-  case GHC.ml_hs_file $ GHC.ms_location m of
-    Nothing ->
-               do dflags <- GHC.getDynFlags
-                  GHC.liftIO $ throwIO $ GHC.mkApiErr dflags (GHC.text "No source available for module " GHC.<+> GHC.ppr modu)
-    Just sourceFile -> do
-        source <- GHC.liftIO $ GHC.hGetStringBuffer sourceFile
-        return (sourceFile, source, GHC.ms_hspp_opts m)
-
-
--- return our temporary directory within tmp_dir, creating one if we
--- don't have one yet
-getTempDir :: GHC.DynFlags -> IO FilePath
-getTempDir dflags
-  = do let ref = GHC.dirsToClean dflags
-           tmp_dir = GHC.tmpDir dflags
-       mapping <- readIORef ref
-       case Map.lookup tmp_dir mapping of
-           Nothing -> error "should already be a tmpDir"
-           Just d -> return d
--- ---------------------------------------------------------------------
--- Putting these here for the time being, to avoid import loops
-
-ghead :: String -> [a] -> a
-ghead  info []    = error $ "ghead "++info++" []"
-ghead _info (h:_) = h
-
-glast :: String -> [a] -> a
-glast  info []    = error $ "glast " ++ info ++ " []"
-glast _info h     = last h
-
-gtail :: String -> [a] -> [a]
-gtail  info []   = error $ "gtail " ++ info ++ " []"
-gtail _info h    = tail h
-
-gfromJust :: String -> Maybe a -> a
-gfromJust _info (Just h) = h
-gfromJust  info Nothing = error $ "gfromJust " ++ info ++ " Nothing"

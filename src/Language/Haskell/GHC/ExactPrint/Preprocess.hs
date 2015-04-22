@@ -17,10 +17,12 @@ findLines = zipWith checkLine [1..]
 
 checkLine :: Int -> String -> (String, Maybe Comment)
 checkLine line s
-  | "{-# LINE" `isPrefixOf` s =
-      let (pragma, res) = getPragma s
-          size   = length pragma
-      in (res, Just $ Comment ((line, 1), (line, size+1)) pragma)
+  |  "{-# LINE" `isPrefixOf` s =
+       let (pragma, res) = getPragma s
+           size   = length pragma
+       in (res, Just $ Comment ((line, 1), (line, size+1)) pragma)
+  -- Deal with CPP directives too
+  |  "#" `isPrefixOf` s = ("",Just $ Comment ((line, 1), (line, length s)) s)
   | otherwise = (s, Nothing)
 
 getPragma :: String -> (String, String)
