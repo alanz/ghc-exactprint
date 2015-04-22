@@ -197,8 +197,6 @@ markLocalBindsWithLayout binds = do
 -- |This function is used to get around shortcomings in the GHC AST for 7.10.1
 markLocatedFromKw :: (Annotate ast) => GHC.AnnKeywordId -> ast -> IAnnotated ()
 markLocatedFromKw kw a = do
-  -- ++AZ++ TODO: We always use GHC.AnnEofPos here, maybe use it as a constant
-  -- here rather than a param. And rename the fn appropriately.
   ss <- getSrcSpanForKw kw
   (ss',d') <- storeOriginalSrcSpan ss NotNeeded
   markLocated (GHC.L ss' a)
@@ -993,6 +991,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mark GHC.AnnCloseP -- ")"
 
   markAST l (GHC.HsTyVar name) = do
+    -- ++AZ++:TODO use AnnName instead of l for the name location
     mark GHC.AnnDcolon -- for HsKind, alias for HsType
     n <- countAnns  GHC.AnnSimpleQuote
     case n of
@@ -1700,12 +1699,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markWithString GHC.AnnClose "#-}"
     markLocated e
   -- TODO: make monomorphic
-  markAST l (GHC.HsBracket (GHC.VarBr single v)) =
-    let str =
-          if single then ("'"  ++ showGhc v)
-                    else ("''" ++ showGhc v)
-    in
-    markExternal l GHC.AnnVal str
+  markAST l (GHC.HsBracket (GHC.VarBr single v)) = do
+    mark GHC.AnnSimpleQuote
+    mark GHC.AnnThIdSplice
+    markLocatedFromKw GHC.AnnName v
   markAST _ (GHC.HsBracket (GHC.DecBrL ds)) = do
     markWithString GHC.AnnOpen "[d|"
     mark GHC.AnnOpenC

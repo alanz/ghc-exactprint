@@ -179,10 +179,6 @@ MultiLineWarningPragma.hs
 Shebang.hs
   Will have to do a workaround somehow.
 
-SpacesSplice.hs
-  Use AnnName for the name part of a VarBr
-  Fix in ghc-exactprint
-  
 Needs triage
 ------------
 
