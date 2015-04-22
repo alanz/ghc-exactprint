@@ -1853,8 +1853,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   markAST _ (GHC.HsCmdArrForm e _mf cs) = do
     markWithString GHC.AnnOpen "(|"
-    markLocated e
-    mapM_ markLocated cs
+    -- This may be an infix operation
+    applyListAnnotations (prepareListAnnotation [e]
+                         ++ prepareListAnnotation cs)
+    -- markLocated e
+    -- mapM_ markLocated cs
     markWithString GHC.AnnClose "|)"
 
   markAST _ (GHC.HsCmdApp e1 e2) = do
