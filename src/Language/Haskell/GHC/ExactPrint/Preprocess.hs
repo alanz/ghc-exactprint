@@ -1,6 +1,7 @@
 module Language.Haskell.GHC.ExactPrint.Preprocess
    (
      stripLinePragmas
+   , getCppTokensAsComments
 
      -- AZ's baggage
    , ghead,glast,gtail,gfromJust
@@ -135,6 +136,71 @@ combineTokens directiveToks origSrcToks postCppToks = toks
 
 -- ---------------------------------------------------------------------
 
+-- | Replacement for original 'getRichTokenStream' which will return
+-- the tokens for a file processed by CPP.
+-- See bug <http://ghc.haskell.org/trac/ghc/ticket/8265>
+getCppTokensAsComments :: GHC.GhcMonad m => GHC.Module -> m [(GHC.Located GHC.Token, String)]
+getCppTokensAsComments modu = do
+  (sourceFile, source, flags) <- getModuleSourceAndFlags modu
+  let startLoc = GHC.mkRealSrcLoc (GHC.mkFastString sourceFile) 1 1
+  case GHC.lexTokenStream source startLoc flags of
+    GHC.POk _ ts -> return []
+    GHC.PFailed _span _err ->
+        do
+           strSrcBuf <- getPreprocessedSrc sourceFile
+           case GHC.lexTokenStream strSrcBuf startLoc flags of
+             GHC.POk _ ts ->
+               do directiveToks <- GHC.liftIO $ getPreprocessorAsComments sourceFile
+                  nonDirectiveToks <- tokeniseOriginalSrc startLoc flags source
+                  let toks = GHC.addSourceToTokens startLoc source ts
+                  return $ getCppTokens directiveToks nonDirectiveToks toks
+                  -- return directiveToks
+                  -- return nonDirectiveToks
+                  -- return toks
+             GHC.PFailed sspan err -> parseError flags sspan err
+
+-- ---------------------------------------------------------------------
+
+-- | Combine the three sets of tokens to produce a single set that
+-- represents the code compiled, and will regenerate the original
+-- source file.
+-- [@directiveToks@] are the tokens corresponding to preprocessor
+--                   directives, converted to comments
+-- [@origSrcToks@] are the tokenised source of the original code, with
+--                 the preprocessor directives stripped out so that
+--                 the lexer  does not complain
+-- [@postCppToks@] are the tokens that the compiler saw originally
+-- NOTE: this scheme will only work for cpp in -nomacro mode
+getCppTokens ::
+     [(GHC.Located GHC.Token, String)]
+  -> [(GHC.Located GHC.Token, String)]
+  -> [(GHC.Located GHC.Token, String)]
+  -> [(GHC.Located GHC.Token, String)]
+getCppTokens directiveToks origSrcToks postCppToks = toks
+  where
+    locFn (GHC.L l1 _,_) (GHC.L l2 _,_) = compare l1 l2
+    m1Toks = mergeBy locFn postCppToks directiveToks
+
+    -- We must now find the set of tokens that are in origSrcToks, but
+    -- not in m1Toks
+
+    -- GHC.Token does not have Ord, can't use a set directly
+    origSpans = map (\(GHC.L l _,_) -> l) origSrcToks
+    m1Spans = map (\(GHC.L l _,_) -> l) m1Toks
+    missingSpans = (Set.fromList origSpans) Set.\\ (Set.fromList m1Spans)
+
+    missingToks = filter (\(GHC.L l _,_) -> Set.member l missingSpans) origSrcToks
+
+    missingAsComments = map mkCommentTok missingToks
+      where
+        mkCommentTok :: (GHC.Located GHC.Token,String) -> (GHC.Located GHC.Token,String)
+        mkCommentTok (GHC.L l _,s) = (GHC.L l (GHC.ITlineComment s),s)
+
+    -- toks = mergeBy locFn m1Toks missingAsComments
+    toks = mergeBy locFn directiveToks missingAsComments
+
+-- ---------------------------------------------------------------------
+
 tokeniseOriginalSrc ::
   GHC.GhcMonad m
   => GHC.RealSrcLoc -> GHC.DynFlags -> GHC.StringBuffer
@@ -168,9 +234,9 @@ getModuleSourceAndFlags :: GHC.GhcMonad m => GHC.Module -> m (String, GHC.String
 getModuleSourceAndFlags modu = do
   m <- GHC.getModSummary (GHC.moduleName modu)
   case GHC.ml_hs_file $ GHC.ms_location m of
-    Nothing ->
-               do dflags <- GHC.getDynFlags
-                  GHC.liftIO $ throwIO $ GHC.mkApiErr dflags (GHC.text "No source available for module " GHC.<+> GHC.ppr modu)
+    Nothing -> do
+        dflags <- GHC.getDynFlags
+        GHC.liftIO $ throwIO $ GHC.mkApiErr dflags (GHC.text "No source available for module " GHC.<+> GHC.ppr modu)
     Just sourceFile -> do
         source <- GHC.liftIO $ GHC.hGetStringBuffer sourceFile
         return (sourceFile, source, GHC.ms_hspp_opts m)

@@ -100,31 +100,35 @@ removeSpaces = map (\case {'\160' -> ' '; s -> s})
 
 roundTripTest :: (String -> IO ()) -> FilePath -> IO Report
 roundTripTest writeHsPP file = do
-  dflags0 <- getDynFlags
-  let dflags1 = GHC.gopt_set dflags0 GHC.Opt_KeepRawTokenStream
-  src_opts <- GHC.getOptionsFromFile dflags1 file
-  (!dflags2, _, _)
-           <- GHC.parseDynamicFilePragma dflags1 src_opts
-  fileContents <- T.readFile file
-    -- if
-    --   | GHC.xopt GHC.Opt_Cpp dflags2 -> do
-    --       contents <- getPreprocessedSrc dflags2 file
-    --       writeHsPP contents
-    --       return (T.pack contents)
-    --   | otherwise -> T.readFile file
+  GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
+    GHC.runGhc (Just libdir) $ do
+      dflags0 <- GHC.getSessionDynFlags
+      -- dflags0 <- getDynFlags
+      let dflags1 = GHC.gopt_set dflags0 GHC.Opt_KeepRawTokenStream
+      src_opts <- GHC.liftIO $ GHC.getOptionsFromFile dflags1 file
+      (!dflags2, _, _)
+               <- GHC.parseDynamicFilePragma dflags1 src_opts
+      fileContents <- GHC.liftIO $ T.readFile file
+        -- if
+        --   | GHC.xopt GHC.Opt_Cpp dflags2 -> do
+        --       contents <- getPreprocessedSrc dflags2 file
+        --       writeHsPP contents
+        --       return (T.pack contents)
+        --   | otherwise -> T.readFile file
 
-  let origContents = removeSpaces . T.unpack $ fileContents
-  let (contents, linePragmas) = stripLinePragmas $ origContents
-  case parseFile dflags2 file contents of
-    GHC.PFailed ss m -> return $ ParseFailure ss (GHC.showSDoc dflags2 m)
-    GHC.POk (mkApiAnns -> apianns) pmod   -> do
-        let (printed, anns) = runRoundTrip apianns pmod linePragmas
-            debugtxt = mkDebugOutput file printed contents apianns anns pmod
-            consistency = checkConsistency apianns pmod
-        if
-          | not (null consistency)  -> return $ InconsistentAnnotations debugtxt consistency
-          | printed == origContents -> return $ Success debugtxt
-          | otherwise -> return $ RoundTripFailure debugtxt
+      let origContents = removeSpaces . T.unpack $ fileContents
+      let (contents, linePragmas) = stripLinePragmas $ origContents
+      cppComments <- getCppTokensAsComments file
+      case parseFile dflags2 file contents of
+        GHC.PFailed ss m -> return $ ParseFailure ss (GHC.showSDoc dflags2 m)
+        GHC.POk (mkApiAnns -> apianns) pmod   -> do
+            let (printed, anns) = runRoundTrip apianns pmod linePragmas
+                debugtxt = mkDebugOutput file printed contents apianns anns pmod
+                consistency = checkConsistency apianns pmod
+            if
+              | not (null consistency)  -> return $ InconsistentAnnotations debugtxt consistency
+              | printed == origContents -> return $ Success debugtxt
+              | otherwise -> return $ RoundTripFailure debugtxt
 
 
 mkDebugOutput :: FilePath -> String -> String
