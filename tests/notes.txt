@@ -169,10 +169,6 @@ MangledSemiLet.hs
   As before. Seems the AnnSemiSep is being attached to the lhs of the PatBind,
   rather than the PatBind as a whole
 
-UnicodeSyntaxFailure.hs
-  A ghc-exactprint workaround would be to check the length of the span, and use
-  the unicode symbol if it is 1, or "forall" if it is 5.
-
 MultiLineWarningPragma.hs
   As before. ignore before 7.12
 

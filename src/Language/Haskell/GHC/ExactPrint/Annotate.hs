@@ -351,6 +351,11 @@ instance Annotate GHC.RdrName where
         mark GHC.AnnTilde
         mark GHC.AnnCloseP
       str ->  do
+        -- ++AZ++:TODO If the span length and string length don't match for unicode
+        -- symbols, use the appropriate one instead.
+        let str' = case str of
+                        "forall" -> if spanLength l == 1 then "∀" else str'
+                        _ -> str
         mark GHC.AnnType
         mark GHC.AnnOpenP -- '('
         markOffset GHC.AnnBackquote 0
@@ -360,8 +365,8 @@ instance Annotate GHC.RdrName where
         case cnt of
           0 -> if cntT > 0
                  then traceM "Printing RdrName, no AnnVal, multiple AnnCommTuple"
-                 else markExternal l GHC.AnnVal str
-          1 -> markWithString GHC.AnnVal str
+                 else markExternal l GHC.AnnVal str'
+          1 -> markWithString GHC.AnnVal str'
           _ -> traceM "Printing RdrName, more than 1 AnnVal"
         markOffset GHC.AnnBackquote 1
         mark GHC.AnnCloseP
@@ -1134,6 +1139,7 @@ instance
   (GHC.DataId name,GHC.OutputableBndr name,Annotate name)  =>
   Annotate (GHC.HsSplice name) where
   markAST l c =
+    -- ++AZ++:TODO: I am sure this can be simplified.
     case c of
       GHC.HsQuasiQuote _ n _pos fs -> do
         markExternal l GHC.AnnVal
