@@ -57,13 +57,17 @@ runDeltaWithComments cs action ga priorEnd =
 -- ---------------------------------------------------------------------
 
 data DeltaReader = DeltaReader
-       { -- | Current `SrcSpan`
+       {
+         -- AZ:TODO: Should we replace the next three fields witn an explicit
+         -- AnnKey value?
+
+         -- | Current `SrcSpan, part of current AnnKey`
          curSrcSpan  :: !GHC.SrcSpan
 
-         -- | Constuctor of current AST element, useful for
-         -- debugging
+         -- | Constuctor of current AST element, part of current AnnKey
        , annConName       :: !AnnConName
 
+         -- | Current disambiguator value, part of current AnnKey
        , annDisambiguator :: !Disambiguator
 
          -- | Start column of the current layout block
@@ -92,6 +96,10 @@ data DeltaState = DeltaState
 
          -- | The original GHC Delta Annotations
        , apAnns :: !GHC.ApiAnns
+
+         -- | Value which is incremented and stored in the Disambiguator Ref
+         -- when a new one is requested.
+       , annDisambiguatorSeed :: !Int
        }
 
 -- ---------------------------------------------------------------------
@@ -112,6 +120,7 @@ defaultDeltaState injectedComments priorEnd ga =
       , priorEndASTPosition = priorEnd
       , apComments = cs ++ injectedComments
       , apAnns     = ga
+      , annDisambiguatorSeed = 1
       }
   where
     cs :: [Comment]
@@ -181,9 +190,11 @@ storeOriginalSrcSpanDelta ss d = do
 storeString :: String -> GHC.SrcSpan -> Delta ()
 storeString s ss = addAnnotationWorker (AnnString s) ss
 
--- ++AZ++ TODO: Once we are back to 11 failing, make this return an incremented value from state
 getNextDisambiguatorDelta :: Delta Disambiguator
-getNextDisambiguatorDelta = return (Ref "foo")
+getNextDisambiguatorDelta = do
+  seed <- gets annDisambiguatorSeed
+  modify (\s -> s { annDisambiguatorSeed = annDisambiguatorSeed s + 1})
+  return (Ref $ "delta-" ++ show seed)
 
 -- ---------------------------------------------------------------------
 
