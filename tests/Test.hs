@@ -6,6 +6,7 @@ module Main where
 import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Types
+import Language.Haskell.GHC.ExactPrint.Preprocess
 import Language.Haskell.GHC.ExactPrint.Transform
 
 import GHC.Paths ( libdir )
@@ -37,7 +38,7 @@ import qualified Data.Map as Map
 import Test.HUnit
 
 import Control.Applicative
-import Data.List (partition)
+import Data.List
 
 import System.IO.Silently
 
@@ -298,133 +299,132 @@ formatTT (ts, fs) = do
     putStrLn "Fail"
     mapM_ (putStrLn . fst) fs)
 
-tt :: IO ()
-tt = formatTT =<< partition snd <$> sequence [ return ("", True)
-    -- , manipulateAstTestWFname "ExprPragmas.hs"           "ExprPragmas"
-    -- , manipulateAstTestWFname "MonadComprehensions.hs"   "Main"
-    -- , manipulateAstTestWFname "RecursiveDo.hs"           "Main"
-    -- , manipulateAstTestWFname "TypeFamilies.hs"          "Main"
-    -- , manipulateAstTestWFname "MultiParamTypeClasses.hs" "Main"
-    -- , manipulateAstTestWFname "DataFamilies.hs"          "DataFamilies"
-    -- , manipulateAstTestWFname "Deriving.hs"              "Main"
-    -- , manipulateAstTestWFname "Default.hs"               "Main"
-    -- , manipulateAstTestWFname "ForeignDecl.hs"           "ForeignDecl"
-    -- , manipulateAstTestWFname "Warning.hs"               "Warning"
-    -- , manipulateAstTestWFname "Annotations.hs"           "Annotations"
+tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
+    , manipulateAstTestWFname "ExprPragmas.hs"           "ExprPragmas"
+    , manipulateAstTestWFname "MonadComprehensions.hs"   "Main"
+    , manipulateAstTestWFname "RecursiveDo.hs"           "Main"
+    , manipulateAstTestWFname "TypeFamilies.hs"          "Main"
+    , manipulateAstTestWFname "MultiParamTypeClasses.hs" "Main"
+    , manipulateAstTestWFname "DataFamilies.hs"          "DataFamilies"
+    , manipulateAstTestWFname "Deriving.hs"              "Main"
+    , manipulateAstTestWFname "Default.hs"               "Main"
+    , manipulateAstTestWFname "ForeignDecl.hs"           "ForeignDecl"
+    , manipulateAstTestWFname "Warning.hs"               "Warning"
+    , manipulateAstTestWFname "Annotations.hs"           "Annotations"
     -- , manipulateAstTestWFnameTH "QuasiQuote.hs"          "QuasiQuote"
-    -- , manipulateAstTestWFname "Roles.hs"                 "Roles"
-    -- , manipulateAstTestWFname "Splice.hs"                "Splice"
-    -- , manipulateAstTestWFname "ImportsSemi.hs"           "ImportsSemi"
-    -- , manipulateAstTestWFname "Stmts.hs"                 "Stmts"
-    -- , manipulateAstTestWFname "Mixed.hs"                 "Main"
-    -- , manipulateAstTestWFname "Arrow.hs"                 "Arrow"
-    -- , manipulateAstTestWFname "PatSynBind.hs"            "Main"
-    -- , manipulateAstTestWFname "HsDo.hs"                  "HsDo"
-    -- , manipulateAstTestWFname "ForAll.hs"                "ForAll"
-    -- , manipulateAstTestWFname "BangPatterns.hs"          "Main"
-    -- , manipulateAstTestWFname "Associated.hs"            "Main"
-    -- , manipulateAstTestWFname "Move1.hs"                 "Move1"
-    -- , manipulateAstTestWFname "TypeOperators.hs"         "Main"
-    -- , manipulateAstTestWFname "NullaryTypeClasses.hs"    "Main"
-    -- , manipulateAstTestWFname "FunctionalDeps.hs"        "Main"
-    -- , manipulateAstTestWFname "DerivingOC.hs"            "Main"
-    -- , manipulateAstTestWFname "GenericDeriving.hs"       "Main"
-    -- , manipulateAstTestWFname "OverloadedStrings.hs"     "Main"
-    -- , manipulateAstTestWFname "RankNTypes.hs"            "Main"
-    -- , manipulateAstTestWFname "Existential.hs"           "Main"
-    -- , manipulateAstTestWFname "ScopedTypeVariables.hs"   "Main"
-    -- , manipulateAstTestWFname "Arrows.hs"                "Main"
-    -- , manipulateAstTestWFname "TH.hs"                    "Main"
-    -- , manipulateAstTestWFname "StaticPointers.hs"        "Main"
-    -- , manipulateAstTestWFname "Guards.hs"                "Main"
-    -- , manipulateAstTestWFname "RdrNames.hs"              "RdrNames"
-    -- , manipulateAstTestWFname "Vect.hs"                  "Vect"
-    -- , manipulateAstTestWFname "Tuple.hs"                 "Main"
-    -- , manipulateAstTestWFname "ExtraConstraints1.hs"     "ExtraConstraints1"
-    -- , manipulateAstTestWFname "AddAndOr3.hs"             "AddAndOr3"
-    -- , manipulateAstTestWFname "Ann01.hs"                 "Ann01"
-    -- , manipulateAstTestWFname "StrictLet.hs"             "Main"
-    -- , manipulateAstTestWFname "Cg008.hs"                 "Cg008"
-    -- , manipulateAstTestWFname "T2388.hs"                 "T2388"
-    -- , manipulateAstTestWFname "T3132.hs"                 "T3132"
-    -- , manipulateAstTestWFname "Stream.hs"                "Stream"
-    -- , manipulateAstTestWFname "Trit.hs"                  "Trit"
-    -- , manipulateAstTestWFname "DataDecl.hs"              "Main"
-    -- , manipulateAstTestWFname "Zipper.hs"                "Zipper"
-    -- , manipulateAstTestWFname "Sigs.hs"                  "Sigs"
-    -- , manipulateAstTestWFname "Utils2.hs"                "Utils2"
-    -- , manipulateAstTestWFname "EmptyMostlyInst.hs"       "EmptyMostlyInst"
-    -- , manipulateAstTestWFname "EmptyMostlyNoSemis.hs"    "EmptyMostlyNoSemis"
-    -- , manipulateAstTestWFname "EmptyMostly.hs"           "EmptyMostly"
-    -- , manipulateAstTestWFname "FromUtils.hs"             "Main"
-    -- , manipulateAstTestWFname "DocDecls.hs"              "DocDecls"
-    -- , manipulateAstTestWFname "RecordUpdate.hs"          "Main"
-    -- -- manipulateAstTestWFname "Unicode.hs"               "Main"
-    -- , manipulateAstTestWFname "B.hs"                     "Main"
-    -- , manipulateAstTestWFname "LayoutWhere.hs"           "Main"
-    -- , manipulateAstTestWFname "Deprecation.hs"           "Deprecation"
-    -- , manipulateAstTestWFname "Infix.hs"                 "Main"
-    -- , manipulateAstTestWFname "BCase.hs"                 "Main"
-    -- , manipulateAstTestWFname "LetExprSemi.hs"           "LetExprSemi"
-    -- , manipulateAstTestWFname "LetExpr2.hs"              "Main"
-    -- , manipulateAstTestWFname "LetStmt.hs"               "Layout.LetStmt"
-    -- , manipulateAstTestWFname "RebindableSyntax.hs"      "Main"
+    , manipulateAstTestWFname "Roles.hs"                 "Roles"
+    , manipulateAstTestWFname "Splice.hs"                "Splice"
+    , manipulateAstTestWFname "ImportsSemi.hs"           "ImportsSemi"
+    , manipulateAstTestWFname "Stmts.hs"                 "Stmts"
+    , manipulateAstTestWFname "Mixed.hs"                 "Main"
+    , manipulateAstTestWFname "Arrow.hs"                 "Arrow"
+    , manipulateAstTestWFname "PatSynBind.hs"            "Main"
+    , manipulateAstTestWFname "HsDo.hs"                  "HsDo"
+    , manipulateAstTestWFname "ForAll.hs"                "ForAll"
+    , manipulateAstTestWFname "BangPatterns.hs"          "Main"
+    , manipulateAstTestWFname "Associated.hs"            "Main"
+    , manipulateAstTestWFname "Move1.hs"                 "Move1"
+    , manipulateAstTestWFname "TypeOperators.hs"         "Main"
+    , manipulateAstTestWFname "NullaryTypeClasses.hs"    "Main"
+    , manipulateAstTestWFname "FunctionalDeps.hs"        "Main"
+    , manipulateAstTestWFname "DerivingOC.hs"            "Main"
+    , manipulateAstTestWFname "GenericDeriving.hs"       "Main"
+    , manipulateAstTestWFname "OverloadedStrings.hs"     "Main"
+    , manipulateAstTestWFname "RankNTypes.hs"            "Main"
+    , manipulateAstTestWFname "Existential.hs"           "Main"
+    , manipulateAstTestWFname "ScopedTypeVariables.hs"   "Main"
+    , manipulateAstTestWFname "Arrows.hs"                "Main"
+    , manipulateAstTestWFname "TH.hs"                    "Main"
+    , manipulateAstTestWFname "StaticPointers.hs"        "Main"
+    , manipulateAstTestWFname "Guards.hs"                "Main"
+    , manipulateAstTestWFname "RdrNames.hs"              "RdrNames"
+    , manipulateAstTestWFname "Vect.hs"                  "Vect"
+    , manipulateAstTestWFname "Tuple.hs"                 "Main"
+    , manipulateAstTestWFname "ExtraConstraints1.hs"     "ExtraConstraints1"
+    , manipulateAstTestWFname "AddAndOr3.hs"             "AddAndOr3"
+    , manipulateAstTestWFname "Ann01.hs"                 "Ann01"
+    , manipulateAstTestWFname "StrictLet.hs"             "Main"
+    , manipulateAstTestWFname "Cg008.hs"                 "Cg008"
+    , manipulateAstTestWFname "T2388.hs"                 "T2388"
+    , manipulateAstTestWFname "T3132.hs"                 "T3132"
+    , manipulateAstTestWFname "Stream.hs"                "Stream"
+    , manipulateAstTestWFname "Trit.hs"                  "Trit"
+    , manipulateAstTestWFname "DataDecl.hs"              "Main"
+    , manipulateAstTestWFname "Zipper.hs"                "Zipper"
+    , manipulateAstTestWFname "Sigs.hs"                  "Sigs"
+    , manipulateAstTestWFname "Utils2.hs"                "Utils2"
+    , manipulateAstTestWFname "EmptyMostlyInst.hs"       "EmptyMostlyInst"
+    , manipulateAstTestWFname "EmptyMostlyNoSemis.hs"    "EmptyMostlyNoSemis"
+    , manipulateAstTestWFname "EmptyMostly.hs"           "EmptyMostly"
+    , manipulateAstTestWFname "FromUtils.hs"             "Main"
+    , manipulateAstTestWFname "DocDecls.hs"              "DocDecls"
+    , manipulateAstTestWFname "RecordUpdate.hs"          "Main"
+    -- manipulateAstTestWFname "Unicode.hs"               "Main"
+    , manipulateAstTestWFname "B.hs"                     "Main"
+    , manipulateAstTestWFname "LayoutWhere.hs"           "Main"
+    , manipulateAstTestWFname "Deprecation.hs"           "Deprecation"
+    , manipulateAstTestWFname "Infix.hs"                 "Main"
+    , manipulateAstTestWFname "BCase.hs"                 "Main"
+    , manipulateAstTestWFname "LetExprSemi.hs"           "LetExprSemi"
+    , manipulateAstTestWFname "LetExpr2.hs"              "Main"
+    , manipulateAstTestWFname "LetStmt.hs"               "Layout.LetStmt"
+    , manipulateAstTestWFname "RebindableSyntax.hs"      "Main"
     -- , manipulateAstTestWithMod changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
     -- , manipulateAstTestWithMod changeLayoutLet5 "LayoutLet5.hs" "LayoutLet5"
-    -- , manipulateAstTestWFname "EmptyMostly2.hs"          "EmptyMostly2"
-    -- , manipulateAstTestWFname "Dead1.hs"                 "Dead1"
-    -- , manipulateAstTestWFname "DocDecls.hs"              "DocDecls"
-    -- , manipulateAstTestWFname "ViewPatterns.hs"          "Main"
-    -- , manipulateAstTestWFname "FooExpected.hs"          "Main"
+    , manipulateAstTestWFname "EmptyMostly2.hs"          "EmptyMostly2"
+    , manipulateAstTestWFname "Dead1.hs"                 "Dead1"
+    , manipulateAstTestWFname "DocDecls.hs"              "DocDecls"
+    , manipulateAstTestWFname "ViewPatterns.hs"          "Main"
+    , manipulateAstTestWFname "FooExpected.hs"          "Main"
     -- , manipulateAstTestWithMod changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
-    -- , manipulateAstTestWFname "LayoutIn1.hs"                 "LayoutIn1"
+    , manipulateAstTestWFname "LayoutIn1.hs"                 "LayoutIn1"
     -- , manipulateAstTestWithMod changeLayoutIn1  "LayoutIn1.hs" "LayoutIn1"
-    -- , manipulateAstTestWFname "LocToName.hs"                 "LocToName"
+    , manipulateAstTestWFname "LocToName.hs"                 "LocToName"
     -- , manipulateAstTestWithMod changeLayoutIn4  "LayoutIn4.hs" "LayoutIn4"
     -- , manipulateAstTestWithMod changeLocToName  "LocToName.hs" "LocToName"
     -- , manipulateAstTestWithMod changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
     -- , manipulateAstTestWithMod changeRename1    "Rename1.hs"  "Main"
-    -- , manipulateAstTestWFname    "Rename1.hs"  "Main"
-    -- , manipulateAstTestWFname "AltsSemis.hs"             "Main"
-    -- , manipulateAstTestWFname "LetExpr.hs"               "LetExpr"
-    -- , manipulateAstTestWFname "Rules.hs"                 "Rules"
-    -- , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
-    -- , manipulateAstTestWFname "LayoutIn3.hs"             "LayoutIn3"
-    -- , manipulateAstTestWFname "LayoutIn3a.hs"             "LayoutIn3a"
+    , manipulateAstTestWFname    "Rename1.hs"  "Main"
+    , manipulateAstTestWFname "AltsSemis.hs"             "Main"
+    , manipulateAstTestWFname "LetExpr.hs"               "LetExpr"
+    , manipulateAstTestWFname "Rules.hs"                 "Rules"
+    , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
+    , manipulateAstTestWFname "LayoutIn3.hs"             "LayoutIn3"
+    , manipulateAstTestWFname "LayoutIn3a.hs"             "LayoutIn3a"
     -- , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3a.hs" "LayoutIn3a"
-    -- , manipulateAstTestWFname "LetIn1.hs"             "LetIn1"
+    , manipulateAstTestWFname "LetIn1.hs"             "LetIn1"
     -- , manipulateAstTestWFnameMod changeLetIn1  "LetIn1.hs" "LetIn1"
     -- , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3b.hs" "LayoutIn3b"
     -- , manipulateAstTestWFnameMod changeLayoutIn3  "LayoutIn3.hs" "LayoutIn3"
-    -- , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
-    -- , manipulateAstTestWFname "LayoutLet.hs"             "Main"
-    -- , manipulateAstTestWFname "Simple.hs"             "Main"
-    -- , manipulateAstTestWFname "FunDeps.hs"               "Main"
-    -- , manipulateAstTestWFname "IfThenElse3.hs"              "Main"
-    -- , manipulateAstTestWFname "ImplicitParams.hs"        "Main"
-    -- , manipulateAstTestWFname "ListComprehensions.hs"    "Main"
-    -- , manipulateAstTestWFname "TransformListComp.hs"     "Main"
-    -- , manipulateAstTestWFname "PArr.hs"                  "PArr"
-    -- , manipulateAstTestWFname "DataDecl.hs"              "Main"
-    -- , manipulateAstTestWFname "WhereIn4.hs"              "WhereIn4"
-    -- , manipulateAstTestWFname "Pseudonym.hs"             "Main"
-    -- , manipulateAstTestWFname "Obscure.hs"             "Main"
-    -- , manipulateAstTestWFname "Remorse.hs"             "Main"
-    -- , manipulateAstTestWFname "Jon.hs"             "Main"
-    -- , manipulateAstTestWFname "RSA.hs"             "Main"
-    -- , manipulateAstTestWFname "CExpected.hs"                "CExpected"
-    -- , manipulateAstTestWFname "C.hs"                        "C"
+    , manipulateAstTestWFname "LayoutLet2.hs"             "LayoutLet2"
+    , manipulateAstTestWFname "LayoutLet.hs"             "Main"
+    , manipulateAstTestWFname "Simple.hs"             "Main"
+    , manipulateAstTestWFname "FunDeps.hs"               "Main"
+    , manipulateAstTestWFname "IfThenElse3.hs"              "Main"
+    , manipulateAstTestWFname "ImplicitParams.hs"        "Main"
+    , manipulateAstTestWFname "ListComprehensions.hs"    "Main"
+    , manipulateAstTestWFname "TransformListComp.hs"     "Main"
+    , manipulateAstTestWFname "PArr.hs"                  "PArr"
+    , manipulateAstTestWFname "DataDecl.hs"              "Main"
+    , manipulateAstTestWFname "WhereIn4.hs"              "WhereIn4"
+    , manipulateAstTestWFname "Pseudonym.hs"             "Main"
+    , manipulateAstTestWFname "Obscure.hs"             "Main"
+    , manipulateAstTestWFname "Remorse.hs"             "Main"
+    , manipulateAstTestWFname "Jon.hs"             "Main"
+    , manipulateAstTestWFname "RSA.hs"             "Main"
+    , manipulateAstTestWFname "CExpected.hs"                "CExpected"
+    , manipulateAstTestWFname "C.hs"                        "C"
     -- , manipulateAstTestWFnameMod changeCifToCase  "C.hs"    "C"
-    -- , manipulateAstTestWFname "WhereIn3.hs"                 "WhereIn3"
-    --, manipulateAstTestWFnameMod changeWhereIn3 "WhereIn3.hs"    "WhereIn3"
-    -- , manipulateAstTestWFname "DoParens.hs"   "Main"
-    -- , manipulateAstTestWFname "SimpleComplexTuple.hs" "Main"
-    -- , manipulateAstTestWFname "Backquote.hs" "Main"
-    -- , manipulateAstTestWFname "HangingRecord.hs" "Main"
-    -- , manipulateAstTestWFname "PatternGuards.hs"              "Main"
+    , manipulateAstTestWFname "WhereIn3.hs"                 "WhereIn3"
+    -- , manipulateAstTestWFnameMod changeWhereIn3 "WhereIn3.hs"    "WhereIn3"
+    , manipulateAstTestWFname "DoParens.hs"   "Main"
+    , manipulateAstTestWFname "SimpleComplexTuple.hs" "Main"
+    , manipulateAstTestWFname "Backquote.hs" "Main"
+    , manipulateAstTestWFname "HangingRecord.hs" "Main"
+    , manipulateAstTestWFname "PatternGuards.hs"              "Main"
     -- , manipulateAstTestWFnameMod (changeWhereIn3 2) "WhereIn3.hs"    "WhereIn3"
     -- , manipulateAstTestWFnameMod (changeWhereIn3 2) "WhereIn3.hs"    "WhereIn3"
-    -- , manipulateAstTestWFname "DoParens.hs"   "Main"
+    , manipulateAstTestWFname "DoParens.hs"   "Main"
 
     -- Future tests to pass, after appropriate dev is done
     -- , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
@@ -442,6 +442,19 @@ tt = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFname "Foo.hs"                   "Main"
     -}
     ]
+
+testsTT = TestList
+  [
+    mkParserTest "Cpp.hs"
+  ]
+
+tt :: IO ()
+tt = hSilence [stderr] $ do
+  cnts <- fst <$> runTestText (putTextToHandle stdout True) testsTT
+  putStrLn $ show cnts
+  if errors cnts > 0 || failures cnts > 0
+     then exitFailure
+     else return () -- exitSuccess
 
 -- ---------------------------------------------------------------------
 
@@ -763,11 +776,12 @@ parsedFileGhc fileName modname useTH = do
         -- GHC.liftIO $ putStrLn $ "target set:" ++ showGhc (GHC.targetId target)
         void $ GHC.load GHC.LoadAllTargets -- Loads and compiles, much as calling make
         -- GHC.liftIO $ putStrLn $ "targets loaded"
-        -- g <- GHC.getModuleGraph
-        -- let showStuff ms = show (GHC.moduleNameString $ GHC.moduleName $ GHC.ms_mod ms,GHC.ms_location ms)
+        g <- GHC.getModuleGraph
+        let showStuff ms = show (GHC.moduleNameString $ GHC.moduleName $ GHC.ms_mod ms,GHC.ms_location ms)
         -- GHC.liftIO $ putStrLn $ "module graph:" ++ (intercalate "," (map showStuff g))
 
-        modSum <- GHC.getModSummary $ GHC.mkModuleName modname
+        -- modSum <- GHC.getModSummary $ GHC.mkModuleName modname
+        Just modSum <- getModSummaryForFile fileName
         -- GHC.liftIO $ putStrLn $ "got modSum"
         -- let modSum = head g
 {-
@@ -801,3 +815,8 @@ mkSs (sr,sc) (er,ec)
                   (GHC.mkSrcLoc (GHC.mkFastString "examples/PatBind.hs") er ec)
 
 -- ---------------------------------------------------------------------
+
+readUTF8File :: FilePath -> IO String
+readUTF8File fp = openFile fp ReadMode >>= \h -> do
+        hSetEncoding h utf8
+        hGetContents h

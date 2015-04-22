@@ -16,6 +16,7 @@ import GHC.Paths (libdir)
 import qualified ApiAnnotation as GHC
 import qualified BasicTypes    as GHC
 import qualified DynFlags      as GHC
+import qualified Exception     as GHC
 import qualified FastString    as GHC
 import qualified GHC           as GHC hiding (parseModule)
 import qualified HeaderInfo    as GHC
@@ -49,7 +50,6 @@ import Test.HUnit
 import Consistency
 
 -- Roundtrip machinery
-
 
 
 data Report =
@@ -171,99 +171,36 @@ getPreprocessorAsComments srcFile fcontents =
     toks = map mkTok directives
   in toks
 
+-- ---------------------------------------------------------------------`
 
--- | The preprocessed files are placed in a temporary directory, with
--- a temporary name, and extension .hscpp. Each of these files has
--- three lines at the top identifying the original origin of the
--- files, which is ignored by the later stages of compilation except
--- to contextualise error messages.
-getPreprocessedSrc ::
-  -- GHC.GhcMonad m => FilePath -> m GHC.StringBuffer
-  -- GHC.GhcMonad m => FilePath -> m String
-  -- (Monad m) => GHC.DynFlags -> FilePath -> m String
-  GHC.DynFlags -> FilePath -> IO String
-getPreprocessedSrc df srcFile = do
-  -- df <- GHC.getSessionDynFlags
-  -- d <- GHC.liftIO $ getTempDir df
-  d <- getTempDir df
-  fileList <- GHC.liftIO $ getDirectoryContents d
-  let suffix = "hscpp"
+canonicalizeGraph ::
+  [GHC.ModSummary] -> IO [(Maybe (FilePath), GHC.ModSummary)]
+canonicalizeGraph graph = do
+  let mm = map (\m -> (GHC.ml_hs_file $ GHC.ms_location m, m)) graph
+      canon ((Just fp),m) = do
+        fp' <- canonicalizePath fp
+        return $ (Just fp',m)
+      canon (Nothing,m)  = return (Nothing,m)
 
-  let cppFiles = filter (\f -> getSuffix f == suffix) fileList
-  origNames <- GHC.liftIO $ mapM getOriginalFile $ map (\f -> d </> f) cppFiles
-  let tmpFile = ghead "getPreprocessedSrc" $ filter (\(o,_) -> o == srcFile) origNames
-  -- buf <- GHC.liftIO $ GHC.hGetStringBuffer $ snd tmpFile
-  -- return buf
-  GHC.liftIO $ readUTF8File (snd tmpFile)
+  mm' <- mapM canon mm
+
+  return mm'
 
 -- ---------------------------------------------------------------------
 
-getSuffix :: FilePath -> String
-getSuffix fname = reverse $ fst $ break (== '.') $ reverse fname
+getModSummaryForFile :: (GHC.GhcMonad m) => FilePath -> m (Maybe GHC.ModSummary)
+getModSummaryForFile fileName = do
+  cfileName <- GHC.liftIO $ canonicalizePath fileName
 
--- | A GHC preprocessed file has the following comments at the top
--- @
--- # 1 "./test/testdata/BCpp.hs"
--- # 1 "<command-line>"
--- # 1 "./test/testdata/BCpp.hs"
--- @
--- This function reads the first line of the file and returns the
--- string in it.
--- NOTE: no error checking, will blow up if it fails
-getOriginalFile :: FilePath -> IO (FilePath,FilePath)
-getOriginalFile fname = do
-  fcontents <- readFile fname
-  let firstLine = ghead "getOriginalFile" $ lines fcontents
-  let (_,originalFname) = break (== '"') firstLine
-  return $ (tail $ init $ originalFname,fname)
+  graph <- GHC.getModuleGraph
+  cgraph <- GHC.liftIO $ canonicalizeGraph graph
 
+  let canonMaybe filepath = GHC.ghandle handler (canonicalizePath filepath)
+        where
+          handler :: SomeException -> IO FilePath
+          handler _e = return filepath
 
--- ---------------------------------------------------------------------
--- Copied from the GHC source, since not exported
-
-getModuleSourceAndFlags :: GHC.GhcMonad m => GHC.Module -> m (String, GHC.StringBuffer, GHC.DynFlags)
-getModuleSourceAndFlags modu = do
-  m <- GHC.getModSummary (GHC.moduleName modu)
-  case GHC.ml_hs_file $ GHC.ms_location m of
-    Nothing ->
-               do dflags <- GHC.getDynFlags
-                  GHC.liftIO $ throwIO $ GHC.mkApiErr dflags (GHC.text "No source available for module " GHC.<+> GHC.ppr modu)
-    Just sourceFile -> do
-        source <- GHC.liftIO $ GHC.hGetStringBuffer sourceFile
-        return (sourceFile, source, GHC.ms_hspp_opts m)
-
-
--- return our temporary directory within tmp_dir, creating one if we
--- don't have one yet
-getTempDir :: GHC.DynFlags -> IO FilePath
-getTempDir dflags
-  = do let ref = GHC.dirsToClean dflags
-           tmp_dir = GHC.tmpDir dflags
-       mapping <- readIORef ref
-       case Map.lookup tmp_dir mapping of
-           Nothing -> error "should already be a tmpDir"
-           Just d -> return d
-
-readUTF8File :: FilePath -> IO String
-readUTF8File fp = openFile fp ReadMode >>= \h -> do
-        hSetEncoding h utf8
-        hGetContents h
-
--- ---------------------------------------------------------------------
--- Putting these here for the time being, to avoid import loops
-
-ghead :: String -> [a] -> a
-ghead  info []    = error $ "ghead "++info++" []"
-ghead _info (h:_) = h
-
-glast :: String -> [a] -> a
-glast  info []    = error $ "glast " ++ info ++ " []"
-glast _info h     = last h
-
-gtail :: String -> [a] -> [a]
-gtail  info []   = error $ "gtail " ++ info ++ " []"
-gtail _info h    = tail h
-
-gfromJust :: String -> Maybe a -> a
-gfromJust _info (Just h) = h
-gfromJust  info Nothing = error $ "gfromJust " ++ info ++ " Nothing"
+  let mm = filter (\(mfn,_ms) -> mfn == Just cfileName) cgraph
+  case mm of
+   [] -> return Nothing
+   fs -> return (Just (snd $ head fs))
