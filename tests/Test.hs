@@ -789,7 +789,8 @@ parsedFileGhc fileName modname useTH = do
         Just modSum <- getModSummaryForFile fileName
         -- GHC.liftIO $ putStrLn $ "got modSum"
         -- let modSum = head g
-        cppComments <- getCppTokensAsComments dflags5 (GHC.ms_mod modSum)
+        -- cppComments <- getCppTokensAsComments dflags5 (GHC.ms_mod modSum)
+        let cppComments = [] :: [(GHC.Located GHC.Token, String)]
         GHC.liftIO $ putStrLn $ "cppTokensAsComments====\n" ++ showGhc cppComments ++ "\n================\n"
 {-
         (sourceFile, source, flags) <- getModuleSourceAndFlags (GHC.ms_mod modSum)

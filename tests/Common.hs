@@ -121,8 +121,8 @@ roundTripTest writeHsPP file = do
 
       let origContents = removeSpaces . T.unpack $ fileContents
       let (contents, linePragmas) = stripLinePragmas $ origContents
-      -- cppComments <- getCppTokensAsComments dflags2 file
-      -- traceM $ "\nroundTripTest:cppComments=" ++ showGhc cppComments
+      cppComments <- getCppTokensAsComments dflags2 file
+      traceM $ "\nroundTripTest:cppComments=" ++ showGhc cppComments
       case parseFile dflags2 file contents of
         GHC.PFailed ss m -> return $ ParseFailure ss (GHC.showSDoc dflags2 m)
         GHC.POk (mkApiAnns -> apianns) pmod   -> do

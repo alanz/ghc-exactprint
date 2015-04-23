@@ -13,6 +13,7 @@ import qualified ApiAnnotation  as GHC
 import qualified Bag            as GHC
 import qualified BasicTypes     as GHC
 import qualified DriverPipeline as GHC
+import qualified DriverPhases  as GHC
 import qualified DynFlags       as GHC
 import qualified ErrUtils       as GHC
 import qualified FastString     as GHC
@@ -24,6 +25,7 @@ import qualified Lexer          as GHC
 import qualified MonadUtils     as GHC
 import qualified Outputable     as GHC
 import qualified Parser         as GHC
+import qualified PipelineMonad  as GHC
 import qualified RdrName        as GHC
 import qualified SrcLoc         as GHC
 import qualified StringBuffer   as GHC
@@ -142,18 +144,19 @@ combineTokens directiveToks origSrcToks postCppToks = toks
 -- | Replacement for original 'getRichTokenStream' which will return
 -- the tokens for a file processed by CPP.
 -- See bug <http://ghc.haskell.org/trac/ghc/ticket/8265>
--- getCppTokensAsComments :: GHC.GhcMonad m => GHC.DynFlags -> FilePath -> m [(GHC.Located GHC.Token, String)]
-getCppTokensAsComments :: GHC.GhcMonad m => GHC.DynFlags -> GHC.Module -> m [(GHC.Located GHC.Token, String)]
-getCppTokensAsComments _flags modu = do
-  (sourceFile, source, flags) <- getModuleSourceAndFlags modu
-  -- source <- GHC.liftIO $ GHC.hGetStringBuffer sourceFile
+getCppTokensAsComments :: GHC.GhcMonad m => GHC.DynFlags -> FilePath -> m [(GHC.Located GHC.Token, String)]
+-- getCppTokensAsComments :: GHC.GhcMonad m => GHC.DynFlags -> GHC.Module -> m [(GHC.Located GHC.Token, String)]
+-- getCppTokensAsComments _flags modu = do
+getCppTokensAsComments flags sourceFile = do
+  -- (sourceFile, source, flags) <- getModuleSourceAndFlags modu
+  source <- GHC.liftIO $ GHC.hGetStringBuffer sourceFile
   let startLoc = GHC.mkRealSrcLoc (GHC.mkFastString sourceFile) 1 1
   case GHC.lexTokenStream source startLoc flags of
     GHC.POk _ ts -> return []
     GHC.PFailed _span _err ->
         do
-           -- (_,strSrcBuf,flags) <- getPreprocessedSrcDirect sourceFile
-           strSrcBuf <- getPreprocessedSrc sourceFile
+           (_,strSrcBuf,flags) <- getPreprocessedSrcDirect sourceFile
+           -- strSrcBuf <- getPreprocessedSrc sourceFile
            case GHC.lexTokenStream strSrcBuf startLoc flags of
              GHC.POk _ ts ->
                do directiveToks <- GHC.liftIO $ getPreprocessorAsComments sourceFile
@@ -265,11 +268,31 @@ getPreprocessedSrcDirect :: (GHC.GhcMonad m) => FilePath -> m (String, GHC.Strin
 getPreprocessedSrcDirect src_fn = do
   traceM $ "\ngetPreprocessedSrcDirect:src_fn=" ++ show src_fn
   hsc_env <- GHC.getSession
+  dflags <- GHC.getDynFlags
   traceM $ "\ngetPreprocessedSrcDirect:got hsc_env"
-  (dflags', hspp_fn) <- GHC.liftIO $ GHC.preprocess hsc_env (src_fn, Nothing)
+  -- (dflags', hspp_fn) <- GHC.liftIO $ GHC.preprocess hsc_env (src_fn, Nothing)
+  (dflags', hspp_fn) <- GHC.liftIO $ preprocess hsc_env dflags src_fn
   traceM $ "\ngetPreprocessedSrcDirect:after preprocess"
   buf <- GHC.liftIO $ GHC.hGetStringBuffer hspp_fn
   return (hspp_fn, buf, dflags')
+
+-- ---------------------------------------------------------------------
+
+preprocess :: GHC.HscEnv -> GHC.DynFlags -> FilePath -> IO (GHC.DynFlags, FilePath)
+-- preprocess :: GHC.HscEnv -> GHC.DynFlags -> FilePath -> IO FilePath
+preprocess hsc_env dflags src_fn = do
+  let pipeEnv = GHC.PipeEnv{ GHC.stop_phase   = GHC.HsPp GHC.HsSrcFile,
+                             GHC.src_filename = src_fn,
+                             GHC.src_basename = "",
+                             GHC.src_suffix   = "",
+                             GHC.output_spec  = GHC.Temporary }
+
+      pipeState = GHC.PipeState hsc_env Nothing Nothing
+      
+  r <- GHC.evalP (GHC.runPhase (GHC.RealPhase (GHC.Cpp GHC.HsSrcFile)) src_fn dflags)
+                 pipeEnv pipeState
+  -- runPhase (RealPhase (Cpp src_fn)) src_fn dflags0
+  return (dflags,snd r)
 
 -- ---------------------------------------------------------------------
 
