@@ -7,49 +7,49 @@
 module Common where
 
 import Language.Haskell.GHC.ExactPrint
-import Language.Haskell.GHC.ExactPrint.Transform
+-- import Language.Haskell.GHC.ExactPrint.Transform
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Preprocess
 
 import GHC.Paths (libdir)
 
 import qualified ApiAnnotation as GHC
-import qualified BasicTypes    as GHC
+-- import qualified BasicTypes    as GHC
 import qualified DynFlags      as GHC
-import qualified Exception     as GHC
+-- import qualified Exception     as GHC
 import qualified FastString    as GHC
 import qualified GHC           as GHC hiding (parseModule)
 import qualified HeaderInfo    as GHC
-import qualified HscTypes      as GHC
-import qualified HsSyn         as GHC
+-- import qualified HscTypes      as GHC
+-- import qualified HsSyn         as GHC
 import qualified Lexer         as GHC
 import qualified MonadUtils    as GHC
 import qualified Outputable    as GHC
 import qualified Parser        as GHC
-import qualified RdrName       as GHC
+-- import qualified RdrName       as GHC
 import qualified SrcLoc        as GHC
 import qualified StringBuffer  as GHC
 
-import Control.Applicative
-import Data.List.Utils (merge)
+-- import Control.Applicative
+-- import Data.List.Utils (merge)
 import qualified Data.Map as Map
 import qualified Data.Text.IO as T
 import qualified Data.Text as T
 
 import Data.List hiding (find)
 
-import Data.IORef
-import Control.Exception
+-- import Data.IORef
+-- import Control.Exception
 import Control.Monad
 import System.Directory
-import System.FilePath
-import System.IO
+-- import System.FilePath
+-- import System.IO
 
-import Test.HUnit
+-- import Test.HUnit
 
 import Consistency
 
-import Debug.Trace
+-- import Debug.Trace
 
 -- Roundtrip machinery
 
@@ -99,6 +99,7 @@ getDynFlags =
 removeSpaces :: String -> String
 removeSpaces = map (\case {'\160' -> ' '; s -> s})
 
+presetDynFlags :: (GHC.GhcMonad m) => m ()
 presetDynFlags = do
       -- AZ Dynflags setting
       dflags <- GHC.getSessionDynFlags
@@ -119,7 +120,7 @@ presetDynFlags = do
       -- GHC.liftIO $ putStrLn $ "dflags set"
 
 roundTripTest :: (String -> IO ()) -> FilePath -> IO Report
-roundTripTest writeHsPP file = do
+roundTripTest _writeHsPP file = do
   -- putStrLn  $ "roundTripTest:entry"
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
     GHC.runGhc (Just libdir) $ do
@@ -222,11 +223,6 @@ getModSummaryForFile fileName = do
 
   graph <- GHC.getModuleGraph
   cgraph <- GHC.liftIO $ canonicalizeGraph graph
-
-  let canonMaybe filepath = GHC.ghandle handler (canonicalizePath filepath)
-        where
-          handler :: SomeException -> IO FilePath
-          handler _e = return filepath
 
   let mm = filter (\(mfn,_ms) -> mfn == Just cfileName) cgraph
   case mm of

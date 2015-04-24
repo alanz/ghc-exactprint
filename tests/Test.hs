@@ -15,23 +15,23 @@ import GHC.Paths ( libdir )
 
 import qualified Bag            as GHC
 import qualified BasicTypes     as GHC
-import qualified DriverPhases   as GHC
-import qualified DriverPipeline as GHC
+-- import qualified DriverPhases   as GHC
+-- import qualified DriverPipeline as GHC
 import qualified DynFlags       as GHC
 import qualified FastString     as GHC
 import qualified GHC            as GHC
-import qualified HscTypes       as GHC
+-- import qualified HscTypes       as GHC
 import qualified MonadUtils     as GHC
 import qualified OccName        as GHC
 import qualified Outputable     as GHC
 import qualified RdrName        as GHC
-import qualified StringBuffer   as GHC
+-- import qualified StringBuffer   as GHC
 
 import qualified Data.Generics as SYB
 import qualified GHC.SYB.Utils as SYB
 
-import Data.IORef
-import Control.Exception
+-- import Data.IORef
+-- import Control.Exception
 import Control.Monad
 import System.Directory
 import System.FilePath
@@ -41,7 +41,7 @@ import qualified Data.Map as Map
 
 import Test.HUnit
 
-import Control.Applicative
+-- import Control.Applicative
 import Data.List
 
 import System.IO.Silently
@@ -255,7 +255,7 @@ mkParserTest fp =
   in
     TestCase (do r <- roundTripTest writeHspp ("tests" </> "examples" </> fp)
                  case r of
-                  RoundTripFailure debug -> writeFailure debug
+                  RoundTripFailure debugStr -> writeFailure debugStr
                   ParseFailure _ s -> error s
                   CPP -> error fp
                   InconsistentAnnotations db s -> do
@@ -264,7 +264,7 @@ mkParserTest fp =
                       (showGhc s)
                     writeFailure db
                   -- Success debug -> return ()
-                  Success debug -> writeFailure debug
+                  Success debugStr -> writeFailure debugStr
                  assertBool fp (success r))
 
 
@@ -279,7 +279,7 @@ mkTestMain fileName = TestCase (do r <- manipulateAstTest fileName "Main"
                                    assertBool fileName r )
 
 mkTestMod :: FilePath -> String -> Test
-mkTestMod fileName modName
+mkTestMod fileName _modName
   =  mkParserTest fileName
 
 mkTestModChange :: (Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)) -> FilePath -> String -> Test
@@ -303,6 +303,7 @@ formatTT (ts, fs) = do
     putStrLn "Fail"
     mapM_ (putStrLn . fst) fs)
 
+tt' :: IO ()
 tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "ExprPragmas.hs"           "ExprPragmas"
     -- , manipulateAstTestWFname "MonadComprehensions.hs"   "Main"
@@ -447,6 +448,7 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -}
     ]
 
+testsTT :: Test
 testsTT = TestList
   [
     mkParserTest "Cpp.hs"
@@ -654,7 +656,7 @@ changeLetIn1 ans parsed
   = (ans,SYB.everywhere (SYB.mkT replace) parsed)
   where
     replace :: GHC.HsExpr GHC.RdrName -> GHC.HsExpr GHC.RdrName
-    replace x@(GHC.HsLet localDecls expr@(GHC.L _ _))
+    replace (GHC.HsLet localDecls expr@(GHC.L _ _))
       =
          let (GHC.HsValBinds (GHC.ValBindsIn bagDecls sigs)) = localDecls
              bagDecls' = GHC.listToBag $ init $ GHC.bagToList bagDecls
@@ -751,7 +753,7 @@ manipulateAstTest' mchange useTH file' modname = do
 type ParseResult = GHC.ParsedModule
 
 parsedFileGhc :: String -> String -> Bool -> IO (GHC.ApiAnns,ParseResult,[(GHC.Located GHC.Token, String)])
-parsedFileGhc fileName modname useTH = do
+parsedFileGhc fileName _modname useTH = do
     -- putStrLn $ "parsedFileGhc:" ++ show fileName
     GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
       GHC.runGhc (Just libdir) $ do
@@ -771,9 +773,8 @@ parsedFileGhc fileName modname useTH = do
         void $ GHC.setSessionDynFlags dflags5
         -- GHC.liftIO $ putStrLn $ "dflags set"
 
-
-        hsc_env <- GHC.getSession
-        (dflags6,fn_pp) <- GHC.liftIO $ GHC.preprocess hsc_env (fileName,Nothing)
+        -- hsc_env <- GHC.getSession
+        -- (dflags6,fn_pp) <- GHC.liftIO $ GHC.preprocess hsc_env (fileName,Nothing)
         -- GHC.liftIO $ putStrLn $ "preprocess got:" ++ show fn_pp
 
 
@@ -782,17 +783,18 @@ parsedFileGhc fileName modname useTH = do
         -- GHC.liftIO $ putStrLn $ "target set:" ++ showGhc (GHC.targetId target)
         void $ GHC.load GHC.LoadAllTargets -- Loads and compiles, much as calling make
         -- GHC.liftIO $ putStrLn $ "targets loaded"
-        g <- GHC.getModuleGraph
-        let showStuff ms = show (GHC.moduleNameString $ GHC.moduleName $ GHC.ms_mod ms,GHC.ms_location ms)
+        -- g <- GHC.getModuleGraph
+        -- let showStuff ms = show (GHC.moduleNameString $ GHC.moduleName $ GHC.ms_mod ms,GHC.ms_location ms)
         -- GHC.liftIO $ putStrLn $ "module graph:" ++ (intercalate "," (map showStuff g))
 
         -- modSum <- GHC.getModSummary $ GHC.mkModuleName modname
         Just modSum <- getModSummaryForFile fileName
         -- GHC.liftIO $ putStrLn $ "got modSum"
         -- let modSum = head g
-        -- cppComments <- getCppTokensAsComments dflags5 (GHC.ms_mod modSum)
-        let cppComments = [] :: [(GHC.Located GHC.Token, String)]
-        -- GHC.liftIO $ putStrLn $ "cppTokensAsComments====\n" ++ showGhc cppComments ++ "\n================\n"
+        cppComments <- getCppTokensAsComments dflags5 fileName
+        -- let cppComments = [] :: [(GHC.Located GHC.Token, String)]
+        GHC.liftIO $ putStrLn $ "\ncppTokensAsComments for:"  ++ fileName ++ "=========\n"
+                              ++ showGhc cppComments ++ "\n================\n"
 {-
         (sourceFile, source, flags) <- getModuleSourceAndFlags (GHC.ms_mod modSum)
         strSrcBuf <- getPreprocessedSrc sourceFile

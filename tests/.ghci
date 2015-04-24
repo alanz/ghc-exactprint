@@ -3,3 +3,4 @@
 :set -i../test
 :set -hide-package monads-tf
 :set package ghc
+:set -Wall

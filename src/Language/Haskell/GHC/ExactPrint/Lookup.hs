@@ -22,6 +22,7 @@ keywordToString kw =
       AnnFunId  -> mkErr kw
       AnnInfix  -> mkErr kw
       AnnValStr -> mkErr kw
+      AnnName   -> mkErr kw
       AnnAs     -> "as"
       AnnAt     -> "@"
       AnnBang   -> "!"

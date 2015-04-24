@@ -14,7 +14,7 @@ module Language.Haskell.GHC.ExactPrint.Annotate
        , Annotated
        , Annotate(..)) where
 
-import Data.Data (Data)
+-- import Data.Data (Data)
 import Data.List (sort, sortBy)
 import Data.Maybe (fromMaybe)
 
@@ -189,8 +189,8 @@ markLocalBindsWithLayout :: (GHC.DataId name,GHC.OutputableBndr name,Annotate na
 markLocalBindsWithLayout binds = do
   let ss = getLocalBindsSrcSpan binds
       d  = NotNeeded
-  (ss',d) <- storeOriginalSrcSpan ss d
-  markWithLayout (GHC.L ss' binds) d
+  (ss',d') <- storeOriginalSrcSpan ss d
+  markWithLayout (GHC.L ss' binds) d'
 
 -- ---------------------------------------------------------------------
 
@@ -198,7 +198,7 @@ markLocalBindsWithLayout binds = do
 markLocatedFromKw :: (Annotate ast) => GHC.AnnKeywordId -> ast -> IAnnotated ()
 markLocatedFromKw kw a = do
   ss <- getSrcSpanForKw kw
-  (ss',d') <- storeOriginalSrcSpan ss NotNeeded
+  (ss',_d') <- storeOriginalSrcSpan ss NotNeeded
   markLocated (GHC.L ss' a)
 
 -- ---------------------------------------------------------------------
@@ -1214,7 +1214,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
     mark GHC.AnnAt
     markLocated p
 
-  markAST l (GHC.ParPat p) = do
+  markAST _ (GHC.ParPat p) = do
     mark GHC.AnnOpenP
     -- Notice that this is a markLocated rather than a markSigPatIn
     -- I don't know why the annotation gets attached differently here.
@@ -1705,7 +1705,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markWithString GHC.AnnClose "#-}"
     markLocated e
   -- TODO: make monomorphic
-  markAST l (GHC.HsBracket (GHC.VarBr single v)) = do
+  markAST _ (GHC.HsBracket (GHC.VarBr _single v)) = do
     mark GHC.AnnSimpleQuote
     mark GHC.AnnThIdSplice
     markLocatedFromKw GHC.AnnName v
@@ -2005,7 +2005,9 @@ instance (GHC.DataId name,Annotate name, GHC.OutputableBndr name)
 
 -- ---------------------------------------------------------------------
 
-markTyFamEqn v@(GHC.L ss (GHC.TyFamEqn ln (GHC.HsWB pats _ _ _) typ)) = do
+markTyFamEqn :: (GHC.DataId name,Annotate name, GHC.OutputableBndr name)
+   => GHC.LTyFamInstEqn name -> IAnnotated ()
+markTyFamEqn v@(GHC.L _ (GHC.TyFamEqn ln (GHC.HsWB pats _ _ _) typ)) = do
     withAST v NotNeeded NoLayoutRules (do
       mark GHC.AnnOpenP
       applyListAnnotations (prepareListAnnotation [ln]
@@ -2058,7 +2060,7 @@ markDataDefn _ (GHC.HsDataDefn _ ctx typ mk cons mderivs) = do
 -- Note: GHC.HsContext name aliases to here too
 instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
      => Annotate [GHC.LHsType name] where
-  markAST l ts = do
+  markAST _ ts = do
     mark GHC.AnnDeriving
     mark GHC.AnnOpenP
     mapM_ markLocated ts

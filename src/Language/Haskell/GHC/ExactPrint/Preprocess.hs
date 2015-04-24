@@ -7,45 +7,45 @@ module Language.Haskell.GHC.ExactPrint.Preprocess
    , ghead,glast,gtail,gfromJust
    ) where
 
-import GHC.Paths (libdir)
+-- import GHC.Paths (libdir)
 
-import qualified ApiAnnotation  as GHC
+-- import qualified ApiAnnotation  as GHC
 import qualified Bag            as GHC
-import qualified BasicTypes     as GHC
+-- import qualified BasicTypes     as GHC
 import qualified DriverPipeline as GHC
-import qualified DriverPhases   as GHC
+-- import qualified DriverPhases   as GHC
 import qualified DynFlags       as GHC
 import qualified ErrUtils       as GHC
 import qualified FastString     as GHC
 import qualified GHC            as GHC hiding (parseModule)
-import qualified HeaderInfo     as GHC
-import qualified HsSyn          as GHC
+-- import qualified HeaderInfo     as GHC
+-- import qualified HsSyn          as GHC
 import qualified HscTypes       as GHC
 import qualified Lexer          as GHC
 import qualified MonadUtils     as GHC
-import qualified Outputable     as GHC
-import qualified Parser         as GHC
-import qualified PipelineMonad  as GHC
-import qualified RdrName        as GHC
+-- import qualified Outputable     as GHC
+-- import qualified Parser         as GHC
+-- import qualified PipelineMonad  as GHC
+-- import qualified RdrName        as GHC
 import qualified SrcLoc         as GHC
 import qualified StringBuffer   as GHC
 
-import Control.Applicative
+-- import Control.Applicative
 import Control.Exception
-import Control.Monad
-import Data.IORef
+-- import Control.Monad
+-- import Data.IORef
 import Data.List hiding (find)
 import Data.Maybe
 import Language.Haskell.GHC.ExactPrint.Types
-import System.Directory
-import System.FilePath
-import System.IO
-import qualified Data.Map as Map
+-- import System.Directory
+-- import System.FilePath
+-- import System.IO
+-- import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
+-- import qualified Data.Text as T
+-- import qualified Data.Text.IO as T
 
-import Debug.Trace
+-- import Debug.Trace
 
 -- ---------------------------------------------------------------------
 
@@ -76,7 +76,7 @@ getPragma s@(x:xs)
       in (x:prag, ' ':remline)
 
 -- ---------------------------------------------------------------------
-
+{-
 -- | Replacement for original 'getRichTokenStream' which will return
 -- the tokens for a file processed by CPP.
 -- See bug <http://ghc.haskell.org/trac/ghc/ticket/8265>
@@ -99,9 +99,9 @@ getRichTokenStreamWA modu = do
                   -- return nonDirectiveToks
                   -- return toks
              GHC.PFailed sspan err -> parseError flags sspan err
-
+-}
 -- ---------------------------------------------------------------------
-
+{-
 -- | Combine the three sets of tokens to produce a single set that
 -- represents the code compiled, and will regenerate the original
 -- source file.
@@ -138,7 +138,7 @@ combineTokens directiveToks origSrcToks postCppToks = toks
         mkCommentTok (GHC.L l _,s) = (GHC.L l (GHC.ITlineComment s),s)
 
     toks = mergeBy locFn m1Toks missingAsComments
-
+-}
 -- ---------------------------------------------------------------------
 
 -- | Replacement for original 'getRichTokenStream' which will return
@@ -152,21 +152,21 @@ getCppTokensAsComments flags sourceFile = do
   source <- GHC.liftIO $ GHC.hGetStringBuffer sourceFile
   let startLoc = GHC.mkRealSrcLoc (GHC.mkFastString sourceFile) 1 1
   case GHC.lexTokenStream source startLoc flags of
-    GHC.POk _ ts -> return []
+    GHC.POk _ _ts -> return []
     GHC.PFailed _span _err ->
         do
-           (_,strSrcBuf,flags) <- getPreprocessedSrcDirect sourceFile
+           (_,strSrcBuf,flags2) <- getPreprocessedSrcDirect sourceFile
            -- strSrcBuf <- getPreprocessedSrc sourceFile
-           case GHC.lexTokenStream strSrcBuf startLoc flags of
+           case GHC.lexTokenStream strSrcBuf startLoc flags2 of
              GHC.POk _ ts ->
                do directiveToks <- GHC.liftIO $ getPreprocessorAsComments sourceFile
-                  nonDirectiveToks <- tokeniseOriginalSrc startLoc flags source
+                  nonDirectiveToks <- tokeniseOriginalSrc startLoc flags2 source
                   let toks = GHC.addSourceToTokens startLoc source ts
                   return $ getCppTokens directiveToks nonDirectiveToks toks
                   -- return directiveToks
                   -- return nonDirectiveToks
                   -- return toks
-             GHC.PFailed sspan err -> parseError flags sspan err
+             GHC.PFailed sspan err -> parseError flags2 sspan err
 
 -- ---------------------------------------------------------------------
 
@@ -238,7 +238,7 @@ sbufToString sb@(GHC.StringBuffer _buf len _cur) = GHC.lexemeToString sb len
 
 -- ---------------------------------------------------------------------
 -- Copied from the GHC source, since not exported
-
+{-
 getModuleSourceAndFlags :: GHC.GhcMonad m => GHC.Module -> m (String, GHC.StringBuffer, GHC.DynFlags)
 getModuleSourceAndFlags modu = do
   m <- GHC.getModSummary (GHC.moduleName modu)
@@ -249,8 +249,8 @@ getModuleSourceAndFlags modu = do
     Just sourceFile -> do
         source <- GHC.liftIO $ GHC.hGetStringBuffer sourceFile
         return (sourceFile, source, GHC.ms_hspp_opts m)
-
-
+-}
+{-
 -- return our temporary directory within tmp_dir, creating one if we
 -- don't have one yet
 getTempDir :: GHC.DynFlags -> IO FilePath
@@ -261,13 +261,13 @@ getTempDir dflags
        case Map.lookup tmp_dir mapping of
            Nothing -> error "should already be a tmpDir"
            Just d -> return d
-
+-}
 -- ---------------------------------------------------------------------
 
 getPreprocessedSrcDirect :: (GHC.GhcMonad m) => FilePath -> m (String, GHC.StringBuffer, GHC.DynFlags)
 getPreprocessedSrcDirect src_fn = do
   hsc_env <- GHC.getSession
-  dflags <- GHC.getDynFlags
+  -- dflags <- GHC.getDynFlags
   (dflags', hspp_fn) <- GHC.liftIO $ GHC.preprocess hsc_env (src_fn, Nothing)
   -- (dflags', hspp_fn) <- GHC.liftIO $ preprocess hsc_env dflags src_fn
   buf <- GHC.liftIO $ GHC.hGetStringBuffer hspp_fn
@@ -275,24 +275,6 @@ getPreprocessedSrcDirect src_fn = do
 
 -- ---------------------------------------------------------------------
 {-
-preprocess :: GHC.HscEnv -> GHC.DynFlags -> FilePath -> IO (GHC.DynFlags, FilePath)
--- preprocess :: GHC.HscEnv -> GHC.DynFlags -> FilePath -> IO FilePath
-preprocess hsc_env dflags src_fn = do
-  let pipeEnv = GHC.PipeEnv{ GHC.stop_phase   = GHC.HsPp GHC.HsSrcFile,
-                             GHC.src_filename = src_fn,
-                             GHC.src_basename = "",
-                             GHC.src_suffix   = "",
-                             GHC.output_spec  = GHC.Temporary }
-
-      pipeState = GHC.PipeState hsc_env Nothing Nothing
-      
-  r <- GHC.evalP (GHC.runPhase (GHC.RealPhase (GHC.Cpp GHC.HsSrcFile)) src_fn dflags)
-                 pipeEnv pipeState
-  -- runPhase (RealPhase (Cpp src_fn)) src_fn dflags0
-  return (dflags,snd r)
--}
--- ---------------------------------------------------------------------
-
 -- | The preprocessed files are placed in a temporary directory, with
 -- a temporary name, and extension .hscpp. Each of these files has
 -- three lines at the top identifying the original origin of the
@@ -312,12 +294,13 @@ getPreprocessedSrc srcFile = do
   buf <- GHC.liftIO $ GHC.hGetStringBuffer $ snd tmpFile
   return buf
   -- GHC.liftIO $ readUTF8File (snd tmpFile)
-
+-}
 -- ---------------------------------------------------------------------
 
-getSuffix :: FilePath -> String
-getSuffix fname = reverse $ fst $ break (== '.') $ reverse fname
+-- getSuffix :: FilePath -> String
+-- getSuffix fname = reverse $ fst $ break (== '.') $ reverse fname
 
+{-
 -- | A GHC preprocessed file has the following comments at the top
 -- @
 -- # 1 "./test/testdata/BCpp.hs"
@@ -333,7 +316,7 @@ getOriginalFile fname = do
   let firstLine = ghead "getOriginalFile" $ lines fcontents
   let (_,originalFname) = break (== '"') firstLine
   return $ (tail $ init $ originalFname,fname)
-
+-}
 -- ---------------------------------------------------------------------
 
 -- | Get the preprocessor directives as comment tokens from the

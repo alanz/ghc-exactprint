@@ -84,9 +84,9 @@ annNone = Ann (DP (0,0)) 0  (DP (0,0)) [] []
 
 -- TODO: This is wrong
 combineAnns :: Annotation -> Annotation -> Annotation
-combineAnns (Ann ed1 c1 comments1 toStart1 dps1) (Ann ed2  c2  comments2 toStart2 dps2)
-  -- = Ann ed1 c1 comments toStart (dps1 ++ dps2)
-  = Ann ed2 c2 comments2 toStart2 (dps1 ++ dps2)
+combineAnns (Ann ed1 c1 comments1 toStart1 dps1) (Ann _ed2  _c2 _comments2 _toStart2 dps2)
+  = Ann ed1 c1 comments1 toStart1 (dps1 ++ dps2)
+  -- = Ann ed2 c2 comments2 toStart2 (dps1 ++ dps2)
 
 data Annotation = Ann
   {
@@ -215,12 +215,12 @@ instance (GHC.OutputableBndr name) => GHC.Outputable (ResTyGADTHook name) where
 -- ---------------------------------------------------------------------
 
 getAnnotationEP :: (Data a) =>  GHC.Located a -> Disambiguator -> Anns -> Maybe Annotation
-getAnnotationEP  la@(GHC.L ss a) d annotations =
+getAnnotationEP  la d annotations =
   Map.lookup (mkAnnKeyWithD la d) annotations
 
 getAndRemoveAnnotationEP :: (Data a)
                          => GHC.Located a -> Disambiguator -> Anns -> (Maybe Annotation,Anns)
-getAndRemoveAnnotationEP la@(GHC.L ss a) d annotations
+getAndRemoveAnnotationEP la d annotations
  = let key = mkAnnKeyWithD la d in
     case Map.lookup key annotations of
          Nothing  -> (Nothing, annotations)
