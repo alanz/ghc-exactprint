@@ -100,7 +100,7 @@ roundTripTest file =
       (fileContents, injectedComments) <-
         if useCpp
           then do
-            (contents,_buf,_dflags) <- getPreprocessedSrcDirect file
+            contents <- getPreprocessedSrcDirect file
             cppComments <- getCppTokensAsComments dflags file
             return (contents,cppComments)
           else do

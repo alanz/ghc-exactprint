@@ -70,7 +70,7 @@ getCppTokensAsComments flags sourceFile = do
     GHC.POk _ _ts -> return []
     GHC.PFailed _span _err ->
         do
-           (_txt,strSrcBuf,flags2) <- getPreprocessedSrcDirect sourceFile
+           (_txt,strSrcBuf,flags2) <- getPreprocessedSrcDirectPrim sourceFile
            case GHC.lexTokenStream strSrcBuf startLoc flags2 of
              GHC.POk _ ts ->
                do directiveToks <- GHC.liftIO $ getPreprocessorAsComments sourceFile
@@ -148,9 +148,11 @@ sbufToString :: GHC.StringBuffer -> String
 sbufToString sb@(GHC.StringBuffer _buf len _cur) = GHC.lexemeToString sb len
 
 -- ---------------------------------------------------------------------
+getPreprocessedSrcDirect :: (GHC.GhcMonad m) => FilePath -> m String
+getPreprocessedSrcDirect src = (\(a,_,_) -> a) <$> getPreprocessedSrcDirectPrim src
 
-getPreprocessedSrcDirect :: (GHC.GhcMonad m) => FilePath -> m (String, GHC.StringBuffer, GHC.DynFlags)
-getPreprocessedSrcDirect src_fn = do
+getPreprocessedSrcDirectPrim :: (GHC.GhcMonad m) => FilePath -> m (String, GHC.StringBuffer, GHC.DynFlags)
+getPreprocessedSrcDirectPrim src_fn = do
   hsc_env <- GHC.getSession
   (dflags', hspp_fn) <- GHC.liftIO $ GHC.preprocess hsc_env (src_fn, Nothing)
   buf <- GHC.liftIO $ GHC.hGetStringBuffer hspp_fn
