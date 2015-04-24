@@ -23,7 +23,7 @@ import Control.Exception
 import Data.List hiding (find)
 import Data.Maybe
 import Language.Haskell.GHC.ExactPrint.Delta
-import Language.Haskell.GHC.ExactPrint.GhcInterim
+import Language.Haskell.GHC.ExactPrint.GhcInterim (commentToAnnotation)
 import Language.Haskell.GHC.ExactPrint.Types
 import qualified Data.Set as Set
 
@@ -66,19 +66,18 @@ getCppTokensAsComments :: GHC.GhcMonad m => GHC.DynFlags -> FilePath -> m [Comme
 getCppTokensAsComments flags sourceFile = do
   source <- GHC.liftIO $ GHC.hGetStringBuffer sourceFile
   let startLoc = GHC.mkRealSrcLoc (GHC.mkFastString sourceFile) 1 1
-  case GHC.lexTokenStream source startLoc flags of
-    GHC.POk _ _ts -> return []
-    GHC.PFailed _span _err ->
-        do
-           (_txt,strSrcBuf,flags2) <- getPreprocessedSrcDirectPrim sourceFile
-           case GHC.lexTokenStream strSrcBuf startLoc flags2 of
-             GHC.POk _ ts ->
-               do directiveToks <- GHC.liftIO $ getPreprocessorAsComments sourceFile
-                  nonDirectiveToks <- tokeniseOriginalSrc startLoc flags2 source
+  (_txt,strSrcBuf,flags2) <- getPreprocessedSrcDirectPrim sourceFile
+  -- #ifdef tokens
+  directiveToks <- GHC.liftIO $ getPreprocessorAsComments sourceFile
+  -- Tokens without #ifdef
+  nonDirectiveToks <- tokeniseOriginalSrc startLoc flags2 source
+  case GHC.lexTokenStream strSrcBuf startLoc flags2 of
+        GHC.POk _ ts ->
+               do
                   let toks = GHC.addSourceToTokens startLoc source ts
-                  let cppCommentToks = getCppTokens directiveToks nonDirectiveToks toks
+                      cppCommentToks = getCppTokens directiveToks nonDirectiveToks toks
                   return $ map (tokComment . commentToAnnotation . fst) cppCommentToks
-             GHC.PFailed sspan err -> parseError flags2 sspan err
+        GHC.PFailed sspan err -> parseError flags2 sspan err
 
 -- ---------------------------------------------------------------------
 
@@ -166,7 +165,8 @@ getPreprocessedSrcDirectPrim src_fn = do
 getPreprocessorAsComments :: FilePath -> IO [(GHC.Located GHC.Token, String)]
 getPreprocessorAsComments srcFile = do
   fcontents <- readFile srcFile
-  let directives = filter (\(_lineNum,line) -> line /= [] && head line == '#') $ zip [1..] $ lines fcontents
+  let directives = filter (\(_lineNum,line) -> line /= [] && head line == '#')
+                    $ zip [1..] (lines fcontents)
 
   let mkTok (lineNum,line) = (GHC.L l (GHC.ITlineComment line),line)
        where
