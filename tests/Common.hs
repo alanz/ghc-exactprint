@@ -81,23 +81,27 @@ mkApiAnns pstate = (Map.fromListWith (++) . GHC.annotations $ pstate
 removeSpaces :: String -> String
 removeSpaces = map (\case {'\160' -> ' '; s -> s})
 
+initDynFlags :: GHC.GhcMonad m => FilePath -> m GHC.DynFlags
+initDynFlags file = do
+  dflags0 <- GHC.getSessionDynFlags
+  let dflags1 = GHC.gopt_set dflags0 GHC.Opt_KeepRawTokenStream
+  src_opts <- GHC.liftIO $ GHC.getOptionsFromFile dflags1 file
+  (!dflags2, _, _)
+    <- GHC.parseDynamicFilePragma dflags1 src_opts
+  void $ GHC.setSessionDynFlags dflags2
+  return dflags2
+
 roundTripTest :: FilePath -> IO Report
 roundTripTest file =
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
     GHC.runGhc (Just libdir) $ do
-
-      dflags0 <- GHC.getSessionDynFlags
-      let dflags1 = GHC.gopt_set dflags0 GHC.Opt_KeepRawTokenStream
-      src_opts <- GHC.liftIO $ GHC.getOptionsFromFile dflags1 file
-      (!dflags2, _, _)
-               <- GHC.parseDynamicFilePragma dflags1 src_opts
-      void $ GHC.setSessionDynFlags dflags2
-      let useCpp = GHC.xopt GHC.Opt_Cpp dflags2
+      dflags <- initDynFlags file
+      let useCpp = GHC.xopt GHC.Opt_Cpp dflags
       (fileContents, injectedComments) <-
         if useCpp
           then do
             (contents,_buf,_dflags) <- getPreprocessedSrcDirect file
-            cppComments <- getCppTokensAsComments dflags2 file
+            cppComments <- getCppTokensAsComments dflags file
             return (contents,cppComments)
           else do
             txt <- GHC.liftIO $ readFile file
@@ -107,17 +111,16 @@ roundTripTest file =
       orig <- GHC.liftIO $ readFile file
       let origContents = removeSpaces fileContents
           pristine     = removeSpaces orig
-          contents     = origContents
       return $
-        case parseFile dflags2 file contents of
-          GHC.PFailed ss m -> Left $ ParseFailure ss (GHC.showSDoc dflags2 m)
+        case parseFile dflags file origContents of
+          GHC.PFailed ss m -> Left $ ParseFailure ss (GHC.showSDoc dflags m)
           GHC.POk (mkApiAnns -> apianns) pmod   ->
             let (printed, anns) = runRoundTrip apianns pmod injectedComments
                 debugTxt = mkDebugOutput file printed pristine apianns anns pmod
                 consistency = checkConsistency apianns pmod
                 inconsistent = if null consistency then Nothing else Just consistency
                 status = if printed == pristine then Success else RoundTripFailure
-                cppStatus = if useCpp then Just contents else Nothing
+                cppStatus = if useCpp then Just origContents else Nothing
             in
               Right Report {..}
 
