@@ -5,7 +5,16 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
-module Common where
+module Common (
+                RoundtripReport (..)
+              , Report
+              , ParseFailure(..)
+              , ReportType(..)
+              , roundTripTest
+              , getModSummaryForFile
+              ) where
+
+
 
 import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Utils
@@ -135,28 +144,9 @@ runRoundTrip :: GHC.ApiAnns -> GHC.Located (GHC.HsModule GHC.RdrName)
              -> (String, Anns)
 runRoundTrip !anns !parsedOrig cs =
   let
---    (!_, !parsed) = fixBugsInAst anns parsedOrig
     !relAnns = relativiseApiAnnsWithComments cs parsedOrig anns
     !printed = exactPrintWithAnns parsedOrig relAnns
   in (printed,  relAnns)
-
--- ---------------------------------------------------------------------`
-
--- | Get the preprocessor directives as comment tokens from the
--- source.
-getPreprocessorAsComments :: FilePath -> String -> [(GHC.Located GHC.Token, String)]
-getPreprocessorAsComments srcFile fcontents =
-  let
-    directives = filter (\(_lineNum,line) -> line /= [] && head line == '#') $ zip [1..] $ lines fcontents
-
-    mkTok (lineNum,line) = (GHC.L l (GHC.ITlineComment line),line)
-       where
-         start = GHC.mkSrcLoc (GHC.mkFastString srcFile) lineNum 1
-         end   = GHC.mkSrcLoc (GHC.mkFastString srcFile) lineNum (length line)
-         l = GHC.mkSrcSpan start end
-
-    toks = map mkTok directives
-  in toks
 
 -- ---------------------------------------------------------------------`
 
