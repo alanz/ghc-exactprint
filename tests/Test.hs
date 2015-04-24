@@ -15,33 +15,27 @@ import GHC.Paths ( libdir )
 
 import qualified Bag            as GHC
 import qualified BasicTypes     as GHC
--- import qualified DriverPhases   as GHC
--- import qualified DriverPipeline as GHC
 import qualified DynFlags       as GHC
 import qualified FastString     as GHC
 import qualified GHC            as GHC
--- import qualified HscTypes       as GHC
 import qualified MonadUtils     as GHC
 import qualified OccName        as GHC
 import qualified Outputable     as GHC
 import qualified RdrName        as GHC
--- import qualified StringBuffer   as GHC
 
 import qualified Data.Generics as SYB
 import qualified GHC.SYB.Utils as SYB
 
--- import Data.IORef
--- import Control.Exception
 import Control.Monad
 import System.Directory
 import System.FilePath
 import System.IO
 import System.Exit
 import qualified Data.Map as Map
+import qualified Data.Text.IO as T
 
 import Test.HUnit
 
--- import Control.Applicative
 import Data.List
 
 import System.IO.Silently
@@ -251,7 +245,7 @@ tests = TestList
 mkParserTest :: FilePath -> Test
 mkParserTest fp =
   let writeFailure s = writeFile ("tests" </> "examples" </> fp <.> "out") s
-      writeHspp s    = writeFile ("tests" </> "examples" </> fp <.> "hspp") s
+      writeHspp s    = T.writeFile ("tests" </> "examples" </> fp <.> "hspp") s
   in
     TestCase (do r <- roundTripTest writeHspp ("tests" </> "examples" </> fp)
                  case r of

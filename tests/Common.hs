@@ -7,52 +7,38 @@
 module Common where
 
 import Language.Haskell.GHC.ExactPrint
--- import Language.Haskell.GHC.ExactPrint.Transform
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Preprocess
 
 import GHC.Paths (libdir)
 
 import qualified ApiAnnotation as GHC
--- import qualified BasicTypes    as GHC
 import qualified DynFlags      as GHC
--- import qualified Exception     as GHC
 import qualified FastString    as GHC
 import qualified GHC           as GHC hiding (parseModule)
 import qualified HeaderInfo    as GHC
--- import qualified HscTypes      as GHC
--- import qualified HsSyn         as GHC
 import qualified Lexer         as GHC
 import qualified MonadUtils    as GHC
 import qualified Outputable    as GHC
 import qualified Parser        as GHC
--- import qualified RdrName       as GHC
 import qualified SrcLoc        as GHC
 import qualified StringBuffer  as GHC
 
--- import Control.Applicative
--- import Data.List.Utils (merge)
 import qualified Data.Map as Map
 import qualified Data.Text.IO as T
 import qualified Data.Text as T
 
 import Data.List hiding (find)
 
--- import Data.IORef
--- import Control.Exception
 import Control.Monad
 import System.Directory
--- import System.FilePath
--- import System.IO
-
--- import Test.HUnit
 
 import Consistency
 
--- import Debug.Trace
+import Debug.Trace
 
+-- ---------------------------------------------------------------------
 -- Roundtrip machinery
-
 
 data Report =
    Success String -- Lazy evaluation, debugtxt will only be generated if needed.
@@ -119,8 +105,8 @@ presetDynFlags = do
       void $ GHC.setSessionDynFlags dflags5
       -- GHC.liftIO $ putStrLn $ "dflags set"
 
-roundTripTest :: (String -> IO ()) -> FilePath -> IO Report
-roundTripTest _writeHsPP file = do
+roundTripTest :: (T.Text -> IO ()) -> FilePath -> IO Report
+roundTripTest writeHsPP file = do
   -- putStrLn  $ "roundTripTest:entry"
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
     GHC.runGhc (Just libdir) $ do
@@ -132,18 +118,26 @@ roundTripTest _writeHsPP file = do
       src_opts <- GHC.liftIO $ GHC.getOptionsFromFile dflags1 file
       (!dflags2, _, _)
                <- GHC.parseDynamicFilePragma dflags1 src_opts
-      fileContents <- GHC.liftIO $ T.readFile file
-        -- if
-        --   | GHC.xopt GHC.Opt_Cpp dflags2 -> do
-        --       contents <- getPreprocessedSrc dflags2 file
-        --       writeHsPP contents
-        --       return (T.pack contents)
-        --   | otherwise -> T.readFile file
+      void $ GHC.setSessionDynFlags dflags2
+      -- fileContents <- GHC.liftIO $ T.readFile file
+      (fileContents,linePragmas) <-
+        if
+          | GHC.xopt GHC.Opt_Cpp dflags2 -> do
+              (_,contents,_buf,_dflags) <- getPreprocessedSrcDirect file
+              GHC.liftIO $ writeHsPP contents
+              return (contents,[])
+          | otherwise -> do
+              txt <- GHC.liftIO $ T.readFile file
+              let (contents1,lp) = stripLinePragmas $ T.unpack txt
+              return (T.pack contents1,lp)
 
+      orig <- GHC.liftIO $ T.readFile file
+      -- traceM $ "\nroundTripTest:fileContents=" ++ show fileContents
       let origContents = removeSpaces . T.unpack $ fileContents
-      let (contents, linePragmas) = stripLinePragmas $ origContents
+      let pristine     = removeSpaces . T.unpack $ orig
+      -- let (contents, linePragmas) = stripLinePragmas $ origContents
+      let contents = origContents
       cppComments <- getCppTokensAsComments dflags2 file
-      -- traceM $ "\nroundTripTest:cppComments=" ++ showGhc cppComments
       case parseFile dflags2 file contents of
         GHC.PFailed ss m -> return $ ParseFailure ss (GHC.showSDoc dflags2 m)
         GHC.POk (mkApiAnns -> apianns) pmod   -> do
@@ -151,8 +145,8 @@ roundTripTest _writeHsPP file = do
                 debugtxt = mkDebugOutput file printed contents apianns anns pmod
                 consistency = checkConsistency apianns pmod
             if
-              | not (null consistency)  -> return $ InconsistentAnnotations debugtxt consistency
-              | printed == origContents -> return $ Success debugtxt
+              | not (null consistency) -> return $ InconsistentAnnotations debugtxt consistency
+              | printed == pristine    -> return $ Success debugtxt
               | otherwise -> return $ RoundTripFailure debugtxt
 
 

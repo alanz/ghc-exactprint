@@ -2,7 +2,7 @@ module Language.Haskell.GHC.ExactPrint.Preprocess
    (
      stripLinePragmas
    , getCppTokensAsComments
-
+   , getPreprocessedSrcDirect
      -- AZ's baggage
    , ghead,glast,gtail,gfromJust
    ) where
@@ -24,6 +24,8 @@ import Data.List hiding (find)
 import Data.Maybe
 import Language.Haskell.GHC.ExactPrint.Types
 import qualified Data.Set as Set
+import qualified Data.Text.IO as T
+import qualified Data.Text as T
 
 -- import Debug.Trace
 
@@ -68,7 +70,7 @@ getCppTokensAsComments flags sourceFile = do
     GHC.POk _ _ts -> return []
     GHC.PFailed _span _err ->
         do
-           (_,strSrcBuf,flags2) <- getPreprocessedSrcDirect sourceFile
+           (_,_txt,strSrcBuf,flags2) <- getPreprocessedSrcDirect sourceFile
            case GHC.lexTokenStream strSrcBuf startLoc flags2 of
              GHC.POk _ ts ->
                do directiveToks <- GHC.liftIO $ getPreprocessorAsComments sourceFile
@@ -146,14 +148,13 @@ sbufToString sb@(GHC.StringBuffer _buf len _cur) = GHC.lexemeToString sb len
 
 -- ---------------------------------------------------------------------
 
-getPreprocessedSrcDirect :: (GHC.GhcMonad m) => FilePath -> m (String, GHC.StringBuffer, GHC.DynFlags)
+getPreprocessedSrcDirect :: (GHC.GhcMonad m) => FilePath -> m (String, T.Text, GHC.StringBuffer, GHC.DynFlags)
 getPreprocessedSrcDirect src_fn = do
   hsc_env <- GHC.getSession
-  -- dflags <- GHC.getDynFlags
   (dflags', hspp_fn) <- GHC.liftIO $ GHC.preprocess hsc_env (src_fn, Nothing)
-  -- (dflags', hspp_fn) <- GHC.liftIO $ preprocess hsc_env dflags src_fn
   buf <- GHC.liftIO $ GHC.hGetStringBuffer hspp_fn
-  return (hspp_fn, buf, dflags')
+  txt <- GHC.liftIO $ T.readFile hspp_fn
+  return (hspp_fn, txt, buf, dflags')
 
 -- ---------------------------------------------------------------------
 
