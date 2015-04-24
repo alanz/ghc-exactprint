@@ -245,9 +245,8 @@ tests = TestList
 mkParserTest :: FilePath -> Test
 mkParserTest fp =
   let writeFailure s = writeFile ("tests" </> "examples" </> fp <.> "out") s
-      writeHspp s    = T.writeFile ("tests" </> "examples" </> fp <.> "hspp") s
   in
-    TestCase (do r <- roundTripTest writeHspp ("tests" </> "examples" </> fp)
+    TestCase (do r <- roundTripTest ("tests" </> "examples" </> fp)
                  case r of
                   RoundTripFailure debugStr -> writeFailure debugStr
                   ParseFailure _ s -> error s

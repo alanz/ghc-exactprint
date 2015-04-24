@@ -84,7 +84,6 @@ Test-Suite test
                      , syb
                      , silently
                      , filemanip
-                     , text
 
 executable roundtrip
   main-is: Roundtrip.hs
@@ -101,7 +100,6 @@ executable roundtrip
                , containers
                , ghc-paths
                , temporary
-               , text
                , syb
   ghc-options:
     -threaded

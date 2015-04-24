@@ -25,13 +25,12 @@ import qualified SrcLoc        as GHC
 import qualified StringBuffer  as GHC
 
 import qualified Data.Map as Map
-import qualified Data.Text.IO as T
-import qualified Data.Text as T
 
 import Data.List hiding (find)
 
 import Control.Monad
 import System.Directory
+import System.FilePath
 
 import Consistency
 
@@ -105,8 +104,11 @@ presetDynFlags = do
       void $ GHC.setSessionDynFlags dflags5
       -- GHC.liftIO $ putStrLn $ "dflags set"
 
-roundTripTest :: (T.Text -> IO ()) -> FilePath -> IO Report
-roundTripTest writeHsPP file = do
+
+
+roundTripTest :: FilePath -> IO Report
+roundTripTest file = do
+  let writeHsPP    = writeFile (file <.> "hspp")
   -- putStrLn  $ "roundTripTest:entry"
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
     GHC.runGhc (Just libdir) $ do
@@ -123,26 +125,26 @@ roundTripTest writeHsPP file = do
       (fileContents,linePragmas) <-
         if
           | GHC.xopt GHC.Opt_Cpp dflags2 -> do
-              (_,contents,_buf,_dflags) <- getPreprocessedSrcDirect file
+              (contents,_buf,_dflags) <- getPreprocessedSrcDirect file
               GHC.liftIO $ writeHsPP contents
               cppComments <- getCppTokensAsComments dflags2 file
               return (contents,cppComments)
           | otherwise -> do
-              txt <- GHC.liftIO $ T.readFile file
-              let (contents1,lp) = stripLinePragmas $ T.unpack txt
-              return (T.pack contents1,lp)
+              txt <- GHC.liftIO $ readFile file
+              let (contents1,lp) = stripLinePragmas txt
+              return (contents1,lp)
 
-      orig <- GHC.liftIO $ T.readFile file
+      orig <- GHC.liftIO $ readFile file
       -- traceM $ "\nroundTripTest:fileContents=" ++ show fileContents
-      let origContents = removeSpaces . T.unpack $ fileContents
-      let pristine     = removeSpaces . T.unpack $ orig
+      let origContents = removeSpaces fileContents
+      let pristine     = removeSpaces orig
       -- let (contents, linePragmas) = stripLinePragmas $ origContents
       let contents = origContents
       case parseFile dflags2 file contents of
         GHC.PFailed ss m -> return $ ParseFailure ss (GHC.showSDoc dflags2 m)
         GHC.POk (mkApiAnns -> apianns) pmod   -> do
             let (printed, anns) = runRoundTrip apianns pmod linePragmas
-                debugtxt = mkDebugOutput file printed contents apianns anns pmod
+                debugtxt = mkDebugOutput file printed pristine apianns anns pmod
                 consistency = checkConsistency apianns pmod
             if
               | not (null consistency) -> return $ InconsistentAnnotations debugtxt consistency
@@ -164,6 +166,7 @@ mkDebugOutput filename printed original apianns anns parsed =
                 ]
   where
     sep = "\n==============\n"
+
 
 
 runRoundTrip :: GHC.ApiAnns -> GHC.Located (GHC.HsModule GHC.RdrName)
