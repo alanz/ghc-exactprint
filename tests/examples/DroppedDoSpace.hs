@@ -1,4 +1,4 @@
-
+import FooBarBaz -- non-existent import, check that we can still parse
 
 save :: C -> IO ()
 save state = saveFileDialog "Save file " (maybe Nothing (Just . (++) "*.") (filesuffix state)) $

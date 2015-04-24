@@ -779,8 +779,7 @@ parsedFileGhc fileName modname useTH = do
 
         target <- GHC.guessTarget fileName Nothing
         GHC.setTargets [target]
-        GHC.liftIO $ putStrLn $ "target set:" ++ showGhc (GHC.targetId target)
-        GHC.liftIO $ putStrLn $ "target set:" ++ showGhc target
+        -- GHC.liftIO $ putStrLn $ "target set:" ++ showGhc (GHC.targetId target)
         void $ GHC.load GHC.LoadAllTargets -- Loads and compiles, much as calling make
         -- GHC.liftIO $ putStrLn $ "targets loaded"
         g <- GHC.getModuleGraph

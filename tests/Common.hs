@@ -99,14 +99,34 @@ getDynFlags =
 removeSpaces :: String -> String
 removeSpaces = map (\case {'\160' -> ' '; s -> s})
 
+presetDynFlags = do
+      -- AZ Dynflags setting
+      dflags <- GHC.getSessionDynFlags
+      let dflags2 = dflags { GHC.importPaths = ["./tests/examples/","../tests/examples/",
+                                                "./src/","../src/"] }
+          useTH = False
+          tgt = if useTH then GHC.HscInterpreted
+                         else GHC.HscNothing -- allows FFI
+          dflags3 = dflags2 { GHC.hscTarget = tgt
+                            , GHC.ghcLink =  GHC.LinkInMemory
+                            }
+
+          dflags4 = GHC.gopt_set dflags3 GHC.Opt_KeepRawTokenStream
+
+      (dflags5,_args,_warns) <- GHC.parseDynamicFlagsCmdLine dflags4 [GHC.noLoc "-package ghc"]
+      -- GHC.liftIO $ putStrLn $ "dflags set:(args,warns)" ++ show (map GHC.unLoc _args,map GHC.unLoc _warns)
+      void $ GHC.setSessionDynFlags dflags5
+      -- GHC.liftIO $ putStrLn $ "dflags set"
 
 roundTripTest :: (String -> IO ()) -> FilePath -> IO Report
 roundTripTest writeHsPP file = do
   -- putStrLn  $ "roundTripTest:entry"
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
     GHC.runGhc (Just libdir) $ do
+
+      presetDynFlags
+
       dflags0 <- GHC.getSessionDynFlags
-      -- dflags0 <- getDynFlags
       let dflags1 = GHC.gopt_set dflags0 GHC.Opt_KeepRawTokenStream
       src_opts <- GHC.liftIO $ GHC.getOptionsFromFile dflags1 file
       (!dflags2, _, _)
