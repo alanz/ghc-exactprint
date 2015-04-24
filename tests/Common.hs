@@ -69,43 +69,13 @@ mkApiAnns :: GHC.PState -> GHC.ApiAnns
 mkApiAnns pstate = (Map.fromListWith (++) . GHC.annotations $ pstate
                    , Map.fromList ((GHC.noSrcSpan, GHC.comment_q pstate) : (GHC.annotations_comments pstate)))
 
-getDynFlags :: IO GHC.DynFlags
-getDynFlags =
-  GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
-    GHC.runGhc (Just libdir) GHC.getSessionDynFlags
-
 removeSpaces :: String -> String
 removeSpaces = map (\case {'\160' -> ' '; s -> s})
 
-presetDynFlags :: (GHC.GhcMonad m) => m ()
-presetDynFlags = do
-      -- AZ Dynflags setting
-      dflags <- GHC.getSessionDynFlags
-      let dflags2 = dflags { GHC.importPaths = ["./tests/examples/","../tests/examples/",
-                                                "./src/","../src/"] }
-          useTH = False
-          tgt = if useTH then GHC.HscInterpreted
-                         else GHC.HscNothing -- allows FFI
-          dflags3 = dflags2 { GHC.hscTarget = tgt
-                            , GHC.ghcLink =  GHC.LinkInMemory
-                            }
-
-          dflags4 = GHC.gopt_set dflags3 GHC.Opt_KeepRawTokenStream
-
-      (dflags5,_args,_warns) <- GHC.parseDynamicFlagsCmdLine dflags4 [GHC.noLoc "-package ghc"]
-      -- GHC.liftIO $ putStrLn $ "dflags set:(args,warns)" ++ show (map GHC.unLoc _args,map GHC.unLoc _warns)
-      void $ GHC.setSessionDynFlags dflags5
-      -- GHC.liftIO $ putStrLn $ "dflags set"
-
-
-
 roundTripTest :: FilePath -> IO Report
-roundTripTest file = do
-  -- putStrLn  $ "roundTripTest:entry"
-  GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
+roundTripTest file =
+  GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
     GHC.runGhc (Just libdir) $ do
-
-      presetDynFlags
 
       dflags0 <- GHC.getSessionDynFlags
       let dflags1 = GHC.gopt_set dflags0 GHC.Opt_KeepRawTokenStream
@@ -114,36 +84,33 @@ roundTripTest file = do
                <- GHC.parseDynamicFilePragma dflags1 src_opts
       void $ GHC.setSessionDynFlags dflags2
       let useCpp = GHC.xopt GHC.Opt_Cpp dflags2
-      -- fileContents <- GHC.liftIO $ T.readFile file
-      (fileContents,linePragmas) <-
-        if
-          | GHC.xopt GHC.Opt_Cpp dflags2 -> do
-              (contents,_buf,_dflags) <- getPreprocessedSrcDirect file
-              cppComments <- getCppTokensAsComments dflags2 file
-              return (contents,cppComments)
-          | otherwise -> do
-              txt <- GHC.liftIO $ readFile file
-              let (contents1,lp) = stripLinePragmas txt
-              return (contents1,lp)
+      (fileContents, injectedComments) <-
+        if useCpp
+          then do
+            (contents,_buf,_dflags) <- getPreprocessedSrcDirect file
+            cppComments <- getCppTokensAsComments dflags2 file
+            return (contents,cppComments)
+          else do
+            txt <- GHC.liftIO $ readFile file
+            let (contents1,lp) = stripLinePragmas txt
+            return (contents1,lp)
 
       orig <- GHC.liftIO $ readFile file
-      -- traceM $ "\nroundTripTest:fileContents=" ++ show fileContents
       let origContents = removeSpaces fileContents
-      let pristine     = removeSpaces orig
-      -- let (contents, linePragmas) = stripLinePragmas $ origContents
-      let contents = origContents
+          pristine     = removeSpaces orig
+          contents     = origContents
       return $
         case parseFile dflags2 file contents of
           GHC.PFailed ss m -> Left $ ParseFailure ss (GHC.showSDoc dflags2 m)
           GHC.POk (mkApiAnns -> apianns) pmod   ->
-            let (printed, anns) = runRoundTrip apianns pmod linePragmas
+            let (printed, anns) = runRoundTrip apianns pmod injectedComments
                 debugTxt = mkDebugOutput file printed pristine apianns anns pmod
                 consistency = checkConsistency apianns pmod
                 inconsistent = if null consistency then Nothing else Just consistency
                 status = if printed == pristine then Success else RoundTripFailure
                 cppStatus = if useCpp then Just contents else Nothing
             in
-              Right (Report {..})
+              Right Report {..}
 
 
 mkDebugOutput :: FilePath -> String -> String
@@ -152,7 +119,7 @@ mkDebugOutput :: FilePath -> String -> String
               -> GHC.Located (GHC.HsModule GHC.RdrName) -> String
 mkDebugOutput filename printed original apianns anns parsed =
   intercalate sep [ printed
-               , filename
+                 , filename
                  , "lengths:" ++ show (length printed,length original) ++ "\n"
                  , showAnnData anns 0 parsed
                  , showGhc anns
