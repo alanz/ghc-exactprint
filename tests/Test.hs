@@ -698,12 +698,12 @@ manipulateAstTest' mchange useTH file' modname = do
                    Nothing -> readUTF8File file
                    Just _  -> readUTF8File expected
   -- (ghcAnns',p,cppCommentToks) <- hSilence [stderr] $  parsedFileGhc file modname useTH
-  (ghcAnns',p,cppCommentToks) <- parsedFileGhc file modname useTH
+  (ghcAnns',p,cppComments) <- parsedFileGhc file modname useTH
   let
     parsedOrig = GHC.pm_parsed_source $ p
     (ghcAnns,parsed) = fixBugsInAst ghcAnns' parsedOrig
     parsedAST = SYB.showData SYB.Parser 0 parsed
-    cppComments = map (tokComment . commentToAnnotation . fst) cppCommentToks
+    -- cppComments = map (tokComment . commentToAnnotation . fst) cppCommentToks
     -- parsedAST = showGhc parsed
        -- `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
     -- try to pretty-print; summarize the test result
@@ -746,7 +746,7 @@ manipulateAstTest' mchange useTH file' modname = do
 -- TypeCheckedModule produced by GHC.
 type ParseResult = GHC.ParsedModule
 
-parsedFileGhc :: String -> String -> Bool -> IO (GHC.ApiAnns,ParseResult,[(GHC.Located GHC.Token, String)])
+parsedFileGhc :: String -> String -> Bool -> IO (GHC.ApiAnns,ParseResult,[Comment])
 parsedFileGhc fileName _modname useTH = do
     -- putStrLn $ "parsedFileGhc:" ++ show fileName
     GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
@@ -788,7 +788,7 @@ parsedFileGhc fileName _modname useTH = do
         cppComments <- getCppTokensAsComments dflags5 fileName
         -- let cppComments = [] :: [(GHC.Located GHC.Token, String)]
         GHC.liftIO $ putStrLn $ "\ncppTokensAsComments for:"  ++ fileName ++ "=========\n"
-                              ++ showGhc (map fst cppComments) ++ "\n================\n"
+                              ++ showGhc cppComments ++ "\n================\n"
 {-
         (sourceFile, source, flags) <- getModuleSourceAndFlags (GHC.ms_mod modSum)
         strSrcBuf <- getPreprocessedSrc sourceFile

@@ -22,6 +22,8 @@ import qualified StringBuffer   as GHC
 import Control.Exception
 import Data.List hiding (find)
 import Data.Maybe
+import Language.Haskell.GHC.ExactPrint.Delta
+import Language.Haskell.GHC.ExactPrint.GhcInterim
 import Language.Haskell.GHC.ExactPrint.Types
 import qualified Data.Set as Set
 import qualified Data.Text.IO as T
@@ -62,7 +64,7 @@ getPragma s@(x:xs)
 -- | Replacement for original 'getRichTokenStream' which will return
 -- the tokens for a file processed by CPP.
 -- See bug <http://ghc.haskell.org/trac/ghc/ticket/8265>
-getCppTokensAsComments :: GHC.GhcMonad m => GHC.DynFlags -> FilePath -> m [(GHC.Located GHC.Token, String)]
+getCppTokensAsComments :: GHC.GhcMonad m => GHC.DynFlags -> FilePath -> m [Comment]
 getCppTokensAsComments flags sourceFile = do
   source <- GHC.liftIO $ GHC.hGetStringBuffer sourceFile
   let startLoc = GHC.mkRealSrcLoc (GHC.mkFastString sourceFile) 1 1
@@ -76,7 +78,8 @@ getCppTokensAsComments flags sourceFile = do
                do directiveToks <- GHC.liftIO $ getPreprocessorAsComments sourceFile
                   nonDirectiveToks <- tokeniseOriginalSrc startLoc flags2 source
                   let toks = GHC.addSourceToTokens startLoc source ts
-                  return $ getCppTokens directiveToks nonDirectiveToks toks
+                  let cppCommentToks = getCppTokens directiveToks nonDirectiveToks toks
+                  return $ map (tokComment . commentToAnnotation . fst) cppCommentToks
              GHC.PFailed sspan err -> parseError flags2 sspan err
 
 -- ---------------------------------------------------------------------

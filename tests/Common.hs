@@ -125,7 +125,8 @@ roundTripTest writeHsPP file = do
           | GHC.xopt GHC.Opt_Cpp dflags2 -> do
               (_,contents,_buf,_dflags) <- getPreprocessedSrcDirect file
               GHC.liftIO $ writeHsPP contents
-              return (contents,[])
+              cppComments <- getCppTokensAsComments dflags2 file
+              return (contents,cppComments)
           | otherwise -> do
               txt <- GHC.liftIO $ T.readFile file
               let (contents1,lp) = stripLinePragmas $ T.unpack txt
@@ -137,7 +138,6 @@ roundTripTest writeHsPP file = do
       let pristine     = removeSpaces . T.unpack $ orig
       -- let (contents, linePragmas) = stripLinePragmas $ origContents
       let contents = origContents
-      cppComments <- getCppTokensAsComments dflags2 file
       case parseFile dflags2 file contents of
         GHC.PFailed ss m -> return $ ParseFailure ss (GHC.showSDoc dflags2 m)
         GHC.POk (mkApiAnns -> apianns) pmod   -> do
