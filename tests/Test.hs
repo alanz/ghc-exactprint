@@ -13,17 +13,19 @@ import Language.Haskell.GHC.ExactPrint.Utils
 
 import GHC.Paths ( libdir )
 
-import qualified BasicTypes    as GHC
-import qualified Bag           as GHC
-import qualified DynFlags      as GHC
-import qualified FastString    as GHC
-import qualified GHC           as GHC
-import qualified HscTypes      as GHC
-import qualified MonadUtils    as GHC
-import qualified OccName       as GHC
-import qualified Outputable    as GHC
-import qualified RdrName       as GHC
-import qualified StringBuffer  as GHC
+import qualified Bag            as GHC
+import qualified BasicTypes     as GHC
+import qualified DriverPhases   as GHC
+import qualified DriverPipeline as GHC
+import qualified DynFlags       as GHC
+import qualified FastString     as GHC
+import qualified GHC            as GHC
+import qualified HscTypes       as GHC
+import qualified MonadUtils     as GHC
+import qualified OccName        as GHC
+import qualified Outputable     as GHC
+import qualified RdrName        as GHC
+import qualified StringBuffer   as GHC
 
 import qualified Data.Generics as SYB
 import qualified GHC.SYB.Utils as SYB
@@ -434,7 +436,7 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- -- , manipulateAstTestWFname "ArgPuncParens.hs"   "Main"
     -- -- , manipulateAstTestWFname "SimpleComplexTuple.hs" "Main"
     -- -- , manipulateAstTestWFname "DoPatBind.hs" "Main"
-    -- -- , manipulateAstTestWFname "DroppedDoSpace.hs" "Main"
+    , manipulateAstTestWFname "DroppedDoSpace.hs" "Main"
     -- , manipulateAstTestWFname "DroppedDoSpace2.hs" "Main"
     -- , manipulateAstTestWFname "GHCOrig.hs" "GHC.Tuple"
 
@@ -448,7 +450,7 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
 testsTT = TestList
   [
     mkParserTest "Cpp.hs"
-    -- mkParserTest "DroppedDoSpace.hs"
+  , mkParserTest "DroppedDoSpace.hs"
   ]
 
 tt :: IO ()
@@ -699,7 +701,8 @@ manipulateAstTest' mchange useTH file' modname = do
   contents <- case mchange of
                    Nothing -> readUTF8File file
                    Just _  -> readUTF8File expected
-  (ghcAnns',p,cppCommentToks) <- hSilence [stderr] $  parsedFileGhc file modname useTH
+  -- (ghcAnns',p,cppCommentToks) <- hSilence [stderr] $  parsedFileGhc file modname useTH
+  (ghcAnns',p,cppCommentToks) <- parsedFileGhc file modname useTH
   let
     parsedOrig = GHC.pm_parsed_source $ p
     (ghcAnns,parsed) = fixBugsInAst ghcAnns' parsedOrig
@@ -749,36 +752,35 @@ type ParseResult = GHC.ParsedModule
 
 parsedFileGhc :: String -> String -> Bool -> IO (GHC.ApiAnns,ParseResult,[(GHC.Located GHC.Token, String)])
 parsedFileGhc fileName modname useTH = do
-    -- putStrLn $ "parsedFileGhc:" ++ show fileName
+    putStrLn $ "parsedFileGhc:" ++ show fileName
     GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
       GHC.runGhc (Just libdir) $ do
         dflags <- GHC.getSessionDynFlags
-        let dflags'' = dflags { GHC.importPaths = ["./tests/examples/","../tests/examples/",
-                                                   "./src/","../src/"] }
-
+        let dflags2 = dflags { GHC.importPaths = ["./tests/examples/","../tests/examples/",
+                                                  "./src/","../src/"] }
             tgt = if useTH then GHC.HscInterpreted
                            else GHC.HscNothing -- allows FFI
-            dflags''' = dflags'' { GHC.hscTarget = tgt,
-                                   GHC.ghcLink =  GHC.LinkInMemory
-                                  , GHC.packageFlags = [GHC.ExposePackage (GHC.PackageArg "ghc") (GHC.ModRenaming False [])]
-                                 }
+            dflags3 = dflags2 { GHC.hscTarget = tgt
+                              , GHC.ghcLink =  GHC.LinkInMemory
+                              }
 
-            dflags4 = if False -- useHaddock
-                        then GHC.gopt_set (GHC.gopt_set dflags''' GHC.Opt_Haddock)
-                                       GHC.Opt_KeepRawTokenStream
-                        else GHC.gopt_set dflags'''
-                                       GHC.Opt_KeepRawTokenStream
-                        -- else GHC.gopt_set (GHC.gopt_unset dflags''' GHC.Opt_Haddock)
-                        --               GHC.Opt_KeepRawTokenStream
+            dflags4 = GHC.gopt_set dflags3 GHC.Opt_KeepRawTokenStream
 
         (dflags5,_args,_warns) <- GHC.parseDynamicFlagsCmdLine dflags4 [GHC.noLoc "-package ghc"]
-        -- GHC.liftIO $ putStrLn $ "dflags set:(args,warns)" ++ show (map GHC.unLoc args,map GHC.unLoc warns)
+        -- GHC.liftIO $ putStrLn $ "dflags set:(args,warns)" ++ show (map GHC.unLoc _args,map GHC.unLoc _warns)
         void $ GHC.setSessionDynFlags dflags5
         -- GHC.liftIO $ putStrLn $ "dflags set"
 
+
+        hsc_env <- GHC.getSession
+        (dflags6,fn_pp) <- GHC.liftIO $ GHC.preprocess hsc_env (fileName,Nothing)
+        GHC.liftIO $ putStrLn $ "preprocess got:" ++ show fn_pp
+
+
         target <- GHC.guessTarget fileName Nothing
         GHC.setTargets [target]
-        -- GHC.liftIO $ putStrLn $ "target set:" ++ showGhc (GHC.targetId target)
+        GHC.liftIO $ putStrLn $ "target set:" ++ showGhc (GHC.targetId target)
+        GHC.liftIO $ putStrLn $ "target set:" ++ showGhc target
         void $ GHC.load GHC.LoadAllTargets -- Loads and compiles, much as calling make
         -- GHC.liftIO $ putStrLn $ "targets loaded"
         g <- GHC.getModuleGraph

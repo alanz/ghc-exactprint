@@ -364,10 +364,10 @@ instance Annotate GHC.RdrName where
         cntT <- countAnns GHC.AnnCommaTuple
         case cnt of
           0 -> if cntT > 0
-                 then traceM "Printing RdrName, no AnnVal, multiple AnnCommTuple"
+                 then traceM $ "Printing RdrName, no AnnVal, multiple AnnCommTuple:" ++ showGhc (l,n)
                  else markExternal l GHC.AnnVal str'
           1 -> markWithString GHC.AnnVal str'
-          _ -> traceM "Printing RdrName, more than 1 AnnVal"
+          _ -> traceM $ "Printing RdrName, more than 1 AnnVal:" ++ showGhc (l,n)
         markOffset GHC.AnnBackquote 1
         mark GHC.AnnCloseP
 

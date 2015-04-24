@@ -1,6 +1,9 @@
 /dist/
 /tests/examples/*.out
 /tests/examples/*.incons
+/tests/examples/*.hi
+/tests/examples/*.o
+/tests/examples/*.dyn*
 *.refactored.hs
 /TAGS
 /tags

@@ -13,7 +13,7 @@ import qualified ApiAnnotation  as GHC
 import qualified Bag            as GHC
 import qualified BasicTypes     as GHC
 import qualified DriverPipeline as GHC
-import qualified DriverPhases  as GHC
+import qualified DriverPhases   as GHC
 import qualified DynFlags       as GHC
 import qualified ErrUtils       as GHC
 import qualified FastString     as GHC
