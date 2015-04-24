@@ -43,6 +43,8 @@ import System.Directory
 
 import Consistency
 
+import Control.Arrow (first)
+
 import Debug.Trace
 
 -- ---------------------------------------------------------------------
@@ -115,7 +117,12 @@ roundTripTest file =
         case parseFile dflags file origContents of
           GHC.PFailed ss m -> Left $ ParseFailure ss (GHC.showSDoc dflags m)
           GHC.POk (mkApiAnns -> apianns) pmod   ->
-            let (printed, anns) = runRoundTrip apianns pmod injectedComments
+            let (printed, anns) = first trimPrinted $ runRoundTrip apianns pmod injectedComments
+                -- Clang cpp adds an extra newline character
+                -- Do not remove this line!
+                trimPrinted p = if useCpp
+                                  then unlines $ take (length (lines pristine)) (lines p)
+                                  else p
                 debugTxt = mkDebugOutput file printed pristine apianns anns pmod
                 consistency = checkConsistency apianns pmod
                 inconsistent = if null consistency then Nothing else Just consistency
