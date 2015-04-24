@@ -4,8 +4,6 @@
 module Main where
 
 import Language.Haskell.GHC.ExactPrint
-import Language.Haskell.GHC.ExactPrint.Delta
-import Language.Haskell.GHC.ExactPrint.GhcInterim
 import Language.Haskell.GHC.ExactPrint.Preprocess
 import Language.Haskell.GHC.ExactPrint.Transform
 import Language.Haskell.GHC.ExactPrint.Types
@@ -20,7 +18,6 @@ import qualified FastString     as GHC
 import qualified GHC            as GHC
 import qualified MonadUtils     as GHC
 import qualified OccName        as GHC
-import qualified Outputable     as GHC
 import qualified RdrName        as GHC
 
 import qualified Data.Generics as SYB
@@ -32,7 +29,6 @@ import System.FilePath
 import System.IO
 import System.Exit
 import qualified Data.Map as Map
-import qualified Data.Text.IO as T
 
 import Test.HUnit
 
@@ -246,25 +242,14 @@ mkParserTest :: FilePath -> Test
 mkParserTest fp =
   let writeFailure s = writeFile ("tests" </> "examples" </> fp <.> "out") s
   in
-    TestCase (do r <- roundTripTest ("tests" </> "examples" </> fp)
-                 case r of
-                  RoundTripFailure debugStr -> writeFailure debugStr
-                  ParseFailure _ s -> error s
-                  CPP -> error fp
-                  InconsistentAnnotations db s -> do
-  --                  putStrLn ("\nInconsistency in: " ++ fp)
+    TestCase (do r <- either (\(ParseFailure _ s) -> error s) id <$> (roundTripTest ("tests" </> "examples" </> fp))
+                 writeFailure (debugTxt r)
+                 forM_ (inconsistent r)
+                  (\s ->
                     writeFile ("tests" </> "examples" </> fp <.> "incons")
-                      (showGhc s)
-                    writeFailure db
-                  -- Success debug -> return ()
-                  Success debugStr -> writeFailure debugStr
-                 assertBool fp (success r))
+                      (showGhc s))
+                 assertBool fp (status r == Success))
 
-
-success :: Report -> Bool
-success (Success _) = True
-success (InconsistentAnnotations _ _) = True
-success _ = False
 
 
 mkTestMain :: FilePath -> Test

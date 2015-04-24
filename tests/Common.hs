@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RecordWildCards #-}
 module Common where
 
 import Language.Haskell.GHC.ExactPrint
@@ -39,28 +40,21 @@ import Debug.Trace
 -- ---------------------------------------------------------------------
 -- Roundtrip machinery
 
-data Report =
-   Success String -- Lazy evaluation, debugtxt will only be generated if needed.
- | ParseFailure GHC.SrcSpan String
- | RoundTripFailure String
- | CPP
- | InconsistentAnnotations String [(GHC.SrcSpan, (GHC.AnnKeywordId, [GHC.SrcSpan]))]
+type Report = Either ParseFailure RoundtripReport
 
-instance Eq Report where
-  Success _          == Success _          = True
-  ParseFailure _ _   == ParseFailure _ _   = True
-  RoundTripFailure _ == RoundTripFailure _ = True
-  CPP                == CPP                = True
-  InconsistentAnnotations _ _ == InconsistentAnnotations _ _ = True
-  _ == _ = False
+data RoundtripReport =
+  Report
+   { debugTxt :: String
+   , status   :: ReportType
+   , cppStatus :: Maybe String -- Result of CPP if invoked
+   , inconsistent :: Maybe [(GHC.SrcSpan, (GHC.AnnKeywordId, [GHC.SrcSpan]))]
+   }
 
+data ParseFailure = ParseFailure GHC.SrcSpan String
 
-instance Show Report where
-  show (Success _) = "Success"
-  show (ParseFailure _ s) = "ParseFailure: " ++ s
-  show (RoundTripFailure _) = "RoundTripFailure"
-  show CPP              = "CPP"
-  show (InconsistentAnnotations _ s) = "InconsistentAnnotations: " ++ showGhc s
+data ReportType =
+   Success
+ | RoundTripFailure deriving (Eq, Show)
 
 runParser :: GHC.P a -> GHC.DynFlags -> FilePath -> String -> GHC.ParseResult a
 runParser parser flags filename str = GHC.unP parser parseState
@@ -121,6 +115,7 @@ roundTripTest file = do
       (!dflags2, _, _)
                <- GHC.parseDynamicFilePragma dflags1 src_opts
       void $ GHC.setSessionDynFlags dflags2
+      let useCpp = GHC.xopt GHC.Opt_Cpp dflags2
       -- fileContents <- GHC.liftIO $ T.readFile file
       (fileContents,linePragmas) <-
         if
@@ -140,16 +135,18 @@ roundTripTest file = do
       let pristine     = removeSpaces orig
       -- let (contents, linePragmas) = stripLinePragmas $ origContents
       let contents = origContents
-      case parseFile dflags2 file contents of
-        GHC.PFailed ss m -> return $ ParseFailure ss (GHC.showSDoc dflags2 m)
-        GHC.POk (mkApiAnns -> apianns) pmod   -> do
+      return $
+        case parseFile dflags2 file contents of
+          GHC.PFailed ss m -> Left $ ParseFailure ss (GHC.showSDoc dflags2 m)
+          GHC.POk (mkApiAnns -> apianns) pmod   ->
             let (printed, anns) = runRoundTrip apianns pmod linePragmas
-                debugtxt = mkDebugOutput file printed pristine apianns anns pmod
+                debugTxt = mkDebugOutput file printed pristine apianns anns pmod
                 consistency = checkConsistency apianns pmod
-            if
-              | not (null consistency) -> return $ InconsistentAnnotations debugtxt consistency
-              | printed == pristine    -> return $ Success debugtxt
-              | otherwise -> return $ RoundTripFailure debugtxt
+                inconsistent = if null consistency then Nothing else Just consistency
+                status = if printed == pristine then Success else RoundTripFailure
+                cppStatus = if useCpp then Just contents else Nothing
+            in
+              Right (Report {..})
 
 
 mkDebugOutput :: FilePath -> String -> String
