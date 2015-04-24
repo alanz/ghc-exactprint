@@ -266,18 +266,15 @@ getTempDir dflags
 
 getPreprocessedSrcDirect :: (GHC.GhcMonad m) => FilePath -> m (String, GHC.StringBuffer, GHC.DynFlags)
 getPreprocessedSrcDirect src_fn = do
-  traceM $ "\ngetPreprocessedSrcDirect:src_fn=" ++ show src_fn
   hsc_env <- GHC.getSession
   dflags <- GHC.getDynFlags
-  traceM $ "\ngetPreprocessedSrcDirect:got hsc_env"
-  -- (dflags', hspp_fn) <- GHC.liftIO $ GHC.preprocess hsc_env (src_fn, Nothing)
-  (dflags', hspp_fn) <- GHC.liftIO $ preprocess hsc_env dflags src_fn
-  traceM $ "\ngetPreprocessedSrcDirect:after preprocess"
+  (dflags', hspp_fn) <- GHC.liftIO $ GHC.preprocess hsc_env (src_fn, Nothing)
+  -- (dflags', hspp_fn) <- GHC.liftIO $ preprocess hsc_env dflags src_fn
   buf <- GHC.liftIO $ GHC.hGetStringBuffer hspp_fn
   return (hspp_fn, buf, dflags')
 
 -- ---------------------------------------------------------------------
-
+{-
 preprocess :: GHC.HscEnv -> GHC.DynFlags -> FilePath -> IO (GHC.DynFlags, FilePath)
 -- preprocess :: GHC.HscEnv -> GHC.DynFlags -> FilePath -> IO FilePath
 preprocess hsc_env dflags src_fn = do
@@ -293,7 +290,7 @@ preprocess hsc_env dflags src_fn = do
                  pipeEnv pipeState
   -- runPhase (RealPhase (Cpp src_fn)) src_fn dflags0
   return (dflags,snd r)
-
+-}
 -- ---------------------------------------------------------------------
 
 -- | The preprocessed files are placed in a temporary directory, with

@@ -752,7 +752,7 @@ type ParseResult = GHC.ParsedModule
 
 parsedFileGhc :: String -> String -> Bool -> IO (GHC.ApiAnns,ParseResult,[(GHC.Located GHC.Token, String)])
 parsedFileGhc fileName modname useTH = do
-    putStrLn $ "parsedFileGhc:" ++ show fileName
+    -- putStrLn $ "parsedFileGhc:" ++ show fileName
     GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
       GHC.runGhc (Just libdir) $ do
         dflags <- GHC.getSessionDynFlags
@@ -774,7 +774,7 @@ parsedFileGhc fileName modname useTH = do
 
         hsc_env <- GHC.getSession
         (dflags6,fn_pp) <- GHC.liftIO $ GHC.preprocess hsc_env (fileName,Nothing)
-        GHC.liftIO $ putStrLn $ "preprocess got:" ++ show fn_pp
+        -- GHC.liftIO $ putStrLn $ "preprocess got:" ++ show fn_pp
 
 
         target <- GHC.guessTarget fileName Nothing
@@ -792,7 +792,7 @@ parsedFileGhc fileName modname useTH = do
         -- let modSum = head g
         -- cppComments <- getCppTokensAsComments dflags5 (GHC.ms_mod modSum)
         let cppComments = [] :: [(GHC.Located GHC.Token, String)]
-        GHC.liftIO $ putStrLn $ "cppTokensAsComments====\n" ++ showGhc cppComments ++ "\n================\n"
+        -- GHC.liftIO $ putStrLn $ "cppTokensAsComments====\n" ++ showGhc cppComments ++ "\n================\n"
 {-
         (sourceFile, source, flags) <- getModuleSourceAndFlags (GHC.ms_mod modSum)
         strSrcBuf <- getPreprocessedSrc sourceFile
