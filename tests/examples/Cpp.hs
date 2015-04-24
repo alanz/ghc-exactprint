@@ -8,3 +8,11 @@ foo :: Integer
 #endif
 foo = 3
 
+bar :: (
+#if __GLASGOW_HASKELL__ > 704
+    Int)
+#else
+    Integer)
+#endif
+bar = 4
+
