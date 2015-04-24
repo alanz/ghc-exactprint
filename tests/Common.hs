@@ -31,7 +31,6 @@ import Data.List hiding (find)
 
 import Control.Monad
 import System.Directory
-import System.FilePath
 
 import Consistency
 
@@ -102,7 +101,6 @@ presetDynFlags = do
 
 roundTripTest :: FilePath -> IO Report
 roundTripTest file = do
-  let writeHsPP    = writeFile (file <.> "hspp")
   -- putStrLn  $ "roundTripTest:entry"
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
     GHC.runGhc (Just libdir) $ do
@@ -121,7 +119,6 @@ roundTripTest file = do
         if
           | GHC.xopt GHC.Opt_Cpp dflags2 -> do
               (contents,_buf,_dflags) <- getPreprocessedSrcDirect file
-              GHC.liftIO $ writeHsPP contents
               cppComments <- getCppTokensAsComments dflags2 file
               return (contents,cppComments)
           | otherwise -> do

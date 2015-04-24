@@ -240,14 +240,16 @@ tests = TestList
 
 mkParserTest :: FilePath -> Test
 mkParserTest fp =
-  let writeFailure s = writeFile ("tests" </> "examples" </> fp <.> "out") s
+  let basename       = "tests" </> "examples" </> fp
+      writeFailure   = writeFile (basename <.> "out")
+      writeHsPP      = writeFile (basename <.> "hspp")
+      writeIncons s  = writeFile (basename <.> "incons") (showGhc s)
   in
-    TestCase (do r <- either (\(ParseFailure _ s) -> error s) id <$> (roundTripTest ("tests" </> "examples" </> fp))
+    TestCase (do r <- either (\(ParseFailure _ s) -> error s) id
+                        <$> roundTripTest ("tests" </> "examples" </> fp)
                  writeFailure (debugTxt r)
-                 forM_ (inconsistent r)
-                  (\s ->
-                    writeFile ("tests" </> "examples" </> fp <.> "incons")
-                      (showGhc s))
+                 forM_ (inconsistent r) writeIncons
+                 forM_ (cppStatus r) writeHsPP
                  assertBool fp (status r == Success))
 
 
