@@ -437,7 +437,7 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- -- , manipulateAstTestWFname "ArgPuncParens.hs"   "Main"
     -- -- , manipulateAstTestWFname "SimpleComplexTuple.hs" "Main"
     -- -- , manipulateAstTestWFname "DoPatBind.hs" "Main"
-    , manipulateAstTestWFname "DroppedDoSpace.hs" "Main"
+    -- , manipulateAstTestWFname "DroppedDoSpace.hs" "Main"
     -- , manipulateAstTestWFname "DroppedDoSpace2.hs" "Main"
     -- , manipulateAstTestWFname "GHCOrig.hs" "GHC.Tuple"
 
@@ -794,7 +794,7 @@ parsedFileGhc fileName _modname useTH = do
         cppComments <- getCppTokensAsComments dflags5 fileName
         -- let cppComments = [] :: [(GHC.Located GHC.Token, String)]
         GHC.liftIO $ putStrLn $ "\ncppTokensAsComments for:"  ++ fileName ++ "=========\n"
-                              ++ showGhc cppComments ++ "\n================\n"
+                              ++ showGhc (map fst cppComments) ++ "\n================\n"
 {-
         (sourceFile, source, flags) <- getModuleSourceAndFlags (GHC.ms_mod modSum)
         strSrcBuf <- getPreprocessedSrc sourceFile
