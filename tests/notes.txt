@@ -176,3 +176,10 @@ MultiLineWarningPragma.hs
 Needs triage
 ------------
 
+### Failure in: 65
+ParensAroundContext.hs
+  - possible D855, check
+
+### Failure in: 146
+TypeSignatureParens.hs
+  - possible D855, check
