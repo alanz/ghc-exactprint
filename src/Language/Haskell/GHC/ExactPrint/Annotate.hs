@@ -978,6 +978,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name) =>
 
 -- ---------------------------------------------------------------------
 
+markTvar tv = do
+  mark GHC.AnnForall
+  markLocated tv
+  mark GHC.AnnDot
+
 instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
    => Annotate (GHC.HsType name) where
 
@@ -985,6 +990,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mark GHC.AnnOpenP -- "("
     mark GHC.AnnForall
     mapM_ markLocated tvs
+    -- mapM_ markTvar tvs
     mark GHC.AnnDot
 
     case mwc of
@@ -1352,6 +1358,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
        mapM_ markLocated fs
        mark GHC.AnnDotdot
        mark GHC.AnnCloseC -- '}'
+       mark GHC.AnnRarrow
 
 -- ---------------------------------------------------------------------
 
@@ -2098,7 +2105,6 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
         case dets of
           GHC.InfixCon _ _ -> return ()
           _ -> mapM_ markLocated lns
-
 
         when depc_syntax ( do
           markHsConDeclDetails lns dets

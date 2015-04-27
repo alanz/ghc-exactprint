@@ -176,6 +176,8 @@ TypeSignatureParens.hs
    discards the annotation
    resurrect D855? or rework it
    
+DoubleForall.hs
+   D833 needs attention, is not passing the annotations up
 
 Needs triage
 ------------
@@ -187,10 +189,6 @@ Undefined6.hs
 ### Failure in: 114
 Undefined11.hs
 ### Failure in: 118
-TypeBrackets.hs
-### Failure in: 129
-DoubleForall.hs
-### Failure in: 135
 GADTRecords.hs
 ### Failure in: 136
 MangledSemiLet.hs
