@@ -1378,7 +1378,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,Annotate body) =
   markAST _ (GHC.LastStmt body _) = markLocated body
 
   markAST _ (GHC.BindStmt pat body _ _) = do
-    -- markSigPatIn pat
     markLocated pat
     mark GHC.AnnLarrow
     markLocated body
@@ -1386,6 +1385,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,Annotate body) =
 
   markAST _ (GHC.BodyStmt body _ _ _) = do
     markLocated body
+    mark GHC.AnnVbar -- possible in list comprehension
 
   markAST _ (GHC.LetStmt lb) = do
     -- return () `debug` ("markP.LetStmt entered")
@@ -1394,9 +1394,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,Annotate body) =
     markWithLayout (GHC.L (getLocalBindsSrcSpan lb) lb) NotNeeded
     mark GHC.AnnCloseC -- '}'
     -- return () `debug` ("markP.LetStmt done")
+    mark GHC.AnnVbar -- possible in list comprehension
 
   markAST l (GHC.ParStmt pbs _ _) = do
     mapM_ (markAST l) pbs
+    -- mark GHC.AnnVbar
+    mark GHC.AnnVbar -- possible in list comprehension
 
   markAST _ (GHC.TransStmt form stmts _b using by _ _ _) = do
     mapM_ markLocated stmts
@@ -1415,6 +1418,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,Annotate body) =
           Nothing -> return ()
         mark GHC.AnnUsing
         markLocated using
+    mark GHC.AnnVbar -- possible in list comprehension
 
   markAST _ (GHC.RecStmt stmts _ _ _ _ _ _ _ _) = do
     mark GHC.AnnRec
@@ -1422,6 +1426,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,Annotate body) =
     markInside GHC.AnnSemi
     mapM_ markLocated stmts
     mark GHC.AnnCloseC
+    mark GHC.AnnVbar -- possible in list comprehension
 
 -- ---------------------------------------------------------------------
 

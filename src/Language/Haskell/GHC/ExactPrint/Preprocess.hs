@@ -62,8 +62,8 @@ getPragma s@(x:xs)
 -- | Replacement for original 'getRichTokenStream' which will return
 -- the tokens for a file processed by CPP.
 -- See bug <http://ghc.haskell.org/trac/ghc/ticket/8265>
-getCppTokensAsComments :: GHC.GhcMonad m => GHC.DynFlags -> FilePath -> m [Comment]
-getCppTokensAsComments flags sourceFile = do
+getCppTokensAsComments :: GHC.GhcMonad m => FilePath -> m [Comment]
+getCppTokensAsComments sourceFile = do
   source <- GHC.liftIO $ GHC.hGetStringBuffer sourceFile
   let startLoc = GHC.mkRealSrcLoc (GHC.mkFastString sourceFile) 1 1
   (_txt,strSrcBuf,flags2) <- getPreprocessedSrcDirectPrim sourceFile

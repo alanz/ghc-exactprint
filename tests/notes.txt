@@ -179,7 +179,9 @@ Needs triage
 ### Failure in: 65
 ParensAroundContext.hs
   - possible D855, check
+  NOPE
 
 ### Failure in: 146
 TypeSignatureParens.hs
   - possible D855, check
+  seems to be

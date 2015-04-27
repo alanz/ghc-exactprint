@@ -103,7 +103,7 @@ roundTripTest file =
         if useCpp
           then do
             contents <- getPreprocessedSrcDirect file
-            cppComments <- getCppTokensAsComments dflags file
+            cppComments <- getCppTokensAsComments file
             return (contents,cppComments)
           else do
             txt <- GHC.liftIO $ readFile file

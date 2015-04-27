@@ -16,7 +16,7 @@ import qualified BasicTypes     as GHC
 import qualified DynFlags       as GHC
 import qualified FastString     as GHC
 import qualified GHC            as GHC
-import qualified MonadUtils     as GHC
+-- import qualified MonadUtils     as GHC
 import qualified OccName        as GHC
 import qualified RdrName        as GHC
 
@@ -421,7 +421,10 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "DroppedDoSpace2.hs" "Main"
     -- , manipulateAstTestWFname "GHCOrig.hs" "GHC.Tuple"
 
-    , manipulateAstTestWFname "Cpp.hs"                   "Main"
+    -- , manipulateAstTestWFname "Cpp.hs"                   "Main"
+    -- , manipulateAstTestWFname "MangledSemiLet.hs"        "Main"
+    , manipulateAstTestWFname "ListComprehensions.hs"    "Main"
+    -- , manipulateAstTestWFname "ListComprehensions2.hs"   "Main"
     {-
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
     , manipulateAstTestWFname "Foo.hs"                   "Main"
@@ -683,11 +686,12 @@ manipulateAstTest' mchange useTH file' modname = do
   contents <- case mchange of
                    Nothing -> readUTF8File file
                    Just _  -> readUTF8File expected
-  -- (ghcAnns',p,cppCommentToks) <- hSilence [stderr] $  parsedFileGhc file modname useTH
-  (ghcAnns',p,cppComments) <- parsedFileGhc file modname useTH
+  (ghcAnns',p,cppComments) <- hSilence [stderr] $  parsedFileGhc file modname useTH
+  -- (ghcAnns',p,cppComments) <- parsedFileGhc file modname useTH
   let
     parsedOrig = GHC.pm_parsed_source $ p
-    (ghcAnns,parsed) = fixBugsInAst ghcAnns' parsedOrig
+    -- (ghcAnns,parsed) = fixBugsInAst ghcAnns' parsedOrig
+    (ghcAnns,parsed) = (ghcAnns', parsedOrig)
     parsedAST = SYB.showData SYB.Parser 0 parsed
     -- cppComments = map (tokComment . commentToAnnotation . fst) cppCommentToks
     -- parsedAST = showGhc parsed
@@ -771,7 +775,7 @@ parsedFileGhc fileName _modname useTH = do
         Just modSum <- getModSummaryForFile fileName
         -- GHC.liftIO $ putStrLn $ "got modSum"
         -- let modSum = head g
-        cppComments <- getCppTokensAsComments dflags5 fileName
+        cppComments <- getCppTokensAsComments fileName
         -- let cppComments = [] :: [(GHC.Located GHC.Token, String)]
 --        GHC.liftIO $ putStrLn $ "\ncppTokensAsComments for:"  ++ fileName ++ "=========\n"
 --                              ++ showGhc cppComments ++ "\n================\n"

@@ -45,7 +45,6 @@ import Language.Haskell.GHC.ExactPrint.Types
 
 
 import qualified GHC
---import qualified ApiAnnotation  as GHC
 import qualified Bag            as GHC
 import qualified DynFlags       as GHC
 import qualified FastString     as GHC
@@ -53,7 +52,6 @@ import qualified Name           as GHC
 import qualified NameSet        as GHC
 import qualified Outputable     as GHC
 import qualified RdrName        as GHC
---import qualified SrcLoc         as GHC
 import qualified Var            as GHC
 
 import qualified OccName(occNameString)
