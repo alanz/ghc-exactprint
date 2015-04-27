@@ -412,7 +412,6 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "DoParens.hs"   "Main"
 
     -- -- Future tests to pass, after appropriate dev is done
-    -- -- , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
     -- -- , manipulateAstTestWFname "MultipleInferredContexts.hs"   "Main"
     -- -- , manipulateAstTestWFname "ArgPuncParens.hs"   "Main"
     -- -- , manipulateAstTestWFname "SimpleComplexTuple.hs" "Main"
@@ -423,8 +422,8 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
 
     -- , manipulateAstTestWFname "Cpp.hs"                   "Main"
     -- , manipulateAstTestWFname "MangledSemiLet.hs"        "Main"
-    , manipulateAstTestWFname "ListComprehensions.hs"    "Main"
-    -- , manipulateAstTestWFname "ListComprehensions2.hs"   "Main"
+    -- , manipulateAstTestWFname "ListComprehensions.hs"    "Main"
+    , manipulateAstTestWFname "ParensAroundContext.hs"   "ParensAroundContext"
     {-
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
     , manipulateAstTestWFname "Foo.hs"                   "Main"

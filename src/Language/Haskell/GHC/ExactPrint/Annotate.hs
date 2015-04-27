@@ -2067,9 +2067,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
      => Annotate [GHC.LHsType name] where
   markAST _ ts = do
     mark GHC.AnnDeriving
-    mark GHC.AnnOpenP
+    markMany GHC.AnnOpenP -- may be nested parens around context
     mapM_ markLocated ts
-    mark GHC.AnnCloseP
+    markMany GHC.AnnCloseP -- may be nested parens around context
     mark GHC.AnnDarrow
 
 -- ---------------------------------------------------------------------
