@@ -1932,10 +1932,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   markAST _ (GHC.SynDecl ln (GHC.HsQTvs _ tyvars) typ _) = do
     mark GHC.AnnType
+    markMany GHC.AnnOpenP
     -- ln may be used infix, in which case rearrange the order. It may be
     -- simplest to just sort ln:tyvars
     applyListAnnotations (prepareListAnnotation [ln]
                          ++ prepareListAnnotation tyvars)
+    markMany GHC.AnnCloseP
     mark GHC.AnnEqual
     markLocated typ
 

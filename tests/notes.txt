@@ -130,10 +130,6 @@ OptSig.hs
 GADTRecords.hs
   #10309 D848
 
-StrangeTypeClass.hs
-  Investigate. Empty context, annotations are lost.
-  mkHsForAllTy discards SrcSpan for empty context
-  #10315 D855
 
 
 GHC tickets still to be done
@@ -172,16 +168,35 @@ MangledSemiLet.hs
 MultiLineWarningPragma.hs
   As before. ignore before 7.12
 
+Requires GHC fix
+----------------
+
+TypeSignatureParens.hs
+    mk_forall_ty lc exp  tvs (L _ (HsParTy ty)) = mk_forall_ty lc exp tvs ty
+   discards the annotation
+   resurrect D855? or rework it
+   
 
 Needs triage
 ------------
 
-### Failure in: 65
-ParensAroundContext.hs
-  - possible D855, check
-  NOPE
+### Failure in: 104
+Minimal.hs
+### Failure in: 109
+Undefined6.hs
+### Failure in: 114
+Undefined11.hs
+### Failure in: 118
+TypeBrackets.hs
+### Failure in: 129
+DoubleForall.hs
+### Failure in: 135
+GADTRecords.hs
+### Failure in: 136
+MangledSemiLet.hs
+### Failure in: 142
+MultiLineWarningPragma.hs
 
-### Failure in: 146
-TypeSignatureParens.hs
-  - possible D855, check
-  seems to be
+
+
+-----------------------------------------------------------------
