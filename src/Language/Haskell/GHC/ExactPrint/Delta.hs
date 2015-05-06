@@ -156,25 +156,22 @@ deltaInterpret :: Annotated a -> Delta a
 deltaInterpret = iterTM go
   where
     go :: AnnotationF (Delta a) -> Delta a
-    go (MarkEOF next) = addEofAnnotation >> next
-    go (MarkPrim kwid _ next) =
-      addDeltaAnnotation kwid >> next
-    go (MarkOutside akwid kwid next) =
-      addDeltaAnnotationsOutside akwid kwid >> next
-    go (MarkInside akwid next) =
-      addDeltaAnnotationsInside akwid >> next
-    go (MarkMany akwid next) = addDeltaAnnotations akwid >> next
+    go (MarkEOF next)                  = addEofAnnotation >> next
+    go (MarkPrim kwid _ next)          = addDeltaAnnotation kwid >> next
+    go (MarkOutside akwid kwid next)   = addDeltaAnnotationsOutside akwid kwid >> next
+    go (MarkInside akwid next)         = addDeltaAnnotationsInside akwid >> next
+    go (MarkMany akwid next)           = addDeltaAnnotations akwid >> next
     go (MarkOffsetPrim akwid n _ next) = addDeltaAnnotationLs akwid n >> next
-    go (MarkAfter akwid next) = addDeltaAnnotationAfter akwid >> next
+    go (MarkAfter akwid next)          = addDeltaAnnotationAfter akwid >> next
     go (WithAST lss d layoutflag prog next) =
       withAST lss d layoutflag (deltaInterpret prog) >> next
-    go (CountAnns kwid next) = countAnnsDelta kwid >>= next
-    go (SetLayoutFlag action next) = setLayoutFlag (deltaInterpret action)  >> next
-    go (MarkExternal ss akwid _ next) = addDeltaAnnotationExt ss akwid >> next
+    go (CountAnns kwid next)            = countAnnsDelta kwid >>= next
+    go (SetLayoutFlag action next)      = setLayoutFlag (deltaInterpret action)  >> next
+    go (MarkExternal ss akwid _ next)   = addDeltaAnnotationExt ss akwid >> next
     go (StoreOriginalSrcSpan ss d next) = storeOriginalSrcSpanDelta ss d >>= next
-    go (GetSrcSpanForKw kw next) = getSrcSpanForKw kw >>= next
-    go (StoreString s ss next) = storeString s ss >> next
-    go (GetNextDisambiguator next) = getNextDisambiguatorDelta >>= next
+    go (GetSrcSpanForKw kw next)        = getSrcSpanForKw kw >>= next
+    go (StoreString s ss next)          = storeString s ss >> next
+    go (GetNextDisambiguator next)      = getNextDisambiguatorDelta >>= next
 
 -- | Used specifically for "HsLet"
 setLayoutFlag :: Delta () -> Delta ()
@@ -273,11 +270,16 @@ setLayoutOffset lhs = local (\s -> s { layoutStart = lhs })
 
 -- -------------------------------------
 
-getAnnotationDelta :: GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
-getAnnotationDelta an = do
+peekAnnotationDelta :: GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
+peekAnnotationDelta an = do
     ga <- gets apAnns
     ss <- getSrcSpan
     return $ GHC.getAnnotation ga ss an
+
+getAnnotationDelta :: GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
+getAnnotationDelta an = do
+    ss <- getSrcSpan
+    getAndRemoveAnnotationDelta ss an
 
 getAndRemoveAnnotationDelta :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
 getAndRemoveAnnotationDelta sp an = do
@@ -389,15 +391,15 @@ addAnnotationWorker ann pa =
               `debug` ("addAnnotationWorker:(ss,ss,pe,pa,p,p',ann)=" ++ show (showGhc ss,ss2span ss,pe,ss2span pa,p,p',ann))
 
 checkUnicode :: KeywordId -> GHC.SrcSpan -> KeywordId
-checkUnicode (G kw) ss =
+checkUnicode gkw@(G kw) ss =
   if kw `elem` unicodeSyntax
     then
-      let s = keywordToString kw in
+      let s = keywordToString gkw in
       if (length s /= spanLength ss)
         then AnnUnicode kw
-        else G kw
+        else gkw
   else
-    G kw
+    gkw
   where
     unicodeSyntax =
       [ GHC.AnnDcolon
@@ -447,8 +449,8 @@ addDeltaAnnotation ann = do
   ss <- getSrcSpan
   ma <- getAnnotationDelta ann
   case nub ma of -- ++AZ++ TODO: get rid of duplicates earlier
-    [] -> return () `debug` ("addDeltaAnnotation empty ma for:" ++ show ann)
-    [pa] -> addAnnotationWorker (G ann) pa
+    []     -> return () `debug` ("addDeltaAnnotation empty ma for:" ++ show ann)
+    [pa]   -> addAnnotationWorker (G ann) pa
     (pa:_) -> addAnnotationWorker (G ann) pa `warn` ("addDeltaAnnotation:(ss,ann,ma)=" ++ showGhc (ss,ann,ma))
 
 -- | Look up and add a Delta annotation appearing beyond the current
@@ -460,8 +462,8 @@ addDeltaAnnotationAfter ann = do
   ma <- getAnnotationDelta ann
   let ma' = filter (\s -> not (GHC.isSubspanOf s ss)) ma
   case ma' of
-    [] -> return () `debug` "addDeltaAnnotation empty ma"
-    [pa] -> addAnnotationWorker (G ann) pa
+    []     -> return () `debug` "addDeltaAnnotation empty ma"
+    [pa]   -> addAnnotationWorker (G ann) pa
     (pa:_) -> addAnnotationWorker (G ann) pa `warn` ("addDeltaAnnotationAfter:(ss,ann,ma)=" ++ showGhc (ss,ann,ma))
 
 -- | Look up and add a Delta annotation at the current position, and
@@ -469,7 +471,7 @@ addDeltaAnnotationAfter ann = do
 addDeltaAnnotationLs :: GHC.AnnKeywordId -> Int -> Delta ()
 addDeltaAnnotationLs ann off = do
   ss <- getSrcSpan
-  ma <- getAnnotationDelta ann
+  ma <- peekAnnotationDelta ann
   let ma' = filter (\s -> (GHC.isSubspanOf s ss)) ma
   case drop off ma' of
     [] -> return ()
@@ -491,7 +493,7 @@ addDeltaAnnotations ann = do
 addDeltaAnnotationsInside :: GHC.AnnKeywordId -> Delta ()
 addDeltaAnnotationsInside ann = do
   ss <- getSrcSpan
-  ma <- getAnnotationDelta ann
+  ma <- peekAnnotationDelta ann
   let do_one ap' = addAnnotationWorker (G ann) ap'
                     -- `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
   let filtered = sort $ filter (\s -> GHC.isSubspanOf s ss) ma
@@ -529,5 +531,5 @@ addEofAnnotation = do
 
 countAnnsDelta :: GHC.AnnKeywordId -> Delta Int
 countAnnsDelta ann = do
-  ma <- getAnnotationDelta ann
+  ma <- peekAnnotationDelta ann
   return (length ma)

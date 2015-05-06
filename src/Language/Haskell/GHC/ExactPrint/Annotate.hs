@@ -359,9 +359,11 @@ instance Annotate GHC.RdrName where
         mark GHC.AnnType
         mark GHC.AnnOpenP -- '('
         markOffset GHC.AnnBackquote 0
-        markMany GHC.AnnCommaTuple -- For '(,,,)'
-        cnt <- countAnns GHC.AnnVal
+        cnt  <- countAnns GHC.AnnVal
         cntT <- countAnns GHC.AnnCommaTuple
+        markMany GHC.AnnCommaTuple -- For '(,,,)'
+        return () `debug` ("RdrName:countAnns GHC.AnnVal=" ++ show cnt)
+        return () `debug` ("RdrName:countAnns GHC.AnnCommaTuple=" ++ show cntT)
         case cnt of
           0 -> if cntT > 0
                  then traceM $ "Printing RdrName, no AnnVal, multiple AnnCommTuple:" ++ showGhc (l,n)
@@ -978,10 +980,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name) =>
 
 -- ---------------------------------------------------------------------
 
-markTvar tv = do
-  mark GHC.AnnForall
-  markLocated tv
-  mark GHC.AnnDot
+-- markTvar tv = do
+--   mark GHC.AnnForall
+--   markLocated tv
+--   mark GHC.AnnDot
 
 instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
    => Annotate (GHC.HsType name) where
@@ -1056,7 +1058,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mark GHC.AnnOpenP  -- '('
     markLocated t
     mark GHC.AnnCloseP -- ')'
-    -- mark GHC.AnnDarrow -- May appear after context in a ConDecl
+    mark GHC.AnnDarrow -- May appear after context in a ConDecl
+    -- markOutside GHC.AnnDarrow (G GHC.AnnDarrow)
 
   markAST _ (GHC.HsIParamTy (GHC.HsIPName n) t) = do
     markWithString GHC.AnnVal ("?" ++ (GHC.unpackFS n))
@@ -2081,7 +2084,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markMany GHC.AnnOpenP -- may be nested parens around context
     mapM_ markLocated ts
     markMany GHC.AnnCloseP -- may be nested parens around context
-    mark GHC.AnnDarrow
+    -- mark GHC.AnnDarrow
+    markOutside GHC.AnnDarrow (G GHC.AnnDarrow)
 
 -- ---------------------------------------------------------------------
 

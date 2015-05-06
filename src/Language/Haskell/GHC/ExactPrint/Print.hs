@@ -108,17 +108,20 @@ printInterpret = iterTM go
     go (MarkEOF next) =
       printStringAtMaybeAnn (G GHC.AnnEofPos) "" >> next
     go (MarkPrim kwid mstr next) =
-      markPrim kwid mstr >> next
+      markPrim (G kwid) mstr >> next
       -- let annString = fromMaybe (keywordToString kwid) mstr in
       --   printStringAtMaybeAnn (G kwid) annString >> next
     go (MarkOutside _ kwid next) =
-      printStringAtMaybeAnnAll kwid ";"  >> next
+      -- markPrim kwid Nothing >> next
+      let annString = keywordToString kwid in
+      printStringAtMaybeAnnAll kwid annString  >> next
+      -- printStringAtMaybeAnnAll kwid ";"  >> next
     go (MarkInside akwid next) =
       allAnns akwid >> next
     go (MarkMany akwid next) =
       allAnns akwid >> next
     go (MarkOffsetPrim kwid _ mstr next) =
-      let annString = fromMaybe (keywordToString kwid) mstr in
+      let annString = fromMaybe (keywordToString (G kwid)) mstr in
         printStringAtMaybeAnn (G kwid) annString >> next
     go (MarkAfter akwid next) =
       justOne akwid >> next
@@ -165,8 +168,8 @@ printStoredString = do
 -------------------------------------------------------------------------
 
 justOne, allAnns :: GHC.AnnKeywordId -> EP ()
-justOne kwid = printStringAtMaybeAnn    (G kwid) (keywordToString kwid)
-allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString kwid)
+justOne kwid = printStringAtMaybeAnn    (G kwid) (keywordToString (G kwid))
+allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString (G kwid))
 
 -------------------------------------------------------------------------
 -- |First move to the given location, then call exactP
@@ -193,10 +196,10 @@ getAndRemoveAnnotation a d = do
   modify (\s -> s { epAnns = an' })
   return r
 
-markPrim :: GHC.AnnKeywordId -> Maybe String -> EP ()
+markPrim :: KeywordId -> Maybe String -> EP ()
 markPrim kwid mstr =
   let annString = fromMaybe (keywordToString kwid) mstr
-  in printStringAtMaybeAnn (G kwid) annString
+  in printStringAtMaybeAnn kwid annString
 
 withContext :: [(KeywordId, DeltaPos)]
             -> Annotation
@@ -281,7 +284,7 @@ printStringAtMaybeAnn an str = do
       res <- getAnnFinal (AnnUnicode kw)
       forM_
         res
-        (\(comments, ma) -> printStringAtLsDelta comments ma (unicodeString kw))
+        (\(comments, ma) -> printStringAtLsDelta comments ma (unicodeString (G kw)))
     (Just (comments, ma),_) -> printStringAtLsDelta comments ma str
     (Nothing, _) -> return ()
     -- ++AZ++: Enabling the following line causes a very weird error associated with AnnPackageName. I suspect it is because it is forcing the evaluation of a non-existent an or str

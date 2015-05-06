@@ -1,111 +1,122 @@
-module Language.Haskell.GHC.ExactPrint.Lookup (keywordToString, unicodeString) where
+module Language.Haskell.GHC.ExactPrint.Lookup
+  (
+    keywordToString
+  , unicodeString
+  ) where
 
-import GHC (AnnKeywordId(..))
+import Language.Haskell.GHC.ExactPrint.Types
+import qualified GHC (AnnKeywordId(..))
 import Data.Maybe
 
 -- | Maps `AnnKeywordId` to the corresponding String representation.
 -- There is no specific mapping for the following constructors.
 -- `AnnOpen`, `AnnClose`, `AnnVal`, `AnnPackageName`, `AnnHeader`, `AnnFunId`,
 -- `AnnInfix`
-keywordToString :: AnnKeywordId -> String
+keywordToString :: KeywordId -> String
 keywordToString kw =
   let mkErr x = error $ "keywordToString: missing case for:" ++ show x
   in
   case kw of
       -- Specifically handle all cases so that there are pattern match
       -- warnings if new constructors are added.
-      AnnOpen  -> mkErr kw
-      AnnClose -> mkErr kw
-      AnnVal   -> mkErr kw
-      AnnPackageName -> mkErr kw
-      AnnHeader -> mkErr kw
-      AnnFunId  -> mkErr kw
-      AnnInfix  -> mkErr kw
-      AnnValStr -> mkErr kw
-      AnnName   -> mkErr kw
-      AnnAs     -> "as"
-      AnnAt     -> "@"
-      AnnBang   -> "!"
-      AnnBackquote -> "`"
-      AnnBy     -> "by"
-      AnnCase   -> "case"
-      AnnClass   -> "class"
-      AnnCloseC  -> "}"
-      AnnCloseP  -> ")"
-      AnnCloseS  -> "]"
-      AnnColon   -> ":"
-      AnnComma   -> ","
-      AnnCommaTuple -> ","
-      AnnDarrow  -> "=>"
-      AnnData    -> "data"
-      AnnDcolon  -> "::"
-      AnnDefault -> "default"
-      AnnDeriving -> "deriving"
-      AnnDo       -> "do"
-      AnnDot      -> "."
-      AnnDotdot   -> ".."
-      AnnElse     -> "else"
-      AnnEqual    -> "="
-      AnnExport   -> "export"
-      AnnFamily   -> "family"
-      AnnForall   -> "forall"
-      AnnForeign  -> "foreign"
-      AnnGroup    -> "group"
-      AnnHiding   -> "hiding"
-      AnnIf       -> "if"
-      AnnImport   -> "import"
-      AnnIn       -> "in"
-      AnnInstance -> "instance"
-      AnnLam      -> "\\"
-      AnnLarrow   -> "<-"
-      AnnLet      -> "let"
-      AnnMdo      -> "mdo"
-      AnnMinus    -> "-"
-      AnnModule   -> "module"
-      AnnNewtype  -> "newtype"
-      AnnOf       -> "of"
-      AnnOpenC    -> "{"
-      AnnOpenP    -> "("
-      AnnOpenS    -> "["
-      AnnPattern  -> "pattern"
-      AnnProc     -> "proc"
-      AnnQualified -> "qualified"
-      AnnRarrow   -> "->"
-      AnnRec      -> "rec"
-      AnnRole     -> "role"
-      AnnSafe     -> "safe"
-      AnnSemi     -> ";"
-      AnnStatic   -> "static"
-      AnnThen     -> "then"
-      AnnTilde    -> "~"
-      AnnTildehsh -> "~#"
-      AnnType     -> "type"
-      AnnUnit     -> "()"
-      AnnUsing    -> "using"
-      AnnVbar     -> "|"
-      AnnWhere    -> "where"
-      Annlarrowtail -> "-<"
-      Annrarrowtail -> "->"
-      AnnLarrowtail -> "-<<"
-      AnnRarrowtail -> ">>-"
-      AnnSimpleQuote -> "'"
-      AnnThIdSplice  -> "''"
-      AnnThIdTySplice -> "$$"
-      AnnEofPos       -> ""
+      AnnSpanEntry      -> mkErr kw
+      AnnComment _      -> mkErr kw
+      AnnList _ _       -> mkErr kw
+      AnnString _       -> mkErr kw
+      AnnUnicode _      -> mkErr kw
+      AnnSemiSep        -> ";"
+      (G GHC.AnnOpen  ) -> mkErr kw
+      (G GHC.AnnClose ) -> mkErr kw
+      (G GHC.AnnVal   ) -> mkErr kw
+      (G GHC.AnnPackageName) -> mkErr kw
+      (G GHC.AnnHeader ) -> mkErr kw
+      (G GHC.AnnFunId  ) -> mkErr kw
+      (G GHC.AnnInfix  ) -> mkErr kw
+      (G GHC.AnnValStr ) -> mkErr kw
+      (G GHC.AnnName   ) -> mkErr kw
+      (G GHC.AnnAs     ) -> "as"
+      (G GHC.AnnAt     ) -> "@"
+      (G GHC.AnnBang   ) -> "!"
+      (G GHC.AnnBackquote ) -> "`"
+      (G GHC.AnnBy     ) -> "by"
+      (G GHC.AnnCase   ) -> "case"
+      (G GHC.AnnClass   ) -> "class"
+      (G GHC.AnnCloseC  ) -> "}"
+      (G GHC.AnnCloseP  ) -> ")"
+      (G GHC.AnnCloseS  ) -> "]"
+      (G GHC.AnnColon   ) -> ":"
+      (G GHC.AnnComma   ) -> ","
+      (G GHC.AnnCommaTuple ) -> ","
+      (G GHC.AnnDarrow  ) -> "=>"
+      (G GHC.AnnData    ) -> "data"
+      (G GHC.AnnDcolon  ) -> "::"
+      (G GHC.AnnDefault ) -> "default"
+      (G GHC.AnnDeriving ) -> "deriving"
+      (G GHC.AnnDo       ) -> "do"
+      (G GHC.AnnDot      ) -> "."
+      (G GHC.AnnDotdot   ) -> ".."
+      (G GHC.AnnElse     ) -> "else"
+      (G GHC.AnnEqual    ) -> "="
+      (G GHC.AnnExport   ) -> "export"
+      (G GHC.AnnFamily   ) -> "family"
+      (G GHC.AnnForall   ) -> "forall"
+      (G GHC.AnnForeign  ) -> "foreign"
+      (G GHC.AnnGroup    ) -> "group"
+      (G GHC.AnnHiding   ) -> "hiding"
+      (G GHC.AnnIf       ) -> "if"
+      (G GHC.AnnImport   ) -> "import"
+      (G GHC.AnnIn       ) -> "in"
+      (G GHC.AnnInstance ) -> "instance"
+      (G GHC.AnnLam      ) -> "\\"
+      (G GHC.AnnLarrow   ) -> "<-"
+      (G GHC.AnnLet      ) -> "let"
+      (G GHC.AnnMdo      ) -> "mdo"
+      (G GHC.AnnMinus    ) -> "-"
+      (G GHC.AnnModule   ) -> "module"
+      (G GHC.AnnNewtype  ) -> "newtype"
+      (G GHC.AnnOf       ) -> "of"
+      (G GHC.AnnOpenC    ) -> "{"
+      (G GHC.AnnOpenP    ) -> "("
+      (G GHC.AnnOpenS    ) -> "["
+      (G GHC.AnnPattern  ) -> "pattern"
+      (G GHC.AnnProc     ) -> "proc"
+      (G GHC.AnnQualified ) -> "qualified"
+      (G GHC.AnnRarrow   ) -> "->"
+      (G GHC.AnnRec      ) -> "rec"
+      (G GHC.AnnRole     ) -> "role"
+      (G GHC.AnnSafe     ) -> "safe"
+      (G GHC.AnnSemi     ) -> ";"
+      (G GHC.AnnStatic   ) -> "static"
+      (G GHC.AnnThen     ) -> "then"
+      (G GHC.AnnTilde    ) -> "~"
+      (G GHC.AnnTildehsh ) -> "~#"
+      (G GHC.AnnType     ) -> "type"
+      (G GHC.AnnUnit     ) -> "()"
+      (G GHC.AnnUsing    ) -> "using"
+      (G GHC.AnnVbar     ) -> "|"
+      (G GHC.AnnWhere    ) -> "where"
+      (G GHC.Annlarrowtail ) -> "-<"
+      (G GHC.Annrarrowtail ) -> "->"
+      (G GHC.AnnLarrowtail ) -> "-<<"
+      (G GHC.AnnRarrowtail ) -> ">>-"
+      (G GHC.AnnSimpleQuote ) -> "'"
+      (G GHC.AnnThIdSplice  ) -> "''"
+      (G GHC.AnnThIdTySplice ) -> "$$"
+      (G GHC.AnnEofPos       ) -> ""
 
-unicodeString :: AnnKeywordId -> String
+unicodeString :: KeywordId -> String
 unicodeString kw =
   fromMaybe (keywordToString kw) (lookup kw unicodeChars)
 
-unicodeChars :: [(AnnKeywordId, String)]
+unicodeChars :: [(KeywordId, String)]
 unicodeChars =
-      [ (GHC.AnnDcolon, "∷")
-      , (GHC.AnnDarrow, "⇒")
-      , (GHC.AnnForall, "∀")
-      , (GHC.AnnRarrow, "→")
-      , (GHC.AnnLarrow, "←")
-      , (GHC.Annlarrowtail, "↢")
-      , (GHC.Annrarrowtail, "↣")
-      , (GHC.AnnLarrowtail, "⤛")
-      , (GHC.AnnRarrowtail, "⤜")]
+      [ (G GHC.AnnDcolon, "∷")
+      , (G GHC.AnnDarrow, "⇒")
+      , (G GHC.AnnForall, "∀")
+      , (G GHC.AnnRarrow, "→")
+      , (G GHC.AnnLarrow, "←")
+      , (G GHC.Annlarrowtail, "↢")
+      , (G GHC.Annrarrowtail, "↣")
+      , (G GHC.AnnLarrowtail, "⤛")
+      , (G GHC.AnnRarrowtail, "⤜")]
 
