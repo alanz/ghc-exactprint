@@ -1056,6 +1056,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mark GHC.AnnOpenP  -- '('
     markLocated t
     mark GHC.AnnCloseP -- ')'
+    -- mark GHC.AnnDarrow -- May appear after context in a ConDecl
 
   markAST _ (GHC.HsIParamTy (GHC.HsIPName n) t) = do
     markWithString GHC.AnnVal ("?" ++ (GHC.unpackFS n))
@@ -1375,7 +1376,10 @@ instance (GHC.DataId name) => Annotate (GHC.HsOverLit name) where
 
 instance (GHC.DataId name,Annotate arg)
     => Annotate (GHC.HsWithBndrs name (GHC.Located arg)) where
-  markAST _ (GHC.HsWB thing _ _ _) = markLocated thing
+  markAST _ (GHC.HsWB thing _ _ _) = do
+    -- mark GHC.AnnOpenP
+    markLocated thing
+    -- mark GHC.AnnCloseP
 
 -- ---------------------------------------------------------------------
 
@@ -2013,7 +2017,7 @@ instance (GHC.DataId name,Annotate name, GHC.OutputableBndr name)
     mark GHC.AnnWhere
     mark GHC.AnnOpenC -- {
     case info of
-      GHC.ClosedTypeFamily eqns -> mapM_ markLocated eqns
+      GHC.ClosedTypeFamily (Just eqns) -> mapM_ markLocated eqns
       _ -> return ()
     mark GHC.AnnCloseC -- }
 
