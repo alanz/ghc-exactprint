@@ -4,9 +4,6 @@
 module Main where
 
 import System.FilePath
-import qualified Data.Text.IO as T
-import qualified Data.Text as T
-
 
 import Data.List hiding (find)
 
@@ -27,7 +24,8 @@ import qualified Data.Set as S
 import Common
 
 import System.IO.Temp
-import System.IO (hClose)
+import System.IO (hClose, hPutStr)
+
 
 data Verbosity = Debug | Status | None deriving (Eq, Show, Ord, Enum)
 
@@ -40,13 +38,13 @@ parseFailFile = "pfail.txt"
 processed = "processed.txt"
 
 writeCPP :: FilePath -> IO ()
-writeCPP fp = T.appendFile cppFile (T.pack ('\n' : fp))
+writeCPP fp = appendFile cppFile (('\n' : fp))
 
 writeParseFail :: FilePath -> String -> IO ()
-writeParseFail fp s = T.appendFile parseFailFile (T.pack ('\n' : (fp ++ " " ++ s)))
+writeParseFail fp s = appendFile parseFailFile (('\n' : (fp ++ " " ++ s)))
 
 writeProcessed :: FilePath -> IO ()
-writeProcessed fp = T.appendFile processed (T.pack ('\n' : fp))
+writeProcessed fp = appendFile processed (('\n' : fp))
 
 
 
@@ -77,7 +75,7 @@ runTests t = do
 
 tests :: FilePath -> IO Test
 tests dir = do
-  done <- S.fromList . lines . T.unpack <$> T.readFile processed
+  done <- S.fromList . lines <$> readFile processed
   roundTripHackage done dir
 
 -- Selection:
@@ -124,24 +122,16 @@ roundTripPackage done (n, dir) = do
 
 mkParserTest :: FilePath -> Test
 mkParserTest fp =
-  TestCase (do r <- roundTripTest fp
-               writeProcessed fp
-               case r of
-                RoundTripFailure debug -> writeFailure fp debug
-                ParseFailure _ m -> writeParseFail fp m >> exitFailure
-                CPP -> writeCPP fp >> exitFailure
-                _ -> return ()
-               assertBool fp (success r))
+    TestCase (do r <- either (\(ParseFailure _ s) -> exitFailure) return
+                        =<< roundTripTest fp
+                 writeProcessed fp
+                 unless (status r == Success) (writeFailure fp (debugTxt r))
+                 assertBool fp (status r == Success))
 
-
-success :: Report -> Bool
-success Success = True
-success (InconsistentAnnotations _ _) = True
-success _ = False
 
 writeFailure :: FilePath -> String -> IO ()
 writeFailure fp db = do
   let outdir      = "tests" </> "roundtrip"
       outname     = takeFileName fp <.> "out"
   (fname, handle) <- openTempFile outdir outname
-  (T.hPutStr handle (T.pack db) >> hClose handle)
+  (hPutStr handle db >> hClose handle)
