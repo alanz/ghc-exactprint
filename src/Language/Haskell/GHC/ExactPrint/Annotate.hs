@@ -741,18 +741,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markDataDefn l defn
 
 -- ---------------------------------------------------------------------
-{-
--- We have to handle this seperately as the double colon is attached to the
--- span above. (Sometimes, but I'm not exactly sure when..)
-markSigPatIn :: (Annotate t, GHC.DataId t, GHC.OutputableBndr t) => GHC.GenLocated GHC.SrcSpan (GHC.Pat t) -> IAnnotated ()
-markSigPatIn (GHC.L _ (GHC.SigPatIn pat (GHC.HsWB ty _ _ _)))  = do
-    -- Use instance to set the correct scope
-    markLocated pat
-    mark GHC.AnnDcolon
-    markLocated ty
-markSigPatIn r =
-  markLocated r
--}
 
 instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name) =>
                                                   Annotate (GHC.HsBind name) where
@@ -761,7 +749,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name) =>
     -- markMatchGroup l mg
 
   markAST _ (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
-    -- markSigPatIn lhs
     markLocated lhs
     mark GHC.AnnEqual
     mapM_ markLocated grhs
@@ -786,7 +773,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name) =>
         mapM_ markLocated ns
     mark GHC.AnnEqual
     mark GHC.AnnLarrow
-    -- markSigPatIn def
     markLocated def
     case dir of
       GHC.Unidirectional           -> return ()
@@ -831,21 +817,17 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,
     case (get_infix mln,pats) of
       (True, (a:b:xs)) -> do
         mark GHC.AnnOpenP
-        -- markSigPatIn a
         markLocated a
         case mln of
           Nothing -> return ()
           Just (n,_) -> markLocated n
-        -- markSigPatIn b
         markLocated b
         mark GHC.AnnCloseP
-        -- mapM_ markSigPatIn xs
         mapM_ markLocated xs
       _ -> do
         case mln of
           Nothing -> mark GHC.AnnFunId
           Just (n,_) -> markLocated n
-        -- mapM_ markSigPatIn pats
         mapM_ markLocated pats
 
     -- TODO: The AnnEqual annotation actually belongs in the first GRHS value
@@ -1234,8 +1216,6 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
 
   markAST _ (GHC.ParPat p) = do
     mark GHC.AnnOpenP
-    -- Notice that this is a markLocated rather than a markSigPatIn
-    -- I don't know why the annotation gets attached differently here.
     markLocated p
     mark GHC.AnnCloseP
 
@@ -1304,8 +1284,6 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
     markLocated pat
     mark GHC.AnnDcolon
     markLocated ty
-  -- markAST ss p@(GHC.SigPatIn _ _) =
-  --   markSigPatIn (GHC.L ss p)
 
   markAST _ (GHC.SigPatOut {}) =
     traceM "warning: SigPatOut introduced after renaming"
@@ -1340,7 +1318,6 @@ markHsConPatDetails ln dets = do
   case dets of
     GHC.PrefixCon args -> do
       markLocated ln
-      -- mapM_ markSigPatIn  args
       mapM_ markLocated args
     GHC.RecCon (GHC.HsRecFields fs _) -> do
       markLocated ln
@@ -1349,10 +1326,8 @@ markHsConPatDetails ln dets = do
       mark GHC.AnnDotdot
       mark GHC.AnnCloseC -- '}'
     GHC.InfixCon a1 a2 -> do
-      -- markSigPatIn a1
       markLocated a1
       markLocated ln
-      -- markSigPatIn a2
       markLocated a2
 
 markHsConDeclDetails :: (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
@@ -1772,7 +1747,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markWithString GHC.AnnClose "|]"
   markAST _ (GHC.HsBracket (GHC.PatBr e)) = do
     markWithString GHC.AnnOpen  "[p|"
-    -- markSigPatIn e
     markLocated e
     markWithString GHC.AnnClose "|]"
 
@@ -1787,7 +1761,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   markAST _ (GHC.HsProc p c) = do
     mark GHC.AnnProc
-    -- markSigPatIn p
     markLocated p
     mark GHC.AnnRarrow
     markLocated c
@@ -2171,7 +2144,6 @@ instance (Annotate name, GHC.DataId name, GHC.OutputableBndr name)
   markAST _ (GHC.HsRecField n e _) = do
     markLocated n
     mark GHC.AnnEqual
-    -- markSigPatIn e
     markLocated e
 
 
