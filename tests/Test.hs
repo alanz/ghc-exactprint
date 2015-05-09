@@ -220,6 +220,7 @@ tests = TestList
   , mkParserTest "DoPatBind.hs"
 
   , mkParserTest "LinePragma.hs"
+  , mkParserTest "Hang.hs"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
   , mkTestModChange changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
