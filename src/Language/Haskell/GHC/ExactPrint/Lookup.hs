@@ -23,7 +23,7 @@ keywordToString kw =
       AnnComment _      -> mkErr kw
       AnnList _ _       -> mkErr kw
       AnnString _       -> mkErr kw
-      AnnUnicode _      -> mkErr kw
+      AnnUnicode kw'    -> keywordToString (G kw')
       AnnSemiSep        -> ";"
       (G GHC.AnnOpen  ) -> mkErr kw
       (G GHC.AnnClose ) -> mkErr kw

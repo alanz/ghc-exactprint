@@ -449,7 +449,7 @@ addDeltaAnnotation ann = do
   ss <- getSrcSpan
   ma <- getAnnotationDelta ann
   case nub ma of -- ++AZ++ TODO: get rid of duplicates earlier
-    []     -> return () `debug` ("addDeltaAnnotation empty ma for:" ++ show ann)
+    []     -> return () `debug` ("addDeltaAnnotation empty ma for:" ++ show (ss,ann))
     [pa]   -> addAnnotationWorker (G ann) pa
     (pa:_) -> addAnnotationWorker (G ann) pa `warn` ("addDeltaAnnotation:(ss,ann,ma)=" ++ showGhc (ss,ann,ma))
 
@@ -462,7 +462,7 @@ addDeltaAnnotationAfter ann = do
   ma <- getAnnotationDelta ann
   let ma' = filter (\s -> not (GHC.isSubspanOf s ss)) ma
   case ma' of
-    []     -> return () `debug` "addDeltaAnnotation empty ma"
+    []     -> return () `debug` ("addDeltaAnnotationAfter empty ma for(ss,ann,ma)=" ++ showGhc (ss,ann,ma))
     [pa]   -> addAnnotationWorker (G ann) pa
     (pa:_) -> addAnnotationWorker (G ann) pa `warn` ("addDeltaAnnotationAfter:(ss,ann,ma)=" ++ showGhc (ss,ann,ma))
 
@@ -475,7 +475,7 @@ addDeltaAnnotationLs ann off = do
   let ma' = filter (\s -> (GHC.isSubspanOf s ss)) ma
   case drop off ma' of
     [] -> return ()
-        -- `debug` ("addDeltaAnnotationLs:missed:(off,pe,ann,ma)=" ++ show (off,ss2span pe,ann,fmap ss2span ma))
+        `debug` ("addDeltaAnnotationLs:missed:(off,ann,ma)=" ++ showGhc (off,ss,ann))
     (pa:_) -> addAnnotationWorker (G ann) pa
 
 -- | Look up and add possibly multiple Delta annotation at the current
@@ -484,7 +484,7 @@ addDeltaAnnotations :: GHC.AnnKeywordId -> Delta ()
 addDeltaAnnotations ann = do
   ma <- getAnnotationDelta ann
   let do_one ap' = addAnnotationWorker (G ann) ap'
-                    -- `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
+                    `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
   mapM_ do_one (sort ma)
 
 -- | Look up and add possibly multiple Delta annotations enclosed by

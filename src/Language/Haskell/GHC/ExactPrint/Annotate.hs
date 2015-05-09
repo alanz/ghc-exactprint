@@ -362,8 +362,8 @@ instance Annotate GHC.RdrName where
         cnt  <- countAnns GHC.AnnVal
         cntT <- countAnns GHC.AnnCommaTuple
         markMany GHC.AnnCommaTuple -- For '(,,,)'
-        return () `debug` ("RdrName:countAnns GHC.AnnVal=" ++ show cnt)
-        return () `debug` ("RdrName:countAnns GHC.AnnCommaTuple=" ++ show cntT)
+        -- return () `debug` ("RdrName:countAnns GHC.AnnVal=" ++ show cnt)
+        -- return () `debug` ("RdrName:countAnns GHC.AnnCommaTuple=" ++ show cntT)
         case cnt of
           0 -> if cntT > 0
                  then traceM $ "Printing RdrName, no AnnVal, multiple AnnCommTuple:" ++ showGhc (l,n)
@@ -741,16 +741,18 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markDataDefn l defn
 
 -- ---------------------------------------------------------------------
+{-
 -- We have to handle this seperately as the double colon is attached to the
 -- span above. (Sometimes, but I'm not exactly sure when..)
 markSigPatIn :: (Annotate t, GHC.DataId t, GHC.OutputableBndr t) => GHC.GenLocated GHC.SrcSpan (GHC.Pat t) -> IAnnotated ()
-markSigPatIn (GHC.L ss' (GHC.SigPatIn pat ty))  = do
+markSigPatIn (GHC.L _ (GHC.SigPatIn pat (GHC.HsWB ty _ _ _)))  = do
     -- Use instance to set the correct scope
     markLocated pat
     mark GHC.AnnDcolon
-    markLocated (GHC.L ss' ty)
+    markLocated ty
 markSigPatIn r =
   markLocated r
+-}
 
 instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name) =>
                                                   Annotate (GHC.HsBind name) where
@@ -759,7 +761,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name) =>
     -- markMatchGroup l mg
 
   markAST _ (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
-    markSigPatIn lhs
+    -- markSigPatIn lhs
+    markLocated lhs
     mark GHC.AnnEqual
     mapM_ markLocated grhs
     mark GHC.AnnWhere
@@ -783,7 +786,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name) =>
         mapM_ markLocated ns
     mark GHC.AnnEqual
     mark GHC.AnnLarrow
-    markSigPatIn def
+    -- markSigPatIn def
+    markLocated def
     case dir of
       GHC.Unidirectional           -> return ()
       GHC.ImplicitBidirectional    -> return ()
@@ -827,18 +831,22 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,
     case (get_infix mln,pats) of
       (True, (a:b:xs)) -> do
         mark GHC.AnnOpenP
-        markSigPatIn a
+        -- markSigPatIn a
+        markLocated a
         case mln of
           Nothing -> return ()
           Just (n,_) -> markLocated n
-        markSigPatIn b
+        -- markSigPatIn b
+        markLocated b
         mark GHC.AnnCloseP
-        mapM_ markSigPatIn xs
+        -- mapM_ markSigPatIn xs
+        mapM_ markLocated xs
       _ -> do
         case mln of
           Nothing -> mark GHC.AnnFunId
           Just (n,_) -> markLocated n
-        mapM_ markSigPatIn pats
+        -- mapM_ markSigPatIn pats
+        mapM_ markLocated pats
 
     -- TODO: The AnnEqual annotation actually belongs in the first GRHS value
     mark GHC.AnnEqual
@@ -1291,8 +1299,13 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
     markWithString GHC.AnnVal "+"  -- "+"
     markLocated ol
 
-  markAST ss p@(GHC.SigPatIn _ _) =
-    markSigPatIn (GHC.L ss p)
+
+  markAST _ (GHC.SigPatIn pat (GHC.HsWB ty _ _ _)) = do
+    markLocated pat
+    mark GHC.AnnDcolon
+    markLocated ty
+  -- markAST ss p@(GHC.SigPatIn _ _) =
+  --   markSigPatIn (GHC.L ss p)
 
   markAST _ (GHC.SigPatOut {}) =
     traceM "warning: SigPatOut introduced after renaming"
@@ -1327,7 +1340,8 @@ markHsConPatDetails ln dets = do
   case dets of
     GHC.PrefixCon args -> do
       markLocated ln
-      mapM_ markSigPatIn args
+      -- mapM_ markSigPatIn  args
+      mapM_ markLocated args
     GHC.RecCon (GHC.HsRecFields fs _) -> do
       markLocated ln
       mark GHC.AnnOpenC -- '{'
@@ -1335,9 +1349,11 @@ markHsConPatDetails ln dets = do
       mark GHC.AnnDotdot
       mark GHC.AnnCloseC -- '}'
     GHC.InfixCon a1 a2 -> do
-      markSigPatIn a1
+      -- markSigPatIn a1
+      markLocated a1
       markLocated ln
-      markSigPatIn a2
+      -- markSigPatIn a2
+      markLocated a2
 
 markHsConDeclDetails :: (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
                     =>  [GHC.Located name] -> GHC.HsConDeclDetails name -> IAnnotated ()
@@ -1756,7 +1772,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     markWithString GHC.AnnClose "|]"
   markAST _ (GHC.HsBracket (GHC.PatBr e)) = do
     markWithString GHC.AnnOpen  "[p|"
-    markSigPatIn e
+    -- markSigPatIn e
+    markLocated e
     markWithString GHC.AnnClose "|]"
 
   markAST _ (GHC.HsRnBracketOut _ _) =
@@ -1770,7 +1787,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   markAST _ (GHC.HsProc p c) = do
     mark GHC.AnnProc
-    markSigPatIn p
+    -- markSigPatIn p
+    markLocated p
     mark GHC.AnnRarrow
     markLocated c
 
@@ -2153,7 +2171,8 @@ instance (Annotate name, GHC.DataId name, GHC.OutputableBndr name)
   markAST _ (GHC.HsRecField n e _) = do
     markLocated n
     mark GHC.AnnEqual
-    markSigPatIn e
+    -- markSigPatIn e
+    markLocated e
 
 
 instance (Annotate name, GHC.DataId name, GHC.OutputableBndr name)

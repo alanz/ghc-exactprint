@@ -201,9 +201,6 @@ Undefined11.hs
 Use GHC api-annotations3 2015-05-06 (16h00 version)
 
 
-Zipper.hs
-  Need to attach an AnnRarrow in a ConDecl.
-  
 Minimal.hs
 Undefined6.hs
 Undefined11.hs
@@ -212,6 +209,7 @@ Undefined11.hs
 
 TypeBrackets.hs
   Annotations are there, seems to be a problem with nested type in HsWB.
+  - Need to back out D823, the no_forall_ty makes it unnecessary
   
 MultiLineWarningPragma.hs
   Targetting 7.12.1 only

@@ -175,14 +175,15 @@ allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString (G kwid))
 -- |First move to the given location, then call exactP
 exactPC :: Data ast => GHC.Located ast -> Disambiguator -> LayoutFlag -> EP a -> EP a
 exactPC ast d flag action =
-    do return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
-       -- let ast = fixBuggySrcSpan Nothing ast'
-       ma <- getAndRemoveAnnotation ast d
-       let an@(Ann edp _ _ comments kds) = fromMaybe annNone ma
-       withContext kds an flag
-        (mapM_ printQueuedComment comments
-        >> advance edp
-        >> action)
+    do
+      return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
+      ma <- getAndRemoveAnnotation ast d
+      let an@(Ann edp _ _ comments kds) = fromMaybe annNone ma
+      r <- withContext kds an flag
+       (mapM_ printQueuedComment comments
+       >> advance edp
+       >> action)
+      return r `debug` ("leaving exactPCfor:" ++ show (mkAnnKey ast))
 
 advance :: DeltaPos -> EP ()
 advance cl = do
@@ -276,28 +277,31 @@ getLayoutOffset = asks epLHS
 -- ---------------------------------------------------------------------
 
 printStringAtMaybeAnn :: KeywordId -> String -> EP ()
-printStringAtMaybeAnn an str = do
+printStringAtMaybeAnn an str = printStringAtMaybeAnnThen an str (return ())
+
+printStringAtMaybeAnnAll :: KeywordId -> String -> EP ()
+printStringAtMaybeAnnAll an str = go
+  where
+    go = printStringAtMaybeAnnThen an str go
+
+printStringAtMaybeAnnThen :: KeywordId -> String -> EP () -> EP ()
+printStringAtMaybeAnnThen an str next = do
   annFinal <- getAnnFinal an
   case (annFinal, an) of
     -- Could be unicode syntax
     (Nothing, G kw) -> do
       res <- getAnnFinal (AnnUnicode kw)
-      forM_
-        res
-        (\(comments, ma) -> printStringAtLsDelta comments ma (unicodeString (G kw)))
-    (Just (comments, ma),_) -> printStringAtLsDelta comments ma str
-    (Nothing, _) -> return ()
+      return () `debug` ("printStringAtMaybeAnn:missed:Unicode:(an,res)" ++ show (an,res))
+      unless (null res) $ do
+        forM_
+          res
+          (\(comments, ma) -> printStringAtLsDelta comments ma (unicodeString (G kw)))
+        next
+    (Just (comments, ma),_) -> printStringAtLsDelta comments ma str >> next
+    (Nothing, _) -> return () `debug` ("printStringAtMaybeAnn:missed:(an)" ++ show an)
+                    -- Note: do not call next, nothing to chain
     -- ++AZ++: Enabling the following line causes a very weird error associated with AnnPackageName. I suspect it is because it is forcing the evaluation of a non-existent an or str
     -- `debug` ("printStringAtMaybeAnn:(an,ma,str)=" ++ show (an,ma,str))
-
-printStringAtMaybeAnnAll :: KeywordId -> String -> EP ()
-printStringAtMaybeAnnAll an str = go
-  where
-    go = do
-      annFinal <- getAnnFinal an
-      case annFinal of
-        Nothing -> return ()
-        Just (comments, d)  -> printStringAtLsDelta comments d str >> go
 
 -- ---------------------------------------------------------------------
 

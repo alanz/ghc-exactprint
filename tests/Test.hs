@@ -423,7 +423,6 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "Associated.hs"            "Main"
     -- , manipulateAstTestWFname "RdrNames.hs"              "RdrNames"
     -- , manipulateAstTestWFname "StrangeTypeClass.hs"      "Main"
-    -- , manipulateAstTestWFname "TypeBrackets.hs"         "Main"
     -- , manipulateAstTestWFname "TypeSignatureParens.hs"  "Main"
     -- , manipulateAstTestWFname "DoubleForall.hs"         "Main"
     -- , manipulateAstTestWFname "GADTRecords.hs"          "Main"
@@ -432,7 +431,8 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "T5951.hs"   "T5951"
     -- , manipulateAstTestWFname "Zipper2.hs"               "Zipper2"
     -- , manipulateAstTestWFname "RdrNames2.hs"             "RdrNames2"
-    , manipulateAstTestWFname "UnicodeSyntax.hs"             "Tutorial"
+    , manipulateAstTestWFname "Unicode.hs"                  "Unicode"
+    -- , manipulateAstTestWFname "TypeBrackets.hs"         "Main"
 
     {-
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
