@@ -220,6 +220,25 @@ tests = TestList
   , mkParserTest "DoPatBind.hs"
 
   , mkParserTest "LinePragma.hs"
+  , mkParserTest "Hang.hs"
+
+  , mkParserTest "HashQQ.hs"
+  , mkParserTest "TypeBrackets2.hs"
+  , mkParserTest "ExplicitNamespaces.hs"
+  , mkParserTest "CorePragma.hs"
+  , mkParserTest "UnicodeRules.hs"
+  , mkParserTest "GADTContext.hs"
+  , mkParserTest "THMonadInstance.hs"
+--  , mkParserTest "TypeBrackets3.hs" --  I think this test is junk but it parses?
+  , mkParserTest "TypeBrackets4.hs"
+  , mkParserTest "SlidingTypeSyn.hs"
+  , mkParserTest "RecordSemi.hs"
+  , mkParserTest "SlidingLambda.hs"
+  , mkParserTest "DroppedComma.hs"
+  , mkParserTest "TypeInstance.hs"
+  , mkParserTest "ImplicitTypeSyn.hs"
+  , mkParserTest "OveridingPrimitives.hs"
+  , mkParserTest "SlidingDataClassDecl.hs"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
   , mkTestModChange changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"

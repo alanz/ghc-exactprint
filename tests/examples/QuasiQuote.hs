@@ -17,3 +17,15 @@ px1 [qq|p1|] = undefined
 px2 [qq|p2|] = undefined
 px3 [qq|p3|] = undefined
 px4 [qq|p4|] = undefined
+
+{-# LANGUAGE QuasiQuotes #-}
+
+testComplex    = assertBool "" ([$istr|
+        ok
+#{Foo 4 "Great!" : [Foo 3 "Scott!"]}
+        then
+|] == ("\n" ++
+    "        ok\n" ++
+    "[Foo 4 \"Great!\",Foo 3 \"Scott!\"]\n" ++
+    "        then\n"))
+
