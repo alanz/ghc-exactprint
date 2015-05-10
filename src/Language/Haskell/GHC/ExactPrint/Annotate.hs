@@ -64,6 +64,7 @@ data AnnotationF next where
   GetSrcSpanForKw :: GHC.AnnKeywordId                   -> (GHC.SrcSpan -> next) -> AnnotationF next
   StoreString :: String -> GHC.SrcSpan                  -> next -> AnnotationF next
   GetNextDisambiguator ::                                  (Disambiguator -> next) -> AnnotationF next
+  AnnotationsToComments :: String -> GHC.SrcSpan        -> next -> AnnotationF next
 
 deriving instance Functor (AnnotationF)
 
@@ -943,16 +944,30 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   -- MinimalSig (BooleanFormula (Located name))
   markAST l (GHC.MinimalSig src  formula) = do
     markWithString GHC.AnnOpen src
+    annotationsToComments l
     markAST l formula
     markWithString GHC.AnnClose "#-}"
 
 
 -- --------------------------------------------------------------------
+
+-- In practice, due to the way the BooleanFormula is constructed in the parser,
+-- we will get the following variants
+-- a | b : Or [a,b]
+-- a , b : And [a,b]
+-- ( a ) : a
+-- A bottom level Located RdrName is captured in a Var. This is the only part
+-- with a location in it.
+--
+-- So the best strategy might be to convert all the annotations into comments,
+-- and then just print the names.
 instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) where
   markAST _ (GHC.Var x) = markLocated x
-  markAST l (GHC.Or bs) = zipWithM_ (\n s -> markAST l s >> markOffset GHC.AnnVbar n) [0..] bs
-  markAST l (GHC.And bs) = zipWithM_ (\n s -> markAST l s >> markOffset GHC.AnnComma n) [0..] bs
+  markAST l (GHC.Or [a,b])  = markAST l a >> mark GHC.AnnVbar  >> markAST l b
+  markAST l (GHC.And [a,b]) = markAST l a >> mark GHC.AnnComma >> markAST l b
 
+-- annotationsToComments :: GHC.SrcSpan -> a
+-- annotationsToComments l = undefined
 
 -- ---------------------------------------------------------------------
 

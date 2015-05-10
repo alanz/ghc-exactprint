@@ -432,7 +432,8 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "Zipper2.hs"               "Zipper2"
     -- , manipulateAstTestWFname "RdrNames2.hs"             "RdrNames2"
     -- , manipulateAstTestWFname "Unicode.hs"                  "Unicode"
-    , manipulateAstTestWFname "OptSig2.hs"                  "Main"
+    -- , manipulateAstTestWFname "OptSig2.hs"                  "Main"
+    , manipulateAstTestWFname "Minimal.hs"                  "Main"
     -- , manipulateAstTestWFname "TypeBrackets.hs"         "Main"
 
     {-
