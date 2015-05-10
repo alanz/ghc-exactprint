@@ -735,8 +735,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mark GHC.AnnData
     mark GHC.AnnNewtype
     mark GHC.AnnInstance
+    mark GHC.AnnOpenP
     markLocated ln
     mapM_ markLocated pats
+    mark GHC.AnnCloseP
     mark GHC.AnnWhere
     mark GHC.AnnEqual
     markDataDefn l defn
@@ -944,7 +946,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   -- MinimalSig (BooleanFormula (Located name))
   markAST l (GHC.MinimalSig src  formula) = do
     markWithString GHC.AnnOpen src
-    annotationsToComments l
+    -- annotationsToComments l
     markAST l formula
     markWithString GHC.AnnClose "#-}"
 
@@ -1009,18 +1011,16 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mark GHC.AnnCloseP -- ")"
 
   markAST l (GHC.HsTyVar name) = do
-    -- ++AZ++:TODO use AnnName instead of l for the name location
     mark GHC.AnnDcolon -- for HsKind, alias for HsType
     n <- countAnns  GHC.AnnSimpleQuote
     case n of
       1 ->
         let ((startline, startcol), (oldline, oldcol)) = ss2span l
             bodySS = span2ss ((startline, startcol+1), (oldline, oldcol))
-        in
-          mark GHC.AnnSimpleQuote >>
-          markAST bodySS name
+        in do
+          mark GHC.AnnSimpleQuote
+          markLocatedFromKw GHC.AnnName name
       _ -> markAST l name
---    markLocatedFromKw GHC.AnnEofPos n
 
   markAST _ (GHC.HsAppTy t1 t2) = do
     mark GHC.AnnDcolon -- for HsKind, alias for HsType
@@ -1411,6 +1411,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name,Annotate body) =
     -- return () `debug` ("markP.LetStmt entered")
     mark GHC.AnnLet
     mark GHC.AnnOpenC -- '{'
+    markInside GHC.AnnSemi
     markWithLayout (GHC.L (getLocalBindsSrcSpan lb) lb) NotNeeded
     mark GHC.AnnCloseC -- '}'
     -- return () `debug` ("markP.LetStmt done")
@@ -2048,6 +2049,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name)
   => Annotate (GHC.TyFamDefltEqn name) where
   markAST _ (GHC.TyFamEqn ln (GHC.HsQTvs _ns bndrs) typ) = do
     mark GHC.AnnType
+    mark GHC.AnnInstance
     markLocated ln
     mapM_ markLocated bndrs
     mark GHC.AnnEqual

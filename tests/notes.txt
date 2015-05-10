@@ -215,5 +215,78 @@ MultiLineWarningPragma.hs
   Targetting 7.12.1 only
 
 
-Needs triage
+========================================================================
+
+Use GHC wip/api-annots 2015-05-09 
+
+  TypeFamilies.hs
+    FIXED: HsTyVar needed to use AnnName
+
+  QuasiQuote.hs
+  HashQQ.hs
+    Need to account for newlines in the quoted text.
+    No, we are treating the "#{Foo .." part as if it is a comment, not part of the quote.
+
+  Minimal.hs
+  Undefined6.hs
+  Undefined11.hs
+    Still the BooleanFormula issue
+
+  TemplateHaskell.hs
+  THMonadInstance.hs
+    Need to rework instance Annotate (GHC.HsSplice)
+
+  MultiLineWarningPragma.hs
+    As before, wait for 7.12
+
+  UnicodeSyntax.hs
+    Fixed Annlarrowtail / Annrarrowtail incorrect mapping.
+    ITStar will have to wait for 7.12
+
+  CorePragma.hs
+    Need to quote the string inside, Print issue
+
+  UnicodeRules.hs
+    The string we get has the right character in it,
+    need to print it in a unicode-aware way
+
+  RecordSemi.hs
+    FIXED: Can be leading semis in a LetStmt
+
+  TypeInstance.hs
+    FIXED: Missing call to mark AnnInstance
+
+  OveridingPrimitives.hs
+    Need to rework the Annotate instance for RdrName
+    
+  SlidingDataClassDecl.hs
+    Need to do a sortLocated annoate for ln and pats in a DataFamInstDecl.
+    
+Needs GHC Fix
+-------------
+
+  TupleSections.hs
+    Disconnected annotation for comma at (10,30) and others
+
+  TypeBrackets2.hs
+  GADTContext.hs
+    Disconnected annotation in a ConDecl HsForAllTy. Context has a noloc
+    
+  ExplicitNamespaces.hs
+    Disconneced annotation in import statement
+
+  TypeBrackets4.hs
+    Disconnected annotation in nested parens.
+    
+  SlidingTypeSyn.hs
+    SynDecl has spans that are too short, annotations odd. Needs attention.
+    
+  DroppedComma.hs
+    AnnComma attached to wrong element
+    
+  ImplicitTypeSyn.hs
+    ctypedoc for HsIParamTy needs to match ctype
+    
+needs triage
 ------------
+

@@ -115,8 +115,24 @@ unicodeChars =
       , (G GHC.AnnForall, "∀")
       , (G GHC.AnnRarrow, "→")
       , (G GHC.AnnLarrow, "←")
-      , (G GHC.Annlarrowtail, "↢")
-      , (G GHC.Annrarrowtail, "↣")
+      , (G GHC.Annlarrowtail, "⤙")
+      , (G GHC.Annrarrowtail, "⤚")
       , (G GHC.AnnLarrowtail, "⤛")
       , (G GHC.AnnRarrowtail, "⤜")]
+{-
+From Lexer.x
 
+       ,("∷",   ITdcolon, unicodeSyntaxEnabled)
+       ,("⇒",   ITdarrow, unicodeSyntaxEnabled)
+       ,("∀",   ITforall, unicodeSyntaxEnabled)
+       ,("→",   ITrarrow, unicodeSyntaxEnabled)
+       ,("←",   ITlarrow, unicodeSyntaxEnabled)
+
+       ,("⤙",   ITlarrowtail, \i -> unicodeSyntaxEnabled i && arrowsEnabled i)
+       ,("⤚",   ITrarrowtail, \i -> unicodeSyntaxEnabled i && arrowsEnabled i)
+       ,("⤛",   ITLarrowtail, \i -> unicodeSyntaxEnabled i && arrowsEnabled i)
+       ,("⤜",   ITRarrowtail, \i -> unicodeSyntaxEnabled i && arrowsEnabled i)
+
+       ,("★", ITstar, unicodeSyntaxEnabled)
+
+-}
