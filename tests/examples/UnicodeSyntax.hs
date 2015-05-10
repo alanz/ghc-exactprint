@@ -8,6 +8,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE Arrows          #-}
 
 module Abt.Tutorial where
 
@@ -220,3 +221,15 @@ main = do
     mmStr' ← toString $ eval mm
     return $ mmStr ++ " ~>* " ++ mmStr'
 
+doMap ∷ FilePath → IOSArrow XmlTree TiledMap
+doMap mapPath = proc m → do
+    mapWidth       ← getAttrR "width"      ⤙ m
+    returnA -< baz
+
+-- ^ An opaque ESD handle for recording data from the soundcard via ESD.
+data Recorder fr ch (r ∷ ★ → ★)
+    = Recorder {
+        reRate   ∷ !Int
+      , reHandle ∷ !Handle
+      , reCloseH ∷ !(FinalizerHandle r)
+      }
