@@ -1,5 +1,5 @@
 
 
 foo =
-  let (xs, ys) = ([0.5*size,1.5*size+space..(ncols-1)*(size+space)+0.5*size], [0.5*size,1.5*size+space..(nrows-1)*(size+space)+0.5*size]) in
+  let (xs, ys) = ([1,2..3], [4,5..6]) in
   bar

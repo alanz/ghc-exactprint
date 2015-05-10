@@ -262,30 +262,46 @@ Use GHC wip/api-annots 2015-05-09
   SlidingDataClassDecl.hs
     Need to do a sortLocated annoate for ln and pats in a DataFamInstDecl.
     
+  ExplicitNamespaces.hs
+    FIXED. The annotations were connected to an AnnVal Span.
+
+  DroppedComma.hs
+    AnnComma attached to wrong element
+
+    getAndRemoveAnnotationDelta needs to destructively get only the first
+    annotation where there are multiple ones
+    
+  SlidingTypeSyn.hs
+    SynDecl has spans that are too short, annotations odd. Needs attention.
+    There are two issues
+      1. The infix type definition means we need to sort the name and binder names
+      2. Some parts are in parens, others not. The parens annotations are
+         attached to the top level. We need to work them in somehow.
+         Similar to booleanFormula issue.
+
+  TypeBrackets4.hs
+    Disconnected annotation in nested parens.
+    Parens are also at the top level decl, work them in. Similar to SlidingTypeSyn
+
+
 Needs GHC Fix
 -------------
 
   TupleSections.hs
     Disconnected annotation for comma at (10,30) and others
+    #10399
+
+  *ImplicitTypeSyn.hs
+    ctypedoc for HsIParamTy needs to match ctype
+    #10399
 
   TypeBrackets2.hs
   GADTContext.hs
     Disconnected annotation in a ConDecl HsForAllTy. Context has a noloc
+    Problem is mkGadtDecl when it combines contexts, the one on the left is sometimes empty.
+    #10399
     
-  ExplicitNamespaces.hs
-    Disconneced annotation in import statement
-
-  TypeBrackets4.hs
-    Disconnected annotation in nested parens.
     
-  SlidingTypeSyn.hs
-    SynDecl has spans that are too short, annotations odd. Needs attention.
-    
-  DroppedComma.hs
-    AnnComma attached to wrong element
-    
-  ImplicitTypeSyn.hs
-    ctypedoc for HsIParamTy needs to match ctype
     
 needs triage
 ------------

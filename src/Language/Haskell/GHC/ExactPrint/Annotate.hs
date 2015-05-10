@@ -294,9 +294,13 @@ instance (GHC.DataId name,Annotate name)
           mark GHC.AnnType
           markLocated ln
 
-        (GHC.IEThingAbs ln) -> do
-          mark GHC.AnnType
-          markLocated ln
+        (GHC.IEThingAbs ln@(GHC.L _ n)) -> do
+          cnt <- countAnns GHC.AnnType
+          if cnt == 1
+            then do
+              mark GHC.AnnType
+              markLocatedFromKw GHC.AnnVal n
+            else markLocated ln
 
         (GHC.IEThingWith ln ns) -> do
           markLocated ln
