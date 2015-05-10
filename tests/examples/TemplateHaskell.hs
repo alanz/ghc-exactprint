@@ -22,3 +22,16 @@ baz = [quoter| quasi |]
 foo = [t| HT.HashTable $(varT s) Int
                    (Result $(varT str) $tt) |]
 
+objc_emit
+
+objc_import [""]
+
+
+$(do
+    return $ foreignDecl cName ("build" ++ a) ([[t| Ptr Builder |]] ++ ats ++ [[t| CString |]]) [t| Ptr $(rt) |]
+ )
+
+foo = do
+  let elemSize = [|sizeOf (undefined :: $(elemType))|]
+      alignment _ = alignment (undefined :: $(elemType))
+  return bar

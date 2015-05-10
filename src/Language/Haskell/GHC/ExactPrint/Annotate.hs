@@ -355,7 +355,7 @@ instance Annotate GHC.RdrName where
         -- ++AZ++:TODO If the span length and string length don't match for unicode
         -- symbols, use the appropriate one instead.
         let str' = case str of
-                        "forall" -> if spanLength l == 1 then "∀" else str'
+                        "forall" -> if spanLength l == 1 then "∀" else str
                         _ -> str
         mark GHC.AnnType
         mark GHC.AnnOpenP -- '('
