@@ -1731,7 +1731,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   markAST _ (GHC.HsCoreAnn src csFStr e) = do
     markWithString GHC.AnnOpen src -- "{-# CORE"
-    markWithString GHC.AnnVal (GHC.unpackFS csFStr)
+    markWithString GHC.AnnVal ("\"" ++ GHC.unpackFS csFStr ++ "\"")
     markWithString GHC.AnnClose "#-}"
     markLocated e
   -- TODO: make monomorphic
