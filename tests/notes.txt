@@ -244,7 +244,7 @@ Use GHC wip/api-annots 2015-05-09
     ITStar will have to wait for 7.12
 
   CorePragma.hs
-    Need to quote the string inside, Print issue
+    FIXED:Need to quote the string inside, Print issue
 
   UnicodeRules.hs
     The string we get has the right character in it,

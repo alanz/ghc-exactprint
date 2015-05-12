@@ -46,7 +46,8 @@ checkLine line s
            size   = length pragma
        in (res, Just $ Comment ((line, 1), (line, size+1)) pragma)
   -- Deal with shebang/cpp directives too
-  |  "#" `isPrefixOf` s = ("",Just $ Comment ((line, 1), (line, length s)) s)
+  -- x |  "#" `isPrefixOf` s = ("",Just $ Comment ((line, 1), (line, length s)) s)
+  |  "#!" `isPrefixOf` s = ("",Just $ Comment ((line, 1), (line, length s)) s)
   | otherwise = (s, Nothing)
 
 getPragma :: String -> (String, String)
