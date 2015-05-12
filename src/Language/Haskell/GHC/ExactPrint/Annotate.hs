@@ -740,8 +740,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
     mark GHC.AnnNewtype
     mark GHC.AnnInstance
     mark GHC.AnnOpenP
-    markLocated ln
-    mapM_ markLocated pats
+
+    -- markLocated ln
+    -- mapM_ markLocated pats
+    applyListAnnotations (prepareListAnnotation [ln]
+                       ++ prepareListAnnotation pats
+                         )
+
     mark GHC.AnnCloseP
     mark GHC.AnnWhere
     mark GHC.AnnEqual

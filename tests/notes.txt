@@ -223,8 +223,6 @@ Use GHC wip/api-annots 2015-05-09
     FIXED: HsTyVar needed to use AnnName
 
   QuasiQuote.hs
-  HashQQ.hs
-    Need to account for newlines in the quoted text.
     No, we are treating the "#{Foo .." part as if it is a comment, not part of the quote.
 
   Minimal.hs
@@ -240,7 +238,7 @@ Use GHC wip/api-annots 2015-05-09
     As before, wait for 7.12
 
   UnicodeSyntax.hs
-    Fixed Annlarrowtail / Annrarrowtail incorrect mapping.
+    FIXED Annlarrowtail / Annrarrowtail incorrect mapping.
     ITStar will have to wait for 7.12
 
   CorePragma.hs
@@ -260,7 +258,7 @@ Use GHC wip/api-annots 2015-05-09
     Need to rework the Annotate instance for RdrName
     
   SlidingDataClassDecl.hs
-    Need to do a sortLocated annoate for ln and pats in a DataFamInstDecl.
+    Need to do a sortLocated annotate for ln and pats in a DataFamInstDecl.
     
   ExplicitNamespaces.hs
     FIXED. The annotations were connected to an AnnVal Span.
