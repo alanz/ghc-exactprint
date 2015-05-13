@@ -10,6 +10,10 @@ data MaybeDefault v where
     Default :: MaybeDefault v
     KeepCurrent :: MaybeDefault v
     SetTo :: forall v . ( Eq v, Show v ) => !v -> MaybeDefault v
+    SetTo2 :: (Eq a) => forall v . ( Eq v, Show v ) => !v -> a -> MaybeDefault v
+
+bar :: forall v . (( Eq v, Show v ) => v -> MaybeDefault v -> a -> [a])
+baz :: (Eq a) => forall v . ( Eq v, Show v ) => !v -> a -> MaybeDefault v
 
 instance Dsp (S n) where
   data (ASig (S n)) = S_A CVar

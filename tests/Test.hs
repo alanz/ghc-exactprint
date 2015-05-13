@@ -454,10 +454,11 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "OptSig2.hs"                  "Main"
     -- , manipulateAstTestWFname "Minimal.hs"                  "Main"
     -- , manipulateAstTestWFname "DroppedComma.hs"                "Main"
-    , manipulateAstTestWFname "SlidingTypeSyn.hs"                "Main"
-    , manipulateAstTestWFname "CorePragma.hs"                "Main"
+    -- , manipulateAstTestWFname "SlidingTypeSyn.hs"                "Main"
+    -- , manipulateAstTestWFname "CorePragma.hs"                "Main"
 
     -- , manipulateAstTestWFname "TypeBrackets.hs"         "Main"
+    , manipulateAstTestWFname "TypeBrackets2.hs"         "Main"
 
     {-
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"

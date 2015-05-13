@@ -258,7 +258,7 @@ Use GHC wip/api-annots 2015-05-09
     Need to rework the Annotate instance for RdrName
     
   SlidingDataClassDecl.hs
-    Need to do a sortLocated annotate for ln and pats in a DataFamInstDecl.
+    FIXED: Need to do a sortLocated annotate for ln and pats in a DataFamInstDecl.
     
   ExplicitNamespaces.hs
     FIXED. The annotations were connected to an AnnVal Span.
@@ -301,6 +301,65 @@ Needs GHC Fix
     
     
     
+needs triage
+------------
+
+
+
+========================================================================
+
+Running with wip/api-annots3 of 2015-05-13
+    - 13 failures
+
+  Minimal.hs
+  Undefined6.hs
+  Undefined11.hs
+    Still the BooleanFormula issue
+
+  TemplateHaskell.hs
+  THMonadInstance.hs
+    Need to rework instance Annotate (GHC.HsSplice)
+
+  MultiLineWarningPragma.hs
+    As before, wait for 7.12
+
+  UnicodeSyntax.hs
+    FIXED Annlarrowtail / Annrarrowtail incorrect mapping.
+    ITStar will have to wait for 7.12
+
+  UnicodeRules.hs
+    The string we get has the right character in it,
+    need to print it in a unicode-aware way
+
+  TypeBrackets4.hs
+    Disconnected annotation in nested parens.
+    Parens are also at the top level decl, work them in. Similar to SlidingTypeSyn
+
+  SlidingTypeSyn.hs
+    SynDecl has spans that are too short, annotations odd. Needs attention.
+    There are two issues
+      1. The infix type definition means we need to sort the name and binder names
+      2. Some parts are in parens, others not. The parens annotations are
+         attached to the top level. We need to work them in somehow.
+         Similar to booleanFormula issue.
+
+  DroppedComma.hs
+    AnnComma attached to wrong element
+
+    getAndRemoveAnnotationDelta needs to destructively get only the first
+    annotation where there are multiple ones
+
+  OveridingPrimitives.hs
+    Need to rework the Annotate instance for RdrName
+    
+
+Needs GHC Fix
+-------------
+
+  TupleSections.hs
+    Disconnected annotation for comma at (10,30) and others
+    #10399
+
 needs triage
 ------------
 
