@@ -350,7 +350,7 @@ Running with wip/api-annots3 of 2015-05-13
     annotation where there are multiple ones
 
   OveridingPrimitives.hs
-    Need to rework the Annotate instance for RdrName
+    FIXED. Need to rework the Annotate instance for RdrName
     
 
 Needs GHC Fix

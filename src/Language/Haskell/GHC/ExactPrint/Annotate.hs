@@ -326,38 +326,45 @@ instance (GHC.DataId name,Annotate name)
         (GHC.IEDocNamed _)    -> return ()
 
 -- ---------------------------------------------------------------------
+{-
+-- For details on above see note [Api annotations] in ApiAnnotation
+data RdrName
+  = Unqual OccName
+        -- ^ Used for ordinary, unqualified occurrences, e.g. @x@, @y@ or @Foo@.
+        -- Create such a 'RdrName' with 'mkRdrUnqual'
+
+  | Qual ModuleName OccName
+        -- ^ A qualified name written by the user in
+        -- /source/ code.  The module isn't necessarily
+        -- the module where the thing is defined;
+        -- just the one from which it is imported.
+        -- Examples are @Bar.x@, @Bar.y@ or @Bar.Foo@.
+        -- Create such a 'RdrName' with 'mkRdrQual'
+
+  | Orig Module OccName
+        -- ^ An original name; the module is the /defining/ module.
+        -- This is used when GHC generates code that will be fed
+        -- into the renamer (e.g. from deriving clauses), but where
+        -- we want to say \"Use Prelude.map dammit\". One of these
+        -- can be created with 'mkOrig'
+
+  | Exact Name
+        -- ^ We know exactly the 'Name'. This is used:
+        --
+        --  (1) When the parser parses built-in syntax like @[]@
+        --      and @(,)@, but wants a 'RdrName' from it
+        --
+        --  (2) By Template Haskell, when TH has generated a unique name
+        --
+        -- Such a 'RdrName' can be created by using 'getRdrName' on a 'Name'
+  deriving (Data, Typeable)
+-}
 
 instance Annotate GHC.RdrName where
   markAST l n = do
-    case rdrName2String n of
-      -- Special handling for atypical RdrNames.
-      "[]" -> do
-        mark GHC.AnnOpenS  -- '['
-        mark GHC.AnnCloseS -- ']'
-      "()" -> do
-        mark GHC.AnnOpenP  -- '('
-        mark GHC.AnnCloseP -- ')'
-      "(##)" -> do
-        markWithString GHC.AnnOpen  "(#" -- '(#'
-        markWithString GHC.AnnClose  "#)"-- '#)'
-      "[::]" -> do
-        markWithString GHC.AnnOpen  "[:" -- '[:'
-        markWithString GHC.AnnClose ":]" -- ':]'
-      "(->)" -> do
-        mark GHC.AnnOpenP -- '('
-        mark GHC.AnnRarrow
-        mark GHC.AnnCloseP -- ')'
-      "~#"  -> do
-        mark GHC.AnnOpenP -- '('
-        mark GHC.AnnTildehsh
-        mark GHC.AnnCloseP
-      "~" -> do
-        mark GHC.AnnOpenP
-        mark GHC.AnnTilde
-        mark GHC.AnnCloseP
-      str ->  do
-        -- ++AZ++:TODO If the span length and string length don't match for unicode
-        -- symbols, use the appropriate one instead.
+    let
+      str = rdrName2String n
+      doNormalRdrName = do
         let str' = case str of
                         "forall" -> if spanLength l == 1 then "∀" else str
                         _ -> str
@@ -377,6 +384,38 @@ instance Annotate GHC.RdrName where
           _ -> traceM $ "Printing RdrName, more than 1 AnnVal:" ++ showGhc (l,n)
         markOffset GHC.AnnBackquote 1
         mark GHC.AnnCloseP
+
+    case n of
+      GHC.Unqual _ -> doNormalRdrName
+      GHC.Qual _ _ -> doNormalRdrName
+      _            -> do
+       case str of
+         -- Special handling for atypical RdrNames.
+         "[]" -> do
+           mark GHC.AnnOpenS  -- '['
+           mark GHC.AnnCloseS -- ']'
+         "()" -> do
+           mark GHC.AnnOpenP  -- '('
+           mark GHC.AnnCloseP -- ')'
+         "(##)" -> do
+           markWithString GHC.AnnOpen  "(#" -- '(#'
+           markWithString GHC.AnnClose  "#)"-- '#)'
+         "[::]" -> do
+           markWithString GHC.AnnOpen  "[:" -- '[:'
+           markWithString GHC.AnnClose ":]" -- ':]'
+         "(->)" -> do
+           mark GHC.AnnOpenP -- '('
+           mark GHC.AnnRarrow
+           mark GHC.AnnCloseP -- ')'
+         "~#"  -> do
+           mark GHC.AnnOpenP -- '('
+           mark GHC.AnnTildehsh
+           mark GHC.AnnCloseP
+         "~" -> do
+           mark GHC.AnnOpenP
+           mark GHC.AnnTilde
+           mark GHC.AnnCloseP
+         _ -> doNormalRdrName
 
 -- ---------------------------------------------------------------------
 
