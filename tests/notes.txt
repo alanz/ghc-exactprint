@@ -345,7 +345,7 @@ Running with wip/api-annots3 of 2015-05-13
          Similar to booleanFormula issue.
 
   DroppedComma.hs
-    AnnComma attached to wrong element
+    FIXED.  AnnComma attached to wrong element
 
     getAndRemoveAnnotationDelta needs to destructively get only the first
     annotation where there are multiple ones

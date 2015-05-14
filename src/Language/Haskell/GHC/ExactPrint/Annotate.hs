@@ -496,11 +496,14 @@ instance Annotate (Maybe GHC.Role) where
 instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
    => Annotate (GHC.SpliceDecl name) where
   markAST _ (GHC.SpliceDecl e flag) = do
-    case flag of
-      GHC.ExplicitSplice ->
-        addContext HsSpliceE (markLocated e)
-      GHC.ImplicitSplice ->
-        markLocated e
+    -- case flag of
+    --   GHC.ExplicitSplice ->
+    --     addContext HsSpliceE (markLocated e)
+    --   GHC.ImplicitSplice ->
+    --     markLocated e
+    markWithString GHC.AnnOpen  "$("
+    markLocated e
+    markWithString GHC.AnnClose ")"
 
 {-
 - data SpliceExplicitFlag = ExplicitSplice | -- <=> $(f x y)
@@ -1837,7 +1840,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
 
   markAST l (GHC.HsSpliceE e) = do
     -- Explicit Splices are explicit
-    addContext HsSpliceE (markAST l e)
+    -- addContext HsSpliceE (markAST l e)
+    markWithString GHC.AnnOpen "$("
+    markAST l e
+    markWithString GHC.AnnClose ")"
 
   markAST _ (GHC.HsProc p c) = do
     mark GHC.AnnProc
