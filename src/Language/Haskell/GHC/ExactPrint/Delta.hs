@@ -287,6 +287,21 @@ getAndRemoveAnnotationDelta sp an = do
     let (r,ga') = GHC.getAndRemoveAnnotation ga sp an
     r <$ modify (\s -> s { apAnns = ga' })
 
+getOneAnnotationDelta :: GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
+getOneAnnotationDelta an = do
+    ss <- getSrcSpan
+    getAndRemoveOneAnnotationDelta ss an
+
+getAndRemoveOneAnnotationDelta :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
+getAndRemoveOneAnnotationDelta sp an = do
+    ga@(anns,cs) <- gets apAnns
+    let (r,ga') = case Map.lookup (sp,an) anns of
+                    Nothing -> ([],(anns,cs))
+                    Just []     -> ([], (Map.delete (sp,an)    anns,cs))
+                    Just (s:ss) -> ([s],(Map.insert (sp,an) ss anns,cs))
+    modify (\s -> s { apAnns = ga' })
+    return r
+
 -- ---------------------------------------------------------------------
 
 -- |Add some annotation to the currently active SrcSpan
@@ -447,7 +462,8 @@ addDeltaComment d@(DComment (p, _) _) = do
 addDeltaAnnotation :: GHC.AnnKeywordId -> Delta ()
 addDeltaAnnotation ann = do
   ss <- getSrcSpan
-  ma <- getAnnotationDelta ann
+  -- ma <- getAnnotationDelta ann
+  ma <- getOneAnnotationDelta ann
   case nub ma of -- ++AZ++ TODO: get rid of duplicates earlier
     []     -> return () `debug` ("addDeltaAnnotation empty ma for:" ++ show (ss,ann))
     [pa]   -> addAnnotationWorker (G ann) pa
