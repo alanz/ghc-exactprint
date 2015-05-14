@@ -332,6 +332,7 @@ Running with wip/api-annots3 of 2015-05-13
     need to print it in a unicode-aware way
 
   TypeBrackets4.hs
+    FIXED
     Disconnected annotation in nested parens.
     Parens are also at the top level decl, work them in. Similar to SlidingTypeSyn
 
@@ -351,7 +352,6 @@ Running with wip/api-annots3 of 2015-05-13
 
   OveridingPrimitives.hs
     FIXED. Need to rework the Annotate instance for RdrName
-    
 
 Needs GHC Fix
 -------------

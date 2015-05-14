@@ -1198,9 +1198,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
   markAST l (GHC.HsNamedWildcardTy n) = do
     markExternal l GHC.AnnVal  (showGhc n)
 
-instance
-  (GHC.DataId name,GHC.OutputableBndr name,Annotate name)  =>
-  Annotate (GHC.HsSplice name) where
+{-
+instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
+  => Annotate (GHC.HsSplice name) where
   markAST l c =
     -- ++AZ++:TODO: I am sure this can be simplified.
     case c of
@@ -1243,6 +1243,22 @@ instance
         check HsSpliceE (markWithString GHC.AnnOpen s) -- '$('
         markLocated v
         check HsSpliceE (markWithString GHC.AnnClose ")")
+-}
+
+instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name)
+  => Annotate (GHC.HsSplice name) where
+  markAST l c =
+    case c of
+      GHC.HsQuasiQuote _ n _pos fs -> do
+        markExternal l GHC.AnnVal
+              ("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS fs) ++ "|]")
+      GHC.HsTypedSplice   _n b@(GHC.L l' ex) -> do
+        markLocated b
+        return ()
+      GHC.HsUntypedSplice _n b@(GHC.L _ ex)  -> do
+        mark GHC.AnnThIdSplice
+        markLocated b
+        return ()
 
 pattern IsHsVar <- (GHC.HsVar _)
 
@@ -2068,8 +2084,10 @@ instance (GHC.DataId name,Annotate name, GHC.OutputableBndr name)
     mark GHC.AnnType
     mark GHC.AnnData
     mark GHC.AnnFamily
+    mark GHC.AnnOpenP
     applyListAnnotations (prepareListAnnotation [ln]
                          ++ prepareListAnnotation tyvars)
+    mark GHC.AnnCloseP
     mark GHC.AnnDcolon
     markMaybe mkind
     mark GHC.AnnWhere
