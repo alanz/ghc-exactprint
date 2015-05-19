@@ -363,3 +363,37 @@ Needs GHC Fix
 needs triage
 ------------
 
+========================================================================
+
+running with wip/api-annots3 (2015-05-18)
+
+RAW
+===
+
+*Main> :main
+### Failure in: 76
+Splice.hs
+### Failure in: 104
+Minimal.hs
+### Failure in: 109
+Undefined6.hs
+### Failure in: 114
+Undefined11.hs
+### Failure in: 117
+TemplateHaskell.hs
+### Failure in: 118
+TypeBrackets.hs
+### Failure in: 124
+TupleSections.hs
+### Failure in: 142
+MultiLineWarningPragma.hs
+### Failure in: 147
+UnicodeSyntax.hs
+### Failure in: 166
+UnicodeRules.hs
+### Failure in: 170
+SlidingTypeSyn.hs
+Cases: 190  Tried: 190  Errors: 0  Failures: 11
+Counts {cases = 190, tried = 190, errors = 0, failures = 11}
+*** Exception: ExitFailure 1
+*Main> 

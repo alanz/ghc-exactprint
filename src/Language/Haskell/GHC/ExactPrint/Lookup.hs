@@ -100,7 +100,8 @@ keywordToString kw =
       (G GHC.AnnLarrowtail ) -> "-<<"
       (G GHC.AnnRarrowtail ) -> ">>-"
       (G GHC.AnnSimpleQuote ) -> "'"
-      (G GHC.AnnThIdSplice  ) -> "''"
+      (G GHC.AnnThTyQuote   ) -> "''"
+      (G GHC.AnnThIdSplice  ) -> "$"
       (G GHC.AnnThIdTySplice ) -> "$$"
       (G GHC.AnnEofPos       ) -> ""
 
