@@ -502,9 +502,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     --     addContext HsSpliceE (markLocated e)
     --   GHC.ImplicitSplice ->
     --     markLocated e
-    -- markWithString GHC.AnnOpen  "$("
+    mark GHC.AnnOpenPE
     markLocated e
-    -- markWithString GHC.AnnClose ")"
+    mark GHC.AnnCloseP
 
 {-
 - data SpliceExplicitFlag = ExplicitSplice | -- <=> $(f x y)
@@ -1141,9 +1141,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   -- HsSpliceTy (HsSplice name) (PostTc name Kind)
   markAST l (GHC.HsSpliceTy s _) = do
-    markWithString GHC.AnnOpen "$("
+    mark GHC.AnnOpenPE
     markAST l s
-    markWithString GHC.AnnClose ")"
+    mark GHC.AnnCloseP
 
   markAST _ (GHC.HsDocTy t ds) = do
     markLocated t
@@ -1268,11 +1268,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markLocated b
       -- GHC.HsUntypedSplice _n b@(GHC.L _ (GHC.HsBracket _))  -> do
       --   markLocated b
+      -- GHC.HsUntypedSplice _n b@(GHC.L _ GHC.HsBracket{})  -> do
+      --   markLocated b
       GHC.HsUntypedSplice _n b@(GHC.L _ ex)  -> do
         mark GHC.AnnThIdSplice
-        -- markWithString GHC.AnnOpen "$("
+        mark GHC.AnnOpenPE
         markLocated b
-        -- markWithString GHC.AnnClose ")"
+        mark GHC.AnnCloseP
 
 -- ---------------------------------------------------------------------
 
@@ -1348,7 +1350,9 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
     -- SplicePats must always be explicit
     -- https://github.com/ghc/ghc/blob/master/compiler/parser/RdrHsSyn.hs#L882
     -- addContext HsSpliceE (markAST l s)
+    mark GHC.AnnOpenPE
     markAST l s
+    mark GHC.AnnCloseP
 
 {-  -- QuasiQuotePat (HsQuasiQuote id)
   -- TODO
@@ -1853,9 +1857,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST l (GHC.HsSpliceE e) = do
     -- Explicit Splices are explicit
     -- addContext HsSpliceE (markAST l e)
-    markWithString GHC.AnnOpen "$("
+    mark GHC.AnnOpenPE
     markAST l e
-    markWithString GHC.AnnClose ")"
+    mark GHC.AnnCloseP
 
   markAST _ (GHC.HsProc p c) = do
     mark GHC.AnnProc

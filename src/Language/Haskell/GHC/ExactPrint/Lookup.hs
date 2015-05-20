@@ -77,6 +77,8 @@ keywordToString kw =
       (G GHC.AnnOf       ) -> "of"
       (G GHC.AnnOpenC    ) -> "{"
       (G GHC.AnnOpenP    ) -> "("
+      (G GHC.AnnOpenPE   ) -> "$("
+      (G GHC.AnnOpenPTE  ) -> "$$("
       (G GHC.AnnOpenS    ) -> "["
       (G GHC.AnnPattern  ) -> "pattern"
       (G GHC.AnnProc     ) -> "proc"
