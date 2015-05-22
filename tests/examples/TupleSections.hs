@@ -17,3 +17,5 @@ foo = baz
     _4 = ((Nothing,Nothing,Nothing,,Nothing,Nothing) . Just <$>)
     _5 = ((Nothing,Nothing,Nothing,Nothing,,Nothing) . Just <$>)
     _6 = ((Nothing,Nothing,Nothing,Nothing,Nothing,) . Just <$>)
+
+foo = (,,(),,,())

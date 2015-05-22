@@ -156,22 +156,23 @@ deltaInterpret :: Annotated a -> Delta a
 deltaInterpret = iterTM go
   where
     go :: AnnotationF (Delta a) -> Delta a
-    go (MarkEOF next)                  = addEofAnnotation >> next
-    go (MarkPrim kwid _ next)          = addDeltaAnnotation kwid >> next
-    go (MarkOutside akwid kwid next)   = addDeltaAnnotationsOutside akwid kwid >> next
-    go (MarkInside akwid next)         = addDeltaAnnotationsInside akwid >> next
-    go (MarkMany akwid next)           = addDeltaAnnotations akwid >> next
-    go (MarkOffsetPrim akwid n _ next) = addDeltaAnnotationLs akwid n >> next
-    go (MarkAfter akwid next)          = addDeltaAnnotationAfter akwid >> next
+    go (MarkEOF next)                   = addEofAnnotation >> next
+    go (MarkPrim kwid _ next)           = addDeltaAnnotation kwid >> next
+    go (MarkOutside akwid kwid next)    = addDeltaAnnotationsOutside akwid kwid >> next
+    go (MarkInside akwid next)          = addDeltaAnnotationsInside akwid >> next
+    go (MarkMany akwid next)            = addDeltaAnnotations akwid >> next
+    go (MarkOffsetPrim akwid n _ next)  = addDeltaAnnotationLs akwid n >> next
+    go (MarkAfter akwid next)           = addDeltaAnnotationAfter akwid >> next
     go (WithAST lss d layoutflag prog next) =
       withAST lss d layoutflag (deltaInterpret prog) >> next
-    go (CountAnns kwid next)            = countAnnsDelta kwid >>= next
-    go (SetLayoutFlag action next)      = setLayoutFlag (deltaInterpret action)  >> next
-    go (MarkExternal ss akwid _ next)   = addDeltaAnnotationExt ss akwid >> next
-    go (StoreOriginalSrcSpan ss d next) = storeOriginalSrcSpanDelta ss d >>= next
-    go (GetSrcSpanForKw kw next)        = getSrcSpanForKw kw >>= next
-    go (StoreString s ss next)          = storeString s ss >> next
-    go (GetNextDisambiguator next)      = getNextDisambiguatorDelta >>= next
+    go (CountAnns kwid next)             = countAnnsDelta kwid >>= next
+    go (SetLayoutFlag action next)       = setLayoutFlag (deltaInterpret action)  >> next
+    go (MarkExternal ss akwid _ next)    = addDeltaAnnotationExt ss akwid >> next
+    go (StoreOriginalSrcSpan ss d next)  = storeOriginalSrcSpanDelta ss d >>= next
+    go (GetSrcSpanForKw kw next)         = getSrcSpanForKw kw >>= next
+    go (StoreString s ss next)           = storeString s ss >> next
+    go (GetNextDisambiguator next)       = getNextDisambiguatorDelta >>= next
+    -- go (AnnotationsToComments s ss next) = annotationsToCommentsDelta s ss >>= next
 
 -- | Used specifically for "HsLet"
 setLayoutFlag :: Delta () -> Delta ()

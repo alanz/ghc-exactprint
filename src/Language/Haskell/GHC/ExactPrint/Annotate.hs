@@ -1039,11 +1039,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 -- ---------------------------------------------------------------------
 
--- markTvar tv = do
---   mark GHC.AnnForall
---   markLocated tv
---   mark GHC.AnnDot
-
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
    => Annotate (GHC.HsType name) where
 
@@ -1066,10 +1061,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnDcolon -- for HsKind, alias for HsType
     n <- countAnns  GHC.AnnSimpleQuote
     case n of
-      1 ->
-        let ((startline, startcol), (oldline, oldcol)) = ss2span l
-            bodySS = span2ss ((startline, startcol+1), (oldline, oldcol))
-        in do
+      1 -> do
           mark GHC.AnnSimpleQuote
           markLocatedFromKw GHC.AnnName name
       _ -> markAST l name
@@ -1260,17 +1252,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       GHC.HsTypedSplice _n b@(GHC.L _ (GHC.HsVar n))  -> do
         markWithString GHC.AnnThIdTySplice ("$$" ++ (GHC.occNameString (GHC.occName n)))
         markLocated b
-      GHC.HsTypedSplice   _n b@(GHC.L l' ex) -> do
+      GHC.HsTypedSplice _n b -> do
         markLocated b
 
       GHC.HsUntypedSplice _n b@(GHC.L _ (GHC.HsVar n))  -> do
         markWithString GHC.AnnThIdSplice ("$" ++ (GHC.occNameString (GHC.occName n)))
         markLocated b
-      -- GHC.HsUntypedSplice _n b@(GHC.L _ (GHC.HsBracket _))  -> do
-      --   markLocated b
-      -- GHC.HsUntypedSplice _n b@(GHC.L _ GHC.HsBracket{})  -> do
-      --   markLocated b
-      GHC.HsUntypedSplice _n b@(GHC.L _ ex)  -> do
+      GHC.HsUntypedSplice _n b  -> do
         mark GHC.AnnThIdSplice
         mark GHC.AnnOpenPE
         markLocated b
@@ -2212,11 +2200,14 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 
         when depc_syntax ( do
           markHsConDeclDetails lns dets
-          mark GHC.AnnDcolon)
+          mark GHC.AnnDcolon
+          markMany GHC.AnnOpenP
+          )
 
         when (not depc_syntax) ( do
           mark GHC.AnnDcolon
           markLocated (GHC.L ls (ResTyGADTHook bndrs))
+          markMany GHC.AnnOpenP
           markLocated ctx
           mark GHC.AnnDarrow
           markHsConDeclDetails lns dets )
@@ -2229,6 +2220,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
         --mark GHC.AnnDarrow
         --mark GHC.AnnRarrow
         --markLocated ty d
+        markMany GHC.AnnCloseP
 
 
     mark GHC.AnnVbar
