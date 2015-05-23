@@ -634,7 +634,7 @@ instance (Annotate name)
      mark GHC.AnnCloseS -- "]"
 
 instance Annotate GHC.FastString where
-  markAST l fs = markExternal l GHC.AnnVal (show (GHC.unpackFS fs))
+  markAST l fs = markExternal l GHC.AnnVal ('"':(GHC.unpackFS fs++"\""))
 
 -- ---------------------------------------------------------------------
 

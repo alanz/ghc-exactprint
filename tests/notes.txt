@@ -353,12 +353,12 @@ Running with wip/api-annots3 of 2015-05-13
   OveridingPrimitives.hs
     FIXED. Need to rework the Annotate instance for RdrName
 
-Needs GHC Fix
--------------
-
   TupleSections.hs
     Disconnected annotation for comma at (10,30) and others
-    #10399
+    FIXED #10399
+
+Needs GHC Fix
+-------------
 
 needs triage
 ------------
