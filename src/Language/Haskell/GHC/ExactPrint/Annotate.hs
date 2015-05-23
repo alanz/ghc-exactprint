@@ -65,7 +65,7 @@ data AnnotationF next where
   GetSrcSpanForKw :: GHC.AnnKeywordId                   -> (GHC.SrcSpan -> next) -> AnnotationF next
   StoreString :: String -> GHC.SrcSpan                  -> next -> AnnotationF next
   GetNextDisambiguator ::                                  (Disambiguator -> next) -> AnnotationF next
-  AnnotationsToComments :: String -> GHC.SrcSpan        -> next -> AnnotationF next
+  AnnotationsToComments :: [GHC.AnnKeywordId]           -> next -> AnnotationF next
 
 deriving instance Functor (AnnotationF)
 
@@ -107,6 +107,7 @@ makeFreeCon  'StoreOriginalSrcSpan
 makeFreeCon  'GetSrcSpanForKw
 makeFreeCon  'StoreString
 makeFreeCon  'GetNextDisambiguator
+makeFreeCon  'AnnotationsToComments
 
 -- ---------------------------------------------------------------------
 
@@ -998,7 +999,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   -- MinimalSig (BooleanFormula (Located name))
   markAST l (GHC.MinimalSig src  formula) = do
     markWithString GHC.AnnOpen src
-    -- annotationsToComments l
+    annotationsToComments [GHC.AnnOpenP,GHC.AnnCloseP,GHC.AnnComma,GHC.AnnVbar]
     markAST l formula
     markWithString GHC.AnnClose "#-}"
 
@@ -1016,9 +1017,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 -- So the best strategy might be to convert all the annotations into comments,
 -- and then just print the names.
 instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) where
-  markAST _ (GHC.Var x) = markLocated x
-  markAST l (GHC.Or [a,b])  = markAST l a >> mark GHC.AnnVbar  >> markAST l b
-  markAST l (GHC.And [a,b]) = markAST l a >> mark GHC.AnnComma >> markAST l b
+  markAST _ (GHC.Var x)     = markLocated x
+  markAST l (GHC.Or ls)  = mapM_ (markAST l) ls
+  markAST l (GHC.And ls) = mapM_ (markAST l) ls
+  -- markAST _ _               = return () -- Keep completeness checker happy
 
 -- annotationsToComments :: GHC.SrcSpan -> a
 -- annotationsToComments l = undefined

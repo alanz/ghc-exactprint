@@ -172,7 +172,7 @@ deltaInterpret = iterTM go
     go (GetSrcSpanForKw kw next)         = getSrcSpanForKw kw >>= next
     go (StoreString s ss next)           = storeString s ss >> next
     go (GetNextDisambiguator next)       = getNextDisambiguatorDelta >>= next
-    -- go (AnnotationsToComments s ss next) = annotationsToCommentsDelta s ss >>= next
+    go (AnnotationsToComments kws next)  = annotationsToCommentsDelta kws >> next
 
 -- | Used specifically for "HsLet"
 setLayoutFlag :: Delta () -> Delta ()
@@ -198,25 +198,34 @@ getNextDisambiguatorDelta = do
 
 -- ---------------------------------------------------------------------
 
+-- |In order to interleave annotations into the stream, we turn them into
+-- comments.
+annotationsToCommentsDelta :: [GHC.AnnKeywordId] -> Delta ()
+annotationsToCommentsDelta kws = do
+  ga <- gets apAnns
+  ss <- getSrcSpan
+  cs <- gets apComments
+  let
+    doOne :: GHC.AnnKeywordId -> [Comment]
+    doOne kw = comments
+      where
+        spans = GHC.getAnnotation ga ss kw
+        comments = map (\sp -> Comment (ss2span sp) (keywordToString (G kw))) spans
+    -- TODO:AZ make sure these are sorted/merged properly when the invariant for
+    -- allocateComments is re-established.
+    newComments = concatMap doOne kws
+  putUnallocatedComments (cs ++ newComments)
+
+-- ---------------------------------------------------------------------
+
 -- | This function exists to overcome a shortcoming in the GHC AST for 7.10.1
 getSrcSpanForKw :: GHC.AnnKeywordId -> Delta GHC.SrcSpan
 getSrcSpanForKw kw = do
--- ++AZ++ TODO: Now using AnnEofPos, no need to remove it and update state
     ga <- gets apAnns
     ss <- getSrcSpan
     case GHC.getAnnotation ga ss kw of
       []     -> return GHC.noSrcSpan
       (sp:_) -> return sp
-    {-
-    s <- get
-    let ga = apAnns s
-    ss <- getSrcSpan
-    let (sss,ga') = GHC.getAndRemoveAnnotation ga ss kw
-    put s { apAnns = ga' }
-    case sss of
-      []     -> return GHC.noSrcSpan
-      (sp:_) -> return sp
-    -}
 
 -- ---------------------------------------------------------------------
 
@@ -381,6 +390,10 @@ withAST lss@(GHC.L ss _) d layout action = do
 priorComment :: Pos -> Comment -> Bool
 priorComment start (Comment s _) = fst s < start
 
+-- TODO:AZ: We scan the entire comment list here. It may be better to impose an
+-- invariant that the comments are sorted, and consume them as the pos
+-- advances. It then becomes a process of using `takeWhile p` rather than a full
+-- partition.
 allocateComments :: (Comment -> Bool) -> [Comment] -> ([Comment], [Comment])
 allocateComments = partition
 
@@ -388,7 +401,8 @@ allocateComments = partition
 
 addAnnotationWorker :: KeywordId -> GHC.SrcSpan -> Delta ()
 addAnnotationWorker ann pa =
-  -- Zero-width source spans are injected by the GHC Lexer.
+  -- Zero-width source spans are injected by the GHC Lexer when it puts virtual
+  -- '{', ';' and '}' tokens in for layout
   unless (isPointSrcSpan pa) $
     do
       pe <- getPriorEnd

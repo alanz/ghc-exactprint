@@ -138,6 +138,7 @@ printInterpret = iterTM go
     go (StoreString _ _ next) =
       printStoredString >> next
     go (GetNextDisambiguator next) = return NotNeeded >>= next
+    go (AnnotationsToComments _ next) = next
 
 -------------------------------------------------------------------------
 
