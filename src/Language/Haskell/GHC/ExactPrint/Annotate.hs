@@ -1015,15 +1015,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 -- with a location in it.
 --
 -- So the best strategy might be to convert all the annotations into comments,
--- and then just print the names.
+-- and then just print the names. DONE
 instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) where
-  markAST _ (GHC.Var x)     = markLocated x
+  markAST _ (GHC.Var x)  = markLocated x
   markAST l (GHC.Or ls)  = mapM_ (markAST l) ls
   markAST l (GHC.And ls) = mapM_ (markAST l) ls
-  -- markAST _ _               = return () -- Keep completeness checker happy
-
--- annotationsToComments :: GHC.SrcSpan -> a
--- annotationsToComments l = undefined
 
 -- ---------------------------------------------------------------------
 
@@ -2028,13 +2024,17 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST l (GHC.FamDecl famdecl) = markAST l famdecl
 
   markAST _ (GHC.SynDecl ln (GHC.HsQTvs _ tyvars) typ _) = do
+    -- There may be arbitrary parens around parts of the constructor that are
+    -- infix.
+    -- Turn these into comments so that they feed into the right place automatically
+    annotationsToComments [GHC.AnnOpenP,GHC.AnnCloseP]
     mark GHC.AnnType
-    markMany GHC.AnnOpenP
+    -- markMany GHC.AnnOpenP
     -- ln may be used infix, in which case rearrange the order. It may be
     -- simplest to just sort ln:tyvars
     applyListAnnotations (prepareListAnnotation [ln]
                          ++ prepareListAnnotation tyvars)
-    markMany GHC.AnnCloseP
+    -- markMany GHC.AnnCloseP
     mark GHC.AnnEqual
     markLocated typ
 
