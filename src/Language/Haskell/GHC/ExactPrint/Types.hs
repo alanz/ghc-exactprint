@@ -42,19 +42,21 @@ import qualified Data.Map as Map
 
 -- ---------------------------------------------------------------------
 
--- | A Haskell comment.
-data Comment = Comment Span String
+-- | A Haskell comment. The @AnnKeywordId@ is present if it has been converted
+-- from an @AnnKeywordId@ because the annotation must be interleaved into the
+-- stream and does not have a well-defined position
+data Comment = Comment Span String (Maybe GHC.AnnKeywordId)
   deriving (Eq,Show,Typeable,Data)
 
 instance GHC.Outputable Comment where
   ppr x = GHC.text (show x)
 
 -- |Delta version of the comment.
-data DComment = DComment (DeltaPos,DeltaPos) String
+data DComment = DComment (DeltaPos,DeltaPos) String (Maybe GHC.AnnKeywordId)
   deriving (Eq,Show,Typeable,Data,Ord)
 
 instance Ord Comment where
-  compare (Comment p1 _) (Comment p2 _) = compare p1 p2
+  compare (Comment p1 _ _) (Comment p2 _ _) = compare p1 p2
 
 type PosToken = (GHC.Located GHC.Token, String)
 

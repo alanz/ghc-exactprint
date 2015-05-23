@@ -44,10 +44,10 @@ checkLine line s
   |  "{-# LINE" `isPrefixOf` s =
        let (pragma, res) = getPragma s
            size   = length pragma
-       in (res, Just $ Comment ((line, 1), (line, size+1)) pragma)
+       in (res, Just $ Comment ((line, 1), (line, size+1)) pragma Nothing)
   -- Deal with shebang/cpp directives too
   -- x |  "#" `isPrefixOf` s = ("",Just $ Comment ((line, 1), (line, length s)) s)
-  |  "#!" `isPrefixOf` s = ("",Just $ Comment ((line, 1), (line, length s)) s)
+  |  "#!" `isPrefixOf` s = ("",Just $ Comment ((line, 1), (line, length s)) s Nothing)
   | otherwise = (s, Nothing)
 
 getPragma :: String -> (String, String)

@@ -133,7 +133,7 @@ defaultDeltaState injectedComments priorEnd ga =
       map tokComment . GHC.sortLocated . concat $ Map.elems cm
 
 tokComment :: GHC.Located GHC.AnnotationComment -> Comment
-tokComment t@(GHC.L lt _) = Comment (ss2span lt) (ghcCommentText t)
+tokComment t@(GHC.L lt _) = Comment (ss2span lt) (ghcCommentText t) Nothing
 
 -- Writer helpers
 
@@ -210,7 +210,7 @@ annotationsToCommentsDelta kws = do
     doOne kw = comments
       where
         spans = GHC.getAnnotation ga ss kw
-        comments = map (\sp -> Comment (ss2span sp) (keywordToString (G kw))) spans
+        comments = map (\sp -> Comment (ss2span sp) (keywordToString (G kw)) (Just kw)) spans
     -- TODO:AZ make sure these are sorted/merged properly when the invariant for
     -- allocateComments is re-established.
     newComments = concatMap doOne kws
@@ -388,7 +388,7 @@ withAST lss@(GHC.L ss _) d layout action = do
 -- |Split the ordered list of comments into ones that occur prior to
 -- the give SrcSpan and the rest
 priorComment :: Pos -> Comment -> Bool
-priorComment start (Comment s _) = fst s < start
+priorComment start (Comment s _ _) = fst s < start
 
 -- TODO:AZ: We scan the entire comment list here. It may be better to impose an
 -- invariant that the comments are sorted, and consume them as the pos
@@ -456,7 +456,7 @@ commentAllocation p k = do
 
 
 makeDeltaComment :: Comment -> Delta DComment
-makeDeltaComment (Comment paspan str) = do
+makeDeltaComment (Comment paspan str mkw) = do
   let pa = span2ss paspan
   pe <- getPriorEnd
   let p = ss2delta pe pa
@@ -464,10 +464,10 @@ makeDeltaComment (Comment paspan str) = do
   setPriorEnd (ss2posEnd pa)
   let e = pos2delta pe (snd paspan)
   e' <- adjustDeltaForOffsetM e
-  return $ DComment (p', e') str
+  return $ DComment (p', e') str mkw
 
 addDeltaComment :: DComment -> Delta ()
-addDeltaComment d@(DComment (p, _) _) = do
+addDeltaComment d@(DComment (p, _) _ _) = do
   addAnnDeltaPos (AnnComment d) p
 
 -- ---------------------------------------------------------------------

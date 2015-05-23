@@ -353,7 +353,7 @@ isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP (undelta (0,0) dp colOffset
 
 -- AZ:TODO: harvest the commonality between this and printStringAtLsDelta
 printQueuedComment :: DComment -> EP ()
-printQueuedComment (DComment (dp,de) s) = do
+printQueuedComment (DComment (dp,de) s _) = do
   p <- getPos
   colOffset <- getLayoutOffset
   let (dr,dc) = undelta (0,0) dp colOffset
