@@ -8,7 +8,7 @@ import Data.Generics (everything, mkQ)
 
 import Language.Haskell.GHC.ExactPrint.Utils (isPointSrcSpan)
 
-import Debug.Trace
+-- import Debug.Trace
 
 checkConsistency :: Data a => GHC.ApiAnns -> a -> [(SrcSpan, (AnnKeywordId, [SrcSpan]))]
 checkConsistency anns ast =

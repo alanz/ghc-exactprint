@@ -178,6 +178,8 @@ interpretChange old new = iterTM go
     go (StoreOriginalSrcSpan ss d next) = next (ss,d)
     go (GetSrcSpanForKw _ next) = next GHC.noSrcSpan
     go (StoreString _ _ next) = next
+    go (GetNextDisambiguator next) = return NotNeeded >>= next
+    go (AnnotationsToComments _ next) = next
 
     change :: GHC.AnnKeywordId -> FB ()
     change kwid = do

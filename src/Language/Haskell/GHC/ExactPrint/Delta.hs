@@ -47,8 +47,8 @@ relativiseApiAnnsWithComments cs modu ghcAnns
 -- | Type used in the Delta Monad.
 type Delta a = RWS DeltaReader DeltaWriter DeltaState a
 
-runDelta :: Annotated () -> GHC.ApiAnns -> Pos -> Anns
-runDelta = runDeltaWithComments []
+-- runDelta :: Annotated () -> GHC.ApiAnns -> Pos -> Anns
+-- runDelta = runDeltaWithComments []
 
 runDeltaWithComments :: [Comment] -> Annotated () -> GHC.ApiAnns -> Pos -> Anns
 runDeltaWithComments cs action ga priorEnd =
@@ -304,7 +304,7 @@ getOneAnnotationDelta an = do
 
 getAndRemoveOneAnnotationDelta :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
 getAndRemoveOneAnnotationDelta sp an = do
-    ga@(anns,cs) <- gets apAnns
+    (anns,cs) <- gets apAnns
     let (r,ga') = case Map.lookup (sp,an) anns of
                     Nothing -> ([],(anns,cs))
                     Just []     -> ([], (Map.delete (sp,an)    anns,cs))

@@ -45,7 +45,7 @@ import Consistency
 
 import Control.Arrow (first)
 
-import Debug.Trace
+-- import Debug.Trace
 
 -- ---------------------------------------------------------------------
 -- Roundtrip machinery

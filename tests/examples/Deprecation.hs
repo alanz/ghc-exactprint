@@ -1,7 +1,8 @@
 
 module Deprecation
 {-# Deprecated ["This is a module \"deprecation\"",
-             "multi-line"] #-}
+             "multi-line",
+             "with unicode: Frère" ] #-}
    ( foo )
  where
 

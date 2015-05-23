@@ -38,7 +38,7 @@ import System.IO.Silently
 
 import Common
 
-import Debug.Trace
+-- import Debug.Trace
 
 -- ---------------------------------------------------------------------
 
@@ -360,7 +360,8 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- -- manipulateAstTestWFname "Unicode.hs"               "Main"
     -- , manipulateAstTestWFname "B.hs"                     "Main"
     -- , manipulateAstTestWFname "LayoutWhere.hs"           "Main"
-    -- , manipulateAstTestWFname "Deprecation.hs"           "Deprecation"
+    , manipulateAstTestWFname "Deprecation.hs"           "Deprecation"
+    , manipulateAstTestWFname "UnicodeRules.hs"               "Main"
     -- , manipulateAstTestWFname "Infix.hs"                 "Main"
     -- , manipulateAstTestWFname "BCase.hs"                 "Main"
     -- , manipulateAstTestWFname "LetExprSemi.hs"           "LetExprSemi"
@@ -451,14 +452,14 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "RdrNames2.hs"             "RdrNames2"
     -- , manipulateAstTestWFname "Unicode.hs"                  "Unicode"
     -- , manipulateAstTestWFname "OptSig2.hs"                  "Main"
-    , manipulateAstTestWFname "Minimal.hs"                  "Main"
+    -- , manipulateAstTestWFname "Minimal.hs"                  "Main"
     -- , manipulateAstTestWFname "DroppedComma.hs"                "Main"
-    , manipulateAstTestWFname "SlidingTypeSyn.hs"                "Main"
+    -- , manipulateAstTestWFname "SlidingTypeSyn.hs"                "Main"
     -- , manipulateAstTestWFname "TupleSections.hs"                "Main"
     -- , manipulateAstTestWFname "CorePragma.hs"                "Main"
     -- , manipulateAstTestWFname "Splice.hs"                "Splice"
     -- , manipulateAstTestWFname "TemplateHaskell.hs"         "Main"
-    , manipulateAstTestWFname "GADTContext.hs" "Main"
+    -- , manipulateAstTestWFname "GADTContext.hs" "Main"
 
     -- , manipulateAstTestWFname "TypeBrackets.hs"         "Main"
     -- , manipulateAstTestWFname "TypeBrackets2.hs"         "Main"
