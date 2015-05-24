@@ -1192,7 +1192,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markWithString GHC.AnnThIdTySplice ("$$" ++ (GHC.occNameString (GHC.occName n)))
         markLocated b
       GHC.HsTypedSplice _n b -> do
+        mark GHC.AnnOpenPTE
         markLocated b
+        mark GHC.AnnCloseP
 
       GHC.HsUntypedSplice _n b@(GHC.L _ (GHC.HsVar n))  -> do
         markWithString GHC.AnnThIdSplice ("$" ++ (GHC.occNameString (GHC.occName n)))

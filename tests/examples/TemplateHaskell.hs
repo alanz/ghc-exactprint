@@ -35,3 +35,6 @@ foo = do
   let elemSize = [|sizeOf (undefined :: $(elemType))|]
       alignment _ = alignment (undefined :: $(elemType))
   return bar
+
+class QQExp a b where
+  qqExp x = [||fst $ runState $$(qqExpM x) ((0,M.empty) :: (Int,M.Map L.Name [L.Operand]))||]
