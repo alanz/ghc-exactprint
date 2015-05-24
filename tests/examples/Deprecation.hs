@@ -13,3 +13,4 @@ module Deprecation
 foo :: Int
 foo = 4
 
+{-# DEPRECATED withBool        "The C2HS module will soon stop providing unnecessary\nutility functions. Please use standard FFI library functions instead." #-}

@@ -627,8 +627,8 @@ instance (Annotate name)
 
 instance Annotate GHC.FastString where
   -- TODO: https://ghc.haskell.org/trac/ghc/ticket/10313 applies.
-  -- markAST l fs = markExternal l GHC.AnnVal (show (GHC.unpackFS fs))
-  markAST l fs = markExternal l GHC.AnnVal ('"':(GHC.unpackFS fs++"\""))
+  markAST l fs = markExternal l GHC.AnnVal (show (GHC.unpackFS fs))
+  -- markAST l fs = markExternal l GHC.AnnVal ('"':(GHC.unpackFS fs++"\""))
 
 -- ---------------------------------------------------------------------
 

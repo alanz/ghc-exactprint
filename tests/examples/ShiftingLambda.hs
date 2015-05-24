@@ -1,4 +1,4 @@
-
+{-# LANGUAGE ImplicitParams, NamedFieldPuns, ParallelListComp, PatternGuards #-}
 spec :: Spec
 spec = do
   describe "split4'8" $ do
@@ -13,3 +13,10 @@ spec = do
       prop "x << 8 | y == z" $ do
         \z -> let (x, y) = split4'8 z in
           fromIntegral x `shiftL` 8 .|. fromIntegral y == z
+
+match s@Status{ pos, flips, captureAt, captureLen }
+  | isOne ?pat = ite (pos .>= strLen) __FAIL__ one
+  | otherwise = ite (pos + (toEnum $ minLen ?pat) .> strLen) __FAIL__ $ case ?pat of
+    POr ps -> choice flips $ map (\p -> \b -> let ?pat = p in match s{ flips = b }) ps
+
+foo = 1

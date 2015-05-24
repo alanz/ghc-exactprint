@@ -397,3 +397,98 @@ Cases: 190  Tried: 190  Errors: 0  Failures: 11
 Counts {cases = 190, tried = 190, errors = 0, failures = 11}
 *** Exception: ExitFailure 1
 *Main> 
+
+========================================================================
+
+Looking over http://mpickering.github.io/failures2/failures.html
+----------------------------------------------------------------
+
+Cause 1 : Output of a preprocessor
+-----------------------------------
+    AlexTemplate.hs16807282475249.out.html
+      Alex template file after processing, ignore
+
+    Haskell.hs19427277221083454666.out.html
+    MustacheTemplates.hs563613512101929267.out.html
+    SistemaL.hs10447881241927702196.out.html
+    XML.hs1108728549685118024.out.html
+    XSLT.hs21187978011060806853.out.html
+      output of some preprocessor with a bunch of #LINE directives
+
+Cause 2 : multi-line / escaped string
+-------------------------------------
+
+    Base.hs7537995051102246882.out.html
+      Multi line string in WARNING pragma #10313
+
+    C2HS.hs1010275441457850878.out.html
+    C2HS.hs13585809791624379149.out.html
+    C2HS.hs1580723810704877633.out.html
+    C2HS.hs1622650073984943658.out.html
+    C2HS.hs16460350011025921153.out.html 
+    C2HS.hs21463194511908194298.out.html
+    C2HS.hs500782188657821123.out.html
+    C2HS.hs510616708590357944.out.html
+      Esc coded in multi line string #10313. Switched to the original `show`
+      variant, it helps here
+
+    Connection.hs585640194937186357.out.html
+    Core.hs5305119672110010672.out.html
+    DeprecatedModule.hs1974930991404280278.out.html
+    Generalize.hs1075260298824938981.out.html
+    HUnit.hs15519013931617819336.out.html
+    Internal.hs13564252281899894091.out.html
+    Internal.hs1399125485156091745.out.html
+    Misc.hs15810301051557810404.out.html
+    ModuleWithWarning.hs8933518161505795335.out.html
+    Monad.hs12694067521816731566.out.html
+    Simple.hs1144108930470211272.out.html
+    Simple.hs18171295601131570933.out.html
+      Esc encoded in string #10313
+
+    JavaScript.hs12648177091998097157.out.html
+      Esc in a string for a foreign declaration. #10313
+
+Cause 3 : tabs in original source
+---------------------------------
+
+    Class.hs823378840143542612.out.html
+    Font.hs8965443031474833169.out.html
+    Irclogs.hs2128236579784558821.out.html
+    lpconvert.hs16353394251654001669.out.html
+    Miniball.hs1952509530130060903.out.html
+    PadKontrol.hs2035308228158374933.out.html
+    pbconvert.hs1777724115269220094.out.html
+    TestArith.hs18645465171351934195.out.html
+    Types.hs340756291478446501.out.html
+     original had a tab char for spacing.
+
+Cause 4 : Unicode '*'
+---------------------
+    Controller.hs14587779232007237709.out.html
+    DNS.hs571540977194847408.out.html
+    Filter.hs8235644401115438165.out.html
+    Monitor.hs178448449274243042.out.html
+    Player.hs1148079871137522503.out.html
+    Recorder.hs144128232716531729.out.html
+      Unicode '*'
+
+Cause 5 : Lines starting with '#' in a comment
+----------------------------------------------
+
+    Helpers.hs19548990971636807826.out.html
+      Uses "#!/..." and lines starting "#" in a block comment.
+
+Cause 6 : ghc-exactprint bugs
+-----------------------------
+
+    Base.hs771515668357571490.out.html
+      $$( example. FIXED
+
+    Genex.hs5950286351962408013.out.html
+    Lojban.hs2020739063107554536.out.html
+    Private.hs1137623865997389814.out.html
+      missing/shifting lambda. Added test case to ShiftingLambda.hs
+      Seems to be related to AnnRarrow being grabbed prematurely
+
+
