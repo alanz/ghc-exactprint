@@ -83,10 +83,10 @@ addContext c = local (c:)
 -- check :: Context -> IAnnotated () -> IAnnotated ()
 -- check c = checkMany [c]
 
-checkMany :: [Context] -> IAnnotated () -> IAnnotated ()
-checkMany cs action = do
-  ctx <- ask
-  when (any (`elem` ctx) cs) action
+-- checkMany :: [Context] -> IAnnotated () -> IAnnotated ()
+-- checkMany cs action = do
+--   ctx <- ask
+--   when (any (`elem` ctx) cs) action
 
 
 
@@ -900,8 +900,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,
       [] -> return ()
       (_:_) -> mark GHC.AnnVbar >> mapM_ markLocated guards
     mark GHC.AnnEqual
---    mark GHC.AnnRarrow
-    checkMany [Case, MultiIf] (mark GHC.AnnRarrow) -- in case alts
+    cntL <- countAnns GHC.AnnLam
+    when (cntL == 0) $ mark GHC.AnnRarrow -- For HsLam
     markLocated expr
 
 -- ---------------------------------------------------------------------
