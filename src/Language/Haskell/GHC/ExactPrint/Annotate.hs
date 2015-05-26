@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE DeriveFunctor #-}
@@ -474,6 +475,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       GHC.SpliceD d     -> markAST l d
       GHC.DocD d        -> markAST l d
       GHC.RoleAnnotD d  -> markAST l d
+#if __GLASGOW_HASKELL <= 0710
+      GHC.QuasiQuoteD d -> markAST l d
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -1179,11 +1183,17 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST l (GHC.HsNamedWildcardTy n) = do
     markExternal l GHC.AnnVal  (showGhc n)
 
+#if __GLASGOW_HASKELL <= 0710
+  markAST l (GHC.HsQuasiQuoteTy n) = do
+    markAST l n
+#endif
+
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsSplice name) where
-  markAST l c =
+  markAST _ c =
     case c of
+#if __GLASGOW_HASKELL > 710
       GHC.HsQuasiQuote _ n _pos fs -> do
         markExternal l GHC.AnnVal
               ("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS fs) ++ "|]")
@@ -1204,6 +1214,23 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         mark GHC.AnnOpenPE
         markLocated b
         mark GHC.AnnCloseP
+#else
+      GHC.HsSplice _n b -> do
+        mark GHC.AnnThIdSplice
+        mark GHC.AnnOpenPTE
+        mark GHC.AnnOpenPE
+        markLocated b
+        mark GHC.AnnCloseP
+#endif
+
+#if __GLASGOW_HASKELL > 710
+#else
+instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
+  => Annotate (GHC.HsQuasiQuote name) where
+  markAST l (GHC.HsQuasiQuote n _pos fs) = do
+        markExternal l GHC.AnnVal
+              ("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS fs) ++ "|]")
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -1308,6 +1335,10 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
   -- CoPat HsAnnotated (Pat id) Type
   markAST _ (GHC.CoPat {}) =
     traceM "warning: CoPat introduced after renaming"
+
+#if __GLASGOW_HASKELL <= 0710
+  markAST l (GHC.QuasiQuotePat p) = markAST l p
+#endif
 
 -- ---------------------------------------------------------------------
 hsLit2String :: GHC.HsLit -> GHC.SourceText
@@ -1773,10 +1804,20 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsTcBracketOut _ _) =
     traceM "warning: HsTcBracketOut introduced after renamer"
 
+#if __GLASGOW_HASKELL > 710
   markAST l (GHC.HsSpliceE e) = do
     mark GHC.AnnOpenPE
     markAST l e
     mark GHC.AnnCloseP
+#else
+  markAST l (GHC.HsSpliceE _ e) = do
+    mark GHC.AnnOpenPE
+    markAST l e
+    mark GHC.AnnCloseP
+
+  markAST l (GHC.HsQuasiQuoteE e) = do
+    markAST l e
+#endif
 
   markAST _ (GHC.HsProc p c) = do
     mark GHC.AnnProc
@@ -2036,7 +2077,11 @@ instance (GHC.DataId name,Annotate name, GHC.OutputableBndr name,GHC.HasOccName 
     mark GHC.AnnWhere
     mark GHC.AnnOpenC -- {
     case info of
+#if __GLASGOW_HASKELL > 710
       GHC.ClosedTypeFamily (Just eqns) -> mapM_ markLocated eqns
+#else
+      GHC.ClosedTypeFamily eqns -> mapM_ markLocated eqns
+#endif
       _ -> return ()
     mark GHC.AnnCloseC -- }
 
