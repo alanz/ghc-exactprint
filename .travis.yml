@@ -2,8 +2,8 @@
 
 # See also https://github.com/hvr/multi-ghc-travis for more information
 env:
- - CABALVER=1.22 GHCVER=7.10.1
- # - CABALVER=head GHCVER=head
+ # - CABALVER=1.22 GHCVER=7.10.1
+ - CABALVER=head GHCVER=head
 
 # Note: the distinction between `before_install` and `install` is not important.
 before_install:
