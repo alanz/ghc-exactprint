@@ -19,6 +19,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , isPointSrcSpan
   , pos2delta
   , ss2delta
+  , ss2SortKey
   , spanLength
   , isGoodDelta
 
@@ -270,6 +271,11 @@ showAnnData anns n =
                     Nothing -> "nnnnnnnn"
                   ++ showAnnData anns (n+1) a
                   ++ ")"
+
+-- ---------------------------------------------------------------------
+
+ss2SortKey :: GHC.SrcSpan -> SortKey
+ss2SortKey ss = SortKey (show (ss2span ss))
 
 -- ---------------------------------------------------------------------
 

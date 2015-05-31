@@ -57,7 +57,9 @@ data AnnotationF next where
   MarkAfter      :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   WithAST        :: Data a => GHC.Located a -> Disambiguator
                            -> LayoutFlag -> Annotated b                  -> next -> AnnotationF next
-  CountAnns      ::  GHC.AnnKeywordId                           -> (Int -> next) -> AnnotationF next
+  CountAnns      :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
+  GetSortKey     :: GHC.SrcSpan                             -> (SortKey -> next) -> AnnotationF next
+
   -- | Abstraction breakers
   SetLayoutFlag  ::  Annotated ()                                        -> next -> AnnotationF next
 
@@ -102,6 +104,7 @@ makeFreeCon  'MarkMany
 makeFreeCon  'MarkOffsetPrim
 makeFreeCon  'MarkAfter
 makeFreeCon  'CountAnns
+makeFreeCon  'GetSortKey
 makeFreeCon  'StoreOriginalSrcSpan
 makeFreeCon  'GetSrcSpanForKw
 makeFreeCon  'StoreString

@@ -98,7 +98,8 @@ adjustAnnOffset (ColDelta cd) (Ann (DP (ro,co)) (ColDelta ad) _ cs kds) = Ann ed
 -- ---------------------------------------------------------------------
 
 mergeAnns :: Anns -> Anns -> Anns
-mergeAnns = Map.unionWith (<>)
+mergeAnns (a1,k1) (a2,k2)
+  = (Map.unionWith (<>) a1 a2,Map.union k1 k2)
 
 -- ---------------------------------------------------------------------
 
@@ -111,10 +112,10 @@ setLocatedAnn aane (loc, annVal) = setAnn aane (mkAnnKey loc,annVal)
 
 -- |Update the DeltaPos for the given annotation key/val
 setAnn :: Anns -> (AnnKey, Annotation) -> Anns
-setAnn anne (k, Ann dp col edp cs _) = case
+setAnn (anne,sortKeys) (k, Ann dp col edp cs _) = case
   Map.lookup k anne of
-    Nothing               -> Map.insert k (Ann dp col edp cs []) anne
-    Just (Ann _ _ _ _ ks) -> Map.insert k (Ann dp col edp cs ks) anne
+    Nothing               -> (Map.insert k (Ann dp col edp cs []) anne,sortKeys)
+    Just (Ann _ _ _ _ ks) -> (Map.insert k (Ann dp col edp cs ks) anne,sortKeys)
 
 
 -- | In GHC 7.10.1 the HsPar statement has an incorrect SrcSpan.

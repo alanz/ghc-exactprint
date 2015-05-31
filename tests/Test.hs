@@ -606,8 +606,8 @@ changeCifToCase ans p = (ans',p')
             ]
 
       let annThen' = adjustAnnOffset (ColDelta 6) annThen
-      let anne1 = Map.delete (AnnKey l (CN "HsIf") NotNeeded) oldAnns
-          final = mergeAnns anne1 (Map.fromList anne2')
+      let anne1 = (Map.delete (AnnKey l (CN "HsIf") NotNeeded) (fst oldAnns),snd oldAnns)
+          final = mergeAnns anne1 (Map.fromList anne2',snd oldAnns)
           anne3 = setLocatedAnns final
                     [ (e1, annCond)
                     , (e2, annThen')

@@ -52,9 +52,10 @@ type Delta a = RWS DeltaReader DeltaWriter DeltaState a
 
 runDeltaWithComments :: [Comment] -> Annotated () -> GHC.ApiAnns -> Pos -> Anns
 runDeltaWithComments cs action ga priorEnd =
-  ($ mempty) . appEndo . finalAnns . snd
+  (($ mempty) . appEndo . finalAnns . snd
   . (\next -> execRWS next initialDeltaReader (defaultDeltaState cs priorEnd ga))
-  . deltaInterpret $ action
+  . deltaInterpret $ action,
+  Map.empty)
 
 -- ---------------------------------------------------------------------
 
@@ -166,6 +167,7 @@ deltaInterpret = iterTM go
     go (WithAST lss d layoutflag prog next) =
       withAST lss d layoutflag (deltaInterpret prog) >> next
     go (CountAnns kwid next)             = countAnnsDelta kwid >>= next
+    go (GetSortKey ss next)              = getSortKeyDelta ss >>= next
     go (SetLayoutFlag action next)       = setLayoutFlag (deltaInterpret action)  >> next
     go (MarkExternal ss akwid _ next)    = addDeltaAnnotationExt ss akwid >> next
     go (StoreOriginalSrcSpan ss d next)  = storeOriginalSrcSpanDelta ss d >>= next
@@ -564,3 +566,9 @@ countAnnsDelta :: GHC.AnnKeywordId -> Delta Int
 countAnnsDelta ann = do
   ma <- peekAnnotationDelta ann
   return (length ma)
+
+
+-- |Generate a sort key, and store it for use in the print phase
+getSortKeyDelta :: GHC.SrcSpan -> Delta SortKey
+getSortKeyDelta ss = do
+  return (ss2SortKey ss)

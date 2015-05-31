@@ -29,6 +29,8 @@ module Language.Haskell.GHC.ExactPrint.Types
 
   , LayoutFlag(..)
 
+  , SortKey(..)
+
   , showGhc
   ) where
 
@@ -110,7 +112,7 @@ instance Monoid Annotation where
   mempty = annNone
   mappend = combineAnns
 
-type Anns = Map.Map AnnKey Annotation
+type Anns = (Map.Map AnnKey Annotation, Map.Map GHC.SrcSpan SortKey)
 
 -- | For every @Located a@, use the @SrcSpan@ and constructor name of
 -- a as the key, to store the standard annotation.
@@ -187,6 +189,11 @@ instance Monoid LayoutFlag where
 
 -- ---------------------------------------------------------------------
 
+data SortKey = SortKey String
+             deriving (Eq,Show,Ord)
+
+-- ---------------------------------------------------------------------
+
 instance GHC.Outputable KeywordId where
   ppr k     = GHC.text (show k)
 
@@ -200,6 +207,9 @@ instance GHC.Outputable AnnKey where
   ppr a     = GHC.text (show a)
 
 instance GHC.Outputable DeltaPos where
+  ppr a     = GHC.text (show a)
+
+instance GHC.Outputable SortKey where
   ppr a     = GHC.text (show a)
 
 -- ---------------------------------------------------------------------
@@ -217,16 +227,16 @@ instance (GHC.OutputableBndr name) => GHC.Outputable (ResTyGADTHook name) where
 -- ---------------------------------------------------------------------
 
 getAnnotationEP :: (Data a) =>  GHC.Located a -> Disambiguator -> Anns -> Maybe Annotation
-getAnnotationEP  la d annotations =
+getAnnotationEP  la d (annotations,_) =
   Map.lookup (mkAnnKeyWithD la d) annotations
 
 getAndRemoveAnnotationEP :: (Data a)
                          => GHC.Located a -> Disambiguator -> Anns -> (Maybe Annotation,Anns)
-getAndRemoveAnnotationEP la d annotations
+getAndRemoveAnnotationEP la d (annotations,sortKeys)
  = let key = mkAnnKeyWithD la d in
     case Map.lookup key annotations of
-         Nothing  -> (Nothing, annotations)
-         Just av -> (Just av, Map.delete key annotations)
+         Nothing  -> (Nothing, (annotations,sortKeys))
+         Just av -> (Just av, (Map.delete key annotations,sortKeys))
 
 -- ---------------------------------------------------------------------
 

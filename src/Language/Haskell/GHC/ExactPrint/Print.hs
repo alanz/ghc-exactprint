@@ -129,6 +129,8 @@ printInterpret = iterTM go
       exactPC lss d flag (printInterpret action) >> next
     go (CountAnns kwid next) =
       countAnnsEP (G kwid) >>= next
+    go (GetSortKey ss next) =
+      getSortKeyEP ss >>= next
     go (SetLayoutFlag action next) =
       setLayout (printInterpret action) >> next
     go (MarkExternal _ akwid s next) =
@@ -374,6 +376,12 @@ peekAnnFinal kw = do
 
 countAnnsEP :: KeywordId -> EP Int
 countAnnsEP an = length <$> peekAnnFinal an
+
+-- ---------------------------------------------------------------------
+
+getSortKeyEP :: GHC.SrcSpan -> EP SortKey
+getSortKeyEP ss = do
+  error $ "getSortKeyEP:not implemented"
 
 -- ---------------------------------------------------------------------
 -- Printing functions
