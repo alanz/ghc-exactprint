@@ -475,7 +475,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       GHC.SpliceD d     -> markAST l d
       GHC.DocD d        -> markAST l d
       GHC.RoleAnnotD d  -> markAST l d
-#if __GLASGOW_HASKELL__ <= 0710
+#if __GLASGOW_HASKELL__ < 711
       GHC.QuasiQuoteD d -> markAST l d
 #endif
 
@@ -1183,7 +1183,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST l (GHC.HsNamedWildcardTy n) = do
     markExternal l GHC.AnnVal  (showGhc n)
 
-#if __GLASGOW_HASKELL__ <= 0710
+#if __GLASGOW_HASKELL__ <= 710
   markAST l (GHC.HsQuasiQuoteTy n) = do
     markAST l n
 #endif
@@ -1342,7 +1342,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
   markAST _ (GHC.CoPat {}) =
     traceM "warning: CoPat introduced after renaming"
 
-#if __GLASGOW_HASKELL__ <= 0710
+#if __GLASGOW_HASKELL__ <= 710
   markAST l (GHC.QuasiQuotePat p) = markAST l p
 #endif
 
