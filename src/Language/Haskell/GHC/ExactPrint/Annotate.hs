@@ -475,7 +475,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       GHC.SpliceD d     -> markAST l d
       GHC.DocD d        -> markAST l d
       GHC.RoleAnnotD d  -> markAST l d
-#if __GLASGOW_HASKELL <= 0710
+#if __GLASGOW_HASKELL__ <= 0710
       GHC.QuasiQuoteD d -> markAST l d
 #endif
 
@@ -1183,7 +1183,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST l (GHC.HsNamedWildcardTy n) = do
     markExternal l GHC.AnnVal  (showGhc n)
 
-#if __GLASGOW_HASKELL <= 0710
+#if __GLASGOW_HASKELL__ <= 0710
   markAST l (GHC.HsQuasiQuoteTy n) = do
     markAST l n
 #endif
@@ -1191,9 +1191,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsSplice name) where
-  markAST _ c =
+#if __GLASGOW_HASKELL__ > 710
+  markAST l c =
     case c of
-#if __GLASGOW_HASKELL > 710
       GHC.HsQuasiQuote _ n _pos fs -> do
         markExternal l GHC.AnnVal
               ("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS fs) ++ "|]")
@@ -1215,6 +1215,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markLocated b
         mark GHC.AnnCloseP
 #else
+  markAST _ c =
+    case c of
       GHC.HsSplice _n b@(GHC.L _ (GHC.HsVar n))  -> do
         markWithString GHC.AnnThIdSplice   ("$" ++ (GHC.occNameString (GHC.occName n)))
         markWithString GHC.AnnThIdTySplice ("$$" ++ (GHC.occNameString (GHC.occName n)))
@@ -1227,7 +1229,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         mark GHC.AnnCloseP
 #endif
 
-#if __GLASGOW_HASKELL > 710
+#if __GLASGOW_HASKELL__ > 710
 #else
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsQuasiQuote name) where
@@ -1340,7 +1342,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
   markAST _ (GHC.CoPat {}) =
     traceM "warning: CoPat introduced after renaming"
 
-#if __GLASGOW_HASKELL <= 0710
+#if __GLASGOW_HASKELL__ <= 0710
   markAST l (GHC.QuasiQuotePat p) = markAST l p
 #endif
 
@@ -1808,7 +1810,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsTcBracketOut _ _) =
     traceM "warning: HsTcBracketOut introduced after renamer"
 
-#if __GLASGOW_HASKELL > 710
+#if __GLASGOW_HASKELL__ > 710
   markAST l (GHC.HsSpliceE e) = do
     mark GHC.AnnOpenPE
     markAST l e
@@ -2081,7 +2083,7 @@ instance (GHC.DataId name,Annotate name, GHC.OutputableBndr name,GHC.HasOccName 
     mark GHC.AnnWhere
     mark GHC.AnnOpenC -- {
     case info of
-#if __GLASGOW_HASKELL > 710
+#if __GLASGOW_HASKELL__ > 710
       GHC.ClosedTypeFamily (Just eqns) -> mapM_ markLocated eqns
 #else
       GHC.ClosedTypeFamily eqns -> mapM_ markLocated eqns
