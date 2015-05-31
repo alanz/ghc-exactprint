@@ -227,7 +227,7 @@ doMap mapPath = proc m → do
     returnA -< baz
 
 -- ^ An opaque ESD handle for recording data from the soundcard via ESD.
-data Recorder fr ch (r ∷ ★ → ★)
+data Recorder fr ch (r ∷ * → *)
     = Recorder {
         reRate   ∷ !Int
       , reHandle ∷ !Handle

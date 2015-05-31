@@ -72,7 +72,6 @@ tests = TestList
   , mkTestMod "DataFamilies.hs"          "DataFamilies"
   , mkTestMod "Dead1.hs"                 "Dead1"
   , mkTestMod "Default.hs"               "Main"
-  , mkTestMod "Deprecation.hs"           "Deprecation"
   , mkTestMod "Deriving.hs"              "Main"
   , mkParserTest "DerivingOC.hs"
   , mkTestMod "DocDecls.hs"              "DocDecls"
@@ -199,12 +198,10 @@ tests = TestList
   , mkParserTest "HangingRecord.hs"
   , mkParserTest "InfixPatternSynonyms.hs"
   , mkParserTest "LiftedInfixConstructor.hs"
-  , mkParserTest "MultiLineWarningPragma.hs"
   , mkParserTest "MultiWayIf.hs"
   , mkParserTest "OptSig.hs"
   , mkParserTest "StrangeTypeClass.hs"
   , mkParserTest "TypeSignatureParens.hs"
-  , mkParserTest "UnicodeSyntax.hs"
   , mkParserTest "Cpp.hs"
 
   , mkParserTest "Shebang.hs"
@@ -226,7 +223,6 @@ tests = TestList
   , mkParserTest "TypeBrackets2.hs"
   , mkParserTest "ExplicitNamespaces.hs"
   , mkParserTest "CorePragma.hs"
-  , mkParserTest "UnicodeRules.hs"
   , mkParserTest "GADTContext.hs"
   , mkParserTest "THMonadInstance.hs"
 --  , mkParserTest "TypeBrackets3.hs" --  I think this test is junk but it parses?
@@ -254,6 +250,14 @@ tests = TestList
   , mkTestModChange changeWhereIn4   "WhereIn4.hs"   "WhereIn4"
 --  , mkTestModChange changeCifToCase  "C.hs"          "C"
 
+  -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
+  -- future GHC
+  , mkTestModBad "Deprecation.hs"            "Deprecation"
+  , mkTestModBad "MultiLineWarningPragma.hs" "Main"
+  , mkTestModBad "UnicodeRules.hs"           "Main"
+
+  -- Tests requiring future GHC modifications
+  , mkTestModBad "UnicodeSyntax.hs"          "Tutorial"
   ]
 
 
@@ -283,13 +287,19 @@ mkTestMod fileName _modName
 
 mkTestModChange :: (Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)) -> FilePath -> String -> Test
 mkTestModChange change fileName modName
-  = TestCase (do r <- manipulateAstTestWithMod change fileName modName
+  = TestCase (do r <- manipulateAstTestWithMod change "expected" fileName modName
+                 assertBool fileName r )
+
+mkTestModBad :: FilePath -> String -> Test
+mkTestModBad fileName modName
+  = TestCase (do r <- manipulateAstTestWithMod noChange "bad" fileName modName
                  assertBool fileName r )
 
 mkTestModTH :: FilePath -> String -> Test
 mkTestModTH fileName modName
   = TestCase (do r <- manipulateAstTestTH fileName modName
                  assertBool fileName r )
+
 -- ---------------------------------------------------------------------
 
 formatTT :: ([([Char], Bool)], [([Char], Bool)]) -> IO ()
@@ -360,8 +370,8 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- -- manipulateAstTestWFname "Unicode.hs"               "Main"
     -- , manipulateAstTestWFname "B.hs"                     "Main"
     -- , manipulateAstTestWFname "LayoutWhere.hs"           "Main"
-    , manipulateAstTestWFname "Deprecation.hs"           "Deprecation"
-    , manipulateAstTestWFname "UnicodeRules.hs"               "Main"
+    -- , manipulateAstTestWFname "Deprecation.hs"           "Deprecation"
+    -- , manipulateAstTestWFname "UnicodeRules.hs"               "Main"
     -- , manipulateAstTestWFname "Infix.hs"                 "Main"
     -- , manipulateAstTestWFname "BCase.hs"                 "Main"
     -- , manipulateAstTestWFname "LetExprSemi.hs"           "LetExprSemi"
@@ -458,8 +468,9 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "TupleSections.hs"                "Main"
     -- , manipulateAstTestWFname "CorePragma.hs"                "Main"
     -- , manipulateAstTestWFname "Splice.hs"                "Splice"
-    , manipulateAstTestWFname "TemplateHaskell.hs"         "Main"
+    -- , manipulateAstTestWFname "TemplateHaskell.hs"         "Main"
     -- , manipulateAstTestWFname "GADTContext.hs" "Main"
+    , manipulateAstTestWFnameBad "UnicodeSyntax.hs"          "Tutorial"
 
     -- , manipulateAstTestWFname "TypeBrackets.hs"         "Main"
     -- , manipulateAstTestWFname "TypeBrackets2.hs"         "Main"
@@ -611,6 +622,9 @@ changeCifToCase ans p = (ans',p')
 
 -- ---------------------------------------------------------------------
 
+noChange :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
+noChange ans parsed = (ans,parsed)
+
 changeLayoutLet2 :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
 changeLayoutLet2 ans parsed = (ans,rename "xxxlonger" [((7,5),(7,8)),((8,24),(8,27))] parsed)
 
@@ -699,12 +713,17 @@ examplesDir = "tests" </> "examples"
 examplesDir2 :: FilePath
 examplesDir2 = "examples"
 
-manipulateAstTestWithMod :: (Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)) -> FilePath -> String -> IO Bool
-manipulateAstTestWithMod change file modname = manipulateAstTest' (Just change) False file modname
+manipulateAstTestWithMod :: (Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)) -> String -> FilePath -> String -> IO Bool
+manipulateAstTestWithMod change suffix file modname = manipulateAstTest' (Just (change, suffix)) False file modname
 
 manipulateAstTestWFnameMod :: (Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)) -> FilePath -> String -> IO (FilePath,Bool)
 manipulateAstTestWFnameMod change fileName modname
-  = do r <- manipulateAstTestWithMod change fileName modname
+  = do r <- manipulateAstTestWithMod change "expected" fileName modname
+       return (fileName,r)
+
+manipulateAstTestWFnameBad :: FilePath -> String -> IO (FilePath,Bool)
+manipulateAstTestWFnameBad fileName modname
+  = do r <- manipulateAstTestWithMod noChange "bad" fileName modname
        return (fileName,r)
 
 manipulateAstTest :: FilePath -> String -> IO Bool
@@ -719,21 +738,20 @@ manipulateAstTestTH file modname = manipulateAstTest' Nothing True file modname
 
 
 
-manipulateAstTest' :: Maybe (Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)) -> Bool -> FilePath -> String -> IO Bool
+manipulateAstTest' :: Maybe (Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource), String)
+                   -> Bool -> FilePath -> String -> IO Bool
 manipulateAstTest' mchange useTH file' modname = do
   let testpath = "./tests/examples/"
       file     = testpath </> file'
       out      = file <.> "out"
-      expected = file <.> "expected"
 
   contents <- case mchange of
-                   Nothing -> readUTF8File file
-                   Just _  -> readUTF8File expected
+                   Nothing                 -> readUTF8File file
+                   Just (_,expectedSuffix) -> readUTF8File (file <.> expectedSuffix)
   (ghcAnns',p,cppComments) <- hSilence [stderr] $  parsedFileGhc file modname useTH
-  -- (ghcAnns',p,cppComments) <- parsedFileGhc file modname useTH
+  -- (ghcAnns',p,cppComments) <-                      parsedFileGhc file modname useTH
   let
     parsedOrig = GHC.pm_parsed_source $ p
-    -- (ghcAnns,parsed) = fixBugsInAst ghcAnns' parsedOrig
     (ghcAnns,parsed) = (ghcAnns', parsedOrig)
     parsedAST = SYB.showData SYB.Parser 0 parsed
     -- cppComments = map (tokComment . commentToAnnotation . fst) cppCommentToks
@@ -744,8 +762,8 @@ manipulateAstTest' mchange useTH file' modname = do
       `debug` ("ghcAnns:" ++ showGhc ghcAnns)
 
     (ann',parsed') = case mchange of
-                   Nothing     -> (ann,parsed)
-                   Just change -> change ann parsed
+                   Nothing         -> (ann,parsed)
+                   Just (change,_) -> change ann parsed
     printed = exactPrintWithAnns parsed' ann' -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
     outcome = if printed == contents
                 then "Match\n"
@@ -763,6 +781,7 @@ manipulateAstTest' mchange useTH file' modname = do
              ++ "\n========================\n"
              ++ showGhc ann
   writeFile out $ result
+  -- putStrLn $ "Test:contents' :" ++ contents
   -- putStrLn $ "Test:parsed=" ++ parsedAST
   -- putStrLn $ "Test:showdata:parsedOrig" ++ SYB.showData SYB.Parser 0 parsedOrig
   -- putStrLn $ "Test:ann :" ++ showGhc ann
@@ -771,6 +790,7 @@ manipulateAstTest' mchange useTH file' modname = do
   -- putStrLn $ "Test:showdata:" ++ showAnnData ann 0 parsed
   -- putStrLn $ "Test:showdata:parsed'" ++ SYB.showData SYB.Parser 0 parsed'
   -- putStrLn $ "Test:showdata:parsed'" ++ showAnnData ann 0 parsed'
+  -- putStrLn $ "Test:outcome' :" ++ outcome
   return (printed == contents)
 
 
@@ -857,6 +877,7 @@ mkSs (sr,sc) (er,ec)
 -- ---------------------------------------------------------------------
 
 readUTF8File :: FilePath -> IO String
-readUTF8File fp = openFile fp ReadMode >>= \h -> do
-        hSetEncoding h utf8
-        hGetContents h
+-- readUTF8File fp = openFile fp ReadMode >>= \h -> do
+        -- hSetEncoding h utf8
+        -- hGetContents h
+readUTF8File = readFile
