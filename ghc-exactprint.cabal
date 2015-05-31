@@ -54,7 +54,7 @@ library
                      , ghc-paths
                      , ghc-syb-utils
                      , mtl
-                     , syb
+                     , syb < 0.5
                      , free
   hs-source-dirs:      src
   default-language:    Haskell2010
@@ -81,7 +81,7 @@ Test-Suite test
                      , mtl
                      , random
                      , stm
-                     , syb
+                     , syb < 0.5
                      , silently
                      , filemanip
 
