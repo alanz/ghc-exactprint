@@ -81,6 +81,9 @@ data DeltaWriter = DeltaWriter
        { -- | Final list of annotations
          finalAnns :: !(Endo (Map.Map AnnKey Annotation))
 
+         -- |Map of sort keys
+       , finalSortKeys :: !(Endo (Map.Map GHC.SrcSpan SortKey))
+
          -- | Used locally to pass Keywords, delta pairs relevant to a specific
          -- subtree to the parent.
        , annKds    :: ![(KeywordId, DeltaPos)]
@@ -142,13 +145,18 @@ tellFinalAnn :: (AnnKey, Annotation) -> Delta ()
 tellFinalAnn (k, v) =
   tell (mempty { finalAnns = Endo (Map.insertWith (<>) k v) })
 
+tellFinalSortKey :: (GHC.SrcSpan, SortKey) -> Delta ()
+tellFinalSortKey (k, v) =
+  tell (mempty { finalSortKeys = Endo (Map.insert k v) })
+
 tellKd :: (KeywordId, DeltaPos) -> Delta ()
 tellKd kd = tell (mempty { annKds = [kd] })
 
 
 instance Monoid DeltaWriter where
-  mempty = DeltaWriter mempty mempty
-  (DeltaWriter a b) `mappend` (DeltaWriter c d) = DeltaWriter (a <> c) (b <> d)
+  mempty = DeltaWriter mempty mempty mempty
+  (DeltaWriter a b e) `mappend` (DeltaWriter c d f)
+    = DeltaWriter (a <> c) (b <> d) (e <> f)
 
 -----------------------------------
 -- Free Monad Interpretation code
@@ -571,4 +579,6 @@ countAnnsDelta ann = do
 -- |Generate a sort key, and store it for use in the print phase
 getSortKeyDelta :: GHC.SrcSpan -> Delta SortKey
 getSortKeyDelta ss = do
-  return (ss2SortKey ss)
+  let sk = ss2SortKey ss
+  tellFinalSortKey (ss,sk)
+  return sk
