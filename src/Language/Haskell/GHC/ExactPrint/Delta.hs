@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE BangPatterns #-}
 module Language.Haskell.GHC.ExactPrint.Delta
   ( relativiseApiAnns
   , relativiseApiAnnsWithComments
@@ -47,15 +48,11 @@ relativiseApiAnnsWithComments cs modu ghcAnns
 -- | Type used in the Delta Monad.
 type Delta a = RWS DeltaReader DeltaWriter DeltaState a
 
--- runDelta :: Annotated () -> GHC.ApiAnns -> Pos -> Anns
--- runDelta = runDeltaWithComments []
-
 runDeltaWithComments :: [Comment] -> Annotated () -> GHC.ApiAnns -> Pos -> Anns
 runDeltaWithComments cs action ga priorEnd =
-  (($ mempty) . appEndo . finalAnns . snd
+  ($ mempty) . appEndo . finalAnns . snd
   . (\next -> execRWS next initialDeltaReader (defaultDeltaState cs priorEnd ga))
-  . deltaInterpret $ action,
-  Map.empty)
+  . deltaInterpret $ action
 
 -- ---------------------------------------------------------------------
 
@@ -78,11 +75,8 @@ data DeltaReader = DeltaReader
        }
 
 data DeltaWriter = DeltaWriter
-       { -- | Final list of annotations
-         finalAnns :: !(Endo (Map.Map AnnKey Annotation))
-
-         -- |Map of sort keys
-       , finalSortKeys :: !(Endo (Map.Map GHC.SrcSpan SortKey))
+       { -- | Final list of annotations, and sort keys
+         finalAnns :: !(Endo (Map.Map AnnKey Annotation,Map.Map GHC.SrcSpan SortKey))
 
          -- | Used locally to pass Keywords, delta pairs relevant to a specific
          -- subtree to the parent.
@@ -143,20 +137,24 @@ tokComment t@(GHC.L lt _) = Comment (ss2span lt) (ghcCommentText t) Nothing
 
 tellFinalAnn :: (AnnKey, Annotation) -> Delta ()
 tellFinalAnn (k, v) =
-  tell (mempty { finalAnns = Endo (Map.insertWith (<>) k v) })
+  -- tell (mempty { finalAnns = Endo (Map.insertWith (<>) k v) })
+  tell (mempty { finalAnns = Endo (mapInsertFst k v) })
 
 tellFinalSortKey :: (GHC.SrcSpan, SortKey) -> Delta ()
 tellFinalSortKey (k, v) =
-  tell (mempty { finalSortKeys = Endo (Map.insert k v) })
+  -- tell (mempty { finalSortKeys = Endo (Map.insert k v) })
+  tell (mempty { finalAnns = Endo (mapInsertSnd k v) })
 
 tellKd :: (KeywordId, DeltaPos) -> Delta ()
 tellKd kd = tell (mempty { annKds = [kd] })
 
+mapInsertFst k v (mf,ms) = (Map.insertWith (<>) k v mf,ms)
+mapInsertSnd k v (mf,ms) = (mf                        ,Map.insert k v ms)
 
 instance Monoid DeltaWriter where
-  mempty = DeltaWriter mempty mempty mempty
-  (DeltaWriter a b e) `mappend` (DeltaWriter c d f)
-    = DeltaWriter (a <> c) (b <> d) (e <> f)
+  mempty = DeltaWriter mempty mempty
+  (DeltaWriter a b) `mappend` (DeltaWriter c d)
+    = DeltaWriter (a <> c) (b <> d)
 
 -----------------------------------
 -- Free Monad Interpretation code

@@ -222,8 +222,9 @@ prepareListAnnotation :: Annotate a => [GHC.Located a] -> [(GHC.SrcSpan,IAnnotat
 prepareListAnnotation ls = map (\b@(GHC.L l _) -> (l,markLocated b)) ls
 
 applyListAnnotations :: [(GHC.SrcSpan, IAnnotated ())] -> IAnnotated ()
-applyListAnnotations ls
-  = mapM_ snd $ sortBy (\(a,_) (b,_) -> compare a b) ls
+applyListAnnotations ls = do
+  ls' <- mapM (\(ss,v) -> getSortKey ss >>= \sk -> return (sk ,v)) ls
+  mapM_ snd $ sortBy (\(a,_) (b,_) -> compare a b) ls'
 
 -- ---------------------------------------------------------------------
 

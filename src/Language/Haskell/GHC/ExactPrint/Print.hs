@@ -30,6 +30,7 @@ import Data.Data (Data)
 import Data.Maybe (fromMaybe)
 
 import Control.Monad.Trans.Free
+import qualified Data.Map as Map
 
 import qualified GHC
 
@@ -381,7 +382,11 @@ countAnnsEP an = length <$> peekAnnFinal an
 
 getSortKeyEP :: GHC.SrcSpan -> EP SortKey
 getSortKeyEP ss = do
-  error $ "getSortKeyEP:not implemented"
+  (_,sk) <- gets epAnns
+  return $ case Map.lookup ss sk of
+    Nothing -> error $ "getSortKeyEP:miss for " ++ showGhc ss
+    Just v  -> v
+
 
 -- ---------------------------------------------------------------------
 -- Printing functions
