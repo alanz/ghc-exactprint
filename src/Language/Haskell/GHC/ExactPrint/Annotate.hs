@@ -281,6 +281,10 @@ instance Annotate GHC.WarningTxt where
     markWithString GHC.AnnClose "#-}"
 
 -- ---------------------------------------------------------------------
+instance Annotate (GHC.SourceText,GHC.FastString) where
+  markAST l (_,fs) = markAST l fs
+
+-- ---------------------------------------------------------------------
 
 instance (GHC.DataId name,Annotate name)
   => Annotate [GHC.LIE name] where
@@ -444,7 +448,11 @@ instance (GHC.DataId name,Annotate name)
    mark GHC.AnnQualified
    case mpkg of
     Nothing -> return ()
+#if __GLASGOW_HASKELL__ <= 710
     Just pkg -> markWithString GHC.AnnPackageName (show (GHC.unpackFS pkg))
+#else
+    Just (src,pkg) -> markWithString GHC.AnnPackageName src
+#endif
 
    markExternal ln GHC.AnnVal (GHC.moduleNameString $ GHC.unLoc $ GHC.ideclName imp)
 
@@ -672,7 +680,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 -- ---------------------------------------------------------------------
 
 instance (Annotate GHC.CExportSpec) where
+#if __GLASGOW_HASKELL__ <= 710
   markAST l (GHC.CExportStatic _ cconv) = markAST l cconv
+#else
+  markAST l (GHC.CExportStatic src _ cconv) = markAST l cconv
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -1765,14 +1777,23 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   markAST _ (GHC.HsSCC src csFStr e) = do
     markWithString GHC.AnnOpen src -- "{-# SCC"
+#if __GLASGOW_HASKELL__ < 710
     markWithString GHC.AnnVal (GHC.unpackFS csFStr)
     markWithString GHC.AnnValStr ("\"" ++ GHC.unpackFS csFStr ++ "\"")
+#else
+    markWithString GHC.AnnVal (fst csFStr)
+    markWithString GHC.AnnValStr ("\"" ++ fst csFStr ++ "\"")
+#endif
     markWithString GHC.AnnClose "#-}"
     markLocated e
 
   markAST _ (GHC.HsCoreAnn src csFStr e) = do
     markWithString GHC.AnnOpen src -- "{-# CORE"
+#if __GLASGOW_HASKELL__ < 710
     markWithString GHC.AnnVal ("\"" ++ GHC.unpackFS csFStr ++ "\"")
+#else
+    markWithString GHC.AnnVal ("\"" ++ fst csFStr ++ "\"")
+#endif
     markWithString GHC.AnnClose "#-}"
     markLocated e
   -- TODO: make monomorphic
@@ -1862,7 +1883,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsTickPragma src (str,(v1,v2),(v3,v4)) e) = do
     -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
     markWithString       GHC.AnnOpen  src
+#if __GLASGOW_HASKELL__ <= 710
     markOffsetWithString GHC.AnnVal 0 (show (GHC.unpackFS str)) -- STRING
+#else
+    markOffsetWithString GHC.AnnVal 0 (fst str) -- STRING
+#endif
     markOffsetWithString GHC.AnnVal 1 (show v1) -- INTEGER
     markOffset GHC.AnnColon 0 -- ':'
     markOffsetWithString GHC.AnnVal 2 (show v2) -- INTEGER
@@ -2250,9 +2275,15 @@ instance Annotate (GHC.CType) where
     markWithString GHC.AnnOpen src
     case mh of
       Nothing -> return ()
+#if __GLASGOW_HASKELL__ <= 710
       Just (GHC.Header h) ->
          markWithString GHC.AnnHeader ("\"" ++ GHC.unpackFS h ++ "\"")
     markWithString GHC.AnnVal ("\"" ++ GHC.unpackFS f ++ "\"")
+#else
+      Just (GHC.Header src h) ->
+         markWithString GHC.AnnHeader ("\"" ++ src ++ "\"")
+    markWithString GHC.AnnVal ("\"" ++ fst f ++ "\"")
+#endif
     markWithString GHC.AnnClose "#-}"
 
 -- ---------------------------------------------------------------------
