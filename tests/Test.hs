@@ -16,7 +16,6 @@ import qualified BasicTypes     as GHC
 import qualified DynFlags       as GHC
 import qualified FastString     as GHC
 import qualified GHC            as GHC
--- import qualified MonadUtils     as GHC
 import qualified OccName        as GHC
 import qualified RdrName        as GHC
 
@@ -30,13 +29,15 @@ import System.IO
 import System.Exit
 import qualified Data.Map as Map
 
-import Test.HUnit
-
 import Data.List
 
 import System.IO.Silently
 
 import Common
+
+import Test.HUnit
+import QuickCheckTests
+
 
 -- import Debug.Trace
 
@@ -50,8 +51,7 @@ main = hSilence [stderr] $ do
      then exitFailure
      else return () -- exitSuccess
 
--- tests = TestCase (do r <- manipulateAstTest "examples/LetStmt.hs" "Layout.LetStmt"
---                      assertBool "test" r )
+-- ---------------------------------------------------------------------
 
 tests :: Test
 tests = TestList

@@ -3,7 +3,7 @@
 module Language.Haskell.GHC.ExactPrint.Utils
   (
 
-  srcSpanStartLine
+    srcSpanStartLine
   , srcSpanEndLine
   , srcSpanStartColumn
   , srcSpanEndColumn
@@ -19,7 +19,6 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , isPointSrcSpan
   , pos2delta
   , ss2delta
-  , ss2SortKey
   , spanLength
   , isGoodDelta
 
@@ -28,6 +27,12 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , showGhc
   , showAnnData
 
+  -- * Managing SortKeys
+  , ss2SortKey
+  , sortKeyBefore
+  , sortKeyAfter
+  , sortKeyBetween
+  , stringBeween
 
   -- * For tests
   , debug
@@ -279,7 +284,34 @@ ss2SortKey ss = SortKey (r,c,"0")
   where
     (r,c) = ss2pos ss
 
--- ---------------------------------------------------------------------
+-- |Construct a SortKey that will be ordered before the given one
+sortKeyBefore :: SortKey -> SortKey
+sortKeyBefore (SortKey (r,c,s)) = SortKey (r,c,'0':s)
+
+-- |Construct a SortKey that will be ordered after the given one
+sortKeyAfter :: SortKey -> SortKey
+sortKeyAfter (SortKey (r,c,s)) = SortKey (r,c,s++"z")
+
+-- |Construct a SortKey that will be between the given ones
+sortKeyBetween :: SortKey -> SortKey -> SortKey
+sortKeyBetween sk1@(SortKey (r1,c1,s1)) sk2@(SortKey (r2,c2,s2))
+  | sk1 >= sk2 = error $ "sortKeyBetween:first key not LT second:" ++  show (sk1,sk2)
+  | r1 == r2 && c1 == c2 = SortKey (r1,c1,stringBeween s1 s2)
+  | otherwise = sortKeyAfter sk1
+
+-- |Create a String that sorts lexically between the given two.
+-- precondition: s1 < s2
+stringBeween :: String -> String -> String
+stringBeween str1 str2 = go str1 str2
+  where
+    go [] [] = "a"
+    go s1 [] = s1 ++ "a"
+    go (s1:s1s) (s2:s2s) = if s1 == s2
+                              then s1 : go s1s s2s
+                              else (s1:s1s) ++ "a"
+    go s1 _s2 = s1 ++ "a"
+
+ -- ---------------------------------------------------------------------
 
 showSDoc_ :: GHC.SDoc -> String
 showSDoc_ = GHC.showSDoc GHC.unsafeGlobalDynFlags
