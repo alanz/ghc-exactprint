@@ -6,8 +6,8 @@ env:
  - CABALVER=head GHCVER=7.10.2
  - CABALVER=head GHCVER=head
 
- # Focus on head again when 7.10.2 sorted
- matrix:
+# Focus on head again when 7.10.2 sorted
+matrix:
   allow_failures:
     - env: GHCVER=head
  
