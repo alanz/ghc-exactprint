@@ -275,7 +275,9 @@ showAnnData anns n =
 -- ---------------------------------------------------------------------
 
 ss2SortKey :: GHC.SrcSpan -> SortKey
-ss2SortKey ss = SortKey (show (ss2span ss))
+ss2SortKey ss = SortKey (r,c,"0")
+  where
+    (r,c) = ss2pos ss
 
 -- ---------------------------------------------------------------------
 

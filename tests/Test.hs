@@ -470,10 +470,10 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "Splice.hs"                "Splice"
     -- , manipulateAstTestWFname "TemplateHaskell.hs"         "Main"
     -- , manipulateAstTestWFname "GADTContext.hs" "Main"
-    , manipulateAstTestWFnameBad "UnicodeSyntax.hs"          "Tutorial"
+    -- , manipulateAstTestWFnameBad "UnicodeSyntax.hs"          "Tutorial"
 
     -- , manipulateAstTestWFname "TypeBrackets.hs"         "Main"
-    -- , manipulateAstTestWFname "TypeBrackets2.hs"         "Main"
+    , manipulateAstTestWFname "TypeBrackets2.hs"         "Main"
     -- , manipulateAstTestWFname "TypeBrackets4.hs"         "Main"
     -- , manipulateAstTestWFname "NestedLambda.hs"      "Main"
     -- , manipulateAstTestWFname "ShiftingLambda.hs"      "Main"

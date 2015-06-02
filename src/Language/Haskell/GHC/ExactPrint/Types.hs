@@ -189,7 +189,11 @@ instance Monoid LayoutFlag where
 
 -- ---------------------------------------------------------------------
 
-data SortKey = SortKey String
+-- |The SortKey is derived from the original SrcSpan.
+-- It comprises the original start row and column, together with a third
+-- component which is used to manage explicit sort order, to be able to always
+-- insert a value between any two values.
+data SortKey = SortKey (Int,Int,String)
              deriving (Eq,Show,Ord)
 
 -- ---------------------------------------------------------------------
