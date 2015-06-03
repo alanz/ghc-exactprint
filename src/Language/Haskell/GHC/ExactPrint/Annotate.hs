@@ -227,6 +227,12 @@ applyListAnnotations ls = do
   return () `debug` ("applyListAnnotations:sortkeys=" ++ show (map fst ls'))
   mapM_ snd $ sortBy (\(a,_) (b,_) -> compare a b) ls'
 
+lexicalSortLocated :: [GHC.Located a] -> IAnnotated [GHC.Located a]
+lexicalSortLocated ls = do
+  ls' <- mapM (\(GHC.L ss v) -> getSortKey ss >>= \sk -> return (sk ,GHC.L ss v)) ls
+  let ls'' = sortBy (\a b -> compare (fst a) (fst b)) ls'
+  return (map snd ls'')
+
 -- ---------------------------------------------------------------------
 
 class Data ast => Annotate ast where
@@ -1062,7 +1068,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
     case mwc of
       Nothing -> if lc /= GHC.noSrcSpan then markLocated ctx else return ()
-      Just lwc -> markLocated (GHC.L lc (GHC.sortLocated ((GHC.L lwc GHC.HsWildcardTy):ctxs)))
+      Just lwc -> do
+        sorted <- lexicalSortLocated ((GHC.L lwc GHC.HsWildcardTy):ctxs)
+        markLocated (GHC.L lc sorted)
 
     mark GHC.AnnDarrow
     markLocated typ

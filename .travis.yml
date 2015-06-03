@@ -9,7 +9,7 @@ env:
 # Focus on head again when 7.10.2 sorted
 matrix:
   allow_failures:
-    - env: GHCVER=head
+    - env: CABALVER=head GHCVER=head
  
 # Note: the distinction between `before_install` and `install` is not important.
 before_install:
@@ -18,7 +18,7 @@ before_install:
  - travis_retry sudo apt-get install cabal-install-$CABALVER ghc-$GHCVER # see note about happy/alex
  - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
  - travis_retry cabal update
-# - cabal install hpc-coveralls
+ - cabal install hpc-coveralls
 
 install:
  - cabal --version
@@ -47,7 +47,7 @@ script:
  #      exit 1;
 
 after_script:
-# - hpc-coveralls test
+ - hpc-coveralls test
 
 notifications:
   irc: "irc.freenode.org#haskell-refactorer"
