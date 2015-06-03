@@ -15,9 +15,8 @@ module Language.Haskell.GHC.ExactPrint.Annotate
        , Annotated
        , Annotate(..)) where
 
--- import Data.Data (Data)
-import Data.List (sort, sortBy)
-import Data.Maybe (fromMaybe)
+import Data.List ( sortBy )
+import Data.Maybe ( fromMaybe )
 
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
@@ -805,8 +804,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnOpenC -- '{'
     markInside GHC.AnnSemi
 
-    -- AZ:Need to turn this into a located list annotation.
-    -- must merge all the rest
     applyListAnnotations (prepareListAnnotation (GHC.bagToList binds)
                        ++ prepareListAnnotation sigs
                        ++ prepareListAnnotation tyfams
@@ -1092,7 +1089,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnOpenP -- "("
     mark GHC.AnnForall
     mapM_ markLocated tvs
-    -- mapM_ markTvar tvs
     mark GHC.AnnDot
 
     case mwc of
@@ -1156,7 +1152,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLocated t
     mark GHC.AnnCloseP -- ')'
     mark GHC.AnnDarrow -- May appear after context in a ConDecl
-    -- markOutside GHC.AnnDarrow (G GHC.AnnDarrow)
 
   markAST _ (GHC.HsIParamTy (GHC.HsIPName n) t) = do
     markWithString GHC.AnnVal ("?" ++ (GHC.unpackFS n))
@@ -1385,9 +1380,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
   markAST _ (GHC.SigPatIn pat (GHC.HsWB ty _ _ _)) = do
     markLocated pat
     mark GHC.AnnDcolon
-    -- mark GHC.AnnOpenP
     markLocated ty
-    -- mark GHC.AnnCloseP
 
   markAST _ (GHC.SigPatOut {}) =
     traceM "warning: SigPatOut introduced after renaming"
@@ -1479,9 +1472,7 @@ instance (GHC.DataId name) => Annotate (GHC.HsOverLit name) where
 instance (GHC.DataId name,Annotate arg)
     => Annotate (GHC.HsWithBndrs name (GHC.Located arg)) where
   markAST _ (GHC.HsWB thing _ _ _) = do
-    -- mark GHC.AnnOpenP
     markLocated thing
-    -- mark GHC.AnnCloseP
 
 -- ---------------------------------------------------------------------
 
@@ -1513,7 +1504,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
 
   markAST l (GHC.ParStmt pbs _ _) = do
     mapM_ (markAST l) pbs
-    -- mark GHC.AnnVbar
     mark GHC.AnnVbar -- possible in list comprehension
 
   markAST _ (GHC.TransStmt form stmts _b using by _ _ _) = do
@@ -1796,7 +1786,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markWithString GHC.AnnValStr ("\"" ++ GHC.unpackFS csFStr ++ "\"")
 #else
     markWithString GHC.AnnVal (fst csFStr)
-    markWithString GHC.AnnValStr ("\"" ++ fst csFStr ++ "\"")
+    markWithString GHC.AnnValStr (fst csFStr)
 #endif
     markWithString GHC.AnnClose "#-}"
     markLocated e
@@ -1806,7 +1796,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
     markWithString GHC.AnnVal ("\"" ++ GHC.unpackFS csFStr ++ "\"")
 #else
-    markWithString GHC.AnnVal ("\"" ++ fst csFStr ++ "\"")
+    markWithString GHC.AnnVal (fst csFStr)
 #endif
     markWithString GHC.AnnClose "#-}"
     markLocated e
@@ -2051,7 +2041,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     -- Turn these into comments so that they feed into the right place automatically
     annotationsToComments [GHC.AnnOpenP,GHC.AnnCloseP]
     mark GHC.AnnType
-    -- markMany GHC.AnnOpenP
     -- ln may be used infix, in which case rearrange the order. It may be
     -- simplest to just sort ln:tyvars
     applyListAnnotations (prepareListAnnotation [ln]
@@ -2295,8 +2284,8 @@ instance Annotate (GHC.CType) where
     markWithString GHC.AnnVal ("\"" ++ GHC.unpackFS f ++ "\"")
 #else
       Just (GHC.Header src h) ->
-         markWithString GHC.AnnHeader ("\"" ++ src ++ "\"")
-    markWithString GHC.AnnVal ("\"" ++ fst f ++ "\"")
+         markWithString GHC.AnnHeader src
+    markWithString GHC.AnnVal (fst f)
 #endif
     markWithString GHC.AnnClose "#-}"
 
