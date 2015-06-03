@@ -192,8 +192,8 @@ markListWithLayout ls = do
 markLocalBindsWithLayout :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => GHC.HsLocalBinds name -> IAnnotated ()
 markLocalBindsWithLayout binds = do
-  let ss = getLocalBindsSrcSpan binds
-      d  = NotNeeded
+  ss <- getLocalBindsSrcSpan binds
+  let d  = NotNeeded
   (ss',d') <- storeOriginalSrcSpan ss d
   markWithLayout (GHC.L ss' binds) d'
 
@@ -202,23 +202,24 @@ markLocalBindsWithLayout binds = do
 -- | Local binds need to be indented as a group, and thus need to have a
 -- SrcSpan around them so they can be processed via the normal
 -- markLocated / exactPC machinery.
-getLocalBindsSrcSpan :: GHC.HsLocalBinds name -> GHC.SrcSpan
-getLocalBindsSrcSpan (GHC.HsValBinds (GHC.ValBindsIn binds sigs))
-  = case spans of
-      []  -> GHC.noSrcSpan
-      sss -> GHC.combineSrcSpans (head sss) (last sss)
+getLocalBindsSrcSpan :: GHC.HsLocalBinds name -> IAnnotated GHC.SrcSpan
+getLocalBindsSrcSpan (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
+  spans <- lexicalSortSrcSpans (map GHC.getLoc (GHC.bagToList binds) ++ map GHC.getLoc sigs)
+  case spans of
+    []  -> return GHC.noSrcSpan
+    sss -> return $ GHC.combineSrcSpans (head sss) (last sss)
   where
-    spans = sort (map GHC.getLoc (GHC.bagToList binds) ++ map GHC.getLoc sigs)
 
 getLocalBindsSrcSpan (GHC.HsValBinds (GHC.ValBindsOut {}))
-   = GHC.noSrcSpan
+   = return GHC.noSrcSpan
 
-getLocalBindsSrcSpan (GHC.HsIPBinds (GHC.IPBinds binds _))
-  = case sort (map GHC.getLoc binds) of
-      [] -> GHC.noSrcSpan
-      sss -> GHC.combineSrcSpans (head sss) (last sss)
+getLocalBindsSrcSpan (GHC.HsIPBinds (GHC.IPBinds binds _)) = do
+  spans <- lexicalSortSrcSpans (map GHC.getLoc binds)
+  case spans of
+    [] -> return GHC.noSrcSpan
+    sss -> return $ GHC.combineSrcSpans (head sss) (last sss)
 
-getLocalBindsSrcSpan (GHC.EmptyLocalBinds) = GHC.noSrcSpan
+getLocalBindsSrcSpan (GHC.EmptyLocalBinds) = return GHC.noSrcSpan
 
 -- ---------------------------------------------------------------------
 
@@ -253,6 +254,12 @@ applyListAnnotations ls = do
 lexicalSortLocated :: [GHC.Located a] -> IAnnotated [GHC.Located a]
 lexicalSortLocated ls = do
   ls' <- mapM (\(GHC.L ss v) -> getSortKey ss >>= \sk -> return (sk ,GHC.L ss v)) ls
+  let ls'' = sortBy (\a b -> compare (fst a) (fst b)) ls'
+  return (map snd ls'')
+
+lexicalSortSrcSpans :: [GHC.SrcSpan] -> IAnnotated [GHC.SrcSpan]
+lexicalSortSrcSpans ls = do
+  ls' <- mapM (\ss -> getSortKey ss >>= \sk -> return (sk,ss)) ls
   let ls'' = sortBy (\a b -> compare (fst a) (fst b)) ls'
   return (map snd ls'')
 
