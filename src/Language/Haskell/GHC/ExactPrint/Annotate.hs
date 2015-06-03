@@ -199,6 +199,29 @@ markLocalBindsWithLayout binds = do
 
 -- ---------------------------------------------------------------------
 
+-- | Local binds need to be indented as a group, and thus need to have a
+-- SrcSpan around them so they can be processed via the normal
+-- markLocated / exactPC machinery.
+getLocalBindsSrcSpan :: GHC.HsLocalBinds name -> GHC.SrcSpan
+getLocalBindsSrcSpan (GHC.HsValBinds (GHC.ValBindsIn binds sigs))
+  = case spans of
+      []  -> GHC.noSrcSpan
+      sss -> GHC.combineSrcSpans (head sss) (last sss)
+  where
+    spans = sort (map GHC.getLoc (GHC.bagToList binds) ++ map GHC.getLoc sigs)
+
+getLocalBindsSrcSpan (GHC.HsValBinds (GHC.ValBindsOut {}))
+   = GHC.noSrcSpan
+
+getLocalBindsSrcSpan (GHC.HsIPBinds (GHC.IPBinds binds _))
+  = case sort (map GHC.getLoc binds) of
+      [] -> GHC.noSrcSpan
+      sss -> GHC.combineSrcSpans (head sss) (last sss)
+
+getLocalBindsSrcSpan (GHC.EmptyLocalBinds) = GHC.noSrcSpan
+
+-- ---------------------------------------------------------------------
+
 -- |This function is used to get around shortcomings in the GHC AST for 7.10.1
 markLocatedFromKw :: (Annotate ast) => GHC.AnnKeywordId -> ast -> IAnnotated ()
 markLocatedFromKw kw a = do
@@ -829,8 +852,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mapM_ markLocated grhs
     mark GHC.AnnWhere
 
-    -- TODO: Store the following SrcSpan in an AnnList instance for exactPC
-    markLocated (GHC.L (getLocalBindsSrcSpan lb) lb)
+    markLocalBindsWithLayout lb
 
   markAST _ (GHC.VarBind _n rhse _) =
     -- Note: this bind is introduced by the typechecker
@@ -914,7 +936,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnWhere
     mark GHC.AnnOpenC -- '{'
     markInside GHC.AnnSemi
-    markWithLayout (GHC.L (getLocalBindsSrcSpan lb) lb) NotNeeded
+    markLocalBindsWithLayout lb
     mark GHC.AnnCloseC -- '}'
 
 -- ---------------------------------------------------------------------
@@ -1069,7 +1091,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     case mwc of
       Nothing -> if lc /= GHC.noSrcSpan then markLocated ctx else return ()
       Just lwc -> do
-        sorted <- lexicalSortLocated ((GHC.L lwc GHC.HsWildcardTy):ctxs)
+        sorted <- lexicalSortLocated (GHC.L lwc GHC.HsWildcardTy:ctxs)
         markLocated (GHC.L lc sorted)
 
     mark GHC.AnnDarrow
@@ -1477,7 +1499,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     mark GHC.AnnLet
     mark GHC.AnnOpenC -- '{'
     markInside GHC.AnnSemi
-    markWithLayout (GHC.L (getLocalBindsSrcSpan lb) lb) NotNeeded
+    markLocalBindsWithLayout lb
     mark GHC.AnnCloseC -- '}'
     -- return () `debug` ("markP.LetStmt done")
     mark GHC.AnnVbar -- possible in list comprehension
@@ -1520,29 +1542,6 @@ instance  (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate 
   =>  Annotate (GHC.ParStmtBlock name name) where
   markAST _ (GHC.ParStmtBlock stmts _ns _) =
     mapM_ markLocated stmts
-
--- ---------------------------------------------------------------------
-
--- | Local binds need to be indented as a group, and thus need to have a
--- SrcSpan around them so they can be processed via the normal
--- markLocated / exactPC machinery.
-getLocalBindsSrcSpan :: GHC.HsLocalBinds name -> GHC.SrcSpan
-getLocalBindsSrcSpan (GHC.HsValBinds (GHC.ValBindsIn binds sigs))
-  = case spans of
-      []  -> GHC.noSrcSpan
-      sss -> GHC.combineSrcSpans (head sss) (last sss)
-  where
-    spans = sort (map GHC.getLoc (GHC.bagToList binds) ++ map GHC.getLoc sigs)
-
-getLocalBindsSrcSpan (GHC.HsValBinds (GHC.ValBindsOut {}))
-   = GHC.noSrcSpan
-
-getLocalBindsSrcSpan (GHC.HsIPBinds (GHC.IPBinds binds _))
-  = case sort (map GHC.getLoc binds) of
-      [] -> GHC.noSrcSpan
-      sss -> GHC.combineSrcSpans (head sss) (last sss)
-
-getLocalBindsSrcSpan (GHC.EmptyLocalBinds) = GHC.noSrcSpan
 
 -- ---------------------------------------------------------------------
 
@@ -2011,7 +2010,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsCmdLet binds e) = do
     mark GHC.AnnLet
     mark GHC.AnnOpenC
-    markWithLayout (GHC.L (getLocalBindsSrcSpan binds) binds) NotNeeded
+    markLocalBindsWithLayout binds
     mark GHC.AnnCloseC
     mark GHC.AnnIn
     markLocated e

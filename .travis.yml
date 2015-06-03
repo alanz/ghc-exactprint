@@ -18,7 +18,6 @@ before_install:
  - travis_retry sudo apt-get install cabal-install-$CABALVER ghc-$GHCVER # see note about happy/alex
  - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
  - travis_retry cabal update
- - cabal install hpc-coveralls
 
 install:
  - cabal --version
@@ -47,6 +46,7 @@ script:
  #      exit 1;
 
 after_script:
+ - cabal install hpc-coveralls
  - hpc-coveralls test
 
 notifications:
