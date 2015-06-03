@@ -14,12 +14,16 @@ ghc-exactprint
 
 GHC version of haskell-src-exts exactPrint
 
-Note: This only works with GHC ghc-7.10 RC2 and beyond
+Note: This only works with GHC 7.10.2 and beyond.
+      As of now (2015-06-03) GHC 7.10.2 is not yet released
 
 
 Current Limitations
 -------------------
 
-* Does not process CPP properly
+* Does not process CPP properly [should be sorted soon]
 * Does not process Lhs files properly
+* Does not properly process multi-line strings in WARNING and DEPRECATED pragmas
+  [ see https://phabricator.haskell.org/D907 which missed the cut for 7.10.2 due to AST change  ]
+* Does not preserve the unicode * character, reducing it to a standard one.
 
