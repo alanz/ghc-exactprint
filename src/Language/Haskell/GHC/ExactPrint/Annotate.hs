@@ -1777,7 +1777,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   markAST _ (GHC.HsSCC src csFStr e) = do
     markWithString GHC.AnnOpen src -- "{-# SCC"
-#if __GLASGOW_HASKELL__ < 710
+#if __GLASGOW_HASKELL__ <= 710
     markWithString GHC.AnnVal (GHC.unpackFS csFStr)
     markWithString GHC.AnnValStr ("\"" ++ GHC.unpackFS csFStr ++ "\"")
 #else
@@ -1789,7 +1789,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   markAST _ (GHC.HsCoreAnn src csFStr e) = do
     markWithString GHC.AnnOpen src -- "{-# CORE"
-#if __GLASGOW_HASKELL__ < 710
+#if __GLASGOW_HASKELL__ <= 710
     markWithString GHC.AnnVal ("\"" ++ GHC.unpackFS csFStr ++ "\"")
 #else
     markWithString GHC.AnnVal ("\"" ++ fst csFStr ++ "\"")
