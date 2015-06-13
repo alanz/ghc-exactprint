@@ -148,7 +148,9 @@ tellFinalSortKey (k, v) =
 tellKd :: (KeywordId, DeltaPos) -> Delta ()
 tellKd kd = tell (mempty { annKds = [kd] })
 
+mapInsertFst :: (Ord k, Monoid a) => k -> a -> (Map.Map k a, t) -> (Map.Map k a, t)
 mapInsertFst k v (mf,ms) = (Map.insertWith (<>) k v mf,ms)
+mapInsertSnd :: (Ord k) => k -> a -> (t, Map.Map k a) -> (t, Map.Map k a)
 mapInsertSnd k v (mf,ms) = (mf                        ,Map.insert k v ms)
 
 instance Monoid DeltaWriter where
