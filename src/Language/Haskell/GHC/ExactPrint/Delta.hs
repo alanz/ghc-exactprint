@@ -352,7 +352,7 @@ withAST lss@(GHC.L ss _) d layout action = do
           LayoutRules   -> (LayoutStartCol (srcSpanStartColumn ss))
           NoLayoutRules -> off
 
-  (setLayoutOffset newOff .  withSrcSpanDelta lss d) (do
+  (resetAnns . setLayoutOffset newOff .  withSrcSpanDelta lss d) (do
 
     let maskWriter s = s { annKds = [] }
 
@@ -392,6 +392,11 @@ withAST lss@(GHC.L ss _) d layout action = do
     addAnnotationsDelta an
      `debug` ("leaveAST:(annkey,an)=" ++ show (mkAnnKey lss,an))
     return res)
+
+resetAnns :: Delta a -> Delta a
+resetAnns action = do
+  ans <- gets apAnns
+  action <* modify (\s -> s { apAnns = ans })
 
 
 -- ---------------------------------------------------------------------

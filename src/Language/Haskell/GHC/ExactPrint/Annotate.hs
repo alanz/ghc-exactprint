@@ -1151,7 +1151,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnOpenP  -- '('
     markLocated t
     mark GHC.AnnCloseP -- ')'
-    mark GHC.AnnDarrow -- May appear after context in a ConDecl
+--    mark GHC.AnnDarrow -- May appear after context in a ConDecl
 
   markAST _ (GHC.HsIParamTy (GHC.HsIPName n) t) = do
     markWithString GHC.AnnVal ("?" ++ (GHC.unpackFS n))
@@ -1227,7 +1227,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   markAST l (GHC.HsWildcardTy) = do
     markExternal l GHC.AnnVal "_"
-    mark GHC.AnnDarrow -- if only part of a partial type signature context
+--    mark GHC.AnnDarrow -- if only part of a partial type signature context
 -- TODO: Probably wrong
   markAST l (GHC.HsNamedWildcardTy n) = do
     markExternal l GHC.AnnVal  (showGhc n)
