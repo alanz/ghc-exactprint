@@ -140,7 +140,7 @@ withAST lss d layout action = do
       action
       -- Automatically add any trailing comma or semi
       markAfter GHC.AnnComma
-      markOutside GHC.AnnSemi AnnSemiSep
+--      markOutside GHC.AnnSemi AnnSemiSep
 
 -- ---------------------------------------------------------------------
 -- Additional smart constructors
@@ -502,6 +502,7 @@ instance (GHC.DataId name,Annotate name)
      Just (_isHiding,lie) -> do
        mark GHC.AnnHiding
        markLocated lie
+   markOutside (GHC.AnnSemi) (G GHC.AnnSemi)
 
 -- ---------------------------------------------------------------------
 
@@ -758,6 +759,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnOpenP -- '('
     mapM_ markLocated typs
     mark GHC.AnnCloseP -- ')'
+    markOutside GHC.AnnSemi (G GHC.AnnSemi)
 
 -- ---------------------------------------------------------------------
 
@@ -848,6 +850,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   => Annotate (GHC.HsBind name) where
   markAST _ (GHC.FunBind (GHC.L _ln _n) _ (GHC.MG matches _ _ _) _ _ _) = do
     mapM_ markLocated matches
+    --markOutside GHC.AnnSemi AnnSemiSep
     -- markMatchGroup l mg
 
   markAST _ (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
@@ -857,6 +860,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnWhere
 
     markLocalBindsWithLayout lb
+    markOutside GHC.AnnSemi (G GHC.AnnSemi)
 
   markAST _ (GHC.VarBind _n rhse _) =
     -- Note: this bind is introduced by the typechecker
@@ -883,6 +887,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnWhere
     mark GHC.AnnOpenC  -- '{'
     mark GHC.AnnCloseC -- '}'
+    markOutside GHC.AnnSemi (G GHC.AnnSemi)
 
   -- Introduced after renaming.
   markAST _ (GHC.AbsBinds _ _ _ _ _) =
@@ -942,6 +947,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markInside GHC.AnnSemi
     markLocalBindsWithLayout lb
     mark GHC.AnnCloseC -- '}'
+    markOutside GHC.AnnSemi AnnSemiSep
 
 -- ---------------------------------------------------------------------
 
@@ -966,6 +972,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mapM_ markLocated lns
     mark GHC.AnnDcolon
     markLocated typ
+    markOutside (GHC.AnnSemi) (G GHC.AnnSemi)
 
   markAST _ (GHC.PatSynSig ln (_,GHC.HsQTvs _ns bndrs) ctx1 ctx2 typ) = do
     mark GHC.AnnPattern
@@ -1002,6 +1009,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markWithString GHC.AnnInfix fixstr
     markWithString GHC.AnnVal (show v)
     mapM_ markLocated lns
+    markOutside (GHC.AnnSemi) (G GHC.AnnSemi)
 
   -- InlineSig (Located name) InlinePragma
   -- '{-# INLINE' activation qvar '#-}'
@@ -1487,24 +1495,29 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     mark GHC.AnnLarrow
     markLocated body
     mark GHC.AnnVbar -- possible in list comprehension
+    markOutside GHC.AnnSemi (G GHC.AnnSemi)
 
   markAST _ (GHC.BodyStmt body _ _ _) = do
     markLocated body
     mark GHC.AnnVbar -- possible in list comprehension
+    markOutside GHC.AnnSemi (G GHC.AnnSemi)
 
   markAST _ (GHC.LetStmt lb) = do
     -- return () `debug` ("markP.LetStmt entered")
     mark GHC.AnnLet
     mark GHC.AnnOpenC -- '{'
+    --markOffset GHC.AnnSemi 0
     markInside GHC.AnnSemi
     markLocalBindsWithLayout lb
     mark GHC.AnnCloseC -- '}'
     -- return () `debug` ("markP.LetStmt done")
     mark GHC.AnnVbar -- possible in list comprehension
+    markOutside GHC.AnnSemi AnnSemiSep
 
   markAST l (GHC.ParStmt pbs _ _) = do
     mapM_ (markAST l) pbs
     mark GHC.AnnVbar -- possible in list comprehension
+    markOutside GHC.AnnSemi (G GHC.AnnSemi)
 
   markAST _ (GHC.TransStmt form stmts _b using by _ _ _) = do
     mapM_ markLocated stmts
@@ -1524,6 +1537,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
         mark GHC.AnnUsing
         markLocated using
     mark GHC.AnnVbar -- possible in list comprehension
+    markOutside GHC.AnnSemi (G GHC.AnnSemi)
 
   markAST _ (GHC.RecStmt stmts _ _ _ _ _ _ _ _) = do
     mark GHC.AnnRec
@@ -1532,6 +1546,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     mapM_ markLocated stmts
     mark GHC.AnnCloseC
     mark GHC.AnnVbar -- possible in list comprehension
+    markOutside GHC.AnnSemi (G GHC.AnnSemi)
 
 -- ---------------------------------------------------------------------
 
@@ -1559,7 +1574,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 markHsLocalBinds :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
                      => (GHC.HsLocalBinds name) -> IAnnotated ()
-markHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
+markHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) =
     applyListAnnotations (prepareListAnnotation (GHC.bagToList binds)
                        ++ prepareListAnnotation sigs
                          )
@@ -2048,6 +2063,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     -- markMany GHC.AnnCloseP
     mark GHC.AnnEqual
     markLocated typ
+    markOutside GHC.AnnSemi (G GHC.AnnSemi)
 
   markAST _ (GHC.DataDecl ln (GHC.HsQTvs _ns tyVars)
                 (GHC.HsDataDefn _ ctx mctyp mk cons mderivs) _) = do
@@ -2065,6 +2081,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mapM_ markLocated cons
     markMaybe mderivs
     mark GHC.AnnCloseC
+    markOutside GHC.AnnSemi (G GHC.AnnSemi)
 
   -- -----------------------------------
 
@@ -2087,6 +2104,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
                        ++ prepareListAnnotation docs
                          )
     mark GHC.AnnCloseC -- '}'
+    markOutside (GHC.AnnSemi) AnnSemiSep
 
 -- ---------------------------------------------------------------------
 
@@ -2235,6 +2253,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 
 
     mark GHC.AnnVbar
+    markOutside GHC.AnnSemi (G GHC.AnnSemi)
 
 -- ---------------------------------------------------------------------
 
