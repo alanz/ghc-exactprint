@@ -184,7 +184,7 @@ exactPC ast d flag action =
       ma <- getAndRemoveAnnotation ast d
       let an@(Ann edp _ _ comments kds) = fromMaybe annNone ma
       r <- withContext kds an flag
-       (mapM_ printQueuedComment comments
+       (mapM_ (uncurry printQueuedComment) comments
        >> advance edp
        >> action)
       return r `debug` ("leaving exactPCfor:" ++ show (mkAnnKey ast))
@@ -310,7 +310,7 @@ printStringAtMaybeAnnThen an str next = do
 -- ---------------------------------------------------------------------
 
 -- |destructive get, hence use an annotation once only
-getAnnFinal :: KeywordId -> EP (Maybe ([DComment], DeltaPos))
+getAnnFinal :: KeywordId -> EP (Maybe ([(DComment, DeltaPos)], DeltaPos))
 getAnnFinal kw = do
   kd <- gets epAnnKds
   case kd of
@@ -324,14 +324,14 @@ getAnnFinal kw = do
 -- Return the value, together with any comments skipped over to get there.
 destructiveGetFirst :: KeywordId
                     -> ([(KeywordId, v)],[(KeywordId,v)])
-                    -> (Maybe ([DComment], v),[(KeywordId,v)])
+                    -> (Maybe ([(DComment, v)], v),[(KeywordId,v)])
 destructiveGetFirst _key (acc,[]) = (Nothing, acc)
 destructiveGetFirst  key (acc, (k,v):kvs )
   | k == key = (Just (skippedComments, v), others ++ kvs)
   | otherwise = destructiveGetFirst key (acc ++ [(k,v)], kvs)
   where
     (skippedComments, others) = foldr comments ([], []) acc
-    comments (AnnComment comment , _ ) (cs, kws) = (comment : cs, kws)
+    comments (AnnComment comment , dp ) (cs, kws) = ((comment, dp) : cs, kws)
     comments kw (cs, kws)                        = (cs, kw : kws)
 
 
@@ -339,13 +339,13 @@ destructiveGetFirst  key (acc, (k,v):kvs )
 
 -- |This should be the final point where things are mode concrete,
 -- before output. Hence the point where comments can be inserted
-printStringAtLsDelta :: [DComment] -> DeltaPos -> String -> EP ()
+printStringAtLsDelta :: [(DComment, DeltaPos)] -> DeltaPos -> String -> EP ()
 printStringAtLsDelta cs cl s = do
   p <- getPos
   colOffset <- getLayoutOffset
   if isGoodDeltaWithOffset cl colOffset
     then do
-      mapM_ printQueuedComment cs
+      mapM_ (uncurry printQueuedComment) cs
       printStringAt (undelta p cl colOffset) s
         `debug` ("printStringAtLsDelta:(pos,s):" ++ show (undelta p cl colOffset,s))
     else return () `debug` ("printStringAtLsDelta:bad delta for (mc,s):" ++ show (cl,s))
@@ -355,8 +355,8 @@ isGoodDeltaWithOffset :: DeltaPos -> LayoutStartCol -> Bool
 isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP (undelta (0,0) dp colOffset))
 
 -- AZ:TODO: harvest the commonality between this and printStringAtLsDelta
-printQueuedComment :: DComment -> EP ()
-printQueuedComment (DComment (dp,de) s _) = do
+printQueuedComment :: DComment -> DeltaPos -> EP ()
+printQueuedComment (DComment de s _) dp = do
   p <- getPos
   colOffset <- getLayoutOffset
   let (dr,dc) = undelta (0,0) dp colOffset

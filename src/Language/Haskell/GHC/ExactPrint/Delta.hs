@@ -430,7 +430,7 @@ addAnnotationWorker ann pa =
         (G GHC.AnnClose,False) -> return ()
         _ -> do
           p' <- adjustDeltaForOffsetM p
-          commentAllocation (priorComment (ss2pos pa)) (mapM_ addDeltaComment)
+          commentAllocation (priorComment (ss2pos pa)) (mapM_ (uncurry addDeltaComment))
           addAnnDeltaPos (checkUnicode ann pa) p'
           setPriorEndAST (ss2posEnd pa)
               `debug` ("addAnnotationWorker:(ss,ss,pe,pa,p,p',ann)=" ++ show (showGhc ss,ss2span ss,pe,ss2span pa,p,p',ann))
@@ -461,7 +461,7 @@ checkUnicode kwid _ = kwid
 -- ---------------------------------------------------------------------
 
 commentAllocation :: (Comment -> Bool)
-                  -> ([DComment] -> Delta a)
+                  -> ([(DComment, DeltaPos)] -> Delta a)
                   -> Delta a
 commentAllocation p k = do
   cs <- getUnallocatedComments
@@ -470,7 +470,7 @@ commentAllocation p k = do
   k =<< mapM makeDeltaComment (sort allocated)
 
 
-makeDeltaComment :: Comment -> Delta DComment
+makeDeltaComment :: Comment -> Delta (DComment, DeltaPos)
 makeDeltaComment (Comment paspan str mkw) = do
   let pa = span2ss paspan
   pe <- getPriorEnd
@@ -479,10 +479,10 @@ makeDeltaComment (Comment paspan str mkw) = do
   setPriorEnd (ss2posEnd pa)
   let e = pos2delta pe (snd paspan)
   e' <- adjustDeltaForOffsetM e
-  return $ DComment (p', e') str mkw
+  return $ (DComment e' str mkw, p')
 
-addDeltaComment :: DComment -> Delta ()
-addDeltaComment d@(DComment (p, _) _ _) = do
+addDeltaComment :: DComment -> DeltaPos -> Delta ()
+addDeltaComment d p = do
   addAnnDeltaPos (AnnComment d) p
 
 -- ---------------------------------------------------------------------
@@ -569,7 +569,7 @@ addEofAnnotation = do
   case ma of
     [] -> return ()
     (pa:pss) -> do
-      commentAllocation (const True) (mapM_ addDeltaComment)
+      commentAllocation (const True) (mapM_ (uncurry addDeltaComment))
       let DP (r,c) = ss2delta pe pa
       addAnnDeltaPos (G GHC.AnnEofPos) (DP (r, c - 1))
       setPriorEndAST (ss2posEnd pa) `warn` ("Trailing annotations after Eof: " ++ showGhc pss)

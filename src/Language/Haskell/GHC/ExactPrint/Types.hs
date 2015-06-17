@@ -54,7 +54,11 @@ instance GHC.Outputable Comment where
   ppr x = GHC.text (show x)
 
 -- |Delta version of the comment.
-data DComment = DComment (DeltaPos,DeltaPos) String (Maybe GHC.AnnKeywordId)
+--
+data DComment = DComment
+                  DeltaPos  -- ^ Location of the end of the comment relative to the start
+                  String -- ^ The commentgt
+                  (Maybe GHC.AnnKeywordId) -- ^ The origin of the comment.
   deriving (Eq,Show,Typeable,Data,Ord)
 
 instance Ord Comment where
@@ -100,7 +104,7 @@ data Annotation = Ann
                                    --  block. This is used when moving onto new
                                    --  lines when layout rules must be obeyed.
   , annTrueEntryDelta  :: !DeltaPos -- ^ Entry without comments
-  , annPriorComments   :: ![DComment]
+  , annPriorComments   :: ![(DComment, DeltaPos)]
   , annsDP             :: ![(KeywordId, DeltaPos)]  -- ^ Annotations associated with this element.
 
   } deriving (Typeable,Eq)
