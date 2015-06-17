@@ -198,7 +198,7 @@ advance cl = do
 getAndRemoveAnnotation :: (Data a) => GHC.Located a -> Disambiguator -> EP (Maybe Annotation)
 getAndRemoveAnnotation a d = do
   (r, an') <- gets ((getAndRemoveAnnotationEP a d) . epAnns)
-  modify (\s -> s { epAnns = an' })
+--  modify (\s -> s { epAnns = an' })
   return r
 
 markPrim :: KeywordId -> Maybe String -> EP ()
@@ -406,7 +406,7 @@ newLine = do
 padUntil :: Pos -> EP ()
 padUntil (l,c) = do
     (l1,c1) <- getPos
-    if | l1 >= l && c1 <= c -> printString $ replicate (c - c1) ' '
+    if | l1 == l && c1 <= c -> printString $ replicate (c - c1) ' '
        | l1 < l             -> newLine >> padUntil (l,c)
        | otherwise          -> return ()
 
