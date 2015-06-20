@@ -10,6 +10,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , Span
   , PosToken
   , DeltaPos(..)
+  , addDP
   , LayoutStartCol(..) , ColDelta(..)
   , Annotation(..)
   , combineAnns
@@ -70,6 +71,12 @@ type Pos = (Int,Int)
 type Span = (Pos,Pos)
 
 newtype DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
+
+addDP :: DeltaPos -> DeltaPos -> DeltaPos
+addDP (DP (a, b)) (DP (c, d)) =
+  if c >= 1 then DP (a+c, d)
+            else DP (a, b + d)
+
 
 -- | Marks the start column of a layout block.
 newtype LayoutStartCol = LayoutStartCol { getLayoutStartCol :: Int }
