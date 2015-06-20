@@ -13,6 +13,9 @@ module Language.Haskell.GHC.ExactPrint
 
         -- * Utility
         , parseModule
+        , parseExpr
+        , parseImport
+        , parseWith
 
         ) where
 
@@ -50,6 +53,24 @@ runParser parser flags filename str = GHC.unP parser parseState
 
 parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located (GHC.HsModule GHC.RdrName))
 parseFile = runParser GHC.parseModule
+
+parseWith :: GHC.P w
+          -> String
+          -> IO (Either (GHC.SrcSpan, String) (GHC.ApiAnns, w))
+parseWith f s =
+  GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
+    GHC.runGhc (Just libdir) $ do
+      dflags <- GHC.getSessionDynFlags
+      void $ GHC.setSessionDynFlags dflags
+      return $
+        case runParser f dflags "<Interactive>" s of
+          GHC.PFailed ss m -> Left $ (ss, (GHC.showSDoc dflags m))
+          GHC.POk (mkApiAnns -> apianns) pmod   -> Right $ (apianns, pmod)
+
+parseExpr = parseWith GHC.parseExpression
+parseImport = parseWith GHC.parseImport
+
+
 
 
 initDynFlags :: GHC.GhcMonad m => FilePath -> m GHC.DynFlags
