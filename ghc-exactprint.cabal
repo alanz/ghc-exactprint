@@ -120,3 +120,15 @@ executable static
                , filepath
                , Diff
 
+executable transform
+  main-is: TestTransform.hs
+  build-depends: base
+               , refact
+               , ghc-exactprint
+               , ghc
+               , containers
+               , syb
+               , mtl
+               , process
+               , directory
+
