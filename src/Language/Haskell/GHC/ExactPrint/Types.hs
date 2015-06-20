@@ -58,7 +58,7 @@ instance GHC.Outputable Comment where
 --
 data DComment = DComment
                   DeltaPos  -- ^ Location of the end of the comment relative to the start
-                  String -- ^ The commentgt
+                  String -- ^ The comment
                   (Maybe GHC.AnnKeywordId) -- ^ The origin of the comment.
   deriving (Eq,Show,Typeable,Data,Ord)
 
