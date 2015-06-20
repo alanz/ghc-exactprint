@@ -23,7 +23,6 @@ import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Delta
 import Language.Haskell.GHC.ExactPrint.Print
 
-import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Preprocess
 
 import GHC.Paths (libdir)
@@ -64,10 +63,16 @@ parseWith f s =
       void $ GHC.setSessionDynFlags dflags
       return $
         case runParser f dflags "<Interactive>" s of
-          GHC.PFailed ss m -> Left $ (ss, (GHC.showSDoc dflags m))
-          GHC.POk (mkApiAnns -> apianns) pmod   -> Right $ (apianns, pmod)
+          GHC.PFailed ss m -> Left (ss, GHC.showSDoc dflags m)
+          GHC.POk (mkApiAnns -> apianns) pmod   -> Right (apianns, pmod)
 
+type Parser a = String -> IO (Either (GHC.SrcSpan, String)
+                                     (GHC.ApiAnns, a))
+
+parseExpr :: Parser (GHC.LHsExpr GHC.RdrName)
 parseExpr = parseWith GHC.parseExpression
+
+parseImport :: Parser (GHC.LImportDecl GHC.RdrName)
 parseImport = parseWith GHC.parseImport
 
 
@@ -88,8 +93,7 @@ parseModule file =
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
     GHC.runGhc (Just libdir) $ do
       dflags <- initDynFlags file
-      let useCpp = GHC.xopt GHC.Opt_Cpp dflags
-      (fileContents, injectedComments) <-
+      (fileContents, _) <-
         if False
           then do
             contents <- getPreprocessedSrcDirect file
@@ -99,17 +103,10 @@ parseModule file =
             txt <- GHC.liftIO $ readFile file
             let (contents1,lp) = stripLinePragmas txt
             return (contents1,lp)
-
-      orig <- GHC.liftIO $ readFile file
-      let origContents = removeSpaces fileContents
-          pristine     = removeSpaces orig
       return $
-        case parseFile dflags file origContents of
+        case parseFile dflags file fileContents of
           GHC.PFailed ss m -> Left $ (ss, (GHC.showSDoc dflags m))
           GHC.POk (mkApiAnns -> apianns) pmod   -> Right $ (apianns, pmod)
-
-removeSpaces :: String -> String
-removeSpaces = map (\case {'\160' -> ' '; s -> s})
 
 
 mkApiAnns :: GHC.PState -> GHC.ApiAnns

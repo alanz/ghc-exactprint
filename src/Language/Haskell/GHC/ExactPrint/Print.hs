@@ -196,10 +196,7 @@ advance cl = do
   printWhitespace (undelta p cl colOffset)
 
 getAndRemoveAnnotation :: (Data a) => GHC.Located a -> Disambiguator -> EP (Maybe Annotation)
-getAndRemoveAnnotation a d = do
-  (r, an') <- gets ((getAndRemoveAnnotationEP a d) . epAnns)
---  modify (\s -> s { epAnns = an' })
-  return r
+getAndRemoveAnnotation a d = gets ((getAnnotationEP a d) . epAnns)
 
 markPrim :: KeywordId -> Maybe String -> EP ()
 markPrim kwid mstr =
