@@ -169,11 +169,13 @@ processSubsts :: Module -> (String, GHC.SrcSpan) -> (GHC.OccName, Expr)
 processSubsts m (s, loc) = (GHC.mkVarOcc s, findExpr m loc)
 
 substTransform :: [(GHC.OccName, Expr)] -> Expr -> M Expr
-substTransform subs e@(GHC.L l (HsVar name)) =
+substTransform subs old@(GHC.L l (HsVar name)) =
   case name of
     -- Todo: this should replace anns as well?
-    GHC.Unqual oname -> return $ (fromMaybe e (lookup oname subs))
-    _ -> return e
+    GHC.Unqual oname -> case (lookup oname subs) of
+                          Just new -> modifyAnnKey old new
+                          Nothing -> return old
+    _ -> return old
 substTransform _ e = return e
 
 -- Test
@@ -204,11 +206,11 @@ removeBracketsT = everywhereM (mkM $ removeBrackets (const True))
 removeBrackets :: (GHC.SrcSpan -> Bool) -> (GHC.Located (GHC.HsExpr GHC.RdrName)) -> M (GHC.Located (GHC.HsExpr GHC.RdrName))
 removeBrackets p v@(GHC.L t (GHC.HsPar e)) =
   if p t
-    then modifyAnnKey v e >> return e
+    then modifyAnnKey v e
     else return v
 removeBrackets _ e = return e
 
-modifyAnnKey e1 e2 = modify (\m -> replaceAnnKey m e1 e2)
+modifyAnnKey e1 e2 = e2 <$ modify (\m -> replaceAnnKey m e1 e2)
 
 
 replaceAnnKey :: (Data old, Data new)
@@ -233,7 +235,7 @@ doReplacement :: (Expr -> Bool)
               -> Expr
               -> M Expr
 doReplacement p new old =
-  if p old then modifyAnnKey old new >> return new else return old
+  if p old then modifyAnnKey old new else return old
 
 
 fourliteral (GHC.L l (GHC.HsOverLit {})) = True
@@ -263,7 +265,7 @@ transformRedundantDo = everywhereM (mkM (redundantDo (const True)))
 redundantDo :: (Expr -> Bool) -> Expr -> M Expr
 redundantDo p e@(GHC.L l (HsDo _ stmts _)) = do
   case stmts of
-    [e'@(GHC.L l' (BodyStmt b _ _ _))] -> modifyAnnKey e b >> return b
+    [e'@(GHC.L l' (BodyStmt b _ _ _))] -> modifyAnnKey e b
     _ -> return e
 redundantDo p e = return e
 
