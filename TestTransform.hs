@@ -107,7 +107,7 @@ runPipe file = do
   let inp :: [Refactoring R.SrcSpan] = read rawhints
   print inp
   let inp' = fmap (toGhcSrcSpan file) <$> inp
-  Right (anns, m) <- parseModule file
+  (anns, m) <- either (error . show) id <$> parseModule file
   let as = relativiseApiAnns m anns
       -- need a check here to avoid overlap
       (ares, res) = foldl (uncurry runRefactoring) (as, m) inp'
@@ -136,7 +136,7 @@ toGhcSrcSpan file R.SrcSpan{..} = mkSrcSpan (f start) (f end)
 -- Perform the substitutions
 
 runRefactoring :: Anns -> Module -> Refactoring GHC.SrcSpan -> (Anns, Module)
-runRefactoring as m Replace{..} = do
+runRefactoring as m Replace{..} =
   let replExprLocation = getLoc (findExpr m expr)
       substitions = map (processSubsts m) subts
       Right (newanns, template) = (unsafePerformIO $ parseExpr orig)
@@ -148,10 +148,22 @@ runRefactoring as m Replace{..} = do
       transformation = everywhereM (mkM (doReplacement replacementPred newExpr))
       (final, finalanns) = runState (transformation m) as
    in (mergeAnns finalanns newAnns, final)
+runRefactoring (as,sk) m ModifyComment{..} =
+    ((Map.map go as, sk), m)
+    where
+      go a@(Ann{ annPriorComments, annsDP }) =
+        a { annsDP = map changeComment annsDP
+          , annPriorComments = map (first change) annPriorComments }
+      changeComment (AnnComment d, dp) = (AnnComment (change d), dp)
+      changeComment e = e
+      change old@(DComment dp s prov) = if s == originalComment
+                                          then DComment dp newComment prov
+                                          else old
+
 
 -- Find the largest expression with a given SrcSpan
 findExpr :: Module -> SrcSpan -> Expr
-findExpr m ss = snd $ runState (doTrans m) undefined
+findExpr m ss = snd $ runState (doTrans m) (error (showGhc ss))
   where
     doTrans :: Module -> State Expr Module
     doTrans = everywhereM (mkM (findLargestExpression ss))
