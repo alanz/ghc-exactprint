@@ -101,7 +101,7 @@ makeFreeCon  'MarkInside
 makeFreeCon  'MarkExternal
 makeFreeCon  'MarkMany
 makeFreeCon  'MarkOffsetPrim
-makeFreeCon  'MarkAfter
+--makeFreeCon  'MarkAfter
 makeFreeCon  'CountAnns
 makeFreeCon  'GetSortKey
 makeFreeCon  'StoreOriginalSrcSpan
@@ -139,7 +139,7 @@ withAST lss d layout action = do
     prog = do
       action
       -- Automatically add any trailing comma or semi
-      markAfter GHC.AnnComma
+      markOutside GHC.AnnComma (G GHC.AnnComma)
 --      markOutside GHC.AnnSemi AnnSemiSep
 
 -- ---------------------------------------------------------------------
