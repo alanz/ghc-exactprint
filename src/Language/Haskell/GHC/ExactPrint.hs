@@ -12,9 +12,12 @@ module Language.Haskell.GHC.ExactPrint
         , exactPrint
 
         -- * Utility
+        , Parser
         , parseModule
         , parseExpr
         , parseImport
+        , parseType
+        , parseDecl
         , parseWith
 
         ) where
@@ -38,6 +41,7 @@ import qualified Outputable    as GHC
 import qualified Parser        as GHC
 import qualified SrcLoc        as GHC
 import qualified StringBuffer  as GHC
+import qualified OrdList as OL
 
 import qualified Data.Map as Map
 import Control.Monad (void)
@@ -74,6 +78,14 @@ parseExpr = parseWith GHC.parseExpression
 
 parseImport :: Parser (GHC.LImportDecl GHC.RdrName)
 parseImport = parseWith GHC.parseImport
+
+parseType :: Parser (GHC.LHsType GHC.RdrName)
+parseType = parseWith GHC.parseType
+
+parseDecl :: Parser ([GHC.LHsDecl GHC.RdrName])
+parseDecl = parseWith (OL.fromOL <$> GHC.parseDeclaration)
+
+
 
 
 
