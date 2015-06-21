@@ -9,6 +9,7 @@
 module Main where
 
 import Language.Haskell.GHC.ExactPrint
+import Language.Haskell.GHC.ExactPrint.Annotate
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
@@ -71,6 +72,10 @@ type Module = (GHC.Located (GHC.HsModule GHC.RdrName))
 type Expr = GHC.Located (GHC.HsExpr GHC.RdrName)
 
 type Bind = HsBindLR  GHC.RdrName GHC.RdrName
+
+type Type = GHC.Located (GHC.HsType GHC.RdrName)
+
+type Decl = GHC.Located (GHC.HsDecl GHC.RdrName)
 
 mergeAnns :: Anns -> Anns -> Anns
 mergeAnns (a, b) (c,d) = (Map.union a c, Map.union b d)
@@ -136,18 +141,11 @@ toGhcSrcSpan file R.SrcSpan{..} = mkSrcSpan (f start) (f end)
 -- Perform the substitutions
 
 runRefactoring :: Anns -> Module -> Refactoring GHC.SrcSpan -> (Anns, Module)
-runRefactoring as m Replace{..} =
-  let replExprLocation = getLoc (findExpr m expr)
-      substitions = map (processSubsts m) subts
-      Right (newanns, template) = (unsafePerformIO $ parseExpr orig)
-      relat = relativiseApiAnns template newanns
-      doTransformation :: Expr -> M Expr
-      doTransformation = everywhereM (mkM (substTransform substitions))
-      (newExpr, newAnns) = runState (doTransformation template) relat
-      replacementPred (GHC.L l _) = l == replExprLocation
-      transformation = everywhereM (mkM (doReplacement replacementPred newExpr))
-      (final, finalanns) = runState (transformation m) as
-   in (mergeAnns finalanns newAnns, final)
+runRefactoring as m r@Replace{}  =
+  case rtype r of
+    Expr -> replaceWorker as m parseExpr doExprReplacement r
+--    Decl -> replaceWorker as m parseDecl r
+    Type -> replaceWorker as m parseType undefined r
 runRefactoring (as,sk) m ModifyComment{..} =
     ((Map.map go as, sk), m)
     where
@@ -160,35 +158,77 @@ runRefactoring (as,sk) m ModifyComment{..} =
                                           then DComment dp newComment prov
                                           else old
 
+type Repl a = (GHC.Located a -> Bool) -> GHC.Located a -> GHC.Located a -> M (GHC.Located a)
+
+replaceWorker :: (Annotate a, Data a) => Anns -> Module
+              -> Parser (GHC.Located a) -> Repl a
+              -> Refactoring GHC.SrcSpan -> (Anns, Module)
+replaceWorker as m p r Replace{..} =
+  let replExprLocation = getLoc (findExpr m expr)
+      substitions = map (processSubsts m) subts
+      Right (newanns, template) = (unsafePerformIO $ p orig)
+      relat = relativiseApiAnns template newanns
+      (newExpr, newAnns) = runState (substTransform m substitions template) relat
+      replacementPred (GHC.L l _) = l == replExprLocation
+      transformation = everywhereM (mkM (r replacementPred newExpr))
+      (final, finalanns) = runState (transformation m) as
+   in (mergeAnns finalanns newAnns, final)
+
 
 -- Find the largest expression with a given SrcSpan
-findExpr :: Module -> SrcSpan -> Expr
-findExpr m ss = snd $ runState (doTrans m) (error (showGhc ss))
+findGen :: forall ast . Data ast => Module -> SrcSpan -> GHC.Located ast
+findGen m ss = snd $ runState (doTrans m) (error (showGhc ss))
   where
-    doTrans :: Module -> State Expr Module
+    doTrans :: Module -> State (GHC.Located ast) Module
     doTrans = everywhereM (mkM (findLargestExpression ss))
 
-findLargestExpression :: SrcSpan -> Expr -> State Expr Expr
+findExpr :: Module -> SrcSpan -> Expr
+findExpr = findGen
+
+findType :: Module -> SrcSpan -> Type
+findType = findGen
+
+findDecl :: Module -> SrcSpan -> Decl
+findDecl = findGen
+
+
+
+findLargestExpression :: Data ast => SrcSpan -> GHC.Located ast -> State (GHC.Located ast) (GHC.Located ast)
 findLargestExpression ss e@(GHC.L l _) =
   if l == ss
-    then trace (showGhc e) (e <$ put e)
+    then (e <$ put e)
     else return e
 
 
 -- Substitute variables into templates
 
-processSubsts :: Module -> (String, GHC.SrcSpan) -> (GHC.OccName, Expr)
-processSubsts m (s, loc) = (GHC.mkVarOcc s, findExpr m loc)
+processSubsts :: Module -> (String, GHC.SrcSpan) -> (GHC.OccName, GHC.SrcSpan)
+processSubsts m (s, loc) = (GHC.mkVarOcc s, loc)
 
-substTransform :: [(GHC.OccName, Expr)] -> Expr -> M Expr
-substTransform subs old@(GHC.L l (HsVar name)) =
+substTransform :: Data a => Module -> [(GHC.OccName, GHC.SrcSpan)] -> a -> M a
+substTransform m ss = everywhereM (mkM (exprSub m ss)) `extM` typeSub m ss
+
+typeSub :: Module -> [(GHC.OccName, GHC.SrcSpan)] -> Type -> M Type
+typeSub m subs old@(GHC.L l (HsTyVar name)) =
+  resolveRdrName (findType m) old subs name
+typeSub _ _ e = return e
+
+exprSub :: Module -> [(GHC.OccName, GHC.SrcSpan)] -> Expr -> M Expr
+exprSub m subs old@(GHC.L l (HsVar name)) =
+  resolveRdrName (findExpr m) old subs name
+exprSub _ _ e = return e
+
+resolveRdrName :: Data a
+               => (SrcSpan -> GHC.Located a) -> GHC.Located a
+               -> [(GHC.OccName, GHC.SrcSpan)] -> GHC.RdrName -> M (GHC.Located a)
+resolveRdrName f old subs name =
   case name of
     -- Todo: this should replace anns as well?
     GHC.Unqual oname -> case (lookup oname subs) of
-                          Just new -> modifyAnnKey old new
+                          Just (f -> new) -> modifyAnnKey old new
                           Nothing -> return old
     _ -> return old
-substTransform _ e = return e
+
 
 -- Test
 
@@ -238,15 +278,15 @@ replaceExpr :: String -> Module -> Anns -> (Module, Anns)
 replaceExpr expr ast anns  =
   let Right (newanns, hsexpr) = (unsafePerformIO $ parseExpr expr)
       relat = trace (gshow hsexpr) (relativiseApiAnns hsexpr newanns)
-      transformation = everywhereM (mkM (doReplacement (fourliteral) hsexpr))
+      transformation = everywhereM (mkM (doExprReplacement (fourliteral) hsexpr))
       (final, finalanns) = runState (transformation ast) anns
   in (final, mergeAnns finalanns relat)
 
-doReplacement :: (Expr -> Bool)
+doExprReplacement :: (Expr -> Bool)
               -> Expr
               -> Expr
               -> M Expr
-doReplacement p new old =
+doExprReplacement p new old =
   if p old then modifyAnnKey old new else return old
 
 
