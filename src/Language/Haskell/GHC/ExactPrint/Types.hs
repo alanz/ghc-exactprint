@@ -24,6 +24,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , Disambiguator(..)
 
   , ResTyGADTHook(..)
+  , WildCardAnon(..)
 
   , getAnnotationEP
   , getAndRemoveAnnotationEP
@@ -238,6 +239,8 @@ deriving instance (Show (GHC.LHsTyVarBndr name)) => Show (ResTyGADTHook name)
 
 instance (GHC.OutputableBndr name) => GHC.Outputable (ResTyGADTHook name) where
   ppr (ResTyGADTHook bs) = GHC.text "ResTyGADTHook" GHC.<+> GHC.ppr bs
+
+data WildCardAnon = WildCardAnon deriving (Show,Data,Typeable)
 
 -- ---------------------------------------------------------------------
 

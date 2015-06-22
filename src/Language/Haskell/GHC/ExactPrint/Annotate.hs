@@ -486,7 +486,7 @@ instance (GHC.DataId name,Annotate name)
 #if __GLASGOW_HASKELL__ <= 710
     Just pkg -> markWithString GHC.AnnPackageName (show (GHC.unpackFS pkg))
 #else
-    Just (src,pkg) -> markWithString GHC.AnnPackageName src
+    Just (srcPkg,_pkg) -> markWithString GHC.AnnPackageName srcPkg
 #endif
 
    markExternal ln GHC.AnnVal (GHC.moduleNameString $ GHC.unLoc $ GHC.ideclName imp)
@@ -719,7 +719,7 @@ instance (Annotate GHC.CExportSpec) where
 #if __GLASGOW_HASKELL__ <= 710
   markAST l (GHC.CExportStatic _ cconv) = markAST l cconv
 #else
-  markAST l (GHC.CExportStatic src _ cconv) = markAST l cconv
+  markAST l (GHC.CExportStatic _src _ cconv) = markAST l cconv
 #endif
 
 -- ---------------------------------------------------------------------
@@ -1102,8 +1102,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     case mwc of
       Nothing -> if lc /= GHC.noSrcSpan then markLocated ctx else return ()
       Just lwc -> do
+#if __GLASGOW_HASKELL__ <= 710
         sorted <- lexicalSortLocated (GHC.L lwc GHC.HsWildcardTy:ctxs)
         markLocated (GHC.L lc sorted)
+#else
+        applyListAnnotations (prepareListAnnotation [GHC.L lwc WildCardAnon]
+                           ++ prepareListAnnotation ctxs)
+#endif
 
     mark GHC.AnnDarrow
     markLocated typ
@@ -1233,18 +1238,26 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsWrapTy _ _) =
     traceM "warning: HsWrapTyy Introduced after renaming"
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST l (GHC.HsWildcardTy) = do
     markExternal l GHC.AnnVal "_"
---    mark GHC.AnnDarrow -- if only part of a partial type signature context
--- TODO: Probably wrong
   markAST l (GHC.HsNamedWildcardTy n) = do
     markExternal l GHC.AnnVal  (showGhc n)
+#else
+  markAST l (GHC.HsWildCardTy (GHC.AnonWildCard _)) = do
+    markExternal l GHC.AnnVal "_"
+  markAST l (GHC.HsWildCardTy (GHC.NamedWildCard n)) = do
+    markExternal l GHC.AnnVal  (showGhc n)
+#endif
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST l (GHC.HsQuasiQuoteTy n) = do
     markAST l n
 #endif
 
+instance Annotate WildCardAnon where
+  markAST l WildCardAnon = do
+    markExternal l GHC.AnnVal "_"
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsSplice name) where
@@ -2280,6 +2293,7 @@ instance (Annotate name, GHC.DataId name, GHC.OutputableBndr name,GHC.HasOccName
     markLocated n
     mark GHC.AnnEqual
     markLocated e
+
 -- ---------------------------------------------------------------------
 
 instance (GHC.DataId name,Annotate name)
@@ -2302,8 +2316,8 @@ instance Annotate (GHC.CType) where
          markWithString GHC.AnnHeader ("\"" ++ GHC.unpackFS h ++ "\"")
     markWithString GHC.AnnVal ("\"" ++ GHC.unpackFS f ++ "\"")
 #else
-      Just (GHC.Header src h) ->
-         markWithString GHC.AnnHeader src
+      Just (GHC.Header srcH _h) ->
+         markWithString GHC.AnnHeader srcH
     markWithString GHC.AnnVal (fst f)
 #endif
     markWithString GHC.AnnClose "#-}"

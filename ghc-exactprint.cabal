@@ -95,17 +95,18 @@ executable roundtrip
   default-language:    Haskell2010
   if impl (ghc < 7.10)
       buildable: False
-  build-depends: ghc-exactprint
-               , filemanip
-               , HUnit
-               , ghc
+  build-depends:
+                 HUnit
                , base
-               , directory
-               , filepath
                , containers
+               , directory
+               , filemanip
+               , filepath
+               , ghc
+               , ghc-exactprint
                , ghc-paths
-               , temporary
                , syb
+               , temporary
   ghc-options:
     -threaded
 
@@ -122,6 +123,7 @@ executable static
 
 executable transform
   main-is: TestTransform.hs
+  Default-language:    Haskell2010
   build-depends: base
                , refact
                , ghc-exactprint
