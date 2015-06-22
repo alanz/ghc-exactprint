@@ -18,6 +18,7 @@ module Language.Haskell.GHC.ExactPrint
         , parseImport
         , parseType
         , parseDecl
+        , parsePattern
         , parseWith
 
         ) where
@@ -41,6 +42,7 @@ import qualified Outputable    as GHC
 import qualified Parser        as GHC
 import qualified SrcLoc        as GHC
 import qualified StringBuffer  as GHC
+import qualified RdrHsSyn as GHC ( checkPattern )
 import qualified OrdList as OL
 
 import qualified Data.Map as Map
@@ -82,8 +84,14 @@ parseImport = parseWith GHC.parseImport
 parseType :: Parser (GHC.LHsType GHC.RdrName)
 parseType = parseWith GHC.parseType
 
-parseDecl :: Parser ([GHC.LHsDecl GHC.RdrName])
-parseDecl = parseWith (OL.fromOL <$> GHC.parseDeclaration)
+-- safe, see D1007
+parseDecl :: Parser (GHC.LHsDecl GHC.RdrName)
+parseDecl = parseWith (head . OL.fromOL <$> GHC.parseDeclaration)
+
+-- Interim, see D1005
+-- will not parse bang patterns properly
+parsePattern :: Parser (GHC.LPat GHC.RdrName)
+parsePattern = parseWith (GHC.parseExpression >>= GHC.checkPattern GHC.empty)
 
 
 
