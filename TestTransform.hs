@@ -168,7 +168,9 @@ replaceWorker :: (Annotate a, Data a) => Anns -> Module
               -> Refactoring GHC.SrcSpan -> (Anns, Module)
 replaceWorker as m p r Replace{..} =
   let replExprLocation = expr
-      Right (newanns, template) = (unsafePerformIO $ p orig)
+      (newanns, template) = case (unsafePerformIO $ p orig) of
+                              Right xs -> xs
+                              Left err -> error (show err)
       relat = relativiseApiAnns template newanns
       (newExpr, newAnns) = runState (substTransform m subts template) relat
       replacementPred (GHC.L l _) = l == replExprLocation
