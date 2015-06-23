@@ -172,11 +172,11 @@ replaceWorker as m p r Replace{..} =
                               Right xs -> xs
                               Left err -> error (show err)
       relat = relativiseApiAnns template newanns
-      (newExpr, newAnns) = runState (substTransform m subts template) relat
+      (newExpr, newAnns) = runState (substTransform m subts template) (mergeAnns as relat)
       replacementPred (GHC.L l _) = l == replExprLocation
       transformation = everywhereM (mkM (r replacementPred newExpr))
-      (final, finalanns) = runState (transformation m) as
-   in (mergeAnns finalanns newAnns, final)
+      (final, finalanns) = runState (transformation m) newAnns
+   in (finalanns, final)
 
 
 -- Find the largest expression with a given SrcSpan
