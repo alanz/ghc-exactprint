@@ -14,3 +14,4 @@
 /src/Language/Haskell/GHC/ExactPrint/HLint.hs
 /src/Language/Haskell/GHC/HLint.hs
 /tests/HLint.hs
+/.stack-work/
