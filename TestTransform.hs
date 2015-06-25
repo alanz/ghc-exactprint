@@ -170,6 +170,9 @@ runRefactoring (as,sk) m ModifyComment{..} =
       change old@(DComment dp s prov) = if s == originalComment
                                           then DComment dp newComment prov
                                           else old
+runRefactoring as m Delete{position} =
+  trace (showGhc position) ((as, doDelete ((/= position) . getLoc) m))
+
 
 type Repl a = (GHC.Located a -> Bool) -> GHC.Located a -> GHC.Located a -> M (GHC.Located a)
 
