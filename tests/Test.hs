@@ -235,6 +235,11 @@ tests = TestList
   , mkParserTest "ImplicitTypeSyn.hs"
   , mkParserTest "OveridingPrimitives.hs"
   , mkParserTest "SlidingDataClassDecl.hs"
+  , mkParserTest "SemiInstance.hs"
+  , mkParserTest "ImplicitSemi.hs"
+  , mkParserTest "RulesSemi.hs"
+  , mkParserTest  "InlineSemi.hs"
+  , mkParserTest  "SpliceSemi.hs"
 
   , mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
   , mkTestModChange changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
