@@ -4,6 +4,9 @@ packages:
 - location:
     git: git@github.com:mpickering/refact
     commit: 5fc6585cefb50a0fddba0f56cc8dabb9fad832e8
+    # dependency: true
+  extra-dep: true
+    # valid-wanted: false
 extra-deps:
   # - ghc-7.10.1.20150612
   - ghc-syb-utils-0.2.3
