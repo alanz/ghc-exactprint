@@ -550,6 +550,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnOpenPE
     markLocated e
     mark GHC.AnnCloseP
+    markOutside GHC.AnnSemi AnnSemiSep
 
 {-
 - data SpliceExplicitFlag = ExplicitSplice | -- <=> $(f x y)
@@ -606,6 +607,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
      markWithString GHC.AnnOpen src
      mapM_ markLocated rules
      markWithString GHC.AnnClose "#-}"
+     markOutside GHC.AnnSemi AnnSemiSep
 
 -- ---------------------------------------------------------------------
 
@@ -629,6 +631,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLocated lhs
     mark GHC.AnnEqual
     markLocated rhs
+    markOutside GHC.AnnSemi AnnSemiSep
 
 -- ---------------------------------------------------------------------
 
@@ -701,6 +704,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLocated ln
     mark GHC.AnnDcolon
     markLocated typ
+    markOutside (GHC.AnnSemi) AnnSemiSep
 
 
   markAST _l (GHC.ForeignExport ln typ _ (GHC.CExport spec (GHC.L ls src))) = do
@@ -813,6 +817,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
                          )
 
     mark GHC.AnnCloseC -- '}'
+    markOutside GHC.AnnSemi (AnnSemiSep)
 
 -- ---------------------------------------------------------------------
 
@@ -823,6 +828,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnType
     mark GHC.AnnInstance
     markLocated eqn
+    markOutside GHC.AnnSemi AnnSemiSep
 
 -- ---------------------------------------------------------------------
 
@@ -904,6 +910,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       Right _i -> return ()
     mark GHC.AnnEqual
     markLocated e
+    markOutside GHC.AnnSemi AnnSemiSep
 
 -- ---------------------------------------------------------------------
 
@@ -1026,19 +1033,20 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnCloseS -- ']'
     markLocated ln
     markWithString GHC.AnnClose "#-}" -- '#-}'
+    markOutside GHC.AnnSemi AnnSemiSep
 
 
   markAST _ (GHC.SpecSig ln typs inl) = do
     markWithString GHC.AnnOpen (GHC.inl_src inl)
     mark GHC.AnnOpenS --  '['
     mark GHC.AnnTilde -- ~
-    markWithString GHC.AnnVal  "TODO: What here"
 
     mark GHC.AnnCloseS -- ']'
     markLocated ln
     mark GHC.AnnDcolon -- '::'
     mapM_ markLocated typs
     markWithString GHC.AnnClose "#-}" -- '#-}'
+    markOutside GHC.AnnSemi AnnSemiSep
 
 
   -- '{-# SPECIALISE' 'instance' inst_type '#-}'
@@ -1047,6 +1055,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnInstance
     markLocated typ
     markWithString GHC.AnnClose "#-}" -- '#-}'
+    markOutside GHC.AnnSemi AnnSemiSep
+
 
 
   -- MinimalSig (BooleanFormula (Located name))
@@ -1055,6 +1065,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     annotationsToComments [GHC.AnnOpenP,GHC.AnnCloseP,GHC.AnnComma,GHC.AnnVbar]
     markAST l formula
     markWithString GHC.AnnClose "#-}"
+    markOutside GHC.AnnSemi AnnSemiSep
 
 
 -- --------------------------------------------------------------------
@@ -1559,7 +1570,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     mapM_ markLocated stmts
     mark GHC.AnnCloseC
     mark GHC.AnnVbar -- possible in list comprehension
-    markOutside GHC.AnnSemi (G GHC.AnnSemi)
+    markOutside GHC.AnnSemi AnnSemiSep
 
 -- ---------------------------------------------------------------------
 
@@ -2154,6 +2165,7 @@ instance (GHC.DataId name,Annotate name, GHC.OutputableBndr name,GHC.HasOccName 
 #endif
       _ -> return ()
     mark GHC.AnnCloseC -- }
+    markOutside GHC.AnnSemi AnnSemiSep
 
 -- ---------------------------------------------------------------------
 
