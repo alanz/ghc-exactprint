@@ -71,3 +71,7 @@ type instance f |> Union s = Union (f :> s)
 
 type family Compare (a :: k) (b :: k') :: Ordering where
   Compare '() '() = EQ
+
+type family (r1 :++: r2); infixr 5 :++:
+type instance r :++: Nil = r
+type instance r1 :++: r2 :> a = (r1 :++: r2) :> a

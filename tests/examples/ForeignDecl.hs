@@ -46,6 +46,8 @@ foreign import stdcall "dynamic" d16 :: FunPtr (IO Int16) -> IO Int16
 foreign import stdcall "dynamic" d32 :: FunPtr (IO Int32) -> IO Int32
 foreign import stdcall "dynamic" d64 :: FunPtr (IO Int64) -> IO Int64
 
+foreign import ccall unsafe "safe_qd.h safe_qd_add" c_qd_add :: Ptr CDouble -> Ptr CDouble -> Ptr CDouble -> IO ();
+
 foreign import ccall unsafe "kitchen"
    sink :: Ptr a
         -> ByteArray#
