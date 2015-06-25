@@ -96,7 +96,13 @@ replace old new (as, keys) = do
 combine :: Annotation -> Annotation -> Annotation
 combine oldann newann =
   Ann (annEntryDelta oldann) (annDelta oldann) (annTrueEntryDelta oldann)
-      (annPriorComments oldann ++ annPriorComments newann) (annsDP newann)
+      (annPriorComments oldann ++ annPriorComments newann) (annsDP newann ++ extraComma (annsDP oldann))
+  where
+    extraComma [] = []
+    extraComma (last -> x) = case x of
+                              (G GHC.AnnComma, dp) -> [x]
+                              _ -> []
+
 
 
 mkKey :: (Data a) => GHC.Located a -> AnnKey
