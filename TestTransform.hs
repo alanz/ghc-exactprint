@@ -18,7 +18,8 @@ import Data.Generics.Schemes
 
 import HsExpr as GBC
 import HsBinds as GBC
-import HsSyn
+import HsSyn hiding (Pat)
+import qualified HsSyn as GHC (Pat)
 import SrcLoc
 import qualified SrcLoc as GHC
 import qualified RdrName as GHC
@@ -76,6 +77,8 @@ type Bind = HsBindLR  GHC.RdrName GHC.RdrName
 type Type = GHC.Located (GHC.HsType GHC.RdrName)
 
 type Decl = GHC.Located (GHC.HsDecl GHC.RdrName)
+
+type Pat = GHC.LPat GHC.RdrName
 
 mergeAnns :: Anns -> Anns -> Anns
 mergeAnns (a, b) (c,d) = (Map.union a c, Map.union b d)
@@ -143,8 +146,9 @@ runRefactoring :: Anns -> Module -> Refactoring GHC.SrcSpan -> (Anns, Module)
 runRefactoring as m r@Replace{}  =
   case rtype r of
     Expr -> replaceWorker as m parseExpr doExprReplacement r
---    Decl -> replaceWorker as m parseDecl r
+    Decl -> replaceWorker as m parseDecl doGenReplacement r
     Type -> replaceWorker as m parseType doGenReplacement r
+    Pattern -> replaceWorker as m parsePattern doGenReplacement r
 runRefactoring (as,sk) m ModifyComment{..} =
     ((Map.map go as, sk), m)
     where
@@ -164,13 +168,15 @@ replaceWorker :: (Annotate a, Data a) => Anns -> Module
               -> Refactoring GHC.SrcSpan -> (Anns, Module)
 replaceWorker as m p r Replace{..} =
   let replExprLocation = expr
-      Right (newanns, template) = (unsafePerformIO $ p orig)
+      (newanns, template) = case (unsafePerformIO $ p orig) of
+                              Right xs -> xs
+                              Left err -> error (show err)
       relat = relativiseApiAnns template newanns
-      (newExpr, newAnns) = runState (substTransform m subts template) relat
+      (newExpr, newAnns) = runState (substTransform m subts template) (mergeAnns as relat)
       replacementPred (GHC.L l _) = l == replExprLocation
       transformation = everywhereM (mkM (r replacementPred newExpr))
-      (final, finalanns) = runState (transformation m) as
-   in (mergeAnns finalanns newAnns, final)
+      (final, finalanns) = runState (transformation m) newAnns
+   in (finalanns, final)
 
 
 -- Find the largest expression with a given SrcSpan
@@ -182,6 +188,9 @@ findGen m ss = snd $ runState (doTrans m) (error (showGhc ss))
 
 findExpr :: Module -> SrcSpan -> Expr
 findExpr = findGen
+
+findPat :: Module -> SrcSpan -> Pat
+findPat = findGen
 
 findType :: Module -> SrcSpan -> Type
 findType = findGen
@@ -200,11 +209,15 @@ findLargestExpression ss e@(GHC.L l _) =
 
 -- Substitute variables into templates
 
-processSubsts :: Module -> (String, GHC.SrcSpan) -> (String, GHC.SrcSpan)
-processSubsts m (s, loc) = (s, loc)
-
 substTransform :: Data a => Module -> [(String, GHC.SrcSpan)] -> a -> M a
-substTransform m ss = everywhereM (mkM (exprSub m ss) `extM` typeSub m ss)
+substTransform m ss = everywhereM (mkM (exprSub m ss)
+                                    `extM` typeSub m ss
+                                    `extM` patSub m ss)
+
+patSub :: Module -> [(String, GHC.SrcSpan)] -> Pat -> M Pat
+patSub m subs old@(GHC.L l (VarPat name)) =
+  (resolveRdrName (findPat m) old subs name)
+patSub _ _ e = return e
 
 typeSub :: Module -> [(String, GHC.SrcSpan)] -> Type -> M Type
 typeSub m subs old@(GHC.L l (HsTyVar name)) =
@@ -423,13 +436,4 @@ setInitialDelta dp (mkAnnKey -> key) (as,sk) = (Map.adjust set key as, sk)
       let DP (c,l) = annEntryDelta
           newdelta = if c == 0 then DP (1, l) else annEntryDelta
       in a { annEntryDelta = newdelta}
-
-
-
-
-
-
-
-
-
 
