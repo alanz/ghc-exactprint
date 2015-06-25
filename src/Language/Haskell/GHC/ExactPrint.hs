@@ -19,6 +19,7 @@ module Language.Haskell.GHC.ExactPrint
         , parseType
         , parseDecl
         , parsePattern
+        , parseStmt
         , parseWith
 
         ) where
@@ -87,6 +88,9 @@ parseType = parseWith GHC.parseType
 -- safe, see D1007
 parseDecl :: Parser (GHC.LHsDecl GHC.RdrName)
 parseDecl = parseWith (head . OL.fromOL <$> GHC.parseDeclaration)
+
+parseStmt :: Parser (GHC.ExprLStmt GHC.RdrName)
+parseStmt = parseWith GHC.parseStatement
 
 -- Interim, see D1005
 -- will not parse bang patterns properly

@@ -16,10 +16,11 @@ import Language.Haskell.GHC.ExactPrint.Utils
 import Data.Data
 import Data.Generics.Schemes
 
-import HsExpr as GBC
-import HsBinds as GBC
-import HsSyn hiding (Pat)
-import qualified HsSyn as GHC (Pat)
+import HsExpr as GHC hiding (Stmt)
+import qualified HsExpr as GHC (Stmt)
+import HsBinds as GHC
+import HsSyn hiding (Pat, Stmt)
+import qualified HsSyn as GHC (Pat, Stmt)
 import SrcLoc
 import qualified SrcLoc as GHC
 import qualified RdrName as GHC
@@ -79,6 +80,8 @@ type Type = GHC.Located (GHC.HsType GHC.RdrName)
 type Decl = GHC.Located (GHC.HsDecl GHC.RdrName)
 
 type Pat = GHC.LPat GHC.RdrName
+
+type Stmt = ExprLStmt GHC.RdrName
 
 mergeAnns :: Anns -> Anns -> Anns
 mergeAnns (a, b) (c,d) = (Map.union a c, Map.union b d)
@@ -149,6 +152,7 @@ runRefactoring as m r@Replace{}  =
     Decl -> replaceWorker as m parseDecl doGenReplacement r
     Type -> replaceWorker as m parseType doGenReplacement r
     Pattern -> replaceWorker as m parsePattern doGenReplacement r
+    Stmt -> replaceWorker as m parseStmt doGenReplacement r
 runRefactoring (as,sk) m ModifyComment{..} =
     ((Map.map go as, sk), m)
     where
@@ -198,6 +202,9 @@ findType = findGen
 findDecl :: Module -> SrcSpan -> Decl
 findDecl = findGen
 
+findStmt :: Module -> SrcSpan -> Stmt
+findStmt = findGen
+
 
 
 findLargestExpression :: Data ast => SrcSpan -> GHC.Located ast -> State (GHC.Located ast) (GHC.Located ast)
@@ -206,13 +213,26 @@ findLargestExpression ss e@(GHC.L l _) =
     then (e <$ put e)
     else return e
 
+-- Deletion from a list
+
+deleteFromList :: (Stmt -> Bool) -> [Stmt] -> [Stmt]
+deleteFromList p xs = trace (showGhc xs) (filter p xs)
+
+doDelete p = everywhere (mkT (deleteFromList p))
+
 
 -- Substitute variables into templates
 
 substTransform :: Data a => Module -> [(String, GHC.SrcSpan)] -> a -> M a
 substTransform m ss = everywhereM (mkM (exprSub m ss)
                                     `extM` typeSub m ss
-                                    `extM` patSub m ss)
+                                    `extM` patSub m ss
+                                    `extM` stmtSub m ss)
+
+stmtSub :: Module -> [(String, GHC.SrcSpan)] -> Stmt -> M Stmt
+stmtSub m subs old@(GHC.L l (BodyStmt (GHC.L l2 (HsVar name)) _ _ _) ) =
+  resolveRdrName (findStmt m) old subs name
+stmtSub _ _ e = return e
 
 patSub :: Module -> [(String, GHC.SrcSpan)] -> Pat -> M Pat
 patSub m subs old@(GHC.L l (VarPat name)) =
