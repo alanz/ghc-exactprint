@@ -101,6 +101,8 @@ combine oldann newann =
     extraComma [] = []
     extraComma (last -> x) = case x of
                               (G GHC.AnnComma, dp) -> [x]
+                              (AnnSemiSep, dp) -> [x]
+                              (G GHC.AnnSemi, dp) -> [x]
                               _ -> []
 
 
