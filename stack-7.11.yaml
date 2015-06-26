@@ -6,4 +6,8 @@ packages:
     commit: 8e849c3143658dac5f6635984141b616f02ebc2c
   extra-dep: true
 extra-deps:
+- semigroupoids-5.0.0.2
+- bifunctors-5
+- profunctors-5.1.1
+- free-4.12.1
 resolver: nightly-2015-06-25
