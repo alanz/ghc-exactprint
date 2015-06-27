@@ -6,6 +6,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 module Main where
 
 import Language.Haskell.GHC.ExactPrint
@@ -16,10 +17,11 @@ import Language.Haskell.GHC.ExactPrint.Utils
 import Data.Data
 import Data.Generics.Schemes
 
-import HsExpr as GBC
-import HsBinds as GBC
-import HsSyn hiding (Pat)
-import qualified HsSyn as GHC (Pat)
+import HsExpr as GHC hiding (Stmt)
+import qualified HsExpr as GHC (Stmt)
+import HsBinds as GHC
+import HsSyn hiding (Pat, Stmt)
+import qualified HsSyn as GHC (Pat, Stmt)
 import SrcLoc
 import qualified SrcLoc as GHC
 import qualified RdrName as GHC
@@ -80,20 +82,32 @@ type Decl = GHC.Located (GHC.HsDecl GHC.RdrName)
 
 type Pat = GHC.LPat GHC.RdrName
 
+type Name = GHC.Located GHC.RdrName
+
+type Stmt = ExprLStmt GHC.RdrName
+
 mergeAnns :: Anns -> Anns -> Anns
 mergeAnns (a, b) (c,d) = (Map.union a c, Map.union b d)
 
 -- | Replaces an old expression with a new expression
-replace :: AnnKey -> AnnKey -> Anns -> Maybe Anns
-replace old new (as, keys) = do
+replace :: AnnKey -> AnnKey -> AnnKey -> Anns -> Maybe Anns
+replace old new inp (as, keys) = do
   oldan <- Map.lookup old as
   newan <- Map.lookup new as
-  return . (, keys) . Map.delete old . Map.insert new (combine oldan newan) $ as
+  return . (, keys) . Map.delete old . Map.insert inp (combine oldan newan) $ as
 
 combine :: Annotation -> Annotation -> Annotation
 combine oldann newann =
   Ann (annEntryDelta oldann) (annDelta oldann) (annTrueEntryDelta oldann)
-      (annPriorComments oldann ++ annPriorComments newann) (annsDP newann)
+      (annPriorComments oldann ++ annPriorComments newann) (annsDP newann ++ extraComma (annsDP oldann))
+  where
+    extraComma [] = []
+    extraComma (last -> x) = case x of
+                              (G GHC.AnnComma, dp) -> [x]
+                              (AnnSemiSep, dp) -> [x]
+                              (G GHC.AnnSemi, dp) -> [x]
+                              _ -> []
+
 
 
 mkKey :: (Data a) => GHC.Located a -> AnnKey
@@ -149,6 +163,7 @@ runRefactoring as m r@Replace{}  =
     Decl -> replaceWorker as m parseDecl doGenReplacement r
     Type -> replaceWorker as m parseType doGenReplacement r
     Pattern -> replaceWorker as m parsePattern doGenReplacement r
+    Stmt -> replaceWorker as m parseStmt doGenReplacement r
 runRefactoring (as,sk) m ModifyComment{..} =
     ((Map.map go as, sk), m)
     where
@@ -160,6 +175,9 @@ runRefactoring (as,sk) m ModifyComment{..} =
       change old@(DComment dp s prov) = if s == originalComment
                                           then DComment dp newComment prov
                                           else old
+runRefactoring as m Delete{position} =
+  trace (showGhc position) ((as, doDelete ((/= position) . getLoc) m))
+
 
 type Repl a = (GHC.Located a -> Bool) -> GHC.Located a -> GHC.Located a -> M (GHC.Located a)
 
@@ -180,31 +198,46 @@ replaceWorker as m p r Replace{..} =
 
 
 -- Find the largest expression with a given SrcSpan
-findGen :: forall ast . Data ast => Module -> SrcSpan -> GHC.Located ast
-findGen m ss = snd $ runState (doTrans m) (error (showGhc ss))
+findGen :: forall ast . Data ast => String -> Module -> SrcSpan -> GHC.Located ast
+findGen s m ss = fromMaybe (error (s ++ " " ++ showGhc ss)) (doTrans m)
   where
-    doTrans :: Module -> State (GHC.Located ast) Module
-    doTrans = everywhereM (mkM (findLargestExpression ss))
+    doTrans :: Module -> Maybe (GHC.Located ast)
+    doTrans = something (mkQ Nothing (findLargestExpression ss))
 
 findExpr :: Module -> SrcSpan -> Expr
-findExpr = findGen
+findExpr = findGen "expr"
 
 findPat :: Module -> SrcSpan -> Pat
-findPat = findGen
+findPat = findGen "pat"
 
 findType :: Module -> SrcSpan -> Type
-findType = findGen
+findType = findGen "type"
 
 findDecl :: Module -> SrcSpan -> Decl
-findDecl = findGen
+findDecl = findGen "decl"
+
+findStmt :: Module -> SrcSpan -> Stmt
+findStmt = findGen "stmt"
+
+findName :: Module -> SrcSpan -> (Name, Pat)
+findName m ss =
+  case findPat m ss of
+       p@(GHC.L l (VarPat n)) -> (GHC.L l n, p)
+       _ -> error "Not var pat"
 
 
-
-findLargestExpression :: Data ast => SrcSpan -> GHC.Located ast -> State (GHC.Located ast) (GHC.Located ast)
+findLargestExpression :: Data ast => SrcSpan -> GHC.Located ast -> Maybe (GHC.Located ast)
 findLargestExpression ss e@(GHC.L l _) =
   if l == ss
-    then (e <$ put e)
-    else return e
+    then Just e
+    else Nothing
+
+-- Deletion from a list
+
+deleteFromList :: (Stmt -> Bool) -> [Stmt] -> [Stmt]
+deleteFromList = filter
+
+doDelete p = everywhere (mkT (deleteFromList p))
 
 
 -- Substitute variables into templates
@@ -212,7 +245,15 @@ findLargestExpression ss e@(GHC.L l _) =
 substTransform :: Data a => Module -> [(String, GHC.SrcSpan)] -> a -> M a
 substTransform m ss = everywhereM (mkM (exprSub m ss)
                                     `extM` typeSub m ss
-                                    `extM` patSub m ss)
+                                    `extM` patSub m ss
+                                    `extM` stmtSub m ss
+                                    `extM` identSub m ss
+                                    )
+
+stmtSub :: Module -> [(String, GHC.SrcSpan)] -> Stmt -> M Stmt
+stmtSub m subs old@(GHC.L l (BodyStmt (GHC.L l2 (HsVar name)) _ _ _) ) =
+  resolveRdrName (findStmt m) old subs name
+stmtSub _ _ e = return e
 
 patSub :: Module -> [(String, GHC.SrcSpan)] -> Pat -> M Pat
 patSub m subs old@(GHC.L l (VarPat name)) =
@@ -229,17 +270,26 @@ exprSub m subs old@(GHC.L l (HsVar name)) =
   resolveRdrName (findExpr m) old subs name
 exprSub _ _ e = return e
 
-resolveRdrName :: Data a
-               => (SrcSpan -> GHC.Located a) -> GHC.Located a
-               -> [(String, GHC.SrcSpan)] -> GHC.RdrName -> M (GHC.Located a)
-resolveRdrName f old subs name =
+identSub :: Module -> [(String, GHC.SrcSpan)] -> Name -> M Name
+identSub m subs old@(GHC.L l name) =
+  (resolveRdrName' subst (findName m) old subs name)
+  where
+    subst :: Name -> (Name, Pat) -> M Name
+    subst old (n, p) = n <$ modify (\r -> replaceAnnKey r (mkAnnKey old) (mkAnnKey p) (mkAnnKey n))
+
+resolveRdrName' ::
+                  (a -> b -> M a)  ->  (SrcSpan -> b) -> a
+               -> [(String, GHC.SrcSpan)] -> GHC.RdrName -> M a
+resolveRdrName' g f old subs name =
   case name of
     -- Todo: this should replace anns as well?
     GHC.Unqual (showGhc -> oname)
       -> case (lookup oname subs) of
-              Just (f -> new) -> modifyAnnKey old new
+              Just (f -> new) -> g old new
               Nothing -> return old
     _ -> return old
+
+resolveRdrName = resolveRdrName' modifyAnnKey
 
 
 -- Test
@@ -274,13 +324,13 @@ removeBrackets p v@(GHC.L t (GHC.HsPar e)) =
     else return v
 removeBrackets _ e = return e
 
-modifyAnnKey e1 e2 = e2 <$ modify (\m -> replaceAnnKey m e1 e2)
+modifyAnnKey e1 e2 = e2 <$ modify (\m -> replaceAnnKey m (mkAnnKey e1) (mkAnnKey e2) (mkAnnKey e2))
 
 
-replaceAnnKey :: (Data old, Data new)
-  => Anns -> GHC.Located old -> GHC.Located new -> Anns
-replaceAnnKey a old new =
-  case replace (mkAnnKey old) (mkAnnKey new) a  of
+replaceAnnKey ::
+  Anns -> AnnKey -> AnnKey -> AnnKey -> Anns
+replaceAnnKey a old new inp =
+  case replace old new inp a  of
     Nothing -> a
     Just a' -> a'
 
