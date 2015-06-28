@@ -69,6 +69,8 @@ parseWith f s =
       dflags <- GHC.getSessionDynFlags
       void $ GHC.setSessionDynFlags dflags
       return $
+        -- AZ: It may be worth passing in a parameter for the filename instead of "<interactive>".
+        --     This allows multiple changes to co-exist as having guaranteed different spans.
         case runParser f dflags "<Interactive>" s of
           GHC.PFailed ss m -> Left (ss, GHC.showSDoc dflags m)
           GHC.POk (mkApiAnns -> apianns) pmod   -> Right (apianns, pmod)
