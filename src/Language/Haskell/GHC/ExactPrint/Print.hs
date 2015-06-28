@@ -353,16 +353,15 @@ isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP (undelta (0,0) dp colOffset
 
 -- AZ:TODO: harvest the commonality between this and printStringAtLsDelta
 printQueuedComment :: DComment -> DeltaPos -> EP ()
-printQueuedComment (DComment de s _) dp = do
+printQueuedComment Comment{commentPos, commentContents} dp = do
   p <- getPos
   colOffset <- getLayoutOffset
   let (dr,dc) = undelta (0,0) dp colOffset
-  if isGoodDelta (DP (dr,max 0 dc)) -- do not lose comments against the left margin
-    then do
-      printStringAt (undelta p dp colOffset) s
-         `debug` ("printQueuedComment:(pos,s):" ++ show (undelta p dp colOffset,s))
-      setPos (undelta p de colOffset)
-    else return () `debug` ("printQueuedComment::bad delta for (dp,s):" ++ show (dp,s))
+  -- do not lose comments against the left marginet
+  when (isGoodDelta (DP (dr,max 0 dc)))
+    (do
+      printStringAt (undelta p dp colOffset) commentContents
+      setPos (undelta p commentPos colOffset))
 
 -- ---------------------------------------------------------------------
 

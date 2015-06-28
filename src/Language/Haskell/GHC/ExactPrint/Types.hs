@@ -1,11 +1,13 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE UndecidableInstances #-} -- for GHC.DataId
 module Language.Haskell.GHC.ExactPrint.Types
   (
-    Comment(..)
-  , DComment(..)
+    Comment
+  , DComment
+  , PComment(..)
   , Pos
   , Span
   , PosToken
@@ -43,28 +45,32 @@ import qualified GHC
 import qualified Outputable    as GHC
 
 import qualified Data.Map as Map
+import Data.Ord
 
 -- ---------------------------------------------------------------------
 
 -- | A Haskell comment. The @AnnKeywordId@ is present if it has been converted
 -- from an @AnnKeywordId@ because the annotation must be interleaved into the
 -- stream and does not have a well-defined position
-data Comment = Comment Span String (Maybe GHC.AnnKeywordId)
-  deriving (Eq,Show,Typeable,Data)
+data PComment a = Comment
+    {
+      commentPos :: a -- ^ Either `Span` or `DeltaPos`
+    , commentContents :: String -- ^ The contents of the comment including separators
+    , commentIdentifier :: GHC.SrcSpan -- ^ Needed to uniquely identify two comments with the same contents
+    , commentOrigin :: (Maybe GHC.AnnKeywordId) -- ^ We sometimes turn syntax into comments in order to process them properly.
+    }
+  deriving (Eq,Show,Typeable,Data, Functor)
 
-instance GHC.Outputable Comment where
+type Comment = PComment Span
+
+
+type DComment = PComment DeltaPos
+
+instance Show a => GHC.Outputable (PComment a) where
   ppr x = GHC.text (show x)
 
--- |Delta version of the comment.
---
-data DComment = DComment
-                  DeltaPos  -- ^ Location of the end of the comment relative to the start
-                  String -- ^ The comment
-                  (Maybe GHC.AnnKeywordId) -- ^ The origin of the comment.
-  deriving (Eq,Show,Typeable,Data,Ord)
-
-instance Ord Comment where
-  compare (Comment p1 _ _) (Comment p2 _ _) = compare p1 p2
+instance Ord a => Ord (PComment a) where
+  compare = comparing commentPos
 
 type PosToken = (GHC.Located GHC.Token, String)
 
