@@ -16,6 +16,9 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , rdrName2String
   , isSymbolRdrName
   , ghcCommentText
+  , mkComment
+  , mkKWComment
+  , mkDComment
   , isPointSrcSpan
   , pos2delta
   , ss2delta
@@ -46,8 +49,10 @@ import Control.Monad.State
 import Data.Data (Data, toConstr, showConstr, cast)
 import Data.Generics (extQ, ext1Q, ext2Q, gmapQ)
 import Data.List (intercalate)
+import Data.Functor (($>))
 
 import Language.Haskell.GHC.ExactPrint.Types
+import Language.Haskell.GHC.ExactPrint.Lookup
 
 
 import qualified GHC
@@ -189,6 +194,15 @@ ghcCommentText (GHC.L _ (GHC.AnnDocOptions s))      = s
 ghcCommentText (GHC.L _ (GHC.AnnDocOptionsOld s))   = s
 ghcCommentText (GHC.L _ (GHC.AnnLineComment s))     = s
 ghcCommentText (GHC.L _ (GHC.AnnBlockComment s))    = s
+
+mkComment :: String -> GHC.SrcSpan -> Comment
+mkComment c ss = Comment (ss2span ss) c ss Nothing
+
+mkKWComment :: GHC.AnnKeywordId -> GHC.SrcSpan -> Comment
+mkKWComment kw ss = Comment (ss2span ss) (keywordToString $ G kw) ss (Just kw)
+
+mkDComment :: Comment -> DeltaPos -> DComment
+mkDComment = ($>)
 
 -- ---------------------------------------------------------------------
 

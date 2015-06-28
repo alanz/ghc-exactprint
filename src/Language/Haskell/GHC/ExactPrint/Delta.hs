@@ -131,7 +131,7 @@ defaultDeltaState injectedComments priorEnd ga =
       map tokComment . GHC.sortLocated . concat $ Map.elems cm
 
 tokComment :: GHC.Located GHC.AnnotationComment -> Comment
-tokComment t@(GHC.L lt _) = Comment (ss2span lt) (ghcCommentText t) Nothing
+tokComment t@(GHC.L lt _) = mkComment (ghcCommentText t) lt
 
 -- Writer helpers
 
@@ -220,7 +220,7 @@ annotationsToCommentsDelta kws = do
     doOne kw = comments
       where
         spans = GHC.getAnnotation ga ss kw
-        comments = map (\sp -> Comment (ss2span sp) (keywordToString (G kw)) (Just kw)) spans
+        comments = map (mkKWComment kw) spans
     -- TODO:AZ make sure these are sorted/merged properly when the invariant for
     -- allocateComments is re-established.
     newComments = concatMap doOne kws
@@ -403,7 +403,7 @@ resetAnns action = do
 -- |Split the ordered list of comments into ones that occur prior to
 -- the give SrcSpan and the rest
 priorComment :: Pos -> Comment -> Bool
-priorComment start (Comment s _ _) = fst s < start
+priorComment start c = (fst . commentPos $ c) < start
 
 -- TODO:AZ: We scan the entire comment list here. It may be better to impose an
 -- invariant that the comments are sorted, and consume them as the pos
@@ -471,15 +471,16 @@ commentAllocation p k = do
 
 
 makeDeltaComment :: Comment -> Delta (DComment, DeltaPos)
-makeDeltaComment (Comment paspan str mkw) = do
-  let pa = span2ss paspan
+makeDeltaComment c = do
+  let paspan = commentPos c
+      pa = span2ss paspan
   pe <- getPriorEnd
   let p = ss2delta pe pa
   p' <- adjustDeltaForOffsetM p
   setPriorEnd (ss2posEnd pa)
   let e = pos2delta pe (snd paspan)
   e' <- adjustDeltaForOffsetM e
-  return $ (DComment e' str mkw, p')
+  return $ (mkDComment c e', p')
 
 addDeltaComment :: DComment -> DeltaPos -> Delta ()
 addDeltaComment d p = do
