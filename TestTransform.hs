@@ -179,6 +179,18 @@ runRefactoring as m Delete{position} =
   ((as, doDelete ((/= position) . getLoc) m))
 runRefactoring as m Rename{nameSubts} =
   (as, doRename nameSubts m)
+runRefactoring as m InsertComment{..} =
+  let exp = mkAnnKey (findDecl m commentCarrier) in
+  (first (insertComment exp newComment) as, m)
+
+insertComment :: AnnKey -> String
+              -> Map.Map AnnKey Annotation
+              -> Map.Map AnnKey Annotation
+insertComment k s as =
+  let comment = Comment (DP (0, length s)) s GHC.noSrcSpan Nothing in
+  Map.adjust (\a@Ann{..} -> a { annPriorComments = annPriorComments ++ [(comment, DP (1,0))]
+                          , annEntryDelta = DP (1,0) }) k as
+
 
 
 
