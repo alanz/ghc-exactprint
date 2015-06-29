@@ -19,12 +19,16 @@ import qualified MonadUtils     as GHC
 import qualified SrcLoc         as GHC
 import qualified StringBuffer   as GHC
 
+import SrcLoc (mkSrcSpan, mkSrcLoc)
+import FastString (mkFastString)
+
 import Control.Exception
 import Data.List hiding (find)
 import Data.Maybe
 import Language.Haskell.GHC.ExactPrint.Delta
 import Language.Haskell.GHC.ExactPrint.GhcInterim (commentToAnnotation)
 import Language.Haskell.GHC.ExactPrint.Types
+import Language.Haskell.GHC.ExactPrint.Utils
 import qualified Data.Set as Set
 
 -- import Debug.Trace
@@ -44,10 +48,16 @@ checkLine line s
   |  "{-# LINE" `isPrefixOf` s =
        let (pragma, res) = getPragma s
            size   = length pragma
-       in (res, Just $ Comment ((line, 1), (line, size+1)) pragma Nothing)
+           mSrcLoc = mkSrcLoc (mkFastString "LINE")
+           ss     = mkSrcSpan (mSrcLoc line 1) (mSrcLoc line (size+1))
+       in (res, Just $ mkComment pragma ss)
   -- Deal with shebang/cpp directives too
   -- x |  "#" `isPrefixOf` s = ("",Just $ Comment ((line, 1), (line, length s)) s)
-  |  "#!" `isPrefixOf` s = ("",Just $ Comment ((line, 1), (line, length s)) s Nothing)
+  |  "#!" `isPrefixOf` s =
+    let mSrcLoc = mkSrcLoc (mkFastString "SHEBANG")
+        ss = mkSrcSpan (mSrcLoc line 1) (mSrcLoc line (length s))
+    in
+    ("",Just $ mkComment s ss)
   | otherwise = (s, Nothing)
 
 getPragma :: String -> (String, String)

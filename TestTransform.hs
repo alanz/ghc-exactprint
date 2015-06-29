@@ -176,7 +176,10 @@ runRefactoring (as,sk) m ModifyComment{..} =
                                           then DComment dp newComment prov
                                           else old
 runRefactoring as m Delete{position} =
-  trace (showGhc position) ((as, doDelete ((/= position) . getLoc) m))
+  ((as, doDelete ((/= position) . getLoc) m))
+runRefactoring as m Rename{nameSubts} =
+  (as, doRename nameSubts m)
+
 
 
 type Repl a = (GHC.Located a -> Bool) -> GHC.Located a -> GHC.Located a -> M (GHC.Located a)
@@ -239,6 +242,19 @@ deleteFromList = filter
 
 doDelete p = everywhere (mkT (deleteFromList p))
 
+-- Renaming
+
+doRename :: [(String, String)] -> Module -> Module
+doRename ss = everywhere (mkT rename)
+  where
+    rename :: GHC.OccName -> GHC.OccName
+    rename v = GHC.mkOccName n s'
+      where
+          (s, n) = (GHC.occNameString v, GHC.occNameSpace v)
+          s' = fromMaybe s (lookup s ss)
+
+
+
 
 -- Substitute variables into templates
 
@@ -283,7 +299,7 @@ resolveRdrName' ::
 resolveRdrName' g f old subs name =
   case name of
     -- Todo: this should replace anns as well?
-    GHC.Unqual (showGhc -> oname)
+    GHC.Unqual (GHC.occNameString . GHC.occName -> oname)
       -> case (lookup oname subs) of
               Just (f -> new) -> g old new
               Nothing -> return old
