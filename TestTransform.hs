@@ -172,8 +172,8 @@ runRefactoring (as,sk) m ModifyComment{..} =
           , annPriorComments = map (first change) annPriorComments }
       changeComment (AnnComment d, dp) = (AnnComment (change d), dp)
       changeComment e = e
-      change old@(DComment dp s prov) = if s == originalComment
-                                          then DComment dp newComment prov
+      change old@Comment{..}= if (ss2pos commentIdentifier) == (ss2pos commentLocation)
+                                          then old { commentContents = newComment}
                                           else old
 runRefactoring as m Delete{position} =
   ((as, doDelete ((/= position) . getLoc) m))
@@ -434,8 +434,8 @@ removeComment p (as, sk) = dropDoubleSpaces (Map.map go as, sk)
         (DP (newr, newc), newPcomments) = newprior annEntryDelta annPriorComments
         newprior :: DeltaPos -> [(DComment, DeltaPos)] -> (DeltaPos, [(DComment, DeltaPos)])
         newprior d [] = (d, [])
-        newprior d [(x@(DComment e _ _), k)] = if p x then (d, [(x,k)])
-                                                      else traceShowId(addDP e d, [])
+        newprior d [(x@(Comment {commentPos}), k)] = if p x then (d, [(x,k)])
+                                                      else traceShowId(addDP commentPos d, [])
         newprior d (e@(comment,o):y:xs) =
           if p comment then let (d', cs) = newprior d (y:xs) in (d', e:cs)
                        else newprior d (traceShowId (fiddle e y: xs))
@@ -449,7 +449,7 @@ removeComment p (as, sk) = dropDoubleSpaces (Map.map go as, sk)
                       _ -> x : newanns (y:xs)
 
         fiddle :: (DComment, DeltaPos) -> (a, DeltaPos) -> (a, DeltaPos)
-        fiddle (DComment end _ _, start) (ann, off) = (ann, addDP end off)
+        fiddle (Comment {commentPos}, start) (ann, off) = (ann, addDP commentPos off)
 
 dropDoubleSpaces :: Anns -> Anns
 dropDoubleSpaces (as, sk) = (Map.map go as, sk)
