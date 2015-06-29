@@ -5,5 +5,5 @@ packages:
     git: git@github.com:mpickering/refact
     commit: 8e849c3143658dac5f6635984141b616f02ebc2c
   extra-dep: true
-extra-deps:
+extra-deps: []
 resolver: nightly-2015-06-25

@@ -1,5 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns    #-}
+{-# LANGUAGE RecordWildCards #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Language.Haskell.GHC.ExactPrint.Transform
@@ -267,6 +268,20 @@ fixBugsInAst anns t = (anns',t')
 
 -- ---------------------------------------------------------------------
 
+parseToAnnotated :: (Show a, Annotate ast) 
+                 => GHC.DynFlags
+                 -> (GHC.DynFlags -> String -> Either a (GHC.ApiAnns, GHC.Located ast))
+                 -> String
+                 -> (GHC.Located ast, Anns)
+parseToAnnotated df p src = (ast,anns)
+  where
+    (ghcAnns, ast) = case (p df src) of
+                            Right xs -> xs
+                            Left err -> error (show err)
+    anns = relativiseApiAnns ast ghcAnns
+
+-- ---------------------------------------------------------------------
+
 runParser :: GHC.P a -> GHC.DynFlags -> FilePath -> String -> GHC.ParseResult a
 runParser parser flags filename str = GHC.unP parser parseState
     where
@@ -274,50 +289,62 @@ runParser parser flags filename str = GHC.unP parser parseState
       buffer = GHC.stringToStringBuffer str
       parseState = GHC.mkPState flags buffer location
 
-parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located (GHC.HsModule GHC.RdrName))
-parseFile = runParser GHC.parseModule
+-- ---------------------------------------------------------------------
 
-parseWith :: GHC.P w
-          -> String
-          -> IO (Either (GHC.SrcSpan, String) (GHC.ApiAnns, w))
-parseWith f s =
+withDynFlags :: a -> IO a
+withDynFlags action =
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
     GHC.runGhc (Just libdir) $ do
       dflags <- GHC.getSessionDynFlags
       void $ GHC.setSessionDynFlags dflags
-      return $
-        case runParser f dflags "<Interactive>" s of
-          GHC.PFailed ss m -> Left (ss, GHC.showSDoc dflags m)
-          GHC.POk (mkApiAnns -> apianns) pmod   -> Right (apianns, pmod)
+      return action
 
-type Parser a = String -> IO (Either (GHC.SrcSpan, String)
-                                     (GHC.ApiAnns, a))
+-- ---------------------------------------------------------------------
+
+parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located (GHC.HsModule GHC.RdrName))
+parseFile = runParser GHC.parseModule
+
+parseWith :: GHC.DynFlags
+          -> GHC.P w
+          -> String
+          -> Either (GHC.SrcSpan, String) (GHC.ApiAnns, w)
+parseWith dflags f s =
+  case runParser f dflags "<Interactive>" s of
+    GHC.PFailed ss m -> Left (ss, GHC.showSDoc dflags m)
+    GHC.POk (mkApiAnns -> apianns) pmod   -> Right (apianns, pmod)
+
+-- ---------------------------------------------------------------------
+
+type Parser a = GHC.DynFlags -> String
+                -> Either (GHC.SrcSpan, String)
+                          (GHC.ApiAnns, a)
 
 parseExpr :: Parser (GHC.LHsExpr GHC.RdrName)
-parseExpr = parseWith GHC.parseExpression
+parseExpr df = parseWith df GHC.parseExpression
 
 parseImport :: Parser (GHC.LImportDecl GHC.RdrName)
-parseImport = parseWith GHC.parseImport
+parseImport df = parseWith df GHC.parseImport
 
 parseType :: Parser (GHC.LHsType GHC.RdrName)
-parseType = parseWith GHC.parseType
+parseType df = parseWith df GHC.parseType
 
 -- safe, see D1007
 parseDecl :: Parser (GHC.LHsDecl GHC.RdrName)
-parseDecl = parseWith (head . OL.fromOL <$> GHC.parseDeclaration)
+parseDecl df = parseWith df (head . OL.fromOL <$> GHC.parseDeclaration)
 
 parseStmt :: Parser (GHC.ExprLStmt GHC.RdrName)
-parseStmt = parseWith GHC.parseStatement
+parseStmt df = parseWith df GHC.parseStatement
 
 -- Interim, see D1005
 -- will not parse bang patterns properly
 parsePattern :: Parser (GHC.LPat GHC.RdrName)
-parsePattern = parseWith (GHC.parseExpression >>= GHC.checkPattern GHC.empty)
+parsePattern df = parseWith df (GHC.parseExpression >>= GHC.checkPattern GHC.empty)
+-- parsePattern df = parseWith df GHC.parsePattern
 
 
 
 
-
+-- ---------------------------------------------------------------------
 
 initDynFlags :: GHC.GhcMonad m => FilePath -> m GHC.DynFlags
 initDynFlags file = do

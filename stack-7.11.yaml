@@ -3,7 +3,7 @@ packages:
 - '.'
 - location:
     git: git@github.com:mpickering/refact
-    commit: 8e849c3143658dac5f6635984141b616f02ebc2c
+    commit: 07fa5ff2ae554dcaf9ad93c04e195259be5dddd0
   extra-dep: true
 extra-deps:
 - semigroupoids-5.0.0.2
