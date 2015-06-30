@@ -112,12 +112,16 @@ combineAnns (Ann ed1 c1 comments1 toStart1 dps1) (Ann _ed2  _c2 _comments2 _toSt
 
 data Annotation = Ann
   {
-    annEntryDelta      :: !DeltaPos -- ^ Offset used to get to the start
-                                    --    of the SrcSpan.
+    annEntryDelta      :: !DeltaPos -- ^ Offset used to get to the start of the
+                                    -- SrcSpan, from whatever the prior
+                                    -- output was, including comments.
   , annDelta           :: !ColDelta -- ^ Offset from the start of the current layout
-                                   --  block. This is used when moving onto new
-                                   --  lines when layout rules must be obeyed.
-  , annTrueEntryDelta  :: !DeltaPos -- ^ Entry without comments
+                                    -- block. This is used when moving onto new
+                                    -- lines when layout rules must be obeyed.
+  , annTrueEntryDelta  :: !DeltaPos -- ^ Entry from the previous SrcSpan,
+                                    -- ignoring whitespace output such as
+                                    -- comments. This is required for managing
+                                    -- the annDelta for nested AST elements.
   , annPriorComments   :: ![(DComment, DeltaPos)]
   , annsDP             :: ![(KeywordId, DeltaPos)]  -- ^ Annotations associated with this element.
 
