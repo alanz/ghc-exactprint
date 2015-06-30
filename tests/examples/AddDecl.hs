@@ -5,5 +5,5 @@ module AddDecl where
 -- | Do foo
 foo a b = a + b
 
--- | Fo bar
+-- | Do bar
 bar x y = foo (x+y) x

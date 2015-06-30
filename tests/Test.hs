@@ -253,6 +253,7 @@ tests = TestList
   , mkTestModChange changeLocToName  "LocToName.hs"  "LocToName"
   , mkTestModChange changeLetIn1     "LetIn1.hs"     "LetIn1"
   , mkTestModChange changeWhereIn4   "WhereIn4.hs"   "WhereIn4"
+  , mkTestModChange changeAddDecl    "AddDecl.hs"    "AddDecl"
 --  , mkTestModChange changeCifToCase  "C.hs"          "C"
 
   -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -514,8 +515,10 @@ changeAddDecl :: Changer
 changeAddDecl ans (GHC.L l p) = do
   (decl,declAnns) <- withDynFlags (\df -> parseToAnnotated df parseDecl "\n\nnn = n2")
   putStrLn $ "changeDecl:(declAnns,decl)=" ++ showGhc (declAnns,decl)
+  let declAnns' = setPrecedingLines declAnns decl 2
+  putStrLn $ "changeDecl:(declAnns',decl)=" ++ showGhc (declAnns',decl)
   let p' = p { GHC.hsmodDecls = head (GHC.hsmodDecls p) : decl : tail (GHC.hsmodDecls p)}
-  return (mergeAnns ans declAnns,GHC.L l p')
+  return (mergeAnns ans declAnns',GHC.L l p')
 
 -- ---------------------------------------------------------------------
 
@@ -791,7 +794,7 @@ manipulateAstTest' mchange useTH file' modname = do
     result = printed ++ "\n==============\n"
              ++ outcome ++ "\n==============\n"
              ++ "lengths:" ++ show (length printed,length contents) ++ "\n"
-             ++ showAnnData ann 0 parsed'
+             ++ showAnnData ann' 0 parsed'
              ++ "\n========================\n"
              ++ showGhc ann'
              ++ "\n========================\n"

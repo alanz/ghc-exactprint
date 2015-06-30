@@ -21,6 +21,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , adjustAnnOffset
         , mergeAnns
         , setLocatedAnns
+        , setPrecedingLines
 
         -- * Utility
         , Parser
@@ -147,6 +148,12 @@ setAnn (anne,sortKeys) (k, Ann dp col edp cs _) = case
     Nothing               -> (Map.insert k (Ann dp col edp cs []) anne,sortKeys)
     Just (Ann _ _ _ _ ks) -> (Map.insert k (Ann dp col edp cs ks) anne,sortKeys)
 
+-- | Adjust the entry annotations to provide an `n` line preceding gap
+setPrecedingLines :: (SYB.Data a) => Anns -> GHC.Located a -> Int -> Anns
+setPrecedingLines (anne,sk) ast n =
+  case Map.lookup (mkAnnKey ast) anne of
+    Nothing -> (anne,sk)
+    Just (Ann ed cd _ted cs dps) -> (Map.insert (mkAnnKey ast) (Ann (DP (n,1)) cd (DP (n,1)) cs dps) anne,sk)
 
 -- ---------------------------------------------------------------------
 

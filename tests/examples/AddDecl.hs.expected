@@ -7,5 +7,5 @@ foo a b = a + b
 
 nn = n2
 
--- | Fo bar
+-- | Do bar
 bar x y = foo (x+y) x
