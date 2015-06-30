@@ -158,6 +158,7 @@ sbufToString :: GHC.StringBuffer -> String
 sbufToString sb@(GHC.StringBuffer _buf len _cur) = GHC.lexemeToString sb len
 
 -- ---------------------------------------------------------------------
+
 getPreprocessedSrcDirect :: (GHC.GhcMonad m) => FilePath -> m String
 getPreprocessedSrcDirect src = (\(a,_,_) -> a) <$> getPreprocessedSrcDirectPrim src
 

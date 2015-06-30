@@ -24,6 +24,8 @@ module Language.Haskell.GHC.ExactPrint.Transform
 
         -- * Utility
         , Parser
+        , parseToAnnotated
+
         , parseModule
         , parseExpr
         , parseImport
@@ -31,7 +33,9 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , parseDecl
         , parsePattern
         , parseStmt
+
         , parseWith
+        , withDynFlags
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Annotate
@@ -123,9 +127,9 @@ adjustAnnOffset (ColDelta cd) (Ann (DP (ro,co)) (ColDelta ad) _ cs kds) = Ann ed
 
 -- ---------------------------------------------------------------------
 
+-- | Left bias pair union
 mergeAnns :: Anns -> Anns -> Anns
-mergeAnns (a1,k1) (a2,k2)
-  = (Map.unionWith (<>) a1 a2,Map.union k1 k2)
+mergeAnns (a, b) (c,d) = (Map.union a c, Map.union b d)
 
 -- ---------------------------------------------------------------------
 
@@ -291,18 +295,20 @@ runParser parser flags filename str = GHC.unP parser parseState
 
 -- ---------------------------------------------------------------------
 
-withDynFlags :: a -> IO a
+withDynFlags :: (GHC.DynFlags -> a) -> IO a
 withDynFlags action =
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
     GHC.runGhc (Just libdir) $ do
       dflags <- GHC.getSessionDynFlags
       void $ GHC.setSessionDynFlags dflags
-      return action
+      return (action dflags)
 
 -- ---------------------------------------------------------------------
 
 parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located (GHC.HsModule GHC.RdrName))
 parseFile = runParser GHC.parseModule
+
+-- ---------------------------------------------------------------------
 
 parseWith :: GHC.DynFlags
           -> GHC.P w
@@ -341,20 +347,7 @@ parsePattern :: Parser (GHC.LPat GHC.RdrName)
 parsePattern df = parseWith df (GHC.parseExpression >>= GHC.checkPattern GHC.empty)
 -- parsePattern df = parseWith df GHC.parsePattern
 
-
-
-
 -- ---------------------------------------------------------------------
-
-initDynFlags :: GHC.GhcMonad m => FilePath -> m GHC.DynFlags
-initDynFlags file = do
-  dflags0 <- GHC.getSessionDynFlags
-  let dflags1 = GHC.gopt_set dflags0 GHC.Opt_KeepRawTokenStream
-  src_opts <- GHC.liftIO $ GHC.getOptionsFromFile dflags1 file
-  (dflags2, _, _)
-    <- GHC.parseDynamicFilePragma dflags1 src_opts
-  void $ GHC.setSessionDynFlags dflags2
-  return dflags2
 
 parseModule :: FilePath -> IO (Either (GHC.SrcSpan, String) (GHC.ApiAnns, (GHC.Located (GHC.HsModule GHC.RdrName))))
 parseModule file =
@@ -376,7 +369,21 @@ parseModule file =
           GHC.PFailed ss m -> Left $ (ss, (GHC.showSDoc dflags m))
           GHC.POk (mkApiAnns -> apianns) pmod   -> Right $ (apianns, pmod)
 
-mkApiAnns :: GHC.PState -> GHC.ApiAnns
-mkApiAnns pstate = (Map.fromListWith (++) . GHC.annotations $ pstate
-                   , Map.fromList ((GHC.noSrcSpan, GHC.comment_q pstate) : (GHC.annotations_comments pstate)))
+-- ---------------------------------------------------------------------
 
+initDynFlags :: GHC.GhcMonad m => FilePath -> m GHC.DynFlags
+initDynFlags file = do
+  dflags0 <- GHC.getSessionDynFlags
+  let dflags1 = GHC.gopt_set dflags0 GHC.Opt_KeepRawTokenStream
+  src_opts <- GHC.liftIO $ GHC.getOptionsFromFile dflags1 file
+  (dflags2, _, _)
+    <- GHC.parseDynamicFilePragma dflags1 src_opts
+  void $ GHC.setSessionDynFlags dflags2
+  return dflags2
+
+-- ---------------------------------------------------------------------
+
+mkApiAnns :: GHC.PState -> GHC.ApiAnns
+mkApiAnns pstate
+  = ( Map.fromListWith (++) . GHC.annotations $ pstate
+    , Map.fromList ((GHC.noSrcSpan, GHC.comment_q pstate) : (GHC.annotations_comments pstate)))

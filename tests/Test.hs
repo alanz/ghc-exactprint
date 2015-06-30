@@ -290,7 +290,7 @@ mkTestMod :: FilePath -> String -> Test
 mkTestMod fileName _modName
   =  mkParserTest fileName
 
-mkTestModChange :: (Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)) -> FilePath -> String -> Test
+mkTestModChange :: Changer -> FilePath -> String -> Test
 mkTestModChange change fileName modName
   = TestCase (do r <- manipulateAstTestWithMod change "expected" fileName modName
                  assertBool fileName r )
@@ -456,34 +456,35 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "Associated.hs"            "Main"
     -- , manipulateAstTestWFname "RdrNames.hs"              "RdrNames"
     -- , manipulateAstTestWFname "StrangeTypeClass.hs"      "Main"
-    -- , manipulateAstTestWFname "TypeSignatureParens.hs"  "Main"
-    -- , manipulateAstTestWFname "DoubleForall.hs"         "Main"
-    -- , manipulateAstTestWFname "GADTRecords.hs"          "Main"
+    -- , manipulateAstTestWFname "TypeSignatureParens.hs"   "Main"
+    -- , manipulateAstTestWFname "DoubleForall.hs"          "Main"
+    -- , manipulateAstTestWFname "GADTRecords.hs"           "Main"
     -- , manipulateAstTestWFname "Existential.hs"           "Main"
     -- , manipulateAstTestWFname "ScopedTypeVariables.hs"   "Main"
     -- , manipulateAstTestWFname "T5951.hs"   "T5951"
     -- , manipulateAstTestWFname "Zipper2.hs"               "Zipper2"
     -- , manipulateAstTestWFname "RdrNames2.hs"             "RdrNames2"
-    -- , manipulateAstTestWFname "Unicode.hs"                  "Unicode"
-    -- , manipulateAstTestWFname "OptSig2.hs"                  "Main"
-    -- , manipulateAstTestWFname "Minimal.hs"                  "Main"
-    -- , manipulateAstTestWFname "DroppedComma.hs"                "Main"
-    -- , manipulateAstTestWFname "SlidingTypeSyn.hs"                "Main"
-    -- , manipulateAstTestWFname "TupleSections.hs"                "Main"
-    -- , manipulateAstTestWFname "CorePragma.hs"                "Main"
+    -- , manipulateAstTestWFname "Unicode.hs"               "Unicode"
+    -- , manipulateAstTestWFname "OptSig2.hs"               "Main"
+    -- , manipulateAstTestWFname "Minimal.hs"               "Main"
+    -- , manipulateAstTestWFname "DroppedComma.hs"          "Main"
+    -- , manipulateAstTestWFname "SlidingTypeSyn.hs"        "Main"
+    -- , manipulateAstTestWFname "TupleSections.hs"         "Main"
+    -- , manipulateAstTestWFname "CorePragma.hs"            "Main"
     -- , manipulateAstTestWFname "Splice.hs"                "Splice"
-    -- , manipulateAstTestWFname "TemplateHaskell.hs"         "Main"
-    -- , manipulateAstTestWFname "GADTContext.hs" "Main"
-    -- , manipulateAstTestWFnameBad "UnicodeSyntax.hs"          "Tutorial"
-    , manipulateAstTestWFname "DataDecl.hs"              "Main"
+    -- , manipulateAstTestWFname "TemplateHaskell.hs"       "Main"
+    -- , manipulateAstTestWFname "GADTContext.hs"           "Main"
+    -- , manipulateAstTestWFnameBad "UnicodeSyntax.hs"      "Tutorial"
+    -- , manipulateAstTestWFname "DataDecl.hs"              "Main"
 
     -- , manipulateAstTestWFname "TypeBrackets.hs"         "Main"
-    -- , manipulateAstTestWFname "TypeBrackets2.hs"         "Main"
-    -- , manipulateAstTestWFname "TypeBrackets4.hs"         "Main"
-    -- , manipulateAstTestWFname "NestedLambda.hs"      "Main"
-    -- , manipulateAstTestWFname "ShiftingLambda.hs"      "Main"
-    -- , manipulateAstTestWFname "SlidingLambda.hs"      "Main"
+    -- , manipulateAstTestWFname "TypeBrackets2.hs"        "Main"
+    -- , manipulateAstTestWFname "TypeBrackets4.hs"        "Main"
+    -- , manipulateAstTestWFname "NestedLambda.hs"         "Main"
+    -- , manipulateAstTestWFname "ShiftingLambda.hs"       "Main"
+    -- , manipulateAstTestWFname "SlidingLambda.hs"        "Main"
 
+    , manipulateAstTestWFnameMod changeAddDecl "AddDecl.hs" "AddDecl"
     {-
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
     , manipulateAstTestWFname "Foo.hs"                   "Main"
@@ -508,9 +509,19 @@ tt = do
 
 -- ---------------------------------------------------------------------
 
+-- | Add a declaration to AddDecl
+changeAddDecl :: Changer
+changeAddDecl ans (GHC.L l p) = do
+  (decl,declAnns) <- withDynFlags (\df -> parseToAnnotated df parseDecl "\n\nnn = n2")
+  putStrLn $ "changeDecl:(declAnns,decl)=" ++ showGhc (declAnns,decl)
+  let p' = p { GHC.hsmodDecls = head (GHC.hsmodDecls p) : decl : tail (GHC.hsmodDecls p)}
+  return (mergeAnns ans declAnns,GHC.L l p')
+
+-- ---------------------------------------------------------------------
+
 -- |Remove a decl with a trailing comment, and remove the trailing comment too
-changeWhereIn3 :: Int -> Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)
-changeWhereIn3 declIndex ans p = (ans',p')
+changeWhereIn3 :: Int -> Changer
+changeWhereIn3 declIndex ans p = return (ans',p')
   where
     (p',(ans',_),_) = runTransform ans doTransform
     doTransform = doRmDecl p
@@ -527,8 +538,8 @@ changeWhereIn3 declIndex ans p = (ans',p')
 -- ---------------------------------------------------------------------
 
 -- |Convert the if statement in C.hs to a case, adjusting layout appropriately.
-changeCifToCase :: Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)
-changeCifToCase ans p = (ans',p')
+changeCifToCase :: Changer
+changeCifToCase ans p = return (ans',p')
   where
     (p',(ans',_),_) = runTransform ans doTransform
     doTransform = SYB.everywhereM (SYB.mkM ifToCaseTransform) p
@@ -627,33 +638,33 @@ changeCifToCase ans p = (ans',p')
 
 -- ---------------------------------------------------------------------
 
-noChange :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
-noChange ans parsed = (ans,parsed)
+noChange :: Changer
+noChange ans parsed = return (ans,parsed)
 
-changeLayoutLet2 :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
-changeLayoutLet2 ans parsed = (ans,rename "xxxlonger" [((7,5),(7,8)),((8,24),(8,27))] parsed)
+changeLayoutLet2 :: Changer
+changeLayoutLet2 ans parsed = return (ans,rename "xxxlonger" [((7,5),(7,8)),((8,24),(8,27))] parsed)
 
-changeLocToName :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
-changeLocToName ans parsed = (ans,rename "LocToName.newPoint" [((20,1),(20,11)),((20,28),(20,38)),((24,1),(24,11))] parsed)
+changeLocToName :: Changer
+changeLocToName ans parsed = return (ans,rename "LocToName.newPoint" [((20,1),(20,11)),((20,28),(20,38)),((24,1),(24,11))] parsed)
 
-changeLayoutIn3 :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
-changeLayoutIn3 ans parsed = (ans,rename "anotherX" [((7,13),(7,14)),((7,37),(7,38)),((8,37),(8,38))] parsed)
+changeLayoutIn3 :: Changer
+changeLayoutIn3 ans parsed = return (ans,rename "anotherX" [((7,13),(7,14)),((7,37),(7,38)),((8,37),(8,38))] parsed)
 -- changeLayoutIn3 parsed = rename "anotherX" [((7,13),(7,14)),((7,37),(7,38))] parsed
 
-changeLayoutIn4 :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
-changeLayoutIn4 ans parsed = (ans,rename "io" [((7,8),(7,13)),((7,28),(7,33))] parsed)
+changeLayoutIn4 :: Changer
+changeLayoutIn4 ans parsed = return (ans,rename "io" [((7,8),(7,13)),((7,28),(7,33))] parsed)
 
-changeLayoutIn1 :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
-changeLayoutIn1 ans parsed = (ans,rename "square" [((7,17),(7,19)),((7,24),(7,26))] parsed)
+changeLayoutIn1 :: Changer
+changeLayoutIn1 ans parsed = return (ans,rename "square" [((7,17),(7,19)),((7,24),(7,26))] parsed)
 
-changeRename1 :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
-changeRename1 ans parsed = (ans,rename "bar2" [((3,1),(3,4))] parsed)
+changeRename1 :: Changer
+changeRename1 ans parsed = return (ans,rename "bar2" [((3,1),(3,4))] parsed)
 
-changeLayoutLet3 :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
-changeLayoutLet3 ans parsed = (ans,rename "xxxlonger" [((7,5),(7,8)),((9,14),(9,17))] parsed)
+changeLayoutLet3 :: Changer
+changeLayoutLet3 ans parsed = return (ans,rename "xxxlonger" [((7,5),(7,8)),((9,14),(9,17))] parsed)
 
-changeLayoutLet5 :: Anns -> GHC.ParsedSource -> (Anns, GHC.ParsedSource)
-changeLayoutLet5 ans parsed = (ans,rename "x" [((7,5),(7,8)),((9,14),(9,17))] parsed)
+changeLayoutLet5 :: Changer
+changeLayoutLet5 ans parsed = return (ans,rename "x" [((7,5),(7,8)),((9,14),(9,17))] parsed)
 
 rename :: (SYB.Data a) => String -> [Span] -> a -> a
 rename newNameStr spans a
@@ -685,9 +696,9 @@ rename newNameStr spans a
 
 -- ---------------------------------------------------------------------
 
-changeWhereIn4 :: Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)
+changeWhereIn4 :: Changer
 changeWhereIn4 ans parsed
-  = (ans,SYB.everywhere (SYB.mkT replace) parsed)
+  = return (ans,SYB.everywhere (SYB.mkT replace) parsed)
   where
     replace :: GHC.Located GHC.RdrName -> GHC.Located GHC.RdrName
     replace (GHC.L ln _n)
@@ -696,9 +707,9 @@ changeWhereIn4 ans parsed
 
 -- ---------------------------------------------------------------------
 
-changeLetIn1 :: Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)
+changeLetIn1 :: Changer
 changeLetIn1 ans parsed
-  = (ans,SYB.everywhere (SYB.mkT replace) parsed)
+  = return (ans,SYB.everywhere (SYB.mkT replace) parsed)
   where
     replace :: GHC.HsExpr GHC.RdrName -> GHC.HsExpr GHC.RdrName
     replace (GHC.HsLet localDecls expr@(GHC.L _ _))
@@ -718,10 +729,12 @@ examplesDir = "tests" </> "examples"
 examplesDir2 :: FilePath
 examplesDir2 = "examples"
 
-manipulateAstTestWithMod :: (Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)) -> String -> FilePath -> String -> IO Bool
+type Changer = (Anns -> GHC.ParsedSource -> IO (Anns,GHC.ParsedSource))
+
+manipulateAstTestWithMod :: Changer -> String -> FilePath -> String -> IO Bool
 manipulateAstTestWithMod change suffix file modname = manipulateAstTest' (Just (change, suffix)) False file modname
 
-manipulateAstTestWFnameMod :: (Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource)) -> FilePath -> String -> IO (FilePath,Bool)
+manipulateAstTestWFnameMod :: Changer -> FilePath -> String -> IO (FilePath,Bool)
 manipulateAstTestWFnameMod change fileName modname
   = do r <- manipulateAstTestWithMod change "expected" fileName modname
        return (fileName,r)
@@ -743,7 +756,7 @@ manipulateAstTestTH file modname = manipulateAstTest' Nothing True file modname
 
 
 
-manipulateAstTest' :: Maybe (Anns -> GHC.ParsedSource -> (Anns,GHC.ParsedSource), String)
+manipulateAstTest' :: Maybe (Changer, String)
                    -> Bool -> FilePath -> String -> IO Bool
 manipulateAstTest' mchange useTH file' modname = do
   let testpath = "./tests/examples/"
@@ -766,9 +779,11 @@ manipulateAstTest' mchange useTH file' modname = do
     ann = relativiseApiAnnsWithComments cppComments parsedOrig ghcAnns'
       `debug` ("ghcAnns:" ++ showGhc ghcAnns)
 
-    (ann',parsed') = case mchange of
-                   Nothing         -> (ann,parsed)
+  (ann',parsed') <- case mchange of
+                   Nothing         -> return (ann,parsed)
                    Just (change,_) -> change ann parsed
+
+  let
     printed = exactPrintWithAnns parsed' ann' -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
     outcome = if printed == contents
                 then "Match\n"
