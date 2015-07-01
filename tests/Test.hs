@@ -254,6 +254,7 @@ tests = TestList
   , mkTestModChange changeLetIn1     "LetIn1.hs"     "LetIn1"
   , mkTestModChange changeWhereIn4   "WhereIn4.hs"   "WhereIn4"
   , mkTestModChange changeAddDecl    "AddDecl.hs"    "AddDecl"
+  , mkTestModChange changeLocalDecls "LocalDecls.hs" "LocalDecls"
 --  , mkTestModChange changeCifToCase  "C.hs"          "C"
 
   -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -484,8 +485,8 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "NestedLambda.hs"         "Main"
     -- , manipulateAstTestWFname "ShiftingLambda.hs"       "Main"
     -- , manipulateAstTestWFname "SlidingLambda.hs"        "Main"
-
-    , manipulateAstTestWFnameMod changeAddDecl "AddDecl.hs" "AddDecl"
+    -- , manipulateAstTestWFnameMod changeAddDecl "AddDecl.hs" "AddDecl"
+    , manipulateAstTestWFnameMod changeLocalDecls "LocalDecls.hs" "LocalDecls"
     {-
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
     , manipulateAstTestWFname "Foo.hs"                   "Main"
@@ -510,12 +511,39 @@ tt = do
 
 -- ---------------------------------------------------------------------
 
+-- | Add a local declaration with signature to LocalDecl
+changeLocalDecls :: Changer
+changeLocalDecls ans (GHC.L l p) = do
+  (GHC.L ld (GHC.ValD decl),declAnns) <- withDynFlags (\df -> parseToAnnotated df "decl" parseDecl "nn = 2")
+  (GHC.L ls (GHC.SigD sig),sigAnns)   <- withDynFlags (\df -> parseToAnnotated df "sig"  parseDecl "nn :: Int")
+  let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
+  let  sigAnns' = setPrecedingLines  sigAnns (GHC.L ls  sig) 0 0
+  -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
+  -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
+  let (p',(ans',_),_) = runTransform ans doAddLocal
+      doAddLocal = SYB.everywhereM (SYB.mkM replaceLocalBinds) p
+      replaceLocalBinds :: GHC.HsValBinds GHC.RdrName -> Transform (GHC.HsValBinds GHC.RdrName)
+      replaceLocalBinds (GHC.ValBindsIn binds sigs) = do
+        a@(e,sk) <- getAnnsT
+        a' <- case sigs of
+              []    -> return (e,Map.insert ls (ss2SortKey ls) sk)
+              (s:_) -> do
+                let a2 = setPrecedingLines a (head sigs) 1 0
+                return $ addSortKeyBefore a2 (GHC.L ls sig) (head sigs)
+        putAnnsT a'
+        return (GHC.ValBindsIn binds (GHC.L ls sig:sigs))
+      replaceLocalBinds x = return x
+
+  return (mergeAnnList [ans',sigAnns',declAnns'],GHC.L l p')
+
+-- ---------------------------------------------------------------------
+
 -- | Add a declaration to AddDecl
 changeAddDecl :: Changer
 changeAddDecl ans (GHC.L l p) = do
   (decl,declAnns) <- withDynFlags (\df -> parseToAnnotated df "<interactive>" parseDecl "\n\nnn = n2")
   -- putStrLn $ "changeDecl:(declAnns,decl)=" ++ showGhc (declAnns,decl)
-  let declAnns' = setPrecedingLines declAnns decl 2
+  let declAnns' = setPrecedingLines declAnns decl 2 0
   -- putStrLn $ "changeDecl:(declAnns',decl)=" ++ showGhc (declAnns',decl)
   let p' = p { GHC.hsmodDecls = head (GHC.hsmodDecls p) : decl : tail (GHC.hsmodDecls p)}
   return (mergeAnns ans declAnns',GHC.L l p')

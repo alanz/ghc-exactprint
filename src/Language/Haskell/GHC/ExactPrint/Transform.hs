@@ -20,8 +20,10 @@ module Language.Haskell.GHC.ExactPrint.Transform
 
         , adjustAnnOffset
         , mergeAnns
+        , mergeAnnList
         , setLocatedAnns
         , setPrecedingLines
+        , addSortKeyBefore
 
         -- * Utility
         , Parser
@@ -132,6 +134,10 @@ adjustAnnOffset (ColDelta cd) (Ann (DP (ro,co)) (ColDelta ad) _ cs kds) = Ann ed
 mergeAnns :: Anns -> Anns -> Anns
 mergeAnns (a, b) (c,d) = (Map.union a c, Map.union b d)
 
+mergeAnnList :: [Anns] -> Anns
+mergeAnnList [] = error "mergeAnnList must have at lease one entry"
+mergeAnnList (x:xs) = foldr mergeAnns x xs
+
 -- ---------------------------------------------------------------------
 
 -- |Update the DeltaPos for the given annotation keys
@@ -149,11 +155,22 @@ setAnn (anne,sortKeys) (k, Ann dp col edp cs _) = case
     Just (Ann _ _ _ _ ks) -> (Map.insert k (Ann dp col edp cs ks) anne,sortKeys)
 
 -- | Adjust the entry annotations to provide an `n` line preceding gap
-setPrecedingLines :: (SYB.Data a) => Anns -> GHC.Located a -> Int -> Anns
-setPrecedingLines (anne,sk) ast n =
+setPrecedingLines :: (SYB.Data a) => Anns -> GHC.Located a -> Int -> Int -> Anns
+setPrecedingLines (anne,sk) ast n c =
   case Map.lookup (mkAnnKey ast) anne of
-    Nothing -> (anne,sk)
-    Just (Ann ed cd _ted cs dps) -> (Map.insert (mkAnnKey ast) (Ann (DP (n,1)) cd (DP (n,1)) cs dps) anne,sk)
+    Nothing                      -> (Map.insert (mkAnnKey ast) (Ann (DP (n,c)) (ColDelta c) (DP (n,c)) []  []) anne,sk)
+    Just (Ann ed cd _ted cs dps) -> (Map.insert (mkAnnKey ast) (Ann (DP (n,c)) cd (DP (n,c)) cs dps) anne,sk)
+
+-- ---------------------------------------------------------------------
+
+-- |Add a sort key for the first item to come before the second
+addSortKeyBefore :: Anns -> GHC.Located a -> GHC.Located b -> Anns
+addSortKeyBefore (anne,sk) (GHC.L l1 _) (GHC.L l2 _) = (anne,sk')
+  where
+    (other,sk2) = case Map.lookup l2 sk of
+      Just k -> (k,sk)
+      Nothing -> (ss2SortKey l2,Map.insert l2 (ss2SortKey l2) sk)
+    sk' = Map.insert l1 (sortKeyBefore other) sk2
 
 -- ---------------------------------------------------------------------
 
