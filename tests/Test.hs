@@ -528,10 +528,12 @@ changeLocalDecls ans (GHC.L l p) = do
         a' <- case sigs of
               []    -> return (e,Map.insert ls (ss2SortKey ls) sk)
               (s:_) -> do
-                let a2 = setPrecedingLines a (head sigs) 1 0
-                return $ addSortKeyBefore a2 (GHC.L ls sig) (head sigs)
+                let a2 = setPrecedingLines a (head sigs) 2 0
+                let a3 = addSortKeyBefore a2 (GHC.L ld ()) (head sigs)
+                let a4 = addSortKeyBefore a3 (GHC.L ls ()) (GHC.L ld ())
+                return a4
         putAnnsT a'
-        return (GHC.ValBindsIn binds (GHC.L ls sig:sigs))
+        return (GHC.ValBindsIn (GHC.listToBag $ (GHC.L ld decl):GHC.bagToList binds) (GHC.L ls sig:sigs))
       replaceLocalBinds x = return x
 
   return (mergeAnnList [ans',sigAnns',declAnns'],GHC.L l p')
