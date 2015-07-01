@@ -39,6 +39,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   ) where
 
 import Data.Data (Data, Typeable, toConstr)
+import Data.Ratio
 
 import qualified DynFlags       as GHC
 import qualified GHC
@@ -215,7 +216,8 @@ instance Monoid LayoutFlag where
 -- It comprises the original start row and column, together with a third
 -- component which is used to manage explicit sort order, to be able to always
 -- insert a value between any two values.
-data SortKey = SortKey (Int,Int,String)
+-- See http://www.virtualnerd.com/tutorials/?id=Alg1_2z
+data SortKey = SortKey (Int,Int,Rational)
              deriving (Eq,Show,Ord)
 
 -- ---------------------------------------------------------------------

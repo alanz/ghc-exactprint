@@ -50,6 +50,7 @@ import Data.Data (Data, toConstr, showConstr, cast)
 import Data.Generics (extQ, ext1Q, ext2Q, gmapQ)
 import Data.List (intercalate)
 import Data.Functor (($>))
+import Data.Ratio
 
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Lookup
@@ -293,24 +294,31 @@ showAnnData anns n =
 
 -- ---------------------------------------------------------------------
 
+-- Start with a 0.5 position, can always split toward zero or toward one, never
+-- actually at them
 ss2SortKey :: GHC.SrcSpan -> SortKey
-ss2SortKey ss = SortKey (r,c,"0")
+ss2SortKey ss = SortKey (r,c,1%2)
   where
     (r,c) = ss2pos ss
 
+-- See http://www.virtualnerd.com/tutorials/?id=Alg1_2z
+rationalBetween :: Rational -> Rational -> Rational
+rationalBetween lower upper = (lower + upper) / 2
+
 -- |Construct a SortKey that will be ordered before the given one
 sortKeyBefore :: SortKey -> SortKey
-sortKeyBefore (SortKey (r,c,s)) = SortKey (r,c,'0':s)
+sortKeyBefore (SortKey (r,c,s)) = SortKey (r,c,rationalBetween 0 s)
 
 -- |Construct a SortKey that will be ordered after the given one
 sortKeyAfter :: SortKey -> SortKey
-sortKeyAfter (SortKey (r,c,s)) = SortKey (r,c,s++"z")
+sortKeyAfter (SortKey (r,c,s)) = SortKey (r,c,rationalBetween s (999%1000))
 
 -- |Construct a SortKey that will be between the given ones
+-- Precondition: sk1 < sk2 already
 sortKeyBetween :: SortKey -> SortKey -> SortKey
 sortKeyBetween sk1@(SortKey (r1,c1,s1)) sk2@(SortKey (r2,c2,s2))
   | sk1 >= sk2 = error $ "sortKeyBetween:first key not LT second:" ++  show (sk1,sk2)
-  | r1 == r2 && c1 == c2 = SortKey (r1,c1,stringBeween s1 s2)
+  | r1 == r2 && c1 == c2 = SortKey (r1,c1,rationalBetween s1 s2)
   | otherwise = sortKeyAfter sk1
 
 -- |Create a String that sorts lexically between the given two.

@@ -5,6 +5,7 @@ import Language.Haskell.GHC.ExactPrint.Utils
 
 
 import Data.List
+import Data.Ratio
 
 import Test.QuickCheck
 import Test.QuickCheck.Gen
@@ -19,17 +20,10 @@ _main = properties
 -- ---------------------------------------------------------------------
 
 properties = do
-  quickCheck prop_stringBetween
   quickCheck prop_sortKeyAfter
   quickCheck prop_sortKeyBefore
   quickCheck prop_sortKeyBetween
   -- verboseCheck prop_sortKeyBetween
-
-prop_stringBetween s1 s2 =
-  length s1 > 0 && length s2 > 0 && s1 < s2
-    ==> isBetween (stringBeween s1 s2)
-  where
-    isBetween s = s1 < s && s < s2
 
 prop_sortKeyBefore sk = sortKeyBefore sk < sk
 
@@ -44,7 +38,7 @@ prop_sortKeyBetween sk1 sk2 =
 instance Arbitrary SortKey where
   arbitrary = do
     r <- choose (9,10)
-    c <- choose (1,2)
-    -- s <- choose ('a', 'z')
-    s <- listOf1 (choose ('a','c'))
-    return (SortKey (r,c,s))
+    -- c <- choose (1,2)
+    n <- choose (3,5)
+    d <- choose (6,9)
+    return (SortKey (r,1,n%d))
