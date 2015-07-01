@@ -250,11 +250,13 @@ applyListAnnotations ls = do
   return () `debug` ("applyListAnnotations:sortkeys=" ++ show (map fst ls'))
   mapM_ snd $ sortBy (\(a,_) (b,_) -> compare a b) ls'
 
+#if __GLASGOW_HASKELL__ <= 710
 lexicalSortLocated :: [GHC.Located a] -> IAnnotated [GHC.Located a]
 lexicalSortLocated ls = do
   ls' <- mapM (\(GHC.L ss v) -> getSortKey ss >>= \sk -> return (sk ,GHC.L ss v)) ls
   let ls'' = sortBy (\a b -> compare (fst a) (fst b)) ls'
   return (map snd ls'')
+#endif
 
 lexicalSortSrcSpans :: [GHC.SrcSpan] -> IAnnotated [GHC.SrcSpan]
 lexicalSortSrcSpans ls = do
@@ -510,22 +512,22 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   => Annotate (GHC.HsDecl name) where
   markAST l decl = do
     case decl of
-      GHC.TyClD d       -> markAST l d
-      GHC.InstD d       -> markAST l d
-      GHC.DerivD d      -> markAST l d
-      GHC.ValD d        -> markAST l d
-      GHC.SigD d        -> markAST l d
-      GHC.DefD d        -> markAST l d
-      GHC.ForD d        -> markAST l d
-      GHC.WarningD d    -> markAST l d
-      GHC.AnnD d        -> markAST l d
-      GHC.RuleD d       -> markAST l d
-      GHC.VectD d       -> markAST l d
-      GHC.SpliceD d     -> markAST l d
-      GHC.DocD d        -> markAST l d
-      GHC.RoleAnnotD d  -> markAST l d
+      GHC.TyClD d       -> markLocated (GHC.L l d)
+      GHC.InstD d       -> markLocated (GHC.L l d)
+      GHC.DerivD d      -> markLocated (GHC.L l d)
+      GHC.ValD d        -> markLocated (GHC.L l d)
+      GHC.SigD d        -> markLocated (GHC.L l d)
+      GHC.DefD d        -> markLocated (GHC.L l d)
+      GHC.ForD d        -> markLocated (GHC.L l d)
+      GHC.WarningD d    -> markLocated (GHC.L l d)
+      GHC.AnnD d        -> markLocated (GHC.L l d)
+      GHC.RuleD d       -> markLocated (GHC.L l d)
+      GHC.VectD d       -> markLocated (GHC.L l d)
+      GHC.SpliceD d     -> markLocated (GHC.L l d)
+      GHC.DocD d        -> markLocated (GHC.L l d)
+      GHC.RoleAnnotD d  -> markLocated (GHC.L l d)
 #if __GLASGOW_HASKELL__ < 711
-      GHC.QuasiQuoteD d -> markAST l d
+      GHC.QuasiQuoteD d -> markLocated (GHC.L l d)
 #endif
 
 -- ---------------------------------------------------------------------
