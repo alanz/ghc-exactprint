@@ -77,7 +77,7 @@ import Control.Monad.Trans.Free
 import Debug.Trace
 
 ------------------------------------------------------------------------------
--- Transformoation of source elements
+-- Transformation of source elements
 
 -- | Monad type for updating the AST and managing the annotations at the same
 -- time. The W state is used to generate logging information if required.
@@ -281,12 +281,14 @@ fixBugsInAst anns t = (anns',t')
 
 parseToAnnotated :: (Show a, Annotate ast) 
                  => GHC.DynFlags
-                 -> (GHC.DynFlags -> String -> Either a (GHC.ApiAnns, GHC.Located ast))
+                 -> FilePath
+                 -> (GHC.DynFlags -> FilePath -> String -> Either a (GHC.ApiAnns, GHC.Located ast))
+                 -- -> Parser
                  -> String
                  -> (GHC.Located ast, Anns)
-parseToAnnotated df p src = (ast,anns)
+parseToAnnotated df fp parser src = (ast,anns)
   where
-    (ghcAnns, ast) = case (p df src) of
+    (ghcAnns, ast) = case (parser df fp src) of
                             Right xs -> xs
                             Left err -> error (show err)
     anns = relativiseApiAnns ast ghcAnns
@@ -318,41 +320,42 @@ parseFile = runParser GHC.parseModule
 -- ---------------------------------------------------------------------
 
 parseWith :: GHC.DynFlags
+          -> FilePath
           -> GHC.P w
           -> String
           -> Either (GHC.SrcSpan, String) (GHC.ApiAnns, w)
-parseWith dflags f s =
-  case runParser f dflags "<Interactive>" s of
-    GHC.PFailed ss m -> Left (ss, GHC.showSDoc dflags m)
-    GHC.POk (mkApiAnns -> apianns) pmod   -> Right (apianns, pmod)
+parseWith dflags fileName parser s =
+  case runParser parser dflags fileName s of
+    GHC.PFailed ss m                    -> Left (ss, GHC.showSDoc dflags m)
+    GHC.POk (mkApiAnns -> apianns) pmod -> Right (apianns, pmod)
 
 -- ---------------------------------------------------------------------
 
-type Parser a = GHC.DynFlags -> String
+type Parser a = GHC.DynFlags -> FilePath -> String
                 -> Either (GHC.SrcSpan, String)
                           (GHC.ApiAnns, a)
 
 parseExpr :: Parser (GHC.LHsExpr GHC.RdrName)
-parseExpr df = parseWith df GHC.parseExpression
+parseExpr df fp = parseWith df fp GHC.parseExpression
 
 parseImport :: Parser (GHC.LImportDecl GHC.RdrName)
-parseImport df = parseWith df GHC.parseImport
+parseImport df fp = parseWith df fp GHC.parseImport
 
 parseType :: Parser (GHC.LHsType GHC.RdrName)
-parseType df = parseWith df GHC.parseType
+parseType df fp = parseWith df fp GHC.parseType
 
 -- safe, see D1007
 parseDecl :: Parser (GHC.LHsDecl GHC.RdrName)
-parseDecl df = parseWith df (head . OL.fromOL <$> GHC.parseDeclaration)
+parseDecl df fp = parseWith df fp (head . OL.fromOL <$> GHC.parseDeclaration)
 
 parseStmt :: Parser (GHC.ExprLStmt GHC.RdrName)
-parseStmt df = parseWith df GHC.parseStatement
+parseStmt df fp = parseWith df fp GHC.parseStatement
 
 -- Interim, see D1005
 -- will not parse bang patterns properly
 parsePattern :: Parser (GHC.LPat GHC.RdrName)
-parsePattern df = parseWith df (GHC.parseExpression >>= GHC.checkPattern GHC.empty)
--- parsePattern df = parseWith df GHC.parsePattern
+parsePattern df fp = parseWith df fp (GHC.parseExpression >>= GHC.checkPattern GHC.empty)
+-- parsePattern df fp = parseWith df fp GHC.parsePattern
 
 -- ---------------------------------------------------------------------
 
