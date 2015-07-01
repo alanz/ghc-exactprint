@@ -311,7 +311,7 @@ sortKeyBefore (SortKey (r,c,s)) = SortKey (r,c,rationalBetween 0 s)
 
 -- |Construct a SortKey that will be ordered after the given one
 sortKeyAfter :: SortKey -> SortKey
-sortKeyAfter (SortKey (r,c,s)) = SortKey (r,c,rationalBetween s (999%1000))
+sortKeyAfter (SortKey (r,c,s)) = SortKey (r,c,rationalBetween s 1)
 
 -- |Construct a SortKey that will be between the given ones
 -- Precondition: sk1 < sk2 already
