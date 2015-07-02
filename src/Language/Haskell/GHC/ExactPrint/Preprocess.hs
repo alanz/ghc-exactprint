@@ -18,6 +18,7 @@ import qualified Lexer          as GHC
 import qualified MonadUtils     as GHC
 import qualified SrcLoc         as GHC
 import qualified StringBuffer   as GHC
+import qualified DynFlags   as GHC
 
 import SrcLoc (mkSrcSpan, mkSrcLoc)
 import FastString (mkFastString)
@@ -73,11 +74,14 @@ getPragma s@(x:xs)
 -- | Replacement for original 'getRichTokenStream' which will return
 -- the tokens for a file processed by CPP.
 -- See bug <http://ghc.haskell.org/trac/ghc/ticket/8265>
-getCppTokensAsComments :: GHC.GhcMonad m => FilePath -> m [Comment]
-getCppTokensAsComments sourceFile = do
+getCppTokensAsComments :: GHC.GhcMonad m
+                       => Maybe FilePath  -- ^ Path to cabal_macros.h
+                       -> FilePath  -- ^ Path to source file
+                       -> m [Comment]
+getCppTokensAsComments mbMacros sourceFile = do
   source <- GHC.liftIO $ GHC.hGetStringBuffer sourceFile
   let startLoc = GHC.mkRealSrcLoc (GHC.mkFastString sourceFile) 1 1
-  (_txt,strSrcBuf,flags2) <- getPreprocessedSrcDirectPrim sourceFile
+  (_txt,strSrcBuf,flags2) <- getPreprocessedSrcDirectPrim mbMacros sourceFile
   -- #ifdef tokens
   directiveToks <- GHC.liftIO $ getPreprocessorAsComments sourceFile
   -- Tokens without #ifdef
@@ -158,17 +162,31 @@ sbufToString :: GHC.StringBuffer -> String
 sbufToString sb@(GHC.StringBuffer _buf len _cur) = GHC.lexemeToString sb len
 
 -- ---------------------------------------------------------------------
+getPreprocessedSrcDirect :: (GHC.GhcMonad m) => Maybe FilePath -> FilePath -> m String
+getPreprocessedSrcDirect mbMacros src =
+    (\(a,_,_) -> a) <$> getPreprocessedSrcDirectPrim mbMacros src
 
-getPreprocessedSrcDirect :: (GHC.GhcMonad m) => FilePath -> m String
-getPreprocessedSrcDirect src = (\(a,_,_) -> a) <$> getPreprocessedSrcDirectPrim src
-
-getPreprocessedSrcDirectPrim :: (GHC.GhcMonad m) => FilePath -> m (String, GHC.StringBuffer, GHC.DynFlags)
-getPreprocessedSrcDirectPrim src_fn = do
+getPreprocessedSrcDirectPrim :: (GHC.GhcMonad m)
+                              => Maybe FilePath
+                              -> FilePath
+                              -> m (String, GHC.StringBuffer, GHC.DynFlags)
+getPreprocessedSrcDirectPrim mbMacros src_fn = do
   hsc_env <- GHC.getSession
-  (dflags', hspp_fn) <- GHC.liftIO $ GHC.preprocess hsc_env (src_fn, Nothing)
+  let dfs = GHC.extractDynFlags hsc_env
+      new_env = case mbMacros of
+                      Nothing -> hsc_env
+                      Just path ->
+                        let includePath = "-include " ++ path in
+                        GHC.replaceDynFlags hsc_env (addOptP includePath dfs)
+  (dflags', hspp_fn) <- GHC.liftIO $ GHC.preprocess new_env (src_fn, Nothing)
   buf <- GHC.liftIO $ GHC.hGetStringBuffer hspp_fn
   txt <- GHC.liftIO $ readFile hspp_fn
   return (txt, buf, dflags')
+
+addOptP   f = alterSettings (\s -> s { GHC.sOpt_P   = f : GHC.sOpt_P s})
+
+alterSettings :: (GHC.Settings -> GHC.Settings) -> GHC.DynFlags -> GHC.DynFlags
+alterSettings f dflags = dflags { GHC.settings = f (GHC.settings dflags) }
 
 -- ---------------------------------------------------------------------
 

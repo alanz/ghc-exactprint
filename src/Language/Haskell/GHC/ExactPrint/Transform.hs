@@ -296,7 +296,7 @@ fixBugsInAst anns t = (anns',t')
 
 -- ---------------------------------------------------------------------
 
-parseToAnnotated :: (Show a, Annotate ast) 
+parseToAnnotated :: (Show a, Annotate ast)
                  => GHC.DynFlags
                  -> FilePath
                  -> (GHC.DynFlags -> FilePath -> String -> Either a (GHC.ApiAnns, GHC.Located ast))
@@ -384,8 +384,8 @@ parseModule file =
       (fileContents, _) <-
         if False
           then do
-            contents <- getPreprocessedSrcDirect file
-            cppComments <- getCppTokensAsComments file
+            contents <- getPreprocessedSrcDirect Nothing file
+            cppComments <- getCppTokensAsComments Nothing file
             return (contents,cppComments)
           else do
             txt <- GHC.liftIO $ readFile file

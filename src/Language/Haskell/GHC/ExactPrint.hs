@@ -47,5 +47,3 @@ import qualified OrdList as OL
 
 import qualified Data.Map as Map
 import Control.Monad (void)
-
-
