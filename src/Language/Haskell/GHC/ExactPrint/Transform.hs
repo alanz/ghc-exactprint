@@ -76,6 +76,8 @@ import qualified Data.Map as Map
 
 import Control.Monad.Trans.Free
 
+import Distribution.Helper
+
 import Debug.Trace
 
 ------------------------------------------------------------------------------
@@ -375,17 +377,24 @@ parsePattern df fp = parseWith df fp (GHC.parseExpression >>= GHC.checkPattern G
 -- parsePattern df fp = parseWith df fp GHC.parsePattern
 
 -- ---------------------------------------------------------------------
+--
+generateMacroFile :: IO ()
+generateMacroFile = writeAutogenFiles "dist/"
+
 
 parseModule :: FilePath -> IO (Either (GHC.SrcSpan, String) (GHC.ApiAnns, (GHC.Located (GHC.HsModule GHC.RdrName))))
-parseModule file =
+parseModule file = do
+  generateMacroFile
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
     GHC.runGhc (Just libdir) $ do
       dflags <- initDynFlags file
+      let useCpp = GHC.xopt GHC.Opt_Cpp dflags
       (fileContents, _) <-
-        if False
+        if useCpp
           then do
-            contents <- getPreprocessedSrcDirect Nothing file
-            cppComments <- getCppTokensAsComments Nothing file
+            let macros = (Just "dist/build/autogen/cabal_macros.h")
+            contents <- getPreprocessedSrcDirect macros file
+            cppComments <- getCppTokensAsComments macros file
             return (contents,cppComments)
           else do
             txt <- GHC.liftIO $ readFile file

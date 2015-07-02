@@ -176,7 +176,7 @@ getPreprocessedSrcDirectPrim mbMacros src_fn = do
       new_env = case mbMacros of
                       Nothing -> hsc_env
                       Just path ->
-                        let includePath = "-include " ++ path in
+                        let includePath = "-include" ++ path in
                         GHC.replaceDynFlags hsc_env (addOptP includePath dfs)
   (dflags', hspp_fn) <- GHC.liftIO $ GHC.preprocess new_env (src_fn, Nothing)
   buf <- GHC.liftIO $ GHC.hGetStringBuffer hspp_fn
