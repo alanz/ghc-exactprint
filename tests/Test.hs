@@ -9,6 +9,7 @@ import Language.Haskell.GHC.ExactPrint.Transform
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Internal.Types
 import Language.Haskell.GHC.ExactPrint.Utils
+import Language.Haskell.GHC.ExactPrint.Parsers
 
 import GHC.Paths ( libdir )
 
@@ -516,8 +517,8 @@ tt = do
 -- | Add a local declaration with signature to LocalDecl
 changeLocalDecls :: Changer
 changeLocalDecls ans (GHC.L l p) = do
-  (GHC.L ld (GHC.ValD decl),declAnns) <- withDynFlags (\df -> parseToAnnotated df "decl" parseDecl "nn = 2")
-  (GHC.L ls (GHC.SigD sig),sigAnns)   <- withDynFlags (\df -> parseToAnnotated df "sig"  parseDecl "nn :: Int")
+  Right (declAnns, GHC.L ld (GHC.ValD decl)) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
+  Right (sigAnns, GHC.L ls (GHC.SigD sig))   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
   let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
   let  sigAnns' = setPrecedingLines  sigAnns (GHC.L ls  sig) 0 0
   -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
@@ -545,7 +546,7 @@ changeLocalDecls ans (GHC.L l p) = do
 -- | Add a declaration to AddDecl
 changeAddDecl :: Changer
 changeAddDecl ans (GHC.L l p) = do
-  (decl,declAnns) <- withDynFlags (\df -> parseToAnnotated df "<interactive>" parseDecl "\n\nnn = n2")
+  Right (declAnns, decl) <- withDynFlags (\df -> parseDecl df "<interactive>" "\n\nnn = n2")
   -- putStrLn $ "changeDecl:(declAnns,decl)=" ++ showGhc (declAnns,decl)
   let declAnns' = setPrecedingLines declAnns decl 2 0
   -- putStrLn $ "changeDecl:(declAnns',decl)=" ++ showGhc (declAnns',decl)

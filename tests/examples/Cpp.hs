@@ -1,4 +1,3 @@
-#!/foo
 {-# Language CPP #-}
 
 #if __GLASGOW_HASKELL__ > 704
