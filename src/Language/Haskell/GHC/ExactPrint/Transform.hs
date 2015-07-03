@@ -382,14 +382,14 @@ generateMacroFile :: IO ()
 generateMacroFile = writeAutogenFiles "dist/"
 
 
-parseModule :: FilePath -> IO (Either (GHC.SrcSpan, String) (GHC.ApiAnns, (GHC.Located (GHC.HsModule GHC.RdrName))))
+parseModule :: FilePath -> IO (Either (GHC.SrcSpan, String) (Anns, (GHC.Located (GHC.HsModule GHC.RdrName))))
 parseModule file = do
   generateMacroFile
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
     GHC.runGhc (Just libdir) $ do
       dflags <- initDynFlags file
       let useCpp = GHC.xopt GHC.Opt_Cpp dflags
-      (fileContents, _) <-
+      (fileContents, injectedComments) <-
         if useCpp
           then do
             let macros = (Just "dist/build/autogen/cabal_macros.h")
@@ -403,7 +403,9 @@ parseModule file = do
       return $
         case parseFile dflags file fileContents of
           GHC.PFailed ss m -> Left $ (ss, (GHC.showSDoc dflags m))
-          GHC.POk (mkApiAnns -> apianns) pmod   -> Right $ (apianns, pmod)
+          GHC.POk (mkApiAnns -> apianns) pmod  ->
+            let as = relativiseApiAnnsWithComments injectedComments pmod apianns in
+            Right $ (as, pmod)
 
 -- ---------------------------------------------------------------------
 
