@@ -17,7 +17,9 @@ module Language.Haskell.GHC.ExactPrint.Internal.Types
   , Annotation(..)
   , combineAnns
   , annNone
-  , Anns,AnnKey(..)
+  , Anns(..),AnnKey(..)
+  , getKeywordDeltas
+  , modifyKeywordDeltas
   , KeywordId(..)
   , mkAnnKey
   , mkAnnKeyWithD
@@ -129,7 +131,24 @@ instance Monoid Annotation where
   mempty = annNone
   mappend = combineAnns
 
-type Anns = (Map.Map AnnKey Annotation, Map.Map GHC.SrcSpan SortKey)
+-----
+-- Anns is kept abstract so that the sortKeys can't be modified
+--
+
+data Anns = Anns
+  { annsKeywordDeltas :: Map.Map AnnKey Annotation
+  , annSortKeys     :: Map.Map GHC.SrcSpan SortKey
+  } deriving (Show, Typeable)
+
+
+getKeywordDeltas :: Anns -> Map.Map AnnKey Annotation
+getKeywordDeltas = annsKeywordDeltas
+
+modifyKeywordDeltas :: (Map.Map AnnKey Annotation -> Map.Map AnnKey Annotation)
+                    -> Anns -> Anns
+modifyKeywordDeltas f as = as { annsKeywordDeltas = f (annsKeywordDeltas as)}
+
+
 
 -- | For every @Located a@, use the @SrcSpan@ and constructor name of
 -- a as the key, to store the standard annotation.
@@ -250,16 +269,14 @@ data WildCardAnon = WildCardAnon deriving (Show,Data,Typeable)
 -- ---------------------------------------------------------------------
 
 getAnnotationEP :: (Data a) =>  GHC.Located a -> Disambiguator -> Anns -> Maybe Annotation
-getAnnotationEP  la d (annotations,_) =
-  Map.lookup (mkAnnKeyWithD la d) annotations
+getAnnotationEP  la d as =
+  Map.lookup (mkAnnKeyWithD la d) (getKeywordDeltas as)
 
 getAndRemoveAnnotationEP :: (Data a)
                          => GHC.Located a -> Disambiguator -> Anns -> (Maybe Annotation,Anns)
-getAndRemoveAnnotationEP la d (annotations,sortKeys)
+getAndRemoveAnnotationEP la d as
  = let key = mkAnnKeyWithD la d in
-    case Map.lookup key annotations of
-         Nothing  -> (Nothing, (annotations,sortKeys))
-         Just av -> (Just av, (Map.delete key annotations,sortKeys))
+   (Map.lookup key (getKeywordDeltas as), modifyKeywordDeltas (Map.delete key) as)
 
 -- ---------------------------------------------------------------------
 

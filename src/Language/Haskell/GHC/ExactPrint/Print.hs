@@ -378,7 +378,7 @@ countAnnsEP an = length <$> peekAnnFinal an
 
 getSortKeyEP :: GHC.SrcSpan -> EP SortKey
 getSortKeyEP ss = do
-  (_,sk) <- gets epAnns
+  sk <- gets (annSortKeys . epAnns)
   return $ case Map.lookup ss sk of
     Nothing -> error $ "getSortKeyEP:miss for " ++ showGhc ss
     Just v  -> v

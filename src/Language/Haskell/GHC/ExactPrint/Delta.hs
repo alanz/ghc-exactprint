@@ -50,9 +50,14 @@ type Delta a = RWS DeltaReader DeltaWriter DeltaState a
 
 runDeltaWithComments :: [Comment] -> Annotated () -> GHC.ApiAnns -> Pos -> Anns
 runDeltaWithComments cs action ga priorEnd =
-  ($ mempty) . appEndo . finalAnns . snd
+  mkAnns . snd
   . (\next -> execRWS next initialDeltaReader (defaultDeltaState cs priorEnd ga))
   . deltaInterpret $ action
+  where
+    mkAnns :: DeltaWriter -> Anns
+    mkAnns = Anns <$> (f . dwAnns) <*> (f . dwSortKeys)
+    f :: Monoid a => Endo a -> a
+    f = ($ mempty) . appEndo
 
 -- ---------------------------------------------------------------------
 
@@ -76,7 +81,9 @@ data DeltaReader = DeltaReader
 
 data DeltaWriter = DeltaWriter
        { -- | Final list of annotations, and sort keys
-         finalAnns :: !(Endo (Map.Map AnnKey Annotation,Map.Map GHC.SrcSpan SortKey))
+         dwAnns :: Endo (Map.Map AnnKey Annotation)
+
+       , dwSortKeys :: Endo (Map.Map GHC.SrcSpan SortKey)
 
          -- | Used locally to pass Keywords, delta pairs relevant to a specific
          -- subtree to the parent.
@@ -137,13 +144,13 @@ tokComment t@(GHC.L lt _) = mkComment (ghcCommentText t) lt
 
 tellFinalAnn :: (AnnKey, Annotation) -> Delta ()
 tellFinalAnn (k, v) =
-  -- tell (mempty { finalAnns = Endo (Map.insertWith (<>) k v) })
-  tell (mempty { finalAnns = Endo (mapInsertFst k v) })
+  -- tell (mempty { dwAnns = Endo (Map.insertWith (<>) k v) })
+  tell (mempty { dwAnns = Endo (Map.insert k v) })
 
 tellFinalSortKey :: (GHC.SrcSpan, SortKey) -> Delta ()
 tellFinalSortKey (k, v) =
   -- tell (mempty { finalSortKeys = Endo (Map.insert k v) })
-  tell (mempty { finalAnns = Endo (mapInsertSnd k v) })
+  tell (mempty { dwSortKeys = Endo (Map.insert k v) })
 
 tellKd :: (KeywordId, DeltaPos) -> Delta ()
 tellKd kd = tell (mempty { annKds = [kd] })
@@ -154,9 +161,9 @@ mapInsertSnd :: (Ord k) => k -> a -> (t, Map.Map k a) -> (t, Map.Map k a)
 mapInsertSnd k v (mf,ms) = (mf                        ,Map.insert k v ms)
 
 instance Monoid DeltaWriter where
-  mempty = DeltaWriter mempty mempty
-  (DeltaWriter a b) `mappend` (DeltaWriter c d)
-    = DeltaWriter (a <> c) (b <> d)
+  mempty = DeltaWriter mempty mempty mempty
+  (DeltaWriter a b e) `mappend` (DeltaWriter c d f)
+    = DeltaWriter (a <> c) (b <> d) (e <> f)
 
 -----------------------------------
 -- Free Monad Interpretation code

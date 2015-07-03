@@ -13,9 +13,10 @@ module Language.Haskell.GHC.ExactPrint.Types
   , combineAnns
   , annNone
   , Anns,AnnKey(..)
+  , getKeywordDeltas
+  , modifyKeywordDeltas
   , KeywordId(..)
   , mkAnnKey
-  , mkAnnKeyWithD
 
   , getAnnotationEP
   , getAndRemoveAnnotationEP

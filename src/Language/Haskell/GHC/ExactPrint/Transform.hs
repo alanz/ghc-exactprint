@@ -133,7 +133,8 @@ adjustAnnOffset (ColDelta cd) (Ann (DP (ro,co)) (ColDelta ad) _ cs kds) = Ann ed
 
 -- | Left bias pair union
 mergeAnns :: Anns -> Anns -> Anns
-mergeAnns (a, b) (c,d) = (Map.union a c, Map.union b d)
+mergeAnns (Anns a1 k1) (Anns a2 k2)
+  = Anns (Map.union a1 a2) (Map.union k1 k2)
 
 mergeAnnList :: [Anns] -> Anns
 mergeAnnList [] = error "mergeAnnList must have at lease one entry"
@@ -150,24 +151,25 @@ setLocatedAnn aane (loc, annVal) = setAnn aane (mkAnnKey loc,annVal)
 
 -- |Update the DeltaPos for the given annotation key/val
 setAnn :: Anns -> (AnnKey, Annotation) -> Anns
-setAnn (anne,sortKeys) (k, Ann dp col edp cs _) = case
-  Map.lookup k anne of
-    Nothing               -> (Map.insert k (Ann dp col edp cs []) anne,sortKeys)
-    Just (Ann _ _ _ _ ks) -> (Map.insert k (Ann dp col edp cs ks) anne,sortKeys)
+setAnn as (k, Ann dp col edp cs _) =
+  let newKds = maybe [] (annsDP) (Map.lookup k (getKeywordDeltas as)) in
+    modifyKeywordDeltas (Map.insert k (Ann dp col edp cs newKds)) as
 
 -- | Adjust the entry annotations to provide an `n` line preceding gap
 setPrecedingLines :: (SYB.Data a) => Anns -> GHC.Located a -> Int -> Int -> Anns
-setPrecedingLines (anne,sk) ast n c =
-  case Map.lookup (mkAnnKey ast) anne of
-    Nothing                      -> (Map.insert (mkAnnKey ast) (Ann (DP (n,c)) (ColDelta c) (DP (n,c)) []  []) anne,sk)
-    Just (Ann ed cd _ted cs dps) -> (Map.insert (mkAnnKey ast) (Ann (DP (n,c)) cd (DP (n,c)) cs dps) anne,sk)
+setPrecedingLines anne ast n c =
+  modifyKeywordDeltas (Map.alter go (mkAnnKey ast)) anne
+  where
+    go Nothing  = Just (Ann (DP (n,c)) (ColDelta c) (DP (n,c)) []  [])
+    Just (Ann ed cd _ted cs dps) = Just (Ann (DP (n,c)) cd (DP (n,c)) cs dps)
 
 -- ---------------------------------------------------------------------
 
 -- |Add a sort key for the first item to come before the second
 addSortKeyBefore :: Anns -> GHC.Located a -> GHC.Located b -> Anns
-addSortKeyBefore (anne,sk) (GHC.L l1 _) (GHC.L l2 _) = (anne,sk')
+addSortKeyBefore anne (GHC.L l1 _) (GHC.L l2 _) = anne { annSortKeys = sk' }
   where
+    sk = annSortKeys anne
     (other,sk2) = case Map.lookup l2 sk of
       Just k -> (k,sk)
       Nothing -> (ss2SortKey l2,Map.insert l2 (ss2SortKey l2) sk)
