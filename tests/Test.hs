@@ -7,6 +7,7 @@ import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Preprocess
 import Language.Haskell.GHC.ExactPrint.Transform
 import Language.Haskell.GHC.ExactPrint.Types
+import Language.Haskell.GHC.ExactPrint.Internal.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
 import GHC.Paths ( libdir )
@@ -28,6 +29,7 @@ import System.FilePath
 import System.IO
 import System.Exit
 import qualified Data.Map as Map
+import Data.Monoid ((<>))
 
 import Data.List
 
@@ -655,8 +657,8 @@ changeCifToCase ans p = return (ans',p')
             ]
 
       let annThen' = adjustAnnOffset (ColDelta 6) annThen
-      let anne1 = (Map.delete (AnnKey l (CN "HsIf") NotNeeded) (fst oldAnns),snd oldAnns)
-          final = mergeAnns anne1 (Map.fromList anne2',snd oldAnns)
+      let anne1 = modifyKeywordDeltas (Map.delete (AnnKey l (CN "HsIf") NotNeeded)) oldAnns
+          final = modifyKeywordDeltas (\s -> Map.unionWith (<>) s (Map.fromList anne2')) anne1
           anne3 = setLocatedAnns final
                     [ (e1, annCond)
                     , (e2, annThen')
@@ -893,7 +895,7 @@ parsedFileGhc fileName _modname useTH = do
         -- GHC.liftIO $ putStrLn $ "got modSum"
         -- let modSum = head g
         cppComments <-  if (GHC.xopt GHC.Opt_Cpp dflags5)
-                        then getCppTokensAsComments fileName
+                        then getCppTokensAsComments Nothing fileName
                         else return []
         -- let cppComments = [] :: [(GHC.Located GHC.Token, String)]
 --        GHC.liftIO $ putStrLn $ "\ncppTokensAsComments for:"  ++ fileName ++ "=========\n"

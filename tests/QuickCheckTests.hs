@@ -1,6 +1,6 @@
 module QuickCheckTests where
 
-import Language.Haskell.GHC.ExactPrint.Types
+import Language.Haskell.GHC.ExactPrint.Internal.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
 
