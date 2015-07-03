@@ -43,6 +43,9 @@ library
                      , Language.Haskell.GHC.ExactPrint.Transform
                      , Language.Haskell.GHC.ExactPrint.Types
                      , Language.Haskell.GHC.ExactPrint.Utils
+
+
+                     , Language.Haskell.GHC.ExactPrint.Internal.Types
   -- other-modules:
   -- other-extensions:
   GHC-Options:         -Wall

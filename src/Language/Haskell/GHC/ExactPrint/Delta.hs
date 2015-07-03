@@ -13,9 +13,9 @@ import Control.Monad.Trans.Free
 import Data.Data (Data)
 import Data.List (sort, nub, partition)
 
-import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Lookup
+import Language.Haskell.GHC.ExactPrint.Internal.Types
 import Language.Haskell.GHC.ExactPrint.Annotate (AnnotationF(..), Annotated
                                                 , annotate,  Annotate(..))
 

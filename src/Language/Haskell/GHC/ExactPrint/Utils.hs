@@ -54,6 +54,7 @@ import Data.Ratio
 
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Lookup
+import Language.Haskell.GHC.ExactPrint.Internal.Types
 
 
 import qualified GHC

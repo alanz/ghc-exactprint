@@ -18,7 +18,7 @@ module Language.Haskell.GHC.ExactPrint.Annotate
 import Data.List ( sortBy )
 import Data.Maybe ( fromMaybe )
 
-import Language.Haskell.GHC.ExactPrint.Types
+import Language.Haskell.GHC.ExactPrint.Internal.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
 import qualified Bag            as GHC
