@@ -10,4 +10,5 @@ extra-deps:
 - bifunctors-5
 - profunctors-5.1.1
 - free-4.12.1
+- cabal-helper-0.3.6.0
 resolver: nightly-2015-06-25
