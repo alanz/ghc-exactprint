@@ -526,11 +526,11 @@ changeLocalDecls ans (GHC.L l p) = do
       doAddLocal = SYB.everywhereM (SYB.mkM replaceLocalBinds) p
       replaceLocalBinds :: GHC.HsValBinds GHC.RdrName -> Transform (GHC.HsValBinds GHC.RdrName)
       replaceLocalBinds (GHC.ValBindsIn binds sigs) = do
-        a@(e,sk) <- getAnnsT
+        a <- getAnnsT
         a' <- case sigs of
-              []    -> return (e,Map.insert ls (ss2SortKey ls) sk)
+              []    -> return $ modifySortKeys (Map.insert ls (ss2SortKey ls)) a
               (s:_) -> do
-                let a2 = setPrecedingLines a (head sigs) 2 0
+                let a2 = setPrecedingLines a s 2 0
                 let a3 = addSortKeyBefore a2 (GHC.L ld ()) (head sigs)
                 let a4 = addSortKeyBefore a3 (GHC.L ls ()) (GHC.L ld ())
                 return a4

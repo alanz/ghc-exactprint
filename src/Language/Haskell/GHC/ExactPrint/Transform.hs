@@ -161,15 +161,15 @@ setPrecedingLines anne ast n c =
   modifyKeywordDeltas (Map.alter go (mkAnnKey ast)) anne
   where
     go Nothing  = Just (Ann (DP (n,c)) (ColDelta c) (DP (n,c)) []  [])
-    Just (Ann ed cd _ted cs dps) = Just (Ann (DP (n,c)) cd (DP (n,c)) cs dps)
+    go (Just (Ann ed cd _ted cs dps)) = Just (Ann (DP (n,c)) cd (DP (n,c)) cs dps)
 
 -- ---------------------------------------------------------------------
 
 -- |Add a sort key for the first item to come before the second
 addSortKeyBefore :: Anns -> GHC.Located a -> GHC.Located b -> Anns
-addSortKeyBefore anne (GHC.L l1 _) (GHC.L l2 _) = anne { annSortKeys = sk' }
+addSortKeyBefore anne (GHC.L l1 _) (GHC.L l2 _) = anne { annsSortKeys = sk' }
   where
-    sk = annSortKeys anne
+    sk = annsSortKeys anne
     (other,sk2) = case Map.lookup l2 sk of
       Just k -> (k,sk)
       Nothing -> (ss2SortKey l2,Map.insert l2 (ss2SortKey l2) sk)

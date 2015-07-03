@@ -20,6 +20,7 @@ module Language.Haskell.GHC.ExactPrint.Internal.Types
   , Anns(..),AnnKey(..)
   , getKeywordDeltas
   , modifyKeywordDeltas
+  , modifySortKeys
   , KeywordId(..)
   , mkAnnKey
   , mkAnnKeyWithD
@@ -137,7 +138,7 @@ instance Monoid Annotation where
 
 data Anns = Anns
   { annsKeywordDeltas :: Map.Map AnnKey Annotation
-  , annSortKeys     :: Map.Map GHC.SrcSpan SortKey
+  , annsSortKeys     :: Map.Map GHC.SrcSpan SortKey
   } deriving (Show, Typeable)
 
 
@@ -147,6 +148,11 @@ getKeywordDeltas = annsKeywordDeltas
 modifyKeywordDeltas :: (Map.Map AnnKey Annotation -> Map.Map AnnKey Annotation)
                     -> Anns -> Anns
 modifyKeywordDeltas f as = as { annsKeywordDeltas = f (annsKeywordDeltas as)}
+
+-- TODO: This should be replaced with higher level operations
+modifySortKeys :: (Map.Map GHC.SrcSpan SortKey -> Map.Map GHC.SrcSpan SortKey)
+               -> Anns -> Anns
+modifySortKeys f as = as { annsSortKeys = f (annsSortKeys as)}
 
 
 
