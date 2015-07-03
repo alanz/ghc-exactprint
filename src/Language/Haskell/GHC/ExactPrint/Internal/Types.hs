@@ -252,6 +252,9 @@ instance GHC.Outputable DeltaPos where
 instance GHC.Outputable SortKey where
   ppr a     = GHC.text (show a)
 
+instance GHC.Outputable Anns where
+  ppr a     = GHC.text (show a)
+
 -- ---------------------------------------------------------------------
 
 -- ResTyGADT has a SrcSpan for the original sigtype, we need to create
