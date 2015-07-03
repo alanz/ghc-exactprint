@@ -53,7 +53,7 @@ page (prev, out, next) (Failure res fname) = do
   original <- readFile fname
   let diff = getDiff (tokenize original) (tokenize res)
   let l = length (lines res)
-  if (l > 10000)
+  if (l > 50000)
     then putStrLn ("Skipping: " ++ fname) >> print l
     else
       writeFile ("failures" </> out) (mkPage (ppDiff diff) prev next original res)
