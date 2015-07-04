@@ -18,6 +18,7 @@ module Language.Haskell.GHC.ExactPrint.Internal.Types
   , combineAnns
   , annNone
   , Anns(..),AnnKey(..)
+  , emptyAnns
   , getKeywordDeltas
   , modifyKeywordDeltas
   , modifySortKeys
@@ -138,9 +139,11 @@ instance Monoid Annotation where
 
 data Anns = Anns
   { annsKeywordDeltas :: Map.Map AnnKey Annotation
-  , annsSortKeys     :: Map.Map GHC.SrcSpan SortKey
+  , annsSortKeys      :: Map.Map GHC.SrcSpan SortKey
   } deriving (Show, Typeable)
 
+emptyAnns :: Anns
+emptyAnns = Anns Map.empty Map.empty
 
 getKeywordDeltas :: Anns -> Map.Map AnnKey Annotation
 getKeywordDeltas = annsKeywordDeltas
@@ -289,7 +292,7 @@ getAndRemoveAnnotationEP la d as
 
 -- ---------------------------------------------------------------------
 
--- |Show a GHC API structure
+-- |Show a GHC.Outputable structure
 showGhc :: (GHC.Outputable a) => a -> String
 showGhc = GHC.showPpr GHC.unsafeGlobalDynFlags
 

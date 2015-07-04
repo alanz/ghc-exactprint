@@ -235,8 +235,9 @@ markMaybe :: (Annotate ast) => Maybe (GHC.Located ast) -> IAnnotated ()
 markMaybe Nothing    = return ()
 markMaybe (Just ast) = markLocated ast
 
+-- Mark a list of items, ensuring that the SortKey is honoured.
 markList :: (Annotate ast) => [GHC.Located ast] -> IAnnotated ()
-markList xs = mapM_ markLocated xs
+markList xs = applyListAnnotations (prepareListAnnotation xs)
 
 -- ---------------------------------------------------------------------
 -- Managing lists which have been separated, e.g. Sigs and Binds
@@ -247,8 +248,10 @@ prepareListAnnotation ls = map (\b@(GHC.L l _) -> (l,markLocated b)) ls
 applyListAnnotations :: [(GHC.SrcSpan, IAnnotated ())] -> IAnnotated ()
 applyListAnnotations ls = do
   ls' <- mapM (\(ss,v) -> getSortKey ss >>= \sk -> return (sk ,v)) ls
-  return () `debug` ("applyListAnnotations:sortkeys=" ++ show (map fst ls'))
-  mapM_ snd $ sortBy (\(a,_) (b,_) -> compare a b) ls'
+  -- return () `debug` ("applyListAnnotations:sortkeys=" ++ show (map fst ls'))
+  let lsSorted = sortBy (\(a,_) (b,_) -> compare a b) ls'
+  return () `debug` ("applyListAnnotations:sortkeys=" ++ show (map fst lsSorted))
+  mapM_ snd lsSorted
 
 #if __GLASGOW_HASKELL__ <= 710
 lexicalSortLocated :: [GHC.Located a] -> IAnnotated [GHC.Located a]

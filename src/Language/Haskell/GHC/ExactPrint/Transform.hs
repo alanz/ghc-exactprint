@@ -153,13 +153,14 @@ setPrecedingLines anne ast n c =
 
 -- |Add a sort key for the first item to come before the second
 addSortKeyBefore :: Anns -> GHC.Located a -> GHC.Located b -> Anns
-addSortKeyBefore anne (GHC.L l1 _) (GHC.L l2 _) = anne { annsSortKeys = sk' }
+addSortKeyBefore anns (GHC.L l1 _) (GHC.L l2 _) = anns { annsSortKeys = sk' }
   where
-    sk = annsSortKeys anne
+    sk = annsSortKeys anns
     (other,sk2) = case Map.lookup l2 sk of
       Just k -> (k,sk)
       Nothing -> (ss2SortKey l2,Map.insert l2 (ss2SortKey l2) sk)
     sk' = Map.insert l1 (sortKeyBefore other) sk2
+          `debug` ("addSortKeyBefore:(l1,l2,otherk,new sk)=" ++ show (l1,l2,other,sortKeyBefore other))
 
 -- ---------------------------------------------------------------------
 

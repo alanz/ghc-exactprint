@@ -488,8 +488,8 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "NestedLambda.hs"         "Main"
     -- , manipulateAstTestWFname "ShiftingLambda.hs"       "Main"
     -- , manipulateAstTestWFname "SlidingLambda.hs"        "Main"
-    -- , manipulateAstTestWFnameMod changeAddDecl "AddDecl.hs" "AddDecl"
-    , manipulateAstTestWFnameMod changeLocalDecls "LocalDecls.hs" "LocalDecls"
+    , manipulateAstTestWFnameMod changeAddDecl "AddDecl.hs" "AddDecl"
+    -- , manipulateAstTestWFnameMod changeLocalDecls "LocalDecls.hs" "LocalDecls"
     {-
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
     , manipulateAstTestWFname "Foo.hs"                   "Main"
@@ -522,24 +522,25 @@ changeLocalDecls ans (GHC.L l p) = do
   let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
   let  sigAnns' = setPrecedingLines  sigAnns (GHC.L ls  sig) 0 0
   -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
+  -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
   -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
   let (p',(ans',_),_) = runTransform ans doAddLocal
       doAddLocal = SYB.everywhereM (SYB.mkM replaceLocalBinds) p
       replaceLocalBinds :: GHC.HsValBinds GHC.RdrName -> Transform (GHC.HsValBinds GHC.RdrName)
       replaceLocalBinds (GHC.ValBindsIn binds sigs) = do
-        a <- getAnnsT
+        a1 <- getAnnsT
         a' <- case sigs of
-              []    -> return $ modifySortKeys (Map.insert ls (ss2SortKey ls)) a
+              []    -> return $ modifySortKeys (Map.insert ls (ss2SortKey ls)) a1
               (s:_) -> do
-                let a2 = setPrecedingLines a s 2 0
-                let a3 = addSortKeyBefore a2 (GHC.L ld ()) (head sigs)
-                let a4 = addSortKeyBefore a3 (GHC.L ls ()) (GHC.L ld ())
+                let a2 = setPrecedingLines a1 s 2 0
+                let a3 = addSortKeyBefore  a2 (GHC.L ld ()) (head sigs)
+                let a4 = addSortKeyBefore  a3 (GHC.L ls ()) (GHC.L ld ())
                 return a4
         putAnnsT a'
         return (GHC.ValBindsIn (GHC.listToBag $ (GHC.L ld decl):GHC.bagToList binds) (GHC.L ls sig:sigs))
       replaceLocalBinds x = return x
 
-  return (mergeAnnList [ans',sigAnns',declAnns'],GHC.L l p')
+  return (mergeAnnList [declAnns',sigAnns',ans'],GHC.L l p')
 
 -- ---------------------------------------------------------------------
 
@@ -551,7 +552,7 @@ changeAddDecl ans (GHC.L l p) = do
   let declAnns' = setPrecedingLines declAnns decl 2 0
   -- putStrLn $ "changeDecl:(declAnns',decl)=" ++ showGhc (declAnns',decl)
   let p' = p { GHC.hsmodDecls = head (GHC.hsmodDecls p) : decl : tail (GHC.hsmodDecls p)}
-  return (mergeAnns ans declAnns',GHC.L l p')
+  return (mergeAnns declAnns' ans,GHC.L l p')
 
 -- ---------------------------------------------------------------------
 
