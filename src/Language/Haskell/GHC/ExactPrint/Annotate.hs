@@ -292,7 +292,7 @@ instance Annotate (GHC.HsModule GHC.RdrName) where
     mark GHC.AnnWhere
     mark GHC.AnnOpenC -- Possible '{'
     markMany GHC.AnnSemi -- possible leading semis
-    mapM_ markLocated imps
+    markList imps
 
     markList decs
 
@@ -306,14 +306,14 @@ instance Annotate GHC.WarningTxt where
   markAST _ (GHC.WarningTxt (GHC.L ls txt) lss) = do
     markExternal ls GHC.AnnOpen txt
     mark GHC.AnnOpenS
-    mapM_ markLocated lss
+    markList lss
     mark GHC.AnnCloseS
     markWithString GHC.AnnClose "#-}"
 
   markAST _ (GHC.DeprecatedTxt (GHC.L ls txt) lss) = do
     markExternal ls GHC.AnnOpen txt
     mark GHC.AnnOpenS
-    mapM_ markLocated lss
+    markList lss
     mark GHC.AnnCloseS
     markWithString GHC.AnnClose "#-}"
 
@@ -328,7 +328,7 @@ instance (GHC.DataId name,Annotate name)
    markAST _ ls = do
      mark GHC.AnnHiding -- in an import decl
      mark GHC.AnnOpenP -- '('
-     mapM_ markLocated ls
+     markList ls
      mark GHC.AnnCloseP -- ')'
 
 instance (GHC.DataId name,Annotate name)
@@ -352,7 +352,7 @@ instance (GHC.DataId name,Annotate name)
         (GHC.IEThingWith ln ns) -> do
           markLocated ln
           mark GHC.AnnOpenP
-          mapM_ markLocated ns
+          markList ns
           mark GHC.AnnCloseP
 
         (GHC.IEThingAll ln) -> do
@@ -538,7 +538,7 @@ instance (Annotate name)
     mark GHC.AnnType
     mark GHC.AnnRole
     markLocated ln
-    mapM_ markLocated mr
+    markList mr
 
 instance Annotate (Maybe GHC.Role) where
   markAST l Nothing  = markExternal l GHC.AnnVal "_"
@@ -607,7 +607,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
    => Annotate (GHC.RuleDecls name) where
    markAST _ (GHC.HsRules src rules) = do
      markWithString GHC.AnnOpen src
-     mapM_ markLocated rules
+     markList rules
      markWithString GHC.AnnClose "#-}"
      markOutside GHC.AnnSemi AnnSemiSep
 
@@ -627,7 +627,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnCloseS -- "]"
 
     mark GHC.AnnForall
-    mapM_ markLocated bndrs
+    markList bndrs
     mark GHC.AnnDot
 
     markLocated lhs
@@ -668,7 +668,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 instance Annotate name => Annotate (GHC.WarnDecls name) where
    markAST _ (GHC.Warnings src warns) = do
      markWithString GHC.AnnOpen src
-     mapM_ markLocated warns
+     markList warns
      markWithString GHC.AnnClose "#-}"
 
 -- ---------------------------------------------------------------------
@@ -676,11 +676,11 @@ instance Annotate name => Annotate (GHC.WarnDecls name) where
 instance (Annotate name)
    => Annotate (GHC.WarnDecl name) where
    markAST _ (GHC.Warning lns txt) = do
-     mapM_ markLocated lns
+     markList lns
      mark GHC.AnnOpenS -- "["
      case txt of
-       GHC.WarningTxt    _src ls -> mapM_ markLocated ls
-       GHC.DeprecatedTxt _src ls -> mapM_ markLocated ls
+       GHC.WarningTxt    _src ls -> markList ls
+       GHC.DeprecatedTxt _src ls -> markList ls
      mark GHC.AnnCloseS -- "]"
 
 instance Annotate GHC.FastString where
@@ -763,7 +763,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.DefaultDecl typs) = do
     mark GHC.AnnDefault
     mark GHC.AnnOpenP -- '('
-    mapM_ markLocated typs
+    markList typs
     mark GHC.AnnCloseP -- ')'
     markOutside GHC.AnnSemi (G GHC.AnnSemi)
 
@@ -857,14 +857,14 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsBind name) where
   markAST _ (GHC.FunBind (GHC.L _ln _n) _ (GHC.MG matches _ _ _) _ _ _) = do
-    mapM_ markLocated matches
+    markList matches
     --markOutside GHC.AnnSemi AnnSemiSep
     -- markMatchGroup l mg
 
   markAST _ (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
     markLocated lhs
     mark GHC.AnnEqual
-    mapM_ markLocated grhs
+    markList grhs
     mark GHC.AnnWhere
 
     markLocalBindsWithLayout lb
@@ -883,7 +883,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markLocated lb
       GHC.PrefixPatSyn ns -> do
         markLocated ln
-        mapM_ markLocated ns
+        markList ns
     mark GHC.AnnEqual
     mark GHC.AnnLarrow
     markLocated def
@@ -938,18 +938,18 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
           Just (n,_) -> markLocated n
         markLocated b
         mark GHC.AnnCloseP
-        mapM_ markLocated xs
+        markList xs
       _ -> do
         case mln of
           Nothing -> mark GHC.AnnFunId
           Just (n,_) -> markLocated n
-        mapM_ markLocated pats
+        markList pats
 
     -- TODO: The AnnEqual annotation actually belongs in the first GRHS value
     mark GHC.AnnEqual
     mark GHC.AnnRarrow -- For HsLam
 
-    mapM_ markLocated grhs
+    markList grhs
 
     mark GHC.AnnWhere
     mark GHC.AnnOpenC -- '{'
@@ -966,7 +966,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,
   markAST _ (GHC.GRHS guards expr) = do
     case guards of
       [] -> return ()
-      (_:_) -> mark GHC.AnnVbar >> mapM_ markLocated guards
+      (_:_) -> mark GHC.AnnVbar >> markList guards
     mark GHC.AnnEqual
     cntL <- countAnns GHC.AnnLam
     when (cntL == 0) $ mark GHC.AnnRarrow -- For HsLam
@@ -978,7 +978,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   => Annotate (GHC.Sig name) where
 
   markAST _ (GHC.TypeSig lns typ _) = do
-    mapM_ markLocated lns
+    markList lns
     mark GHC.AnnDcolon
     markLocated typ
     markOutside (GHC.AnnSemi) (G GHC.AnnSemi)
@@ -990,7 +990,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
     -- Note: The 'forall' bndrs '.' may occur multiple times
     mark GHC.AnnForall
-    mapM_ markLocated bndrs
+    markList bndrs
     mark GHC.AnnDot
 
     markLocated ctx1
@@ -1002,7 +1002,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   markAST _ (GHC.GenericSig ns typ) = do
     mark GHC.AnnDefault
-    mapM_ markLocated ns
+    markList ns
     mark GHC.AnnDcolon
     markLocated typ
 
@@ -1017,7 +1017,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
          GHC.InfixN -> "infix"
     markWithString GHC.AnnInfix fixstr
     markWithString GHC.AnnVal (show v)
-    mapM_ markLocated lns
+    markList lns
     markOutside (GHC.AnnSemi) (G GHC.AnnSemi)
 
   -- InlineSig (Located name) InlinePragma
@@ -1046,7 +1046,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnCloseS -- ']'
     markLocated ln
     mark GHC.AnnDcolon -- '::'
-    mapM_ markLocated typs
+    markList typs
     markWithString GHC.AnnClose "#-}" -- '#-}'
     markOutside GHC.AnnSemi AnnSemiSep
 
@@ -1109,7 +1109,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsForAllTy _f mwc (GHC.HsQTvs _kvs tvs) ctx@(GHC.L lc ctxs) typ) = do
     mark GHC.AnnOpenP -- "("
     mark GHC.AnnForall
-    mapM_ markLocated tvs
+    markList tvs
     mark GHC.AnnDot
 
     case mwc of
@@ -1162,7 +1162,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnDcolon -- for HsKind, alias for HsType
     markWithString GHC.AnnOpen "(#" -- '(#'
     mark GHC.AnnOpenP  -- '('
-    mapM_ markLocated ts
+    markList ts
     mark GHC.AnnCloseP -- ')'
     markWithString GHC.AnnClose "#)" --  '#)'
 
@@ -1220,7 +1220,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   -- HsRecTy [LConDeclField name]
   markAST _ (GHC.HsRecTy cons) = do
     mark GHC.AnnOpenC  -- '{'
-    mapM_ markLocated cons
+    markList cons
     mark GHC.AnnCloseC -- '}'
 
   -- HsCoreTy Type
@@ -1230,13 +1230,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsExplicitListTy _ ts) = do
     mark GHC.AnnSimpleQuote
     mark GHC.AnnOpenS  -- "["
-    mapM_ markLocated ts
+    markList ts
     mark GHC.AnnCloseS -- ']'
 
   markAST _ (GHC.HsExplicitTupleTy _ ts) = do
     mark GHC.AnnSimpleQuote
     mark GHC.AnnOpenP
-    mapM_ markLocated ts
+    markList ts
     mark GHC.AnnCloseP
 
   -- HsTyLit HsTyLit
@@ -1326,7 +1326,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name) =>
                              Annotate (GHC.ConDeclField name) where
   markAST _ (GHC.ConDeclField ns ty mdoc) = do
-    mapM_ markLocated ns
+    markList ns
     mark GHC.AnnDcolon
     markLocated ty
     markMaybe mdoc
@@ -1363,19 +1363,19 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 
   markAST _ (GHC.ListPat ps _ _) = do
     mark GHC.AnnOpenS
-    mapM_ markLocated ps
+    markList ps
     mark GHC.AnnCloseS
 
   markAST _ (GHC.TuplePat pats b _) = do
     if b == GHC.Boxed then mark GHC.AnnOpenP
                       else markWithString GHC.AnnOpen "(#"
-    mapM_ markLocated pats
+    markList pats
     if b == GHC.Boxed then mark GHC.AnnCloseP
                       else markWithString GHC.AnnClose "#)"
 
   markAST _ (GHC.PArrPat ps _) = do
     markWithString GHC.AnnOpen "[:"
-    mapM_ markLocated ps
+    markList ps
     markWithString GHC.AnnClose ":]"
 
   markAST _ (GHC.ConPatIn n dets) = do
@@ -1453,11 +1453,11 @@ markHsConPatDetails ln dets = do
   case dets of
     GHC.PrefixCon args -> do
       markLocated ln
-      mapM_ markLocated args
+      markList args
     GHC.RecCon (GHC.HsRecFields fs _) -> do
       markLocated ln
       mark GHC.AnnOpenC -- '{'
-      mapM_ markLocated fs
+      markList fs
       mark GHC.AnnDotdot
       mark GHC.AnnCloseC -- '}'
     GHC.InfixCon a1 a2 -> do
@@ -1469,14 +1469,14 @@ markHsConDeclDetails :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName 
                     =>  [GHC.Located name] -> GHC.HsConDeclDetails name -> IAnnotated ()
 markHsConDeclDetails lns dets = do
   case dets of
-    GHC.PrefixCon args -> mapM_ markLocated args
+    GHC.PrefixCon args -> markList args
     GHC.RecCon fs -> do
       mark GHC.AnnOpenC
       markLocated fs
       mark GHC.AnnCloseC
     GHC.InfixCon a1 a2 -> do
       markLocated a1
-      mapM_ markLocated lns
+      markList lns
       markLocated a2
 
 -- ---------------------------------------------------------------------
@@ -1485,7 +1485,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
    => Annotate [GHC.LConDeclField name] where
   markAST _ fs = do
        mark GHC.AnnOpenC -- '{'
-       mapM_ markLocated fs
+       markList fs
        mark GHC.AnnDotdot
        mark GHC.AnnCloseC -- '}'
        mark GHC.AnnRarrow
@@ -1546,7 +1546,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     markOutside GHC.AnnSemi (G GHC.AnnSemi)
 
   markAST _ (GHC.TransStmt form stmts _b using by _ _ _) = do
-    mapM_ markLocated stmts
+    markList stmts
     case form of
       GHC.ThenForm -> do
         mark GHC.AnnThen
@@ -1569,7 +1569,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     mark GHC.AnnRec
     mark GHC.AnnOpenC
     markInside GHC.AnnSemi
-    mapM_ markLocated stmts
+    markList stmts
     mark GHC.AnnCloseC
     mark GHC.AnnVbar -- possible in list comprehension
     markOutside GHC.AnnSemi AnnSemiSep
@@ -1579,7 +1579,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
 instance  (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   =>  Annotate (GHC.ParStmtBlock name name) where
   markAST _ (GHC.ParStmtBlock stmts _ns _) =
-    mapM_ markLocated stmts
+    markList stmts
 
 -- ---------------------------------------------------------------------
 
@@ -1607,7 +1607,7 @@ markHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) =
 markHsLocalBinds (GHC.HsValBinds (GHC.ValBindsOut {}))
    = traceM "warning: ValBindsOut introduced after renaming"
 
-markHsLocalBinds (GHC.HsIPBinds (GHC.IPBinds binds _)) = mapM_ markLocated (reverse binds)
+markHsLocalBinds (GHC.HsIPBinds (GHC.IPBinds binds _)) = markList (reverse binds)
 markHsLocalBinds (GHC.EmptyLocalBinds)                 = return ()
 
 -- ---------------------------------------------------------------------
@@ -1624,7 +1624,7 @@ markMatchGroup _ (GHC.MG matches _ _ _)
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name,
                                                Annotate body)
   => Annotate [GHC.Located (GHC.Match name (GHC.Located body))] where
-  markAST _ ls = mapM_ markLocated ls
+  markAST _ ls = markList ls
 
 -- ---------------------------------------------------------------------
 
@@ -1677,7 +1677,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     if b == GHC.Boxed then mark GHC.AnnOpenP
                       else markWithString GHC.AnnOpen "(#"
 
-    mapM_ markLocated args
+    markList args
 
     if b == GHC.Boxed then mark GHC.AnnCloseP
                       else markWithString GHC.AnnClose "#)"
@@ -1703,7 +1703,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   markAST _ (GHC.HsMultiIf _ rhs) = do
     mark GHC.AnnIf
-    addContext MultiIf (mapM_ markLocated rhs)
+    addContext MultiIf (markList rhs)
 
   markAST _ (GHC.HsLet binds e) = do
     setLayoutFlag (do -- Make sure the 'in' gets indented too
@@ -1733,7 +1733,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       then do
         markLocated (last es)
         mark GHC.AnnVbar
-        mapM_ markLocated (init es)
+        markList (init es)
       else do
         markListWithLayout es
     mark GHC.AnnCloseS
@@ -1742,25 +1742,25 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   markAST _ (GHC.ExplicitList _ _ es) = do
     mark GHC.AnnOpenS
-    mapM_ markLocated es
+    markList es
     mark GHC.AnnCloseS
 
   markAST _ (GHC.ExplicitPArr _ es)   = do
     markWithString GHC.AnnOpen "[:"
-    mapM_ markLocated es
+    markList es
     markWithString GHC.AnnClose ":]"
 
   markAST _ (GHC.RecordCon n _ (GHC.HsRecFields fs _)) = do
     markLocated n
     mark GHC.AnnOpenC
-    mapM_ markLocated fs
+    markList fs
     mark GHC.AnnDotdot
     mark GHC.AnnCloseC
 
   markAST _ (GHC.RecordUpd e (GHC.HsRecFields fs _) _cons _ _) = do
     markLocated e
     mark GHC.AnnOpenC
-    mapM_ markLocated fs
+    markList fs
     mark GHC.AnnDotdot
     mark GHC.AnnCloseC
 
@@ -1849,7 +1849,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsBracket (GHC.DecBrL ds)) = do
     markWithString GHC.AnnOpen "[d|"
     mark GHC.AnnOpenC
-    mapM_ markLocated ds
+    markList ds
     mark GHC.AnnCloseC
     markWithString GHC.AnnClose "|]"
   -- Introduced after the renamer
@@ -1919,7 +1919,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsArrForm e _ cs) = do
     markWithString GHC.AnnOpen "(|"
     markLocated e
-    mapM_ markLocated cs
+    markList cs
     markWithString GHC.AnnClose "|)"
 
   markAST _ (GHC.HsTick _ _) = return ()
@@ -1975,7 +1975,7 @@ instance Annotate GHC.HsLit where
 -- do or let .. in statement/expr
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate ([GHC.ExprLStmt name]) where
-  markAST _ ls = mapM_ markLocated ls
+  markAST _ ls = markList ls
 
 -- ---------------------------------------------------------------------
 
@@ -2011,7 +2011,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     applyListAnnotations (prepareListAnnotation [e]
                          ++ prepareListAnnotation cs)
     -- markLocated e
-    -- mapM_ markLocated cs
+    -- markList cs
     markWithString GHC.AnnClose "|)"
 
   markAST _ (GHC.HsCmdApp e1 e2) = do
@@ -2067,7 +2067,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate [GHC.Located (GHC.StmtLR name name (GHC.LHsCmd name))] where
-  markAST _ ls = mapM_ markLocated ls
+  markAST _ ls = markList ls
 
 -- ---------------------------------------------------------------------
 
@@ -2104,7 +2104,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnEqual
     mark GHC.AnnWhere
     mark GHC.AnnOpenC
-    mapM_ markLocated cons
+    markList cons
     markMaybe mderivs
     mark GHC.AnnCloseC
     markOutside GHC.AnnSemi (G GHC.AnnSemi)
@@ -2119,7 +2119,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markTyClass ln tyVars
 
     mark GHC.AnnVbar
-    mapM_ markLocated fds
+    markList fds
     mark GHC.AnnWhere
     mark GHC.AnnOpenC -- '{'
     markInside GHC.AnnSemi
@@ -2141,7 +2141,7 @@ markTyClass ln tyVars = do
     applyListAnnotations (prepareListAnnotation [ln]
                       ++ prepareListAnnotation (take 2 tyVars))
     markMany GHC.AnnCloseP
-    mapM_ markLocated (drop 2 tyVars)
+    markList (drop 2 tyVars)
 
 -- ---------------------------------------------------------------------
 
@@ -2161,9 +2161,9 @@ instance (GHC.DataId name,Annotate name, GHC.OutputableBndr name,GHC.HasOccName 
     mark GHC.AnnOpenC -- {
     case info of
 #if __GLASGOW_HASKELL__ > 710
-      GHC.ClosedTypeFamily (Just eqns) -> mapM_ markLocated eqns
+      GHC.ClosedTypeFamily (Just eqns) -> markList eqns
 #else
-      GHC.ClosedTypeFamily eqns -> mapM_ markLocated eqns
+      GHC.ClosedTypeFamily eqns -> markList eqns
 #endif
       _ -> return ()
     mark GHC.AnnCloseC -- }
@@ -2189,7 +2189,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
     mark GHC.AnnType
     mark GHC.AnnInstance
     markLocated ln
-    mapM_ markLocated bndrs
+    markList bndrs
     mark GHC.AnnEqual
     markLocated typ
 
@@ -2215,7 +2215,7 @@ markDataDefn _ (GHC.HsDataDefn _ ctx typ mk cons mderivs) = do
   markLocated ctx
   markMaybe typ
   markMaybe mk
-  mapM_ markLocated cons
+  markList cons
   case mderivs of
     Nothing -> return ()
     Just d -> markLocated d
@@ -2228,7 +2228,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ ts = do
     mark GHC.AnnDeriving
     markMany GHC.AnnOpenP -- may be nested parens around context
-    mapM_ markLocated ts
+    markList ts
     markMany GHC.AnnCloseP -- may be nested parens around context
     -- mark GHC.AnnDarrow
     markOutside GHC.AnnDarrow (G GHC.AnnDarrow)
@@ -2243,14 +2243,14 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
       GHC.ResTyH98 -> do
 
         mark GHC.AnnForall
-        mapM_ markLocated bndrs
+        markList bndrs
         mark GHC.AnnDot
 
         markLocated ctx
         mark GHC.AnnDarrow
         case dets of
           GHC.InfixCon _ _ -> return ()
-          _ -> mapM_ markLocated lns
+          _ -> markList lns
 
         markHsConDeclDetails lns dets
 
@@ -2258,7 +2258,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
         -- only print names if not infix
         case dets of
           GHC.InfixCon _ _ -> return ()
-          _ -> mapM_ markLocated lns
+          _ -> markList lns
 
         when depc_syntax ( do
           markHsConDeclDetails lns dets
@@ -2288,7 +2288,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   => Annotate (ResTyGADTHook name) where
   markAST _ (ResTyGADTHook bndrs) = do
     mark GHC.AnnForall
-    mapM_ markLocated bndrs
+    markList bndrs
     mark GHC.AnnDot
 
 -- ---------------------------------------------------------------------
@@ -2314,9 +2314,9 @@ instance (GHC.DataId name,Annotate name)
     => Annotate (GHC.FunDep (GHC.Located name)) where
 
   markAST _ (ls,rs) = do
-    mapM_ markLocated ls
+    markList ls
     mark GHC.AnnRarrow
-    mapM_ markLocated rs
+    markList rs
 
 -- ---------------------------------------------------------------------
 
