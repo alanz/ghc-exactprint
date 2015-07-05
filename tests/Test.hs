@@ -547,12 +547,26 @@ changeLocalDecls ans (GHC.L l p) = do
 -- | Add a declaration to AddDecl
 changeAddDecl :: Changer
 changeAddDecl ans (GHC.L l p) = do
-  Right (declAnns, decl) <- withDynFlags (\df -> parseDecl df "<interactive>" "\n\nnn = n2")
+  Right (declAnns, decl@(GHC.L ld _)) <- withDynFlags (\df -> parseDecl df "<interactive>" "nn = n2")
   -- putStrLn $ "changeDecl:(declAnns,decl)=" ++ showGhc (declAnns,decl)
   let declAnns' = setPrecedingLines declAnns decl 2 0
   -- putStrLn $ "changeDecl:(declAnns',decl)=" ++ showGhc (declAnns',decl)
-  let p' = p { GHC.hsmodDecls = head (GHC.hsmodDecls p) : decl : tail (GHC.hsmodDecls p)}
-  return (mergeAnns declAnns' ans,GHC.L l p')
+
+  let (p',(ans',_),_) = runTransform ans doAddDecl
+      doAddDecl = SYB.everywhereM (SYB.mkM replaceTopLevelDecls) p
+      replaceTopLevelDecls :: GHC.HsModule GHC.RdrName -> Transform (GHC.HsModule GHC.RdrName)
+      replaceTopLevelDecls (GHC.HsModule mmn mexp imps decs mdepr haddock) = do
+        a1 <- getAnnsT
+        a' <- case decs of
+              (s:_) -> do
+                -- let a2 = setPrecedingLines a1 s 2 0
+                let a3 = addSortKeyBefore  a1 (GHC.L ld ()) s
+                return a3
+        putAnnsT a'
+        let decs' = (head decs) : decl : tail decs
+        return (GHC.HsModule mmn mexp imps decs' mdepr haddock)
+      replaceTopLevelDecls x = return x
+  return (mergeAnns declAnns' ans',GHC.L l p')
 
 -- ---------------------------------------------------------------------
 
