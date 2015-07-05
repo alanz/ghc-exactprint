@@ -117,7 +117,7 @@ initialDeltaReader =
     { curSrcSpan = GHC.noSrcSpan
     , annConName = annGetConstr ()
     , annDisambiguator = NotNeeded
-    , layoutStart = 0
+    , layoutStart = 1
     }
 
 defaultDeltaState :: [Comment] -> Pos -> GHC.ApiAnns -> DeltaState

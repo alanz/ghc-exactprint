@@ -96,7 +96,7 @@ defaultEPState as = EPState
 
 initialEPReader :: EPReader
 initialEPReader  = EPReader
-             { epLHS = 0
+             { epLHS = 1
              , epAnn = mempty
              }
 
