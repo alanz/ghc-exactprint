@@ -7,4 +7,6 @@ packages:
   extra-dep: true
 extra-deps:
 - cabal-helper-0.3.6.0
-resolver: nightly-2015-06-25
+# - binary-0.7.5.0
+# resolver: nightly-2015-06-25
+resolver: nightly-2015-07-03
