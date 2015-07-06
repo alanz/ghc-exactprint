@@ -10,7 +10,6 @@ module Language.Haskell.GHC.ExactPrint.Types
   , addDP
   , LayoutStartCol(..) , ColDelta(..)
   , Annotation(..)
-  , combineAnns
   , annNone
   , Anns,AnnKey(..)
   , emptyAnns

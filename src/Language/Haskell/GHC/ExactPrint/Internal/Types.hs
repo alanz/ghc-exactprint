@@ -15,13 +15,11 @@ module Language.Haskell.GHC.ExactPrint.Internal.Types
   , addDP
   , LayoutStartCol(..) , ColDelta(..)
   , Annotation(..)
-  , combineAnns
   , annNone
   , Anns(..),AnnKey(..)
   , emptyAnns
   , getKeywordDeltas
   , modifyKeywordDeltas
-  , modifySortKeys
   , KeywordId(..)
   , mkAnnKey
   , mkAnnKeyWithD
@@ -104,14 +102,15 @@ instance Show ColDelta where
   show (ColDelta v) = "(ColDelta " ++ show v ++ ")"
 
 annNone :: Annotation
-annNone = Ann (DP (0,0)) 0  (DP (0,0)) [] []
+annNone = Ann (DP (0,0)) 0  (DP (0,0)) [] [] Nothing
 
-
+{-
 -- TODO: This is wrong
 combineAnns :: Annotation -> Annotation -> Annotation
 combineAnns (Ann ed1 c1 comments1 toStart1 dps1) (Ann _ed2  _c2 _comments2 _toStart2 dps2)
   = Ann ed1 c1 comments1 toStart1 (dps1 ++ dps2)
   -- = Ann ed2 c2 comments2 toStart2 (dps1 ++ dps2)
+-}
 
 data Annotation = Ann
   {
@@ -130,9 +129,11 @@ data Annotation = Ann
 instance Show Annotation where
   show (Ann dp c comments toStart ans sk) = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ show comments ++ " " ++ show toStart ++ " " ++ show ans ++ " " ++ show sk ++")"
 
+{-
 instance Monoid Annotation where
   mempty = annNone
   mappend = combineAnns
+  -}
 
 -----
 -- Anns is kept abstract so that the sortKeys can't be modified
