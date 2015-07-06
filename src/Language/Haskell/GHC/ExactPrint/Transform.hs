@@ -24,6 +24,8 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , HasDecls (..)
         , insertAtStart
         , insertAtEnd
+        , insertAfter
+        , insertBefore
 
         -- * Other
         , adjustAnnOffset
@@ -213,7 +215,7 @@ instance HasDecls (GHC.HsModule GHC.RdrName) where
   replaceDecls m ds = m { GHC.hsmodDecls = ds }
 
 insertAt :: (Data ast, HasDecls ast)
-              => (forall a . a -> [a] -> [a])
+              => (AnnKey -> [AnnKey] -> [AnnKey])
               -> GHC.Located ast
               -> GHC.LHsDecl GHC.RdrName
               -> Transform (GHC.Located ast)
@@ -233,3 +235,20 @@ insertAtStart, insertAtEnd :: (Data ast, HasDecls ast)
 
 insertAtStart = insertAt (:)
 insertAtEnd   = insertAt (\x xs -> xs ++ [x])
+
+insertAfter, insertBefore :: (Data ast, HasDecls ast)
+                          => AnnKey
+                          -> GHC.Located ast
+                          -> GHC.LHsDecl GHC.RdrName
+                          -> Transform (GHC.Located ast)
+insertAfter k = insertAt findAfter
+  where
+    findAfter x xs =
+      let (fs, b:bs) = span (/= k) xs
+      in fs ++ (b : x : bs)
+insertBefore k = insertAt findBefore
+  where
+    findBefore x xs =
+      let (fs, bs) = span (/= k) xs
+      in fs ++ (x : bs)
+
