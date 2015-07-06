@@ -1,6 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns    #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE Rank2Types #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Language.Haskell.GHC.ExactPrint.Transform
@@ -19,7 +21,9 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , isUniqueSrcSpan
 
         -- * Managing lists
-        , captureOrder
+        , HasDecls (..)
+        , insertAtStart
+        , insertAtEnd
 
         -- * Other
         , adjustAnnOffset
@@ -109,7 +113,7 @@ isUniqueSrcSpan :: GHC.SrcSpan -> Bool
 isUniqueSrcSpan ss = srcSpanStartLine ss == -1
 
 -- ---------------------------------------------------------------------
-
+{-
 -- |If a list has been re-ordered or had items added, capture the new order in
 -- the appropriate SortKeys.
 captureOrder :: [GHC.Located a] -> Anns -> Anns
@@ -117,6 +121,7 @@ captureOrder ls ans = modifySortKeys reList ans
   where
     newList = map (\(ss,r) -> (ss,SortKey (r,1,1%2))) $ zip (map GHC.getLoc ls) [1..]
     reList sks = foldr (uncurry Map.insert) sks newList
+-}
 
 -- ---------------------------------------------------------------------
 
@@ -182,3 +187,49 @@ addSortKeyBefore anns (GHC.L l1 _) (GHC.L l2 _) = anns { annsSortKeys = sk' }
           `debug` ("addSortKeyBefore:(l1,l2,otherk,new sk)=" ++ show (l1,l2,other,sortKeyBefore other))
 -}
 
+
+-- -----
+-- Classes
+-- MP: I think these should move into a separate module.
+
+class HasDecls t where
+
+    -- | Return the HsDecls that are directly enclosed in the
+    -- given syntax phrase. They are always returned in the wrapped HsDecl form,
+    -- even if orginating in local decls.
+    hsDecls :: t -> [GHC.LHsDecl GHC.RdrName]
+
+    -- | Replace the directly enclosed decl list by the given
+    --  decl list. Runs in the ghc-exactprint Transform Monad to be able to
+    --  update list order annotations.
+    replaceDecls :: t -> [GHC.LHsDecl GHC.RdrName] -> t
+
+instance HasDecls ast => HasDecls (GHC.GenLocated l ast) where
+  hsDecls (GHC.L _ ast) = hsDecls ast
+  replaceDecls (GHC.L l m) ds = GHC.L l (replaceDecls m ds)
+
+instance HasDecls (GHC.HsModule GHC.RdrName) where
+  hsDecls m = GHC.hsmodDecls m
+  replaceDecls m ds = m { GHC.hsmodDecls = ds }
+
+insertAt :: (Data ast, HasDecls ast)
+              => (forall a . a -> [a] -> [a])
+              -> GHC.Located ast
+              -> GHC.LHsDecl GHC.RdrName
+              -> Transform (GHC.Located ast)
+insertAt f m decl = do
+  let newKey = mkAnnKey decl
+      modKey = mkAnnKey m
+      newValue a@Ann{..} = a { annSortKey = f newKey <$> annSortKey }
+      oldDecls = hsDecls m
+  modifyAnnsT (modifyKeywordDeltas (Map.adjust newValue modKey))
+
+  return $ replaceDecls m (decl : oldDecls )
+
+insertAtStart, insertAtEnd :: (Data ast, HasDecls ast)
+              => GHC.Located ast
+              -> GHC.LHsDecl GHC.RdrName
+              -> Transform (GHC.Located ast)
+
+insertAtStart = insertAt (:)
+insertAtEnd   = insertAt (\x xs -> xs ++ [x])
