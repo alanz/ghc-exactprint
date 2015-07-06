@@ -27,6 +27,8 @@ import Language.Haskell.GHC.ExactPrint.Delta ( relativiseApiAnns )
 
 import Control.Monad.RWS
 import Data.Data (Data)
+import Data.List (sortBy, elemIndex)
+import Data.Ord (comparing)
 import Data.Maybe (fromMaybe)
 
 import Control.Monad.Trans.Free
@@ -130,8 +132,6 @@ printInterpret = iterTM go
       exactPC lss d flag (printInterpret action) >> next
     go (CountAnns kwid next) =
       countAnnsEP (G kwid) >>= next
-    go (GetSortKey ss next) =
-      getSortKeyEP ss >>= next
     go (SetLayoutFlag action next) =
       setLayout (printInterpret action) >> next
     go (MarkExternal _ akwid s next) =
@@ -142,6 +142,7 @@ printInterpret = iterTM go
       printStoredString >> next
     go (GetNextDisambiguator next) = return NotNeeded >>= next
     go (AnnotationsToComments _ next) = next
+    go (WithSortKey ks next) = withSortKey ks >> next
 
 -------------------------------------------------------------------------
 
@@ -169,6 +170,20 @@ printStoredString = do
     ((AnnString ss,_):_) -> printStringAtMaybeAnn (AnnString ss) ss
     _                    -> return ()
 
+withSortKey :: [(AnnKey, Annotated ())] -> EP ()
+withSortKey xs = do
+  Ann{..} <- asks epAnn
+  let ordered = case annSortKey of
+                  Nothing -> map snd xs
+                  Just keys -> match xs keys
+  mapM_ printInterpret ordered
+  where
+    -- Items not in the ordering are placed to the end.
+    match :: [(AnnKey, Annotated ())] -> [AnnKey] -> [Annotated ()]
+    match keys order =
+       map snd (sortBy (comparing (flip elemIndex order . fst)) keys)
+
+
 -------------------------------------------------------------------------
 
 justOne, allAnns :: GHC.AnnKeywordId -> EP ()
@@ -182,7 +197,7 @@ exactPC ast d flag action =
     do
       return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
       ma <- getAndRemoveAnnotation ast d
-      let an@(Ann edp _ _ comments kds) = fromMaybe annNone ma
+      let an@(Ann edp _ _ comments kds _) = fromMaybe annNone ma
       r <- withContext kds an flag
        (mapM_ (uncurry printQueuedComment) comments
        >> advance edp
@@ -375,13 +390,6 @@ countAnnsEP :: KeywordId -> EP Int
 countAnnsEP an = length <$> peekAnnFinal an
 
 -- ---------------------------------------------------------------------
-
-getSortKeyEP :: GHC.SrcSpan -> EP SortKey
-getSortKeyEP ss = do
-  sk <- gets (annsSortKeys . epAnns)
-  return $ case Map.lookup ss sk of
-    Nothing -> error $ "getSortKeyEP:miss for " ++ showGhc ss
-    Just v  -> v
 
 
 -- ---------------------------------------------------------------------

@@ -11,7 +11,9 @@ import Control.Monad.RWS
 import Control.Monad.Trans.Free
 
 import Data.Data (Data)
-import Data.List (sort, nub, partition)
+import Data.List (sort, nub, partition, sortBy)
+
+import Data.Ord
 
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Lookup
@@ -55,7 +57,7 @@ runDeltaWithComments cs action ga priorEnd =
   . deltaInterpret $ action
   where
     mkAnns :: DeltaWriter -> Anns
-    mkAnns = Anns <$> (f . dwAnns) <*> (f . dwSortKeys)
+    mkAnns = Anns <$> (f . dwAnns)
     f :: Monoid a => Endo a -> a
     f = ($ mempty) . appEndo
 
@@ -83,11 +85,10 @@ data DeltaWriter = DeltaWriter
        { -- | Final list of annotations, and sort keys
          dwAnns :: Endo (Map.Map AnnKey Annotation)
 
-       , dwSortKeys :: Endo (Map.Map GHC.SrcSpan SortKey)
-
          -- | Used locally to pass Keywords, delta pairs relevant to a specific
          -- subtree to the parent.
        , annKds    :: ![(KeywordId, DeltaPos)]
+       , sortKeys  :: Maybe [AnnKey]
        }
 
 data DeltaState = DeltaState
@@ -147,18 +148,11 @@ tellFinalAnn (k, v) =
   -- tell (mempty { dwAnns = Endo (Map.insertWith (<>) k v) })
   tell (mempty { dwAnns = Endo (Map.insert k v) })
 
-tellFinalSortKey :: (GHC.SrcSpan, SortKey) -> Delta ()
-tellFinalSortKey (k, v) =
-  -- tell (mempty { finalSortKeys = Endo (Map.insert k v) })
-  tell (mempty { dwSortKeys = Endo (Map.insert k v) })
+tellSortKey :: [AnnKey] -> Delta ()
+tellSortKey xs = tell (mempty { sortKeys = Just xs } )
 
 tellKd :: (KeywordId, DeltaPos) -> Delta ()
 tellKd kd = tell (mempty { annKds = [kd] })
-
-mapInsertFst :: (Ord k, Monoid a) => k -> a -> (Map.Map k a, t) -> (Map.Map k a, t)
-mapInsertFst k v (mf,ms) = (Map.insertWith (<>) k v mf,ms)
-mapInsertSnd :: (Ord k) => k -> a -> (t, Map.Map k a) -> (t, Map.Map k a)
-mapInsertSnd k v (mf,ms) = (mf                        ,Map.insert k v ms)
 
 instance Monoid DeltaWriter where
   mempty = DeltaWriter mempty mempty mempty
@@ -182,7 +176,6 @@ deltaInterpret = iterTM go
     go (WithAST lss d layoutflag prog next) =
       withAST lss d layoutflag (deltaInterpret prog) >> next
     go (CountAnns kwid next)             = countAnnsDelta kwid >>= next
-    go (GetSortKey ss next)              = getSortKeyDelta ss >>= next
     go (SetLayoutFlag action next)       = setLayoutFlag (deltaInterpret action)  >> next
     go (MarkExternal ss akwid _ next)    = addDeltaAnnotationExt ss akwid >> next
     go (StoreOriginalSrcSpan ss d next)  = storeOriginalSrcSpanDelta ss d >>= next
@@ -190,6 +183,15 @@ deltaInterpret = iterTM go
     go (StoreString s ss next)           = storeString s ss >> next
     go (GetNextDisambiguator next)       = getNextDisambiguatorDelta >>= next
     go (AnnotationsToComments kws next)  = annotationsToCommentsDelta kws >> next
+    go (WithSortKey kws next)  = withSortKey kws >> next
+
+withSortKey :: [(AnnKey, Annotated b)] -> Delta ()
+withSortKey kws =
+  let order = sortBy (comparing fst) kws
+  in do
+    tellSortKey (map fst order)
+    mapM_ (deltaInterpret . snd) order
+
 
 -- | Used specifically for "HsLet"
 setLayoutFlag :: Delta () -> Delta ()
@@ -349,7 +351,11 @@ addAnnDeltaPos kw dp = tellKd (kw, dp)
 -- -------------------------------------
 
 -- | Enter a new AST element. Maintain SrcSpan stack
-withAST :: Data a => GHC.Located a -> Disambiguator -> LayoutFlag -> Delta b -> Delta b
+withAST :: Data a
+        => GHC.Located a
+        -> Disambiguator
+        -> LayoutFlag
+        -> Delta b -> Delta b
 withAST lss@(GHC.L ss _) d layout action = do
   return () `debug` ("enterAST:(annkey,d,layout)=" ++ show (mkAnnKey lss,d,layout))
   -- Calculate offset required to get to the start of the SrcSPan
@@ -361,7 +367,7 @@ withAST lss@(GHC.L ss _) d layout action = do
 
   (resetAnns . setLayoutOffset newOff .  withSrcSpanDelta lss d) (do
 
-    let maskWriter s = s { annKds = [] }
+    let maskWriter s = s { annKds = [], sortKeys = Nothing }
 
     -- make sure all kds are relative to the start of the SrcSpan
     let spanStart = ss2pos ss
@@ -394,7 +400,8 @@ withAST lss@(GHC.L ss _) d layout action = do
                                          - getLayoutStartCol off)
                , annTrueEntryDelta  = edpAST
                , annPriorComments = cs
-               , annsDP     = kds }
+               , annsDP     = kds
+               , annSortKey = sortKeys w }
 
     addAnnotationsDelta an
      `debug` ("leaveAST:(annkey,an)=" ++ show (mkAnnKey lss,an))
@@ -588,10 +595,3 @@ countAnnsDelta ann = do
   ma <- peekAnnotationDelta ann
   return (length ma)
 
-
--- |Generate a sort key, and store it for use in the print phase
-getSortKeyDelta :: GHC.SrcSpan -> Delta SortKey
-getSortKeyDelta ss = do
-  let sk = ss2SortKey ss
-  tellFinalSortKey (ss,sk)
-  return sk

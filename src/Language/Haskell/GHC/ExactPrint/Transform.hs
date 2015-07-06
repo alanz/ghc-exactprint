@@ -27,7 +27,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , mergeAnnList
         , setLocatedAnns
         , setPrecedingLines
-        , addSortKeyBefore
+--        , addSortKeyBefore
 
         ) where
 
@@ -121,7 +121,7 @@ captureOrder ls ans = modifySortKeys reList ans
 -- ---------------------------------------------------------------------
 
 adjustAnnOffset :: ColDelta -> Annotation -> Annotation
-adjustAnnOffset (ColDelta cd) (Ann (DP (ro,co)) (ColDelta ad) _ cs kds) = Ann edp cd' edp cs kds'
+adjustAnnOffset (ColDelta cd) (Ann (DP (ro,co)) (ColDelta ad) _ cs kds sks) = Ann edp cd' edp cs kds' sks
   where
     edp = case ro of
       0 -> DP (ro,co)
@@ -138,8 +138,8 @@ adjustAnnOffset (ColDelta cd) (Ann (DP (ro,co)) (ColDelta ad) _ cs kds) = Ann ed
 
 -- | Left bias pair union
 mergeAnns :: Anns -> Anns -> Anns
-mergeAnns (Anns a1 k1) (Anns a2 k2)
-  = Anns (Map.union a1 a2) (Map.union k1 k2)
+mergeAnns (Anns a1) (Anns a2)
+  = Anns (Map.union a1 a2)
 
 mergeAnnList :: [Anns] -> Anns
 mergeAnnList [] = error "mergeAnnList must have at lease one entry"
@@ -156,20 +156,20 @@ setLocatedAnn aane (loc, annVal) = setAnn aane (mkAnnKey loc,annVal)
 
 -- |Update the DeltaPos for the given annotation key/val
 setAnn :: Anns -> (AnnKey, Annotation) -> Anns
-setAnn as (k, Ann dp col edp cs _) =
+setAnn as (k, Ann dp col edp cs _ sks) =
   let newKds = maybe [] (annsDP) (Map.lookup k (getKeywordDeltas as)) in
-    modifyKeywordDeltas (Map.insert k (Ann dp col edp cs newKds)) as
+    modifyKeywordDeltas (Map.insert k (Ann dp col edp cs newKds sks)) as
 
 -- | Adjust the entry annotations to provide an `n` line preceding gap
 setPrecedingLines :: (SYB.Data a) => Anns -> GHC.Located a -> Int -> Int -> Anns
 setPrecedingLines anne ast n c =
   modifyKeywordDeltas (Map.alter go (mkAnnKey ast)) anne
   where
-    go Nothing  = Just (Ann (DP (n,c)) (ColDelta c) (DP (n,c)) []  [])
-    go (Just (Ann ed cd _ted cs dps)) = Just (Ann (DP (n,c)) cd (DP (n,c)) cs dps)
+    go Nothing  = Just (Ann (DP (n,c)) (ColDelta c) (DP (n,c)) []  [] Nothing)
+    go (Just (Ann ed cd _ted cs dps sks)) = Just (Ann (DP (n,c)) cd (DP (n,c)) cs dps sks)
 
 -- ---------------------------------------------------------------------
-
+{-
 -- |Add a sort key for the first item to come before the second
 addSortKeyBefore :: Anns -> GHC.Located a -> GHC.Located b -> Anns
 addSortKeyBefore anns (GHC.L l1 _) (GHC.L l2 _) = anns { annsSortKeys = sk' }
@@ -180,7 +180,7 @@ addSortKeyBefore anns (GHC.L l1 _) (GHC.L l2 _) = anns { annsSortKeys = sk' }
       Nothing -> (ss2SortKey l2,Map.insert l2 (ss2SortKey l2) sk)
     sk' = Map.insert l1 (sortKeyBefore other) sk2
           `debug` ("addSortKeyBefore:(l1,l2,otherk,new sk)=" ++ show (l1,l2,other,sortKeyBefore other))
-
+-}
 -- ---------------------------------------------------------------------
 
 interpretChange :: GHC.SrcSpan -> GHC.SrcSpan -> Annotated a ->

@@ -123,11 +123,12 @@ data Annotation = Ann
   , annTrueEntryDelta  :: !DeltaPos -- ^ Entry without comments
   , annPriorComments   :: ![(DComment, DeltaPos)]
   , annsDP             :: ![(KeywordId, DeltaPos)]  -- ^ Annotations associated with this element.
+  , annSortKey        :: Maybe [AnnKey]  -- ^ Sometimes we must sort the original annotations in order to derive the correct order. This field marks that.
 
   } deriving (Typeable,Eq)
 
 instance Show Annotation where
-  show (Ann dp c comments toStart ans) = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ show comments ++ " " ++ show toStart ++ " " ++ show ans ++ ")"
+  show (Ann dp c comments toStart ans sk) = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ show comments ++ " " ++ show toStart ++ " " ++ show ans ++ " " ++ show sk ++")"
 
 instance Monoid Annotation where
   mempty = annNone
@@ -139,11 +140,10 @@ instance Monoid Annotation where
 
 data Anns = Anns
   { annsKeywordDeltas :: Map.Map AnnKey Annotation
-  , annsSortKeys      :: Map.Map GHC.SrcSpan SortKey
   } deriving (Show, Typeable)
 
 emptyAnns :: Anns
-emptyAnns = Anns Map.empty Map.empty
+emptyAnns = Anns Map.empty
 
 getKeywordDeltas :: Anns -> Map.Map AnnKey Annotation
 getKeywordDeltas = annsKeywordDeltas
@@ -151,11 +151,12 @@ getKeywordDeltas = annsKeywordDeltas
 modifyKeywordDeltas :: (Map.Map AnnKey Annotation -> Map.Map AnnKey Annotation)
                     -> Anns -> Anns
 modifyKeywordDeltas f as = as { annsKeywordDeltas = f (annsKeywordDeltas as)}
-
+{-
 -- TODO: This should be replaced with higher level operations
 modifySortKeys :: (Map.Map GHC.SrcSpan SortKey -> Map.Map GHC.SrcSpan SortKey)
                -> Anns -> Anns
 modifySortKeys f as = as { annsSortKeys = f (annsSortKeys as)}
+-}
 
 
 

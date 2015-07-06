@@ -15,7 +15,7 @@ module Language.Haskell.GHC.ExactPrint.Annotate
        , Annotated
        , Annotate(..)) where
 
-import Data.List ( sortBy )
+import Data.List ( sortBy, sort )
 import Data.Maybe ( fromMaybe )
 
 import Language.Haskell.GHC.ExactPrint.Internal.Types
@@ -57,7 +57,7 @@ data AnnotationF next where
   WithAST        :: Data a => GHC.Located a -> Disambiguator
                            -> LayoutFlag -> Annotated b                  -> next -> AnnotationF next
   CountAnns      :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
-  GetSortKey     :: GHC.SrcSpan                             -> (SortKey -> next) -> AnnotationF next
+  WithSortKey       :: [(AnnKey, Annotated ())]                       -> next -> AnnotationF next
 
   -- | Abstraction breakers
   SetLayoutFlag  ::  Annotated ()                                        -> next -> AnnotationF next
@@ -103,7 +103,6 @@ makeFreeCon  'MarkMany
 makeFreeCon  'MarkOffsetPrim
 --makeFreeCon  'MarkAfter
 makeFreeCon  'CountAnns
-makeFreeCon  'GetSortKey
 makeFreeCon  'StoreOriginalSrcSpan
 makeFreeCon  'GetSrcSpanForKw
 makeFreeCon  'StoreString
@@ -127,6 +126,13 @@ workOutString :: GHC.AnnKeywordId -> (GHC.SrcSpan -> String) -> IAnnotated ()
 workOutString kw f = do
   ss <- getSrcSpanForKw kw
   storeString (f ss) ss
+
+withSortKey :: [(AnnKey,  IAnnotated ())] -> IAnnotated ()
+withSortKey ls = do
+  c <- ask
+  let new = fmap (flip runReaderT c) <$> ls
+  liftF (WithSortKey new ())
+
 
 -- ---------------------------------------------------------------------
 
@@ -242,16 +248,18 @@ markList xs = applyListAnnotations (prepareListAnnotation xs)
 -- ---------------------------------------------------------------------
 -- Managing lists which have been separated, e.g. Sigs and Binds
 
-prepareListAnnotation :: Annotate a => [GHC.Located a] -> [(GHC.SrcSpan,IAnnotated ())]
-prepareListAnnotation ls = map (\b@(GHC.L l _) -> (l,markLocated b)) ls
+prepareListAnnotation :: Annotate a => [GHC.Located a] -> [(AnnKey,IAnnotated ())]
+prepareListAnnotation ls = map (\b -> (mkAnnKey b,markLocated b)) ls
 
-applyListAnnotations :: [(GHC.SrcSpan, IAnnotated ())] -> IAnnotated ()
-applyListAnnotations ls = do
+applyListAnnotations :: [(AnnKey, IAnnotated ())] -> IAnnotated ()
+applyListAnnotations ls = withSortKey ls
+{-
   ls' <- mapM (\(ss,v) -> getSortKey ss >>= \sk -> return (sk ,v)) ls
   -- return () `debug` ("applyListAnnotations:sortkeys=" ++ show (map fst ls'))
   let lsSorted = sortBy (\(a,_) (b,_) -> compare a b) ls'
   return () `debug` ("applyListAnnotations:sortkeys=" ++ show (map fst lsSorted))
   mapM_ snd lsSorted
+  -}
 
 #if __GLASGOW_HASKELL__ <= 710
 lexicalSortLocated :: [GHC.Located a] -> IAnnotated [GHC.Located a]
@@ -260,12 +268,8 @@ lexicalSortLocated ls = do
   let ls'' = sortBy (\a b -> compare (fst a) (fst b)) ls'
   return (map snd ls'')
 #endif
-
 lexicalSortSrcSpans :: [GHC.SrcSpan] -> IAnnotated [GHC.SrcSpan]
-lexicalSortSrcSpans ls = do
-  ls' <- mapM (\ss -> getSortKey ss >>= \sk -> return (sk,ss)) ls
-  let ls'' = sortBy (\a b -> compare (fst a) (fst b)) ls'
-  return (map snd ls'')
+lexicalSortSrcSpans ls = return $ sort ls
 
 -- ---------------------------------------------------------------------
 
@@ -1119,8 +1123,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       Nothing -> if lc /= GHC.noSrcSpan then markLocated ctx else return ()
       Just lwc -> do
 #if __GLASGOW_HASKELL__ <= 710
-        sorted <- lexicalSortLocated (GHC.L lwc GHC.HsWildcardTy:ctxs)
-        markLocated (GHC.L lc sorted)
+        applyListAnnotation (prepareListAnnotation (GHC.L lwc GHC.HsWildcardTy:ctxs))
 #else
         applyListAnnotations (prepareListAnnotation [GHC.L lwc WildCardAnon]
                            ++ prepareListAnnotation ctxs)
