@@ -12,7 +12,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
           Transform
         , runTransform
         , logTr
-        , getAnnsT, putAnnsT
+        , getAnnsT, putAnnsT, modifyAnnsT
 
         -- * Operations
         , uniqueSrcSpan
@@ -89,6 +89,11 @@ putAnnsT :: Anns -> Transform ()
 putAnnsT ans = do
   (_,col) <- get
   put (ans,col)
+
+modifyAnnsT :: (Anns -> Anns) -> Transform ()
+modifyAnnsT f = do
+  ans <- getAnnsT
+  putAnnsT (f ans)
 
 -- ---------------------------------------------------------------------
 
