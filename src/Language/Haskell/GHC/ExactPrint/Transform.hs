@@ -1,6 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE ViewPatterns #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Language.Haskell.GHC.ExactPrint.Transform
@@ -213,17 +214,17 @@ insertAtStart, insertAtEnd :: (Data ast, HasDecls ast)
 insertAtStart = insertAt (:)
 insertAtEnd   = insertAt (\x xs -> xs ++ [x])
 
-insertAfter, insertBefore :: (Data ast, HasDecls ast)
-                          => AnnKey
+insertAfter, insertBefore :: (Data old, Data ast, HasDecls ast)
+                          => GHC.Located old
                           -> GHC.Located ast
                           -> GHC.LHsDecl GHC.RdrName
                           -> Transform (GHC.Located ast)
-insertAfter k = insertAt findAfter
+insertAfter (mkAnnKey -> k) = insertAt findAfter
   where
     findAfter x xs =
       let (fs, b:bs) = span (/= k) xs
       in fs ++ (b : x : bs)
-insertBefore k = insertAt findBefore
+insertBefore (mkAnnKey -> k) = insertAt findBefore
   where
     findBefore x xs =
       let (fs, bs) = span (/= k) xs
