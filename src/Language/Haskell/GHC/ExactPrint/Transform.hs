@@ -18,6 +18,10 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , uniqueSrcSpan
         , isUniqueSrcSpan
 
+        -- * Managing lists
+        , captureOrder
+
+        -- * Other
         , adjustAnnOffset
         , mergeAnns
         , mergeAnnList
@@ -48,20 +52,20 @@ import qualified GHC           as GHC hiding (parseModule)
 import qualified HeaderInfo    as GHC
 import qualified Lexer         as GHC
 import qualified MonadUtils    as GHC
+import qualified OrdList       as GHC
 import qualified Outputable    as GHC
 import qualified Parser        as GHC
 import qualified RdrHsSyn      as GHC ( checkPattern )
 import qualified SrcLoc        as GHC
 import qualified StringBuffer  as GHC
+
 import qualified Data.Generics as SYB
 
-import qualified OrdList as OL
+import Control.Monad.Trans.Free
+import Data.Ratio
+import Distribution.Helper
 
 import qualified Data.Map as Map
-
-import Control.Monad.Trans.Free
-
-import Distribution.Helper
 
 import Debug.Trace
 
@@ -98,6 +102,16 @@ uniqueSrcSpan = do
 
 isUniqueSrcSpan :: GHC.SrcSpan -> Bool
 isUniqueSrcSpan ss = srcSpanStartLine ss == -1
+
+-- ---------------------------------------------------------------------
+
+-- |If a list has been re-ordered or had items added, capture the new order in
+-- the appropriate SortKeys.
+captureOrder :: [GHC.Located a] -> Anns -> Anns
+captureOrder ls ans = modifySortKeys reList ans
+  where
+    newList = map (\(ss,r) -> (ss,SortKey (r,1,1%2))) $ zip (map GHC.getLoc ls) [1..]
+    reList sks = foldr (uncurry Map.insert) sks newList
 
 -- ---------------------------------------------------------------------
 
