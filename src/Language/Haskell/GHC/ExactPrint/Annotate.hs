@@ -15,7 +15,7 @@ module Language.Haskell.GHC.ExactPrint.Annotate
        , Annotated
        , Annotate(..)) where
 
-import Data.List ( sortBy, sort )
+import Data.List ( sort )
 import Data.Maybe ( fromMaybe )
 
 import Language.Haskell.GHC.ExactPrint.Internal.Types
@@ -101,7 +101,6 @@ makeFreeCon  'MarkInside
 makeFreeCon  'MarkExternal
 makeFreeCon  'MarkMany
 makeFreeCon  'MarkOffsetPrim
---makeFreeCon  'MarkAfter
 makeFreeCon  'CountAnns
 makeFreeCon  'StoreOriginalSrcSpan
 makeFreeCon  'GetSrcSpanForKw
@@ -146,7 +145,6 @@ withAST lss d layout action = do
       action
       -- Automatically add any trailing comma or semi
       markOutside GHC.AnnComma (G GHC.AnnComma)
---      markOutside GHC.AnnSemi AnnSemiSep
 
 -- ---------------------------------------------------------------------
 -- Additional smart constructors

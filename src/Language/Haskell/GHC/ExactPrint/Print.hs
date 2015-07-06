@@ -1,4 +1,3 @@
-{-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -32,7 +31,6 @@ import Data.Ord (comparing)
 import Data.Maybe (fromMaybe)
 
 import Control.Monad.Trans.Free
-import qualified Data.Map as Map
 
 import qualified GHC
 
