@@ -15,8 +15,9 @@ module Language.Haskell.GHC.ExactPrint.Annotate
        , Annotated
        , Annotate(..)) where
 
-import Data.List ( sort )
+import Data.List ( sort, sortBy )
 import Data.Maybe ( fromMaybe )
+import Data.Ord ( comparing )
 
 import Language.Haskell.GHC.ExactPrint.Internal.Types
 import Language.Haskell.GHC.ExactPrint.Utils
@@ -260,11 +261,8 @@ applyListAnnotations ls = withSortKey ls
   -}
 
 #if __GLASGOW_HASKELL__ <= 710
-lexicalSortLocated :: [GHC.Located a] -> IAnnotated [GHC.Located a]
-lexicalSortLocated ls = do
-  ls' <- mapM (\(GHC.L ss v) -> getSortKey ss >>= \sk -> return (sk ,GHC.L ss v)) ls
-  let ls'' = sortBy (\a b -> compare (fst a) (fst b)) ls'
-  return (map snd ls'')
+lexicalSortLocated :: [GHC.Located a] -> [GHC.Located a]
+lexicalSortLocated = sortBy (comparing GHC.getLoc)
 #endif
 lexicalSortSrcSpans :: [GHC.SrcSpan] -> IAnnotated [GHC.SrcSpan]
 lexicalSortSrcSpans ls = return $ sort ls
@@ -1121,7 +1119,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       Nothing -> if lc /= GHC.noSrcSpan then markLocated ctx else return ()
       Just lwc -> do
 #if __GLASGOW_HASKELL__ <= 710
-        applyListAnnotation (prepareListAnnotation (GHC.L lwc GHC.HsWildcardTy:ctxs))
+       let sorted = lexicalSortLocated (GHC.L lwc GHC.HsWildcardTy:ctxs)
+       markLocated (GHC.L lc sorted)
 #else
         applyListAnnotations (prepareListAnnotation [GHC.L lwc WildCardAnon]
                            ++ prepareListAnnotation ctxs)
