@@ -88,7 +88,7 @@ data DeltaWriter = DeltaWriter
          -- | Used locally to pass Keywords, delta pairs relevant to a specific
          -- subtree to the parent.
        , annKds    :: ![(KeywordId, DeltaPos)]
-       , sortKeys  :: Maybe [AnnKey]
+       , sortKeys  :: !(Maybe [GHC.SrcSpan])
        }
 
 data DeltaState = DeltaState
@@ -148,7 +148,7 @@ tellFinalAnn (k, v) =
   -- tell (mempty { dwAnns = Endo (Map.insertWith (<>) k v) })
   tell (mempty { dwAnns = Endo (Map.insert k v) })
 
-tellSortKey :: [AnnKey] -> Delta ()
+tellSortKey :: [GHC.SrcSpan] -> Delta ()
 tellSortKey xs = tell (mempty { sortKeys = Just xs } )
 
 tellKd :: (KeywordId, DeltaPos) -> Delta ()
@@ -185,7 +185,7 @@ deltaInterpret = iterTM go
     go (AnnotationsToComments kws next)  = annotationsToCommentsDelta kws >> next
     go (WithSortKey kws next)  = withSortKey kws >> next
 
-withSortKey :: [(AnnKey, Annotated b)] -> Delta ()
+withSortKey :: [(GHC.SrcSpan, Annotated b)] -> Delta ()
 withSortKey kws =
   let order = sortBy (comparing fst) kws
   in do

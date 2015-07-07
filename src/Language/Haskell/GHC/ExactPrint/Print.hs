@@ -168,16 +168,24 @@ printStoredString = do
     ((AnnString ss,_):_) -> printStringAtMaybeAnn (AnnString ss) ss
     _                    -> return ()
 
-withSortKey :: [(AnnKey, Annotated ())] -> EP ()
+withSortKey :: [(GHC.SrcSpan, Annotated ())] -> EP ()
 withSortKey xs = do
   Ann{..} <- asks epAnn
   let ordered = case annSortKey of
-                  Nothing -> map snd xs
+                  Nothing   -> map snd xs
                   Just keys -> match xs keys
+                                `debug` ("withSortKey:" ++
+                                         showGhc (map fst (sortBy (comparing (flip elemIndex keys . fst)) xs),
+                                                 map fst xs,
+                                                 keys)
+                                         )
   mapM_ printInterpret ordered
   where
+    -- AZ:TODO: if performance becomes a problem, consider a Map of the order
+    -- SrcSpan to an index, and do a lookup instead of elemIndex.
+
     -- Items not in the ordering are placed to the end.
-    match :: [(AnnKey, Annotated ())] -> [AnnKey] -> [Annotated ()]
+    match :: [(GHC.SrcSpan, Annotated ())] -> [GHC.SrcSpan] -> [Annotated ()]
     match keys order =
        map snd (sortBy (comparing (flip elemIndex order . fst)) keys)
 

@@ -122,7 +122,7 @@ data Annotation = Ann
   , annTrueEntryDelta  :: !DeltaPos -- ^ Entry without comments
   , annPriorComments   :: ![(DComment, DeltaPos)]
   , annsDP             :: ![(KeywordId, DeltaPos)]  -- ^ Annotations associated with this element.
-  , annSortKey         :: !(Maybe [AnnKey])
+  , annSortKey         :: !(Maybe [GHC.SrcSpan])
     -- ^ Captures the sort order of sub elements. This is needed when the
     -- sub-elements have been split (as in a HsLocalBind which holds separate
     -- binds and sigs) or for infix patterns where the order has been
@@ -133,7 +133,7 @@ data Annotation = Ann
   } deriving (Typeable,Eq)
 
 instance Show Annotation where
-  show (Ann dp c comments toStart ans sk) = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ show comments ++ " " ++ show toStart ++ " " ++ show ans ++ " " ++ show sk ++")"
+  show (Ann dp c comments toStart ans sk) = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ show comments ++ " " ++ show toStart ++ " " ++ show ans ++ " " ++ showGhc sk ++")"
 
 {-
 instance Monoid Annotation where

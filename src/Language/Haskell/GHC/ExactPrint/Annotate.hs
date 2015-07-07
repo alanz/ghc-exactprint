@@ -58,7 +58,7 @@ data AnnotationF next where
   WithAST        :: Data a => GHC.Located a -> Disambiguator
                            -> LayoutFlag -> Annotated b                  -> next -> AnnotationF next
   CountAnns      :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
-  WithSortKey       :: [(AnnKey, Annotated ())]                       -> next -> AnnotationF next
+  WithSortKey       :: [(GHC.SrcSpan, Annotated ())]                     -> next -> AnnotationF next
 
   -- | Abstraction breakers
   SetLayoutFlag  ::  Annotated ()                                        -> next -> AnnotationF next
@@ -127,7 +127,7 @@ workOutString kw f = do
   ss <- getSrcSpanForKw kw
   storeString (f ss) ss
 
-withSortKey :: [(AnnKey,  IAnnotated ())] -> IAnnotated ()
+withSortKey :: [(GHC.SrcSpan,  IAnnotated ())] -> IAnnotated ()
 withSortKey ls = do
   c <- ask
   let new = fmap (flip runReaderT c) <$> ls
@@ -247,10 +247,10 @@ markList xs = applyListAnnotations (prepareListAnnotation xs)
 -- ---------------------------------------------------------------------
 -- Managing lists which have been separated, e.g. Sigs and Binds
 
-prepareListAnnotation :: Annotate a => [GHC.Located a] -> [(AnnKey,IAnnotated ())]
-prepareListAnnotation ls = map (\b -> (mkAnnKey b,markLocated b)) ls
+prepareListAnnotation :: Annotate a => [GHC.Located a] -> [(GHC.SrcSpan,IAnnotated ())]
+prepareListAnnotation ls = map (\b -> (GHC.getLoc b,markLocated b)) ls
 
-applyListAnnotations :: [(AnnKey, IAnnotated ())] -> IAnnotated ()
+applyListAnnotations :: [(GHC.SrcSpan, IAnnotated ())] -> IAnnotated ()
 applyListAnnotations ls = withSortKey ls
 {-
   ls' <- mapM (\(ss,v) -> getSortKey ss >>= \sk -> return (sk ,v)) ls

@@ -113,7 +113,7 @@ isUniqueSrcSpan ss = srcSpanStartLine ss == -1
 captureOrder :: (Data a,Data b) => GHC.Located a -> [GHC.Located b] -> Anns -> Anns
 captureOrder parent ls ans = ans'
   where
-    newList = map mkAnnKey ls
+    newList = map GHC.getLoc ls
     reList = Map.adjust (\an -> an {annSortKey = Just newList }) (mkAnnKey parent)
     ans' = modifyKeywordDeltas reList ans
 
@@ -232,12 +232,12 @@ instance HasDecls (GHC.HsModule GHC.RdrName) where
   replaceDecls m ds = m { GHC.hsmodDecls = ds }
 
 insertAt :: (Data ast, HasDecls ast)
-              => (AnnKey -> [AnnKey] -> [AnnKey])
+              => (GHC.SrcSpan -> [GHC.SrcSpan] -> [GHC.SrcSpan])
               -> GHC.Located ast
               -> GHC.LHsDecl GHC.RdrName
               -> Transform (GHC.Located ast)
 insertAt f m decl = do
-  let newKey = mkAnnKey decl
+  let newKey = GHC.getLoc decl
       modKey = mkAnnKey m
       newValue a@Ann{..} = a { annSortKey = f newKey <$> annSortKey }
       oldDecls = hsDecls m
@@ -258,12 +258,13 @@ insertAfter, insertBefore :: (Data old, Data ast, HasDecls ast)
                           -> GHC.Located ast
                           -> GHC.LHsDecl GHC.RdrName
                           -> Transform (GHC.Located ast)
-insertAfter (mkAnnKey -> k) = insertAt findAfter
+-- insertAfter (mkAnnKey -> k) = insertAt findAfter
+insertAfter (GHC.getLoc -> k) = insertAt findAfter
   where
     findAfter x xs =
       let (fs, b:bs) = span (/= k) xs
       in fs ++ (b : x : bs)
-insertBefore (mkAnnKey -> k) = insertAt findBefore
+insertBefore (GHC.getLoc -> k) = insertAt findBefore
   where
     findBefore x xs =
       let (fs, bs) = span (/= k) xs
