@@ -684,19 +684,20 @@ changeCifToCase ans p = return (ans',p')
       -- let ifSpanEntry = gfromJust "Case.ifSpanEntry" $ lookup AnnSpanEntry (annsDP annIf)
       let ifSpanEntry = annEntryDelta annIf
       let anne2' =
-            [ ( AnnKey caseLoc       (CN "HsCase") NotNeeded,   annIf { annsDP = [ (AnnSpanEntry,ifSpanEntry),(G GHC.AnnCase, ifDelta)
-                                                                     , (G GHC.AnnOf,     DP (0,1))
-                                                                     ,(AnnList caseVirtualLoc NotNeeded,DP (0,0))] } )
-            , ( AnnKey caseVirtualLoc (CN "(:)") NotNeeded,     Ann (DP (1,newCol)) (ColDelta newCol) (DP (1,newCol)) [] [(AnnSpanEntry,DP (1,0))] Nothing)
+            [ ( AnnKey caseLoc       (CN "HsCase") NotNeeded,   annIf { annsDP = [ (G GHC.AnnCase, ifDelta)
+                                                                     , (G GHC.AnnOf,     DP (0,1))]
+                                                                     , annCapturedSpan = Just (caseVirtualLoc, NotNeeded)
+                                                                     } )
+            , ( AnnKey caseVirtualLoc (CN "(:)") NotNeeded,     Ann (DP (1,newCol)) (ColDelta newCol) (DP (1,newCol)) [] [(AnnSpanEntry,DP (1,0))] Nothing Nothing)
             , ( AnnKey trueMatchLoc  (CN "Match") NotNeeded,   annNone )
             , ( AnnKey trueLoc1      (CN "ConPatIn") NotNeeded, annNone )
             , ( AnnKey trueLoc       (CN "Unqual") NotNeeded,  annNone )
-            , ( AnnKey trueRhsLoc    (CN "GRHS") NotNeeded,     Ann (DP (0,2)) 6 (DP (0,0)) [] [(AnnSpanEntry,DP (0,2)),(G GHC.AnnRarrow, DP (0,0))] Nothing )
+            , ( AnnKey trueRhsLoc    (CN "GRHS") NotNeeded,     Ann (DP (0,2)) 6 (DP (0,0)) [] [(AnnSpanEntry,DP (0,2)),(G GHC.AnnRarrow, DP (0,0))] Nothing Nothing )
 
-            , ( AnnKey falseMatchLoc (CN "Match") NotNeeded,    Ann (DP (1,0)) 0 (DP (0,0)) []  [(AnnSpanEntry,DP (1,0))] Nothing)
+            , ( AnnKey falseMatchLoc (CN "Match") NotNeeded,    Ann (DP (1,0)) 0 (DP (0,0)) []  [(AnnSpanEntry,DP (1,0))] Nothing Nothing )
             , ( AnnKey falseLoc1     (CN "ConPatIn") NotNeeded, annNone )
             , ( AnnKey falseLoc      (CN "Unqual") NotNeeded, annNone )
-            , ( AnnKey falseRhsLoc   (CN "GRHS") NotNeeded,     Ann (DP (0,1)) 6 (DP (0,0)) []  [(AnnSpanEntry,DP (0,1)),(G GHC.AnnRarrow, DP (0,0))] Nothing )
+            , ( AnnKey falseRhsLoc   (CN "GRHS") NotNeeded,     Ann (DP (0,1)) 6 (DP (0,0)) []  [(AnnSpanEntry,DP (0,1)),(G GHC.AnnRarrow, DP (0,0))] Nothing Nothing )
             ]
 
       let annThen' = adjustAnnOffset (ColDelta 6) annThen

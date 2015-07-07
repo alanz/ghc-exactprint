@@ -102,7 +102,7 @@ instance Show ColDelta where
   show (ColDelta v) = "(ColDelta " ++ show v ++ ")"
 
 annNone :: Annotation
-annNone = Ann (DP (0,0)) 0  (DP (0,0)) [] [] Nothing
+annNone = Ann (DP (0,0)) 0  (DP (0,0)) [] [] Nothing Nothing
 
 {-
 -- TODO: This is wrong
@@ -130,10 +130,13 @@ data Annotation = Ann
     -- SrcSpan is used purely as an index into the annotations, allowing
     -- transformations of the AST including the introduction of new Located
     -- items or re-arranging existing ones.
+  , annCapturedSpan    :: !(Maybe (GHC.SrcSpan, Disambiguator))
+    -- ^ Occasionally we must calculate a SrcSpan for an unlocated element
+    -- which we must remember for the Print phase.
   } deriving (Typeable,Eq)
 
 instance Show Annotation where
-  show (Ann dp c comments toStart ans sk) = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ show comments ++ " " ++ show toStart ++ " " ++ show ans ++ " " ++ showGhc sk ++")"
+  show (Ann dp c comments toStart ans sk csp) = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ show comments ++ " " ++ show toStart ++ " " ++ show ans ++ " " ++ showGhc sk ++ " " ++ showGhc csp ++ ")"
 
 {-
 instance Monoid Annotation where
@@ -210,6 +213,7 @@ data KeywordId = G GHC.AnnKeywordId
                               -- processing.
                | AnnSemiSep
                | AnnComment DComment
+               {-
                | AnnList GHC.SrcSpan Disambiguator -- ^ In some circumstances we
                                      -- need to annotate a list of
                                      -- statements (e.g. HsDo) and
@@ -218,6 +222,7 @@ data KeywordId = G GHC.AnnKeywordId
                                      -- needs to be preserved so that
                                      -- exactPC can find it, after
                                      -- potential AST edits.
+               -}
                | AnnString String    -- ^ Used to pass information from
                                      -- Delta to Print when we have to work
                                      -- out details from the original
@@ -230,7 +235,7 @@ instance Show KeywordId where
   show AnnSpanEntry    = "AnnSpanEntry"
   show AnnSemiSep      = "AnnSemiSep"
   show (AnnComment dc) = "(AnnComment " ++ show dc ++ ")"
-  show (AnnList ss d)    = "(AnnList " ++ showGhc ss ++ " " ++ show d ++ ")"
+--  show (AnnList ss d)    = "(AnnList " ++ showGhc ss ++ " " ++ show d ++ ")"
   show (AnnString s)    = "(AnnString " ++ s ++ ")"
   show (AnnUnicode gc)    = "(AnnUnicode " ++ show gc ++ ")"
 
@@ -272,6 +277,9 @@ instance GHC.Outputable SortKey where
   ppr a     = GHC.text (show a)
 
 instance GHC.Outputable Anns where
+  ppr a     = GHC.text (show a)
+
+instance GHC.Outputable Disambiguator where
   ppr a     = GHC.text (show a)
 
 -- ---------------------------------------------------------------------

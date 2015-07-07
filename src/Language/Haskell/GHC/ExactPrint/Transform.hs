@@ -145,7 +145,7 @@ decl2Bind _                      = []
 -- ---------------------------------------------------------------------
 
 adjustAnnOffset :: ColDelta -> Annotation -> Annotation
-adjustAnnOffset (ColDelta cd) (Ann (DP (ro,co)) (ColDelta ad) _ cs kds sks) = Ann edp cd' edp cs kds' sks
+adjustAnnOffset (ColDelta cd) (Ann (DP (ro,co)) (ColDelta ad) _ cs kds sks cp) = Ann edp cd' edp cs kds' sks cp
   where
     edp = case ro of
       0 -> DP (ro,co)
@@ -180,17 +180,18 @@ setLocatedAnn aane (loc, annVal) = setAnn aane (mkAnnKey loc,annVal)
 
 -- |Update the DeltaPos for the given annotation key/val
 setAnn :: Anns -> (AnnKey, Annotation) -> Anns
-setAnn as (k, Ann dp col edp cs _ sks) =
+setAnn as (k, a) =
   let newKds = maybe [] (annsDP) (Map.lookup k (getKeywordDeltas as)) in
-    modifyKeywordDeltas (Map.insert k (Ann dp col edp cs newKds sks)) as
+    modifyKeywordDeltas (Map.insert k (a { annsDP = newKds })) as
 
 -- | Adjust the entry annotations to provide an `n` line preceding gap
 setPrecedingLines :: (SYB.Data a) => Anns -> GHC.Located a -> Int -> Int -> Anns
 setPrecedingLines anne ast n c =
   modifyKeywordDeltas (Map.alter go (mkAnnKey ast)) anne
   where
-    go Nothing  = Just (Ann (DP (n,c)) (ColDelta c) (DP (n,c)) []  [] Nothing)
-    go (Just (Ann _ed cd _ted cs dps sks)) = Just (Ann (DP (n,c)) cd (DP (n,c)) cs dps sks)
+    go Nothing  = Just (Ann (DP (n,c)) (ColDelta c) (DP (n,c)) []  [] Nothing Nothing )
+    go (Just a) = Just (a { annEntryDelta = DP (n, c)
+                          , annTrueEntryDelta = DP (n, c) })
 
 -- ---------------------------------------------------------------------
 {-

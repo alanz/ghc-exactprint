@@ -12,6 +12,7 @@ import Control.Monad.Trans.Free
 
 import Data.Data (Data)
 import Data.List (sort, nub, partition, sortBy)
+import Data.Maybe
 
 import Data.Ord
 
@@ -89,6 +90,7 @@ data DeltaWriter = DeltaWriter
          -- subtree to the parent.
        , annKds    :: ![(KeywordId, DeltaPos)]
        , sortKeys  :: !(Maybe [GHC.SrcSpan])
+       , dwCapturedSpan :: !(First (GHC.SrcSpan, Disambiguator))
        }
 
 data DeltaState = DeltaState
@@ -151,13 +153,16 @@ tellFinalAnn (k, v) =
 tellSortKey :: [GHC.SrcSpan] -> Delta ()
 tellSortKey xs = tell (mempty { sortKeys = Just xs } )
 
+tellCapturedSpan :: (GHC.SrcSpan, Disambiguator) -> Delta ()
+tellCapturedSpan (ss, d) = tell ( mempty { dwCapturedSpan = First $ Just (ss, d) })
+
 tellKd :: (KeywordId, DeltaPos) -> Delta ()
 tellKd kd = tell (mempty { annKds = [kd] })
 
 instance Monoid DeltaWriter where
-  mempty = DeltaWriter mempty mempty mempty
-  (DeltaWriter a b e) `mappend` (DeltaWriter c d f)
-    = DeltaWriter (a <> c) (b <> d) (e <> f)
+  mempty = DeltaWriter mempty mempty mempty mempty
+  (DeltaWriter a b e g) `mappend` (DeltaWriter c d f h)
+    = DeltaWriter (a <> c) (b <> d) (e <> f) (g <> h)
 
 -----------------------------------
 -- Free Monad Interpretation code
@@ -203,7 +208,7 @@ setLayoutFlag action = do
 
 storeOriginalSrcSpanDelta :: GHC.SrcSpan -> Disambiguator -> Delta (GHC.SrcSpan,Disambiguator)
 storeOriginalSrcSpanDelta ss d = do
-  tellKd (AnnList ss d,DP (0,0))
+  tellCapturedSpan (ss, d)
   return (ss,d)
 
 storeString :: String -> GHC.SrcSpan -> Delta ()
@@ -367,7 +372,7 @@ withAST lss@(GHC.L ss _) d layout action = do
 
   (resetAnns . setLayoutOffset newOff .  withSrcSpanDelta lss d) (do
 
-    let maskWriter s = s { annKds = [], sortKeys = Nothing }
+    let maskWriter s = s { annKds = [], sortKeys = Nothing, dwCapturedSpan = mempty }
 
     -- make sure all kds are relative to the start of the SrcSpan
     let spanStart = ss2pos ss
@@ -401,7 +406,8 @@ withAST lss@(GHC.L ss _) d layout action = do
                , annTrueEntryDelta  = edpAST
                , annPriorComments = cs
                , annsDP     = kds
-               , annSortKey = sortKeys w }
+               , annSortKey = sortKeys w
+               , annCapturedSpan = getFirst $ dwCapturedSpan w }
 
     addAnnotationsDelta an
      `debug` ("leaveAST:(annkey,an)=" ++ show (mkAnnKey lss,an))

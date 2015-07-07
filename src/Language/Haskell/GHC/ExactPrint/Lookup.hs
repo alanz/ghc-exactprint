@@ -21,7 +21,6 @@ keywordToString kw =
       -- warnings if new constructors are added.
       AnnSpanEntry      -> mkErr kw
       AnnComment _      -> mkErr kw
-      AnnList _ _       -> mkErr kw
       AnnString _       -> mkErr kw
       AnnUnicode kw'    -> keywordToString (G kw')
       AnnSemiSep        -> ";"

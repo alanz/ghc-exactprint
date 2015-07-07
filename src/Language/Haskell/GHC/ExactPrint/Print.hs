@@ -146,15 +146,10 @@ printInterpret = iterTM go
 
 storeOriginalSrcSpanPrint :: GHC.SrcSpan -> Disambiguator -> EP (GHC.SrcSpan,Disambiguator)
 storeOriginalSrcSpanPrint _ss _d = do
-  kd <- gets epAnnKds
-
-  let
-    isAnnList (AnnList _ _,_) = True
-    isAnnList _             = False
-
-  case filter isAnnList (head kd) of
-    ((AnnList ss d,_):_) -> return (ss,d)
-    _                    -> return (GHC.noSrcSpan,NotNeeded)
+  Ann{..} <- asks epAnn
+  case annCapturedSpan of
+    Nothing -> return (GHC.noSrcSpan, NotNeeded)
+    Just v  -> return v
 
 printStoredString :: EP ()
 printStoredString = do
@@ -202,7 +197,7 @@ exactPC ast d flag action =
     do
       return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
       ma <- getAndRemoveAnnotation ast d
-      let an@(Ann edp _ _ comments kds _) = fromMaybe annNone ma
+      let an@Ann{annEntryDelta=edp, annPriorComments=comments, annsDP=kds} = fromMaybe annNone ma
       r <- withContext kds an flag
        (mapM_ (uncurry printQueuedComment) comments
        >> advance edp
