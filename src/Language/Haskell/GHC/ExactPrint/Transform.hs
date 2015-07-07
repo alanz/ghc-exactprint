@@ -32,7 +32,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Annotate
-import Language.Haskell.GHC.ExactPrint.Delta
+-- import Language.Haskell.GHC.ExactPrint.Delta
 import Language.Haskell.GHC.ExactPrint.Preprocess
 import Language.Haskell.GHC.ExactPrint.Internal.Types
 import Language.Haskell.GHC.ExactPrint.Utils
@@ -41,29 +41,29 @@ import Control.Monad.RWS
 import Control.Monad.State
 import Data.List
 
-import Data.Data
+-- import Data.Data
 
 import GHC.Paths (libdir)
 
 import qualified ApiAnnotation as GHC
-import qualified DynFlags      as GHC
+-- import qualified DynFlags      as GHC
 import qualified FastString    as GHC
 import qualified GHC           as GHC hiding (parseModule)
-import qualified HeaderInfo    as GHC
-import qualified Lexer         as GHC
-import qualified MonadUtils    as GHC
-import qualified OrdList       as GHC
-import qualified Outputable    as GHC
-import qualified Parser        as GHC
-import qualified RdrHsSyn      as GHC ( checkPattern )
+-- import qualified HeaderInfo    as GHC
+-- import qualified Lexer         as GHC
+-- import qualified MonadUtils    as GHC
+-- import qualified OrdList       as GHC
+-- import qualified Outputable    as GHC
+-- import qualified Parser        as GHC
+-- import qualified RdrHsSyn      as GHC ( checkPattern )
 import qualified SrcLoc        as GHC
-import qualified StringBuffer  as GHC
+-- import qualified StringBuffer  as GHC
 
 import qualified Data.Generics as SYB
 
 import Control.Monad.Trans.Free
 import Data.Ratio
-import Distribution.Helper
+-- import Distribution.Helper
 
 import qualified Data.Map as Map
 
