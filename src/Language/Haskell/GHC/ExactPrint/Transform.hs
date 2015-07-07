@@ -21,10 +21,17 @@ module Language.Haskell.GHC.ExactPrint.Transform
 
         -- * Managing lists
         , HasDecls (..)
+        , captureOrder
         , insertAtStart
         , insertAtEnd
         , insertAfter
         , insertBefore
+
+        -- * Managing decls
+        , wrapDecl
+        , wrapSig
+        , decl2Sig
+        , decl2Bind
 
         -- * Other
         , adjustAnnOffset
@@ -44,20 +51,19 @@ import Language.Haskell.GHC.ExactPrint.Utils
 import Control.Monad.RWS
 import Data.List
 
-import GHC.Paths (libdir)
+-- import GHC.Paths (libdir)
 
-import qualified ApiAnnotation as GHC
+-- import qualified ApiAnnotation as GHC
 import qualified FastString    as GHC
 import qualified GHC           as GHC hiding (parseModule)
-import qualified HsSyn         as GHC
-import qualified RdrName       as GHC
-import qualified SrcLoc        as GHC
+-- import qualified HsSyn         as GHC
+-- import qualified RdrName       as GHC
+-- import qualified SrcLoc        as GHC
 
 import qualified Data.Generics as SYB
 
 import Control.Monad.Trans.Free
 import Data.Data
-import Data.Ratio
 
 import qualified Data.Map as Map
 
@@ -101,6 +107,17 @@ isUniqueSrcSpan :: GHC.SrcSpan -> Bool
 isUniqueSrcSpan ss = srcSpanStartLine ss == -1
 
 -- ---------------------------------------------------------------------
+
+-- |If a list has been re-ordered or had items added, capture the new order in
+-- the appropriate SortKeys.
+captureOrder :: (Data a,Data b) => GHC.Located a -> [GHC.Located b] -> Anns -> Anns
+captureOrder parent ls ans = ans'
+  where
+    -- newList = map (\(ss,r) -> (ss,SortKey (r,1,1%2))) $ zip (map GHC.getLoc ls) [1..]
+    newList = map mkAnnKey ls
+    reList = Map.adjust (\an -> an {annSortKey = Just newList }) (mkAnnKey parent)
+    ans' = modifyKeywordDeltas reList ans
+
 {-
 -- |If a list has been re-ordered or had items added, capture the new order in
 -- the appropriate SortKeys.
@@ -110,6 +127,21 @@ captureOrder ls ans = modifySortKeys reList ans
     newList = map (\(ss,r) -> (ss,SortKey (r,1,1%2))) $ zip (map GHC.getLoc ls) [1..]
     reList sks = foldr (uncurry Map.insert) sks newList
 -}
+-- ---------------------------------------------------------------------
+
+wrapDecl :: GHC.LHsBind name -> GHC.LHsDecl name
+wrapDecl (GHC.L l d) = GHC.L l (GHC.ValD d)
+
+wrapSig :: GHC.LSig name -> GHC.LHsDecl name
+wrapSig (GHC.L l d) = GHC.L l (GHC.SigD d)
+
+decl2Sig :: GHC.LHsDecl name -> [GHC.LSig name]
+decl2Sig (GHC.L l (GHC.SigD s)) = [GHC.L l s]
+decl2Sig _                      = []
+
+decl2Bind :: GHC.LHsDecl name -> [GHC.LHsBind name]
+decl2Bind (GHC.L l (GHC.ValD s)) = [GHC.L l s]
+decl2Bind _                      = []
 
 -- ---------------------------------------------------------------------
 

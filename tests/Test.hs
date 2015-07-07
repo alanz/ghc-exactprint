@@ -20,6 +20,7 @@ import qualified FastString     as GHC
 import qualified GHC            as GHC
 import qualified OccName        as GHC
 import qualified RdrName        as GHC
+import qualified SrcLoc         as GHC
 
 import qualified Data.Generics as SYB
 import qualified GHC.SYB.Utils as SYB
@@ -257,7 +258,7 @@ tests = TestList
   , mkTestModChange changeLetIn1     "LetIn1.hs"     "LetIn1"
   , mkTestModChange changeWhereIn4   "WhereIn4.hs"   "WhereIn4"
   , mkTestModChange changeAddDecl    "AddDecl.hs"    "AddDecl"
---  , mkTestModChange changeLocalDecls "LocalDecls.hs" "LocalDecls"
+ , mkTestModChange changeLocalDecls "LocalDecls.hs" "LocalDecls"
 --  , mkTestModChange changeCifToCase  "C.hs"          "C"
 
   -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -489,7 +490,7 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "ShiftingLambda.hs"       "Main"
     -- , manipulateAstTestWFname "SlidingLambda.hs"        "Main"
 --    , manipulateAstTestWFnameMod changeAddDecl "AddDecl.hs" "AddDecl"
-    -- , manipulateAstTestWFnameMod changeLocalDecls "LocalDecls.hs" "LocalDecls"
+    , manipulateAstTestWFnameMod changeLocalDecls "LocalDecls.hs" "LocalDecls"
     {-
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
     , manipulateAstTestWFname "Foo.hs"                   "Main"
@@ -513,6 +514,38 @@ tt = do
      else return () -- exitSuccess
 
 -- ---------------------------------------------------------------------
+
+-- | Add a local declaration with signature to LocalDecl
+changeLocalDecls :: Changer
+changeLocalDecls ans (GHC.L l p) = do
+  Right (declAnns, d@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
+  Right (sigAnns, s@(GHC.L ls (GHC.SigD sig)))   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
+  let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
+  let  sigAnns' = setPrecedingLines  sigAnns (GHC.L ls  sig) 0 0
+  -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
+  -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
+  -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
+  let (p',(ans',_),_) = runTransform ans doAddLocal
+      doAddLocal = SYB.everywhereM (SYB.mkM replaceLocalBinds) p
+      replaceLocalBinds :: GHC.Located (GHC.HsValBinds GHC.RdrName) -> Transform (GHC.Located (GHC.HsValBinds GHC.RdrName))
+      replaceLocalBinds lb@(GHC.L llb (GHC.ValBindsIn binds sigs)) = do
+        a1 <- getAnnsT
+        a' <- case sigs of
+              []    -> return a1
+              (s:_) -> do
+                let a2 = setPrecedingLines a1 s 2 0
+                -- let a3 = addSortKeyBefore  a2 (GHC.L ld ()) (head sigs)
+                -- let a4 = addSortKeyBefore  a3 (GHC.L ls ()) (GHC.L ld ())
+                return a2
+        putAnnsT a'
+        let oldDecls = GHC.sortLocated $ map wrapDecl (GHC.bagToList binds) ++ map wrapSig sigs
+        let decls = s:d:oldDecls
+        modifyAnnsT (captureOrder lb decls)
+        return (GHC.L llb (GHC.ValBindsIn (GHC.listToBag $ (GHC.L ld decl):GHC.bagToList binds) (GHC.L ls sig:sigs)))
+      replaceLocalBinds x = return x
+
+  return (mergeAnnList [declAnns',sigAnns',ans'],GHC.L l p')
+
 {-
 
 -- | Add a local declaration with signature to LocalDecl

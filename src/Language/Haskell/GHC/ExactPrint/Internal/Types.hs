@@ -122,8 +122,14 @@ data Annotation = Ann
   , annTrueEntryDelta  :: !DeltaPos -- ^ Entry without comments
   , annPriorComments   :: ![(DComment, DeltaPos)]
   , annsDP             :: ![(KeywordId, DeltaPos)]  -- ^ Annotations associated with this element.
-  , annSortKey        :: Maybe [AnnKey]  -- ^ Sometimes we must sort the original annotations in order to derive the correct order. This field marks that.
-
+  , annSortKey         :: !(Maybe [AnnKey])
+    -- ^ Captures the sort order of sub elements. This is needed when the
+    -- sub-elements have been split (as in a HsLocalBind which holds separate
+    -- binds and sigs) or for infix patterns where the order has been
+    -- re-arranged. It is captured explicitly so that after the Delta phase a
+    -- SrcSpan is used purely as an index into the annotations, allowing
+    -- transformations of the AST including the introduction of new Located
+    -- items or re-arranging existing ones.
   } deriving (Typeable,Eq)
 
 instance Show Annotation where
@@ -139,6 +145,8 @@ instance Monoid Annotation where
 -- Anns is kept abstract so that the sortKeys can't be modified
 --
 
+-- ++AZ++ TODO: this type can be simplified now. At least rename the record
+-- accessor to simply 'anns'
 data Anns = Anns
   { annsKeywordDeltas :: Map.Map AnnKey Annotation
   } deriving (Show, Typeable)
