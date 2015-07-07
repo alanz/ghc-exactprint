@@ -181,7 +181,6 @@ withSortKey xs = do
     match keys order =
        map snd (sortBy (comparing (flip elemIndex order . fst)) keys)
 
-
 -------------------------------------------------------------------------
 
 justOne, allAnns :: GHC.AnnKeywordId -> EP ()

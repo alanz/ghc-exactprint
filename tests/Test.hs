@@ -525,10 +525,11 @@ changeLocalDecls ans (GHC.L l p) = do
   -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
   -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
   -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
-  let (p',(ans',_),_) = runTransform ans doAddLocal
+  let (p',(ans',_),w) = runTransform ans doAddLocal
       doAddLocal = SYB.everywhereM (SYB.mkM replaceLocalBinds) p
-      replaceLocalBinds :: GHC.Located (GHC.HsValBinds GHC.RdrName) -> Transform (GHC.Located (GHC.HsValBinds GHC.RdrName))
-      replaceLocalBinds lb@(GHC.L llb (GHC.ValBindsIn binds sigs)) = do
+      replaceLocalBinds :: GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)
+                        -> Transform (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
+      replaceLocalBinds m@(GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.HsValBinds (GHC.ValBindsIn binds sigs))))) = do
         a1 <- getAnnsT
         a' <- case sigs of
               []    -> return a1
@@ -540,10 +541,14 @@ changeLocalDecls ans (GHC.L l p) = do
         putAnnsT a'
         let oldDecls = GHC.sortLocated $ map wrapDecl (GHC.bagToList binds) ++ map wrapSig sigs
         let decls = s:d:oldDecls
-        modifyAnnsT (captureOrder lb decls)
-        return (GHC.L llb (GHC.ValBindsIn (GHC.listToBag $ (GHC.L ld decl):GHC.bagToList binds) (GHC.L ls sig:sigs)))
+        logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)
+        modifyAnnsT (captureOrder m decls)
+        return (GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs
+                        (GHC.HsValBinds
+                          (GHC.ValBindsIn (GHC.listToBag $ (GHC.L ld decl):GHC.bagToList binds)
+                                          (GHC.L ls sig:sigs))))))
       replaceLocalBinds x = return x
-
+  putStrLn $ "log:" ++ intercalate "\n" w
   return (mergeAnnList [declAnns',sigAnns',ans'],GHC.L l p')
 
 {-

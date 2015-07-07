@@ -113,7 +113,6 @@ isUniqueSrcSpan ss = srcSpanStartLine ss == -1
 captureOrder :: (Data a,Data b) => GHC.Located a -> [GHC.Located b] -> Anns -> Anns
 captureOrder parent ls ans = ans'
   where
-    -- newList = map (\(ss,r) -> (ss,SortKey (r,1,1%2))) $ zip (map GHC.getLoc ls) [1..]
     newList = map mkAnnKey ls
     reList = Map.adjust (\an -> an {annSortKey = Just newList }) (mkAnnKey parent)
     ans' = modifyKeywordDeltas reList ans
