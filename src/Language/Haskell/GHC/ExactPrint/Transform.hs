@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -50,6 +51,7 @@ import Language.Haskell.GHC.ExactPrint.Utils
 
 import Control.Monad.RWS
 import Data.List
+import Data.Maybe
 
 -- import GHC.Paths (libdir)
 
@@ -66,6 +68,8 @@ import Control.Monad.Trans.Free
 import Data.Data
 
 import qualified Data.Map as Map
+
+import Debug.Trace
 
 ------------------------------------------------------------------------------
 -- Transformation of source elements
@@ -114,8 +118,15 @@ captureOrder :: (Data a,Data b) => GHC.Located a -> [GHC.Located b] -> Anns -> A
 captureOrder parent ls ans = ans'
   where
     newList = map GHC.getLoc ls
-    reList = Map.adjust (\an -> an {annSortKey = Just newList }) (mkAnnKey parent)
+    Ann{ annCapturedSpan } = fromMaybe annNone $ Map.lookup (mkAnnKey parent) (getKeywordDeltas ans)
+    insertion = case annCapturedSpan of
+                  Nothing -> mkAnnKey parent
+                  -- TODO: Remove this hardcoding by storing the
+                  -- constructor name as well?
+                  Just (ss, d) -> AnnKey ss (CN "HsValBinds") d
+    reList = Map.adjust (\an -> an {annSortKey = Just newList }) insertion
     ans' = modifyKeywordDeltas reList ans
+
 
 {-
 -- |If a list has been re-ordered or had items added, capture the new order in

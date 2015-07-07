@@ -132,7 +132,8 @@ data Annotation = Ann
     -- items or re-arranging existing ones.
   , annCapturedSpan    :: !(Maybe (GHC.SrcSpan, Disambiguator))
     -- ^ Occasionally we must calculate a SrcSpan for an unlocated element
-    -- which we must remember for the Print phase.
+    -- which we must remember for the Print phase. TODO; Do we only have
+    -- a captured span when we have a sort key?
   } deriving (Typeable,Eq)
 
 instance Show Annotation where
