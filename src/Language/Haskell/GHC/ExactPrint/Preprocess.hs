@@ -18,7 +18,6 @@ import qualified Lexer          as GHC
 import qualified MonadUtils     as GHC
 import qualified SrcLoc         as GHC
 import qualified StringBuffer   as GHC
-import qualified DynFlags   as GHC
 
 import SrcLoc (mkSrcSpan, mkSrcLoc)
 import FastString (mkFastString)
@@ -183,6 +182,7 @@ getPreprocessedSrcDirectPrim mbMacros src_fn = do
   txt <- GHC.liftIO $ readFile hspp_fn
   return (txt, buf, dflags')
 
+addOptP :: String -> GHC.DynFlags -> GHC.DynFlags
 addOptP   f = alterSettings (\s -> s { GHC.sOpt_P   = f : GHC.sOpt_P s})
 
 alterSettings :: (GHC.Settings -> GHC.Settings) -> GHC.DynFlags -> GHC.DynFlags

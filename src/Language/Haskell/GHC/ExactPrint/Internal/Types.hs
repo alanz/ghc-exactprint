@@ -15,13 +15,11 @@ module Language.Haskell.GHC.ExactPrint.Internal.Types
   , addDP
   , LayoutStartCol(..) , ColDelta(..)
   , Annotation(..)
-  , combineAnns
   , annNone
   , Anns(..),AnnKey(..)
   , emptyAnns
   , getKeywordDeltas
   , modifyKeywordDeltas
-  , modifySortKeys
   , KeywordId(..)
   , mkAnnKey
   , mkAnnKeyWithD
@@ -104,14 +102,15 @@ instance Show ColDelta where
   show (ColDelta v) = "(ColDelta " ++ show v ++ ")"
 
 annNone :: Annotation
-annNone = Ann (DP (0,0)) 0  (DP (0,0)) [] []
+annNone = Ann (DP (0,0)) 0  (DP (0,0)) [] [] Nothing
 
-
+{-
 -- TODO: This is wrong
 combineAnns :: Annotation -> Annotation -> Annotation
 combineAnns (Ann ed1 c1 comments1 toStart1 dps1) (Ann _ed2  _c2 _comments2 _toStart2 dps2)
   = Ann ed1 c1 comments1 toStart1 (dps1 ++ dps2)
   -- = Ann ed2 c2 comments2 toStart2 (dps1 ++ dps2)
+-}
 
 data Annotation = Ann
   {
@@ -123,15 +122,18 @@ data Annotation = Ann
   , annTrueEntryDelta  :: !DeltaPos -- ^ Entry without comments
   , annPriorComments   :: ![(DComment, DeltaPos)]
   , annsDP             :: ![(KeywordId, DeltaPos)]  -- ^ Annotations associated with this element.
+  , annSortKey        :: Maybe [AnnKey]  -- ^ Sometimes we must sort the original annotations in order to derive the correct order. This field marks that.
 
   } deriving (Typeable,Eq)
 
 instance Show Annotation where
-  show (Ann dp c comments toStart ans) = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ show comments ++ " " ++ show toStart ++ " " ++ show ans ++ ")"
+  show (Ann dp c comments toStart ans sk) = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ show comments ++ " " ++ show toStart ++ " " ++ show ans ++ " " ++ show sk ++")"
 
+{-
 instance Monoid Annotation where
   mempty = annNone
   mappend = combineAnns
+  -}
 
 -----
 -- Anns is kept abstract so that the sortKeys can't be modified
@@ -139,11 +141,10 @@ instance Monoid Annotation where
 
 data Anns = Anns
   { annsKeywordDeltas :: Map.Map AnnKey Annotation
-  , annsSortKeys      :: Map.Map GHC.SrcSpan SortKey
   } deriving (Show, Typeable)
 
 emptyAnns :: Anns
-emptyAnns = Anns Map.empty Map.empty
+emptyAnns = Anns Map.empty
 
 getKeywordDeltas :: Anns -> Map.Map AnnKey Annotation
 getKeywordDeltas = annsKeywordDeltas
@@ -151,11 +152,12 @@ getKeywordDeltas = annsKeywordDeltas
 modifyKeywordDeltas :: (Map.Map AnnKey Annotation -> Map.Map AnnKey Annotation)
                     -> Anns -> Anns
 modifyKeywordDeltas f as = as { annsKeywordDeltas = f (annsKeywordDeltas as)}
-
+{-
 -- TODO: This should be replaced with higher level operations
 modifySortKeys :: (Map.Map GHC.SrcSpan SortKey -> Map.Map GHC.SrcSpan SortKey)
                -> Anns -> Anns
 modifySortKeys f as = as { annsSortKeys = f (annsSortKeys as)}
+-}
 
 
 

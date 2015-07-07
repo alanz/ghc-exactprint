@@ -257,7 +257,7 @@ tests = TestList
   , mkTestModChange changeLetIn1     "LetIn1.hs"     "LetIn1"
   , mkTestModChange changeWhereIn4   "WhereIn4.hs"   "WhereIn4"
   , mkTestModChange changeAddDecl    "AddDecl.hs"    "AddDecl"
-  , mkTestModChange changeLocalDecls "LocalDecls.hs" "LocalDecls"
+--  , mkTestModChange changeLocalDecls "LocalDecls.hs" "LocalDecls"
 --  , mkTestModChange changeCifToCase  "C.hs"          "C"
 
   -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -488,7 +488,7 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "NestedLambda.hs"         "Main"
     -- , manipulateAstTestWFname "ShiftingLambda.hs"       "Main"
     -- , manipulateAstTestWFname "SlidingLambda.hs"        "Main"
-    , manipulateAstTestWFnameMod changeAddDecl "AddDecl.hs" "AddDecl"
+--    , manipulateAstTestWFnameMod changeAddDecl "AddDecl.hs" "AddDecl"
     -- , manipulateAstTestWFnameMod changeLocalDecls "LocalDecls.hs" "LocalDecls"
     {-
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
@@ -513,6 +513,7 @@ tt = do
      else return () -- exitSuccess
 
 -- ---------------------------------------------------------------------
+{-
 
 -- | Add a local declaration with signature to LocalDecl
 changeLocalDecls :: Changer
@@ -541,33 +542,21 @@ changeLocalDecls ans (GHC.L l p) = do
       replaceLocalBinds x = return x
 
   return (mergeAnnList [declAnns',sigAnns',ans'],GHC.L l p')
-
+-}
 -- ---------------------------------------------------------------------
-
 -- | Add a declaration to AddDecl
 changeAddDecl :: Changer
-changeAddDecl ans (GHC.L l p) = do
+changeAddDecl ans top = do
   Right (declAnns, decl@(GHC.L ld _)) <- withDynFlags (\df -> parseDecl df "<interactive>" "nn = n2")
   -- putStrLn $ "changeDecl:(declAnns,decl)=" ++ showGhc (declAnns,decl)
   let declAnns' = setPrecedingLines declAnns decl 2 0
   -- putStrLn $ "changeDecl:(declAnns',decl)=" ++ showGhc (declAnns',decl)
 
   let (p',(ans',_),_) = runTransform ans doAddDecl
-      doAddDecl = SYB.everywhereM (SYB.mkM replaceTopLevelDecls) p
-      replaceTopLevelDecls :: GHC.HsModule GHC.RdrName -> Transform (GHC.HsModule GHC.RdrName)
-      replaceTopLevelDecls (GHC.HsModule mmn mexp imps decs mdepr haddock) = do
-        a1 <- getAnnsT
-        a' <- case decs of
-              (s:_) -> do
-                -- let a2 = setPrecedingLines a1 s 2 0
-                let a3 = addSortKeyBefore  a1 (GHC.L ld ()) s
-                return a3
-        putAnnsT a'
-        let decs' = (head decs) : decl : tail decs
-        return (GHC.HsModule mmn mexp imps decs' mdepr haddock)
-      replaceTopLevelDecls x = return x
-  return (mergeAnns declAnns' ans',GHC.L l p')
-
+      doAddDecl = SYB.everywhereM (SYB.mkM replaceTopLevelDecls) top
+      replaceTopLevelDecls :: GHC.ParsedSource -> Transform (GHC.ParsedSource)
+      replaceTopLevelDecls m = insertAtStart m decl
+  return (mergeAnns declAnns' ans',p')
 -- ---------------------------------------------------------------------
 
 -- |Remove a decl with a trailing comment, and remove the trailing comment too
@@ -660,21 +649,21 @@ changeCifToCase ans p = return (ans',p')
             [ ( AnnKey caseLoc       (CN "HsCase") NotNeeded,   annIf { annsDP = [ (AnnSpanEntry,ifSpanEntry),(G GHC.AnnCase, ifDelta)
                                                                      , (G GHC.AnnOf,     DP (0,1))
                                                                      ,(AnnList caseVirtualLoc NotNeeded,DP (0,0))] } )
-            , ( AnnKey caseVirtualLoc (CN "(:)") NotNeeded,     Ann (DP (1,newCol)) (ColDelta newCol) (DP (1,newCol)) [] [(AnnSpanEntry,DP (1,0))])
-            , ( AnnKey trueMatchLoc  (CN "Match") NotNeeded,    Ann (DP (0,0)) 0 (DP (0,0)) [] [] )
-            , ( AnnKey trueLoc1      (CN "ConPatIn") NotNeeded, Ann (DP (0,0)) 0 (DP (0,0)) [] [] )
-            , ( AnnKey trueLoc       (CN "Unqual") NotNeeded,   Ann (DP (0,0)) 0 (DP (0,0)) [] [(G GHC.AnnVal, DP (0,0))] )
-            , ( AnnKey trueRhsLoc    (CN "GRHS") NotNeeded,     Ann (DP (0,2)) 6 (DP (0,0)) [] [(AnnSpanEntry,DP (0,2)),(G GHC.AnnRarrow, DP (0,0))] )
+            , ( AnnKey caseVirtualLoc (CN "(:)") NotNeeded,     Ann (DP (1,newCol)) (ColDelta newCol) (DP (1,newCol)) [] [(AnnSpanEntry,DP (1,0))] Nothing)
+            , ( AnnKey trueMatchLoc  (CN "Match") NotNeeded,   annNone )
+            , ( AnnKey trueLoc1      (CN "ConPatIn") NotNeeded, annNone )
+            , ( AnnKey trueLoc       (CN "Unqual") NotNeeded,  annNone )
+            , ( AnnKey trueRhsLoc    (CN "GRHS") NotNeeded,     Ann (DP (0,2)) 6 (DP (0,0)) [] [(AnnSpanEntry,DP (0,2)),(G GHC.AnnRarrow, DP (0,0))] Nothing )
 
-            , ( AnnKey falseMatchLoc (CN "Match") NotNeeded,    Ann (DP (1,0)) 0 (DP (0,0)) []  [(AnnSpanEntry,DP (1,0))] )
-            , ( AnnKey falseLoc1     (CN "ConPatIn") NotNeeded, Ann (DP (0,0)) 0 (DP (0,0)) []  [] )
-            , ( AnnKey falseLoc      (CN "Unqual") NotNeeded,   Ann (DP (0,0)) 0 (DP (0,0)) []  [ (G GHC.AnnVal, DP (0,0))] )
-            , ( AnnKey falseRhsLoc   (CN "GRHS") NotNeeded,     Ann (DP (0,1)) 6 (DP (0,0)) []  [(AnnSpanEntry,DP (0,1)),(G GHC.AnnRarrow, DP (0,0))] )
+            , ( AnnKey falseMatchLoc (CN "Match") NotNeeded,    Ann (DP (1,0)) 0 (DP (0,0)) []  [(AnnSpanEntry,DP (1,0))] Nothing)
+            , ( AnnKey falseLoc1     (CN "ConPatIn") NotNeeded, annNone )
+            , ( AnnKey falseLoc      (CN "Unqual") NotNeeded, annNone )
+            , ( AnnKey falseRhsLoc   (CN "GRHS") NotNeeded,     Ann (DP (0,1)) 6 (DP (0,0)) []  [(AnnSpanEntry,DP (0,1)),(G GHC.AnnRarrow, DP (0,0))] Nothing )
             ]
 
       let annThen' = adjustAnnOffset (ColDelta 6) annThen
       let anne1 = modifyKeywordDeltas (Map.delete (AnnKey l (CN "HsIf") NotNeeded)) oldAnns
-          final = modifyKeywordDeltas (\s -> Map.unionWith (<>) s (Map.fromList anne2')) anne1
+          final = modifyKeywordDeltas (\s -> Map.union s (Map.fromList anne2')) anne1
           anne3 = setLocatedAnns final
                     [ (e1, annCond)
                     , (e2, annThen')
