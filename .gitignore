@@ -15,3 +15,8 @@
 /src/Language/Haskell/GHC/HLint.hs
 /tests/HLint.hs
 /.stack-work/
+/test.aux
+/test.hp
+/test.pdf
+/test.ps
+/ghc.hp
