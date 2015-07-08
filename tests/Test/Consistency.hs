@@ -1,4 +1,4 @@
-module Consistency where
+module Test.Consistency where
 
 import Data.Data
 import GHC

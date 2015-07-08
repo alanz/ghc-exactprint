@@ -5,7 +5,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
-module Common (
+module Test.Common (
                 RoundtripReport (..)
               , Report
               , ParseFailure(..)
@@ -41,7 +41,7 @@ import Data.List hiding (find)
 import Control.Monad
 import System.Directory
 
-import Consistency
+import Test.Consistency
 
 import Control.Arrow (first)
 

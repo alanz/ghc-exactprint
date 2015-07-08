@@ -21,7 +21,7 @@ import System.Environment
 
 import qualified Data.Set as S
 
-import Common
+import Test.Common
 
 import System.IO.Temp
 import System.IO (hClose, hPutStr)
