@@ -90,13 +90,11 @@ Test-Suite test
                      , syb
                      , silently
                      , filemanip
-                     , QuickCheck
 
 executable roundtrip
   main-is: Roundtrip.hs
   hs-source-dirs: tests
   other-modules: Common
-                 QuickCheckTests
   default-language:    Haskell2010
   if impl (ghc < 7.10)
       buildable: False
