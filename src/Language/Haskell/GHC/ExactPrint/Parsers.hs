@@ -104,11 +104,8 @@ parseDecl df fp = parseWith df fp (head . OL.fromOL <$> GHC.parseDeclaration)
 parseStmt :: Parser (GHC.ExprLStmt GHC.RdrName)
 parseStmt df fp = parseWith df fp GHC.parseStatement
 
--- Interim, see D1005
--- will not parse bang patterns properly
 parsePattern :: Parser (GHC.LPat GHC.RdrName)
-parsePattern df fp = parseWith df fp (GHC.parseExpression >>= GHC.checkPattern GHC.empty)
--- parsePattern df fp = parseWith df fp GHC.parsePattern
+parsePattern df fp = parseWith df fp GHC.parsePattern
 
 -- ---------------------------------------------------------------------
 --
