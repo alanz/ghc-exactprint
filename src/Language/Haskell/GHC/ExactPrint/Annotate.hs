@@ -197,9 +197,10 @@ markLocalBindsWithLayout :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccN
   => GHC.HsLocalBinds name -> IAnnotated ()
 markLocalBindsWithLayout binds = do
   ss <- getLocalBindsSrcSpan binds
-  let d  = NotNeeded
-  (ss',d') <- storeOriginalSrcSpan ss d
-  markWithLayout (GHC.L ss' binds) d'
+  when (ss /= GHC.noSrcSpan) $ do
+    -- binds are not empty
+    (ss',d') <- storeOriginalSrcSpan ss NotNeeded
+    markWithLayout (GHC.L ss' binds) d'
 
 -- ---------------------------------------------------------------------
 
