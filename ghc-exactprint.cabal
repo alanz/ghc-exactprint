@@ -70,7 +70,7 @@ Test-Suite test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      tests
   main-is:             Test.hs
-  other-modules:      Common, Consistency
+  other-modules:      Test.Common, Test.Consistency, Test.Transform
   GHC-Options:         -threaded
   Default-language:    Haskell2010
   if impl (ghc < 7.10)
