@@ -20,6 +20,7 @@ import Language.Haskell.GHC.ExactPrint.Preprocess
 import Language.Haskell.GHC.ExactPrint.Internal.Types
 
 import Control.Monad.RWS
+import Control.Exception
 
 import GHC.Paths (libdir)
 
@@ -111,8 +112,13 @@ parsePattern df fp = parseWith df fp (GHC.parseExpression >>= GHC.checkPattern G
 
 -- ---------------------------------------------------------------------
 --
+
+catchAny :: IO a -> (SomeException -> IO a) -> IO a
+catchAny = catch
+
 generateMacroFile :: IO ()
-generateMacroFile = writeAutogenFiles "dist/"
+generateMacroFile = catchAny (writeAutogenFiles "dist/")
+                      (\_ -> putStrLn "Failed to generate macro file")
 
 
 parseModule :: FilePath -> IO (Either (GHC.SrcSpan, String) (Anns, (GHC.Located (GHC.HsModule GHC.RdrName))))
