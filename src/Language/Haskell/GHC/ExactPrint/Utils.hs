@@ -31,11 +31,11 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , showAnnData
 
   -- * Managing SortKeys
-  , ss2SortKey
-  , sortKeyBefore
-  , sortKeyAfter
-  , sortKeyBetween
-  , stringBeween
+  -- , ss2SortKey
+  -- , sortKeyBefore
+  -- , sortKeyAfter
+  -- , sortKeyBetween
+  -- , stringBeween
 
   -- * For tests
   , debug
@@ -50,7 +50,6 @@ import Data.Data (Data, toConstr, showConstr, cast)
 import Data.Generics (extQ, ext1Q, ext2Q, gmapQ)
 import Data.List (intercalate)
 import Data.Functor (($>))
-import Data.Ratio
 
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Lookup
@@ -294,7 +293,7 @@ showAnnData anns n =
                   ++ ")"
 
 -- ---------------------------------------------------------------------
-
+{-
 -- Start with a 0.5 position, can always split toward zero or toward one, never
 -- actually at them
 ss2SortKey :: GHC.SrcSpan -> SortKey
@@ -333,7 +332,7 @@ stringBeween str1 str2 = go str1 str2
                               then s1 : go s1s s2s
                               else (s1:s1s) ++ "a"
     go s1 _s2 = s1 ++ "a"
-
+-}
  -- ---------------------------------------------------------------------
 
 showSDoc_ :: GHC.SDoc -> String

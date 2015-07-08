@@ -35,7 +35,7 @@ module Language.Haskell.GHC.ExactPrint.Internal.Types
 
   , LayoutFlag(..)
 
-  , SortKey(..)
+  -- , SortKey(..)
 
   , showGhc
   ) where
@@ -232,14 +232,14 @@ instance Monoid LayoutFlag where
   _ `mappend` _           = NoLayoutRules
 
 -- ---------------------------------------------------------------------
-
+{-
 -- |The SortKey is derived from the original SrcSpan.
 -- It comprises the original start row and column, together with a third
 -- component which is used to manage explicit sort order, to be able to always
 -- insert a value between any two values.
 data SortKey = SortKey (Int,Int,Rational)
              deriving (Eq,Show,Ord)
-
+-}
 -- ---------------------------------------------------------------------
 
 instance GHC.Outputable KeywordId where
@@ -257,8 +257,10 @@ instance GHC.Outputable AnnKey where
 instance GHC.Outputable DeltaPos where
   ppr a     = GHC.text (show a)
 
+{-
 instance GHC.Outputable SortKey where
   ppr a     = GHC.text (show a)
+-}
 
 instance GHC.Outputable Anns where
   ppr a     = GHC.text (show a)

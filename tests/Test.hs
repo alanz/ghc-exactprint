@@ -31,7 +31,6 @@ import System.FilePath
 import System.IO
 import System.Exit
 import qualified Data.Map as Map
-import Data.Monoid ((<>))
 
 import Data.List
 
@@ -40,7 +39,6 @@ import System.IO.Silently
 import Common
 
 import Test.HUnit
-import QuickCheckTests
 
 
 -- import Debug.Trace
@@ -530,7 +528,7 @@ changeLocalDecls2 ans (GHC.L l p) = do
   -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
   -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
   -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
-  let (p',(ans',_),w) = runTransform ans doAddLocal
+  let (p',(ans',_),_w) = runTransform ans doAddLocal
       doAddLocal = SYB.everywhereM (SYB.mkM replaceLocalBinds) p
       replaceLocalBinds :: GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)
                         -> Transform (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
@@ -586,8 +584,8 @@ changeLocalDecls ans (GHC.L l p) = do
         a1 <- getAnnsT
         a' <- case sigs of
               []    -> return a1
-              (s:_) -> do
-                let a2 = setPrecedingLines a1 s 2 0
+              (s1:_) -> do
+                let a2 = setPrecedingLines a1 s1 2 0
                 return a2
         putAnnsT a'
         let oldDecls = GHC.sortLocated $ map wrapDecl (GHC.bagToList binds) ++ map wrapSig sigs
@@ -607,7 +605,7 @@ changeLocalDecls ans (GHC.L l p) = do
 -- | Add a declaration to AddDecl
 changeAddDecl :: Changer
 changeAddDecl ans top = do
-  Right (declAnns, decl@(GHC.L ld _)) <- withDynFlags (\df -> parseDecl df "<interactive>" "nn = n2")
+  Right (declAnns, decl) <- withDynFlags (\df -> parseDecl df "<interactive>" "nn = n2")
   -- putStrLn $ "changeDecl:(declAnns,decl)=" ++ showGhc (declAnns,decl)
   let declAnns' = setPrecedingLines declAnns decl 2 0
   -- putStrLn $ "changeDecl:(declAnns',decl)=" ++ showGhc (declAnns',decl)
@@ -705,7 +703,7 @@ changeCifToCase ans p = return (ans',p')
       -- AZ:TODO: under some circumstances the GRHS annotations need LineSame, in others LineChanged.
       let ifDelta     = gfromJust "Case.ifDelta"     $ lookup (G GHC.AnnIf) (annsDP annIf)
       -- let ifSpanEntry = gfromJust "Case.ifSpanEntry" $ lookup AnnSpanEntry (annsDP annIf)
-      let ifSpanEntry = annEntryDelta annIf
+      -- let ifSpanEntry = annEntryDelta annIf
       let anne2' =
             [ ( AnnKey caseLoc       (CN "HsCase") NotNeeded,   annIf { annsDP = [ (G GHC.AnnCase, ifDelta)
                                                                      , (G GHC.AnnOf,     DP (0,1))]
