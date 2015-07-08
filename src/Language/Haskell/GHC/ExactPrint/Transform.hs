@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -41,6 +42,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , mergeAnns
         , mergeAnnList
         , setLocatedAnns
+        , setPrecedingLinesDecl
         , setPrecedingLines
 --        , addSortKeyBefore
 
@@ -189,29 +191,42 @@ setAnn as (k, a) =
   let newKds = maybe [] (annsDP) (Map.lookup k (getKeywordDeltas as)) in
     modifyKeywordDeltas (Map.insert k (a { annsDP = newKds })) as
 
+-- ---------------------------------------------------------------------
+
+-- |Unwrap a HsDecl and call setPrecedingLines on it
+setPrecedingLinesDecl :: Anns -> GHC.LHsDecl GHC.RdrName -> Int -> Anns
+setPrecedingLinesDecl ans ld@(GHC.L l d) n =
+  case d of
+      GHC.TyClD d       -> setPrecedingLines ans (GHC.L l d) n 0
+      GHC.InstD d       -> setPrecedingLines ans (GHC.L l d) n 0
+      GHC.DerivD d      -> setPrecedingLines ans (GHC.L l d) n 0
+      GHC.ValD d        -> setPrecedingLines ans (GHC.L l d) n 0
+      GHC.SigD d        -> setPrecedingLines ans (GHC.L l d) n 0
+      GHC.DefD d        -> setPrecedingLines ans (GHC.L l d) n 0
+      GHC.ForD d        -> setPrecedingLines ans (GHC.L l d) n 0
+      GHC.WarningD d    -> setPrecedingLines ans (GHC.L l d) n 0
+      GHC.AnnD d        -> setPrecedingLines ans (GHC.L l d) n 0
+      GHC.RuleD d       -> setPrecedingLines ans (GHC.L l d) n 0
+      GHC.VectD d       -> setPrecedingLines ans (GHC.L l d) n 0
+      GHC.SpliceD d     -> setPrecedingLines ans (GHC.L l d) n 0
+      GHC.DocD d        -> setPrecedingLines ans (GHC.L l d) n 0
+      GHC.RoleAnnotD d  -> setPrecedingLines ans (GHC.L l d) n 0
+#if __GLASGOW_HASKELL__ < 711
+      GHC.QuasiQuoteD d -> setPrecedingLines ans (GHC.L l d) n 0
+#endif
+
+-- ---------------------------------------------------------------------
+
 -- | Adjust the entry annotations to provide an `n` line preceding gap
 setPrecedingLines :: (SYB.Data a) => Anns -> GHC.Located a -> Int -> Int -> Anns
 setPrecedingLines anne ast n c =
   modifyKeywordDeltas (Map.alter go (mkAnnKey ast)) anne
   where
     go Nothing  = Just (Ann (DP (n,c)) (ColDelta c) (DP (n,c)) []  [] Nothing Nothing )
-    go (Just a) = Just (a { annEntryDelta = DP (n, c)
+    go (Just a) = Just (a { annEntryDelta     = DP (n, c)
                           , annTrueEntryDelta = DP (n, c) })
 
 -- ---------------------------------------------------------------------
-{-
--- |Add a sort key for the first item to come before the second
-addSortKeyBefore :: Anns -> GHC.Located a -> GHC.Located b -> Anns
-addSortKeyBefore anns (GHC.L l1 _) (GHC.L l2 _) = anns { annsSortKeys = sk' }
-  where
-    sk = annsSortKeys anns
-    (other,sk2) = case Map.lookup l2 sk of
-      Just k -> (k,sk)
-      Nothing -> (ss2SortKey l2,Map.insert l2 (ss2SortKey l2) sk)
-    sk' = Map.insert l1 (sortKeyBefore other) sk2
-          `debug` ("addSortKeyBefore:(l1,l2,otherk,new sk)=" ++ show (l1,l2,other,sortKeyBefore other))
--}
-
 
 -- -----
 -- Classes
