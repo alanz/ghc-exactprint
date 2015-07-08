@@ -94,7 +94,6 @@ Test-Suite test
 executable roundtrip
   main-is: Roundtrip.hs
   hs-source-dirs: tests
-  other-modules: Common
   other-modules: Test.Common
   default-language:    Haskell2010
   if impl (ghc < 7.10)

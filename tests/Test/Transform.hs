@@ -125,7 +125,7 @@ changeLocalDecls ans (GHC.L l p) = do
   -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
   -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
   -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
-  let (p',(ans',_),w) = runTransform ans doAddLocal
+  let (p',(ans',_),_w) = runTransform ans doAddLocal
       doAddLocal = SYB.everywhereM (SYB.mkM replaceLocalBinds) p
       replaceLocalBinds :: GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)
                         -> Transform (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
@@ -146,7 +146,7 @@ changeLocalDecls ans (GHC.L l p) = do
                           (GHC.ValBindsIn (GHC.listToBag $ (GHC.L ld decl):GHC.bagToList binds)
                                           (GHC.L ls sig:sigs))))))
       replaceLocalBinds x = return x
-  putStrLn $ "log:" ++ intercalate "\n" w
+  -- putStrLn $ "log:" ++ intercalate "\n" w
   return (mergeAnnList [declAnns',sigAnns',ans'],GHC.L l p')
 
 -- ---------------------------------------------------------------------
