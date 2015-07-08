@@ -15,14 +15,16 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , runTransform
         , logTr
         , getAnnsT, putAnnsT, modifyAnnsT
+        , modifyKeywordDeltasT
+        , uniqueSrcSpanT
 
         -- * Operations
-        , uniqueSrcSpan
         , isUniqueSrcSpan
 
         -- * Managing lists
         , HasDecls (..)
         , captureOrder
+        , captureOrderAnnKey
         , insertAtStart
         , insertAtEnd
         , insertAfter
@@ -44,8 +46,6 @@ module Language.Haskell.GHC.ExactPrint.Transform
 
         ) where
 
-import Language.Haskell.GHC.ExactPrint.Annotate
-import Language.Haskell.GHC.ExactPrint.Preprocess
 import Language.Haskell.GHC.ExactPrint.Internal.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
@@ -53,23 +53,16 @@ import Control.Monad.RWS
 import Data.List
 import Data.Maybe
 
--- import GHC.Paths (libdir)
-
--- import qualified ApiAnnotation as GHC
 import qualified FastString    as GHC
 import qualified GHC           as GHC hiding (parseModule)
--- import qualified HsSyn         as GHC
--- import qualified RdrName       as GHC
--- import qualified SrcLoc        as GHC
 
 import qualified Data.Generics as SYB
 
-import Control.Monad.Trans.Free
 import Data.Data
 
 import qualified Data.Map as Map
 
-import Debug.Trace
+-- import Debug.Trace
 
 ------------------------------------------------------------------------------
 -- Transformation of source elements
@@ -97,11 +90,17 @@ modifyAnnsT f = do
   ans <- getAnnsT
   putAnnsT (f ans)
 
+modifyKeywordDeltasT :: (Map.Map AnnKey Annotation -> Map.Map AnnKey Annotation)
+                     -> Transform ()
+modifyKeywordDeltasT f = do
+  ans <- getAnnsT
+  putAnnsT (modifyKeywordDeltas f ans)
+
 -- ---------------------------------------------------------------------
 
 -- TODO: do we have to match the filename for GHC compare functions?
-uniqueSrcSpan :: Transform GHC.SrcSpan
-uniqueSrcSpan = do
+uniqueSrcSpanT :: Transform GHC.SrcSpan
+uniqueSrcSpanT = do
   (an,col) <- get
   put (an,col + 1 )
   let pos = GHC.mkSrcLoc (GHC.mkFastString "ghc-exactprint") (-1) col
@@ -115,28 +114,23 @@ isUniqueSrcSpan ss = srcSpanStartLine ss == -1
 -- |If a list has been re-ordered or had items added, capture the new order in
 -- the appropriate SortKeys.
 captureOrder :: (Data a,Data b) => GHC.Located a -> [GHC.Located b] -> Anns -> Anns
-captureOrder parent ls ans = ans'
+captureOrder parent ls ans = captureOrderAnnKey (mkAnnKey parent) ls ans
+
+-- |If a list has been re-ordered or had items added, capture the new order in
+-- the appropriate SortKeys.
+captureOrderAnnKey :: (Data b) => AnnKey -> [GHC.Located b] -> Anns -> Anns
+captureOrderAnnKey parentKey ls ans = ans'
   where
     newList = map GHC.getLoc ls
-    Ann{ annCapturedSpan } = fromMaybe annNone $ Map.lookup (mkAnnKey parent) (getKeywordDeltas ans)
+    Ann{ annCapturedSpan } = fromMaybe annNone $ Map.lookup parentKey (getKeywordDeltas ans)
     insertion = case annCapturedSpan of
-                  Nothing -> mkAnnKey parent
+                  Nothing -> parentKey
                   -- TODO: Remove this hardcoding by storing the
                   -- constructor name as well?
                   Just (ss, d) -> AnnKey ss (CN "HsValBinds") d
     reList = Map.adjust (\an -> an {annSortKey = Just newList }) insertion
     ans' = modifyKeywordDeltas reList ans
 
-
-{-
--- |If a list has been re-ordered or had items added, capture the new order in
--- the appropriate SortKeys.
-captureOrder :: [GHC.Located a] -> Anns -> Anns
-captureOrder ls ans = modifySortKeys reList ans
-  where
-    newList = map (\(ss,r) -> (ss,SortKey (r,1,1%2))) $ zip (map GHC.getLoc ls) [1..]
-    reList sks = foldr (uncurry Map.insert) sks newList
--}
 -- ---------------------------------------------------------------------
 
 wrapDecl :: GHC.LHsBind name -> GHC.LHsDecl name

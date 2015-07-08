@@ -258,7 +258,8 @@ tests = TestList
   , mkTestModChange changeLetIn1     "LetIn1.hs"     "LetIn1"
   , mkTestModChange changeWhereIn4   "WhereIn4.hs"   "WhereIn4"
   , mkTestModChange changeAddDecl    "AddDecl.hs"    "AddDecl"
- , mkTestModChange changeLocalDecls "LocalDecls.hs" "LocalDecls"
+  , mkTestModChange changeLocalDecls "LocalDecls.hs" "LocalDecls"
+  , mkTestModChange changeLocalDecls2 "LocalDecls2.hs" "LocalDecls2"
 --  , mkTestModChange changeCifToCase  "C.hs"          "C"
 
   -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -490,7 +491,10 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "ShiftingLambda.hs"       "Main"
     -- , manipulateAstTestWFname "SlidingLambda.hs"        "Main"
 --    , manipulateAstTestWFnameMod changeAddDecl "AddDecl.hs" "AddDecl"
-    , manipulateAstTestWFnameMod changeLocalDecls "LocalDecls.hs" "LocalDecls"
+    -- , manipulateAstTestWFnameMod changeLocalDecls "LocalDecls.hs" "LocalDecls"
+    , manipulateAstTestWFname "LocalDecls2Expected.hs"        "LocalDecls2Expected"
+    -- , manipulateAstTestWFname "LocalDecls2.hs"        "LocalDecls2"
+    , manipulateAstTestWFnameMod changeLocalDecls2 "LocalDecls2.hs" "LocalDecls2"
     {-
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
     , manipulateAstTestWFname "Foo.hs"                   "Main"
@@ -515,6 +519,55 @@ tt = do
 
 -- ---------------------------------------------------------------------
 
+-- | Add a local declaration with signature to LocalDecl, where there was no
+-- prior local decl. So it adds a "where" annotation.
+changeLocalDecls2 :: Changer
+changeLocalDecls2 ans (GHC.L l p) = do
+  Right (declAnns, d@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
+  Right (sigAnns, s@(GHC.L ls (GHC.SigD sig)))   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
+  let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
+  let  sigAnns' = setPrecedingLines  sigAnns (GHC.L ls  sig) 0 0
+  -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
+  -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
+  -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
+  let (p',(ans',_),w) = runTransform ans doAddLocal
+      doAddLocal = SYB.everywhereM (SYB.mkM replaceLocalBinds) p
+      replaceLocalBinds :: GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)
+                        -> Transform (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
+      replaceLocalBinds m@(GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.EmptyLocalBinds)))) = do
+        newSpan <- uniqueSrcSpanT
+        let
+          newAnnKey = AnnKey newSpan (CN "HsValBinds") NotNeeded
+          addWhere mkds =
+            case Map.lookup (mkAnnKey m) mkds of
+              Nothing -> error "wtf"
+              Just ann -> Map.insert newAnnKey ann2 mkds2
+                where
+                  ann1 = ann { annsDP = annsDP ann ++ [(G GHC.AnnWhere,DP (1,2))]
+                             , annCapturedSpan = Just (newSpan,NotNeeded)
+                             }
+                  mkds2 = Map.insert (mkAnnKey m) ann1 mkds
+                  ann2 = Ann { annEntryDelta     = DP (1,0)
+                             , annDelta          = ColDelta 4
+                             , annTrueEntryDelta = DP (1,0)
+                             , annPriorComments  = []
+                             , annsDP            = []
+                             , annSortKey        = Nothing
+                             , annCapturedSpan   = Nothing}
+        modifyKeywordDeltasT addWhere
+        let decls = [s,d]
+        logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)
+        modifyAnnsT (captureOrderAnnKey newAnnKey decls)
+        return (GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs
+                        (GHC.HsValBinds
+                          (GHC.ValBindsIn (GHC.listToBag $ [GHC.L ld decl])
+                                          [GHC.L ls sig])))))
+      replaceLocalBinds x = return x
+  -- putStrLn $ "log:" ++ intercalate "\n" w
+  return (mergeAnnList [declAnns',sigAnns',ans'],GHC.L l p')
+
+-- ---------------------------------------------------------------------
+
 -- | Add a local declaration with signature to LocalDecl
 changeLocalDecls :: Changer
 changeLocalDecls ans (GHC.L l p) = do
@@ -535,8 +588,6 @@ changeLocalDecls ans (GHC.L l p) = do
               []    -> return a1
               (s:_) -> do
                 let a2 = setPrecedingLines a1 s 2 0
-                -- let a3 = addSortKeyBefore  a2 (GHC.L ld ()) (head sigs)
-                -- let a4 = addSortKeyBefore  a3 (GHC.L ls ()) (GHC.L ld ())
                 return a2
         putAnnsT a'
         let oldDecls = GHC.sortLocated $ map wrapDecl (GHC.bagToList binds) ++ map wrapSig sigs
@@ -551,37 +602,8 @@ changeLocalDecls ans (GHC.L l p) = do
   putStrLn $ "log:" ++ intercalate "\n" w
   return (mergeAnnList [declAnns',sigAnns',ans'],GHC.L l p')
 
-{-
-
--- | Add a local declaration with signature to LocalDecl
-changeLocalDecls :: Changer
-changeLocalDecls ans (GHC.L l p) = do
-  Right (declAnns, GHC.L ld (GHC.ValD decl)) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
-  Right (sigAnns, GHC.L ls (GHC.SigD sig))   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
-  let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
-  let  sigAnns' = setPrecedingLines  sigAnns (GHC.L ls  sig) 0 0
-  -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
-  -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
-  -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
-  let (p',(ans',_),_) = runTransform ans doAddLocal
-      doAddLocal = SYB.everywhereM (SYB.mkM replaceLocalBinds) p
-      replaceLocalBinds :: GHC.HsValBinds GHC.RdrName -> Transform (GHC.HsValBinds GHC.RdrName)
-      replaceLocalBinds (GHC.ValBindsIn binds sigs) = do
-        a1 <- getAnnsT
-        a' <- case sigs of
-              []    -> return $ modifySortKeys (Map.insert ls (ss2SortKey ls)) a1
-              (s:_) -> do
-                let a2 = setPrecedingLines a1 s 2 0
-                let a3 = addSortKeyBefore  a2 (GHC.L ld ()) (head sigs)
-                let a4 = addSortKeyBefore  a3 (GHC.L ls ()) (GHC.L ld ())
-                return a4
-        putAnnsT a'
-        return (GHC.ValBindsIn (GHC.listToBag $ (GHC.L ld decl):GHC.bagToList binds) (GHC.L ls sig:sigs))
-      replaceLocalBinds x = return x
-
-  return (mergeAnnList [declAnns',sigAnns',ans'],GHC.L l p')
--}
 -- ---------------------------------------------------------------------
+
 -- | Add a declaration to AddDecl
 changeAddDecl :: Changer
 changeAddDecl ans top = do
@@ -595,6 +617,7 @@ changeAddDecl ans top = do
       replaceTopLevelDecls :: GHC.ParsedSource -> Transform (GHC.ParsedSource)
       replaceTopLevelDecls m = insertAtStart m decl
   return (mergeAnns declAnns' ans',p')
+
 -- ---------------------------------------------------------------------
 
 -- |Remove a decl with a trailing comment, and remove the trailing comment too
@@ -625,16 +648,16 @@ changeCifToCase ans p = return (ans',p')
     ifToCaseTransform :: GHC.Located (GHC.HsExpr GHC.RdrName)
                       -> Transform (GHC.Located (GHC.HsExpr GHC.RdrName))
     ifToCaseTransform li@(GHC.L l (GHC.HsIf _se e1 e2 e3)) = do
-      caseLoc        <- uniqueSrcSpan -- HaRe:-1:1
-      trueMatchLoc   <- uniqueSrcSpan -- HaRe:-1:2
-      trueLoc1       <- uniqueSrcSpan -- HaRe:-1:3
-      trueLoc        <- uniqueSrcSpan -- HaRe:-1:4
-      trueRhsLoc     <- uniqueSrcSpan -- HaRe:-1:5
-      falseLoc1      <- uniqueSrcSpan -- HaRe:-1:6
-      falseLoc       <- uniqueSrcSpan -- HaRe:-1:7
-      falseMatchLoc  <- uniqueSrcSpan -- HaRe:-1:8
-      falseRhsLoc    <- uniqueSrcSpan -- HaRe:-1:9
-      caseVirtualLoc <- uniqueSrcSpan -- HaRe:-1:10
+      caseLoc        <- uniqueSrcSpanT -- HaRe:-1:1
+      trueMatchLoc   <- uniqueSrcSpanT -- HaRe:-1:2
+      trueLoc1       <- uniqueSrcSpanT -- HaRe:-1:3
+      trueLoc        <- uniqueSrcSpanT -- HaRe:-1:4
+      trueRhsLoc     <- uniqueSrcSpanT -- HaRe:-1:5
+      falseLoc1      <- uniqueSrcSpanT -- HaRe:-1:6
+      falseLoc       <- uniqueSrcSpanT -- HaRe:-1:7
+      falseMatchLoc  <- uniqueSrcSpanT -- HaRe:-1:8
+      falseRhsLoc    <- uniqueSrcSpanT -- HaRe:-1:9
+      caseVirtualLoc <- uniqueSrcSpanT -- HaRe:-1:10
       let trueName  = mkRdrName "True"
       let falseName = mkRdrName "False"
       let ret = GHC.L caseLoc (GHC.HsCase e1
