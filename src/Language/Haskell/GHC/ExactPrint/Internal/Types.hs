@@ -131,19 +131,20 @@ data Annotation = Ann
     -- transformations of the AST including the introduction of new Located
     -- items or re-arranging existing ones.
   , annCapturedSpan    :: !(Maybe (GHC.SrcSpan, Disambiguator))
-    -- ^ Occasionally we must calculate a SrcSpan for an unlocated element
-    -- which we must remember for the Print phase. TODO; Do we only have
-    -- a captured span when we have a sort key?
+    -- ^ Occasionally we must calculate a SrcSpan for an unlocated list of
+    -- elements which we must remember for the Print phase. e.g. the statements
+    -- in a HsLet or HsDo. These must be managed as a group because they all
+    -- need eo be vertically aligned for the Haskell layout rules, and this
+    -- guarantees this property in the presence of AST edits.
+
+    -- TODO; Do we only have a captured span when we have a sort key?
   } deriving (Typeable,Eq)
 
 instance Show Annotation where
-  show (Ann dp c comments toStart ans sk csp) = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ show comments ++ " " ++ show toStart ++ " " ++ show ans ++ " " ++ showGhc sk ++ " " ++ showGhc csp ++ ")"
-
-{-
-instance Monoid Annotation where
-  mempty = annNone
-  mappend = combineAnns
-  -}
+  show (Ann dp c comments toStart ans sk csp)
+    = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ show comments ++ " "
+        ++ show toStart ++ " " ++ show ans ++ " " ++ showGhc sk ++ " "
+        ++ showGhc csp ++ ")"
 
 -----
 -- Anns is kept abstract so that the sortKeys can't be modified
@@ -161,17 +162,10 @@ emptyAnns = Anns Map.empty
 getKeywordDeltas :: Anns -> Map.Map AnnKey Annotation
 getKeywordDeltas = annsKeywordDeltas
 
+-- TODO: This should perhaps be called modifyAnns?
 modifyKeywordDeltas :: (Map.Map AnnKey Annotation -> Map.Map AnnKey Annotation)
                     -> Anns -> Anns
 modifyKeywordDeltas f as = as { annsKeywordDeltas = f (annsKeywordDeltas as)}
-{-
--- TODO: This should be replaced with higher level operations
-modifySortKeys :: (Map.Map GHC.SrcSpan SortKey -> Map.Map GHC.SrcSpan SortKey)
-               -> Anns -> Anns
-modifySortKeys f as = as { annsSortKeys = f (annsSortKeys as)}
--}
-
-
 
 -- | For every @Located a@, use the @SrcSpan@ and constructor name of
 -- a as the key, to store the standard annotation.
@@ -214,16 +208,6 @@ data KeywordId = G GHC.AnnKeywordId
                               -- processing.
                | AnnSemiSep
                | AnnComment DComment
-               {-
-               | AnnList GHC.SrcSpan Disambiguator -- ^ In some circumstances we
-                                     -- need to annotate a list of
-                                     -- statements (e.g. HsDo) and
-                                     -- must synthesise a SrcSpan to
-                                     -- hang the annotations off. This
-                                     -- needs to be preserved so that
-                                     -- exactPC can find it, after
-                                     -- potential AST edits.
-               -}
                | AnnString String    -- ^ Used to pass information from
                                      -- Delta to Print when we have to work
                                      -- out details from the original
@@ -236,7 +220,6 @@ instance Show KeywordId where
   show AnnSpanEntry    = "AnnSpanEntry"
   show AnnSemiSep      = "AnnSemiSep"
   show (AnnComment dc) = "(AnnComment " ++ show dc ++ ")"
---  show (AnnList ss d)    = "(AnnList " ++ showGhc ss ++ " " ++ show d ++ ")"
   show (AnnString s)    = "(AnnString " ++ s ++ ")"
   show (AnnUnicode gc)    = "(AnnUnicode " ++ show gc ++ ")"
 
