@@ -21,6 +21,7 @@ import Language.Haskell.GHC.ExactPrint.Preprocess
 import Language.Haskell.GHC.ExactPrint.Internal.Types
 
 import Control.Monad.RWS
+import Control.Exception
 
 import GHC.Paths (libdir)
 
@@ -110,16 +111,18 @@ parseDecl df fp = parseWith df fp GHC.parseDeclaration
 parseStmt :: Parser (GHC.ExprLStmt GHC.RdrName)
 parseStmt df fp = parseWith df fp GHC.parseStatement
 
--- Interim, see D1005
--- will not parse bang patterns properly
 parsePattern :: Parser (GHC.LPat GHC.RdrName)
-parsePattern df fp = parseWith df fp (GHC.parseExpression >>= GHC.checkPattern GHC.empty)
--- parsePattern df fp = parseWith df fp GHC.parsePattern
+parsePattern df fp = parseWith df fp GHC.parsePattern
 
 -- ---------------------------------------------------------------------
 --
+
+catchAny :: IO a -> (SomeException -> IO a) -> IO a
+catchAny = catch
+
 generateMacroFile :: IO ()
-generateMacroFile = writeAutogenFiles "dist/"
+generateMacroFile = catchAny (writeAutogenFiles "dist/")
+                      (\_ -> putStrLn "Failed to generate macro file")
 
 
 parseModule :: FilePath -> IO (Either (GHC.SrcSpan, String) (Anns, (GHC.Located (GHC.HsModule GHC.RdrName))))
