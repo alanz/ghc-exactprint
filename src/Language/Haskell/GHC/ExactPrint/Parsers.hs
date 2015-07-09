@@ -45,6 +45,7 @@ import qualified OrdList as OL
 import qualified Data.Map as Map
 
 import Distribution.Helper
+import System.Directory
 
 
 -- ---------------------------------------------------------------------
@@ -135,7 +136,10 @@ parseModule file = do
       (fileContents, injectedComments) <-
         if useCpp
           then do
-            let macros = (Just "dist/build/autogen/cabal_macros.h")
+            exists <- liftIO $ doesFileExist "dist/build/autogen/cabal_macros.h"
+            let macros = if exists
+                          then Just "dist/build/autogen/cabal_macros.h"
+                          else Nothing
             contents <- getPreprocessedSrcDirect macros file
             cppComments <- getCppTokensAsComments macros file
             return (contents,cppComments)
