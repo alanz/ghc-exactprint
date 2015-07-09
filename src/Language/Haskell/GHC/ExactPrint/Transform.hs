@@ -113,6 +113,14 @@ isUniqueSrcSpan ss = srcSpanStartLine ss == -1
 
 -- ---------------------------------------------------------------------
 
+-- |Make a copy of an AST element, replacing the existing SrcSpans with new
+-- ones, and duplicating the matching annotations.
+cloneT :: GHC.Located a -> Transform (GHC.Located a)
+cloneT ast = do
+  error "Transform.cloneT undefined"
+
+-- ---------------------------------------------------------------------
+
 -- |If a list has been re-ordered or had items added, capture the new order in
 -- the appropriate SortKeys.
 captureOrder :: (Data a,Data b) => GHC.Located a -> [GHC.Located b] -> Anns -> Anns

@@ -31,6 +31,7 @@ import System.Exit
 import qualified Data.Map as Map
 
 import Data.List
+import Data.Maybe
 
 import System.IO.Silently
 
@@ -54,6 +55,7 @@ transformTests = [
   , mkTestModChange changeAddDecl    "AddDecl.hs"    "AddDecl"
   , mkTestModChange changeLocalDecls "LocalDecls.hs" "LocalDecls"
   , mkTestModChange changeLocalDecls2 "LocalDecls2.hs" "LocalDecls2"
+  , mkTestModChange changeWhereIn3a   "WhereIn3a.hs"   "WhereIn3a"
 --  , mkTestModChange changeCifToCase  "C.hs"          "C"
   ]
 
@@ -63,6 +65,29 @@ mkTestModChange change fileName modName
                  assertBool fileName r )
 
 type Changer = (Anns -> GHC.ParsedSource -> IO (Anns,GHC.ParsedSource))
+
+-- ---------------------------------------------------------------------
+
+changeWhereIn3a :: Changer
+changeWhereIn3a (Anns ans) (GHC.L l p) = do
+  let decls = GHC.hsmodDecls p
+      s@(GHC.L ls (GHC.SigD sig))  = head $ drop 1 decls
+      d1@(GHC.L ld1 (GHC.ValD decl1)) = head $ drop 2 decls
+      d2@(GHC.L ld2 (GHC.ValD decl2)) = head $ drop 3 decls
+      -- k1 = mkAnnKey (GHC.L ld1 decl1)
+      -- k2 = mkAnnKey (GHC.L ld2 decl2)
+      k1 = mkAnnKey d1
+      k2 = mkAnnKey d2
+      an1 = fromJust $ Map.lookup k1 ans
+      an2 = fromJust $ Map.lookup k2 ans
+      an1' = an1 {annsDP = annsDP an1 ++ [comment2dp (head $ annPriorComments an2)] }
+      an2' = an2 {annPriorComments =  tail (annPriorComments an2) }
+      ans1 = Map.insert k1 an1' ans
+      ans2 = Map.insert k2 an2' ans1
+  putStrLn $ "k1,k2=" ++ showGhc (k1,k2)
+  putStrLn $ "an1,an2=" ++ showGhc (an1,an2)
+  putStrLn $ "an1',an2'=" ++ showGhc (an1',an2')
+  return (Anns ans2,GHC.L l p)
 
 -- ---------------------------------------------------------------------
 

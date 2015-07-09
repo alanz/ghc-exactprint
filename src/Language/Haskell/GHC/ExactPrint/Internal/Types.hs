@@ -56,14 +56,14 @@ import Data.Ord
 -- stream and does not have a well-defined position
 data PComment a = Comment
     {
-      commentPos :: a -- ^ Either `Span` or `DeltaPos`
-    , commentContents :: String -- ^ The contents of the comment including separators
-    , commentIdentifier :: GHC.SrcSpan -- ^ Needed to uniquely identify two comments with the same contents
-    , commentOrigin :: (Maybe GHC.AnnKeywordId) -- ^ We sometimes turn syntax into comments in order to process them properly.
+      commentPos        :: !a -- ^ Either `Span` for end or `DeltaPos` giving offset to end
+    , commentContents   :: !String -- ^ The contents of the comment including separators
+    , commentIdentifier :: !GHC.SrcSpan -- ^ Needed to uniquely identify two comments with the same contents
+    , commentOrigin     :: !(Maybe GHC.AnnKeywordId) -- ^ We sometimes turn syntax into comments in order to process them properly.
     }
   deriving (Eq,Show,Typeable,Data, Functor)
 
-type Comment = PComment Span
+type Comment  = PComment Span
 
 type DComment = PComment DeltaPos
 
@@ -104,24 +104,26 @@ instance Show ColDelta where
 annNone :: Annotation
 annNone = Ann (DP (0,0)) 0  (DP (0,0)) [] [] Nothing Nothing
 
-{-
--- TODO: This is wrong
-combineAnns :: Annotation -> Annotation -> Annotation
-combineAnns (Ann ed1 c1 comments1 toStart1 dps1) (Ann _ed2  _c2 _comments2 _toStart2 dps2)
-  = Ann ed1 c1 comments1 toStart1 (dps1 ++ dps2)
-  -- = Ann ed2 c2 comments2 toStart2 (dps1 ++ dps2)
--}
-
 data Annotation = Ann
   {
-    annEntryDelta      :: !DeltaPos -- ^ Offset used to get to the start
-                                    --    of the SrcSpan.
-  , annDelta           :: !ColDelta -- ^ Offset from the start of the current layout
-                                   --  block. This is used when moving onto new
-                                   --  lines when layout rules must be obeyed.
-  , annTrueEntryDelta  :: !DeltaPos -- ^ Entry without comments
-  , annPriorComments   :: ![(DComment, DeltaPos)]
-  , annsDP             :: ![(KeywordId, DeltaPos)]  -- ^ Annotations associated with this element.
+    annEntryDelta      :: !DeltaPos
+    -- ^ Offset used to get to the start of the SrcSpan, from whatever the prior
+    -- output was, including all annPriorComments (field below).
+  , annDelta           :: !ColDelta
+    -- ^ Offset from the start of the current layout block. This is used when
+    -- moving onto new lines when layout rules must be obeyed.
+  , annTrueEntryDelta  :: !DeltaPos
+    -- ^ Offset from the previous SrcSpan, ignoring whitespace output such as
+    -- comments. This is required for managing the annDelta for nested AST
+    -- elements. If there are no intervening comments this will be the same as
+    -- annEntryDelta.
+  , annPriorComments   :: ![(DComment,  DeltaPos)]
+    -- ^ Comments coming after the last non-comment output of the preceding
+    -- element but before the SrcSpan being annotated by this Annotation. If
+    -- these are changed then annEntryDelta (field above) must also change to
+    -- match.
+  , annsDP             :: ![(KeywordId, DeltaPos)]
+    -- ^ Annotations associated with this element.
   , annSortKey         :: !(Maybe [GHC.SrcSpan])
     -- ^ Captures the sort order of sub elements. This is needed when the
     -- sub-elements have been split (as in a HsLocalBind which holds separate
@@ -220,8 +222,8 @@ instance Show KeywordId where
   show AnnSpanEntry    = "AnnSpanEntry"
   show AnnSemiSep      = "AnnSemiSep"
   show (AnnComment dc) = "(AnnComment " ++ show dc ++ ")"
-  show (AnnString s)    = "(AnnString " ++ s ++ ")"
-  show (AnnUnicode gc)    = "(AnnUnicode " ++ show gc ++ ")"
+  show (AnnString s)   = "(AnnString " ++ s ++ ")"
+  show (AnnUnicode gc) = "(AnnUnicode " ++ show gc ++ ")"
 
 data LayoutFlag = LayoutRules | NoLayoutRules deriving (Show, Eq)
 
@@ -231,15 +233,6 @@ instance Monoid LayoutFlag where
   _ `mappend` LayoutRules = LayoutRules
   _ `mappend` _           = NoLayoutRules
 
--- ---------------------------------------------------------------------
-{-
--- |The SortKey is derived from the original SrcSpan.
--- It comprises the original start row and column, together with a third
--- component which is used to manage explicit sort order, to be able to always
--- insert a value between any two values.
-data SortKey = SortKey (Int,Int,Rational)
-             deriving (Eq,Show,Ord)
--}
 -- ---------------------------------------------------------------------
 
 instance GHC.Outputable KeywordId where
@@ -256,11 +249,6 @@ instance GHC.Outputable AnnKey where
 
 instance GHC.Outputable DeltaPos where
   ppr a     = GHC.text (show a)
-
-{-
-instance GHC.Outputable SortKey where
-  ppr a     = GHC.text (show a)
--}
 
 instance GHC.Outputable Anns where
   ppr a     = GHC.text (show a)

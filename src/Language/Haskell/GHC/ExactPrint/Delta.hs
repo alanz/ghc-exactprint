@@ -126,7 +126,7 @@ initialDeltaReader =
 defaultDeltaState :: [Comment] -> Pos -> GHC.ApiAnns -> DeltaState
 defaultDeltaState injectedComments priorEnd ga =
     DeltaState
-      { priorEndPosition = priorEnd
+      { priorEndPosition    = priorEnd
       , priorEndASTPosition = priorEnd
       , apComments = cs ++ injectedComments
       , apAnns     = ga
@@ -295,7 +295,7 @@ setPriorEnd pe =
 
 setPriorEndAST :: Pos -> Delta ()
 setPriorEndAST pe =
-  modify (\s -> s { priorEndPosition = pe
+  modify (\s -> s { priorEndPosition    = pe
                   , priorEndASTPosition = pe })
 
 
