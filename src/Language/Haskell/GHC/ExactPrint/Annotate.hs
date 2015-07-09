@@ -56,7 +56,7 @@ data AnnotationF next where
   MarkOffsetPrim :: GHC.AnnKeywordId -> Int -> Maybe String              -> next -> AnnotationF next
   MarkAfter      :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   WithAST        :: Data a => GHC.Located a -> Disambiguator
-                           -> LayoutFlag -> Annotated b                  -> next -> AnnotationF next
+                           -> LayoutFlag -> Annotated ()                 -> next -> AnnotationF next
   CountAnns      :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
   WithSortKey       :: [(GHC.SrcSpan, Annotated ())]                     -> next -> AnnotationF next
 

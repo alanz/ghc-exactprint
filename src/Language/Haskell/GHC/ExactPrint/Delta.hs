@@ -405,6 +405,7 @@ withAST lss@(GHC.L ss _) d layout action = do
                                          - getLayoutStartCol off)
                , annTrueEntryDelta  = edpAST
                , annPriorComments = cs
+               , annFollowingComments = [] -- only used in Transform and Print
                , annsDP     = kds
                , annSortKey = sortKeys w
                , annCapturedSpan = getFirst $ dwCapturedSpan w }

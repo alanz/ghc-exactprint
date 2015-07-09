@@ -102,7 +102,7 @@ instance Show ColDelta where
   show (ColDelta v) = "(ColDelta " ++ show v ++ ")"
 
 annNone :: Annotation
-annNone = Ann (DP (0,0)) 0  (DP (0,0)) [] [] Nothing Nothing
+annNone = Ann (DP (0,0)) 0  (DP (0,0)) [] [] [] Nothing Nothing
 
 data Annotation = Ann
   {
@@ -122,6 +122,10 @@ data Annotation = Ann
     -- element but before the SrcSpan being annotated by this Annotation. If
     -- these are changed then annEntryDelta (field above) must also change to
     -- match.
+  , annFollowingComments   :: ![(DComment,  DeltaPos)]
+    -- ^ Comments coming after the last output for the element subject to this
+    -- Annotation. These will only be added by AST transformations, and care
+    -- must be taken not to disturb layout of following elements.
   , annsDP             :: ![(KeywordId, DeltaPos)]
     -- ^ Annotations associated with this element.
   , annSortKey         :: !(Maybe [GHC.SrcSpan])
@@ -143,8 +147,9 @@ data Annotation = Ann
   } deriving (Typeable,Eq)
 
 instance Show Annotation where
-  show (Ann dp c comments toStart ans sk csp)
-    = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ show comments ++ " "
+  show (Ann dp c comments fcomments toStart ans sk csp)
+    = "(Ann (" ++ show dp ++ ") " ++ show c ++ " "
+        ++ show comments ++ " " ++ show fcomments ++ " "
         ++ show toStart ++ " " ++ show ans ++ " " ++ showGhc sk ++ " "
         ++ showGhc csp ++ ")"
 

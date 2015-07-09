@@ -80,13 +80,13 @@ changeWhereIn3a (Anns ans) (GHC.L l p) = do
       k2 = mkAnnKey d2
       an1 = fromJust $ Map.lookup k1 ans
       an2 = fromJust $ Map.lookup k2 ans
-      an1' = an1 {annsDP = annsDP an1 ++ [comment2dp (head $ annPriorComments an2)] }
-      an2' = an2 {annPriorComments =  tail (annPriorComments an2) }
+      an1' = an1 {annFollowingComments = [head $ annPriorComments an2] }
+      an2' = an2 {annPriorComments     =  tail  (annPriorComments an2) }
       ans1 = Map.insert k1 an1' ans
       ans2 = Map.insert k2 an2' ans1
-  putStrLn $ "k1,k2=" ++ showGhc (k1,k2)
-  putStrLn $ "an1,an2=" ++ showGhc (an1,an2)
-  putStrLn $ "an1',an2'=" ++ showGhc (an1',an2')
+  -- putStrLn $ "k1,k2=" ++ showGhc (k1,k2)
+  -- putStrLn $ "an1,an2=" ++ showGhc (an1,an2)
+  -- putStrLn $ "an1',an2'=" ++ showGhc (an1',an2')
   return (Anns ans2,GHC.L l p)
 
 -- ---------------------------------------------------------------------
@@ -119,13 +119,14 @@ changeLocalDecls2 ans (GHC.L l p) = do
                              , annCapturedSpan = Just (newSpan,NotNeeded)
                              }
                   mkds2 = Map.insert (mkAnnKey m) ann1 mkds
-                  ann2 = Ann { annEntryDelta     = DP (1,0)
-                             , annDelta          = ColDelta 4
-                             , annTrueEntryDelta = DP (1,0)
-                             , annPriorComments  = []
-                             , annsDP            = []
-                             , annSortKey        = Nothing
-                             , annCapturedSpan   = Nothing}
+                  ann2 = Ann { annEntryDelta        = DP (1,0)
+                             , annDelta             = ColDelta 4
+                             , annTrueEntryDelta    = DP (1,0)
+                             , annPriorComments     = []
+                             , annFollowingComments = []
+                             , annsDP               = []
+                             , annSortKey           = Nothing
+                             , annCapturedSpan      = Nothing}
         modifyKeywordDeltasT addWhere
         let decls = [s,d]
         logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)
@@ -283,16 +284,16 @@ changeCifToCase ans p = return (ans',p')
                                                                      , (G GHC.AnnOf,     DP (0,1))]
                                                                      , annCapturedSpan = Just (caseVirtualLoc, NotNeeded)
                                                                      } )
-            , ( AnnKey caseVirtualLoc (CN "(:)") NotNeeded,     Ann (DP (1,newCol)) (ColDelta newCol) (DP (1,newCol)) [] [(AnnSpanEntry,DP (1,0))] Nothing Nothing)
+            , ( AnnKey caseVirtualLoc (CN "(:)") NotNeeded,     Ann (DP (1,newCol)) (ColDelta newCol) (DP (1,newCol)) [] [] [(AnnSpanEntry,DP (1,0))] Nothing Nothing)
             , ( AnnKey trueMatchLoc  (CN "Match") NotNeeded,   annNone )
             , ( AnnKey trueLoc1      (CN "ConPatIn") NotNeeded, annNone )
             , ( AnnKey trueLoc       (CN "Unqual") NotNeeded,  annNone )
-            , ( AnnKey trueRhsLoc    (CN "GRHS") NotNeeded,     Ann (DP (0,2)) 6 (DP (0,0)) [] [(AnnSpanEntry,DP (0,2)),(G GHC.AnnRarrow, DP (0,0))] Nothing Nothing )
+            , ( AnnKey trueRhsLoc    (CN "GRHS") NotNeeded,     Ann (DP (0,2)) 6 (DP (0,0)) [] [] [(AnnSpanEntry,DP (0,2)),(G GHC.AnnRarrow, DP (0,0))] Nothing Nothing )
 
-            , ( AnnKey falseMatchLoc (CN "Match") NotNeeded,    Ann (DP (1,0)) 0 (DP (0,0)) []  [(AnnSpanEntry,DP (1,0))] Nothing Nothing )
+            , ( AnnKey falseMatchLoc (CN "Match") NotNeeded,    Ann (DP (1,0)) 0 (DP (0,0)) [] [] [(AnnSpanEntry,DP (1,0))] Nothing Nothing )
             , ( AnnKey falseLoc1     (CN "ConPatIn") NotNeeded, annNone )
             , ( AnnKey falseLoc      (CN "Unqual") NotNeeded, annNone )
-            , ( AnnKey falseRhsLoc   (CN "GRHS") NotNeeded,     Ann (DP (0,1)) 6 (DP (0,0)) []  [(AnnSpanEntry,DP (0,1)),(G GHC.AnnRarrow, DP (0,0))] Nothing Nothing )
+            , ( AnnKey falseRhsLoc   (CN "GRHS") NotNeeded,     Ann (DP (0,1)) 6 (DP (0,0)) [] [] [(AnnSpanEntry,DP (0,1)),(G GHC.AnnRarrow, DP (0,0))] Nothing Nothing )
             ]
 
       let annThen' = adjustAnnOffset (ColDelta 6) annThen

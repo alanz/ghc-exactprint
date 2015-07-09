@@ -192,16 +192,21 @@ allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString (G kwid))
 
 -------------------------------------------------------------------------
 -- |First move to the given location, then call exactP
-exactPC :: Data ast => GHC.Located ast -> Disambiguator -> LayoutFlag -> EP a -> EP a
+exactPC :: Data ast => GHC.Located ast -> Disambiguator -> LayoutFlag -> EP () -> EP ()
 exactPC ast d flag action =
     do
       return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
       ma <- getAndRemoveAnnotation ast d
-      let an@Ann{annEntryDelta=edp, annPriorComments=comments, annsDP=kds} = fromMaybe annNone ma
+      let an@Ann{ annEntryDelta=edp
+                , annPriorComments=comments
+                , annFollowingComments=fcomments
+                , annsDP=kds
+                } = fromMaybe annNone ma
       r <- withContext kds an flag
        (mapM_ (uncurry printQueuedComment) comments
        >> advance edp
-       >> action)
+       >> action
+       >> mapM_ (uncurry printQueuedComment) fcomments)
       return r `debug` ("leaving exactPCfor:" ++ show (mkAnnKey ast))
 
 advance :: DeltaPos -> EP ()
@@ -372,7 +377,7 @@ printQueuedComment Comment{commentPos, commentContents} dp = do
   p <- getPos
   colOffset <- getLayoutOffset
   let (dr,dc) = undelta (0,0) dp colOffset
-  -- do not lose comments against the left marginet
+  -- do not lose comments against the left margin
   when (isGoodDelta (DP (dr,max 0 dc)))
     (do
       printStringAt (undelta p dp colOffset) commentContents

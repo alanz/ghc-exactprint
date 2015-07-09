@@ -160,7 +160,7 @@ decl2Bind _                      = []
 -- ---------------------------------------------------------------------
 
 adjustAnnOffset :: ColDelta -> Annotation -> Annotation
-adjustAnnOffset (ColDelta cd) (Ann (DP (ro,co)) (ColDelta ad) _ cs kds sks cp) = Ann edp cd' edp cs kds' sks cp
+adjustAnnOffset (ColDelta cd) (Ann (DP (ro,co)) (ColDelta ad) _ cs fcs kds sks cp) = Ann edp cd' edp cs fcs kds' sks cp
   where
     edp = case ro of
       0 -> DP (ro,co)
@@ -230,7 +230,7 @@ setPrecedingLines :: (SYB.Data a) => Anns -> GHC.Located a -> Int -> Int -> Anns
 setPrecedingLines anne ast n c =
   modifyKeywordDeltas (Map.alter go (mkAnnKey ast)) anne
   where
-    go Nothing  = Just (Ann (DP (n,c)) (ColDelta c) (DP (n,c)) []  [] Nothing Nothing )
+    go Nothing  = Just (Ann (DP (n,c)) (ColDelta c) (DP (n,c)) [] [] [] Nothing Nothing )
     go (Just a) = Just (a { annEntryDelta     = DP (n, c)
                           , annTrueEntryDelta = DP (n, c) })
 
