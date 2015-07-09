@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE ViewPatterns #-}
 module Language.Haskell.GHC.ExactPrint.Parsers (
         -- * Utility
@@ -36,7 +37,9 @@ import qualified RdrHsSyn      as GHC ( checkPattern )
 import qualified SrcLoc        as GHC
 import qualified StringBuffer  as GHC
 
+#if __GLASGOW_HASKELL__ <= 710
 import qualified OrdList as OL
+#endif
 
 import qualified Data.Map as Map
 
@@ -98,7 +101,11 @@ parseType df fp = parseWith df fp GHC.parseType
 
 -- safe, see D1007
 parseDecl :: Parser (GHC.LHsDecl GHC.RdrName)
+#if __GLASGOW_HASKELL__ <= 710
 parseDecl df fp = parseWith df fp (head . OL.fromOL <$> GHC.parseDeclaration)
+#else
+parseDecl df fp = parseWith df fp GHC.parseDeclaration
+#endif
 
 parseStmt :: Parser (GHC.ExprLStmt GHC.RdrName)
 parseStmt df fp = parseWith df fp GHC.parseStatement
