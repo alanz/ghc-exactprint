@@ -427,7 +427,7 @@ instance Annotate GHC.RdrName where
         markMany GHC.AnnCommaTuple -- For '(,,,)'
         case cnt of
           0 -> if cntT > 0
-                 then traceM $ "Printing RdrName, no AnnVal, multiple AnnCommTuple:" ++ showGhc (l,n)
+                 then return () -- traceM $ "Printing RdrName, no AnnVal, multiple AnnCommTuple:" ++ showGhc (l,n)
                  else markExternal l GHC.AnnVal str'
           1 -> markWithString GHC.AnnVal str'
           _ -> traceM $ "Printing RdrName, more than 1 AnnVal:" ++ showGhc (l,n)
