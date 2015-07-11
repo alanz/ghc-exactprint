@@ -241,10 +241,6 @@ markMaybe :: (Annotate ast) => Maybe (GHC.Located ast) -> IAnnotated ()
 markMaybe Nothing    = return ()
 markMaybe (Just ast) = markLocated ast
 
--- Mark a list of items, ensuring that the SortKey is honoured.
-markList :: (Annotate ast) => [GHC.Located ast] -> IAnnotated ()
-markList xs = applyListAnnotations (prepareListAnnotation xs)
-
 -- ---------------------------------------------------------------------
 -- Managing lists which have been separated, e.g. Sigs and Binds
 
@@ -290,7 +286,7 @@ instance Annotate (GHC.HsModule GHC.RdrName) where
     markMany GHC.AnnSemi -- possible leading semis
     mapM_ markLocated imps
 
-    markList decs
+    mapM_ markLocated decs
 
     mark GHC.AnnCloseC -- Possible '}'
 
