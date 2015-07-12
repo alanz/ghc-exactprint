@@ -128,8 +128,8 @@ printInterpret = iterTM go
         printStringAtMaybeAnn (G kwid) annString >> next
     go (MarkAfter akwid next) =
       justOne akwid >> next
-    go (WithAST lss d flag action next) =
-      exactPC lss d flag (printInterpret action) >> next
+    go (WithAST lss flag action next) =
+      exactPC lss flag (printInterpret action) >> next
     go (CountAnns kwid next) =
       countAnnsEP (G kwid) >>= next
     go (SetLayoutFlag _ action next) =
@@ -140,7 +140,6 @@ printInterpret = iterTM go
     go (GetSrcSpanForKw _ next) = return GHC.noSrcSpan >>= next
     go (StoreString _ _ next) =
       printStoredString >> next
-    go (GetNextDisambiguator next) = return NotNeeded >>= next
     go (AnnotationsToComments _ next) = next
     go (WithSortKey ks next) = withSortKey ks >> next
 
@@ -194,11 +193,11 @@ allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString (G kwid))
 
 -------------------------------------------------------------------------
 -- |First move to the given location, then call exactP
-exactPC :: Data ast => GHC.Located ast -> Disambiguator -> LayoutFlag -> EP () -> EP ()
-exactPC ast d flag action =
+exactPC :: Data ast => GHC.Located ast -> LayoutFlag -> EP a -> EP a
+exactPC ast flag action =
     do
       return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
-      ma <- getAndRemoveAnnotation ast d
+      ma <- getAndRemoveAnnotation ast
       let an@Ann{ annEntryDelta=edp
                 , annPriorComments=comments
                 , annFollowingComments=fcomments
@@ -208,7 +207,7 @@ exactPC ast d flag action =
        (mapM_ (uncurry printQueuedComment) comments
        >> advance edp
        >> action
-       >> mapM_ (uncurry printQueuedComment) fcomments)
+       <* mapM_ (uncurry printQueuedComment) fcomments)
       return r `debug` ("leaving exactPCfor:" ++ show (mkAnnKey ast))
 
 advance :: DeltaPos -> EP ()
@@ -217,8 +216,8 @@ advance cl = do
   colOffset <- getLayoutOffset
   printWhitespace (undelta p cl colOffset)
 
-getAndRemoveAnnotation :: (Data a) => GHC.Located a -> Disambiguator -> EP (Maybe Annotation)
-getAndRemoveAnnotation a d = gets ((getAnnotationEP a d) . epAnns)
+getAndRemoveAnnotation :: (Data a) => GHC.Located a -> EP (Maybe Annotation)
+getAndRemoveAnnotation a = gets ((getAnnotationEP a) . epAnns)
 
 markPrim :: KeywordId -> Maybe String -> EP ()
 markPrim kwid mstr =

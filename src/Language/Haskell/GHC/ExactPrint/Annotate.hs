@@ -55,8 +55,8 @@ data AnnotationF next where
   MarkMany       :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   MarkOffsetPrim :: GHC.AnnKeywordId -> Int -> Maybe String              -> next -> AnnotationF next
   MarkAfter      :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
-  WithAST        :: Data a => GHC.Located a -> Disambiguator
-                           -> LayoutFlag -> Annotated ()                 -> next -> AnnotationF next
+  WithAST        :: Data a => GHC.Located a
+                           -> LayoutFlag -> Annotated b                  -> next -> AnnotationF next
   CountAnns      :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
   WithSortKey       :: [(GHC.SrcSpan, Annotated ())]                     -> next -> AnnotationF next
 
@@ -67,7 +67,6 @@ data AnnotationF next where
   StoreOriginalSrcSpan :: AnnKey                        -> (AnnKey -> next) -> AnnotationF next
   GetSrcSpanForKw :: GHC.AnnKeywordId                   -> (GHC.SrcSpan -> next) -> AnnotationF next
   StoreString :: String -> GHC.SrcSpan                  -> next -> AnnotationF next
-  GetNextDisambiguator ::                                  (Disambiguator -> next) -> AnnotationF next
   AnnotationsToComments :: [GHC.AnnKeywordId]           -> next -> AnnotationF next
 
 deriving instance Functor (AnnotationF)
@@ -106,7 +105,6 @@ makeFreeCon  'CountAnns
 makeFreeCon  'StoreOriginalSrcSpan
 makeFreeCon  'GetSrcSpanForKw
 makeFreeCon  'StoreString
-makeFreeCon  'GetNextDisambiguator
 makeFreeCon  'AnnotationsToComments
 
 -- ---------------------------------------------------------------------
@@ -138,10 +136,10 @@ withSortKey ls = do
 -- ---------------------------------------------------------------------
 
 -- |Main driver point for annotations.
-withAST :: Data a => GHC.Located a -> Disambiguator -> LayoutFlag -> IAnnotated () -> IAnnotated ()
-withAST lss d layout action = do
+withAST :: Data a => GHC.Located a -> LayoutFlag -> IAnnotated () -> IAnnotated ()
+withAST lss layout action = do
   finalProg <- runReaderT prog <$> ask
-  liftF (WithAST lss d layout finalProg ())
+  liftF (WithAST lss layout finalProg ())
   where
     prog = do
       action
@@ -168,22 +166,15 @@ markOffset kwid n = markOffsetPrim kwid n Nothing
 -- | Constructs a syntax tree which contains information about which
 -- annotations are required by each element.
 markLocated :: (Annotate ast) => GHC.Located ast -> IAnnotated ()
-markLocated a = withLocated a NotNeeded NoLayoutRules markAST
-
--- | Constructs a syntax tree which contains information about which
--- annotations are required by each element, flagging the item to be IAnnotated
--- as requiring layout according to the haskell layout rules.
-markWithLayout :: Annotate ast => GHC.Located ast -> Disambiguator -> IAnnotated ()
-markWithLayout a d = withLocated a d LayoutRules markAST
+markLocated a = withLocated a NoLayoutRules markAST
 
 withLocated :: Data a
             => GHC.Located a
-            -> Disambiguator
             -> LayoutFlag
             -> (GHC.SrcSpan -> a -> IAnnotated ())
             -> IAnnotated ()
-withLocated a@(GHC.L l ast) d layoutFlag action =
-  withAST a d layoutFlag (action l ast)
+withLocated a@(GHC.L l ast) layoutFlag action =
+  withAST a layoutFlag (action l ast)
 
 -- ---------------------------------------------------------------------
 
@@ -230,7 +221,7 @@ getLocalBindsSrcSpan (GHC.EmptyLocalBinds) = return GHC.noSrcSpan
 markLocatedFromKw :: (Annotate ast) => GHC.AnnKeywordId -> ast -> IAnnotated ()
 markLocatedFromKw kw a = do
   ss <- getSrcSpanForKw kw
-  AnnKey ss' _ _ <- storeOriginalSrcSpan (mkAnnKey (GHC.L ss a))
+  AnnKey ss' _ <- storeOriginalSrcSpan (mkAnnKey (GHC.L ss a))
   markLocated (GHC.L ss' a)
 
 -- ---------------------------------------------------------------------

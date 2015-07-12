@@ -98,7 +98,7 @@ changeLocalDecls2 ans (GHC.L l p) = do
       replaceLocalBinds m@(GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.EmptyLocalBinds)))) = do
         newSpan <- uniqueSrcSpanT
         let
-          newAnnKey = AnnKey newSpan (CN "HsValBinds") NotNeeded
+          newAnnKey = AnnKey newSpan (CN "HsValBinds")
           addWhere mkds =
             case Map.lookup (mkAnnKey m) mkds of
               Nothing -> error "wtf"

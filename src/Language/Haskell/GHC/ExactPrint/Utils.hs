@@ -283,7 +283,7 @@ showAnnData anns n =
                     Just (s :: GHC.SrcSpan) ->
                       srcSpan s
                       ++ indent (n + 1) ++
-                      show (getAnnotationEP (GHC.L s a) NotNeeded anns)
+                      show (getAnnotationEP (GHC.L s a) anns)
                     Nothing -> "nnnnnnnn"
                   ++ showAnnData anns (n+1) a
                   ++ ")"

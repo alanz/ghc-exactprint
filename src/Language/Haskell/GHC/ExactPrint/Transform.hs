@@ -135,9 +135,7 @@ captureOrderAnnKey :: (Data b) => AnnKey -> [GHC.Located b] -> Anns -> Anns
 captureOrderAnnKey parentKey ls ans = ans'
   where
     newList = map GHC.getLoc ls
-    Ann{ annCapturedSpan } = fromMaybe annNone $ Map.lookup parentKey (getKeywordDeltas ans)
-    insertion = fromMaybe parentKey annCapturedSpan
-    reList = Map.adjust (\an -> an {annSortKey = Just newList }) insertion
+    reList = Map.adjust (\an -> an {annSortKey = Just newList }) parentKey
     ans' = modifyKeywordDeltas reList ans
 
 -- ---------------------------------------------------------------------

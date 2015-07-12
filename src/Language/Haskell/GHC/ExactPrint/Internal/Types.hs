@@ -23,10 +23,8 @@ module Language.Haskell.GHC.ExactPrint.Internal.Types
   , modifyKeywordDeltas
   , KeywordId(..)
   , mkAnnKey
-  , mkAnnKeyWithD
   , AnnConName(..)
   , annGetConstr
-  , Disambiguator(..)
 
   , ResTyGADTHook(..)
   , WildCardAnon(..)
@@ -184,19 +182,16 @@ modifyKeywordDeltas f as = as { annsKeywordDeltas = f (annsKeywordDeltas as)}
 -- | For every @Located a@, use the @SrcSpan@ and constructor name of
 -- a as the key, to store the standard annotation.
 -- These are used to maintain context in the AP and EP monads
-data AnnKey   = AnnKey GHC.SrcSpan AnnConName Disambiguator
+data AnnKey   = AnnKey GHC.SrcSpan AnnConName
                   deriving (Eq, Ord)
 
 -- More compact Show instance
 instance Show AnnKey where
-  show (AnnKey ss cn d) = "AnnKey " ++ showGhc ss ++ " " ++ show cn
-                                    ++ " " ++ show d
+  show (AnnKey ss cn) = "AnnKey " ++ showGhc ss ++ " " ++ show cn
 
 mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
-mkAnnKey (GHC.L l a) = AnnKey l (annGetConstr a) NotNeeded
+mkAnnKey (GHC.L l a) = AnnKey l (annGetConstr a)
 
-mkAnnKeyWithD :: (Data a) => GHC.Located a -> Disambiguator -> AnnKey
-mkAnnKeyWithD (GHC.L l a) d = AnnKey l (annGetConstr a) d
 
 
 -- Holds the name of a constructor
@@ -209,11 +204,6 @@ instance Show AnnConName where
 
 annGetConstr :: (Data a) => a -> AnnConName
 annGetConstr a = CN (show $ toConstr a)
-
--- |Under certain circumstances we can have an AST element with the same SrcSpan
--- and AnnConName. To disambiguate these we introduce this type.
-data Disambiguator = NotNeeded | Ref String
-                     deriving (Eq,Ord,Show)
 
 -- |We need our own version of keywordid to manage various special cases
 data KeywordId = G GHC.AnnKeywordId
@@ -266,9 +256,6 @@ instance GHC.Outputable DeltaPos where
 instance GHC.Outputable Anns where
   ppr a     = GHC.text (show a)
 
-instance GHC.Outputable Disambiguator where
-  ppr a     = GHC.text (show a)
-
 -- ---------------------------------------------------------------------
 
 -- ResTyGADT has a SrcSpan for the original sigtype, we need to create
@@ -285,14 +272,14 @@ data WildCardAnon = WildCardAnon deriving (Show,Data,Typeable)
 
 -- ---------------------------------------------------------------------
 
-getAnnotationEP :: (Data a) =>  GHC.Located a -> Disambiguator -> Anns -> Maybe Annotation
-getAnnotationEP  la d as =
-  Map.lookup (mkAnnKeyWithD la d) (getKeywordDeltas as)
+getAnnotationEP :: (Data a) =>  GHC.Located a  -> Anns -> Maybe Annotation
+getAnnotationEP  la as =
+  Map.lookup (mkAnnKey la) (getKeywordDeltas as)
 
 getAndRemoveAnnotationEP :: (Data a)
-                         => GHC.Located a -> Disambiguator -> Anns -> (Maybe Annotation,Anns)
-getAndRemoveAnnotationEP la d as
- = let key = mkAnnKeyWithD la d in
+                         => GHC.Located a -> Anns -> (Maybe Annotation,Anns)
+getAndRemoveAnnotationEP la as
+ = let key = mkAnnKey la in
    (Map.lookup key (getKeywordDeltas as), modifyKeywordDeltas (Map.delete key) as)
 
 -- ---------------------------------------------------------------------
