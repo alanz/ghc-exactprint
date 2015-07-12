@@ -345,7 +345,7 @@ addAnnotationsDelta ann = do
     tellFinalAnn (getAnnKey l,ann)
 
 getAnnKey :: DeltaReader -> AnnKey
-getAnnKey DeltaReader {curSrcSpan, annConName,annDisambiguator}
+getAnnKey DeltaReader {curSrcSpan, annConName, annDisambiguator}
   = AnnKey curSrcSpan annConName annDisambiguator
 
 -- -------------------------------------

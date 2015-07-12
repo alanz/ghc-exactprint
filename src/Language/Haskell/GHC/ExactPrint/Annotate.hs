@@ -253,13 +253,6 @@ prepareListAnnotation ls = map (\b -> (GHC.getLoc b,markLocated b)) ls
 
 applyListAnnotations :: [(GHC.SrcSpan, IAnnotated ())] -> IAnnotated ()
 applyListAnnotations ls = withSortKey ls
-{-
-  ls' <- mapM (\(ss,v) -> getSortKey ss >>= \sk -> return (sk ,v)) ls
-  -- return () `debug` ("applyListAnnotations:sortkeys=" ++ show (map fst ls'))
-  let lsSorted = sortBy (\(a,_) (b,_) -> compare a b) ls'
-  return () `debug` ("applyListAnnotations:sortkeys=" ++ show (map fst lsSorted))
-  mapM_ snd lsSorted
-  -}
 
 #if __GLASGOW_HASKELL__ <= 710
 lexicalSortLocated :: [GHC.Located a] -> [GHC.Located a]
@@ -277,7 +270,6 @@ class Data ast => Annotate ast where
 
 instance Annotate (GHC.HsModule GHC.RdrName) where
   markAST _ (GHC.HsModule mmn mexp imps decs mdepr _haddock) = do
-
 
     case mmn of
       Nothing -> return ()

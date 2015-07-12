@@ -30,12 +30,14 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , insertAtEnd
         , insertAfter
         , insertBefore
+        , balanceComments
 
         -- * Managing decls
         , wrapDecl
         , wrapSig
         , decl2Sig
         , decl2Bind
+        , mkAnnKeyDecl
 
         -- * Other
         , adjustAnnOffset
@@ -44,8 +46,9 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , setLocatedAnns
         , setPrecedingLinesDecl
         , setPrecedingLines
---        , addSortKeyBefore
 
+          -- AZ's baggage
+        , ghead,glast,gtail,gfromJust
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Internal.Types
@@ -159,6 +162,29 @@ decl2Bind _                      = []
 
 -- ---------------------------------------------------------------------
 
+mkAnnKeyDecl :: GHC.LHsDecl GHC.RdrName -> AnnKey
+mkAnnKeyDecl ld@(GHC.L l d) =
+  case d of
+      GHC.TyClD d       -> mkAnnKey (GHC.L l d)
+      GHC.InstD d       -> mkAnnKey (GHC.L l d)
+      GHC.DerivD d      -> mkAnnKey (GHC.L l d)
+      GHC.ValD d        -> mkAnnKey (GHC.L l d)
+      GHC.SigD d        -> mkAnnKey (GHC.L l d)
+      GHC.DefD d        -> mkAnnKey (GHC.L l d)
+      GHC.ForD d        -> mkAnnKey (GHC.L l d)
+      GHC.WarningD d    -> mkAnnKey (GHC.L l d)
+      GHC.AnnD d        -> mkAnnKey (GHC.L l d)
+      GHC.RuleD d       -> mkAnnKey (GHC.L l d)
+      GHC.VectD d       -> mkAnnKey (GHC.L l d)
+      GHC.SpliceD d     -> mkAnnKey (GHC.L l d)
+      GHC.DocD d        -> mkAnnKey (GHC.L l d)
+      GHC.RoleAnnotD d  -> mkAnnKey (GHC.L l d)
+#if __GLASGOW_HASKELL__ < 711
+      GHC.QuasiQuoteD d -> mkAnnKey (GHC.L l d)
+#endif 
+
+-- ---------------------------------------------------------------------
+
 adjustAnnOffset :: ColDelta -> Annotation -> Annotation
 adjustAnnOffset (ColDelta cd) (Ann (DP (ro,co)) (ColDelta ad) _ cs fcs kds sks cp) = Ann edp cd' edp cs fcs kds' sks cp
   where
@@ -236,6 +262,33 @@ setPrecedingLines anne ast n c =
 
 -- ---------------------------------------------------------------------
 
+-- |Prior to moving an AST element, make sure any trailing comments belonging to
+-- it are attached to it, and not the following element. Of necessity this is a
+-- heuristic process, to be tuned later. Possibly a variant should be provided
+-- with a passed-in decision function.
+balanceComments :: (Data a,Data b) => GHC.Located a -> GHC.Located b -> Transform ()
+balanceComments first second = do
+  let
+    k1 = mkAnnKey first
+    k2 = mkAnnKey second
+    moveComments p ans = ans'
+      where
+        an1 = gfromJust "balanceComments k1" $ Map.lookup k1 ans
+        an2 = gfromJust "balanceComments k2" $ Map.lookup k2 ans
+        cs1b = annPriorComments     an1
+        cs1f = annFollowingComments an1
+        cs2b = annPriorComments an2
+        (move,stay) = break p cs2b
+        an1' = an1 { annFollowingComments = cs1f ++ move}
+        an2' = an2 { annPriorComments = stay}
+        ans' = Map.insert k1 an1' $ Map.insert k2 an2' ans
+
+    simpleBreak (_,DP (r,c)) = r > 0
+
+  modifyAnnsT (modifyKeywordDeltas (moveComments simpleBreak))
+
+-- ---------------------------------------------------------------------
+
 -- -----
 -- Classes
 -- MP: I think these should move into a separate module.
@@ -299,3 +352,22 @@ insertBefore (GHC.getLoc -> k) = insertAt findBefore
       let (fs, bs) = span (/= k) xs
       in fs ++ (x : bs)
 
+-- ---------------------------------------------------------------------
+-- Putting these here for the time being, to avoid import loops
+
+ghead :: String -> [a] -> a
+ghead  info []    = error $ "ghead "++info++" []"
+ghead _info (h:_) = h
+
+glast :: String -> [a] -> a
+glast  info []    = error $ "glast " ++ info ++ " []"
+glast _info h     = last h
+
+gtail :: String -> [a] -> [a]
+gtail  info []   = error $ "gtail " ++ info ++ " []"
+gtail _info h    = tail h
+
+gfromJust :: String -> Maybe a -> a
+gfromJust _info (Just h) = h
+gfromJust  info Nothing = error $ "gfromJust " ++ info ++ " Nothing"
+-- ---------------------------------------------------------------------

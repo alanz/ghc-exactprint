@@ -302,4 +302,3 @@ dp2comment oops = error $ "dp2comment:did not get a omment" ++ show oops
 showSDoc_ :: GHC.SDoc -> String
 showSDoc_ = GHC.showSDoc GHC.unsafeGlobalDynFlags
 
--- ---------------------------------------------------------------------

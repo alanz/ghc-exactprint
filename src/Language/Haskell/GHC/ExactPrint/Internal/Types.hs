@@ -191,6 +191,7 @@ mkAnnKey (GHC.L l a) = AnnKey l (annGetConstr a) NotNeeded
 mkAnnKeyWithD :: (Data a) => GHC.Located a -> Disambiguator -> AnnKey
 mkAnnKeyWithD (GHC.L l a) d = AnnKey l (annGetConstr a) d
 
+
 -- Holds the name of a constructor
 data AnnConName = CN { unConName :: String }
                  deriving (Eq,Ord)

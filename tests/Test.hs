@@ -3,34 +3,19 @@
 -- | Use "runhaskell Setup.hs test" or "cabal test" to run these tests.
 module Main where
 
-import Language.Haskell.GHC.ExactPrint
-import Language.Haskell.GHC.ExactPrint.Preprocess
-import Language.Haskell.GHC.ExactPrint.Transform
-import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Internal.Types
-import Language.Haskell.GHC.ExactPrint.Utils
-import Language.Haskell.GHC.ExactPrint.Parsers
 
-import GHC.Paths ( libdir )
-
-import qualified Bag            as GHC
-import qualified BasicTypes     as GHC
-import qualified DynFlags       as GHC
 import qualified FastString     as GHC
 import qualified GHC            as GHC
-import qualified OccName        as GHC
-import qualified RdrName        as GHC
-import qualified SrcLoc         as GHC
 
-import qualified Data.Generics as SYB
-import qualified GHC.SYB.Utils as SYB
+-- import qualified Data.Generics as SYB
+-- import qualified GHC.SYB.Utils as SYB
 
 import Control.Monad
 import System.Directory
 import System.FilePath
 import System.IO
 import System.Exit
-import qualified Data.Map as Map
 
 import Data.List
 
@@ -243,7 +228,7 @@ tests = TestList $
   , mkParserTest "RulesSemi.hs"
   , mkParserTest  "InlineSemi.hs"
   , mkParserTest  "SpliceSemi.hs"
-  , mkParserTest "InfixOperator.hs" ]
+  ]
 
   ++ transformTests
 
@@ -252,13 +237,17 @@ tests = TestList $
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
 -- future GHC
+failingTests :: [Test]
 failingTests =
-  [  mkTestModBad "Deprecation.hs"            "Deprecation"
+  [
+  -- Require current master #10313 / Phab:D907
+    mkTestModBad "Deprecation.hs"            "Deprecation"
   , mkTestModBad "MultiLineWarningPragma.hs" "Main"
   , mkTestModBad "UnicodeRules.hs"           "Main"
 
   -- Tests requiring future GHC modifications
   , mkTestModBad "UnicodeSyntax.hs"          "Tutorial"
+  , mkTestModBad "InfixOperator.hs"          "Main"
   ]
 
 
