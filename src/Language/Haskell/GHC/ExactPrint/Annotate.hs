@@ -37,7 +37,6 @@ import qualified SrcLoc         as GHC
 import Control.Monad.Trans.Free
 import Control.Monad.Free.TH (makeFreeCon)
 import Control.Monad.Identity
-import Control.Monad.Reader
 import Data.Data
 
 import Debug.Trace
@@ -74,23 +73,6 @@ deriving instance Functor (AnnotationF)
 -- type Annotated = Free AnnotationF
 type Annotated = FreeT AnnotationF Identity
 
-type IAnnotated = ReaderT [Context] Annotated
-
-data Context = None | Case | Where | Lam | MultiIf
-             deriving (Eq, Ord, Show)
-
-addContext :: Context -> IAnnotated () -> IAnnotated ()
-addContext c = local (c:)
-
--- check :: Context -> IAnnotated () -> IAnnotated ()
--- check c = checkMany [c]
-
--- checkMany :: [Context] -> IAnnotated () -> IAnnotated ()
--- checkMany cs action = do
---   ctx <- ask
---   when (any (`elem` ctx) cs) action
-
-
 
 -- ---------------------------------------------------------------------
 
@@ -111,35 +93,30 @@ makeFreeCon  'AnnotationsToComments
 
 -- |Main entry point
 annotate :: (Annotate ast) => GHC.Located ast -> Annotated ()
-annotate ast = runReaderT (markLocated ast) []
+annotate = markLocated
 
 -- ---------------------------------------------------------------------
 
-setLayoutFlag :: GHC.SrcSpan -> IAnnotated () -> IAnnotated ()
+setLayoutFlag :: GHC.SrcSpan -> Annotated () -> Annotated ()
 setLayoutFlag ss prog = do
-  finalProg <- runReaderT prog <$> ask
-  traceM (showGhc ss)
-  liftF (SetLayoutFlag ss finalProg ())
+  liftF (SetLayoutFlag ss prog ())
 
-workOutString :: GHC.AnnKeywordId -> (GHC.SrcSpan -> String) -> IAnnotated ()
+workOutString :: GHC.AnnKeywordId -> (GHC.SrcSpan -> String) -> Annotated ()
 workOutString kw f = do
   ss <- getSrcSpanForKw kw
   storeString (f ss) ss
 
-withSortKey :: [(GHC.SrcSpan,  IAnnotated ())] -> IAnnotated ()
+withSortKey :: [(GHC.SrcSpan,  Annotated ())] -> Annotated ()
 withSortKey ls = do
-  c <- ask
-  let new = fmap (flip runReaderT c) <$> ls
-  liftF (WithSortKey new ())
+  liftF (WithSortKey ls ())
 
 
 -- ---------------------------------------------------------------------
 
 -- |Main driver point for annotations.
-withAST :: Data a => GHC.Located a -> LayoutFlag -> IAnnotated () -> IAnnotated ()
+withAST :: Data a => GHC.Located a -> LayoutFlag -> Annotated () -> Annotated ()
 withAST lss layout action = do
-  finalProg <- runReaderT prog <$> ask
-  liftF (WithAST lss layout finalProg ())
+  liftF (WithAST lss layout prog ())
   where
     prog = do
       action
@@ -149,42 +126,42 @@ withAST lss layout action = do
 -- ---------------------------------------------------------------------
 -- Additional smart constructors
 
-mark :: GHC.AnnKeywordId -> IAnnotated ()
+mark :: GHC.AnnKeywordId -> Annotated ()
 mark kwid = markPrim kwid Nothing
 
-markWithString :: GHC.AnnKeywordId -> String -> IAnnotated ()
+markWithString :: GHC.AnnKeywordId -> String -> Annotated ()
 markWithString kwid s = markPrim kwid (Just s)
 
-markOffsetWithString :: GHC.AnnKeywordId -> Int -> String -> IAnnotated ()
+markOffsetWithString :: GHC.AnnKeywordId -> Int -> String -> Annotated ()
 markOffsetWithString kwid n s = markOffsetPrim kwid n (Just s)
 
-markOffset :: GHC.AnnKeywordId -> Int -> IAnnotated ()
+markOffset :: GHC.AnnKeywordId -> Int -> Annotated ()
 markOffset kwid n = markOffsetPrim kwid n Nothing
 
 -- ---------------------------------------------------------------------
 
 -- | Constructs a syntax tree which contains information about which
 -- annotations are required by each element.
-markLocated :: (Annotate ast) => GHC.Located ast -> IAnnotated ()
+markLocated :: (Annotate ast) => GHC.Located ast -> Annotated ()
 markLocated a = withLocated a NoLayoutRules markAST
 
 withLocated :: Data a
             => GHC.Located a
             -> LayoutFlag
-            -> (GHC.SrcSpan -> a -> IAnnotated ())
-            -> IAnnotated ()
+            -> (GHC.SrcSpan -> a -> Annotated ())
+            -> Annotated ()
 withLocated a@(GHC.L l ast) layoutFlag action =
   withAST a layoutFlag (action l ast)
 
 -- ---------------------------------------------------------------------
 
-markListWithLayout :: Annotate ast => [GHC.Located ast] -> IAnnotated ()
+markListWithLayout :: Annotate ast => [GHC.Located ast] -> Annotated ()
 markListWithLayout ls = do
   let ss = getListSrcSpan ls
   setLayoutFlag ss (mapM_ markLocated ls)
 
 markLocalBindsWithLayout :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
-  => GHC.HsLocalBinds name -> IAnnotated ()
+  => GHC.HsLocalBinds name -> Annotated ()
 markLocalBindsWithLayout binds = do
   ss <- getLocalBindsSrcSpan binds
   when (ss /= GHC.noSrcSpan) $
@@ -196,7 +173,7 @@ markLocalBindsWithLayout binds = do
 -- | Local binds need to be indented as a group, and thus need to have a
 -- SrcSpan around them so they can be processed via the normal
 -- markLocated / exactPC machinery.
-getLocalBindsSrcSpan :: GHC.HsLocalBinds name -> IAnnotated GHC.SrcSpan
+getLocalBindsSrcSpan :: GHC.HsLocalBinds name -> Annotated GHC.SrcSpan
 getLocalBindsSrcSpan (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
   spans <- lexicalSortSrcSpans (map GHC.getLoc (GHC.bagToList binds) ++ map GHC.getLoc sigs)
   case spans of
@@ -218,7 +195,7 @@ getLocalBindsSrcSpan (GHC.EmptyLocalBinds) = return GHC.noSrcSpan
 -- ---------------------------------------------------------------------
 
 -- |This function is used to get around shortcomings in the GHC AST for 7.10.1
-markLocatedFromKw :: (Annotate ast) => GHC.AnnKeywordId -> ast -> IAnnotated ()
+markLocatedFromKw :: (Annotate ast) => GHC.AnnKeywordId -> ast -> Annotated ()
 markLocatedFromKw kw a = do
   ss <- getSrcSpanForKw kw
   AnnKey ss' _ <- storeOriginalSrcSpan (mkAnnKey (GHC.L ss a))
@@ -226,30 +203,30 @@ markLocatedFromKw kw a = do
 
 -- ---------------------------------------------------------------------
 
-markMaybe :: (Annotate ast) => Maybe (GHC.Located ast) -> IAnnotated ()
+markMaybe :: (Annotate ast) => Maybe (GHC.Located ast) -> Annotated ()
 markMaybe Nothing    = return ()
 markMaybe (Just ast) = markLocated ast
 
 -- ---------------------------------------------------------------------
 -- Managing lists which have been separated, e.g. Sigs and Binds
 
-prepareListAnnotation :: Annotate a => [GHC.Located a] -> [(GHC.SrcSpan,IAnnotated ())]
+prepareListAnnotation :: Annotate a => [GHC.Located a] -> [(GHC.SrcSpan,Annotated ())]
 prepareListAnnotation ls = map (\b -> (GHC.getLoc b,markLocated b)) ls
 
-applyListAnnotations :: [(GHC.SrcSpan, IAnnotated ())] -> IAnnotated ()
+applyListAnnotations :: [(GHC.SrcSpan, Annotated ())] -> Annotated ()
 applyListAnnotations ls = withSortKey ls
 
 #if __GLASGOW_HASKELL__ <= 710
 lexicalSortLocated :: [GHC.Located a] -> [GHC.Located a]
 lexicalSortLocated = sortBy (comparing GHC.getLoc)
 #endif
-lexicalSortSrcSpans :: [GHC.SrcSpan] -> IAnnotated [GHC.SrcSpan]
+lexicalSortSrcSpans :: [GHC.SrcSpan] -> Annotated [GHC.SrcSpan]
 lexicalSortSrcSpans ls = return $ sort ls
 
 -- ---------------------------------------------------------------------
 
 class Data ast => Annotate ast where
-  markAST :: GHC.SrcSpan -> ast -> IAnnotated ()
+  markAST :: GHC.SrcSpan -> ast -> Annotated ()
 
 -- ---------------------------------------------------------------------
 
@@ -1440,7 +1417,7 @@ hsLit2String lit =
     GHC.HsDoublePrim (GHC.FL src _)   -> src
 
 markHsConPatDetails :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
-                      => GHC.Located name -> GHC.HsConPatDetails name -> IAnnotated ()
+                      => GHC.Located name -> GHC.HsConPatDetails name -> Annotated ()
 markHsConPatDetails ln dets = do
   case dets of
     GHC.PrefixCon args -> do
@@ -1458,7 +1435,7 @@ markHsConPatDetails ln dets = do
       markLocated a2
 
 markHsConDeclDetails :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
-                    =>  [GHC.Located name] -> GHC.HsConDeclDetails name -> IAnnotated ()
+                    =>  [GHC.Located name] -> GHC.HsConDeclDetails name -> Annotated ()
 markHsConDeclDetails lns dets = do
   case dets of
     GHC.PrefixCon args -> mapM_ markLocated args
@@ -1591,7 +1568,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 -- ---------------------------------------------------------------------
 
 markHsLocalBinds :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
-                     => (GHC.HsLocalBinds name) -> IAnnotated ()
+                     => (GHC.HsLocalBinds name) -> Annotated ()
 markHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) =
     applyListAnnotations (prepareListAnnotation (GHC.bagToList binds)
                        ++ prepareListAnnotation sigs
@@ -1607,7 +1584,7 @@ markHsLocalBinds (GHC.EmptyLocalBinds)                 = return ()
 markMatchGroup :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name,
                                                Annotate body)
                    => GHC.SrcSpan -> GHC.MatchGroup name (GHC.Located body)
-                   -> IAnnotated ()
+                   -> Annotated ()
 markMatchGroup _ (GHC.MG matches _ _ _)
   = markListWithLayout matches
 
@@ -1637,7 +1614,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnLam
     mark GHC.AnnCase
     mark GHC.AnnOpenC
-    addContext Case (markMatchGroup l match)
+    markMatchGroup l match
     mark GHC.AnnCloseC
 
   markAST _ (GHC.HsApp e1 e2) = do
@@ -1681,7 +1658,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnOf
     mark GHC.AnnOpenC
     markInside GHC.AnnSemi
-    addContext Case (markMatchGroup l matches)
+    markMatchGroup l matches
     mark GHC.AnnCloseC
 
   markAST _ (GHC.HsIf _ e1 e2 e3) = do
@@ -1696,7 +1673,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   markAST _ (GHC.HsMultiIf _ rhs) = do
     mark GHC.AnnIf
-    addContext MultiIf (mapM_ markLocated rhs)
+    mapM_ markLocated rhs
 
   markAST l (GHC.HsLet binds e) = do
     setLayoutFlag l (do -- Make sure the 'in' gets indented too
@@ -2025,7 +2002,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLocated e1
     mark GHC.AnnOf
     mark GHC.AnnOpenC
-    addContext Case (markMatchGroup l matches)
+    markMatchGroup l matches
     mark GHC.AnnCloseC
 
   markAST _ (GHC.HsCmdIf _ e1 e2 e3) = do
@@ -2128,7 +2105,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 -- ---------------------------------------------------------------------
 
 markTyClass :: (Annotate a, Annotate ast)
-                => GHC.Located a -> [GHC.Located ast] -> IAnnotated ()
+                => GHC.Located a -> [GHC.Located ast] -> Annotated ()
 markTyClass ln tyVars = do
     markMany GHC.AnnOpenP
     applyListAnnotations (prepareListAnnotation [ln]
@@ -2203,7 +2180,7 @@ instance Annotate GHC.DocDecl where
 -- ---------------------------------------------------------------------
 
 markDataDefn :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
-  => GHC.SrcSpan -> GHC.HsDataDefn name -> IAnnotated ()
+  => GHC.SrcSpan -> GHC.HsDataDefn name -> Annotated ()
 markDataDefn _ (GHC.HsDataDefn _ ctx typ mk cons mderivs) = do
   markLocated ctx
   markMaybe typ
