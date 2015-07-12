@@ -179,7 +179,7 @@ withSortKey xs = do
     -- AZ:TODO: if performance becomes a problem, consider a Map of the order
     -- SrcSpan to an index, and do a lookup instead of elemIndex.
 
-    -- Items not in the ordering are placed to the end.
+    -- Items not in the ordering are placed to the start
     match :: [(GHC.SrcSpan, Annotated ())] -> [GHC.SrcSpan] -> [Annotated ()]
     match keys order =
        map snd (sortBy (comparing (flip elemIndex order . fst)) keys)
