@@ -64,7 +64,7 @@ data AnnotationF next where
   SetLayoutFlag  ::  Annotated ()                                        -> next -> AnnotationF next
 
   -- | Required to work around deficiencies in the GHC AST
-  StoreOriginalSrcSpan :: GHC.SrcSpan -> Disambiguator  -> ((GHC.SrcSpan,Disambiguator) -> next) -> AnnotationF next
+  StoreOriginalSrcSpan :: AnnKey                        -> (AnnKey -> next) -> AnnotationF next
   GetSrcSpanForKw :: GHC.AnnKeywordId                   -> (GHC.SrcSpan -> next) -> AnnotationF next
   StoreString :: String -> GHC.SrcSpan                  -> next -> AnnotationF next
   GetNextDisambiguator ::                                  (Disambiguator -> next) -> AnnotationF next
@@ -190,7 +190,7 @@ markListWithLayout :: Annotate [GHC.Located ast] => [GHC.Located ast] -> IAnnota
 markListWithLayout ls = do
   let ss = getListSrcSpan ls
   d <- getNextDisambiguator
-  (ss',d') <- storeOriginalSrcSpan ss d
+  AnnKey ss' _ d' <- storeOriginalSrcSpan (mkAnnKeyWithD  (GHC.L ss ls) d)
   markWithLayout (GHC.L ss' ls) d'
 
 markLocalBindsWithLayout :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
@@ -199,7 +199,7 @@ markLocalBindsWithLayout binds = do
   ss <- getLocalBindsSrcSpan binds
   when (ss /= GHC.noSrcSpan) $ do
     -- binds are not empty
-    (ss',d') <- storeOriginalSrcSpan ss NotNeeded
+    AnnKey ss' _ d' <- storeOriginalSrcSpan (mkAnnKey (GHC.L ss binds))
     markWithLayout (GHC.L ss' binds) d'
 
 -- ---------------------------------------------------------------------
@@ -232,7 +232,7 @@ getLocalBindsSrcSpan (GHC.EmptyLocalBinds) = return GHC.noSrcSpan
 markLocatedFromKw :: (Annotate ast) => GHC.AnnKeywordId -> ast -> IAnnotated ()
 markLocatedFromKw kw a = do
   ss <- getSrcSpanForKw kw
-  (ss',_d') <- storeOriginalSrcSpan ss NotNeeded
+  AnnKey ss' _ _ <- storeOriginalSrcSpan (mkAnnKey (GHC.L ss a))
   markLocated (GHC.L ss' a)
 
 -- ---------------------------------------------------------------------

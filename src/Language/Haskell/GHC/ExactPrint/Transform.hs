@@ -136,11 +136,7 @@ captureOrderAnnKey parentKey ls ans = ans'
   where
     newList = map GHC.getLoc ls
     Ann{ annCapturedSpan } = fromMaybe annNone $ Map.lookup parentKey (getKeywordDeltas ans)
-    insertion = case annCapturedSpan of
-                  Nothing -> parentKey
-                  -- TODO: Remove this hardcoding by storing the
-                  -- constructor name as well?
-                  Just (ss, d) -> AnnKey ss (CN "HsValBinds") d
+    insertion = fromMaybe parentKey annCapturedSpan
     reList = Map.adjust (\an -> an {annSortKey = Just newList }) insertion
     ans' = modifyKeywordDeltas reList ans
 

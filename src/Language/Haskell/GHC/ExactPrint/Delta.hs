@@ -90,7 +90,7 @@ data DeltaWriter = DeltaWriter
          -- subtree to the parent.
        , annKds    :: ![(KeywordId, DeltaPos)]
        , sortKeys  :: !(Maybe [GHC.SrcSpan])
-       , dwCapturedSpan :: !(First (GHC.SrcSpan, Disambiguator))
+       , dwCapturedSpan :: !(First AnnKey)
        }
 
 data DeltaState = DeltaState
@@ -153,8 +153,8 @@ tellFinalAnn (k, v) =
 tellSortKey :: [GHC.SrcSpan] -> Delta ()
 tellSortKey xs = tell (mempty { sortKeys = Just xs } )
 
-tellCapturedSpan :: (GHC.SrcSpan, Disambiguator) -> Delta ()
-tellCapturedSpan (ss, d) = tell ( mempty { dwCapturedSpan = First $ Just (ss, d) })
+tellCapturedSpan :: AnnKey -> Delta ()
+tellCapturedSpan key = tell ( mempty { dwCapturedSpan = First $ Just key })
 
 tellKd :: (KeywordId, DeltaPos) -> Delta ()
 tellKd kd = tell (mempty { annKds = [kd] })
@@ -183,7 +183,7 @@ deltaInterpret = iterTM go
     go (CountAnns kwid next)             = countAnnsDelta kwid >>= next
     go (SetLayoutFlag action next)       = setLayoutFlag (deltaInterpret action)  >> next
     go (MarkExternal ss akwid _ next)    = addDeltaAnnotationExt ss akwid >> next
-    go (StoreOriginalSrcSpan ss d next)  = storeOriginalSrcSpanDelta ss d >>= next
+    go (StoreOriginalSrcSpan key next)  = storeOriginalSrcSpanDelta key >>= next
     go (GetSrcSpanForKw kw next)         = getSrcSpanForKw kw >>= next
     go (StoreString s ss next)           = storeString s ss >> next
     go (GetNextDisambiguator next)       = getNextDisambiguatorDelta >>= next
@@ -206,10 +206,10 @@ setLayoutFlag action = do
 
 -- ---------------------------------------------------------------------
 
-storeOriginalSrcSpanDelta :: GHC.SrcSpan -> Disambiguator -> Delta (GHC.SrcSpan,Disambiguator)
-storeOriginalSrcSpanDelta ss d = do
-  tellCapturedSpan (ss, d)
-  return (ss,d)
+storeOriginalSrcSpanDelta :: AnnKey -> Delta AnnKey
+storeOriginalSrcSpanDelta key = do
+  tellCapturedSpan key
+  return key
 
 storeString :: String -> GHC.SrcSpan -> Delta ()
 storeString s ss = addAnnotationWorker (AnnString s) ss

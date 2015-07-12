@@ -134,7 +134,7 @@ printInterpret = iterTM go
       setLayout (printInterpret action) >> next
     go (MarkExternal _ akwid s next) =
       printStringAtMaybeAnn (G akwid) s >> next
-    go (StoreOriginalSrcSpan ss d next) = storeOriginalSrcSpanPrint ss d >>= next
+    go (StoreOriginalSrcSpan _ next) = storeOriginalSrcSpanPrint >>= next
     go (GetSrcSpanForKw _ next) = return GHC.noSrcSpan >>= next
     go (StoreString _ _ next) =
       printStoredString >> next
@@ -144,11 +144,11 @@ printInterpret = iterTM go
 
 -------------------------------------------------------------------------
 
-storeOriginalSrcSpanPrint :: GHC.SrcSpan -> Disambiguator -> EP (GHC.SrcSpan,Disambiguator)
-storeOriginalSrcSpanPrint _ss _d = do
+storeOriginalSrcSpanPrint :: EP AnnKey
+storeOriginalSrcSpanPrint = do
   Ann{..} <- asks epAnn
   case annCapturedSpan of
-    Nothing -> return (GHC.noSrcSpan, NotNeeded)
+    Nothing -> error "Missing captured SrcSpan"
     Just v  -> return v
 
 printStoredString :: EP ()

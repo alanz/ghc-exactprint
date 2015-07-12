@@ -7,6 +7,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , Span
   , PosToken
   , DeltaPos(..)
+  , deltaRow, deltaColumn
   , addDP
   , LayoutStartCol(..) , ColDelta(..)
   , Annotation(..)

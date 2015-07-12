@@ -12,6 +12,7 @@ module Language.Haskell.GHC.ExactPrint.Internal.Types
   , Span
   , PosToken
   , DeltaPos(..)
+  , deltaRow, deltaColumn
   , addDP
   , LayoutStartCol(..) , ColDelta(..)
   , Annotation(..)
@@ -78,7 +79,12 @@ type PosToken = (GHC.Located GHC.Token, String)
 type Pos = (Int,Int)
 type Span = (Pos,Pos)
 
+-- | A relative positions, row then column
 newtype DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
+
+deltaRow, deltaColumn :: DeltaPos -> Int
+deltaRow (DP (r, _)) = r
+deltaColumn (DP (_, c)) = c
 
 addDP :: DeltaPos -> DeltaPos -> DeltaPos
 addDP (DP (a, b)) (DP (c, d)) =
@@ -136,7 +142,7 @@ data Annotation = Ann
     -- SrcSpan is used purely as an index into the annotations, allowing
     -- transformations of the AST including the introduction of new Located
     -- items or re-arranging existing ones.
-  , annCapturedSpan    :: !(Maybe (GHC.SrcSpan, Disambiguator))
+  , annCapturedSpan    :: !(Maybe AnnKey)
     -- ^ Occasionally we must calculate a SrcSpan for an unlocated list of
     -- elements which we must remember for the Print phase. e.g. the statements
     -- in a HsLet or HsDo. These must be managed as a group because they all
