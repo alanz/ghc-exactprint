@@ -87,7 +87,7 @@ changeLocalDecls2 ans (GHC.L l p) = do
   Right (declAnns, d@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   Right (sigAnns, s@(GHC.L ls (GHC.SigD sig)))   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
   let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
-  let  sigAnns' = setPrecedingLines  sigAnns (GHC.L ls  sig) 0 0
+  let  sigAnns' = setPrecedingLines  sigAnns (GHC.L ls  sig) 1 0
   -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
   -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
   -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
@@ -105,17 +105,15 @@ changeLocalDecls2 ans (GHC.L l p) = do
               Just ann -> Map.insert newAnnKey ann2 mkds2
                 where
                   ann1 = ann { annsDP = annsDP ann ++ [(G GHC.AnnWhere,DP (1,2))]
-                             , annCapturedSpan = Just (newSpan,NotNeeded)
+                             , annCapturedSpan = Just newAnnKey
+                             , annLayoutStart  = [DP (1, 4)]
+                             , annSortKey = Just [ls, ld]
                              }
                   mkds2 = Map.insert (mkAnnKey m) ann1 mkds
-                  ann2 = Ann { annEntryDelta        = DP (1,0)
-                             , annDelta             = ColDelta 4
-                             , annTrueEntryDelta    = DP (1,0)
-                             , annPriorComments     = []
-                             , annFollowingComments = []
-                             , annsDP               = []
-                             , annSortKey           = Nothing
-                             , annCapturedSpan      = Nothing}
+                  ann2 = annNone
+                             { annEntryDelta     = DP (1,0)
+                             , annDelta          = ColDelta 4
+                             , annTrueEntryDelta = DP (1,0) }
         modifyKeywordDeltasT addWhere
         let decls = [s,d]
         logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)
@@ -136,7 +134,7 @@ changeLocalDecls ans (GHC.L l p) = do
   Right (declAnns, d@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   Right (sigAnns, s@(GHC.L ls (GHC.SigD sig)))   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
   let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
-  let  sigAnns' = setPrecedingLines  sigAnns (GHC.L ls  sig) 0 0
+  let  sigAnns' = setPrecedingLines  sigAnns (GHC.L ls  sig) 1 0
   -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
   -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
   -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
@@ -199,7 +197,7 @@ changeWhereIn3 declIndex ans p = return (ans',p')
       -- error $ "doRmDecl:decls2=" ++ showGhc (length decls,decls1,decls2)
 
 -- ---------------------------------------------------------------------
-
+{-
 -- |Convert the if statement in C.hs to a case, adjusting layout appropriately.
 changeCifToCase :: Changer
 changeCifToCase ans p = return (ans',p')
@@ -271,7 +269,7 @@ changeCifToCase ans p = return (ans',p')
       let anne2' =
             [ ( AnnKey caseLoc       (CN "HsCase") NotNeeded,   annIf { annsDP = [ (G GHC.AnnCase, ifDelta)
                                                                      , (G GHC.AnnOf,     DP (0,1))]
-                                                                     , annCapturedSpan = Just (caseVirtualLoc, NotNeeded)
+                                                                     , annCapturedSpan = Just (AnnKey caseVirtualLoc (CN "(:)") NotNeeded)
                                                                      } )
             , ( AnnKey caseVirtualLoc (CN "(:)") NotNeeded,     Ann (DP (1,newCol)) (ColDelta newCol) (DP (1,newCol)) [] [] [(AnnSpanEntry,DP (1,0))] Nothing Nothing)
             , ( AnnKey trueMatchLoc  (CN "Match") NotNeeded,   annNone )
@@ -299,7 +297,7 @@ changeCifToCase ans p = return (ans',p')
 
     mkRdrName :: String -> GHC.RdrName
     mkRdrName s = GHC.mkVarUnqual (GHC.mkFastString s)
-
+-}
 -- ---------------------------------------------------------------------
 
 noChange :: Changer

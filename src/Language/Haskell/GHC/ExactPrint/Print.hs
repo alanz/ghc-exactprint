@@ -32,6 +32,8 @@ import Data.Maybe (fromMaybe)
 
 import Control.Monad.Trans.Free
 
+
+import Debug.Trace
 import qualified GHC
 
 ------------------------------------------------------------------------------
@@ -130,7 +132,7 @@ printInterpret = iterTM go
       exactPC lss d flag (printInterpret action) >> next
     go (CountAnns kwid next) =
       countAnnsEP (G kwid) >>= next
-    go (SetLayoutFlag action next) =
+    go (SetLayoutFlag _ action next) =
       setLayout (printInterpret action) >> next
     go (MarkExternal _ akwid s next) =
       printStringAtMaybeAnn (G akwid) s >> next
@@ -248,6 +250,7 @@ withOffset a@Ann{annDelta, annTrueEntryDelta} flag k = do
     -- the delta
     -- (2) The start of the layout block is the old offset added to the
     -- "annOffset" (i.e., how far this annotation was from the edge)
+  traceShowM oldOffset
   let offset = case flag of
                      LayoutRules -> LayoutStartCol $
                       if edLine == 0
@@ -272,17 +275,15 @@ withKds kd action = do
 
 setLayout :: EP () -> EP ()
 setLayout k = do
-  (curLine, currentColumn) <- gets epPos
-  Ann{..} <- asks epAnn
-  oldOffset <-  asks epLHS -- Shift from left hand column
-  let DP (edLine, _) = annEntryDelta
-      newOffset =
-        if edLine == 0
-            then currentColumn --Already advanced to correct position
-            else getLayoutStartCol oldOffset + getColDelta annDelta
-  when (edLine > 0) (printWhitespace (curLine, newOffset))
+  pos <- getPos
+  lhs <- asks epLHS
+  a@Ann{annLayoutStart} <- asks epAnn
+  let newLHS = undelta pos (head annLayoutStart) lhs
+  traceM ("Pos: " ++ show pos )
+  traceM ("newLHS " ++ show newLHS)
   local
-    (\s -> s { epLHS = LayoutStartCol newOffset})
+    (\s -> s { epLHS = LayoutStartCol (snd newLHS)
+             , epAnn = a { annLayoutStart = tail annLayoutStart} } )
       k
 
 getPos :: EP Pos

@@ -177,12 +177,13 @@ mkAnnKeyDecl ld@(GHC.L l d) =
       GHC.RoleAnnotD d  -> mkAnnKey (GHC.L l d)
 #if __GLASGOW_HASKELL__ < 711
       GHC.QuasiQuoteD d -> mkAnnKey (GHC.L l d)
-#endif 
+#endif
 
 -- ---------------------------------------------------------------------
 
 adjustAnnOffset :: ColDelta -> Annotation -> Annotation
-adjustAnnOffset (ColDelta cd) (Ann (DP (ro,co)) (ColDelta ad) _ cs fcs kds sks cp) = Ann edp cd' edp cs fcs kds' sks cp
+adjustAnnOffset (ColDelta cd) a@(Ann{ annEntryDelta=(DP (ro,co)), annDelta=(ColDelta ad), annsDP = kds})
+  = a { annDelta = cd', annsDP = kds' }
   where
     edp = case ro of
       0 -> DP (ro,co)
@@ -252,9 +253,11 @@ setPrecedingLines :: (SYB.Data a) => Anns -> GHC.Located a -> Int -> Int -> Anns
 setPrecedingLines anne ast n c =
   modifyKeywordDeltas (Map.alter go (mkAnnKey ast)) anne
   where
-    go Nothing  = Just (Ann (DP (n,c)) (ColDelta c) (DP (n,c)) [] [] [] Nothing Nothing )
+    go Nothing  = Just (annNone { annEntryDelta = (DP (n,c))
+                                , annDelta = (ColDelta c)
+                                , annTrueEntryDelta = (DP (n,c))  })
     go (Just a) = Just (a { annEntryDelta     = DP (n, c)
-                          , annTrueEntryDelta = DP (n, c) })
+                             , annTrueEntryDelta = DP (1,0) })
 
 -- ---------------------------------------------------------------------
 

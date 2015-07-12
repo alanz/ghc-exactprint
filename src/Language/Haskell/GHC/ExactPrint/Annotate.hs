@@ -61,7 +61,7 @@ data AnnotationF next where
   WithSortKey       :: [(GHC.SrcSpan, Annotated ())]                     -> next -> AnnotationF next
 
   -- | Abstraction breakers
-  SetLayoutFlag  ::  Annotated ()                                        -> next -> AnnotationF next
+  SetLayoutFlag  ::  GHC.SrcSpan -> Annotated ()                         -> next -> AnnotationF next
 
   -- | Required to work around deficiencies in the GHC AST
   StoreOriginalSrcSpan :: AnnKey                        -> (AnnKey -> next) -> AnnotationF next
@@ -117,10 +117,11 @@ annotate ast = runReaderT (markLocated ast) []
 
 -- ---------------------------------------------------------------------
 
-setLayoutFlag :: IAnnotated () -> IAnnotated ()
-setLayoutFlag prog = do
+setLayoutFlag :: GHC.SrcSpan -> IAnnotated () -> IAnnotated ()
+setLayoutFlag ss prog = do
   finalProg <- runReaderT prog <$> ask
-  liftF (SetLayoutFlag finalProg ())
+  traceM (showGhc ss)
+  liftF (SetLayoutFlag ss finalProg ())
 
 workOutString :: GHC.AnnKeywordId -> (GHC.SrcSpan -> String) -> IAnnotated ()
 workOutString kw f = do
@@ -186,21 +187,18 @@ withLocated a@(GHC.L l ast) d layoutFlag action =
 
 -- ---------------------------------------------------------------------
 
-markListWithLayout :: Annotate [GHC.Located ast] => [GHC.Located ast] -> IAnnotated ()
+markListWithLayout :: Annotate ast => [GHC.Located ast] -> IAnnotated ()
 markListWithLayout ls = do
   let ss = getListSrcSpan ls
-  d <- getNextDisambiguator
-  AnnKey ss' _ d' <- storeOriginalSrcSpan (mkAnnKeyWithD  (GHC.L ss ls) d)
-  markWithLayout (GHC.L ss' ls) d'
+  setLayoutFlag ss (mapM_ markLocated ls)
 
 markLocalBindsWithLayout :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => GHC.HsLocalBinds name -> IAnnotated ()
 markLocalBindsWithLayout binds = do
   ss <- getLocalBindsSrcSpan binds
-  when (ss /= GHC.noSrcSpan) $ do
+  when (ss /= GHC.noSrcSpan) $
     -- binds are not empty
-    AnnKey ss' _ d' <- storeOriginalSrcSpan (mkAnnKey (GHC.L ss binds))
-    markWithLayout (GHC.L ss' binds) d'
+    setLayoutFlag ss (markHsLocalBinds binds)
 
 -- ---------------------------------------------------------------------
 
@@ -1708,8 +1706,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnIf
     addContext MultiIf (mapM_ markLocated rhs)
 
-  markAST _ (GHC.HsLet binds e) = do
-    setLayoutFlag (do -- Make sure the 'in' gets indented too
+  markAST l (GHC.HsLet binds e) = do
+    setLayoutFlag l (do -- Make sure the 'in' gets indented too
       mark GHC.AnnLet
       mark GHC.AnnOpenC
       markInside GHC.AnnSemi

@@ -230,7 +230,8 @@ tests = TestList $
   , mkParserTest  "SpliceSemi.hs"
   , mkParserTest  "Imports.hs"
   , mkParserTest "Internals.hs"
-  , mkParserTest "InfixOperator.hs" ]
+  , mkParserTest "InfixOperator.hs"
+  , mkParserTest "Control.hs" ]
 
   ++ transformTests
 

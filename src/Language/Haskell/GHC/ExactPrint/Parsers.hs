@@ -75,11 +75,11 @@ runParser parser flags filename str = GHC.unP parser parseState
 
 withDynFlags :: (GHC.DynFlags -> a) -> IO a
 withDynFlags action =
-  GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
-    GHC.runGhc (Just libdir) $ do
-      dflags <- GHC.getSessionDynFlags
-      void $ GHC.setSessionDynFlags dflags
-      return (action dflags)
+    GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
+      GHC.runGhc (Just libdir) $ do
+        dflags <- GHC.getSessionDynFlags
+        void $ GHC.setSessionDynFlags dflags
+        return (action dflags)
 
 -- ---------------------------------------------------------------------
 

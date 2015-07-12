@@ -91,6 +91,7 @@ data DeltaWriter = DeltaWriter
        , annKds    :: ![(KeywordId, DeltaPos)]
        , sortKeys  :: !(Maybe [GHC.SrcSpan])
        , dwCapturedSpan :: !(First AnnKey)
+       , dwLayoutStart :: ![DeltaPos]
        }
 
 data DeltaState = DeltaState
@@ -159,10 +160,13 @@ tellCapturedSpan key = tell ( mempty { dwCapturedSpan = First $ Just key })
 tellKd :: (KeywordId, DeltaPos) -> Delta ()
 tellKd kd = tell (mempty { annKds = [kd] })
 
+tellLayoutStart :: DeltaPos -> Delta ()
+tellLayoutStart c = tell ( mempty { dwLayoutStart = [c] } )
+
 instance Monoid DeltaWriter where
-  mempty = DeltaWriter mempty mempty mempty mempty
-  (DeltaWriter a b e g) `mappend` (DeltaWriter c d f h)
-    = DeltaWriter (a <> c) (b <> d) (e <> f) (g <> h)
+  mempty = DeltaWriter mempty mempty mempty mempty mempty
+  (DeltaWriter a b e g j) `mappend` (DeltaWriter c d f h i)
+    = DeltaWriter (a <> c) (b <> d) (e <> f) (g <> h) (j <> i)
 
 -----------------------------------
 -- Free Monad Interpretation code
@@ -181,9 +185,9 @@ deltaInterpret = iterTM go
     go (WithAST lss d layoutflag prog next) =
       withAST lss d layoutflag (deltaInterpret prog) >> next
     go (CountAnns kwid next)             = countAnnsDelta kwid >>= next
-    go (SetLayoutFlag action next)       = setLayoutFlag (deltaInterpret action)  >> next
+    go (SetLayoutFlag ss action next)    = setLayoutFlag ss (deltaInterpret action)  >> next
     go (MarkExternal ss akwid _ next)    = addDeltaAnnotationExt ss akwid >> next
-    go (StoreOriginalSrcSpan key next)  = storeOriginalSrcSpanDelta key >>= next
+    go (StoreOriginalSrcSpan key next)   = storeOriginalSrcSpanDelta key >>= next
     go (GetSrcSpanForKw kw next)         = getSrcSpanForKw kw >>= next
     go (StoreString s ss next)           = storeString s ss >> next
     go (GetNextDisambiguator next)       = getNextDisambiguatorDelta >>= next
@@ -199,10 +203,11 @@ withSortKey kws =
 
 
 -- | Used specifically for "HsLet"
-setLayoutFlag :: Delta () -> Delta ()
-setLayoutFlag action = do
-  c <- srcSpanStartColumn <$> getSrcSpan
-  local (\s -> s { layoutStart = LayoutStartCol c }) action
+setLayoutFlag :: GHC.SrcSpan -> Delta () -> Delta ()
+setLayoutFlag ss action = do
+  p <- gets priorEndPosition
+  tellLayoutStart =<< adjustDeltaForOffsetM (ss2delta p ss)
+  local (\s -> s { layoutStart = LayoutStartCol (srcSpanStartColumn ss) }) action
 
 -- ---------------------------------------------------------------------
 
@@ -300,7 +305,8 @@ setPriorEndAST pe =
 
 
 setLayoutOffset :: LayoutStartCol -> Delta a -> Delta a
-setLayoutOffset lhs = local (\s -> s { layoutStart = lhs })
+setLayoutOffset lhs =
+  local (\s -> s { layoutStart = lhs })
 
 -- -------------------------------------
 
@@ -372,7 +378,10 @@ withAST lss@(GHC.L ss _) d layout action = do
 
   (resetAnns . setLayoutOffset newOff .  withSrcSpanDelta lss d) (do
 
-    let maskWriter s = s { annKds = [], sortKeys = Nothing, dwCapturedSpan = mempty }
+    let maskWriter s = s { annKds = []
+                         , sortKeys = Nothing
+                         , dwCapturedSpan = mempty
+                         , dwLayoutStart  = mempty }
 
     -- make sure all kds are relative to the start of the SrcSpan
     let spanStart = ss2pos ss
@@ -408,7 +417,8 @@ withAST lss@(GHC.L ss _) d layout action = do
                , annFollowingComments = [] -- only used in Transform and Print
                , annsDP     = kds
                , annSortKey = sortKeys w
-               , annCapturedSpan = getFirst $ dwCapturedSpan w }
+               , annCapturedSpan = getFirst $ dwCapturedSpan w
+               , annLayoutStart  = dwLayoutStart w }
 
     addAnnotationsDelta an
      `debug` ("leaveAST:(annkey,an)=" ++ show (mkAnnKey lss,an))
