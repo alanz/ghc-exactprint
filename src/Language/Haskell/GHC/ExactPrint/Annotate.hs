@@ -338,6 +338,17 @@ instance (GHC.DataId name,Annotate name)
           markLocated ln
 
         (GHC.IEThingAbs ln@(GHC.L _ n)) -> do
+          {-
+          At the moment (7.10.2) GHC does not cleanly represent an export of the form
+           "type Foo"
+          and it only captures the name "Foo".
+
+          The Api Annotations workaround is to have the IEThingAbs SrcSpan
+          extend across both the "type" and "Foo", and then to capture the
+          individual item locations in an AnnType and AnnVal annotation.
+
+          This need to be fixed for 7.12.
+          -}
           cnt <- countAnns GHC.AnnType
           if cnt == 1
             then do

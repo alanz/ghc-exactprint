@@ -228,6 +228,7 @@ tests = TestList $
   , mkParserTest "RulesSemi.hs"
   , mkParserTest  "InlineSemi.hs"
   , mkParserTest  "SpliceSemi.hs"
+  , mkParserTest  "Imports.hs"
   ]
 
   ++ transformTests
@@ -456,6 +457,7 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFnameMod changeLocalDecls2 "LocalDecls2.hs" "LocalDecls2"
     , manipulateAstTestWFname "WhereIn3.hs"                 "WhereIn3"
     , manipulateAstTestWFnameMod changeWhereIn3a "WhereIn3a.hs" "WhereIn3a"
+    , manipulateAstTestWFname "Imports.hs"              "Imports"
     {-
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
     , manipulateAstTestWFname "Foo.hs"                   "Main"
