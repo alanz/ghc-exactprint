@@ -33,7 +33,6 @@ import Data.Maybe (fromMaybe)
 import Control.Monad.Trans.Free
 
 
-import Debug.Trace
 import qualified GHC
 
 ------------------------------------------------------------------------------
@@ -249,7 +248,6 @@ withOffset a@Ann{annDelta, annTrueEntryDelta} flag k = do
     -- the delta
     -- (2) The start of the layout block is the old offset added to the
     -- "annOffset" (i.e., how far this annotation was from the edge)
-  traceShowM oldOffset
   let offset = case flag of
                      LayoutRules -> LayoutStartCol $
                       if edLine == 0
@@ -278,8 +276,6 @@ setLayout k = do
   lhs <- asks epLHS
   a@Ann{annLayoutStart} <- asks epAnn
   let newLHS = undelta pos (head annLayoutStart) lhs
-  traceM ("Pos: " ++ show pos )
-  traceM ("newLHS " ++ show newLHS)
   local
     (\s -> s { epLHS = LayoutStartCol (snd newLHS)
              , epAnn = a { annLayoutStart = tail annLayoutStart} } )
