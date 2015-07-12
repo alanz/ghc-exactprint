@@ -1630,6 +1630,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   markAST l (GHC.HsLam match)       = do
     mark GHC.AnnLam
+    -- TODO: Change this, HsLam binds do not need obey layout rules.
     markMatchGroup l match
 
   markAST l (GHC.HsLamCase _ match) = do
