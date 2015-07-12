@@ -12,7 +12,6 @@ import Control.Monad.Trans.Free
 
 import Data.Data (Data)
 import Data.List (sort, nub, partition, sortBy)
-import Data.Maybe
 
 import Data.Ord
 

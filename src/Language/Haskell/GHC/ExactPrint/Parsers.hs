@@ -34,7 +34,6 @@ import qualified Lexer         as GHC
 import qualified MonadUtils    as GHC
 import qualified Outputable    as GHC
 import qualified Parser        as GHC
-import qualified RdrHsSyn      as GHC ( checkPattern )
 import qualified SrcLoc        as GHC
 import qualified StringBuffer  as GHC
 

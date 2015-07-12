@@ -56,7 +56,6 @@ import Language.Haskell.GHC.ExactPrint.Utils
 
 import Control.Monad.RWS
 import Data.List
-import Data.Maybe
 
 import qualified FastString    as GHC
 import qualified GHC           as GHC hiding (parseModule)
