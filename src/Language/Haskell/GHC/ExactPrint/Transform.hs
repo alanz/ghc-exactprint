@@ -47,8 +47,6 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , setPrecedingLinesDecl
         , setPrecedingLines
 
-          -- AZ's baggage
-        , ghead,glast,gtail,gfromJust
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Internal.Types
@@ -348,22 +346,4 @@ insertBefore (GHC.getLoc -> k) = insertAt findBefore
       let (fs, bs) = span (/= k) xs
       in fs ++ (x : bs)
 
--- ---------------------------------------------------------------------
--- Putting these here for the time being, to avoid import loops
-
-ghead :: String -> [a] -> a
-ghead  info []    = error $ "ghead "++info++" []"
-ghead _info (h:_) = h
-
-glast :: String -> [a] -> a
-glast  info []    = error $ "glast " ++ info ++ " []"
-glast _info h     = last h
-
-gtail :: String -> [a] -> [a]
-gtail  info []   = error $ "gtail " ++ info ++ " []"
-gtail _info h    = tail h
-
-gfromJust :: String -> Maybe a -> a
-gfromJust _info (Just h) = h
-gfromJust  info Nothing = error $ "gfromJust " ++ info ++ " Nothing"
 -- ---------------------------------------------------------------------

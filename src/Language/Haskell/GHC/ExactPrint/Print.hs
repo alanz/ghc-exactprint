@@ -18,7 +18,7 @@ module Language.Haskell.GHC.ExactPrint.Print
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Internal.Types
-import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta )
+import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta, ghead )
 import Language.Haskell.GHC.ExactPrint.Annotate
   (AnnotationF(..), Annotated, Annotate(..), annotate)
 import Language.Haskell.GHC.ExactPrint.Lookup (keywordToString, unicodeString)
@@ -159,7 +159,7 @@ printStoredString = do
     isAnnString (AnnString _,_) = True
     isAnnString _             = False
 
-  case filter isAnnString (head kd) of
+  case filter isAnnString (ghead "printStoredString" kd) of
     ((AnnString ss,_):_) -> printStringAtMaybeAnn (AnnString ss) ss
     _                    -> return ()
 
@@ -275,7 +275,7 @@ setLayout k = do
   pos <- getPos
   lhs <- asks epLHS
   a@Ann{annLayoutStart} <- asks epAnn
-  let newLHS = undelta pos (head annLayoutStart) lhs
+  let newLHS = undelta pos (ghead "setLayout" annLayoutStart) lhs
   local
     (\s -> s { epLHS = LayoutStartCol (snd newLHS)
              , epAnn = a { annLayoutStart = tail annLayoutStart} } )
@@ -384,7 +384,7 @@ printQueuedComment Comment{commentPos, commentContents} dp = do
 -- |non-destructive get
 peekAnnFinal :: KeywordId -> EP (Maybe DeltaPos)
 peekAnnFinal kw = do
-  (r, _) <- (\kd -> destructiveGetFirst kw ([], kd)) <$> gets (head . epAnnKds)
+  (r, _) <- (\kd -> destructiveGetFirst kw ([], kd)) <$> gets (ghead "peekAnnFinal" . epAnnKds)
   return (snd <$> r)
 
 countAnnsEP :: KeywordId -> EP Int

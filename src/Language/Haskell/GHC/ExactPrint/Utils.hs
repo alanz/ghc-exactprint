@@ -38,6 +38,8 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , debugM
   , warn
 
+  -- AZ's baggage
+  , ghead,glast,gtail,gfromJust
   ) where
 
 
@@ -302,3 +304,22 @@ dp2comment oops = error $ "dp2comment:did not get a omment" ++ show oops
 showSDoc_ :: GHC.SDoc -> String
 showSDoc_ = GHC.showSDoc GHC.unsafeGlobalDynFlags
 
+
+-- ---------------------------------------------------------------------
+-- Putting these here for the time being, to avoid import loops
+
+ghead :: String -> [a] -> a
+ghead  info []    = error $ "ghead "++info++" []"
+ghead _info (h:_) = h
+
+glast :: String -> [a] -> a
+glast  info []    = error $ "glast " ++ info ++ " []"
+glast _info h     = last h
+
+gtail :: String -> [a] -> [a]
+gtail  info []   = error $ "gtail " ++ info ++ " []"
+gtail _info h    = tail h
+
+gfromJust :: String -> Maybe a -> a
+gfromJust _info (Just h) = h
+gfromJust  info Nothing = error $ "gfromJust " ++ info ++ " Nothing"
