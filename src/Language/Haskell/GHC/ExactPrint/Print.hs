@@ -132,12 +132,12 @@ printInterpret = iterTM go
         printStringAtMaybeAnn (G kwid) annString >> next
     go (MarkAfter akwid next) =
       justOne akwid >> next
-    go (WithAST lss flag action next) =
-      exactPC lss flag (printInterpret action) >> next
+    go (WithAST lss action next) =
+      exactPC lss (printInterpret action) >> next
     go (CountAnns kwid next) =
       countAnnsEP (G kwid) >>= next
-    go (SetLayoutFlag ss action next) =
-      (traceM $ "Setting: " ++ showGhc ss) >> setLayout (printInterpret action) >> next
+    go (SetLayoutFlag  action next) =
+      setLayout (printInterpret action) >> next
     go (MarkExternal _ akwid s next) =
       printStringAtMaybeAnn (G akwid) s >> next
     go (StoreOriginalSrcSpan _ next) = storeOriginalSrcSpanPrint >>= next
@@ -197,8 +197,8 @@ allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString (G kwid))
 
 -------------------------------------------------------------------------
 -- |First move to the given location, then call exactP
-exactPC :: Data ast => GHC.Located ast -> LayoutFlag -> EP a -> EP a
-exactPC ast flag action =
+exactPC :: Data ast => GHC.Located ast -> EP a -> EP a
+exactPC ast action =
     do
       return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
       ma <- getAndRemoveAnnotation ast
@@ -207,7 +207,7 @@ exactPC ast flag action =
                 , annFollowingComments=fcomments
                 , annsDP=kds
                 } = fromMaybe annNone ma
-      r <- withContext kds an flag
+      r <- withContext kds an
        (mapM_ (uncurry printQueuedComment) comments
        >> advance edp
        >> action
@@ -230,18 +230,17 @@ markPrim kwid mstr =
 
 withContext :: [(KeywordId, DeltaPos)]
             -> Annotation
-            -> LayoutFlag
             -> EP a -> EP a
-withContext kds an flag = withKds kds . withOffset an flag
+withContext kds an = withKds kds . withOffset an
 
 -- ---------------------------------------------------------------------
 --
 -- | Given an annotation associated with a specific SrcSpan, determines a new offset relative to the previous
 -- offset
 --
-withOffset :: Annotation -> LayoutFlag -> (EP a -> EP a)
-withOffset a@Ann{annDelta, annTrueEntryDelta} flag k = do
-  local (\s -> s { epAnn = a }) k
+withOffset :: Annotation -> (EP a -> EP a)
+withOffset a =
+  local (\s -> s { epAnn = a })
 
 
 -- ---------------------------------------------------------------------
@@ -258,7 +257,6 @@ withKds kd action = do
 
 setLayout :: EP () -> EP ()
 setLayout k = do
-  pos <- getPos
   oldLHS <- gets epLHS
   modify (\a -> a { epMarkLayout = True } )
   let reset = modify (\a -> a { epMarkLayout = False
@@ -383,8 +381,7 @@ countAnnsEP an = length <$> peekAnnFinal an
 printString :: Bool -> String -> EP ()
 printString layout str = do
   EPState{epPos = (l,c), epMarkLayout} <- get
-  when (epMarkLayout && layout) (do
-                      traceM $ ("setting layout: " ++ show c ++ "\n" ++ str)
+  when (epMarkLayout && layout) (
                       modify (\s -> s { epLHS = LayoutStartCol c, epMarkLayout = False } ))
   setPos (l, c + length str)
   tell (mempty {output = Endo $ showString str })

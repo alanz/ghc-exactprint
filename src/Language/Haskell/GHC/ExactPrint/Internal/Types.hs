@@ -32,8 +32,6 @@ module Language.Haskell.GHC.ExactPrint.Internal.Types
   , getAnnotationEP
   , getAndRemoveAnnotationEP
 
-  , LayoutFlag(..)
-
   -- , SortKey(..)
 
   , showGhc
@@ -225,14 +223,6 @@ instance Show KeywordId where
   show (AnnComment dc) = "(AnnComment " ++ show dc ++ ")"
   show (AnnString s)   = "(AnnString " ++ s ++ ")"
   show (AnnUnicode gc) = "(AnnUnicode " ++ show gc ++ ")"
-
-data LayoutFlag = LayoutRules | NoLayoutRules deriving (Show, Eq)
-
-instance Monoid LayoutFlag where
-  mempty = NoLayoutRules
-  LayoutRules `mappend` _ = LayoutRules
-  _ `mappend` LayoutRules = LayoutRules
-  _ `mappend` _           = NoLayoutRules
 
 -- ---------------------------------------------------------------------
 

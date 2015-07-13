@@ -26,6 +26,8 @@ import qualified SrcLoc         as GHC
 
 import qualified Data.Map as Map
 
+import Debug.Trace
+
 
 -- ---------------------------------------------------------------------
 -- | Transform concrete annotations into relative annotations which are
@@ -173,10 +175,9 @@ deltaInterpret = iterTM go
     go (MarkMany akwid next)            = addDeltaAnnotations akwid >> next
     go (MarkOffsetPrim akwid n _ next)  = addDeltaAnnotationLs akwid n >> next
     go (MarkAfter akwid next)           = addDeltaAnnotationAfter akwid >> next
-    go (WithAST lss layoutflag prog next) =
-      withAST lss layoutflag (deltaInterpret prog) >> next
+    go (WithAST lss prog next)          = withAST lss (deltaInterpret prog) >> next
     go (CountAnns kwid next)             = countAnnsDelta kwid >>= next
-    go (SetLayoutFlag ss action next)    = setLayoutFlag ss (deltaInterpret action)  >> next
+    go (SetLayoutFlag action next)       = setLayoutFlag (deltaInterpret action)  >> next
     go (MarkExternal ss akwid _ next)    = addDeltaAnnotationExt ss akwid >> next
     go (StoreOriginalSrcSpan key next)   = storeOriginalSrcSpanDelta key >>= next
     go (GetSrcSpanForKw kw next)         = getSrcSpanForKw kw >>= next
@@ -192,8 +193,8 @@ withSortKey kws =
     mapM_ (deltaInterpret . snd) order
 
 
-setLayoutFlag :: GHC.SrcSpan -> Delta () -> Delta ()
-setLayoutFlag ss action = do
+setLayoutFlag :: Delta () -> Delta ()
+setLayoutFlag action = do
   oldLay <- gets apLayoutStart
   modify (\s -> s { apMarkLayout = True } )
   let reset = do
@@ -293,8 +294,7 @@ setPriorEndAST pe = do
 setLayoutStart :: Int -> Delta ()
 setLayoutStart p = do
   DeltaState{apMarkLayout} <- get
-  when apMarkLayout (do
-                      traceM $ "Setting layout start: " ++ show p
+  when apMarkLayout (
                       modify (\s -> s { apMarkLayout = False
                                      , apLayoutStart = LayoutStartCol p}))
 
@@ -355,10 +355,8 @@ addAnnDeltaPos kw dp = tellKd (kw, dp)
 -- | Enter a new AST element. Maintain SrcSpan stack
 withAST :: Data a
         => GHC.Located a
-        -> LayoutFlag
         -> Delta b -> Delta b
-withAST lss@(GHC.L ss _) layout action = do
-  return () `debug` ("enterAST:(annkey,d,layout)=" ++ show (mkAnnKey lss,layout))
+withAST lss@(GHC.L ss _) action = do
   -- Calculate offset required to get to the start of the SrcSPan
   off <- gets apLayoutStart
   (resetAnns .  withSrcSpanDelta lss) (do

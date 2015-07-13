@@ -55,12 +55,12 @@ data AnnotationF next where
   MarkOffsetPrim :: GHC.AnnKeywordId -> Int -> Maybe String              -> next -> AnnotationF next
   MarkAfter      :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   WithAST        :: Data a => GHC.Located a
-                           -> LayoutFlag -> Annotated b                  -> next -> AnnotationF next
+                           -> Annotated b                                -> next -> AnnotationF next
   CountAnns      :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
   WithSortKey       :: [(GHC.SrcSpan, Annotated ())]                     -> next -> AnnotationF next
 
   -- | Abstraction breakers
-  SetLayoutFlag  ::  GHC.SrcSpan -> Annotated ()                         -> next -> AnnotationF next
+  SetLayoutFlag  ::  Annotated ()                         -> next -> AnnotationF next
 
   -- | Required to work around deficiencies in the GHC AST
   StoreOriginalSrcSpan :: AnnKey                        -> (AnnKey -> next) -> AnnotationF next
@@ -88,6 +88,8 @@ makeFreeCon  'StoreOriginalSrcSpan
 makeFreeCon  'GetSrcSpanForKw
 makeFreeCon  'StoreString
 makeFreeCon  'AnnotationsToComments
+makeFreeCon  'SetLayoutFlag
+makeFreeCon  'WithSortKey
 
 -- ---------------------------------------------------------------------
 
@@ -97,26 +99,18 @@ annotate = markLocated
 
 -- ---------------------------------------------------------------------
 
-setLayoutFlag :: GHC.SrcSpan -> Annotated () -> Annotated ()
-setLayoutFlag ss prog = do
-  liftF (SetLayoutFlag ss prog ())
-
 workOutString :: GHC.AnnKeywordId -> (GHC.SrcSpan -> String) -> Annotated ()
 workOutString kw f = do
   ss <- getSrcSpanForKw kw
   storeString (f ss) ss
 
-withSortKey :: [(GHC.SrcSpan,  Annotated ())] -> Annotated ()
-withSortKey ls = do
-  liftF (WithSortKey ls ())
-
 
 -- ---------------------------------------------------------------------
 
 -- |Main driver point for annotations.
-withAST :: Data a => GHC.Located a -> LayoutFlag -> Annotated () -> Annotated ()
-withAST lss layout action = do
-  liftF (WithAST lss layout prog ())
+withAST :: Data a => GHC.Located a -> Annotated () -> Annotated ()
+withAST lss action =
+  liftF (WithAST lss prog ())
   where
     prog = do
       action
@@ -143,54 +137,25 @@ markOffset kwid n = markOffsetPrim kwid n Nothing
 -- | Constructs a syntax tree which contains information about which
 -- annotations are required by each element.
 markLocated :: (Annotate ast) => GHC.Located ast -> Annotated ()
-markLocated a = withLocated a NoLayoutRules markAST
+markLocated a = withLocated a markAST
 
 withLocated :: Data a
             => GHC.Located a
-            -> LayoutFlag
             -> (GHC.SrcSpan -> a -> Annotated ())
             -> Annotated ()
-withLocated a@(GHC.L l ast) layoutFlag action =
-  withAST a layoutFlag (action l ast)
+withLocated a@(GHC.L l ast) action =
+  withAST a (action l ast)
 
 -- ---------------------------------------------------------------------
 
 markListWithLayout :: Annotate ast => [GHC.Located ast] -> Annotated ()
-markListWithLayout ls = do
-  let ss = getListSrcSpan ls
-  setLayoutFlag ss (mapM_ markLocated ls)
+markListWithLayout ls =
+  setLayoutFlag (mapM_ markLocated ls)
 
 markLocalBindsWithLayout :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => GHC.HsLocalBinds name -> Annotated ()
-markLocalBindsWithLayout binds = do
-  ss <- getLocalBindsSrcSpan binds
-  when (ss /= GHC.noSrcSpan) $
-    -- binds are not empty
-    setLayoutFlag ss (markHsLocalBinds binds)
-
--- ---------------------------------------------------------------------
-
--- | Local binds need to be indented as a group, and thus need to have a
--- SrcSpan around them so they can be processed via the normal
--- markLocated / exactPC machinery.
-getLocalBindsSrcSpan :: GHC.HsLocalBinds name -> Annotated GHC.SrcSpan
-getLocalBindsSrcSpan (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) = do
-  spans <- lexicalSortSrcSpans (map GHC.getLoc (GHC.bagToList binds) ++ map GHC.getLoc sigs)
-  case spans of
-    []  -> return GHC.noSrcSpan
-    sss -> return $ GHC.combineSrcSpans (head sss) (last sss)
-  where
-
-getLocalBindsSrcSpan (GHC.HsValBinds (GHC.ValBindsOut {}))
-   = return GHC.noSrcSpan
-
-getLocalBindsSrcSpan (GHC.HsIPBinds (GHC.IPBinds binds _)) = do
-  spans <- lexicalSortSrcSpans (map GHC.getLoc binds)
-  case spans of
-    [] -> return GHC.noSrcSpan
-    sss -> return $ GHC.combineSrcSpans (head sss) (last sss)
-
-getLocalBindsSrcSpan (GHC.EmptyLocalBinds) = return GHC.noSrcSpan
+markLocalBindsWithLayout binds =
+  setLayoutFlag (markHsLocalBinds binds)
 
 -- ---------------------------------------------------------------------
 
@@ -1552,15 +1517,6 @@ instance  (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate 
 
 -- ---------------------------------------------------------------------
 
--- | Generate a SrcSpan that enclosed the given list
-getListSrcSpan :: [GHC.Located a] -> GHC.SrcSpan
-getListSrcSpan ls
-  = case ls of
-      []  -> GHC.noSrcSpan
-      sss -> GHC.combineLocs (head sss) (last sss)
-
--- ---------------------------------------------------------------------
-
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsLocalBinds name) where
   markAST _ lb = markHsLocalBinds lb
@@ -1676,7 +1632,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mapM_ markLocated rhs
 
   markAST l (GHC.HsLet binds e) = do
-    setLayoutFlag l (do -- Make sure the 'in' gets indented too
+    setLayoutFlag (do -- Make sure the 'in' gets indented too
       mark GHC.AnnLet
       mark GHC.AnnOpenC
       markInside GHC.AnnSemi
