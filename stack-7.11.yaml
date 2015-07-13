@@ -12,4 +12,5 @@ extra-deps:
 - free-4.12.1
 - cabal-helper-0.3.6.0
 # resolver: nightly-2015-06-25
-resolver: nightly-2015-07-03
+# resolver: nightly-2015-07-03
+resolver: nightly-2015-07-12

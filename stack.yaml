@@ -9,4 +9,5 @@ extra-deps:
 - cabal-helper-0.3.6.0
 # - binary-0.7.5.0
 # resolver: nightly-2015-06-25
-resolver: nightly-2015-07-03
+# resolver: nightly-2015-07-03
+resolver: nightly-2015-07-12
