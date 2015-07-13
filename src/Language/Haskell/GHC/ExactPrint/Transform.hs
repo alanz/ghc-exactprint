@@ -19,7 +19,10 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , modifyKeywordDeltasT
         , uniqueSrcSpanT
 
+        , wrapSigT
+        , pushDeclAnnT
         , decl2BindT,decl2SigT
+
 
         -- * Operations
         , isUniqueSrcSpan
@@ -152,6 +155,64 @@ decl2Sig _                      = []
 decl2Bind :: GHC.LHsDecl name -> [GHC.LHsBind name]
 decl2Bind (GHC.L l (GHC.ValD s)) = [GHC.L l s]
 decl2Bind _                      = []
+
+-- ---------------------------------------------------------------------
+
+-- Crazy. This needs to be set up so that the original annotation is restored
+-- after a pushDeclAnnT call.
+wrapSigT :: GHC.LSig GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
+wrapSigT d@(GHC.L l s) = do
+  newSpan <- uniqueSrcSpanT
+  let
+    f (Anns ans) = case Map.lookup (mkAnnKey d) ans of
+      Nothing -> Anns ans
+      Just ann -> Anns (
+                  Map.insert (mkAnnKey (GHC.L newSpan s)) ann
+                $ Map.insert (mkAnnKey (GHC.L newSpan (GHC.SigD s))) ann ans)
+  modifyAnnsT f
+  return (GHC.L newSpan (GHC.SigD s))
+
+-- ---------------------------------------------------------------------
+
+-- |Copy the top level annotation to a new SrcSpan and the unwrapped decl.
+pushDeclAnnT :: GHC.LHsDecl GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
+pushDeclAnnT ld@(GHC.L l decl) = do
+  newSpan <- uniqueSrcSpanT
+  let
+    blend ann Nothing = ann
+    blend ann (Just annd)
+      = annd { annEntryDelta        = annEntryDelta ann
+             , annDelta             = annDelta ann
+             , annTrueEntryDelta    = annTrueEntryDelta ann
+             , annPriorComments     = annPriorComments     ann  ++ annPriorComments     annd
+             , annFollowingComments = annFollowingComments annd ++ annFollowingComments ann
+             }
+    duplicateAnn d (Anns ans) =
+      case Map.lookup (mkAnnKey ld) ans of
+        Nothing -> error $ "pushDeclAnnT:no key found for:" ++ show (mkAnnKey ld)
+        -- Nothing -> Anns ans
+        Just ann -> Anns $ Map.insert (mkAnnKey (GHC.L newSpan d))
+                                      (blend ann (Map.lookup (mkAnnKey (GHC.L l d)) ans))
+                                      ans
+  case decl of
+    GHC.TyClD d       -> modifyAnnsT (duplicateAnn d)
+    GHC.InstD d       -> modifyAnnsT (duplicateAnn d)
+    GHC.DerivD d      -> modifyAnnsT (duplicateAnn d)
+    GHC.ValD d        -> modifyAnnsT (duplicateAnn d)
+    GHC.SigD d        -> modifyAnnsT (duplicateAnn d)
+    GHC.DefD d        -> modifyAnnsT (duplicateAnn d)
+    GHC.ForD d        -> modifyAnnsT (duplicateAnn d)
+    GHC.WarningD d    -> modifyAnnsT (duplicateAnn d)
+    GHC.AnnD d        -> modifyAnnsT (duplicateAnn d)
+    GHC.RuleD d       -> modifyAnnsT (duplicateAnn d)
+    GHC.VectD d       -> modifyAnnsT (duplicateAnn d)
+    GHC.SpliceD d     -> modifyAnnsT (duplicateAnn d)
+    GHC.DocD d        -> modifyAnnsT (duplicateAnn d)
+    GHC.RoleAnnotD d  -> modifyAnnsT (duplicateAnn d)
+#if __GLASGOW_HASKELL__ < 711
+    GHC.QuasiQuoteD d -> modifyAnnsT (duplicateAnn d)
+#endif
+  return (GHC.L newSpan decl)
 
 -- ---------------------------------------------------------------------
 
