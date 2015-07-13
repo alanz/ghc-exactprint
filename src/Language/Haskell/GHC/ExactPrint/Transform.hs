@@ -19,6 +19,8 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , modifyKeywordDeltasT
         , uniqueSrcSpanT
 
+        , decl2BindT,decl2SigT
+
         -- * Operations
         , isUniqueSrcSpan
 
@@ -150,6 +152,40 @@ decl2Sig _                      = []
 decl2Bind :: GHC.LHsDecl name -> [GHC.LHsBind name]
 decl2Bind (GHC.L l (GHC.ValD s)) = [GHC.L l s]
 decl2Bind _                      = []
+
+-- ---------------------------------------------------------------------
+
+-- |Unwrap a LHsDecl to its underlying LHsBind, transferring the top level annotation to a
+-- new SrcSpan in the process.
+decl2BindT :: GHC.LHsDecl GHC.RdrName -> Transform [GHC.LHsBind GHC.RdrName]
+decl2BindT vd@(GHC.L l (GHC.ValD d)) = do
+  newSpan <- uniqueSrcSpanT
+  logTr $ "decl2BindT:newSpan=" ++ showGhc newSpan
+  let
+    duplicateAnn (Anns ans) =
+      case Map.lookup (mkAnnKey vd) ans of
+        Nothing -> Anns ans
+        Just ann -> Anns $ Map.insert (mkAnnKey (GHC.L newSpan d)) ann ans
+  modifyAnnsT duplicateAnn
+  return [GHC.L newSpan d]
+decl2BindT _ = return []
+
+-- ---------------------------------------------------------------------
+
+-- |Unwrap a LHsDecl to its underlying LSig, transferring the top level annotation to a
+-- new SrcSpan in the process.
+decl2SigT :: GHC.LHsDecl GHC.RdrName -> Transform [GHC.LSig GHC.RdrName]
+decl2SigT vs@(GHC.L l (GHC.SigD s)) = do
+  newSpan <- uniqueSrcSpanT
+  logTr $ "decl2SigT:newSpan=" ++ showGhc newSpan
+  let
+    duplicateAnn (Anns ans) =
+      case Map.lookup (mkAnnKey vs) ans of
+        Nothing -> Anns ans
+        Just ann -> Anns $ Map.insert (mkAnnKey (GHC.L newSpan s)) ann ans
+  modifyAnnsT duplicateAnn
+  return [GHC.L newSpan s]
+decl2SigT _ = return []
 
 -- ---------------------------------------------------------------------
 
