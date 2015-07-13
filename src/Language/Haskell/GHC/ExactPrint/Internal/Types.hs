@@ -166,7 +166,10 @@ instance Show Annotation where
 -- accessor to simply 'anns'
 data Anns = Anns
   { annsKeywordDeltas :: Map.Map AnnKey Annotation
-  } deriving (Show, Typeable)
+  } deriving (Typeable)
+
+instance Show Anns where
+  show (Anns kds) = "Anns " ++ showGhc kds
 
 emptyAnns :: Anns
 emptyAnns = Anns Map.empty
