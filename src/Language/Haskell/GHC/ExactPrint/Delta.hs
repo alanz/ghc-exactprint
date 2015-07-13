@@ -26,6 +26,8 @@ import qualified SrcLoc         as GHC
 
 import qualified Data.Map as Map
 
+import Debug.Trace
+
 
 -- ---------------------------------------------------------------------
 -- | Transform concrete annotations into relative annotations which are
@@ -75,7 +77,6 @@ data DeltaReader = DeltaReader
        , annConName       :: !AnnConName
 
          -- | Start column of the current layout block
-       , layoutStart :: !LayoutStartCol
        }
 
 data DeltaWriter = DeltaWriter
@@ -104,6 +105,9 @@ data DeltaState = DeltaState
          -- | The original GHC Delta Annotations
        , apAnns :: !GHC.ApiAnns
 
+       , apMarkLayout :: Bool
+       , apLayoutStart :: LayoutStartCol
+
        }
 
 -- ---------------------------------------------------------------------
@@ -113,7 +117,6 @@ initialDeltaReader =
   DeltaReader
     { curSrcSpan = GHC.noSrcSpan
     , annConName = annGetConstr ()
-    , layoutStart = 1
     }
 
 defaultDeltaState :: [Comment] -> Pos -> GHC.ApiAnns -> DeltaState
@@ -123,6 +126,8 @@ defaultDeltaState injectedComments priorEnd ga =
       , priorEndASTPosition = priorEnd
       , apComments = cs ++ injectedComments
       , apAnns     = ga
+      , apLayoutStart = 1
+      , apMarkLayout = False
       }
   where
     cs :: [Comment]
@@ -151,9 +156,6 @@ tellCapturedSpan key = tell ( mempty { dwCapturedSpan = First $ Just key })
 tellKd :: (KeywordId, DeltaPos) -> Delta ()
 tellKd kd = tell (mempty { annKds = [kd] })
 
-tellLayoutStart :: DeltaPos -> Delta ()
-tellLayoutStart c = tell ( mempty { dwLayoutStart = [c] } )
-
 instance Monoid DeltaWriter where
   mempty = DeltaWriter mempty mempty mempty mempty mempty
   (DeltaWriter a b e g j) `mappend` (DeltaWriter c d f h i)
@@ -173,10 +175,9 @@ deltaInterpret = iterTM go
     go (MarkMany akwid next)            = addDeltaAnnotations akwid >> next
     go (MarkOffsetPrim akwid n _ next)  = addDeltaAnnotationLs akwid n >> next
     go (MarkAfter akwid next)           = addDeltaAnnotationAfter akwid >> next
-    go (WithAST lss layoutflag prog next) =
-      withAST lss layoutflag (deltaInterpret prog) >> next
+    go (WithAST lss prog next)          = withAST lss (deltaInterpret prog) >> next
     go (CountAnns kwid next)             = countAnnsDelta kwid >>= next
-    go (SetLayoutFlag ss action next)    = setLayoutFlag ss (deltaInterpret action)  >> next
+    go (SetLayoutFlag action next)       = setLayoutFlag (deltaInterpret action)  >> next
     go (MarkExternal ss akwid _ next)    = addDeltaAnnotationExt ss akwid >> next
     go (StoreOriginalSrcSpan key next)   = storeOriginalSrcSpanDelta key >>= next
     go (GetSrcSpanForKw kw next)         = getSrcSpanForKw kw >>= next
@@ -192,11 +193,15 @@ withSortKey kws =
     mapM_ (deltaInterpret . snd) order
 
 
-setLayoutFlag :: GHC.SrcSpan -> Delta () -> Delta ()
-setLayoutFlag ss action = do
-  p <- gets priorEndPosition
-  tellLayoutStart =<< adjustDeltaForOffsetM (ss2delta p ss)
-  local (\s -> s { layoutStart = LayoutStartCol (srcSpanStartColumn ss) }) action
+setLayoutFlag :: Delta () -> Delta ()
+setLayoutFlag action = do
+  oldLay <- gets apLayoutStart
+  modify (\s -> s { apMarkLayout = True } )
+  let reset = do
+                modify (\s -> s { apMarkLayout = False
+                                , apLayoutStart = oldLay })
+  action <* reset
+
 
 -- ---------------------------------------------------------------------
 
@@ -261,7 +266,7 @@ putUnallocatedComments cs = modify (\s -> s { apComments = cs } )
 
 adjustDeltaForOffsetM :: DeltaPos -> Delta DeltaPos
 adjustDeltaForOffsetM dp = do
-  colOffset <- asks layoutStart
+  colOffset <- gets apLayoutStart
   return (adjustDeltaForOffset colOffset dp)
 
 adjustDeltaForOffset :: LayoutStartCol -> DeltaPos -> DeltaPos
@@ -280,15 +285,19 @@ setPriorEnd :: Pos -> Delta ()
 setPriorEnd pe =
   modify (\s -> s { priorEndPosition = pe })
 
-setPriorEndAST :: Pos -> Delta ()
-setPriorEndAST pe =
-  modify (\s -> s { priorEndPosition    = pe
-                  , priorEndASTPosition = pe })
+setPriorEndAST :: GHC.SrcSpan -> Delta ()
+setPriorEndAST pe = do
+  setLayoutStart (snd (ss2pos pe))
+  modify (\s -> s { priorEndPosition    = (ss2posEnd pe)
+                  , priorEndASTPosition = (ss2posEnd pe) })
 
+setLayoutStart :: Int -> Delta ()
+setLayoutStart p = do
+  DeltaState{apMarkLayout} <- get
+  when apMarkLayout (
+                      modify (\s -> s { apMarkLayout = False
+                                     , apLayoutStart = LayoutStartCol p}))
 
-setLayoutOffset :: LayoutStartCol -> Delta a -> Delta a
-setLayoutOffset lhs =
-  local (\s -> s { layoutStart = lhs })
 
 -- -------------------------------------
 
@@ -346,18 +355,11 @@ addAnnDeltaPos kw dp = tellKd (kw, dp)
 -- | Enter a new AST element. Maintain SrcSpan stack
 withAST :: Data a
         => GHC.Located a
-        -> LayoutFlag
         -> Delta b -> Delta b
-withAST lss@(GHC.L ss _) layout action = do
-  return () `debug` ("enterAST:(annkey,d,layout)=" ++ show (mkAnnKey lss,layout))
+withAST lss@(GHC.L ss _) action = do
   -- Calculate offset required to get to the start of the SrcSPan
-  off <- asks layoutStart
-  let newOff =
-        case layout of
-          LayoutRules   -> (LayoutStartCol (srcSpanStartColumn ss))
-          NoLayoutRules -> off
-
-  (resetAnns . setLayoutOffset newOff .  withSrcSpanDelta lss) (do
+  off <- gets apLayoutStart
+  (resetAnns .  withSrcSpanDelta lss) (do
 
     let maskWriter s = s { annKds = []
                          , sortKeys = Nothing
@@ -379,13 +381,14 @@ withAST lss@(GHC.L ss _) layout action = do
                 -- Use the propagated offset if one is set
                 -- Note that we need to use the new offset if it has
                 -- changed.
-                newOff (ss2delta priorEndAfterComments ss)
+                off (ss2delta priorEndAfterComments ss)
     peAST <- getPriorEndAST
     let edpAST = adjustDeltaForOffset
-                  newOff (ss2delta peAST ss)
+                  off (ss2delta peAST ss)
     -- Preparation complete, perform the action
-    when (GHC.isGoodSrcSpan ss && priorEndAfterComments < ss2pos ss)
-            (setPriorEndAST (ss2pos ss))
+    when (GHC.isGoodSrcSpan ss && priorEndAfterComments < ss2pos ss) (do
+      modify (\s -> s { priorEndPosition    = (ss2pos ss)
+                      , priorEndASTPosition = (ss2pos ss) }))
     (res, w) <- censor maskWriter (listen action)
 
     let kds = annKds w
@@ -398,8 +401,7 @@ withAST lss@(GHC.L ss _) layout action = do
                , annFollowingComments = [] -- only used in Transform and Print
                , annsDP     = kds
                , annSortKey = sortKeys w
-               , annCapturedSpan = getFirst $ dwCapturedSpan w
-               , annLayoutStart  = dwLayoutStart w }
+               , annCapturedSpan = getFirst $ dwCapturedSpan w }
 
     addAnnotationsDelta an
      `debug` ("leaveAST:(annkey,an)=" ++ show (mkAnnKey lss,an))
@@ -444,7 +446,7 @@ addAnnotationWorker ann pa =
           p' <- adjustDeltaForOffsetM p
           commentAllocation (priorComment (ss2pos pa)) (mapM_ (uncurry addDeltaComment))
           addAnnDeltaPos (checkUnicode ann pa) p'
-          setPriorEndAST (ss2posEnd pa)
+          setPriorEndAST pa
               `debug` ("addAnnotationWorker:(ss,ss,pe,pa,p,p',ann)=" ++ show (showGhc ss,ss2span ss,pe,ss2span pa,p,p',ann))
 
 checkUnicode :: KeywordId -> GHC.SrcSpan -> KeywordId
@@ -585,7 +587,7 @@ addEofAnnotation = do
       commentAllocation (const True) (mapM_ (uncurry addDeltaComment))
       let DP (r,c) = ss2delta pe pa
       addAnnDeltaPos (G GHC.AnnEofPos) (DP (r, c - 1))
-      setPriorEndAST (ss2posEnd pa) `warn` ("Trailing annotations after Eof: " ++ showGhc pss)
+      setPriorEndAST pa `warn` ("Trailing annotations after Eof: " ++ showGhc pss)
 
 
 countAnnsDelta :: GHC.AnnKeywordId -> Delta Int

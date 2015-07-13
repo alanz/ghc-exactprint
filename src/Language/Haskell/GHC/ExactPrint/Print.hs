@@ -32,6 +32,8 @@ import Data.Maybe (fromMaybe)
 
 import Control.Monad.Trans.Free
 
+import Debug.Trace
+
 
 import qualified GHC
 
@@ -58,9 +60,8 @@ exactPrintWithAnns ast an = runEP (annotate ast) an
 -- The EP monad and basic combinators
 
 data EPReader = EPReader
-            {  epLHS :: !LayoutStartCol -- ^ Marks the column of the LHS of
-                                            -- the current layout block
-            ,  epAnn :: !Annotation
+            {
+              epAnn :: !Annotation
             }
 
 data EPWriter = EPWriter
@@ -74,6 +75,8 @@ data EPState = EPState
              { epPos    :: !Pos -- ^ Current output position
              , epAnns   :: !Anns
              , epAnnKds :: ![[(KeywordId, DeltaPos)]] -- MP: Could this be moved to the local state with suitable refactoring?
+             , epMarkLayout :: Bool
+             , epLHS :: LayoutStartCol
              }
 
 ---------------------------------------------------------
@@ -93,12 +96,14 @@ defaultEPState as = EPState
              { epPos    = (1,1)
              , epAnns   = as
              , epAnnKds = []
+             , epLHS    = 1
+             , epMarkLayout = False
              }
 
 initialEPReader :: EPReader
 initialEPReader  = EPReader
-             { epLHS = 1
-             , epAnn = annNone
+             {
+               epAnn = annNone
              }
 
 -- ---------------------------------------------------------------------
@@ -127,11 +132,11 @@ printInterpret = iterTM go
         printStringAtMaybeAnn (G kwid) annString >> next
     go (MarkAfter akwid next) =
       justOne akwid >> next
-    go (WithAST lss flag action next) =
-      exactPC lss flag (printInterpret action) >> next
+    go (WithAST lss action next) =
+      exactPC lss (printInterpret action) >> next
     go (CountAnns kwid next) =
       countAnnsEP (G kwid) >>= next
-    go (SetLayoutFlag _ action next) =
+    go (SetLayoutFlag  action next) =
       setLayout (printInterpret action) >> next
     go (MarkExternal _ akwid s next) =
       printStringAtMaybeAnn (G akwid) s >> next
@@ -192,8 +197,8 @@ allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString (G kwid))
 
 -------------------------------------------------------------------------
 -- |First move to the given location, then call exactP
-exactPC :: Data ast => GHC.Located ast -> LayoutFlag -> EP a -> EP a
-exactPC ast flag action =
+exactPC :: Data ast => GHC.Located ast -> EP a -> EP a
+exactPC ast action =
     do
       return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
       ma <- getAndRemoveAnnotation ast
@@ -202,7 +207,7 @@ exactPC ast flag action =
                 , annFollowingComments=fcomments
                 , annsDP=kds
                 } = fromMaybe annNone ma
-      r <- withContext kds an flag
+      r <- withContext kds an
        (mapM_ (uncurry printQueuedComment) comments
        >> advance edp
        >> action
@@ -225,37 +230,17 @@ markPrim kwid mstr =
 
 withContext :: [(KeywordId, DeltaPos)]
             -> Annotation
-            -> LayoutFlag
             -> EP a -> EP a
-withContext kds an flag = withKds kds . withOffset an flag
+withContext kds an = withKds kds . withOffset an
 
 -- ---------------------------------------------------------------------
 --
 -- | Given an annotation associated with a specific SrcSpan, determines a new offset relative to the previous
 -- offset
 --
-withOffset :: Annotation -> LayoutFlag -> (EP a -> EP a)
-withOffset a@Ann{annDelta, annTrueEntryDelta} flag k = do
-  let DP (edLine, edColumn) = annTrueEntryDelta
-  oldOffset <-  asks epLHS -- Shift from left hand column
-  (_l, currentColumn) <- getPos
-    -- Calculate the new offset
-    -- 1. If the LayoutRules flag is set then we need to mark this position
-    -- as the start of a new layout block.
-    -- There are two cases (1) If we are on the same line  and (2) if we
-    -- move to a new line.
-    -- (1) The start of the layout block is the current position added to
-    -- the delta
-    -- (2) The start of the layout block is the old offset added to the
-    -- "annOffset" (i.e., how far this annotation was from the edge)
-  let offset = case flag of
-                     LayoutRules -> LayoutStartCol $
-                      if edLine == 0
-                        then currentColumn + edColumn
-                        else getLayoutStartCol oldOffset + getColDelta annDelta
-                     NoLayoutRules -> oldOffset
-  local (\s -> s { epLHS = offset
-                 , epAnn = a }) k
+withOffset :: Annotation -> (EP a -> EP a)
+withOffset a =
+  local (\s -> s { epAnn = a })
 
 
 -- ---------------------------------------------------------------------
@@ -272,14 +257,11 @@ withKds kd action = do
 
 setLayout :: EP () -> EP ()
 setLayout k = do
-  pos <- getPos
-  lhs <- asks epLHS
-  a@Ann{annLayoutStart} <- asks epAnn
-  let newLHS = undelta pos (ghead "setLayout" annLayoutStart) lhs
-  local
-    (\s -> s { epLHS = LayoutStartCol (snd newLHS)
-             , epAnn = a { annLayoutStart = tail annLayoutStart} } )
-      k
+  oldLHS <- gets epLHS
+  modify (\a -> a { epMarkLayout = True } )
+  let reset = modify (\a -> a { epMarkLayout = False
+                              , epLHS = oldLHS } )
+  k <* reset
 
 getPos :: EP Pos
 getPos = gets epPos
@@ -289,7 +271,7 @@ setPos l = modify (\s -> s {epPos = l})
 
 -- |Get the current column offset
 getLayoutOffset :: EP LayoutStartCol
-getLayoutOffset = asks epLHS
+getLayoutOffset = gets epLHS
 
 -- ---------------------------------------------------------------------
 
@@ -376,7 +358,7 @@ printQueuedComment Comment{commentPos, commentContents} dp = do
   -- do not lose comments against the left margin
   when (isGoodDelta (DP (dr,max 0 dc)))
     (do
-      printStringAt (undelta p dp colOffset) commentContents
+      printCommentAt (undelta p dp colOffset) commentContents
       setPos (undelta p commentPos colOffset))
 
 -- ---------------------------------------------------------------------
@@ -396,27 +378,32 @@ countAnnsEP an = length <$> peekAnnFinal an
 -- ---------------------------------------------------------------------
 -- Printing functions
 
-printString :: String -> EP ()
-printString str = do
-  (l,c) <- gets epPos
+printString :: Bool -> String -> EP ()
+printString layout str = do
+  EPState{epPos = (l,c), epMarkLayout} <- get
+  when (epMarkLayout && layout) (
+                      modify (\s -> s { epLHS = LayoutStartCol c, epMarkLayout = False } ))
   setPos (l, c + length str)
   tell (mempty {output = Endo $ showString str })
 
 newLine :: EP ()
 newLine = do
     (l,_) <- getPos
-    printString "\n"
+    printString False "\n"
     setPos (l+1,1)
 
 padUntil :: Pos -> EP ()
 padUntil (l,c) = do
     (l1,c1) <- getPos
-    if | l1 == l && c1 <= c -> printString $ replicate (c - c1) ' '
+    if | l1 == l && c1 <= c -> printString False $ replicate (c - c1) ' '
        | l1 < l             -> newLine >> padUntil (l,c)
        | otherwise          -> return ()
 
 printWhitespace :: Pos -> EP ()
 printWhitespace = padUntil
 
+printCommentAt :: Pos -> String -> EP ()
+printCommentAt p str = printWhitespace p >> printString False str
+
 printStringAt :: Pos -> String -> EP ()
-printStringAt p str = printWhitespace p >> printString str
+printStringAt p str = printWhitespace p >> printString True str

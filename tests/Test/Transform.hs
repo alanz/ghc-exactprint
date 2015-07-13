@@ -87,7 +87,7 @@ changeLocalDecls2 ans (GHC.L l p) = do
   Right (declAnns, d@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   Right (sigAnns, s@(GHC.L ls (GHC.SigD sig)))   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
   let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
-  let  sigAnns' = setPrecedingLines  sigAnns (GHC.L ls  sig) 1 0
+  let  sigAnns' = setPrecedingLines  sigAnns (GHC.L ls  sig) 1 4
   -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
   -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
   -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
@@ -106,7 +106,6 @@ changeLocalDecls2 ans (GHC.L l p) = do
                 where
                   ann1 = ann { annsDP = annsDP ann ++ [(G GHC.AnnWhere,DP (1,2))]
                              , annCapturedSpan = Just newAnnKey
-                             , annLayoutStart  = [DP (1, 4)]
                              , annSortKey = Just [ls, ld]
                              }
                   mkds2 = Map.insert (mkAnnKey m) ann1 mkds
@@ -134,7 +133,7 @@ changeLocalDecls ans (GHC.L l p) = do
   Right (declAnns, d@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   Right (sigAnns, s@(GHC.L ls (GHC.SigD sig)))   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
   let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
-  let  sigAnns' = setPrecedingLines  sigAnns (GHC.L ls  sig) 1 0
+  let  sigAnns' = setPrecedingLines  sigAnns (GHC.L ls  sig) 1 4
   -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
   -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
   -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'

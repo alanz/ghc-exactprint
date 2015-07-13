@@ -32,8 +32,6 @@ module Language.Haskell.GHC.ExactPrint.Internal.Types
   , getAnnotationEP
   , getAndRemoveAnnotationEP
 
-  , LayoutFlag(..)
-
   -- , SortKey(..)
 
   , showGhc
@@ -106,7 +104,7 @@ instance Show ColDelta where
   show (ColDelta v) = "(ColDelta " ++ show v ++ ")"
 
 annNone :: Annotation
-annNone = Ann (DP (0,0)) 0  (DP (0,0)) [] [] [] Nothing Nothing []
+annNone = Ann (DP (0,0)) 0  (DP (0,0)) [] [] [] Nothing Nothing
 
 data Annotation = Ann
   {
@@ -147,16 +145,14 @@ data Annotation = Ann
     -- need eo be vertically aligned for the Haskell layout rules, and this
     -- guarantees this property in the presence of AST edits.
 
-    -- TODO; Do we only have a captured span when we have a sort key?
-  , annLayoutStart :: ![DeltaPos]
   } deriving (Typeable,Eq)
 
 instance Show Annotation where
-  show (Ann dp c comments fcomments toStart ans sk csp ls)
+  show (Ann dp c comments fcomments toStart ans sk csp)
     = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ show comments ++ " "
         ++ show fcomments ++ " "
         ++ show toStart ++ " " ++ show ans ++ " " ++ showGhc sk ++ " "
-        ++ showGhc csp ++ " " ++ showGhc ls ++ ")"
+        ++ showGhc csp ++ ")"
 
 -----
 -- Anns is kept abstract so that the sortKeys can't be modified
@@ -230,14 +226,6 @@ instance Show KeywordId where
   show (AnnComment dc) = "(AnnComment " ++ show dc ++ ")"
   show (AnnString s)   = "(AnnString " ++ s ++ ")"
   show (AnnUnicode gc) = "(AnnUnicode " ++ show gc ++ ")"
-
-data LayoutFlag = LayoutRules | NoLayoutRules deriving (Show, Eq)
-
-instance Monoid LayoutFlag where
-  mempty = NoLayoutRules
-  LayoutRules `mappend` _ = LayoutRules
-  _ `mappend` LayoutRules = LayoutRules
-  _ `mappend` _           = NoLayoutRules
 
 -- ---------------------------------------------------------------------
 
