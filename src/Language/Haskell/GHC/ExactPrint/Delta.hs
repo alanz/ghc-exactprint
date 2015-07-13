@@ -84,10 +84,10 @@ data DeltaWriter = DeltaWriter
 
          -- | Used locally to pass Keywords, delta pairs relevant to a specific
          -- subtree to the parent.
-       , annKds    :: ![(KeywordId, DeltaPos)]
-       , sortKeys  :: !(Maybe [GHC.SrcSpan])
+       , annKds         :: ![(KeywordId, DeltaPos)]
+       , sortKeys       :: !(Maybe [GHC.SrcSpan])
        , dwCapturedSpan :: !(First AnnKey)
-       , dwLayoutStart :: ![DeltaPos]
+       , dwLayoutStart  :: ![DeltaPos]
        }
 
 data DeltaState = DeltaState
@@ -192,7 +192,6 @@ withSortKey kws =
     mapM_ (deltaInterpret . snd) order
 
 
--- | Used specifically for "HsLet"
 setLayoutFlag :: GHC.SrcSpan -> Delta () -> Delta ()
 setLayoutFlag ss action = do
   p <- gets priorEndPosition
