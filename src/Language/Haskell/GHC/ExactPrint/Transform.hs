@@ -19,7 +19,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , modifyKeywordDeltasT
         , uniqueSrcSpanT
 
-        , wrapSigT
+        , wrapSigT,wrapDeclT
         , pushDeclAnnT
         , decl2BindT,decl2SigT
 
@@ -174,6 +174,22 @@ wrapSigT d@(GHC.L l s) = do
 
 -- ---------------------------------------------------------------------
 
+-- Crazy. This needs to be set up so that the original annotation is restored
+-- after a pushDeclAnnT call.
+wrapDeclT :: GHC.LHsBind GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
+wrapDeclT d@(GHC.L l s) = do
+  newSpan <- uniqueSrcSpanT
+  let
+    f (Anns ans) = case Map.lookup (mkAnnKey d) ans of
+      Nothing -> Anns ans
+      Just ann -> Anns (
+                  Map.insert (mkAnnKey (GHC.L newSpan s)) ann
+                $ Map.insert (mkAnnKey (GHC.L newSpan (GHC.ValD s))) ann ans)
+  modifyAnnsT f
+  return (GHC.L newSpan (GHC.ValD s))
+
+-- ---------------------------------------------------------------------
+
 -- |Copy the top level annotation to a new SrcSpan and the unwrapped decl.
 pushDeclAnnT :: GHC.LHsDecl GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
 pushDeclAnnT ld@(GHC.L l decl) = do
@@ -317,25 +333,25 @@ setAnn as (k, a) =
 -- ---------------------------------------------------------------------
 
 -- |Unwrap a HsDecl and call setPrecedingLines on it
-setPrecedingLinesDecl :: Anns -> GHC.LHsDecl GHC.RdrName -> Int -> Anns
-setPrecedingLinesDecl ans ld@(GHC.L l d) n =
+setPrecedingLinesDecl :: Anns -> GHC.LHsDecl GHC.RdrName -> Int -> Int -> Anns
+setPrecedingLinesDecl ans ld@(GHC.L l d) n c =
   case d of
-      GHC.TyClD d       -> setPrecedingLines ans (GHC.L l d) n 0
-      GHC.InstD d       -> setPrecedingLines ans (GHC.L l d) n 0
-      GHC.DerivD d      -> setPrecedingLines ans (GHC.L l d) n 0
-      GHC.ValD d        -> setPrecedingLines ans (GHC.L l d) n 0
-      GHC.SigD d        -> setPrecedingLines ans (GHC.L l d) n 0
-      GHC.DefD d        -> setPrecedingLines ans (GHC.L l d) n 0
-      GHC.ForD d        -> setPrecedingLines ans (GHC.L l d) n 0
-      GHC.WarningD d    -> setPrecedingLines ans (GHC.L l d) n 0
-      GHC.AnnD d        -> setPrecedingLines ans (GHC.L l d) n 0
-      GHC.RuleD d       -> setPrecedingLines ans (GHC.L l d) n 0
-      GHC.VectD d       -> setPrecedingLines ans (GHC.L l d) n 0
-      GHC.SpliceD d     -> setPrecedingLines ans (GHC.L l d) n 0
-      GHC.DocD d        -> setPrecedingLines ans (GHC.L l d) n 0
-      GHC.RoleAnnotD d  -> setPrecedingLines ans (GHC.L l d) n 0
+      GHC.TyClD d       -> setPrecedingLines ans (GHC.L l d) n c
+      GHC.InstD d       -> setPrecedingLines ans (GHC.L l d) n c
+      GHC.DerivD d      -> setPrecedingLines ans (GHC.L l d) n c
+      GHC.ValD d        -> setPrecedingLines ans (GHC.L l d) n c
+      GHC.SigD d        -> setPrecedingLines ans (GHC.L l d) n c
+      GHC.DefD d        -> setPrecedingLines ans (GHC.L l d) n c
+      GHC.ForD d        -> setPrecedingLines ans (GHC.L l d) n c
+      GHC.WarningD d    -> setPrecedingLines ans (GHC.L l d) n c
+      GHC.AnnD d        -> setPrecedingLines ans (GHC.L l d) n c
+      GHC.RuleD d       -> setPrecedingLines ans (GHC.L l d) n c
+      GHC.VectD d       -> setPrecedingLines ans (GHC.L l d) n c
+      GHC.SpliceD d     -> setPrecedingLines ans (GHC.L l d) n c
+      GHC.DocD d        -> setPrecedingLines ans (GHC.L l d) n c
+      GHC.RoleAnnotD d  -> setPrecedingLines ans (GHC.L l d) n c
 #if __GLASGOW_HASKELL__ < 711
-      GHC.QuasiQuoteD d -> setPrecedingLines ans (GHC.L l d) n 0
+      GHC.QuasiQuoteD d -> setPrecedingLines ans (GHC.L l d) n c
 #endif
 
 -- ---------------------------------------------------------------------
