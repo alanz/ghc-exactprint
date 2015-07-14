@@ -2,7 +2,6 @@
 {-# LANGUAGE RecordWildCards #-}
 module Language.Haskell.GHC.ExactPrint.Utils
   (
-
     srcSpanStartLine
   , srcSpanEndLine
   , srcSpanStartColumn
@@ -27,6 +26,8 @@ module Language.Haskell.GHC.ExactPrint.Utils
 
   , isListComp
 
+  , orderByKey
+
   , showGhc
   , showAnnData
 
@@ -46,7 +47,8 @@ module Language.Haskell.GHC.ExactPrint.Utils
 import Control.Monad.State
 import Data.Data (Data, toConstr, showConstr, cast)
 import Data.Generics (extQ, ext1Q, ext2Q, gmapQ)
-import Data.List (intercalate)
+import Data.List (intercalate, sortBy, elemIndex)
+import Data.Ord (comparing)
 import Data.Functor (($>))
 
 import Language.Haskell.GHC.ExactPrint.Types
@@ -164,6 +166,18 @@ span2ss ((sr,sc),(er,ec)) = l
 
 isPointSrcSpan :: GHC.SrcSpan -> Bool
 isPointSrcSpan ss = s == e where (s,e) = ss2span ss
+
+-- ---------------------------------------------------------------------
+
+-- |Given a list of items and their SrcSpan, return a list of items arranged as
+-- per the sortkey.
+orderByKey :: [(GHC.SrcSpan,a)] -> [GHC.SrcSpan] -> [a]
+orderByKey keys order
+    -- AZ:TODO: if performance becomes a problem, consider a Map of the order
+    -- SrcSpan to an index, and do a lookup instead of elemIndex.
+
+    -- Items not in the ordering are placed to the start
+ = map snd (sortBy (comparing (flip elemIndex order . fst)) keys)
 
 -- ---------------------------------------------------------------------
 

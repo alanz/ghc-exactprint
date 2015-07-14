@@ -18,7 +18,7 @@ module Language.Haskell.GHC.ExactPrint.Print
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Internal.Types
-import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta, ghead )
+import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta, ghead, orderByKey )
 import Language.Haskell.GHC.ExactPrint.Annotate
   (AnnotationF(..), Annotated, Annotate(..), annotate)
 import Language.Haskell.GHC.ExactPrint.Lookup (keywordToString, unicodeString)
@@ -173,21 +173,13 @@ withSortKey xs = do
   Ann{..} <- asks epAnn
   let ordered = case annSortKey of
                   Nothing   -> map snd xs
-                  Just keys -> match xs keys
+                  Just keys -> orderByKey xs keys
                                 `debug` ("withSortKey:" ++
                                          showGhc (map fst (sortBy (comparing (flip elemIndex keys . fst)) xs),
                                                  map fst xs,
                                                  keys)
                                          )
   mapM_ printInterpret ordered
-  where
-    -- AZ:TODO: if performance becomes a problem, consider a Map of the order
-    -- SrcSpan to an index, and do a lookup instead of elemIndex.
-
-    -- Items not in the ordering are placed to the start
-    match :: [(GHC.SrcSpan, Annotated ())] -> [GHC.SrcSpan] -> [Annotated ()]
-    match keys order =
-       map snd (sortBy (comparing (flip elemIndex order . fst)) keys)
 
 -------------------------------------------------------------------------
 
