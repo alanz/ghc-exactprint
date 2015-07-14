@@ -23,6 +23,8 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , pushDeclAnnT
         , decl2BindT,decl2SigT
 
+        , getEntryDPT
+
 
         -- * Operations
         , isUniqueSrcSpan
@@ -51,6 +53,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , setLocatedAnns
         , setPrecedingLinesDecl
         , setPrecedingLines
+        , getEntryDP
 
         ) where
 
@@ -266,6 +269,13 @@ decl2SigT _ = return []
 
 -- ---------------------------------------------------------------------
 
+getEntryDPT :: (Data a) => GHC.Located a -> Transform DeltaPos
+getEntryDPT ast = do
+  anns <- getAnnsT
+  return (getEntryDP anns ast)
+
+-- ---------------------------------------------------------------------
+
 mkAnnKeyDecl :: GHC.LHsDecl GHC.RdrName -> AnnKey
 mkAnnKeyDecl ld@(GHC.L l d) =
   case d of
@@ -366,6 +376,14 @@ setPrecedingLines anne ast n c =
                                 , annTrueEntryDelta = (DP (n,c))  })
     go (Just a) = Just (a { annEntryDelta     = DP (n, c)
                              , annTrueEntryDelta = DP (1,0) })
+
+-- ---------------------------------------------------------------------
+
+getEntryDP :: (Data a) => Anns -> GHC.Located a -> DeltaPos
+getEntryDP (Anns anns) ast =
+  case Map.lookup (mkAnnKey ast) anns of
+    Nothing  -> DP (0,0)
+    Just ann -> annTrueEntryDelta ann
 
 -- ---------------------------------------------------------------------
 
