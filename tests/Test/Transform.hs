@@ -12,9 +12,7 @@ import Language.Haskell.GHC.ExactPrint.Parsers
 import GHC.Paths ( libdir )
 
 import qualified Bag            as GHC
-import qualified BasicTypes     as GHC
 import qualified DynFlags       as GHC
-import qualified FastString     as GHC
 import qualified GHC            as GHC
 import qualified OccName        as GHC
 import qualified RdrName        as GHC
@@ -24,14 +22,9 @@ import qualified Data.Generics as SYB
 import qualified GHC.SYB.Utils as SYB
 
 import Control.Monad
-import System.Directory
 import System.FilePath
 import System.IO
-import System.Exit
 import qualified Data.Map as Map
-
-import Data.List
-import Data.Maybe
 
 import System.IO.Silently
 
@@ -39,6 +32,7 @@ import Test.Common
 
 import Test.HUnit
 
+transformTests :: [Test]
 transformTests = [
    mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
   , mkTestModChange changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
@@ -71,10 +65,10 @@ type Changer = (Anns -> GHC.ParsedSource -> IO (Anns,GHC.ParsedSource))
 changeWhereIn3a :: Changer
 changeWhereIn3a ans (GHC.L l p) = do
   let decls = GHC.hsmodDecls p
-      s @(GHC.L ls (GHC.SigD sig))    = head $ drop 1 decls
-      d1@(GHC.L ld1 (GHC.ValD decl1)) = head $ drop 2 decls
-      d2@(GHC.L ld2 (GHC.ValD decl2)) = head $ drop 3 decls
-  let (p1,(ans',_),_w) = runTransform ans (balanceComments d1 d2)
+         -- (GHC.L _ (GHC.SigD sig))    = head $ drop 1 decls
+      d1 = head $ drop 2 decls
+      d2 = head $ drop 3 decls
+  let (_p1,(ans',_),_w) = runTransform ans (balanceComments d1 d2)
   let p2 = p { GHC.hsmodDecls = d2:d1:decls}
   return (ans',GHC.L l p2)
 

@@ -26,7 +26,7 @@ import qualified SrcLoc         as GHC
 
 import qualified Data.Map as Map
 
-import Debug.Trace
+-- import Debug.Trace
 
 
 -- ---------------------------------------------------------------------

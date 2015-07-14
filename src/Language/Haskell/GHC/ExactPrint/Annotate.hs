@@ -32,7 +32,6 @@ import qualified ForeignCall    as GHC
 import qualified GHC            as GHC
 import qualified OccName        as GHC
 import qualified Outputable     as GHC
-import qualified SrcLoc         as GHC
 
 import Control.Monad.Trans.Free
 import Control.Monad.Free.TH (makeFreeCon)
@@ -1561,7 +1560,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST l (GHC.HsOverLit ov)     = markAST l ov
   markAST l (GHC.HsLit lit)           = markAST l lit
 
-  markAST l (GHC.HsLam match)       = do
+  markAST _ (GHC.HsLam match)       = do
     mark GHC.AnnLam
     -- TODO: Change this, HsLam binds do not need obey layout rules.
     mapM_ markLocated (GHC.mg_alts match)
@@ -1631,7 +1630,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnIf
     mapM_ markLocated rhs
 
-  markAST l (GHC.HsLet binds e) = do
+  markAST _ (GHC.HsLet binds e) = do
     setLayoutFlag (do -- Make sure the 'in' gets indented too
       mark GHC.AnnLet
       mark GHC.AnnOpenC

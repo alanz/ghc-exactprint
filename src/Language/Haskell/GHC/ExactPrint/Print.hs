@@ -32,7 +32,7 @@ import Data.Maybe (fromMaybe)
 
 import Control.Monad.Trans.Free
 
-import Debug.Trace
+-- import Debug.Trace
 
 
 import qualified GHC

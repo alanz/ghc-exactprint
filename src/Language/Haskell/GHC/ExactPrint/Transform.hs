@@ -386,7 +386,7 @@ balanceComments first second = do
       where
         an1 = gfromJust "balanceComments k1" $ Map.lookup k1 ans
         an2 = gfromJust "balanceComments k2" $ Map.lookup k2 ans
-        cs1b = annPriorComments     an1
+        -- cs1b = annPriorComments     an1
         cs1f = annFollowingComments an1
         cs2b = annPriorComments an2
         (move,stay) = break p cs2b
@@ -394,7 +394,7 @@ balanceComments first second = do
         an2' = an2 { annPriorComments = stay}
         ans' = Map.insert k1 an1' $ Map.insert k2 an2' ans
 
-    simpleBreak (_,DP (r,c)) = r > 0
+    simpleBreak (_,DP (r,_c)) = r > 0
 
   modifyAnnsT (modifyKeywordDeltas (moveComments simpleBreak))
 
