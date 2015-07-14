@@ -124,7 +124,7 @@ isUniqueSrcSpan ss = srcSpanStartLine ss == -1
 -- |Make a copy of an AST element, replacing the existing SrcSpans with new
 -- ones, and duplicating the matching annotations.
 cloneT :: GHC.Located a -> Transform (GHC.Located a)
-cloneT ast = do
+cloneT _ast = do
   error "Transform.cloneT undefined"
 
 -- ---------------------------------------------------------------------
@@ -164,7 +164,7 @@ decl2Bind _                      = []
 -- Crazy. This needs to be set up so that the original annotation is restored
 -- after a pushDeclAnnT call.
 wrapSigT :: GHC.LSig GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
-wrapSigT d@(GHC.L l s) = do
+wrapSigT d@(GHC.L _ s) = do
   newSpan <- uniqueSrcSpanT
   let
     f (Anns ans) = case Map.lookup (mkAnnKey d) ans of
@@ -180,7 +180,7 @@ wrapSigT d@(GHC.L l s) = do
 -- Crazy. This needs to be set up so that the original annotation is restored
 -- after a pushDeclAnnT call.
 wrapDeclT :: GHC.LHsBind GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
-wrapDeclT d@(GHC.L l s) = do
+wrapDeclT d@(GHC.L _ s) = do
   newSpan <- uniqueSrcSpanT
   let
     f (Anns ans) = case Map.lookup (mkAnnKey d) ans of
@@ -238,7 +238,7 @@ pushDeclAnnT ld@(GHC.L l decl) = do
 -- |Unwrap a LHsDecl to its underlying LHsBind, transferring the top level annotation to a
 -- new SrcSpan in the process.
 decl2BindT :: GHC.LHsDecl GHC.RdrName -> Transform [GHC.LHsBind GHC.RdrName]
-decl2BindT vd@(GHC.L l (GHC.ValD d)) = do
+decl2BindT vd@(GHC.L _ (GHC.ValD d)) = do
   newSpan <- uniqueSrcSpanT
   logTr $ "decl2BindT:newSpan=" ++ showGhc newSpan
   let
@@ -255,7 +255,7 @@ decl2BindT _ = return []
 -- |Unwrap a LHsDecl to its underlying LSig, transferring the top level annotation to a
 -- new SrcSpan in the process.
 decl2SigT :: GHC.LHsDecl GHC.RdrName -> Transform [GHC.LSig GHC.RdrName]
-decl2SigT vs@(GHC.L l (GHC.SigD s)) = do
+decl2SigT vs@(GHC.L _ (GHC.SigD s)) = do
   newSpan <- uniqueSrcSpanT
   logTr $ "decl2SigT:newSpan=" ++ showGhc newSpan
   let
@@ -277,25 +277,7 @@ getEntryDPT ast = do
 -- ---------------------------------------------------------------------
 
 mkAnnKeyDecl :: GHC.LHsDecl GHC.RdrName -> AnnKey
-mkAnnKeyDecl ld@(GHC.L l d) =
-  case d of
-      GHC.TyClD d       -> mkAnnKey (GHC.L l d)
-      GHC.InstD d       -> mkAnnKey (GHC.L l d)
-      GHC.DerivD d      -> mkAnnKey (GHC.L l d)
-      GHC.ValD d        -> mkAnnKey (GHC.L l d)
-      GHC.SigD d        -> mkAnnKey (GHC.L l d)
-      GHC.DefD d        -> mkAnnKey (GHC.L l d)
-      GHC.ForD d        -> mkAnnKey (GHC.L l d)
-      GHC.WarningD d    -> mkAnnKey (GHC.L l d)
-      GHC.AnnD d        -> mkAnnKey (GHC.L l d)
-      GHC.RuleD d       -> mkAnnKey (GHC.L l d)
-      GHC.VectD d       -> mkAnnKey (GHC.L l d)
-      GHC.SpliceD d     -> mkAnnKey (GHC.L l d)
-      GHC.DocD d        -> mkAnnKey (GHC.L l d)
-      GHC.RoleAnnotD d  -> mkAnnKey (GHC.L l d)
-#if __GLASGOW_HASKELL__ < 711
-      GHC.QuasiQuoteD d -> mkAnnKey (GHC.L l d)
-#endif
+mkAnnKeyDecl = declFun mkAnnKey
 
 -- ---------------------------------------------------------------------
 
@@ -344,24 +326,28 @@ setAnn as (k, a) =
 
 -- |Unwrap a HsDecl and call setPrecedingLines on it
 setPrecedingLinesDecl :: Anns -> GHC.LHsDecl GHC.RdrName -> Int -> Int -> Anns
-setPrecedingLinesDecl ans ld@(GHC.L l d) n c =
-  case d of
-      GHC.TyClD d       -> setPrecedingLines ans (GHC.L l d) n c
-      GHC.InstD d       -> setPrecedingLines ans (GHC.L l d) n c
-      GHC.DerivD d      -> setPrecedingLines ans (GHC.L l d) n c
-      GHC.ValD d        -> setPrecedingLines ans (GHC.L l d) n c
-      GHC.SigD d        -> setPrecedingLines ans (GHC.L l d) n c
-      GHC.DefD d        -> setPrecedingLines ans (GHC.L l d) n c
-      GHC.ForD d        -> setPrecedingLines ans (GHC.L l d) n c
-      GHC.WarningD d    -> setPrecedingLines ans (GHC.L l d) n c
-      GHC.AnnD d        -> setPrecedingLines ans (GHC.L l d) n c
-      GHC.RuleD d       -> setPrecedingLines ans (GHC.L l d) n c
-      GHC.VectD d       -> setPrecedingLines ans (GHC.L l d) n c
-      GHC.SpliceD d     -> setPrecedingLines ans (GHC.L l d) n c
-      GHC.DocD d        -> setPrecedingLines ans (GHC.L l d) n c
-      GHC.RoleAnnotD d  -> setPrecedingLines ans (GHC.L l d) n c
+setPrecedingLinesDecl ans ld n c =
+  declFun (\a -> setPrecedingLines ans a n c) ld
+
+declFun :: (forall a . Data a => GHC.Located a -> b) -> GHC.LHsDecl GHC.RdrName -> b
+declFun f (GHC.L l de) =
+  case de of
+      GHC.TyClD d       -> f (GHC.L l d)
+      GHC.InstD d       -> f (GHC.L l d)
+      GHC.DerivD d      -> f (GHC.L l d)
+      GHC.ValD d        -> f (GHC.L l d)
+      GHC.SigD d        -> f (GHC.L l d)
+      GHC.DefD d        -> f (GHC.L l d)
+      GHC.ForD d        -> f (GHC.L l d)
+      GHC.WarningD d    -> f (GHC.L l d)
+      GHC.AnnD d        -> f (GHC.L l d)
+      GHC.RuleD d       -> f (GHC.L l d)
+      GHC.VectD d       -> f (GHC.L l d)
+      GHC.SpliceD d     -> f (GHC.L l d)
+      GHC.DocD d        -> f (GHC.L l d)
+      GHC.RoleAnnotD d  -> f (GHC.L l d)
 #if __GLASGOW_HASKELL__ < 711
-      GHC.QuasiQuoteD d -> setPrecedingLines ans (GHC.L l d) n c
+      GHC.QuasiQuoteD d -> f (GHC.L l d)
 #endif
 
 -- ---------------------------------------------------------------------
