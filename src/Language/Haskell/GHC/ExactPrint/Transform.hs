@@ -201,7 +201,6 @@ pushDeclAnnT ld@(GHC.L l decl) = do
     blend ann Nothing = ann
     blend ann (Just annd)
       = annd { annEntryDelta        = annEntryDelta ann
-             , annTrueEntryDelta    = annTrueEntryDelta ann
              , annPriorComments     = annPriorComments     ann  ++ annPriorComments     annd
              , annFollowingComments = annFollowingComments annd ++ annFollowingComments ann
              }
@@ -357,10 +356,8 @@ setPrecedingLines :: (SYB.Data a) => Anns -> GHC.Located a -> Int -> Int -> Anns
 setPrecedingLines anne ast n c =
   modifyKeywordDeltas (Map.alter go (mkAnnKey ast)) anne
   where
-    go Nothing  = Just (annNone { annEntryDelta = (DP (n,c))
-                                , annTrueEntryDelta = (DP (n,c))  })
-    go (Just a) = Just (a { annEntryDelta     = DP (n, c)
-                             , annTrueEntryDelta = DP (1,0) })
+    go Nothing  = Just (annNone { annEntryDelta = (DP (n,c)) })
+    go (Just a) = Just (a { annEntryDelta     = DP (n, c) } )
 
 -- ---------------------------------------------------------------------
 

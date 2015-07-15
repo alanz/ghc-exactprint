@@ -394,7 +394,6 @@ withAST lss@(GHC.L ss _) action = do
     let kds = annKds w
         an = Ann
                { annEntryDelta = edp
-               , annTrueEntryDelta  = edpAST
                , annPriorComments = cs
                , annFollowingComments = [] -- only used in Transform and Print
                , annsDP     = kds
