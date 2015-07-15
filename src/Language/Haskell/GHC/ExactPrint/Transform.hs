@@ -39,6 +39,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , insertAfter
         , insertBefore
         , balanceComments
+        , balanceTrailingComments
 
         -- * Managing decls
         , wrapDecl
@@ -404,6 +405,42 @@ balanceComments first second = do
 
 -- ---------------------------------------------------------------------
 
+-- |After moving an AST element, make sure any comments that may belong
+-- with the following element in fact do. Of necessity this is a heuristic
+-- process, to be tuned later. Possibly a variant should be provided with a
+-- passed-in decision function.
+balanceTrailingComments :: (Data a,Data b) => GHC.Located a -> GHC.Located b -> Transform [(DComment, DeltaPos)]
+balanceTrailingComments first second = do
+  let
+    k1 = mkAnnKey first
+    k2 = mkAnnKey second
+    moveComments p ans = (ans',move)
+      where
+        an1 = gfromJust "balanceTrailingComments k1" $ Map.lookup k1 ans
+        an2 = gfromJust "balanceTrailingComments k2" $ Map.lookup k2 ans
+        cs1b = annPriorComments     an1
+        cs1f = annFollowingComments an1
+        cs2b = annPriorComments     an2
+        cs2f = annFollowingComments an2
+        (move,stay) = break p cs1f
+        an1' = an1 { annFollowingComments = stay }
+        an2' = an2 -- { annPriorComments = move ++ cs2b }
+        -- an1' = an1 { annFollowingComments = [] }
+        -- an2' = an2 { annPriorComments = cs1f ++ cs2b }
+        ans' = Map.insert k1 an1' $ Map.insert k2 an2' ans
+        -- ans' = error $ "balanceTrailingComments:(k1,k2)=" ++ showGhc (k1,k2)
+        -- ans' = error $ "balanceTrailingComments:(cs1b,cs1f,cs2b,annFollowingComments an2)=" ++ showGhc (cs1b,cs1f,cs2b,annFollowingComments an2)
+
+    simpleBreak (_,DP (r,_c)) = r > 0
+
+  -- modifyAnnsT (modifyKeywordDeltas (moveComments simpleBreak))
+  Anns ans <- getAnnsT
+  let (ans',mov) = moveComments simpleBreak ans
+  putAnnsT (Anns ans')
+  return mov
+
+-- ---------------------------------------------------------------------
+
 insertAt :: (Data ast, HasDecls (GHC.Located ast))
               => (GHC.SrcSpan -> [GHC.SrcSpan] -> [GHC.SrcSpan])
               -> GHC.Located ast
@@ -502,7 +539,7 @@ instance HasDecls (GHC.MatchGroup GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 
   replaceDecls (GHC.MG matches a r o) newDecls
     = do
-        matches' <- (replaceDecls matches newDecls)
+        matches' <- replaceDecls matches newDecls
         return (GHC.MG matches' a r o)
 
 -- ---------------------------------------------------------------------
@@ -516,7 +553,7 @@ instance HasDecls [GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)] where
   replaceDecls ms newDecls
     = do
         -- ++AZ++: TODO: this one looks dodgy
-        m' <- (replaceDecls (ghead "replaceDecls" ms) newDecls)
+        m' <- replaceDecls (ghead "replaceDecls" ms) newDecls
         return (m':tail ms)
 
 -- ---------------------------------------------------------------------
@@ -561,7 +598,7 @@ instance HasDecls (GHC.GRHSs GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 
   replaceDecls (GHC.GRHSs rhss b) new
     = do
-        b' <- (replaceDecls b new)
+        b' <- replaceDecls b new
         return (GHC.GRHSs rhss b')
 
 -- ---------------------------------------------------------------------
@@ -605,9 +642,9 @@ instance HasDecls (GHC.LHsExpr GHC.RdrName) where
 
   replaceDecls (GHC.L l (GHC.HsLet decls ex)) newDecls
     = do
-        decls' <- (replaceDecls decls newDecls)
+        decls' <- replaceDecls decls newDecls
         return (GHC.L l (GHC.HsLet decls' ex))
-  replaceDecls old _new = error $ "replaceDecls (GHC.LHsExpr GHC.RdrName) undefined for:" ++ (showGhc old)
+  replaceDecls old _new = error $ "replaceDecls (GHC.LHsExpr GHC.RdrName) undefined for:" ++ showGhc old
 
 -- ---------------------------------------------------------------------
 
@@ -634,21 +671,28 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
   hsDecls (GHC.L _ (GHC.PatSynBind _))      = error "hsDecls: PatSynBind to implement"
 
 
-  replaceDecls (GHC.L l (GHC.FunBind a b matches c d e)) newDecls
+  replaceDecls fb@(GHC.L l fn@(GHC.FunBind a b (GHC.MG matches f g h) c d e)) newDecls
     = do
-        matches' <- (replaceDecls matches newDecls)
-        return (GHC.L l (GHC.FunBind a b matches' c d e))
+        matches' <- replaceDecls matches newDecls
+        case matches' of
+          [] -> return ()
+          ms -> do
+            toMove <- balanceTrailingComments (GHC.L l (GHC.ValD fn)) (last matches')
+            -- error $ "replaceDecls:toMove=" ++ showGhc toMove
+            insertCommentBefore (mkAnnKey $ last ms) toMove (matchApiAnn GHC.AnnWhere)
+        return (GHC.L l (GHC.FunBind a b (GHC.MG matches' f g h) c d e))
+
   replaceDecls (GHC.L l (GHC.PatBind a rhs b c d)) newDecls
     = do
-        rhs' <- (replaceDecls rhs newDecls)
+        rhs' <- replaceDecls rhs newDecls
         return (GHC.L l (GHC.PatBind a rhs' b c d))
   replaceDecls (GHC.L l (GHC.VarBind a rhs b)) newDecls
     = do
-        rhs' <- (replaceDecls rhs newDecls)
+        rhs' <- replaceDecls rhs newDecls
         return (GHC.L l (GHC.VarBind a rhs' b))
   replaceDecls (GHC.L l (GHC.AbsBinds a b c d binds)) newDecls
     = do
-        binds' <- (replaceDecls binds newDecls)
+        binds' <- replaceDecls binds newDecls
         return (GHC.L l (GHC.AbsBinds a b c d binds'))
   replaceDecls (GHC.L _ (GHC.PatSynBind _)) _ = error "replaceDecls: PatSynBind to implement"
 
@@ -667,3 +711,29 @@ instance HasDecls (GHC.LHsDecl GHC.RdrName) where
   --   return (GHC.L l1 (GHC.SigD d1))
   replaceDecls _d _  = error $ "LHsDecl.replaceDecls:not implemented"
 
+-- ---------------------------------------------------------------------
+
+matchApiAnn :: GHC.AnnKeywordId -> (KeywordId,DeltaPos) -> Bool
+matchApiAnn mkw (kw,_)
+  = case kw of
+     (G akw) -> mkw == akw
+     _       -> False
+
+
+-- We comments extracted from annPriorComments or annFollowingComments, which
+-- need to move to just before the item identified by the predicate, if it
+-- fires, else at the end of the annotations.
+insertCommentBefore :: AnnKey -> [(DComment, DeltaPos)]
+                    -> ((KeywordId, DeltaPos) -> Bool) -> Transform ()
+insertCommentBefore key toMove p = do
+  let
+    doInsert ans =
+      case Map.lookup key ans of
+        Nothing -> error $ "insertCommentBefore:no AnnKey for:" ++ showGhc key
+        Just ann -> Map.insert key ann' ans
+          where
+            (before,after) = break p (annsDP ann)
+            -- ann' = error $ "insertCommentBefore:" ++ showGhc (before,after)
+            ann' = ann { annsDP = before ++ (map comment2dp toMove) ++ after}
+
+  modifyKeywordDeltasT doInsert

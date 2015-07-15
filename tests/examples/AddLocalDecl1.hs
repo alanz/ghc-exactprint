@@ -4,4 +4,6 @@ module AddLocalDecl1 where
 foo = x -- comment1
 
 -- |Another fun
-x = 3
+x = a -- comment2
+  where
+    a = 3

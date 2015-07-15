@@ -556,6 +556,7 @@ addLocaLDecl1 ans lp@(GHC.L l p) = do
          let parent = head tlDecs
          decls <- hsDecls parent
          modifyAnnsT (\ans -> setPrecedingLines ans newDecl 1 4)
+         balanceComments parent (head $ tail tlDecs)
          parent' <- replaceDecls parent (newDecl:decls)
          replaceDecls lp (parent':tail tlDecs)
 

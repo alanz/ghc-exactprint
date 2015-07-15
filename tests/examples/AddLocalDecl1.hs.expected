@@ -6,4 +6,6 @@ foo = x -- comment1
     nn = 2
 
 -- |Another fun
-x = 3
+x = a -- comment2
+  where
+    a = 3
