@@ -15,9 +15,13 @@ module Language.Haskell.GHC.ExactPrint.Annotate
        , Annotated
        , Annotate(..)) where
 
-import Data.List ( sort, sortBy )
 import Data.Maybe ( fromMaybe )
+#if __GLASGOW_HASKELL__ <= 710
 import Data.Ord ( comparing )
+import Data.List ( sort, sortBy )
+#else
+import Data.List ( sort )
+#endif
 
 import Language.Haskell.GHC.ExactPrint.Internal.Types
 import Language.Haskell.GHC.ExactPrint.Utils
@@ -184,8 +188,6 @@ applyListAnnotations ls = withSortKey ls
 lexicalSortLocated :: [GHC.Located a] -> [GHC.Located a]
 lexicalSortLocated = sortBy (comparing GHC.getLoc)
 #endif
-lexicalSortSrcSpans :: [GHC.SrcSpan] -> Annotated [GHC.SrcSpan]
-lexicalSortSrcSpans ls = return $ sort ls
 
 -- ---------------------------------------------------------------------
 
