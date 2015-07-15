@@ -104,16 +104,13 @@ instance Show ColDelta where
   show (ColDelta v) = "(ColDelta " ++ show v ++ ")"
 
 annNone :: Annotation
-annNone = Ann (DP (0,0)) 0  (DP (0,0)) [] [] [] Nothing Nothing
+annNone = Ann (DP (0,0)) (DP (0,0)) [] [] [] Nothing Nothing
 
 data Annotation = Ann
   {
     annEntryDelta      :: !DeltaPos
     -- ^ Offset used to get to the start of the SrcSpan, from whatever the prior
     -- output was, including all annPriorComments (field below).
-  , annDelta           :: !ColDelta
-    -- ^ Offset from the start of the current layout block. This is used when
-    -- moving onto new lines when layout rules must be obeyed.
   , annTrueEntryDelta  :: !DeltaPos
     -- ^ Offset from the previous SrcSpan, ignoring whitespace output such as
     -- comments. This is required for managing the annDelta for nested AST
@@ -148,8 +145,8 @@ data Annotation = Ann
   } deriving (Typeable,Eq)
 
 instance Show Annotation where
-  show (Ann dp c comments fcomments toStart ans sk csp)
-    = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ show comments ++ " "
+  show (Ann dp comments fcomments toStart ans sk csp)
+    = "(Ann (" ++ show dp ++ ") " ++ show comments ++ " "
         ++ show fcomments ++ " "
         ++ show toStart ++ " " ++ show ans ++ " " ++ showGhc sk ++ " "
         ++ showGhc csp ++ ")"

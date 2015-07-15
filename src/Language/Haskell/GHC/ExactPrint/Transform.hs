@@ -47,7 +47,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , mkAnnKeyDecl
 
         -- * Other
-        , adjustAnnOffset
+--        , adjustAnnOffset
         , mergeAnns
         , mergeAnnList
         , setLocatedAnns
@@ -201,7 +201,6 @@ pushDeclAnnT ld@(GHC.L l decl) = do
     blend ann Nothing = ann
     blend ann (Just annd)
       = annd { annEntryDelta        = annEntryDelta ann
-             , annDelta             = annDelta ann
              , annTrueEntryDelta    = annTrueEntryDelta ann
              , annPriorComments     = annPriorComments     ann  ++ annPriorComments     annd
              , annFollowingComments = annFollowingComments annd ++ annFollowingComments ann
@@ -281,7 +280,8 @@ mkAnnKeyDecl = declFun mkAnnKey
 
 -- ---------------------------------------------------------------------
 
-adjustAnnOffset :: ColDelta -> Annotation -> Annotation
+{-
+adjustAnnOffset :: Annotation -> Annotation
 adjustAnnOffset (ColDelta cd) a@(Ann{ annEntryDelta=(DP (ro,co)), annDelta=(ColDelta ad), annsDP = kds})
   = a { annDelta = cd', annsDP = kds' }
   where
@@ -295,7 +295,7 @@ adjustAnnOffset (ColDelta cd) a@(Ann{ annEntryDelta=(DP (ro,co)), annDelta=(ColD
         DP (0,c) -> (AnnSpanEntry,DP (0,c))
         DP (r,c) -> (AnnSpanEntry,DP (r, c - cd))
     adjustEntrySpan x = x
-
+-}
 -- ---------------------------------------------------------------------
 
 -- | Left bias pair union
@@ -358,7 +358,6 @@ setPrecedingLines anne ast n c =
   modifyKeywordDeltas (Map.alter go (mkAnnKey ast)) anne
   where
     go Nothing  = Just (annNone { annEntryDelta = (DP (n,c))
-                                , annDelta = (ColDelta c)
                                 , annTrueEntryDelta = (DP (n,c))  })
     go (Just a) = Just (a { annEntryDelta     = DP (n, c)
                              , annTrueEntryDelta = DP (1,0) })
