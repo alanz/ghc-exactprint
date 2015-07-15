@@ -541,7 +541,7 @@ parsedFileGhc fileName _modname useTH = do
 transformHighLevelTests :: [Test]
 transformHighLevelTests =
   [
-    mkTestModChange addLocaLDecl1  "addLocaLDecl1.hs"  "AddLocalDecl1"
+    mkTestModChange addLocaLDecl1  "AddLocalDecl1.hs"  "AddLocalDecl1"
   ]
 
 -- ---------------------------------------------------------------------
