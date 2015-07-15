@@ -33,21 +33,30 @@ import Test.Common
 import Test.HUnit
 
 transformTests :: [Test]
-transformTests = [
-   mkTestModChange changeLayoutLet2 "LayoutLet2.hs" "LayoutLet2"
-  , mkTestModChange changeLayoutLet3 "LayoutLet3.hs" "LayoutLet3"
-  , mkTestModChange changeLayoutLet3 "LayoutLet4.hs" "LayoutLet4"
-  , mkTestModChange changeRename1    "Rename1.hs"    "Main"
-  , mkTestModChange changeLayoutIn1  "LayoutIn1.hs"  "LayoutIn1"
-  , mkTestModChange changeLayoutIn3  "LayoutIn3.hs"  "LayoutIn3"
-  , mkTestModChange changeLayoutIn3  "LayoutIn3a.hs" "LayoutIn3a"
-  , mkTestModChange changeLayoutIn3  "LayoutIn3b.hs" "LayoutIn3b"
-  , mkTestModChange changeLayoutIn4  "LayoutIn4.hs"  "LayoutIn4"
-  , mkTestModChange changeLocToName  "LocToName.hs"  "LocToName"
-  , mkTestModChange changeLetIn1     "LetIn1.hs"     "LetIn1"
-  , mkTestModChange changeWhereIn4   "WhereIn4.hs"   "WhereIn4"
-  , mkTestModChange changeAddDecl    "AddDecl.hs"    "AddDecl"
-  , mkTestModChange changeLocalDecls "LocalDecls.hs" "LocalDecls"
+transformTests =
+  [
+    TestLabel "Low level transformations"
+       (TestList transformLowLevelTests)
+  , TestLabel "High level transformations"
+       (TestList transformHighLevelTests)
+  ]
+
+transformLowLevelTests :: [Test]
+transformLowLevelTests = [
+    mkTestModChange changeLayoutLet2  "LayoutLet2.hs"  "LayoutLet2"
+  , mkTestModChange changeLayoutLet3  "LayoutLet3.hs"  "LayoutLet3"
+  , mkTestModChange changeLayoutLet3  "LayoutLet4.hs"  "LayoutLet4"
+  , mkTestModChange changeRename1     "Rename1.hs"     "Main"
+  , mkTestModChange changeLayoutIn1   "LayoutIn1.hs"   "LayoutIn1"
+  , mkTestModChange changeLayoutIn3   "LayoutIn3.hs"   "LayoutIn3"
+  , mkTestModChange changeLayoutIn3   "LayoutIn3a.hs"  "LayoutIn3a"
+  , mkTestModChange changeLayoutIn3   "LayoutIn3b.hs"  "LayoutIn3b"
+  , mkTestModChange changeLayoutIn4   "LayoutIn4.hs"   "LayoutIn4"
+  , mkTestModChange changeLocToName   "LocToName.hs"   "LocToName"
+  , mkTestModChange changeLetIn1      "LetIn1.hs"      "LetIn1"
+  , mkTestModChange changeWhereIn4    "WhereIn4.hs"    "WhereIn4"
+  , mkTestModChange changeAddDecl     "AddDecl.hs"     "AddDecl"
+  , mkTestModChange changeLocalDecls  "LocalDecls.hs"  "LocalDecls"
   , mkTestModChange changeLocalDecls2 "LocalDecls2.hs" "LocalDecls2"
   , mkTestModChange changeWhereIn3a   "WhereIn3a.hs"   "WhereIn3a"
 --  , mkTestModChange changeCifToCase  "C.hs"          "C"
@@ -526,3 +535,29 @@ parsedFileGhc fileName _modname useTH = do
         let anns = GHC.pm_annotations p
         -- GHC.liftIO $ putStrLn $ "anns"
         return (anns,p,cppComments)
+
+-- ---------------------------------------------------------------------
+
+transformHighLevelTests :: [Test]
+transformHighLevelTests =
+  [
+    mkTestModChange addLocaLDecl1  "addLocaLDecl1.hs"  "AddLocalDecl1"
+  ]
+
+-- ---------------------------------------------------------------------
+
+addLocaLDecl1 :: Changer
+addLocaLDecl1 ans lp@(GHC.L l p) = do
+  Right (declAnns, newDecl@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
+  let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
+
+      doAddLocal = do
+         tlDecs <- hsDecls lp
+         let parent = head tlDecs
+         decls <- hsDecls parent
+         modifyAnnsT (\ans -> setPrecedingLines ans newDecl 1 4)
+         parent' <- replaceDecls parent (newDecl:decls)
+         replaceDecls lp (parent':tail tlDecs)
+
+  let (lp',(ans',_),_w) = runTransform ans doAddLocal
+  return (mergeAnnList [declAnns',ans'],lp')

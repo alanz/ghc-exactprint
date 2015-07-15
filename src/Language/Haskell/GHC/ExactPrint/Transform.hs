@@ -67,8 +67,8 @@ import Data.List
 import qualified Bag           as GHC
 import qualified FastString    as GHC
 import qualified GHC           as GHC hiding (parseModule)
-import qualified Outputable    as GHC
-import qualified SrcLoc        as GHC
+-- import qualified Outputable    as GHC
+-- import qualified SrcLoc        as GHC
 
 import qualified Data.Generics as SYB
 
@@ -135,12 +135,12 @@ cloneT _ast = do
 
 -- |If a list has been re-ordered or had items added, capture the new order in
 -- the appropriate SortKeys.
-captureOrder :: (Data a,Data b) => GHC.Located a -> [GHC.Located b] -> Anns -> Anns
+captureOrder :: (Data a) => GHC.Located a -> [GHC.Located b] -> Anns -> Anns
 captureOrder parent ls ans = captureOrderAnnKey (mkAnnKey parent) ls ans
 
 -- |If a list has been re-ordered or had items added, capture the new order in
 -- the appropriate SortKeys.
-captureOrderAnnKey :: (Data b) => AnnKey -> [GHC.Located b] -> Anns -> Anns
+captureOrderAnnKey :: AnnKey -> [GHC.Located b] -> Anns -> Anns
 captureOrderAnnKey parentKey ls ans = ans'
   where
     newList = map GHC.getLoc ls
@@ -289,9 +289,9 @@ adjustAnnOffset :: ColDelta -> Annotation -> Annotation
 adjustAnnOffset (ColDelta cd) a@(Ann{ annEntryDelta=(DP (ro,co)), annDelta=(ColDelta ad), annsDP = kds})
   = a { annDelta = cd', annsDP = kds' }
   where
-    edp = case ro of
-      0 -> DP (ro,co)
-      _ -> DP (ro,co - cd)
+    -- edp = case ro of
+    --   0 -> DP (ro,co)
+    --   _ -> DP (ro,co - cd)
     cd' = ColDelta (ad - cd)
     kds' = fmap adjustEntrySpan kds
     adjustEntrySpan (AnnSpanEntry,dp) =
@@ -426,7 +426,7 @@ insertAtStart, insertAtEnd :: (Data ast, HasDecls (GHC.Located ast))
 insertAtStart = insertAt (:)
 insertAtEnd   = insertAt (\x xs -> xs ++ [x])
 
-insertAfter, insertBefore :: (Data old, Data ast, HasDecls (GHC.Located ast))
+insertAfter, insertBefore :: (Data ast, HasDecls (GHC.Located ast))
                           => GHC.Located old
                           -> GHC.Located ast
                           -> GHC.LHsDecl GHC.RdrName
@@ -471,7 +471,9 @@ instance HasDecls (GHC.HsModule GHC.RdrName) where
   hsDecls m = GHC.hsmodDecls m
   replaceDecls m ds = m { GHC.hsmodDecls = ds }
 -}
--- TODO: Move this class to ghc-exactprint Transform module
+
+-- ---------------------------------------------------------------------
+
 class (Data t) => HasDecls t where
 
     -- | Return the HsDecls that are directly enclosed in the
@@ -520,7 +522,7 @@ instance HasDecls [GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)] where
 -- ---------------------------------------------------------------------
 
 instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
-  hsDecls (GHC.L l (GHC.Match _ _ _ grhs)) = hsDecls grhs
+  hsDecls (GHC.L _ (GHC.Match _ _ _ grhs)) = hsDecls grhs
 
   replaceDecls m@(GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds))) newBinds
     = do
@@ -663,5 +665,5 @@ instance HasDecls (GHC.LHsDecl GHC.RdrName) where
   -- replaceDecls (GHC.L l (GHC.SigD d)) newDecls = do
   --   (GHC.L l1 d1) <- replaceDecls (GHC.L l d) newDecls
   --   return (GHC.L l1 (GHC.SigD d1))
-  replaceDecls d _  = error $ "LHsDecl.replaceDecls:not implemented"
+  replaceDecls _d _  = error $ "LHsDecl.replaceDecls:not implemented"
 
