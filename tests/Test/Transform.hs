@@ -542,12 +542,13 @@ transformHighLevelTests :: [Test]
 transformHighLevelTests =
   [
     mkTestModChange addLocaLDecl1  "AddLocalDecl1.hs"  "AddLocalDecl1"
+  , mkTestModChange addLocaLDecl2  "AddLocalDecl2.hs"  "AddLocalDecl2"
   ]
 
 -- ---------------------------------------------------------------------
 
 addLocaLDecl1 :: Changer
-addLocaLDecl1 ans lp@(GHC.L l p) = do
+addLocaLDecl1 ans lp = do
   Right (declAnns, newDecl@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
 
@@ -555,10 +556,36 @@ addLocaLDecl1 ans lp@(GHC.L l p) = do
          tlDecs <- hsDecls lp
          let parent = head tlDecs
          decls <- hsDecls parent
-         modifyAnnsT (\ans -> setPrecedingLines ans newDecl 1 4)
          balanceComments parent (head $ tail tlDecs)
+
+         modifyAnnsT (\ans1 -> setPrecedingLines ans1 newDecl 1 4)
+
          parent' <- replaceDecls parent (newDecl:decls)
          replaceDecls lp (parent':tail tlDecs)
 
   let (lp',(ans',_),_w) = runTransform ans doAddLocal
   return (mergeAnnList [declAnns',ans'],lp')
+
+-- ---------------------------------------------------------------------
+
+addLocaLDecl2 :: Changer
+addLocaLDecl2 ans lp = do
+  Right (declAnns, newDecl@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
+  let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
+
+      doAddLocal = do
+         tlDecs <- hsDecls lp
+         let parent = head tlDecs
+         decls <- hsDecls parent
+         balanceComments parent (head $ tail tlDecs)
+
+         DP (r,c) <- getEntryDPT (head decls)
+         modifyAnnsT (\ans1 -> setPrecedingLines ans1 newDecl r c)
+         modifyAnnsT (\ans1 -> setPrecedingLines ans1 (head decls) 1 0)
+
+         parent' <- replaceDecls parent (newDecl:decls)
+         replaceDecls lp (parent':tail tlDecs)
+
+  let (lp',(ans',_),_w) = runTransform ans doAddLocal
+  return (mergeAnnList [declAnns',ans'],lp')
+
