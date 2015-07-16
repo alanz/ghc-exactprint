@@ -406,7 +406,7 @@ instance Annotate GHC.Name where
 
 instance (GHC.DataId name,Annotate name)
   => Annotate (GHC.ImportDecl name) where
- markAST _ imp@(GHC.ImportDecl msrc (GHC.L ln _) mpkg src safeflag _qual _impl _as hiding) = do
+ markAST _ imp@(GHC.ImportDecl msrc modname mpkg src safeflag _qual _impl _as hiding) = do
 
    -- 'import' maybe_src maybe_safe optqualified maybe_pkg modid maybeas maybeimpspec
    mark GHC.AnnImport
@@ -424,7 +424,7 @@ instance (GHC.DataId name,Annotate name)
     Just (srcPkg,_pkg) -> markWithString GHC.AnnPackageName srcPkg
 #endif
 
-   markExternal ln GHC.AnnVal (GHC.moduleNameString $ GHC.unLoc $ GHC.ideclName imp)
+   markLocated modname
 
    case GHC.ideclAs imp of
       Nothing -> return ()
@@ -440,6 +440,9 @@ instance (GHC.DataId name,Annotate name)
    markOutside (GHC.AnnSemi) (G GHC.AnnSemi)
 
 -- ---------------------------------------------------------------------
+instance Annotate GHC.ModuleName where
+   markAST l mname =
+    markExternal l GHC.AnnVal (GHC.moduleNameString mname)
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsDecl name) where
