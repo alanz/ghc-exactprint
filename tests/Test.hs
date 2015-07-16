@@ -462,7 +462,7 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFnameMod changeWhereIn3a "WhereIn3a.hs" "WhereIn3a"
     -- , manipulateAstTestWFname "Imports.hs"              "Imports"
     , manipulateAstTestWFname "T10196.hs"               "T10196"
-    -- , manipulateAstTestWFnameMod addLocaLDecl1 "AddLocalDecl1.hs" "AddLocaLDecl1"
+    , manipulateAstTestWFnameMod addLocaLDecl1 "AddLocalDecl1.hs" "AddLocaLDecl1"
     , manipulateAstTestWFnameMod addLocaLDecl2 "AddLocalDecl2.hs" "AddLocaLDecl2"
     {-
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"

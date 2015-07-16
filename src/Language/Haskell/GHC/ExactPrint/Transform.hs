@@ -675,11 +675,15 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
     = do
         matches' <- replaceDecls matches newDecls
         case matches' of
-          [] -> return ()
+          [] -> return () -- Should be impossible
           ms -> do
-            toMove <- balanceTrailingComments (GHC.L l (GHC.ValD fn)) (last matches')
-            -- error $ "replaceDecls:toMove=" ++ showGhc toMove
-            insertCommentBefore (mkAnnKey $ last ms) toMove (matchApiAnn GHC.AnnWhere)
+            case (GHC.grhssLocalBinds $ GHC.m_grhss $ GHC.unLoc $ last matches) of
+              GHC.EmptyLocalBinds -> do
+                -- only move the comment if the original where clause was empty.
+                toMove <- balanceTrailingComments (GHC.L l (GHC.ValD fn)) (last matches')
+                -- error $ "replaceDecls:toMove=" ++ showGhc toMove
+                insertCommentBefore (mkAnnKey $ last ms) toMove (matchApiAnn GHC.AnnWhere)
+              _ -> return ()
         return (GHC.L l (GHC.FunBind a b (GHC.MG matches' f g h) c d e))
 
   replaceDecls (GHC.L l (GHC.PatBind a rhs b c d)) newDecls
