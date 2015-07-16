@@ -40,6 +40,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , insertBefore
         , balanceComments
         , balanceTrailingComments
+        , moveTrailingComments
 
         -- * Managing decls
         , wrapDecl
@@ -441,6 +442,28 @@ balanceTrailingComments first second = do
 
 -- ---------------------------------------------------------------------
 
+moveTrailingComments :: (Data a,Data b)
+                     => GHC.Located a -> GHC.Located b -> Transform ()
+moveTrailingComments first second = do
+  let
+    k1 = mkAnnKey first
+    k2 = mkAnnKey second
+    moveComments ans = ans'
+      where
+        an1 = gfromJust "moveTrailingComments k1" $ Map.lookup k1 ans
+        an2 = gfromJust "moveTrailingComments k2" $ Map.lookup k2 ans
+        cs1f = annFollowingComments an1
+        cs2f = annFollowingComments an2
+        an1' = an1 { annFollowingComments = [] }
+        an2' = an2 { annFollowingComments = cs1f ++ cs2f }
+        ans' = Map.insert k1 an1' $ Map.insert k2 an2' ans
+
+  Anns ans <- getAnnsT
+  let ans' = moveComments ans
+  putAnnsT (Anns ans')
+
+-- ---------------------------------------------------------------------
+
 insertAt :: (Data ast, HasDecls (GHC.Located ast))
               => (GHC.SrcSpan -> [GHC.SrcSpan] -> [GHC.SrcSpan])
               -> GHC.Located ast
@@ -681,8 +704,11 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
               GHC.EmptyLocalBinds -> do
                 -- only move the comment if the original where clause was empty.
                 toMove <- balanceTrailingComments (GHC.L l (GHC.ValD fn)) (last matches')
-                -- error $ "replaceDecls:toMove=" ++ showGhc toMove
                 insertCommentBefore (mkAnnKey $ last ms) toMove (matchApiAnn GHC.AnnWhere)
+              lbs -> do
+                decs <- hsDecls lbs
+                -- balanceComments (GHC.L l (GHC.ValD fn)) (last decs)
+                balanceComments (last decs) (GHC.L l (GHC.ValD fn))
               _ -> return ()
         return (GHC.L l (GHC.FunBind a b (GHC.MG matches' f g h) c d e))
 

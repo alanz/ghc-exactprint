@@ -543,6 +543,7 @@ transformHighLevelTests =
   [
     mkTestModChange addLocaLDecl1  "AddLocalDecl1.hs"  "AddLocalDecl1"
   , mkTestModChange addLocaLDecl2  "AddLocalDecl2.hs"  "AddLocalDecl2"
+  , mkTestModChange addLocaLDecl3  "AddLocalDecl3.hs"  "AddLocalDecl3"
   ]
 
 -- ---------------------------------------------------------------------
@@ -584,6 +585,31 @@ addLocaLDecl2 ans lp = do
          modifyAnnsT (\ans1 -> setPrecedingLines ans1 (head decls) 1 0)
 
          parent' <- replaceDecls parent (newDecl:decls)
+         replaceDecls lp (parent':tail tlDecs)
+
+  let (lp',(ans',_),_w) = runTransform ans doAddLocal
+  return (mergeAnnList [declAnns',ans'],lp')
+
+-- ---------------------------------------------------------------------
+
+addLocaLDecl3 :: Changer
+addLocaLDecl3 ans lp = do
+  Right (declAnns, newDecl@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
+  let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
+
+      doAddLocal = do
+         tlDecs <- hsDecls lp
+         let parent = head tlDecs
+         decls <- hsDecls parent
+         balanceComments parent (head $ tail tlDecs)
+
+         -- DP (r,c) <- getEntryDPT (head decls)
+         modifyAnnsT (\ans1 -> setPrecedingLines ans1 newDecl 1 0)
+         -- modifyAnnsT (\ans1 -> setPrecedingLines ans1 (head decls) 1 0)
+
+         -- balanceComments (last decls) newDecl
+         moveTrailingComments parent (last decls)
+         parent' <- replaceDecls parent (decls++[newDecl])
          replaceDecls lp (parent':tail tlDecs)
 
   let (lp',(ans',_),_w) = runTransform ans doAddLocal
