@@ -466,6 +466,8 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFnameMod addLocaLDecl2 "AddLocalDecl2.hs" "AddLocaLDecl2"
     , manipulateAstTestWFnameMod addLocaLDecl3 "AddLocalDecl3.hs" "AddLocaLDecl3"
     , manipulateAstTestWFnameMod rmDecl1       "RmDecl1.hs"       "RmDecl1"
+    -- , manipulateAstTestWFname "RmDecl2.hs"                        "RmDecl2"
+    , manipulateAstTestWFnameMod rmDecl2       "RmDecl2.hs"       "RmDecl2"
     {-
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
     , manipulateAstTestWFname "Foo.hs"                   "Main"

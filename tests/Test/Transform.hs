@@ -546,6 +546,7 @@ transformHighLevelTests =
   , mkTestModChange addLocaLDecl3  "AddLocalDecl3.hs"  "AddLocalDecl3"
 
   , mkTestModChange rmDecl1 "RmDecl1.hs" "RmDecl1"
+  , mkTestModChange rmDecl2 "RmDecl2.hs" "RmDecl2"
   ]
 
 -- ---------------------------------------------------------------------
@@ -618,10 +619,7 @@ addLocaLDecl3 ans lp = do
 
 rmDecl1 :: Changer
 rmDecl1 ans lp = do
-  Right (declAnns, newDecl@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
-  let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
-
-      doAddLocal = do
+  let doRmDecl = do
          tlDecs <- hsDecls lp
          let (d1:s1:d2:ds) = tlDecs
 
@@ -637,7 +635,26 @@ rmDecl1 ans lp = do
          balanceComments s1' (head ds')
          replaceDecls lp (d1':ds')
 
-  let (lp',(ans',_),_w) = runTransform ans doAddLocal
-  return (mergeAnnList [declAnns',ans'],lp')
+  let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  return (ans',lp')
+
+-- ---------------------------------------------------------------------
+
+rmDecl2 :: Changer
+rmDecl2 ans lp = do
+  let
+      doRmDecl = do
+        let
+          go :: GHC.HsExpr GHC.RdrName -> Transform (GHC.HsExpr GHC.RdrName)
+          go (GHC.HsLet lb expr) = do
+            decs <- hsDecls lb
+            lb' <- replaceDecls lb (init decs)
+            return (GHC.HsLet lb' expr)
+          go x = return x
+
+        SYB.everywhereM (SYB.mkM go) lp
+
+  let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  return (ans',lp')
 
 -- ---------------------------------------------------------------------
