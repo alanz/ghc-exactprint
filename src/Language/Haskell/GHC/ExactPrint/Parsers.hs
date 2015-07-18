@@ -122,7 +122,8 @@ catchAny = catch
 
 generateMacroFile :: IO ()
 generateMacroFile = catchAny (writeAutogenFiles "dist/")
-                      (\_ -> putStrLn "Failed to generate macro file")
+                      (\_ -> -- putStrLn "Failed to generate macro file"
+                             return ())
 
 
 parseModule :: FilePath -> IO (Either (GHC.SrcSpan, String) (Anns, (GHC.Located (GHC.HsModule GHC.RdrName))))
