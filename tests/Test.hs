@@ -232,6 +232,7 @@ tests = TestList $
   , mkParserTest "Internals.hs"
   , mkParserTest "Control.hs"
   , mkParserTest "T10196.hs"
+  , mkParserTest "StringGap.hs"
   ]
 
   ++ transformTests
@@ -469,6 +470,7 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFname "RmDecl2.hs"                        "RmDecl2"
     , manipulateAstTestWFnameMod rmDecl2       "RmDecl2.hs"       "RmDecl2"
     , manipulateAstTestWFnameMod rmTypeSig1    "RmTypeSig1.hs"    "RmTypeSig1"
+    , manipulateAstTestWFname "StringGap.hs"                      "StringGap"
     {-
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
     , manipulateAstTestWFname "Foo.hs"                   "Main"
