@@ -2,6 +2,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE UndecidableInstances #-} -- for GHC.DataId
 module Language.Haskell.GHC.ExactPrint.Internal.Types
   (
@@ -16,6 +17,7 @@ module Language.Haskell.GHC.ExactPrint.Internal.Types
   , addDP
   , LayoutStartCol(..) , ColDelta(..)
   , Annotation(..)
+  , annTrueEntryDelta
   , annNone
   , Anns(..),AnnKey(..)
   , emptyAnns
@@ -104,21 +106,13 @@ instance Show ColDelta where
   show (ColDelta v) = "(ColDelta " ++ show v ++ ")"
 
 annNone :: Annotation
-annNone = Ann (DP (0,0)) 0  (DP (0,0)) [] [] [] Nothing Nothing
+annNone = Ann (DP (0,0)) [] [] [] Nothing Nothing
 
 data Annotation = Ann
   {
     annEntryDelta      :: !DeltaPos
     -- ^ Offset used to get to the start of the SrcSpan, from whatever the prior
     -- output was, including all annPriorComments (field below).
-  , annDelta           :: !ColDelta
-    -- ^ Offset from the start of the current layout block. This is used when
-    -- moving onto new lines when layout rules must be obeyed.
-  , annTrueEntryDelta  :: !DeltaPos
-    -- ^ Offset from the previous SrcSpan, ignoring whitespace output such as
-    -- comments. This is required for managing the annDelta for nested AST
-    -- elements. If there are no intervening comments this will be the same as
-    -- annEntryDelta.
   , annPriorComments   :: ![(DComment,  DeltaPos)]
     -- ^ Comments coming after the last non-comment output of the preceding
     -- element but before the SrcSpan being annotated by this Annotation. If
@@ -148,11 +142,16 @@ data Annotation = Ann
   } deriving (Typeable,Eq)
 
 instance Show Annotation where
-  show (Ann dp c comments fcomments toStart ans sk csp)
-    = "(Ann (" ++ show dp ++ ") " ++ show c ++ " " ++ show comments ++ " "
+  show (Ann dp comments fcomments ans sk csp)
+    = "(Ann (" ++ show dp ++ ") " ++ show comments ++ " "
         ++ show fcomments ++ " "
-        ++ show toStart ++ " " ++ show ans ++ " " ++ showGhc sk ++ " "
+        ++ show ans ++ " " ++ showGhc sk ++ " "
         ++ showGhc csp ++ ")"
+
+annTrueEntryDelta :: Annotation -> DeltaPos
+annTrueEntryDelta Ann{annEntryDelta, annPriorComments} =
+  foldr addDP (DP (0,0)) (map (\(a, b) -> addDP b (commentPos a)) annPriorComments )
+    `addDP` annEntryDelta
 
 -----
 -- Anns is kept abstract so that the sortKeys can't be modified

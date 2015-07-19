@@ -394,9 +394,6 @@ withAST lss@(GHC.L ss _) action = do
     let kds = annKds w
         an = Ann
                { annEntryDelta = edp
-               , annDelta   = ColDelta (srcSpanStartColumn ss
-                                         - getLayoutStartCol off)
-               , annTrueEntryDelta  = edpAST
                , annPriorComments = cs
                , annFollowingComments = [] -- only used in Transform and Print
                , annsDP     = kds
