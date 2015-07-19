@@ -604,7 +604,6 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
             -- ++AZ++ TODO: move the duplicate code out of the case statement
             newBinds' <- mapM pushDeclAnnT newBinds
             modifyAnnsT (captureOrderAnnKey (mkAnnKey m) newBinds')
-            -- modifyAnnsT (\ans -> setPrecedingLinesDecl ans (ghead "LMatch.replaceDecls.2" newBinds') 1 4)
             return newBinds'
 
         binds' <- replaceDecls binds newBinds2
@@ -643,8 +642,6 @@ instance HasDecls (GHC.HsLocalBinds GHC.RdrName) where
 
   replaceDecls (GHC.EmptyLocalBinds) new
     = do
-        -- newBinds <- mapM decl2BindT new
-        -- newSigs  <- mapM decl2SigT  new
         let newBinds = map decl2Bind new
             newSigs  = map decl2Sig  new
         ans <- getAnnsT

@@ -545,6 +545,8 @@ transformHighLevelTests =
 
   , mkTestModChange rmDecl1 "RmDecl1.hs" "RmDecl1"
   , mkTestModChange rmDecl2 "RmDecl2.hs" "RmDecl2"
+
+  , mkTestModChange rmTypeSig1 "RmTypeSig1.hs" "RmTypeSig1"
   ]
 
 -- ---------------------------------------------------------------------
@@ -622,14 +624,13 @@ rmDecl1 ans lp = do
          let (d1:s1:d2:ds) = tlDecs
 
          -- First delete the decl only
-         balanceComments d1 s1
          balanceComments d2 (head ds)
          lp1 <- replaceDecls lp (d1:s1:ds)
 
          -- Then delete the sig separately
          tlDecs1 <- hsDecls lp1
          let (d1':s1':ds') = tlDecs1
-
+         balanceComments d1' s1'
          balanceComments s1' (head ds')
          replaceDecls lp (d1':ds')
 
@@ -651,6 +652,20 @@ rmDecl2 ans lp = do
           go x = return x
 
         SYB.everywhereM (SYB.mkM go) lp
+
+  let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  return (ans',lp')
+
+-- ---------------------------------------------------------------------
+
+rmTypeSig1 :: Changer
+rmTypeSig1 ans lp = do
+  let doRmDecl = do
+         tlDecs <- hsDecls lp
+         let (s1:d1:d2) = tlDecs
+             (GHC.L l (GHC.SigD (GHC.TypeSig names typ p))) = s1
+             s1' = (GHC.L l (GHC.SigD (GHC.TypeSig (tail names) typ p)))
+         replaceDecls lp (s1':d1:d2)
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   return (ans',lp')
