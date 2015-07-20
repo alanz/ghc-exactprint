@@ -62,7 +62,6 @@ library
                      , filepath
                      , ghc
                      , ghc-paths
-                     , ghc-syb-utils
                      , mtl
                      , syb
                      , free
@@ -88,10 +87,8 @@ Test-Suite test
                      , ghc
                      , ghc-exactprint
                      , ghc-paths
-                     , ghc-syb-utils
                      , mtl
                      , random
-                     , stm
                      , syb
                      , silently
                      , filemanip

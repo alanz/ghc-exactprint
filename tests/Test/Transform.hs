@@ -19,7 +19,6 @@ import qualified RdrName        as GHC
 import qualified SrcLoc         as GHC
 
 import qualified Data.Generics as SYB
-import qualified GHC.SYB.Utils as SYB
 
 import Control.Monad
 import System.FilePath
@@ -425,7 +424,7 @@ manipulateAstTest' mchange useTH file' modname = do
   let
     parsedOrig = GHC.pm_parsed_source $ p
     (ghcAnns,parsed) = (ghcAnns', parsedOrig)
-    parsedAST = SYB.showData SYB.Parser 0 parsed
+    parsedAST = showAnnData emptyAnns 0 parsed
     -- cppComments = map (tokComment . commentToAnnotation . fst) cppCommentToks
     -- parsedAST = showGhc parsed
        -- `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
