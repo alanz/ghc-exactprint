@@ -18,7 +18,7 @@ module Language.Haskell.GHC.ExactPrint.Annotate
 import Data.Maybe ( fromMaybe )
 #if __GLASGOW_HASKELL__ <= 710
 import Data.Ord ( comparing )
-import Data.List ( sort, sortBy )
+import Data.List ( sortBy )
 #endif
 
 import Language.Haskell.GHC.ExactPrint.Internal.Types

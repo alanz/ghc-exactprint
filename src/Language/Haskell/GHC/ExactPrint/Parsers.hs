@@ -23,7 +23,6 @@ import Language.Haskell.GHC.ExactPrint.Preprocess
 import Language.Haskell.GHC.ExactPrint.Internal.Types
 
 import Control.Monad.RWS
-import Control.Exception
 
 import GHC.Paths (libdir)
 
@@ -44,9 +43,6 @@ import qualified OrdList as OL
 #endif
 
 import qualified Data.Map as Map
-
-import System.Directory
-
 
 -- ---------------------------------------------------------------------
 
