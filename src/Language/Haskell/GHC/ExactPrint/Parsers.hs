@@ -3,8 +3,10 @@
 module Language.Haskell.GHC.ExactPrint.Parsers (
         -- * Utility
           Parser
+        , CppOptions(..)
 
         , parseModule
+        , parseModuleWithCpp
         , parseExpr
         , parseImport
         , parseType
@@ -43,7 +45,6 @@ import qualified OrdList as OL
 
 import qualified Data.Map as Map
 
-import Distribution.Helper
 import System.Directory
 
 
@@ -117,18 +118,14 @@ parsePattern df fp = parseWith df fp GHC.parsePattern
 -- ---------------------------------------------------------------------
 --
 
-catchAny :: IO a -> (SomeException -> IO a) -> IO a
-catchAny = catch
-
-generateMacroFile :: IO ()
-generateMacroFile = catchAny (writeAutogenFiles "dist/")
-                      (\_ -> -- putStrLn "Failed to generate macro file"
-                             return ())
-
 
 parseModule :: FilePath -> IO (Either (GHC.SrcSpan, String) (Anns, (GHC.Located (GHC.HsModule GHC.RdrName))))
-parseModule file = do
-  generateMacroFile
+parseModule = parseModuleWithCpp defaultCppOptions
+
+parseModuleWithCpp :: CppOptions
+                   -> FilePath
+                   -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.Located (GHC.HsModule GHC.RdrName)))
+parseModuleWithCpp cppOptions file =
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
     GHC.runGhc (Just libdir) $ do
       dflags <- initDynFlags file
@@ -136,12 +133,8 @@ parseModule file = do
       (fileContents, injectedComments) <-
         if useCpp
           then do
-            exists <- liftIO $ doesFileExist "dist/build/autogen/cabal_macros.h"
-            let macros = if exists
-                          then Just "dist/build/autogen/cabal_macros.h"
-                          else Nothing
-            contents <- getPreprocessedSrcDirect macros file
-            cppComments <- getCppTokensAsComments macros file
+            contents <- getPreprocessedSrcDirect cppOptions file
+            cppComments <- getCppTokensAsComments cppOptions file
             return (contents,cppComments)
           else do
             txt <- GHC.liftIO $ readFile file

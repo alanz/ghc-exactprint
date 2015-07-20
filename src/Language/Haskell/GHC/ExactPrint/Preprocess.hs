@@ -1,8 +1,12 @@
+{-# LANGUAGE RecordWildCards #-}
 module Language.Haskell.GHC.ExactPrint.Preprocess
    (
      stripLinePragmas
    , getCppTokensAsComments
    , getPreprocessedSrcDirect
+
+   , CppOptions(..)
+   , defaultCppOptions
    ) where
 
 import qualified Bag            as GHC
@@ -30,6 +34,15 @@ import Language.Haskell.GHC.ExactPrint.Utils
 import qualified Data.Set as Set
 
 -- import Debug.Trace
+--
+data CppOptions = CppOptions
+                { cppDefine :: [String]    -- ^ CPP #define macros
+                , cppInclude :: [FilePath] -- ^ CPP Includes directory
+                , cppFile :: [FilePath]    -- ^ CPP pre-include file
+                }
+
+defaultCppOptions :: CppOptions
+defaultCppOptions = CppOptions [] [] []
 
 -- ---------------------------------------------------------------------
 
@@ -72,13 +85,13 @@ getPragma s@(x:xs)
 -- the tokens for a file processed by CPP.
 -- See bug <http://ghc.haskell.org/trac/ghc/ticket/8265>
 getCppTokensAsComments :: GHC.GhcMonad m
-                       => Maybe FilePath  -- ^ Path to cabal_macros.h
+                       => CppOptions  -- ^ Preprocessor Options
                        -> FilePath  -- ^ Path to source file
                        -> m [Comment]
-getCppTokensAsComments mbMacros sourceFile = do
+getCppTokensAsComments cppOptions sourceFile = do
   source <- GHC.liftIO $ GHC.hGetStringBuffer sourceFile
   let startLoc = GHC.mkRealSrcLoc (GHC.mkFastString sourceFile) 1 1
-  (_txt,strSrcBuf,flags2) <- getPreprocessedSrcDirectPrim mbMacros sourceFile
+  (_txt,strSrcBuf,flags2) <- getPreprocessedSrcDirectPrim cppOptions sourceFile
   -- #ifdef tokens
   directiveToks <- GHC.liftIO $ getPreprocessorAsComments sourceFile
   -- Tokens without #ifdef
@@ -159,26 +172,31 @@ sbufToString :: GHC.StringBuffer -> String
 sbufToString sb@(GHC.StringBuffer _buf len _cur) = GHC.lexemeToString sb len
 
 -- ---------------------------------------------------------------------
-getPreprocessedSrcDirect :: (GHC.GhcMonad m) => Maybe FilePath -> FilePath -> m String
-getPreprocessedSrcDirect mbMacros src =
-    (\(a,_,_) -> a) <$> getPreprocessedSrcDirectPrim mbMacros src
+getPreprocessedSrcDirect :: (GHC.GhcMonad m) => CppOptions -> FilePath -> m String
+getPreprocessedSrcDirect cppOptions src =
+    (\(a,_,_) -> a) <$> getPreprocessedSrcDirectPrim cppOptions src
 
 getPreprocessedSrcDirectPrim :: (GHC.GhcMonad m)
-                              => Maybe FilePath
+                              => CppOptions
                               -> FilePath
                               -> m (String, GHC.StringBuffer, GHC.DynFlags)
-getPreprocessedSrcDirectPrim mbMacros src_fn = do
+getPreprocessedSrcDirectPrim cppOptions src_fn = do
   hsc_env <- GHC.getSession
   let dfs = GHC.extractDynFlags hsc_env
-      new_env = case mbMacros of
-                      Nothing -> hsc_env
-                      Just path ->
-                        let includePath = "-include" ++ path in
-                        GHC.replaceDynFlags hsc_env (addOptP includePath dfs)
+      new_env = GHC.replaceDynFlags hsc_env (injectCppOptions cppOptions dfs)
   (dflags', hspp_fn) <- GHC.liftIO $ GHC.preprocess new_env (src_fn, Nothing)
   buf <- GHC.liftIO $ GHC.hGetStringBuffer hspp_fn
   txt <- GHC.liftIO $ readFile hspp_fn
   return (txt, buf, dflags')
+
+injectCppOptions :: CppOptions -> GHC.DynFlags -> GHC.DynFlags
+injectCppOptions CppOptions{..} dflags =
+  foldr addOptP dflags (map mkDefine cppDefine ++ map mkIncludeDir cppInclude ++ map mkInclude cppFile)
+  where
+    mkDefine = ("-D" ++)
+    mkIncludeDir = ("-I" ++)
+    mkInclude = ("-include" ++)
+
 
 addOptP :: String -> GHC.DynFlags -> GHC.DynFlags
 addOptP   f = alterSettings (\s -> s { GHC.sOpt_P   = f : GHC.sOpt_P s})
