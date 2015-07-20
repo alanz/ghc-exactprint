@@ -514,7 +514,7 @@ parsedFileGhc fileName _modname useTH = do
         -- GHC.liftIO $ putStrLn $ "got modSum"
         -- let modSum = head g
         cppComments <-  if (GHC.xopt GHC.Opt_Cpp dflags5)
-                        then getCppTokensAsComments Nothing fileName
+                        then getCppTokensAsComments defaultCppOptions fileName
                         else return []
         -- let cppComments = [] :: [(GHC.Located GHC.Token, String)]
 --        GHC.liftIO $ putStrLn $ "\ncppTokensAsComments for:"  ++ fileName ++ "=========\n"
