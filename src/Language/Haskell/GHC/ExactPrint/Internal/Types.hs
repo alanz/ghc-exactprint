@@ -159,6 +159,8 @@ annTrueEntryDelta Ann{annEntryDelta, annPriorComments} =
 
 -- ++AZ++ TODO: this type can be simplified now. At least rename the record
 -- accessor to simply 'anns'
+
+-- | This structure holds a complete set of annotations for an AST
 data Anns = Anns
   { annsKeywordDeltas :: Map.Map AnnKey Annotation
   } deriving (Typeable)

@@ -1,3 +1,21 @@
+2015-07-20 v0.3
+	Substantial rework to manage changes introduced in GHC 7.10.2 rc2
+	and beyond.
+
+	Simplification of the core Annotation data type coupled with
+	simplification of the various phases, by @mpickering.
+
+	Introduction of initial Transform functions, driven by the needs
+	of HaRe [1] and apply-refact [2] for applying hlint hints. Both of
+	these are currently works in progress, and this module is likely
+	to change substantially in future releases.
+
+	Support for processing files making use of CPP.
+
+	Links
+	[1] https://github.com/alanz/HaRe/tree/wip
+	[2] https://github.com/mpickering/apply-refact
+
 2015-03-24 v0.2
 	This release contains a major rewrite of all internal modules.
 
