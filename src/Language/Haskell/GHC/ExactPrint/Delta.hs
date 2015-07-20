@@ -95,10 +95,6 @@ data DeltaState = DeltaState
        { -- | Position reached when processing the last element
          priorEndPosition    :: !Pos
 
-         -- | Position reached when processing last AST element
-         --   this is necessary to enforce layout rules.
-       , priorEndASTPosition :: !Pos
-
          -- | Ordered list of comments still to be allocated
        , apComments :: ![Comment]
 
@@ -123,7 +119,6 @@ defaultDeltaState :: [Comment] -> Pos -> GHC.ApiAnns -> DeltaState
 defaultDeltaState injectedComments priorEnd ga =
     DeltaState
       { priorEndPosition    = priorEnd
-      , priorEndASTPosition = priorEnd
       , apComments = cs ++ injectedComments
       , apAnns     = ga
       , apLayoutStart = 1
@@ -278,9 +273,6 @@ adjustDeltaForOffset (LayoutStartCol colOffset) (DP (l,c)) = DP (l,c - colOffset
 getPriorEnd :: Delta Pos
 getPriorEnd = gets priorEndPosition
 
-getPriorEndAST :: Delta Pos
-getPriorEndAST = gets priorEndASTPosition
-
 setPriorEnd :: Pos -> Delta ()
 setPriorEnd pe =
   modify (\s -> s { priorEndPosition = pe })
@@ -288,8 +280,7 @@ setPriorEnd pe =
 setPriorEndAST :: GHC.SrcSpan -> Delta ()
 setPriorEndAST pe = do
   setLayoutStart (snd (ss2pos pe))
-  modify (\s -> s { priorEndPosition    = (ss2posEnd pe)
-                  , priorEndASTPosition = (ss2posEnd pe) })
+  modify (\s -> s { priorEndPosition    = (ss2posEnd pe) } )
 
 setLayoutStart :: Int -> Delta ()
 setLayoutStart p = do
@@ -382,13 +373,9 @@ withAST lss@(GHC.L ss _) action = do
                 -- Note that we need to use the new offset if it has
                 -- changed.
                 off (ss2delta priorEndAfterComments ss)
-    peAST <- getPriorEndAST
-    let edpAST = adjustDeltaForOffset
-                  off (ss2delta peAST ss)
     -- Preparation complete, perform the action
     when (GHC.isGoodSrcSpan ss && priorEndAfterComments < ss2pos ss) (do
-      modify (\s -> s { priorEndPosition    = (ss2pos ss)
-                      , priorEndASTPosition = (ss2pos ss) }))
+      modify (\s -> s { priorEndPosition    = (ss2pos ss) } ))
     (res, w) <- censor maskWriter (listen action)
 
     let kds = annKds w
