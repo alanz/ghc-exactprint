@@ -26,6 +26,8 @@ module Language.Haskell.GHC.ExactPrint.Transform
 
         , getEntryDPT
 
+        -- * Annotations
+        , addSimpleAnnT
 
         -- * Operations
         , isUniqueSrcSpan
@@ -48,6 +50,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , decl2Sig
         , decl2Bind
         , mkAnnKeyDecl
+        , declFun
 
         -- * Other
 --        , adjustAnnOffset
@@ -270,6 +273,13 @@ decl2SigT vs@(GHC.L _ (GHC.SigD s)) = do
   modifyAnnsT duplicateAnn
   return [GHC.L newSpan s]
 decl2SigT _ = return []
+
+-- ---------------------------------------------------------------------
+
+addSimpleAnnT :: (Data a) => GHC.Located a -> DeltaPos -> [(KeywordId, DeltaPos)] -> Transform ()
+addSimpleAnnT ast dp kds = do
+  let ann = Ann dp [] [] kds Nothing Nothing
+  modifyAnnsT (\(Anns ans) -> Anns $ Map.insert (mkAnnKey ast) ann ans)
 
 -- ---------------------------------------------------------------------
 
