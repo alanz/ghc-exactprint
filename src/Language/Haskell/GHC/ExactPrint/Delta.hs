@@ -67,16 +67,12 @@ runDeltaWithComments cs action ga priorEnd =
 
 data DeltaReader = DeltaReader
        {
-         -- AZ:TODO: Should we replace the next three fields witn an explicit
-         -- AnnKey value?
-
          -- | Current `SrcSpan, part of current AnnKey`
          curSrcSpan  :: !GHC.SrcSpan
 
          -- | Constuctor of current AST element, part of current AnnKey
        , annConName       :: !AnnConName
 
-         -- | Start column of the current layout block
        }
 
 data DeltaWriter = DeltaWriter

@@ -58,12 +58,12 @@ data AnnotationF next where
   WithAST        :: Data a => GHC.Located a
                            -> Annotated b                                -> next -> AnnotationF next
   CountAnns      :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
-  WithSortKey       :: [(GHC.SrcSpan, Annotated ())]                     -> next -> AnnotationF next
+  WithSortKey    :: [(GHC.SrcSpan, Annotated ())]                       -> next -> AnnotationF next
 
-  -- | Abstraction breakers
+  -- Abstraction breakers
   SetLayoutFlag  ::  Annotated ()                         -> next -> AnnotationF next
 
-  -- | Required to work around deficiencies in the GHC AST
+  -- Required to work around deficiencies in the GHC AST
   StoreOriginalSrcSpan :: AnnKey                        -> (AnnKey -> next) -> AnnotationF next
   GetSrcSpanForKw :: GHC.AnnKeywordId                   -> (GHC.SrcSpan -> next) -> AnnotationF next
   StoreString :: String -> GHC.SrcSpan                  -> next -> AnnotationF next
