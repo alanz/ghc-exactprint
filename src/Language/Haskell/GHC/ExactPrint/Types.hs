@@ -2,7 +2,6 @@ module Language.Haskell.GHC.ExactPrint.Types
   (
     Comment(..)
   , Pos
-  , Span
   , PosToken
   , DeltaPos(..)
   , deltaRow, deltaColumn

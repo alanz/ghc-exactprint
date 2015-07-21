@@ -7,10 +7,8 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , srcSpanStartColumn
   , srcSpanEndColumn
 
-  , ss2span
   , ss2pos
   , ss2posEnd
-  , span2ss
   , undelta
   , rdrName2String
   , isSymbolRdrName
@@ -133,9 +131,6 @@ ss2pos ss = (srcSpanStartLine ss,srcSpanStartColumn ss)
 ss2posEnd :: GHC.SrcSpan -> Pos
 ss2posEnd ss = (srcSpanEndLine ss,srcSpanEndColumn ss)
 
-ss2span :: GHC.SrcSpan -> Span
-ss2span ss = (ss2pos ss,ss2posEnd ss)
-
 srcSpanEndColumn :: GHC.SrcSpan -> Int
 srcSpanEndColumn (GHC.RealSrcSpan s) = GHC.srcSpanEndCol s
 srcSpanEndColumn _ = 0
@@ -157,16 +152,17 @@ spanLength = (-) <$> srcSpanEndColumn <*> srcSpanStartColumn
 
 -- ---------------------------------------------------------------------
 
-span2ss :: Span -> GHC.SrcSpan
+{-span2ss :: Span -> GHC.SrcSpan
 span2ss ((sr,sc),(er,ec)) = l
   where
    filename = GHC.mkFastString "f"
    l = GHC.mkSrcSpan (GHC.mkSrcLoc filename sr sc) (GHC.mkSrcLoc filename er ec)
+   -}
 
 -- ---------------------------------------------------------------------
 
 isPointSrcSpan :: GHC.SrcSpan -> Bool
-isPointSrcSpan ss = s == e where (s,e) = ss2span ss
+isPointSrcSpan ss = s == e where (s,e) = (ss2pos ss, ss2posEnd ss)
 
 -- ---------------------------------------------------------------------
 

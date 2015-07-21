@@ -7,7 +7,6 @@ module Language.Haskell.GHC.ExactPrint.Internal.Types
   (
     Comment(..)
   , Pos
-  , Span
   , PosToken
   , DeltaPos(..)
   , deltaRow, deltaColumn
@@ -59,7 +58,6 @@ instance GHC.Outputable Comment where
 type PosToken = (GHC.Located GHC.Token, String)
 
 type Pos = (Int,Int)
-type Span = (Pos,Pos)
 
 -- | A relative positions, row then column
 newtype DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)

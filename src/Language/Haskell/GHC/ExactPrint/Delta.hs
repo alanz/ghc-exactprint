@@ -427,7 +427,7 @@ addAnnotationWorker ann pa =
           commentAllocation (priorComment (ss2pos pa)) (mapM_ (uncurry addDeltaComment))
           addAnnDeltaPos (checkUnicode ann pa) p'
           setPriorEndAST pa
-              `debug` ("addAnnotationWorker:(ss,ss,pe,pa,p,p',ann)=" ++ show (showGhc ss,ss2span ss,pe,ss2span pa,p,p',ann))
+              `debug` ("addAnnotationWorker:(ss,ss,pe,pa,p,p',ann)=" ++ show (showGhc ss,showGhc ss,pe,showGhc pa,p,p',ann))
 
 checkUnicode :: KeywordId -> GHC.SrcSpan -> KeywordId
 checkUnicode gkw@(G kw) ss =
