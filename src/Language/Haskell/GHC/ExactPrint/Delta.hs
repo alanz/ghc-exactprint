@@ -147,9 +147,9 @@ tellKd :: (KeywordId, DeltaPos) -> Delta ()
 tellKd kd = tell (mempty { annKds = [kd] })
 
 instance Monoid DeltaWriter where
-  mempty = DeltaWriter mempty mempty mempty mempty mempty
-  (DeltaWriter a b e g j) `mappend` (DeltaWriter c d f h i)
-    = DeltaWriter (a <> c) (b <> d) (e <> f) (g <> h) (j <> i)
+  mempty = DeltaWriter mempty mempty mempty mempty
+  (DeltaWriter a b e g) `mappend` (DeltaWriter c d f h)
+    = DeltaWriter (a <> c) (b <> d) (e <> f) (g <> h)
 
 -----------------------------------
 -- Free Monad Interpretation code

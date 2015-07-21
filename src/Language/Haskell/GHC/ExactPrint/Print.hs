@@ -128,8 +128,6 @@ printInterpret = iterTM go
     go (MarkOffsetPrim kwid _ mstr next) =
       let annString = fromMaybe (keywordToString (G kwid)) mstr in
         printStringAtMaybeAnn (G kwid) annString >> next
-    go (MarkAfter akwid next) =
-      justOne akwid >> next
     go (WithAST lss action next) =
       exactPC lss (printInterpret action) >> next
     go (CountAnns kwid next) =
@@ -181,8 +179,7 @@ withSortKey xs = do
 
 -------------------------------------------------------------------------
 
-justOne, allAnns :: GHC.AnnKeywordId -> EP ()
-justOne kwid = printStringAtMaybeAnn    (G kwid) (keywordToString (G kwid))
+allAnns :: GHC.AnnKeywordId -> EP ()
 allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString (G kwid))
 
 -------------------------------------------------------------------------

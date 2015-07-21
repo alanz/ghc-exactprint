@@ -56,7 +56,6 @@ data AnnotationF next where
   MarkInside     :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   MarkMany       :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   MarkOffsetPrim :: GHC.AnnKeywordId -> Int -> Maybe String              -> next -> AnnotationF next
-  MarkAfter      :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   WithAST        :: Data a => GHC.Located a
                            -> Annotated b                                -> next -> AnnotationF next
   CountAnns      :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
