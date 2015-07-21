@@ -543,11 +543,9 @@ addDeltaAnnotationsInside ann = do
 addDeltaAnnotationsOutside :: GHC.AnnKeywordId -> KeywordId -> Delta ()
 addDeltaAnnotationsOutside gann ann = do
   ss <- getSrcSpan
-  unless (ss2span ss == ((1,1),(1,1))) $
-    do
-      ma <- getAndRemoveAnnotationDelta ss gann
-      let do_one ap' = addAnnotationWorker ann ap'
-      mapM_ do_one (sort $ filter (\s -> not (GHC.isSubspanOf s ss)) ma)
+  ma <- getAndRemoveAnnotationDelta ss gann
+  let do_one ap' = addAnnotationWorker ann ap'
+  mapM_ do_one (sort $ filter (\s -> not (GHC.isSubspanOf s ss)) ma)
 
 -- | Add a Delta annotation at the current position, and advance the
 -- position to the end of the annotation
