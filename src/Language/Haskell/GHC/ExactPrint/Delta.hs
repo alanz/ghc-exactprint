@@ -59,7 +59,7 @@ runDeltaWithComments cs action ga priorEnd =
   . deltaInterpret $ action
   where
     mkAnns :: DeltaWriter -> Anns
-    mkAnns = Anns <$> (f . dwAnns)
+    mkAnns = f . dwAnns
     f :: Monoid a => Endo a -> a
     f = ($ mempty) . appEndo
 

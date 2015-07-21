@@ -14,10 +14,8 @@ module Language.Haskell.GHC.ExactPrint.Internal.Types
   , LayoutStartCol(..) , ColDelta(..)
   , Annotation(..)
   , annNone
-  , Anns(..),AnnKey(..)
+  , Anns, AnnKey(..)
   , emptyAnns
-  , getKeywordDeltas
-  , modifyKeywordDeltas
   , KeywordId(..)
   , mkAnnKey
   , AnnConName(..)
@@ -139,23 +137,10 @@ instance Show Annotation where
 -- accessor to simply 'anns'
 
 -- | This structure holds a complete set of annotations for an AST
-data Anns = Anns
-  { annsKeywordDeltas :: Map.Map AnnKey Annotation
-  } deriving (Typeable)
-
-instance Show Anns where
-  show (Anns kds) = "Anns " ++ showGhc kds
+type Anns = Map.Map AnnKey Annotation
 
 emptyAnns :: Anns
-emptyAnns = Anns Map.empty
-
-getKeywordDeltas :: Anns -> Map.Map AnnKey Annotation
-getKeywordDeltas = annsKeywordDeltas
-
--- TODO: This should perhaps be called modifyAnns?
-modifyKeywordDeltas :: (Map.Map AnnKey Annotation -> Map.Map AnnKey Annotation)
-                    -> Anns -> Anns
-modifyKeywordDeltas f as = as { annsKeywordDeltas = f (annsKeywordDeltas as)}
+emptyAnns = Map.empty
 
 -- | For every @Located a@, use the @SrcSpan@ and constructor name of
 -- a as the key, to store the standard annotation.
@@ -218,20 +203,17 @@ instance GHC.Outputable AnnKey where
 instance GHC.Outputable DeltaPos where
   ppr a     = GHC.text (show a)
 
-instance GHC.Outputable Anns where
-  ppr a     = GHC.text (show a)
-
 -- ---------------------------------------------------------------------
 
 getAnnotationEP :: (Data a) =>  GHC.Located a  -> Anns -> Maybe Annotation
 getAnnotationEP  la as =
-  Map.lookup (mkAnnKey la) (getKeywordDeltas as)
+  Map.lookup (mkAnnKey la) as
 
 getAndRemoveAnnotationEP :: (Data a)
                          => GHC.Located a -> Anns -> (Maybe Annotation,Anns)
 getAndRemoveAnnotationEP la as
  = let key = mkAnnKey la in
-   (Map.lookup key (getKeywordDeltas as), modifyKeywordDeltas (Map.delete key) as)
+   (Map.lookup key as, Map.delete key as)
 
 -- ---------------------------------------------------------------------
 

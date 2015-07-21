@@ -11,8 +11,6 @@ module Language.Haskell.GHC.ExactPrint.Types
   , annNone
   , Anns,AnnKey(..)
   , emptyAnns
-  , getKeywordDeltas
-  , modifyKeywordDeltas
   , KeywordId(..)
   , mkAnnKey
 

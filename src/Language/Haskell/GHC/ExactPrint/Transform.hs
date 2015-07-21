@@ -113,7 +113,7 @@ modifyKeywordDeltasT :: (Map.Map AnnKey Annotation -> Map.Map AnnKey Annotation)
                      -> Transform ()
 modifyKeywordDeltasT f = do
   ans <- getAnnsT
-  putAnnsT (modifyKeywordDeltas f ans)
+  putAnnsT (f ans)
 
 -- ---------------------------------------------------------------------
 
@@ -150,7 +150,7 @@ captureOrderAnnKey parentKey ls ans = ans'
   where
     newList = map GHC.getLoc ls
     reList = Map.adjust (\an -> an {annSortKey = Just newList }) parentKey
-    ans' = modifyKeywordDeltas reList ans
+    ans' = reList ans
 
 -- ---------------------------------------------------------------------
 
@@ -176,11 +176,11 @@ wrapSigT :: GHC.LSig GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
 wrapSigT d@(GHC.L _ s) = do
   newSpan <- uniqueSrcSpanT
   let
-    f (Anns ans) = case Map.lookup (mkAnnKey d) ans of
-      Nothing -> Anns ans
-      Just ann -> Anns (
+    f ans = case Map.lookup (mkAnnKey d) ans of
+      Nothing -> ans
+      Just ann ->
                   Map.insert (mkAnnKey (GHC.L newSpan s)) ann
-                $ Map.insert (mkAnnKey (GHC.L newSpan (GHC.SigD s))) ann ans)
+                $ Map.insert (mkAnnKey (GHC.L newSpan (GHC.SigD s))) ann ans
   modifyAnnsT f
   return (GHC.L newSpan (GHC.SigD s))
 
@@ -192,11 +192,11 @@ wrapDeclT :: GHC.LHsBind GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
 wrapDeclT d@(GHC.L _ s) = do
   newSpan <- uniqueSrcSpanT
   let
-    f (Anns ans) = case Map.lookup (mkAnnKey d) ans of
-      Nothing -> Anns ans
-      Just ann -> Anns (
+    f ans = case Map.lookup (mkAnnKey d) ans of
+      Nothing -> ans
+      Just ann ->
                   Map.insert (mkAnnKey (GHC.L newSpan s)) ann
-                $ Map.insert (mkAnnKey (GHC.L newSpan (GHC.ValD s))) ann ans)
+                $ Map.insert (mkAnnKey (GHC.L newSpan (GHC.ValD s))) ann ans
   modifyAnnsT f
   return (GHC.L newSpan (GHC.ValD s))
 
@@ -213,11 +213,11 @@ pushDeclAnnT ld@(GHC.L l decl) = do
              , annPriorComments     = annPriorComments     ann  ++ annPriorComments     annd
              , annFollowingComments = annFollowingComments annd ++ annFollowingComments ann
              }
-    duplicateAnn d (Anns ans) =
+    duplicateAnn d ans =
       case Map.lookup (mkAnnKey ld) ans of
         Nothing -> error $ "pushDeclAnnT:no key found for:" ++ show (mkAnnKey ld)
         -- Nothing -> Anns ans
-        Just ann -> Anns $ Map.insert (mkAnnKey (GHC.L newSpan d))
+        Just ann -> Map.insert (mkAnnKey (GHC.L newSpan d))
                                       (blend ann (Map.lookup (mkAnnKey (GHC.L l d)) ans))
                                       ans
   case decl of
@@ -249,10 +249,10 @@ decl2BindT vd@(GHC.L _ (GHC.ValD d)) = do
   newSpan <- uniqueSrcSpanT
   logTr $ "decl2BindT:newSpan=" ++ showGhc newSpan
   let
-    duplicateAnn (Anns ans) =
+    duplicateAnn ans =
       case Map.lookup (mkAnnKey vd) ans of
-        Nothing -> Anns ans
-        Just ann -> Anns $ Map.insert (mkAnnKey (GHC.L newSpan d)) ann ans
+        Nothing -> ans
+        Just ann -> Map.insert (mkAnnKey (GHC.L newSpan d)) ann ans
   modifyAnnsT duplicateAnn
   return [GHC.L newSpan d]
 decl2BindT _ = return []
@@ -266,10 +266,10 @@ decl2SigT vs@(GHC.L _ (GHC.SigD s)) = do
   newSpan <- uniqueSrcSpanT
   logTr $ "decl2SigT:newSpan=" ++ showGhc newSpan
   let
-    duplicateAnn (Anns ans) =
+    duplicateAnn ans =
       case Map.lookup (mkAnnKey vs) ans of
-        Nothing -> Anns ans
-        Just ann -> Anns $ Map.insert (mkAnnKey (GHC.L newSpan s)) ann ans
+        Nothing -> ans
+        Just ann -> Map.insert (mkAnnKey (GHC.L newSpan s)) ann ans
   modifyAnnsT duplicateAnn
   return [GHC.L newSpan s]
 decl2SigT _ = return []
@@ -281,7 +281,7 @@ addSimpleAnnT ast dp kds = do
   let ann = annNone { annEntryDelta = dp
                     , annsDP = kds
                     }
-  modifyAnnsT (\(Anns ans) -> Anns $ Map.insert (mkAnnKey ast) ann ans)
+  modifyAnnsT (Map.insert (mkAnnKey ast) ann)
 
 -- ---------------------------------------------------------------------
 
@@ -317,8 +317,8 @@ adjustAnnOffset (ColDelta cd) a@(Ann{ annEntryDelta=(DP (ro,co)), annDelta=(ColD
 
 -- | Left bias pair union
 mergeAnns :: Anns -> Anns -> Anns
-mergeAnns (Anns a1) (Anns a2)
-  = Anns (Map.union a1 a2)
+mergeAnns
+  = Map.union
 
 mergeAnnList :: [Anns] -> Anns
 mergeAnnList [] = error "mergeAnnList must have at lease one entry"
@@ -336,8 +336,8 @@ setLocatedAnn aane (loc, annVal) = setAnn aane (mkAnnKey loc,annVal)
 -- |Update the DeltaPos for the given annotation key/val
 setAnn :: Anns -> (AnnKey, Annotation) -> Anns
 setAnn as (k, a) =
-  let newKds = maybe [] (annsDP) (Map.lookup k (getKeywordDeltas as)) in
-    modifyKeywordDeltas (Map.insert k (a { annsDP = newKds })) as
+  let newKds = maybe [] (annsDP) (Map.lookup k as) in
+    Map.insert k (a { annsDP = newKds }) as
 
 -- ---------------------------------------------------------------------
 
@@ -372,7 +372,7 @@ declFun f (GHC.L l de) =
 -- | Adjust the entry annotations to provide an `n` line preceding gap
 setPrecedingLines :: (SYB.Data a) => Anns -> GHC.Located a -> Int -> Int -> Anns
 setPrecedingLines anne ast n c =
-  modifyKeywordDeltas (Map.alter go (mkAnnKey ast)) anne
+  Map.alter go (mkAnnKey ast) anne
   where
     go Nothing  = Just (annNone { annEntryDelta = (DP (n,c)) })
     go (Just a) = Just (a { annEntryDelta     = DP (n, c) } )
@@ -380,7 +380,7 @@ setPrecedingLines anne ast n c =
 -- ---------------------------------------------------------------------
 
 getEntryDP :: (Data a) => Anns -> GHC.Located a -> DeltaPos
-getEntryDP (Anns anns) ast =
+getEntryDP anns ast =
   case Map.lookup (mkAnnKey ast) anns of
     Nothing  -> DP (0,0)
     Just ann -> annTrueEntryDelta ann
@@ -410,7 +410,7 @@ balanceComments first second = do
 
     simpleBreak (_,DP (r,_c)) = r > 0
 
-  modifyAnnsT (modifyKeywordDeltas (moveComments simpleBreak))
+  modifyAnnsT (moveComments simpleBreak)
 
 -- ---------------------------------------------------------------------
 
@@ -443,9 +443,9 @@ balanceTrailingComments first second = do
     simpleBreak (_,DP (r,_c)) = r > 0
 
   -- modifyAnnsT (modifyKeywordDeltas (moveComments simpleBreak))
-  Anns ans <- getAnnsT
+  ans <- getAnnsT
   let (ans',mov) = moveComments simpleBreak ans
-  putAnnsT (Anns ans')
+  putAnnsT ans'
   return mov
 
 -- ---------------------------------------------------------------------
@@ -466,9 +466,7 @@ moveTrailingComments first second = do
         an2' = an2 { annFollowingComments = cs1f ++ cs2f }
         ans' = Map.insert k1 an1' $ Map.insert k2 an2' ans
 
-  Anns ans <- getAnnsT
-  let ans' = moveComments ans
-  putAnnsT (Anns ans')
+  modifyAnnsT moveComments
 
 -- ---------------------------------------------------------------------
 
@@ -482,7 +480,7 @@ insertAt f m decl = do
       modKey = mkAnnKey m
       newValue a@Ann{..} = a { annSortKey = f newKey <$> annSortKey }
   oldDecls <- hsDecls m
-  modifyAnnsT (modifyKeywordDeltas (Map.adjust newValue modKey))
+  modifyAnnsT (Map.adjust newValue modKey)
 
   replaceDecls m (decl : oldDecls )
 
