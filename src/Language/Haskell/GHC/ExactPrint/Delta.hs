@@ -397,7 +397,7 @@ resetAnns action = do
 -- |Split the ordered list of comments into ones that occur prior to
 -- the give SrcSpan and the rest
 priorComment :: Pos -> Comment -> Bool
-priorComment start c = (fst . commentPos $ c) < start
+priorComment start c = (ss2pos . commentIdentifier $ c) < start
 
 -- TODO:AZ: We scan the entire comment list here. It may be better to impose an
 -- invariant that the comments are sorted, and consume them as the pos
@@ -461,13 +461,13 @@ commentAllocation p k = do
   cs <- getUnallocatedComments
   let (allocated,cs') = allocateComments p cs
   putUnallocatedComments cs'
-  k =<< mapM makeDeltaComment (sort allocated)
+  k =<< mapM makeDeltaComment (sortBy (comparing commentIdentifier) allocated)
 
 
 makeDeltaComment :: Comment -> Delta (DComment, DeltaPos)
 makeDeltaComment c = do
-  let paspan = commentPos c
-      pa = span2ss paspan
+  let paspan = ss2span (commentIdentifier c)
+      pa = commentIdentifier c
   pe <- getPriorEnd
   let p = ss2delta pe pa
   p' <- adjustDeltaForOffsetM p

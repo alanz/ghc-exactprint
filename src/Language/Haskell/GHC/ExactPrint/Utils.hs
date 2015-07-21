@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Language.Haskell.GHC.ExactPrint.Utils
   (
     srcSpanStartLine
@@ -23,6 +23,9 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , ss2delta
   , spanLength
   , isGoodDelta
+
+  , annTrueEntryDelta
+  , dpFromString
 
   , isListComp
 
@@ -209,13 +212,25 @@ ghcCommentText (GHC.L _ (GHC.AnnLineComment s))     = s
 ghcCommentText (GHC.L _ (GHC.AnnBlockComment s))    = s
 
 mkComment :: String -> GHC.SrcSpan -> Comment
-mkComment c ss = Comment (ss2span ss) c ss Nothing
+mkComment c ss = Comment c ss Nothing
 
 mkKWComment :: GHC.AnnKeywordId -> GHC.SrcSpan -> Comment
-mkKWComment kw ss = Comment (ss2span ss) (keywordToString $ G kw) ss (Just kw)
+mkKWComment kw ss = Comment (keywordToString $ G kw) ss (Just kw)
 
 mkDComment :: Comment -> DeltaPos -> DComment
 mkDComment = ($>)
+
+annTrueEntryDelta :: Annotation -> DeltaPos
+annTrueEntryDelta Ann{annEntryDelta, annPriorComments} =
+  foldr addDP (DP (0,0)) (map (\(a, b) -> addDP b (dpFromString $ commentContents a)) annPriorComments )
+    `addDP` annEntryDelta
+
+dpFromString ::  String -> DeltaPos
+dpFromString xs = dpFromString' xs 0 0
+  where
+    dpFromString' "" line col = DP (line, col)
+    dpFromString' ('\n': cs) line _ = dpFromString' cs (line + 1) 0
+    dpFromString' (_:cs)     line col = dpFromString' cs line (col + 1)
 
 -- ---------------------------------------------------------------------
 

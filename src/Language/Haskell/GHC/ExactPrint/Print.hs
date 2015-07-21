@@ -18,7 +18,7 @@ module Language.Haskell.GHC.ExactPrint.Print
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Internal.Types
-import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta, ghead, orderByKey )
+import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta, ghead, orderByKey, dpFromString)
 import Language.Haskell.GHC.ExactPrint.Annotate
   (AnnotationF(..), Annotated, Annotate(..), annotate)
 import Language.Haskell.GHC.ExactPrint.Lookup (keywordToString, unicodeString)
@@ -32,7 +32,7 @@ import Data.Maybe (fromMaybe)
 
 import Control.Monad.Trans.Free
 
--- import Debug.Trace
+import Debug.Trace
 
 
 import qualified GHC
@@ -343,7 +343,7 @@ isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP (undelta (0,0) dp colOffset
 
 -- AZ:TODO: harvest the commonality between this and printStringAtLsDelta
 printQueuedComment :: DComment -> DeltaPos -> EP ()
-printQueuedComment Comment{commentPos, commentContents} dp = do
+printQueuedComment Comment{commentContents} dp = do
   p <- getPos
   colOffset <- getLayoutOffset
   let (dr,dc) = undelta (0,0) dp colOffset
@@ -351,7 +351,7 @@ printQueuedComment Comment{commentPos, commentContents} dp = do
   when (isGoodDelta (DP (dr,max 0 dc)))
     (do
       printCommentAt (undelta p dp colOffset) commentContents
-      setPos (undelta p commentPos colOffset))
+      setPos (undelta p (dp `addDP` dpFromString commentContents) colOffset))
 
 -- ---------------------------------------------------------------------
 

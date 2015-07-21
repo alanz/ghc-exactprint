@@ -17,7 +17,6 @@ module Language.Haskell.GHC.ExactPrint.Internal.Types
   , addDP
   , LayoutStartCol(..) , ColDelta(..)
   , Annotation(..)
-  , annTrueEntryDelta
   , annNone
   , Anns(..),AnnKey(..)
   , emptyAnns
@@ -52,12 +51,11 @@ import Data.Ord
 -- stream and does not have a well-defined position
 data PComment a = Comment
     {
-      commentPos        :: !a -- ^ Either `Span` for end or `DeltaPos` giving offset to end
-    , commentContents   :: !String -- ^ The contents of the comment including separators
+      commentContents   :: !String -- ^ The contents of the comment including separators
     , commentIdentifier :: !GHC.SrcSpan -- ^ Needed to uniquely identify two comments with the same contents
     , commentOrigin     :: !(Maybe GHC.AnnKeywordId) -- ^ We sometimes turn syntax into comments in order to process them properly.
     }
-  deriving (Eq,Show,Typeable,Data, Functor)
+  deriving (Eq,Show,Typeable,Data, Functor, Ord)
 
 type Comment  = PComment Span
 
@@ -65,9 +63,6 @@ type DComment = PComment DeltaPos
 
 instance Show a => GHC.Outputable (PComment a) where
   ppr x = GHC.text (show x)
-
-instance Ord a => Ord (PComment a) where
-  compare = comparing commentPos
 
 type PosToken = (GHC.Located GHC.Token, String)
 
@@ -145,10 +140,6 @@ instance Show Annotation where
         ++ show ans ++ " " ++ showGhc sk ++ " "
         ++ showGhc csp ++ ")"
 
-annTrueEntryDelta :: Annotation -> DeltaPos
-annTrueEntryDelta Ann{annEntryDelta, annPriorComments} =
-  foldr addDP (DP (0,0)) (map (\(a, b) -> addDP b (commentPos a)) annPriorComments )
-    `addDP` annEntryDelta
 
 -----
 -- Anns is kept abstract so that the sortKeys can't be modified
