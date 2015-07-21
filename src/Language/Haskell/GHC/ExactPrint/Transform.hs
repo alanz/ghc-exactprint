@@ -63,7 +63,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
 
         ) where
 
-import Language.Haskell.GHC.ExactPrint.Internal.Types
+import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
 import Control.Monad.RWS

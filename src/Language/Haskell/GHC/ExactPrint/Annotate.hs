@@ -23,7 +23,7 @@ import Data.Ord ( comparing )
 import Data.List ( sortBy )
 #endif
 
-import Language.Haskell.GHC.ExactPrint.Internal.Types
+import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
 import qualified Bag            as GHC

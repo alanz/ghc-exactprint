@@ -20,7 +20,7 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
 import Language.Haskell.GHC.ExactPrint.Annotate
 import Language.Haskell.GHC.ExactPrint.Delta
 import Language.Haskell.GHC.ExactPrint.Preprocess
-import Language.Haskell.GHC.ExactPrint.Internal.Types
+import Language.Haskell.GHC.ExactPrint.Types
 
 import Control.Monad.RWS
 
