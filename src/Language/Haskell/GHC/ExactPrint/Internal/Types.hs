@@ -207,10 +207,6 @@ annGetConstr a = CN (show $ toConstr a)
 
 -- |We need our own version of keywordid to manage various special cases
 data KeywordId = G GHC.AnnKeywordId
-               | AnnSpanEntry -- ^ Marks the entry position of a SrcSpan, does
-                              -- not generate specific output but does adjust
-                              -- last output position, and cause comment
-                              -- processing.
                | AnnSemiSep
                | AnnComment DComment
                | AnnString String    -- ^ Used to pass information from
@@ -222,7 +218,6 @@ data KeywordId = G GHC.AnnKeywordId
 
 instance Show KeywordId where
   show (G gc)          = "(G " ++ show gc ++ ")"
-  show AnnSpanEntry    = "AnnSpanEntry"
   show AnnSemiSep      = "AnnSemiSep"
   show (AnnComment dc) = "(AnnComment " ++ show dc ++ ")"
   show (AnnString s)   = "(AnnString " ++ s ++ ")"

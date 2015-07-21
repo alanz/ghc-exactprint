@@ -19,7 +19,6 @@ keywordToString kw =
   case kw of
       -- Specifically handle all cases so that there are pattern match
       -- warnings if new constructors are added.
-      AnnSpanEntry      -> mkErr kw
       AnnComment _      -> mkErr kw
       AnnString _       -> mkErr kw
       AnnUnicode kw'    -> keywordToString (G kw')
