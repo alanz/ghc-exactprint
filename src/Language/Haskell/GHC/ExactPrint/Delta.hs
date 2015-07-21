@@ -84,7 +84,6 @@ data DeltaWriter = DeltaWriter
        , annKds         :: ![(KeywordId, DeltaPos)]
        , sortKeys       :: !(Maybe [GHC.SrcSpan])
        , dwCapturedSpan :: !(First AnnKey)
-       , dwLayoutStart  :: ![DeltaPos]
        }
 
 data DeltaState = DeltaState
@@ -165,7 +164,6 @@ deltaInterpret = iterTM go
     go (MarkInside akwid next)          = addDeltaAnnotationsInside akwid >> next
     go (MarkMany akwid next)            = addDeltaAnnotations akwid >> next
     go (MarkOffsetPrim akwid n _ next)  = addDeltaAnnotationLs akwid n >> next
-    go (MarkAfter akwid next)           = addDeltaAnnotationAfter akwid >> next
     go (WithAST lss prog next)          = withAST lss (deltaInterpret prog) >> next
     go (CountAnns kwid next)             = countAnnsDelta kwid >>= next
     go (SetLayoutFlag action next)       = setLayoutFlag (deltaInterpret action)  >> next
@@ -350,8 +348,7 @@ withAST lss@(GHC.L ss _) action = do
 
     let maskWriter s = s { annKds = []
                          , sortKeys = Nothing
-                         , dwCapturedSpan = mempty
-                         , dwLayoutStart  = mempty }
+                         , dwCapturedSpan = mempty }
 
     -- make sure all kds are relative to the start of the SrcSpan
     let spanStart = ss2pos ss
@@ -490,19 +487,6 @@ addDeltaAnnotation ann = do
     []     -> return () `debug` ("addDeltaAnnotation empty ma for:" ++ show (ss,ann))
     [pa]   -> addAnnotationWorker (G ann) pa
     (pa:_) -> addAnnotationWorker (G ann) pa `warn` ("addDeltaAnnotation:(ss,ann,ma)=" ++ showGhc (ss,ann,ma))
-
--- | Look up and add a Delta annotation appearing beyond the current
--- SrcSpan at the current position, and advance the position to the
--- end of the annotation
-addDeltaAnnotationAfter :: GHC.AnnKeywordId -> Delta ()
-addDeltaAnnotationAfter ann = do
-  ss <- getSrcSpan
-  ma <- getAnnotationDelta ann
-  let ma' = filter (\s -> not (GHC.isSubspanOf s ss)) ma
-  case ma' of
-    []     -> return () `debug` ("addDeltaAnnotationAfter empty ma for(ss,ann,ma)=" ++ showGhc (ss,ann,ma))
-    [pa]   -> addAnnotationWorker (G ann) pa
-    (pa:_) -> addAnnotationWorker (G ann) pa `warn` ("addDeltaAnnotationAfter:(ss,ann,ma)=" ++ showGhc (ss,ann,ma))
 
 -- | Look up and add a Delta annotation at the current position, and
 -- advance the position to the end of the annotation
