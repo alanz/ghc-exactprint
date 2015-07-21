@@ -2190,19 +2190,20 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
           GHC.InfixCon _ _ -> return ()
           _ -> mapM_ markLocated lns
 
-        when depc_syntax ( do
-          markHsConDeclDetails lns dets
-          mark GHC.AnnDcolon
-          markMany GHC.AnnOpenP
-          )
+        if depc_syntax
+          then ( do
+            markHsConDeclDetails lns dets
+            mark GHC.AnnDcolon
+            markMany GHC.AnnOpenP
+            )
 
-        when (not depc_syntax) ( do
-          mark GHC.AnnDcolon
-          markLocated (GHC.L ls (ResTyGADTHook bndrs))
-          markMany GHC.AnnOpenP
-          markLocated ctx
-          mark GHC.AnnDarrow
-          markHsConDeclDetails lns dets )
+          else ( do
+            mark GHC.AnnDcolon
+            markLocated (GHC.L ls (ResTyGADTHook bndrs))
+            markMany GHC.AnnOpenP
+            markLocated ctx
+            mark GHC.AnnDarrow
+            markHsConDeclDetails lns dets )
 
         markLocated ty
 
