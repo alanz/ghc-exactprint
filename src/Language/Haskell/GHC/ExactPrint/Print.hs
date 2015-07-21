@@ -18,7 +18,7 @@ module Language.Haskell.GHC.ExactPrint.Print
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Internal.Types
-import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta, ghead, orderByKey, dpFromString)
+import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta, ghead, orderByKey, dpFromString, getAnnotationEP)
 import Language.Haskell.GHC.ExactPrint.Annotate
   (AnnotationF(..), Annotated, Annotate(..), annotate)
 import Language.Haskell.GHC.ExactPrint.Lookup (keywordToString, unicodeString)

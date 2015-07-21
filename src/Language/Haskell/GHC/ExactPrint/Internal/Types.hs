@@ -21,9 +21,6 @@ module Language.Haskell.GHC.ExactPrint.Internal.Types
   , AnnConName(..)
   , annGetConstr
 
-  , getAnnotationEP
-  , getAndRemoveAnnotationEP
-
   -- , SortKey(..)
 
   , showGhc
@@ -205,15 +202,6 @@ instance GHC.Outputable DeltaPos where
 
 -- ---------------------------------------------------------------------
 
-getAnnotationEP :: (Data a) =>  GHC.Located a  -> Anns -> Maybe Annotation
-getAnnotationEP  la as =
-  Map.lookup (mkAnnKey la) as
-
-getAndRemoveAnnotationEP :: (Data a)
-                         => GHC.Located a -> Anns -> (Maybe Annotation,Anns)
-getAndRemoveAnnotationEP la as
- = let key = mkAnnKey la in
-   (Map.lookup key as, Map.delete key as)
 
 -- ---------------------------------------------------------------------
 

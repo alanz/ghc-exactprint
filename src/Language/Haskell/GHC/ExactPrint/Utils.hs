@@ -1,43 +1,48 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NamedFieldPuns #-}
 module Language.Haskell.GHC.ExactPrint.Utils
-  (
+  ( -- * GHC Functions
     srcSpanStartLine
   , srcSpanEndLine
   , srcSpanStartColumn
   , srcSpanEndColumn
-
-  , ss2pos
-  , ss2posEnd
-  , undelta
   , rdrName2String
   , isSymbolRdrName
   , ghcCommentText
-  , mkComment
-  , mkKWComment
+  , isListComp
+
+   -- * Manipulating Positons
+  , ss2pos
+  , ss2posEnd
+  , undelta
   , isPointSrcSpan
   , pos2delta
   , ss2delta
   , spanLength
   , isGoodDelta
 
-  , annTrueEntryDelta
+  -- * Manipulating Comments
+  , mkComment
+  , mkKWComment
   , dpFromString
+  , comment2dp
 
-  , isListComp
 
+  -- * Manipulating Annotations
+  , getAnnotationEP
+  , annTrueEntryDelta
+
+  -- * General Utility
   , orderByKey
 
-  , showGhc
-  , showAnnData
 
-  , comment2dp
-  , dp2comment
 
   -- * For tests
   , debug
   , debugM
   , warn
+  , showGhc
+  , showAnnData
 
   -- AZ's baggage
   , ghead,glast,gtail,gfromJust
@@ -67,9 +72,11 @@ import qualified Var            as GHC
 
 import qualified OccName(occNameString)
 
+import Control.Arrow
+
 --import qualified Data.Generics as SYB
 
---import qualified Data.Map as Map
+import qualified Data.Map as Map
 
 import Debug.Trace
 
@@ -211,6 +218,13 @@ mkComment c ss = Comment c ss Nothing
 mkKWComment :: GHC.AnnKeywordId -> GHC.SrcSpan -> Comment
 mkKWComment kw ss = Comment (keywordToString $ G kw) ss (Just kw)
 
+comment2dp :: (Comment,  DeltaPos) -> (KeywordId, DeltaPos)
+comment2dp = first AnnComment
+
+getAnnotationEP :: (Data a) =>  GHC.Located a  -> Anns -> Maybe Annotation
+getAnnotationEP  la as =
+  Map.lookup (mkAnnKey la) as
+
 annTrueEntryDelta :: Annotation -> DeltaPos
 annTrueEntryDelta Ann{annEntryDelta, annPriorComments} =
   foldr addDP (DP (0,0)) (map (\(a, b) -> addDP b (dpFromString $ commentContents a)) annPriorComments )
@@ -312,12 +326,6 @@ showAnnData anns n =
 
 -- ---------------------------------------------------------------------
 
-comment2dp :: (Comment,  DeltaPos) -> (KeywordId, DeltaPos)
-comment2dp (c,dp) = (AnnComment c,dp)
-
-dp2comment :: (KeywordId, DeltaPos) -> (Comment,  DeltaPos)
-dp2comment (AnnComment c,dp) = (c,dp)
-dp2comment oops = error $ "dp2comment:did not get a omment" ++ show oops
 
  -- ---------------------------------------------------------------------
 

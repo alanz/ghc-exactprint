@@ -14,9 +14,6 @@ module Language.Haskell.GHC.ExactPrint.Types
   , KeywordId(..)
   , mkAnnKey
 
-  , getAnnotationEP
-  , getAndRemoveAnnotationEP
-
   ) where
 
 import Language.Haskell.GHC.ExactPrint.Internal.Types
