@@ -1785,6 +1785,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     traceM "warning: DecBrG introduced after renamer"
   markAST _ (GHC.HsBracket (GHC.ExpBr e)) = do
 --    markWithString GHC.AnnOpen "[|"
+    -- This exists like this as the lexer collapses [e| and [| into the
+    -- same construtor
     workOutString GHC.AnnOpen
       (\ss -> if spanLength ss == 2
                 then "[|"

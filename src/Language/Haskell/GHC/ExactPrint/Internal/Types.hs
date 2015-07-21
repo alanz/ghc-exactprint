@@ -206,8 +206,8 @@ annGetConstr :: (Data a) => a -> AnnConName
 annGetConstr a = CN (show $ toConstr a)
 
 -- |We need our own version of keywordid to manage various special cases
-data KeywordId = G GHC.AnnKeywordId
-               | AnnSemiSep
+data KeywordId = G GHC.AnnKeywordId  -- ^ A normal keyword
+               | AnnSemiSep          -- ^ A seperating comma
                | AnnComment DComment
                | AnnString String    -- ^ Used to pass information from
                                      -- Delta to Print when we have to work
