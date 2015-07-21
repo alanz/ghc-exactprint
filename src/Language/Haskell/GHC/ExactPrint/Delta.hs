@@ -1,5 +1,53 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE BangPatterns #-}
+-- |  This module converts 'GHC.ApiAnns' into 'Anns' by traversing a
+-- structure created by the "Annotate" modue.
+--
+-- == Structure of an Annotation
+--
+-- As a rule of thumb, every located element in the GHC AST will have
+-- a corresponding entry in 'Anns'. An 'Annotation' contains 6 fields which
+-- can be modifed to change how the AST is printed.
+--
+-- == Layout Calculation
+--
+-- Certain expressions such as do blocks and let bindings obey
+-- <https://en.wikibooks.org/wiki/Haskell/Indentation layout rules>. We
+-- calculate the 'annEntryDelta' slightly differently when such rules
+-- apply.
+--
+-- 1. The first element which the layout rule applies to is given
+-- a 'annEntryDelta' as normal.
+-- 2. Further elements which must obey the rules are then given
+-- 'annEntryDelta's relative to the LHS of the first element.
+--
+-- For example, in the following expression the statement corresponding to
+-- `baz` will be given a 'annEntryDelta' of @DP (1, 2)@ as it appears
+-- 1 line and 2 columns after the @do@ keyword. On the other hand, @bar@
+-- will be given a 'annEntryDelta' of @DP (1,0)@ as it appears 1 line
+-- further than @baz@ but in the same column as the start of the layout
+-- block.
+--
+-- @
+-- foo = do
+--   baz
+--   bar
+-- @
+--
+-- A useful way to think of these rules is that the 'DeltaPos' is relative
+-- to the further left an expression could have been placed. In the
+-- previous example, we could have placed @baz@ anywhere on the line as its
+-- position determines where the other statements must be. @bar@ could have
+-- not been placed any further left without resulting in a syntax error
+-- which is why the relative column is 0.
+--
+-- === annTrueEntryDelta
+-- A very useful function is 'annTrueEntryDelta' which calculates the
+-- offset from the last synctactic element (ignoring comments). This is
+-- different to 'annEntryDelta' which does not ignore comments.
+--
+--
+--
 module Language.Haskell.GHC.ExactPrint.Delta
   ( relativiseApiAnns
   , relativiseApiAnnsWithComments
@@ -36,7 +84,7 @@ relativiseApiAnns :: Annotate ast
                   -> Anns
 relativiseApiAnns = relativiseApiAnnsWithComments []
 
--- | Exactly the same as @relativiseApiAnns@ but with the possibilty to
+-- | Exactly the same as 'relativiseApiAnns' but with the possibilty to
 -- inject comments.
 relativiseApiAnnsWithComments ::
                      Annotate ast

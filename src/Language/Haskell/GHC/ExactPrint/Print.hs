@@ -7,6 +7,9 @@
 -- |
 -- Module      :  Language.Haskell.GHC.ExactPrint.Print
 --
+-- This module inverts the process performed by "Delta". Given 'Anns' and
+-- a corresponding AST we produce a source file based on this information.
+--
 -----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint.Print
         (
@@ -274,6 +277,7 @@ printStringAtMaybeAnnThen an str next = do
   annFinal <- getAnnFinal an
   case (annFinal, an) of
     -- Could be unicode syntax
+    -- TODO: This is a bit fishy, refactor
     (Nothing, G kw) -> do
       res <- getAnnFinal (AnnUnicode kw)
       return () `debug` ("printStringAtMaybeAnn:missed:Unicode:(an,res)" ++ show (an,res))

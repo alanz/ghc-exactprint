@@ -141,7 +141,8 @@ instance Show AnnConName where
 annGetConstr :: (Data a) => a -> AnnConName
 annGetConstr a = CN (show $ toConstr a)
 
--- |We need our own version of keywordid to manage various special cases
+-- | The different syntactic elements which are not represented in the
+-- AST.
 data KeywordId = G GHC.AnnKeywordId  -- ^ A normal keyword
                | AnnSemiSep          -- ^ A seperating comma
                | AnnComment Comment

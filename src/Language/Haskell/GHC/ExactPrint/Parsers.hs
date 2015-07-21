@@ -13,7 +13,9 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
           Parser
         , withDynFlags
         , CppOptions(..)
+        , defaultCppOptions
 
+        -- * Module Parsers
         , parseModule
         , parseModuleWithCpp
 
@@ -82,6 +84,12 @@ runParser parser flags filename str = GHC.unP parser parseState
 
 -- ---------------------------------------------------------------------
 
+-- | Provides a safe way to consume a properly initialised set of
+-- 'DynFlags'.
+--
+-- @
+-- myParser fname expr = withDynFlags (\\d -> parseExpr d fname expr)
+-- @
 withDynFlags :: (GHC.DynFlags -> a) -> IO a
 withDynFlags action =
     GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
@@ -129,9 +137,14 @@ parsePattern df fp = parseWith df fp GHC.parsePattern
 
 -- | This entry point will also work out which language extensions are
 -- required and perform CPP processing if necessary.
+--
+-- @
+-- parseModule = parseModuleWithCpp defaultCppOptions
+-- @
 parseModule :: FilePath -> IO (Either (GHC.SrcSpan, String) (Anns, (GHC.Located (GHC.HsModule GHC.RdrName))))
 parseModule = parseModuleWithCpp defaultCppOptions
 
+-- | Parse a module with specific instructions for the C pre-processor.
 parseModuleWithCpp :: CppOptions
                    -> FilePath
                    -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.Located (GHC.HsModule GHC.RdrName)))
