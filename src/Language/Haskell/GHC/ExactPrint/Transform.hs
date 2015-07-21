@@ -278,7 +278,9 @@ decl2SigT _ = return []
 
 addSimpleAnnT :: (Data a) => GHC.Located a -> DeltaPos -> [(KeywordId, DeltaPos)] -> Transform ()
 addSimpleAnnT ast dp kds = do
-  let ann = Ann dp [] [] kds Nothing Nothing
+  let ann = annNone { annEntryDelta = dp
+                    , annsDP = kds
+                    }
   modifyAnnsT (\(Anns ans) -> Anns $ Map.insert (mkAnnKey ast) ann ans)
 
 -- ---------------------------------------------------------------------
