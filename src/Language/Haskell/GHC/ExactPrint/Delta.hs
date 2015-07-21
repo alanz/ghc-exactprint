@@ -3,8 +3,6 @@
 module Language.Haskell.GHC.ExactPrint.Delta
   ( relativiseApiAnns
   , relativiseApiAnnsWithComments
-
-  , tokComment
   ) where
 
 import Control.Monad.RWS
@@ -38,6 +36,8 @@ relativiseApiAnns :: Annotate ast
                   -> Anns
 relativiseApiAnns = relativiseApiAnnsWithComments []
 
+-- | Exactly the same as @relativiseApiAnns@ but with the possibilty to
+-- inject comments.
 relativiseApiAnnsWithComments ::
                      Annotate ast
                   => [Comment]
@@ -127,8 +127,6 @@ defaultDeltaState injectedComments priorEnd ga =
     flattenedComments (_,cm) =
       map tokComment . GHC.sortLocated . concat $ Map.elems cm
 
-tokComment :: GHC.Located GHC.AnnotationComment -> Comment
-tokComment t@(GHC.L lt _) = mkComment (ghcCommentText t) lt
 
 -- Writer helpers
 

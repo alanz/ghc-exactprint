@@ -1,29 +1,27 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE UndecidableInstances #-} -- for GHC.DataId
 module Language.Haskell.GHC.ExactPrint.Types
-  (
-    Comment(..)
-  , Pos
-  , PosToken
-  , DeltaPos(..)
-  , deltaRow, deltaColumn
-  , addDP
-  , LayoutStartCol(..) , ColDelta(..)
+  ( -- * Core Types
+   Anns
+  , emptyAnns
   , Annotation(..)
   , annNone
-  , Anns, AnnKey(..)
-  , emptyAnns
+
   , KeywordId(..)
+  , Comment(..)
+  -- * Positions
+  , Pos
+  , DeltaPos(..)
+  , deltaRow, deltaColumn
+  -- * AnnKey
+  , AnnKey(..)
   , mkAnnKey
   , AnnConName(..)
   , annGetConstr
+  -- * Internal Types
+  , LayoutStartCol(..)
 
-  -- , SortKey(..)
-
-  , showGhc
   ) where
 
 import Data.Data (Data, Typeable, toConstr)
@@ -50,8 +48,6 @@ data Comment = Comment
 instance GHC.Outputable Comment where
   ppr x = GHC.text (show x)
 
-type PosToken = (GHC.Located GHC.Token, String)
-
 type Pos = (Int,Int)
 
 -- | A relative positions, row then column
@@ -61,11 +57,6 @@ deltaRow, deltaColumn :: DeltaPos -> Int
 deltaRow (DP (r, _)) = r
 deltaColumn (DP (_, c)) = c
 
-addDP :: DeltaPos -> DeltaPos -> DeltaPos
-addDP (DP (a, b)) (DP (c, d)) =
-  if c >= 1 then DP (a+c, d)
-            else DP (a, b + d)
-
 
 -- | Marks the start column of a layout block.
 newtype LayoutStartCol = LayoutStartCol { getLayoutStartCol :: Int }
@@ -74,13 +65,6 @@ newtype LayoutStartCol = LayoutStartCol { getLayoutStartCol :: Int }
 instance Show LayoutStartCol where
   show (LayoutStartCol sc) = "(LayoutStartCol " ++ show sc ++ ")"
 
-
--- | Marks the distance from the start of the layout block to the element.
-newtype ColDelta  = ColDelta { getColDelta :: Int }
-  deriving (Eq, Num)
-
-instance Show ColDelta where
-  show (ColDelta v) = "(ColDelta " ++ show v ++ ")"
 
 annNone :: Annotation
 annNone = Ann (DP (0,0)) [] [] [] Nothing Nothing
@@ -126,13 +110,6 @@ instance Show Annotation where
         ++ showGhc csp ++ ")"
 
 
------
--- Anns is kept abstract so that the sortKeys can't be modified
---
-
--- ++AZ++ TODO: this type can be simplified now. At least rename the record
--- accessor to simply 'anns'
-
 -- | This structure holds a complete set of annotations for an AST
 type Anns = Map.Map AnnKey Annotation
 
@@ -151,7 +128,6 @@ instance Show AnnKey where
 
 mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
 mkAnnKey (GHC.L l a) = AnnKey l (annGetConstr a)
-
 
 
 -- Holds the name of a constructor
@@ -205,7 +181,7 @@ instance GHC.Outputable DeltaPos where
 
 -- ---------------------------------------------------------------------
 
--- |Show a GHC.Outputable structure
+-- Duplicated here so it can be used in show instances
 showGhc :: (GHC.Outputable a) => a -> String
 showGhc = GHC.showPpr GHC.unsafeGlobalDynFlags
 

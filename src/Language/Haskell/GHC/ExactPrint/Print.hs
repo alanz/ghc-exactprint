@@ -10,8 +10,7 @@
 -----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint.Print
         (
-          Anns
-        , exactPrintWithAnns
+          exactPrintWithAnns
 
         , exactPrint
 

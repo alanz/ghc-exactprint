@@ -9,6 +9,9 @@
 -- |
 -- Module      :  Language.Haskell.GHC.ExactPrint.Transform
 --
+-- Do not depend directly on this module. The API will change significantly
+-- for the 0.4 release.
+--
 -----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint.Transform
         (

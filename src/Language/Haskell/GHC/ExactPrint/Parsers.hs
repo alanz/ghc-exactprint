@@ -1,12 +1,23 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ViewPatterns #-}
+-----------------------------------------------------------------------------
+-- |
+-- This module rexposes wrapped parsers from the GHC API. Along with
+-- returning the parse result, the corresponding annotations are also
+-- returned such that it is then easy to modify the annotations and print
+-- the result.
+--
+----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint.Parsers (
         -- * Utility
           Parser
+        , withDynFlags
         , CppOptions(..)
 
         , parseModule
         , parseModuleWithCpp
+
+        -- * Basic Parsers
         , parseExpr
         , parseImport
         , parseType
@@ -15,7 +26,7 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
         , parseStmt
 
         , parseWith
-        , withDynFlags ) where
+        ) where
 
 import Language.Haskell.GHC.ExactPrint.Annotate
 import Language.Haskell.GHC.ExactPrint.Delta
@@ -46,6 +57,8 @@ import qualified Data.Map as Map
 
 -- ---------------------------------------------------------------------
 
+-- | Wrapper function which returns Annotations along with the parsed
+-- element.
 parseWith :: Annotate w
           => GHC.DynFlags
           -> FilePath
@@ -114,7 +127,8 @@ parsePattern df fp = parseWith df fp GHC.parsePattern
 -- ---------------------------------------------------------------------
 --
 
-
+-- | This entry point will also work out which language extensions are
+-- required and perform CPP processing if necessary.
 parseModule :: FilePath -> IO (Either (GHC.SrcSpan, String) (Anns, (GHC.Located (GHC.HsModule GHC.RdrName))))
 parseModule = parseModuleWithCpp defaultCppOptions
 
