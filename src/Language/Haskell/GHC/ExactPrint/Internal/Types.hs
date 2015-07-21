@@ -28,9 +28,6 @@ module Language.Haskell.GHC.ExactPrint.Internal.Types
   , AnnConName(..)
   , annGetConstr
 
-  , ResTyGADTHook(..)
-  , WildCardAnon(..)
-
   , getAnnotationEP
   , getAndRemoveAnnotationEP
 
@@ -242,20 +239,6 @@ instance GHC.Outputable DeltaPos where
 
 instance GHC.Outputable Anns where
   ppr a     = GHC.text (show a)
-
--- ---------------------------------------------------------------------
-
--- ResTyGADT has a SrcSpan for the original sigtype, we need to create
--- a type for exactPC and annotatePC
-data ResTyGADTHook name = ResTyGADTHook [GHC.LHsTyVarBndr name]
-                   deriving (Typeable)
-deriving instance (GHC.DataId name) => Data (ResTyGADTHook name)
-deriving instance (Show (GHC.LHsTyVarBndr name)) => Show (ResTyGADTHook name)
-
-instance (GHC.OutputableBndr name) => GHC.Outputable (ResTyGADTHook name) where
-  ppr (ResTyGADTHook bs) = GHC.text "ResTyGADTHook" GHC.<+> GHC.ppr bs
-
-data WildCardAnon = WildCardAnon deriving (Show,Data,Typeable)
 
 -- ---------------------------------------------------------------------
 

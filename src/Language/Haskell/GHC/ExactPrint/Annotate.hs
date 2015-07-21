@@ -8,6 +8,8 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 module Language.Haskell.GHC.ExactPrint.Annotate
        (
          annotate
@@ -1204,10 +1206,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markAST l n
 #endif
 
-instance Annotate WildCardAnon where
-  markAST l WildCardAnon = do
-    markExternal l GHC.AnnVal "_"
-
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsSplice name) where
 #if __GLASGOW_HASKELL__ > 710
@@ -2212,6 +2210,17 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 
     mark GHC.AnnVbar
     markOutside GHC.AnnSemi (G GHC.AnnSemi)
+
+
+-- ResTyGADT has a SrcSpan for the original sigtype, we need to create
+-- a type for exactPC and annotatePC
+data ResTyGADTHook name = ResTyGADTHook [GHC.LHsTyVarBndr name]
+                   deriving (Typeable)
+deriving instance (GHC.DataId name) => Data (ResTyGADTHook name)
+deriving instance (Show (GHC.LHsTyVarBndr name)) => Show (ResTyGADTHook name)
+
+instance (GHC.OutputableBndr name) => GHC.Outputable (ResTyGADTHook name) where
+  ppr (ResTyGADTHook bs) = GHC.text "ResTyGADTHook" GHC.<+> GHC.ppr bs
 
 -- ---------------------------------------------------------------------
 
