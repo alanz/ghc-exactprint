@@ -1,14 +1,11 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE UndecidableInstances #-} -- for GHC.DataId
 module Language.Haskell.GHC.ExactPrint.Internal.Types
   (
-    Comment
-  , DComment
-  , PComment(..)
+    Comment(..)
   , Pos
   , Span
   , PosToken
@@ -42,26 +39,21 @@ import qualified GHC
 import qualified Outputable    as GHC
 
 import qualified Data.Map as Map
-import Data.Ord
 
 -- ---------------------------------------------------------------------
 
 -- | A Haskell comment. The @AnnKeywordId@ is present if it has been converted
 -- from an @AnnKeywordId@ because the annotation must be interleaved into the
 -- stream and does not have a well-defined position
-data PComment a = Comment
+data Comment = Comment
     {
       commentContents   :: !String -- ^ The contents of the comment including separators
     , commentIdentifier :: !GHC.SrcSpan -- ^ Needed to uniquely identify two comments with the same contents
     , commentOrigin     :: !(Maybe GHC.AnnKeywordId) -- ^ We sometimes turn syntax into comments in order to process them properly.
     }
-  deriving (Eq,Show,Typeable,Data, Functor, Ord)
+  deriving (Eq,Show,Typeable,Data, Ord)
 
-type Comment  = PComment Span
-
-type DComment = PComment DeltaPos
-
-instance Show a => GHC.Outputable (PComment a) where
+instance GHC.Outputable Comment where
   ppr x = GHC.text (show x)
 
 type PosToken = (GHC.Located GHC.Token, String)
@@ -105,12 +97,12 @@ data Annotation = Ann
     annEntryDelta      :: !DeltaPos
     -- ^ Offset used to get to the start of the SrcSpan, from whatever the prior
     -- output was, including all annPriorComments (field below).
-  , annPriorComments   :: ![(DComment,  DeltaPos)]
+  , annPriorComments   :: ![(Comment,  DeltaPos)]
     -- ^ Comments coming after the last non-comment output of the preceding
     -- element but before the SrcSpan being annotated by this Annotation. If
     -- these are changed then annEntryDelta (field above) must also change to
     -- match.
-  , annFollowingComments   :: ![(DComment,  DeltaPos)]
+  , annFollowingComments   :: ![(Comment,  DeltaPos)]
     -- ^ Comments coming after the last output for the element subject to this
     -- Annotation. These will only be added by AST transformations, and care
     -- must be taken not to disturb layout of following elements.
@@ -196,7 +188,7 @@ annGetConstr a = CN (show $ toConstr a)
 -- |We need our own version of keywordid to manage various special cases
 data KeywordId = G GHC.AnnKeywordId  -- ^ A normal keyword
                | AnnSemiSep          -- ^ A seperating comma
-               | AnnComment DComment
+               | AnnComment Comment
                | AnnString String    -- ^ Used to pass information from
                                      -- Delta to Print when we have to work
                                      -- out details from the original

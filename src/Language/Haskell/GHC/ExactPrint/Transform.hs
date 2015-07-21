@@ -418,7 +418,7 @@ balanceComments first second = do
 -- with the following element in fact do. Of necessity this is a heuristic
 -- process, to be tuned later. Possibly a variant should be provided with a
 -- passed-in decision function.
-balanceTrailingComments :: (Data a,Data b) => GHC.Located a -> GHC.Located b -> Transform [(DComment, DeltaPos)]
+balanceTrailingComments :: (Data a,Data b) => GHC.Located a -> GHC.Located b -> Transform [(Comment, DeltaPos)]
 balanceTrailingComments first second = do
   let
     k1 = mkAnnKey first
@@ -758,7 +758,7 @@ matchApiAnn mkw (kw,_)
 -- We comments extracted from annPriorComments or annFollowingComments, which
 -- need to move to just before the item identified by the predicate, if it
 -- fires, else at the end of the annotations.
-insertCommentBefore :: AnnKey -> [(DComment, DeltaPos)]
+insertCommentBefore :: AnnKey -> [(Comment, DeltaPos)]
                     -> ((KeywordId, DeltaPos) -> Bool) -> Transform ()
 insertCommentBefore key toMove p = do
   let

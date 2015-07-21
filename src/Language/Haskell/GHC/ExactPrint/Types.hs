@@ -1,8 +1,6 @@
 module Language.Haskell.GHC.ExactPrint.Types
   (
-    Comment
-  , DComment
-  , PComment(..)
+    Comment(..)
   , Pos
   , Span
   , PosToken

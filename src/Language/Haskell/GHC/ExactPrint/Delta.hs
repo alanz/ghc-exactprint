@@ -455,7 +455,7 @@ checkUnicode kwid _ = kwid
 -- ---------------------------------------------------------------------
 
 commentAllocation :: (Comment -> Bool)
-                  -> ([(DComment, DeltaPos)] -> Delta a)
+                  -> ([(Comment, DeltaPos)] -> Delta a)
                   -> Delta a
 commentAllocation p k = do
   cs <- getUnallocatedComments
@@ -464,19 +464,16 @@ commentAllocation p k = do
   k =<< mapM makeDeltaComment (sortBy (comparing commentIdentifier) allocated)
 
 
-makeDeltaComment :: Comment -> Delta (DComment, DeltaPos)
+makeDeltaComment :: Comment -> Delta (Comment, DeltaPos)
 makeDeltaComment c = do
-  let paspan = ss2span (commentIdentifier c)
-      pa = commentIdentifier c
+  let pa = commentIdentifier c
   pe <- getPriorEnd
   let p = ss2delta pe pa
   p' <- adjustDeltaForOffsetM p
   setPriorEnd (ss2posEnd pa)
-  let e = pos2delta pe (snd paspan)
-  e' <- adjustDeltaForOffsetM e
-  return $ (mkDComment c e', p')
+  return $ (c, p')
 
-addDeltaComment :: DComment -> DeltaPos -> Delta ()
+addDeltaComment :: Comment -> DeltaPos -> Delta ()
 addDeltaComment d p = do
   addAnnDeltaPos (AnnComment d) p
 

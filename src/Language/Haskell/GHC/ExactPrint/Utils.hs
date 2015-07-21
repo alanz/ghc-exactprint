@@ -17,7 +17,6 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , ghcCommentText
   , mkComment
   , mkKWComment
-  , mkDComment
   , isPointSrcSpan
   , pos2delta
   , ss2delta
@@ -52,7 +51,6 @@ import Data.Data (Data, toConstr, showConstr, cast)
 import Data.Generics (extQ, ext1Q, ext2Q, gmapQ)
 import Data.List (intercalate, sortBy, elemIndex)
 import Data.Ord (comparing)
-import Data.Functor (($>))
 
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Lookup
@@ -217,9 +215,6 @@ mkComment c ss = Comment c ss Nothing
 mkKWComment :: GHC.AnnKeywordId -> GHC.SrcSpan -> Comment
 mkKWComment kw ss = Comment (keywordToString $ G kw) ss (Just kw)
 
-mkDComment :: Comment -> DeltaPos -> DComment
-mkDComment = ($>)
-
 annTrueEntryDelta :: Annotation -> DeltaPos
 annTrueEntryDelta Ann{annEntryDelta, annPriorComments} =
   foldr addDP (DP (0,0)) (map (\(a, b) -> addDP b (dpFromString $ commentContents a)) annPriorComments )
@@ -321,10 +316,10 @@ showAnnData anns n =
 
 -- ---------------------------------------------------------------------
 
-comment2dp :: (DComment,  DeltaPos) -> (KeywordId, DeltaPos)
+comment2dp :: (Comment,  DeltaPos) -> (KeywordId, DeltaPos)
 comment2dp (c,dp) = (AnnComment c,dp)
 
-dp2comment :: (KeywordId, DeltaPos) -> (DComment,  DeltaPos)
+dp2comment :: (KeywordId, DeltaPos) -> (Comment,  DeltaPos)
 dp2comment (AnnComment c,dp) = (c,dp)
 dp2comment oops = error $ "dp2comment:did not get a omment" ++ show oops
 

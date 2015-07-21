@@ -32,8 +32,6 @@ import Data.Maybe (fromMaybe)
 
 import Control.Monad.Trans.Free
 
-import Debug.Trace
-
 
 import qualified GHC
 
@@ -297,7 +295,7 @@ printStringAtMaybeAnnThen an str next = do
 -- ---------------------------------------------------------------------
 
 -- |destructive get, hence use an annotation once only
-getAnnFinal :: KeywordId -> EP (Maybe ([(DComment, DeltaPos)], DeltaPos))
+getAnnFinal :: KeywordId -> EP (Maybe ([(Comment, DeltaPos)], DeltaPos))
 getAnnFinal kw = do
   kd <- gets epAnnKds
   case kd of
@@ -311,7 +309,7 @@ getAnnFinal kw = do
 -- Return the value, together with any comments skipped over to get there.
 destructiveGetFirst :: KeywordId
                     -> ([(KeywordId, v)],[(KeywordId,v)])
-                    -> (Maybe ([(DComment, v)], v),[(KeywordId,v)])
+                    -> (Maybe ([(Comment, v)], v),[(KeywordId,v)])
 destructiveGetFirst _key (acc,[]) = (Nothing, acc)
 destructiveGetFirst  key (acc, (k,v):kvs )
   | k == key = (Just (skippedComments, v), others ++ kvs)
@@ -326,7 +324,7 @@ destructiveGetFirst  key (acc, (k,v):kvs )
 
 -- |This should be the final point where things are mode concrete,
 -- before output. Hence the point where comments can be inserted
-printStringAtLsDelta :: [(DComment, DeltaPos)] -> DeltaPos -> String -> EP ()
+printStringAtLsDelta :: [(Comment, DeltaPos)] -> DeltaPos -> String -> EP ()
 printStringAtLsDelta cs cl s = do
   p <- getPos
   colOffset <- getLayoutOffset
@@ -342,7 +340,7 @@ isGoodDeltaWithOffset :: DeltaPos -> LayoutStartCol -> Bool
 isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP (undelta (0,0) dp colOffset))
 
 -- AZ:TODO: harvest the commonality between this and printStringAtLsDelta
-printQueuedComment :: DComment -> DeltaPos -> EP ()
+printQueuedComment :: Comment -> DeltaPos -> EP ()
 printQueuedComment Comment{commentContents} dp = do
   p <- getPos
   colOffset <- getLayoutOffset
