@@ -1,7 +1,6 @@
 -- functions from GHC copied here until they can be exported in the next version.
 module Language.Haskell.GHC.ExactPrint.GhcInterim where
 
-
 import ApiAnnotation
 import Lexer
 import SrcLoc

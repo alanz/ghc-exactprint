@@ -149,6 +149,8 @@ changeLocalDecls ans (GHC.L l p) = do
                 let a2 = setPrecedingLines s1 2 0 a1
                 return a2
         putAnnsT a'
+        let wrapDecl (GHC.L l' w) = GHC.L l' (GHC.ValD w)
+            wrapSig (GHC.L l' w) = GHC.L l' (GHC.SigD w)
         let oldDecls = GHC.sortLocated $ map wrapDecl (GHC.bagToList binds) ++ map wrapSig sigs
         let decls = s:d:oldDecls
         logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)

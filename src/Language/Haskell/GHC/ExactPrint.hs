@@ -14,7 +14,6 @@ module Language.Haskell.GHC.ExactPrint
         , parseModule
 
         -- * Transformation
-        -- This aread is volatile, subject to heavy development
         , module Language.Haskell.GHC.ExactPrint.Transform
 
         -- * Printing
