@@ -2267,6 +2267,20 @@ deriving instance (Show (GHC.LHsTyVarBndr name)) => Show (ResTyGADTHook name)
 instance (GHC.OutputableBndr name) => GHC.Outputable (ResTyGADTHook name) where
   ppr (ResTyGADTHook bs) = GHC.text "ResTyGADTHook" GHC.<+> GHC.ppr bs
 
+
+#if __GLASGOW_HASKELL__ > 710
+-- WildCardAnon exists because the GHC anonymous wildcard type is defined as
+--      = AnonWildCard (PostRn name Name)
+-- We need to reconstruct this from the typed hole SrcSpan in an HsForAllTy, but
+-- the instance doing this is parameterised on name, so we cannot put a value in
+-- for the (PostRn name Name) field. This is used instead.
+data WildCardAnon = WildCardAnon deriving (Show,Data,Typeable)
+
+instance Annotate WildCardAnon where
+  markAST l WildCardAnon = do
+    markExternal l GHC.AnnVal "_"
+#endif
+
 -- ---------------------------------------------------------------------
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)

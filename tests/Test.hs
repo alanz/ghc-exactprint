@@ -3,7 +3,6 @@
 -- | Use "runhaskell Setup.hs test" or "cabal test" to run these tests.
 module Main where
 
-import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils (showGhc)
 
 import qualified FastString     as GHC

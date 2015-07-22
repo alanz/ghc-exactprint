@@ -132,12 +132,15 @@ isUniqueSrcSpan :: GHC.SrcSpan -> Bool
 isUniqueSrcSpan ss = srcSpanStartLine ss == -1
 
 -- ---------------------------------------------------------------------
+{-
+-- TODO: I suspect this may be needed in future.
 
 -- |Make a copy of an AST element, replacing the existing SrcSpans with new
 -- ones, and duplicating the matching annotations.
 cloneT :: GHC.Located a -> Transform (GHC.Located a)
 cloneT _ast = do
   error "Transform.cloneT undefined"
+-}
 
 -- ---------------------------------------------------------------------
 
@@ -430,10 +433,7 @@ balanceTrailingComments first second = do
       where
         an1 = gfromJust "balanceTrailingComments k1" $ Map.lookup k1 ans
         an2 = gfromJust "balanceTrailingComments k2" $ Map.lookup k2 ans
-        cs1b = annPriorComments     an1
         cs1f = annFollowingComments an1
-        cs2b = annPriorComments     an2
-        cs2f = annFollowingComments an2
         (move,stay) = break p cs1f
         an1' = an1 { annFollowingComments = stay }
         an2' = an2 -- { annPriorComments = move ++ cs2b }
@@ -686,9 +686,9 @@ instance HasDecls (GHC.LHsBinds GHC.RdrName) where
 instance HasDecls [GHC.LHsBind GHC.RdrName] where
   hsDecls bs = mapM wrapDeclT bs
 
-  replaceDecls bs newDecls
+  replaceDecls _bs newDecls
     = do
-        return bs
+        return $ concatMap decl2Bind newDecls
 
 -- ---------------------------------------------------------------------
 
@@ -700,7 +700,7 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
   hsDecls (GHC.L _ (GHC.PatSynBind _))      = error "hsDecls: PatSynBind to implement"
 
 
-  replaceDecls fb@(GHC.L l fn@(GHC.FunBind a b (GHC.MG matches f g h) c d e)) newDecls
+  replaceDecls (GHC.L l fn@(GHC.FunBind a b (GHC.MG matches f g h) c d e)) newDecls
     = do
         matches' <- replaceDecls matches newDecls
         case matches' of
@@ -713,9 +713,7 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
                 insertCommentBefore (mkAnnKey $ last ms) toMove (matchApiAnn GHC.AnnWhere)
               lbs -> do
                 decs <- hsDecls lbs
-                -- balanceComments (GHC.L l (GHC.ValD fn)) (last decs)
                 balanceComments (last decs) (GHC.L l (GHC.ValD fn))
-              _ -> return ()
         return (GHC.L l (GHC.FunBind a b (GHC.MG matches' f g h) c d e))
 
   replaceDecls (GHC.L l (GHC.PatBind a rhs b c d)) newDecls

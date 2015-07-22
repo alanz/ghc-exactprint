@@ -29,7 +29,6 @@ import FastString (mkFastString)
 import Control.Exception
 import Data.List hiding (find)
 import Data.Maybe
-import Language.Haskell.GHC.ExactPrint.Delta
 import Language.Haskell.GHC.ExactPrint.GhcInterim (commentToAnnotation)
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
