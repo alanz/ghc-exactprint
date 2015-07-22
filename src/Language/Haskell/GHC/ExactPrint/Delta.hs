@@ -1,10 +1,56 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE BangPatterns #-}
+-- |  This module converts 'GHC.ApiAnns' into 'Anns' by traversing a
+-- structure created by the "Annotate" modue.
+--
+-- == Structure of an Annotation
+--
+-- As a rule of thumb, every located element in the GHC AST will have
+-- a corresponding entry in 'Anns'. An 'Annotation' contains 6 fields which
+-- can be modifed to change how the AST is printed.
+--
+-- == Layout Calculation
+--
+-- Certain expressions such as do blocks and let bindings obey
+-- <https://en.wikibooks.org/wiki/Haskell/Indentation layout rules>. We
+-- calculate the 'annEntryDelta' slightly differently when such rules
+-- apply.
+--
+-- 1. The first element which the layout rule applies to is given
+-- a 'annEntryDelta' as normal.
+-- 2. Further elements which must obey the rules are then given
+-- 'annEntryDelta's relative to the LHS of the first element.
+--
+-- For example, in the following expression the statement corresponding to
+-- `baz` will be given a 'annEntryDelta' of @DP (1, 2)@ as it appears
+-- 1 line and 2 columns after the @do@ keyword. On the other hand, @bar@
+-- will be given a 'annEntryDelta' of @DP (1,0)@ as it appears 1 line
+-- further than @baz@ but in the same column as the start of the layout
+-- block.
+--
+-- @
+-- foo = do
+--   baz
+--   bar
+-- @
+--
+-- A useful way to think of these rules is that the 'DeltaPos' is relative
+-- to the further left an expression could have been placed. In the
+-- previous example, we could have placed @baz@ anywhere on the line as its
+-- position determines where the other statements must be. @bar@ could have
+-- not been placed any further left without resulting in a syntax error
+-- which is why the relative column is 0.
+--
+-- === annTrueEntryDelta
+-- A very useful function is 'annTrueEntryDelta' which calculates the
+-- offset from the last synctactic element (ignoring comments). This is
+-- different to 'annEntryDelta' which does not ignore comments.
+--
+--
+--
 module Language.Haskell.GHC.ExactPrint.Delta
   ( relativiseApiAnns
   , relativiseApiAnnsWithComments
-
-  , tokComment
   ) where
 
 import Control.Monad.RWS
@@ -17,7 +63,7 @@ import Data.Ord
 
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Lookup
-import Language.Haskell.GHC.ExactPrint.Internal.Types
+import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Annotate (AnnotationF(..), Annotated
                                                 , annotate,  Annotate(..))
 
@@ -38,6 +84,8 @@ relativiseApiAnns :: Annotate ast
                   -> Anns
 relativiseApiAnns = relativiseApiAnnsWithComments []
 
+-- | Exactly the same as 'relativiseApiAnns' but with the possibilty to
+-- inject comments.
 relativiseApiAnnsWithComments ::
                      Annotate ast
                   => [Comment]
@@ -59,7 +107,7 @@ runDeltaWithComments cs action ga priorEnd =
   . deltaInterpret $ action
   where
     mkAnns :: DeltaWriter -> Anns
-    mkAnns = Anns <$> (f . dwAnns)
+    mkAnns = f . dwAnns
     f :: Monoid a => Endo a -> a
     f = ($ mempty) . appEndo
 
@@ -84,7 +132,6 @@ data DeltaWriter = DeltaWriter
        , annKds         :: ![(KeywordId, DeltaPos)]
        , sortKeys       :: !(Maybe [GHC.SrcSpan])
        , dwCapturedSpan :: !(First AnnKey)
-       , dwLayoutStart  :: ![DeltaPos]
        }
 
 data DeltaState = DeltaState
@@ -128,8 +175,6 @@ defaultDeltaState injectedComments priorEnd ga =
     flattenedComments (_,cm) =
       map tokComment . GHC.sortLocated . concat $ Map.elems cm
 
-tokComment :: GHC.Located GHC.AnnotationComment -> Comment
-tokComment t@(GHC.L lt _) = mkComment (ghcCommentText t) lt
 
 -- Writer helpers
 
@@ -148,9 +193,9 @@ tellKd :: (KeywordId, DeltaPos) -> Delta ()
 tellKd kd = tell (mempty { annKds = [kd] })
 
 instance Monoid DeltaWriter where
-  mempty = DeltaWriter mempty mempty mempty mempty mempty
-  (DeltaWriter a b e g j) `mappend` (DeltaWriter c d f h i)
-    = DeltaWriter (a <> c) (b <> d) (e <> f) (g <> h) (j <> i)
+  mempty = DeltaWriter mempty mempty mempty mempty
+  (DeltaWriter a b e g) `mappend` (DeltaWriter c d f h)
+    = DeltaWriter (a <> c) (b <> d) (e <> f) (g <> h)
 
 -----------------------------------
 -- Free Monad Interpretation code
@@ -165,7 +210,6 @@ deltaInterpret = iterTM go
     go (MarkInside akwid next)          = addDeltaAnnotationsInside akwid >> next
     go (MarkMany akwid next)            = addDeltaAnnotations akwid >> next
     go (MarkOffsetPrim akwid n _ next)  = addDeltaAnnotationLs akwid n >> next
-    go (MarkAfter akwid next)           = addDeltaAnnotationAfter akwid >> next
     go (WithAST lss prog next)          = withAST lss (deltaInterpret prog) >> next
     go (CountAnns kwid next)             = countAnnsDelta kwid >>= next
     go (SetLayoutFlag action next)       = setLayoutFlag (deltaInterpret action)  >> next
@@ -350,8 +394,7 @@ withAST lss@(GHC.L ss _) action = do
 
     let maskWriter s = s { annKds = []
                          , sortKeys = Nothing
-                         , dwCapturedSpan = mempty
-                         , dwLayoutStart  = mempty }
+                         , dwCapturedSpan = mempty }
 
     -- make sure all kds are relative to the start of the SrcSpan
     let spanStart = ss2pos ss
@@ -397,7 +440,7 @@ resetAnns action = do
 -- |Split the ordered list of comments into ones that occur prior to
 -- the give SrcSpan and the rest
 priorComment :: Pos -> Comment -> Bool
-priorComment start c = (fst . commentPos $ c) < start
+priorComment start c = (ss2pos . commentIdentifier $ c) < start
 
 -- TODO:AZ: We scan the entire comment list here. It may be better to impose an
 -- invariant that the comments are sorted, and consume them as the pos
@@ -427,7 +470,7 @@ addAnnotationWorker ann pa =
           commentAllocation (priorComment (ss2pos pa)) (mapM_ (uncurry addDeltaComment))
           addAnnDeltaPos (checkUnicode ann pa) p'
           setPriorEndAST pa
-              `debug` ("addAnnotationWorker:(ss,ss,pe,pa,p,p',ann)=" ++ show (showGhc ss,ss2span ss,pe,ss2span pa,p,p',ann))
+              `debug` ("addAnnotationWorker:(ss,ss,pe,pa,p,p',ann)=" ++ show (showGhc ss,showGhc ss,pe,showGhc pa,p,p',ann))
 
 checkUnicode :: KeywordId -> GHC.SrcSpan -> KeywordId
 checkUnicode gkw@(G kw) ss =
@@ -455,28 +498,25 @@ checkUnicode kwid _ = kwid
 -- ---------------------------------------------------------------------
 
 commentAllocation :: (Comment -> Bool)
-                  -> ([(DComment, DeltaPos)] -> Delta a)
+                  -> ([(Comment, DeltaPos)] -> Delta a)
                   -> Delta a
 commentAllocation p k = do
   cs <- getUnallocatedComments
   let (allocated,cs') = allocateComments p cs
   putUnallocatedComments cs'
-  k =<< mapM makeDeltaComment (sort allocated)
+  k =<< mapM makeDeltaComment (sortBy (comparing commentIdentifier) allocated)
 
 
-makeDeltaComment :: Comment -> Delta (DComment, DeltaPos)
+makeDeltaComment :: Comment -> Delta (Comment, DeltaPos)
 makeDeltaComment c = do
-  let paspan = commentPos c
-      pa = span2ss paspan
+  let pa = commentIdentifier c
   pe <- getPriorEnd
   let p = ss2delta pe pa
   p' <- adjustDeltaForOffsetM p
   setPriorEnd (ss2posEnd pa)
-  let e = pos2delta pe (snd paspan)
-  e' <- adjustDeltaForOffsetM e
-  return $ (mkDComment c e', p')
+  return $ (c, p')
 
-addDeltaComment :: DComment -> DeltaPos -> Delta ()
+addDeltaComment :: Comment -> DeltaPos -> Delta ()
 addDeltaComment d p = do
   addAnnDeltaPos (AnnComment d) p
 
@@ -493,19 +533,6 @@ addDeltaAnnotation ann = do
     []     -> return () `debug` ("addDeltaAnnotation empty ma for:" ++ show (ss,ann))
     [pa]   -> addAnnotationWorker (G ann) pa
     (pa:_) -> addAnnotationWorker (G ann) pa `warn` ("addDeltaAnnotation:(ss,ann,ma)=" ++ showGhc (ss,ann,ma))
-
--- | Look up and add a Delta annotation appearing beyond the current
--- SrcSpan at the current position, and advance the position to the
--- end of the annotation
-addDeltaAnnotationAfter :: GHC.AnnKeywordId -> Delta ()
-addDeltaAnnotationAfter ann = do
-  ss <- getSrcSpan
-  ma <- getAnnotationDelta ann
-  let ma' = filter (\s -> not (GHC.isSubspanOf s ss)) ma
-  case ma' of
-    []     -> return () `debug` ("addDeltaAnnotationAfter empty ma for(ss,ann,ma)=" ++ showGhc (ss,ann,ma))
-    [pa]   -> addAnnotationWorker (G ann) pa
-    (pa:_) -> addAnnotationWorker (G ann) pa `warn` ("addDeltaAnnotationAfter:(ss,ann,ma)=" ++ showGhc (ss,ann,ma))
 
 -- | Look up and add a Delta annotation at the current position, and
 -- advance the position to the end of the annotation
@@ -546,11 +573,9 @@ addDeltaAnnotationsInside ann = do
 addDeltaAnnotationsOutside :: GHC.AnnKeywordId -> KeywordId -> Delta ()
 addDeltaAnnotationsOutside gann ann = do
   ss <- getSrcSpan
-  unless (ss2span ss == ((1,1),(1,1))) $
-    do
-      ma <- getAndRemoveAnnotationDelta ss gann
-      let do_one ap' = addAnnotationWorker ann ap'
-      mapM_ do_one (sort $ filter (\s -> not (GHC.isSubspanOf s ss)) ma)
+  ma <- getAndRemoveAnnotationDelta ss gann
+  let do_one ap' = addAnnotationWorker ann ap'
+  mapM_ do_one (sort $ filter (\s -> not (GHC.isSubspanOf s ss)) ma)
 
 -- | Add a Delta annotation at the current position, and advance the
 -- position to the end of the annotation

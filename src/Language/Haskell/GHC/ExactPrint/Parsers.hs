@@ -1,12 +1,25 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ViewPatterns #-}
+-----------------------------------------------------------------------------
+-- |
+-- This module rexposes wrapped parsers from the GHC API. Along with
+-- returning the parse result, the corresponding annotations are also
+-- returned such that it is then easy to modify the annotations and print
+-- the result.
+--
+----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint.Parsers (
         -- * Utility
           Parser
+        , withDynFlags
         , CppOptions(..)
+        , defaultCppOptions
 
+        -- * Module Parsers
         , parseModule
         , parseModuleWithCpp
+
+        -- * Basic Parsers
         , parseExpr
         , parseImport
         , parseType
@@ -15,12 +28,12 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
         , parseStmt
 
         , parseWith
-        , withDynFlags ) where
+        ) where
 
 import Language.Haskell.GHC.ExactPrint.Annotate
 import Language.Haskell.GHC.ExactPrint.Delta
 import Language.Haskell.GHC.ExactPrint.Preprocess
-import Language.Haskell.GHC.ExactPrint.Internal.Types
+import Language.Haskell.GHC.ExactPrint.Types
 
 import Control.Monad.RWS
 
@@ -46,6 +59,8 @@ import qualified Data.Map as Map
 
 -- ---------------------------------------------------------------------
 
+-- | Wrapper function which returns Annotations along with the parsed
+-- element.
 parseWith :: Annotate w
           => GHC.DynFlags
           -> FilePath
@@ -69,6 +84,12 @@ runParser parser flags filename str = GHC.unP parser parseState
 
 -- ---------------------------------------------------------------------
 
+-- | Provides a safe way to consume a properly initialised set of
+-- 'DynFlags'.
+--
+-- @
+-- myParser fname expr = withDynFlags (\\d -> parseExpr d fname expr)
+-- @
 withDynFlags :: (GHC.DynFlags -> a) -> IO a
 withDynFlags action =
     GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
@@ -114,10 +135,16 @@ parsePattern df fp = parseWith df fp GHC.parsePattern
 -- ---------------------------------------------------------------------
 --
 
-
+-- | This entry point will also work out which language extensions are
+-- required and perform CPP processing if necessary.
+--
+-- @
+-- parseModule = parseModuleWithCpp defaultCppOptions
+-- @
 parseModule :: FilePath -> IO (Either (GHC.SrcSpan, String) (Anns, (GHC.Located (GHC.HsModule GHC.RdrName))))
 parseModule = parseModuleWithCpp defaultCppOptions
 
+-- | Parse a module with specific instructions for the C pre-processor.
 parseModuleWithCpp :: CppOptions
                    -> FilePath
                    -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.Located (GHC.HsModule GHC.RdrName)))

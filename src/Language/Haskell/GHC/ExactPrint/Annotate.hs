@@ -8,6 +8,19 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+-- | 'annotate' is a function which given a GHC AST fragment, constructs
+-- a syntax tree which indicates which annotations belong to each specific
+-- part of the fragment.
+--
+-- "Delta" and "Print" provide two interpreters for this structure. You
+-- should probably use those unless you know what you're doing!
+--
+-- The functor 'AnnotationF' has a number of constructors which correspond
+-- to different sitations which annotations can arise. It is hoped that in
+-- future versions of GHC these can be simplified by making suitable
+-- modifications to the AST.
 module Language.Haskell.GHC.ExactPrint.Annotate
        (
          annotate
@@ -21,7 +34,7 @@ import Data.Ord ( comparing )
 import Data.List ( sortBy )
 #endif
 
-import Language.Haskell.GHC.ExactPrint.Internal.Types
+import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
 import qualified Bag            as GHC
@@ -45,22 +58,55 @@ import Debug.Trace
 
 -- ---------------------------------------------------------------------
 
-
+-- |
+-- ['MarkPrim']
+--    The main constructor. Marks that a specific AnnKeywordId could
+--    appear with an optional String which is used when printing.
+-- ['MarkEOF']
+--    Special constructor which marks the end of file marker.
+-- ['MarkOutside']  A @AnnKeywordId@ which is precisely located but not inside the
+--    current context. This is usually used to reassociated located
+--    @RdrName@ which are more naturally associated with their parent than
+--    in their own annotation.
+-- ['MarkInside']
+--    The dual of MarkOutside. If we wish to mark a non-separating comma
+--    or semi-colon then we must use this constructor.
+-- ['MarkMany'] Some syntax elements allow an arbritary number of puncuation marks
+-- without reflection in the AST. This construction greedily takes all of
+-- the specified @AnnKeywordId@.
+-- ['MarkOffsetPrim'] Some syntax elements have repeated @AnnKeywordId@ which are
+--  seperated by different @AnnKeywordId@. Thus using MarkMany is
+--  unsuitable and instead we provide an index to specify which specific
+--  instance to choose each time.
+-- ['WithAST'] foo
+-- ['CountAnns'] Sometimes the AST does not reflect the concrete source code and the
+--  only way to tell what the concrete source was is to count a certain
+--  kind of @AnnKeywordId@.
+-- ['WithSortKey'] There are many places where the syntactic ordering of elements is
+-- thrown away by the AST. This constructor captures the original
+-- ordering and reflects any changes in ordered as specified by the
+-- @annSortKey@ field in @Annotation@.
+-- ['WithSortKey'] It is important to know precisely where layout rules apply. This
+--  constructor wraps a computation to indicate that LayoutRules apply to
+--  the corresponding construct.
+--
+-- ['AnnotationsToComments'] Used when the AST is sufficiently vague that there is no other
+-- option but to convert a fragment of source code into a comment. This
+-- means it is impossible to edit such a fragment but means that
+-- processing files with such fragments is still possible.
 data AnnotationF next where
-  MarkEOF        ::                                                         next -> AnnotationF next
   MarkPrim       :: GHC.AnnKeywordId -> Maybe String                     -> next -> AnnotationF next
+  MarkEOF        ::                                                         next -> AnnotationF next
   MarkExternal   :: GHC.SrcSpan -> GHC.AnnKeywordId -> String            -> next -> AnnotationF next
   MarkOutside    :: GHC.AnnKeywordId -> KeywordId                        -> next -> AnnotationF next
   MarkInside     :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   MarkMany       :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   MarkOffsetPrim :: GHC.AnnKeywordId -> Int -> Maybe String              -> next -> AnnotationF next
-  MarkAfter      :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   WithAST        :: Data a => GHC.Located a
                            -> Annotated b                                -> next -> AnnotationF next
   CountAnns      :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
   WithSortKey    :: [(GHC.SrcSpan, Annotated ())]                       -> next -> AnnotationF next
 
-  -- Abstraction breakers
   SetLayoutFlag  ::  Annotated ()                         -> next -> AnnotationF next
 
   -- Required to work around deficiencies in the GHC AST
@@ -94,7 +140,8 @@ makeFreeCon  'WithSortKey
 
 -- ---------------------------------------------------------------------
 
--- |Main entry point
+-- | Construct a syntax tree which represent which KeywordIds must appear
+-- where.
 annotate :: (Annotate ast) => GHC.Located ast -> Annotated ()
 annotate = markLocated
 
@@ -1204,10 +1251,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markAST l n
 #endif
 
-instance Annotate WildCardAnon where
-  markAST l WildCardAnon = do
-    markExternal l GHC.AnnVal "_"
-
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsSplice name) where
 #if __GLASGOW_HASKELL__ > 710
@@ -1785,6 +1828,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     traceM "warning: DecBrG introduced after renamer"
   markAST _ (GHC.HsBracket (GHC.ExpBr e)) = do
 --    markWithString GHC.AnnOpen "[|"
+    -- This exists like this as the lexer collapses [e| and [| into the
+    -- same construtor
     workOutString GHC.AnnOpen
       (\ss -> if spanLength ss == 2
                 then "[|"
@@ -2188,19 +2233,20 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
           GHC.InfixCon _ _ -> return ()
           _ -> mapM_ markLocated lns
 
-        when depc_syntax ( do
-          markHsConDeclDetails lns dets
-          mark GHC.AnnDcolon
-          markMany GHC.AnnOpenP
-          )
+        if depc_syntax
+          then ( do
+            markHsConDeclDetails lns dets
+            mark GHC.AnnDcolon
+            markMany GHC.AnnOpenP
+            )
 
-        when (not depc_syntax) ( do
-          mark GHC.AnnDcolon
-          markLocated (GHC.L ls (ResTyGADTHook bndrs))
-          markMany GHC.AnnOpenP
-          markLocated ctx
-          mark GHC.AnnDarrow
-          markHsConDeclDetails lns dets )
+          else ( do
+            mark GHC.AnnDcolon
+            markLocated (GHC.L ls (ResTyGADTHook bndrs))
+            markMany GHC.AnnOpenP
+            markLocated ctx
+            mark GHC.AnnDarrow
+            markHsConDeclDetails lns dets )
 
         markLocated ty
 
@@ -2209,6 +2255,17 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 
     mark GHC.AnnVbar
     markOutside GHC.AnnSemi (G GHC.AnnSemi)
+
+
+-- ResTyGADT has a SrcSpan for the original sigtype, we need to create
+-- a type for exactPC and annotatePC
+data ResTyGADTHook name = ResTyGADTHook [GHC.LHsTyVarBndr name]
+                   deriving (Typeable)
+deriving instance (GHC.DataId name) => Data (ResTyGADTHook name)
+deriving instance (Show (GHC.LHsTyVarBndr name)) => Show (ResTyGADTHook name)
+
+instance (GHC.OutputableBndr name) => GHC.Outputable (ResTyGADTHook name) where
+  ppr (ResTyGADTHook bs) = GHC.text "ResTyGADTHook" GHC.<+> GHC.ppr bs
 
 -- ---------------------------------------------------------------------
 

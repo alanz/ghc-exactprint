@@ -7,18 +7,20 @@
 -- |
 -- Module      :  Language.Haskell.GHC.ExactPrint.Print
 --
+-- This module inverts the process performed by "Delta". Given 'Anns' and
+-- a corresponding AST we produce a source file based on this information.
+--
 -----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint.Print
         (
-          Anns
-        , exactPrintWithAnns
+          exactPrintWithAnns
 
         , exactPrint
 
         ) where
 
-import Language.Haskell.GHC.ExactPrint.Internal.Types
-import Language.Haskell.GHC.ExactPrint.Utils ( debug, undelta, isGoodDelta, ghead, orderByKey )
+import Language.Haskell.GHC.ExactPrint.Types
+import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Annotate
   (AnnotationF(..), Annotated, Annotate(..), annotate)
 import Language.Haskell.GHC.ExactPrint.Lookup (keywordToString, unicodeString)
@@ -31,8 +33,6 @@ import Data.Ord (comparing)
 import Data.Maybe (fromMaybe)
 
 import Control.Monad.Trans.Free
-
--- import Debug.Trace
 
 
 import qualified GHC
@@ -130,8 +130,6 @@ printInterpret = iterTM go
     go (MarkOffsetPrim kwid _ mstr next) =
       let annString = fromMaybe (keywordToString (G kwid)) mstr in
         printStringAtMaybeAnn (G kwid) annString >> next
-    go (MarkAfter akwid next) =
-      justOne akwid >> next
     go (WithAST lss action next) =
       exactPC lss (printInterpret action) >> next
     go (CountAnns kwid next) =
@@ -183,8 +181,7 @@ withSortKey xs = do
 
 -------------------------------------------------------------------------
 
-justOne, allAnns :: GHC.AnnKeywordId -> EP ()
-justOne kwid = printStringAtMaybeAnn    (G kwid) (keywordToString (G kwid))
+allAnns :: GHC.AnnKeywordId -> EP ()
 allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString (G kwid))
 
 -------------------------------------------------------------------------
@@ -280,6 +277,7 @@ printStringAtMaybeAnnThen an str next = do
   annFinal <- getAnnFinal an
   case (annFinal, an) of
     -- Could be unicode syntax
+    -- TODO: This is a bit fishy, refactor
     (Nothing, G kw) -> do
       res <- getAnnFinal (AnnUnicode kw)
       return () `debug` ("printStringAtMaybeAnn:missed:Unicode:(an,res)" ++ show (an,res))
@@ -297,7 +295,7 @@ printStringAtMaybeAnnThen an str next = do
 -- ---------------------------------------------------------------------
 
 -- |destructive get, hence use an annotation once only
-getAnnFinal :: KeywordId -> EP (Maybe ([(DComment, DeltaPos)], DeltaPos))
+getAnnFinal :: KeywordId -> EP (Maybe ([(Comment, DeltaPos)], DeltaPos))
 getAnnFinal kw = do
   kd <- gets epAnnKds
   case kd of
@@ -311,7 +309,7 @@ getAnnFinal kw = do
 -- Return the value, together with any comments skipped over to get there.
 destructiveGetFirst :: KeywordId
                     -> ([(KeywordId, v)],[(KeywordId,v)])
-                    -> (Maybe ([(DComment, v)], v),[(KeywordId,v)])
+                    -> (Maybe ([(Comment, v)], v),[(KeywordId,v)])
 destructiveGetFirst _key (acc,[]) = (Nothing, acc)
 destructiveGetFirst  key (acc, (k,v):kvs )
   | k == key = (Just (skippedComments, v), others ++ kvs)
@@ -326,7 +324,7 @@ destructiveGetFirst  key (acc, (k,v):kvs )
 
 -- |This should be the final point where things are mode concrete,
 -- before output. Hence the point where comments can be inserted
-printStringAtLsDelta :: [(DComment, DeltaPos)] -> DeltaPos -> String -> EP ()
+printStringAtLsDelta :: [(Comment, DeltaPos)] -> DeltaPos -> String -> EP ()
 printStringAtLsDelta cs cl s = do
   p <- getPos
   colOffset <- getLayoutOffset
@@ -342,8 +340,8 @@ isGoodDeltaWithOffset :: DeltaPos -> LayoutStartCol -> Bool
 isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP (undelta (0,0) dp colOffset))
 
 -- AZ:TODO: harvest the commonality between this and printStringAtLsDelta
-printQueuedComment :: DComment -> DeltaPos -> EP ()
-printQueuedComment Comment{commentPos, commentContents} dp = do
+printQueuedComment :: Comment -> DeltaPos -> EP ()
+printQueuedComment Comment{commentContents} dp = do
   p <- getPos
   colOffset <- getLayoutOffset
   let (dr,dc) = undelta (0,0) dp colOffset
@@ -351,7 +349,7 @@ printQueuedComment Comment{commentPos, commentContents} dp = do
   when (isGoodDelta (DP (dr,max 0 dc)))
     (do
       printCommentAt (undelta p dp colOffset) commentContents
-      setPos (undelta p commentPos colOffset))
+      setPos (undelta p (dp `addDP` dpFromString commentContents) colOffset))
 
 -- ---------------------------------------------------------------------
 

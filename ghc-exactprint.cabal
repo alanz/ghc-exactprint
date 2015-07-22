@@ -56,7 +56,6 @@ library
                      , Language.Haskell.GHC.ExactPrint.Parsers
 
 
-                     , Language.Haskell.GHC.ExactPrint.Internal.Types
   -- other-modules:
   -- other-extensions:
   GHC-Options:         -Wall

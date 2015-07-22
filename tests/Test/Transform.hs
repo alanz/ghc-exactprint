@@ -5,7 +5,6 @@ import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Preprocess
 import Language.Haskell.GHC.ExactPrint.Transform
 import Language.Haskell.GHC.ExactPrint.Types
-import Language.Haskell.GHC.ExactPrint.Internal.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Parsers
 
@@ -17,6 +16,7 @@ import qualified GHC            as GHC
 import qualified OccName        as GHC
 import qualified RdrName        as GHC
 import qualified SrcLoc         as GHC
+import qualified FastString     as GHC
 
 import qualified Data.Generics as SYB
 
@@ -24,6 +24,7 @@ import Control.Monad
 import System.FilePath
 import System.IO
 import qualified Data.Map as Map
+import Data.Maybe
 
 import System.IO.Silently
 
@@ -327,7 +328,7 @@ changeLayoutLet3 ans parsed = return (ans,rename "xxxlonger" [((7,5),(7,8)),((9,
 changeLayoutLet5 :: Changer
 changeLayoutLet5 ans parsed = return (ans,rename "x" [((7,5),(7,8)),((9,14),(9,17))] parsed)
 
-rename :: (SYB.Data a) => String -> [Span] -> a -> a
+rename :: (SYB.Data a) => String -> [(Pos, Pos)] -> a -> a
 rename newNameStr spans a
   = SYB.everywhere ( SYB.mkT   replaceRdr
                     `SYB.extT` replaceHsVar
@@ -337,7 +338,12 @@ rename newNameStr spans a
     newName = GHC.mkRdrUnqual (GHC.mkVarOcc newNameStr)
 
     cond :: GHC.SrcSpan -> Bool
-    cond ln = any (\ss -> ss2span ln == ss) spans
+    cond ln = ln `elem` srcSpans
+      where
+        srcSpans  = map (\(start, end) -> GHC.mkSrcSpan (f start) (f end)) spans
+        fname = fromMaybe (GHC.mkFastString "f") (GHC.srcSpanFileName_maybe ln)
+        f = uncurry (GHC.mkSrcLoc fname)
+
 
     replaceRdr :: GHC.Located GHC.RdrName -> GHC.Located GHC.RdrName
     replaceRdr (GHC.L ln _)
@@ -363,7 +369,11 @@ changeWhereIn4 ans parsed
   where
     replace :: GHC.Located GHC.RdrName -> GHC.Located GHC.RdrName
     replace (GHC.L ln _n)
-      | ss2span ln == ((12,16),(12,17)) = GHC.L ln (GHC.mkRdrUnqual (GHC.mkVarOcc "p_2"))
+      | ln == (g (12,16) (12,17)) = GHC.L ln (GHC.mkRdrUnqual (GHC.mkVarOcc "p_2"))
+      where
+        g start end = GHC.mkSrcSpan (f start) (f end)
+        fname = fromMaybe (GHC.mkFastString "f") (GHC.srcSpanFileName_maybe ln)
+        f = uncurry (GHC.mkSrcLoc fname)
     replace x = x
 
 -- ---------------------------------------------------------------------

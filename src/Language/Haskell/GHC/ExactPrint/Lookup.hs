@@ -19,7 +19,6 @@ keywordToString kw =
   case kw of
       -- Specifically handle all cases so that there are pattern match
       -- warnings if new constructors are added.
-      AnnSpanEntry      -> mkErr kw
       AnnComment _      -> mkErr kw
       AnnString _       -> mkErr kw
       AnnUnicode kw'    -> keywordToString (G kw')
@@ -106,6 +105,8 @@ keywordToString kw =
       (G GHC.AnnThIdTySplice ) -> "$$"
       (G GHC.AnnEofPos       ) -> ""
 
+-- | Tries to find a unicode equivalent to a 'KeywordId'.
+-- If none exists then fall back to find the ASCII version.
 unicodeString :: KeywordId -> String
 unicodeString kw =
   fromMaybe (keywordToString kw) (lookup kw unicodeChars)

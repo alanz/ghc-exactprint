@@ -1,43 +1,50 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Language.Haskell.GHC.ExactPrint.Utils
   (
-    srcSpanStartLine
-  , srcSpanEndLine
-  , srcSpanStartColumn
-  , srcSpanEndColumn
-
-  , ss2span
-  , ss2pos
+   -- * Manipulating Positons
+    ss2pos
   , ss2posEnd
-  , span2ss
   , undelta
-  , rdrName2String
-  , isSymbolRdrName
-  , ghcCommentText
-  , mkComment
-  , mkKWComment
-  , mkDComment
   , isPointSrcSpan
   , pos2delta
   , ss2delta
+  , addDP
   , spanLength
   , isGoodDelta
 
+  -- * Manipulating Comments
+  , mkComment
+  , mkKWComment
+  , dpFromString
+  , comment2dp
+
+    -- * GHC Functions
+  ,  srcSpanStartLine
+  , srcSpanEndLine
+  , srcSpanStartColumn
+  , srcSpanEndColumn
+  , rdrName2String
+  , isSymbolRdrName
+  , tokComment
   , isListComp
 
+
+  -- * Manipulating Annotations
+  , getAnnotationEP
+  , annTrueEntryDelta
+
+  -- * General Utility
   , orderByKey
 
-  , showGhc
-  , showAnnData
 
-  , comment2dp
-  , dp2comment
 
   -- * For tests
   , debug
   , debugM
   , warn
+  , showGhc
+  , showAnnData
 
   -- AZ's baggage
   , ghead,glast,gtail,gfromJust
@@ -49,11 +56,9 @@ import Data.Data (Data, toConstr, showConstr, cast)
 import Data.Generics (extQ, ext1Q, ext2Q, gmapQ)
 import Data.List (intercalate, sortBy, elemIndex)
 import Data.Ord (comparing)
-import Data.Functor (($>))
 
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Lookup
-import Language.Haskell.GHC.ExactPrint.Internal.Types
 
 
 import qualified GHC
@@ -68,9 +73,11 @@ import qualified Var            as GHC
 
 import qualified OccName(occNameString)
 
+import Control.Arrow
+
 --import qualified Data.Generics as SYB
 
---import qualified Data.Map as Map
+import qualified Data.Map as Map
 
 import Debug.Trace
 
@@ -91,12 +98,17 @@ debug c s = if debugEnabledFlag
 debugM :: Monad m => String -> m ()
 debugM s = when debugEnabledFlag $ traceM s
 
+-- | Show a GHC.Outputable structure
+showGhc :: (GHC.Outputable a) => a -> String
+showGhc = GHC.showPpr GHC.unsafeGlobalDynFlags
+
 -- ---------------------------------------------------------------------
 
 warn :: c -> String -> c
 -- warn = flip trace
 warn c _ = c
 
+-- | A good delta has no negative values.
 isGoodDelta :: DeltaPos -> Bool
 isGoodDelta (DP (ro,co)) = ro >= 0 && co >= 0
 
@@ -123,6 +135,15 @@ undelta (l,c) (DP (dl,dc)) (LayoutStartCol co) = (fl,fc)
     fl = l + dl
     fc = if dl == 0 then c  + dc
                     else co + dc
+-- | Add together two @DeltaPos@ taking into account newlines
+--
+-- > DP (0, 1) `addDP` DP (0, 2) == DP (0,3)
+-- > DP (0, 9) `addDP` DP (1, 5) == DP (1, 5)
+-- > DP (1, 4) `addDP` DP (1, 3) == DP (2, 3)
+addDP :: DeltaPos -> DeltaPos -> DeltaPos
+addDP (DP (a, b)) (DP (c, d)) =
+  if c >= 1 then DP (a+c, d)
+            else DP (a, b + d)
 
 -- ---------------------------------------------------------------------
 
@@ -131,9 +152,6 @@ ss2pos ss = (srcSpanStartLine ss,srcSpanStartColumn ss)
 
 ss2posEnd :: GHC.SrcSpan -> Pos
 ss2posEnd ss = (srcSpanEndLine ss,srcSpanEndColumn ss)
-
-ss2span :: GHC.SrcSpan -> Span
-ss2span ss = (ss2pos ss,ss2posEnd ss)
 
 srcSpanEndColumn :: GHC.SrcSpan -> Int
 srcSpanEndColumn (GHC.RealSrcSpan s) = GHC.srcSpanEndCol s
@@ -155,22 +173,14 @@ spanLength :: GHC.SrcSpan -> Int
 spanLength = (-) <$> srcSpanEndColumn <*> srcSpanStartColumn
 
 -- ---------------------------------------------------------------------
-
-span2ss :: Span -> GHC.SrcSpan
-span2ss ((sr,sc),(er,ec)) = l
-  where
-   filename = GHC.mkFastString "f"
-   l = GHC.mkSrcSpan (GHC.mkSrcLoc filename sr sc) (GHC.mkSrcLoc filename er ec)
-
--- ---------------------------------------------------------------------
-
+-- | Checks whether a SrcSpan has zero length.
 isPointSrcSpan :: GHC.SrcSpan -> Bool
-isPointSrcSpan ss = s == e where (s,e) = ss2span ss
+isPointSrcSpan = (== 0 ) . spanLength
 
 -- ---------------------------------------------------------------------
 
--- |Given a list of items and their SrcSpan, return a list of items arranged as
--- per the sortkey.
+-- |Given a list of items and a list of keys, returns a list of items
+-- ordered by their position in the list of keys.
 orderByKey :: [(GHC.SrcSpan,a)] -> [GHC.SrcSpan] -> [a]
 orderByKey keys order
     -- AZ:TODO: if performance becomes a problem, consider a Map of the order
@@ -208,14 +218,38 @@ ghcCommentText (GHC.L _ (GHC.AnnDocOptionsOld s))   = s
 ghcCommentText (GHC.L _ (GHC.AnnLineComment s))     = s
 ghcCommentText (GHC.L _ (GHC.AnnBlockComment s))    = s
 
+tokComment :: GHC.Located GHC.AnnotationComment -> Comment
+tokComment t@(GHC.L lt _) = mkComment (ghcCommentText t) lt
+
 mkComment :: String -> GHC.SrcSpan -> Comment
-mkComment c ss = Comment (ss2span ss) c ss Nothing
+mkComment c ss = Comment c ss Nothing
 
+-- | Makes a comment which originates from a specific keyword.
 mkKWComment :: GHC.AnnKeywordId -> GHC.SrcSpan -> Comment
-mkKWComment kw ss = Comment (ss2span ss) (keywordToString $ G kw) ss (Just kw)
+mkKWComment kw ss = Comment (keywordToString $ G kw) ss (Just kw)
 
-mkDComment :: Comment -> DeltaPos -> DComment
-mkDComment = ($>)
+comment2dp :: (Comment,  DeltaPos) -> (KeywordId, DeltaPos)
+comment2dp = first AnnComment
+
+getAnnotationEP :: (Data a) =>  GHC.Located a  -> Anns -> Maybe Annotation
+getAnnotationEP  la as =
+  Map.lookup (mkAnnKey la) as
+
+-- | The "true entry" is the distance from the last concrete element to the
+-- start of the current element.
+annTrueEntryDelta :: Annotation -> DeltaPos
+annTrueEntryDelta Ann{annEntryDelta, annPriorComments} =
+  foldr addDP (DP (0,0)) (map (\(a, b) -> addDP b (dpFromString $ commentContents a)) annPriorComments )
+    `addDP` annEntryDelta
+
+-- | Calculates the distance from the start of a string to the end of
+-- a string.
+dpFromString ::  String -> DeltaPos
+dpFromString xs = dpFromString' xs 0 0
+  where
+    dpFromString' "" line col = DP (line, col)
+    dpFromString' ('\n': cs) line _ = dpFromString' cs (line + 1) 0
+    dpFromString' (_:cs)     line col = dpFromString' cs line (col + 1)
 
 -- ---------------------------------------------------------------------
 
@@ -239,8 +273,7 @@ name2String = showGhc
 
 -- ---------------------------------------------------------------------
 
--- Based on ghc-syb-utils version, but adding the annotation
--- information to each SrcLoc.
+-- | Show a GHC AST with interleaved Annotation information.
 showAnnData :: Data a => Anns -> Int -> a -> String
 showAnnData anns n =
   generic -- `ext1Q` located
@@ -306,12 +339,6 @@ showAnnData anns n =
 
 -- ---------------------------------------------------------------------
 
-comment2dp :: (DComment,  DeltaPos) -> (KeywordId, DeltaPos)
-comment2dp (c,dp) = (AnnComment c,dp)
-
-dp2comment :: (KeywordId, DeltaPos) -> (DComment,  DeltaPos)
-dp2comment (AnnComment c,dp) = (c,dp)
-dp2comment oops = error $ "dp2comment:did not get a omment" ++ show oops
 
  -- ---------------------------------------------------------------------
 

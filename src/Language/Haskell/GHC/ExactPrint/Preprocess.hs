@@ -1,4 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
+-- | This module provides support for CPP, interpreter directives and line
+-- pragmas.
 module Language.Haskell.GHC.ExactPrint.Preprocess
    (
      stripLinePragmas
@@ -45,7 +47,7 @@ defaultCppOptions :: CppOptions
 defaultCppOptions = CppOptions [] [] []
 
 -- ---------------------------------------------------------------------
-
+-- | Remove GHC style line pragams (@{-# LINE .. #-}@) and convert them into comments.
 stripLinePragmas :: String -> (String, [Comment])
 stripLinePragmas = unlines' . unzip . findLines . lines
   where
