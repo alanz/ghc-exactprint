@@ -72,7 +72,7 @@ import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
 import Control.Monad.RWS
-import Data.List
+
 
 import qualified Bag           as GHC
 import qualified FastString    as GHC
@@ -333,24 +333,24 @@ mergeAnnList (x:xs) = foldr mergeAnns x xs
 -- ---------------------------------------------------------------------
 
 -- |Update the DeltaPos for the given annotation keys
-setLocatedAnns :: (SYB.Data a) => Anns -> [(GHC.Located a,Annotation)] -> Anns
-setLocatedAnns anne kvs = foldl' setLocatedAnn anne kvs
+setLocatedAnns :: (SYB.Data a) => [(GHC.Located a,Annotation)] -> Anns -> Anns
+setLocatedAnns kvs anne = foldr setLocatedAnn anne kvs
 
-setLocatedAnn :: (SYB.Data a) => Anns -> (GHC.Located a, Annotation) ->  Anns
-setLocatedAnn aane (loc, annVal) = setAnn aane (mkAnnKey loc,annVal)
+setLocatedAnn :: (SYB.Data a) => (GHC.Located a, Annotation) ->  Anns -> Anns
+setLocatedAnn (loc, annVal) = setAnn (mkAnnKey loc,annVal)
 
 -- |Update the DeltaPos for the given annotation key/val
-setAnn :: Anns -> (AnnKey, Annotation) -> Anns
-setAnn as (k, a) =
+setAnn :: (AnnKey, Annotation) -> Anns -> Anns
+setAnn (k, a) as =
   let newKds = maybe [] (annsDP) (Map.lookup k as) in
     Map.insert k (a { annsDP = newKds }) as
 
 -- ---------------------------------------------------------------------
 
 -- |Unwrap a HsDecl and call setPrecedingLines on it
-setPrecedingLinesDecl :: Anns -> GHC.LHsDecl GHC.RdrName -> Int -> Int -> Anns
-setPrecedingLinesDecl ans ld n c =
-  declFun (\a -> setPrecedingLines ans a n c) ld
+setPrecedingLinesDecl :: GHC.LHsDecl GHC.RdrName -> Int -> Int -> Anns -> Anns
+setPrecedingLinesDecl ld n c ans =
+  declFun (\a -> setPrecedingLines a n c ans) ld
 
 declFun :: (forall a . Data a => GHC.Located a -> b) -> GHC.LHsDecl GHC.RdrName -> b
 declFun f (GHC.L l de) =
@@ -376,8 +376,8 @@ declFun f (GHC.L l de) =
 -- ---------------------------------------------------------------------
 
 -- | Adjust the entry annotations to provide an `n` line preceding gap
-setPrecedingLines :: (SYB.Data a) => Anns -> GHC.Located a -> Int -> Int -> Anns
-setPrecedingLines anne ast n c =
+setPrecedingLines :: (SYB.Data a) => GHC.Located a -> Int -> Int -> Anns -> Anns
+setPrecedingLines ast n c anne =
   Map.alter go (mkAnnKey ast) anne
   where
     go Nothing  = Just (annNone { annEntryDelta = (DP (n,c)) })
@@ -610,7 +610,7 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
             modifyAnnsT addWhere
             newBinds' <- mapM pushDeclAnnT newBinds
             modifyAnnsT (captureOrderAnnKey (mkAnnKey m) newBinds')
-            modifyAnnsT (\ans -> setPrecedingLinesDecl ans (ghead "LMatch.replaceDecls" newBinds') 1 4)
+            modifyAnnsT (setPrecedingLinesDecl (ghead "LMatch.replaceDecls" newBinds') 1 4)
             return newBinds'
 
           _ -> do

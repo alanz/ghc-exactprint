@@ -88,8 +88,8 @@ changeLocalDecls2 :: Changer
 changeLocalDecls2 ans (GHC.L l p) = do
   Right (declAnns, d@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   Right (sigAnns, s@(GHC.L ls (GHC.SigD sig)))   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
-  let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
-  let  sigAnns' = setPrecedingLines  sigAnns (GHC.L ls  sig) 1 4
+  let declAnns' = setPrecedingLines (GHC.L ld decl) 1 0 declAnns
+  let  sigAnns' = setPrecedingLines (GHC.L ls  sig) 1 4 sigAnns
   -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
   -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
   -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
@@ -132,8 +132,8 @@ changeLocalDecls :: Changer
 changeLocalDecls ans (GHC.L l p) = do
   Right (declAnns, d@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   Right (sigAnns, s@(GHC.L ls (GHC.SigD sig)))   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
-  let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
-  let  sigAnns' = setPrecedingLines  sigAnns (GHC.L ls  sig) 1 4
+  let declAnns' = setPrecedingLines (GHC.L ld decl) 1 0 declAnns
+  let  sigAnns' = setPrecedingLines (GHC.L ls  sig) 1 4 sigAnns
   -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
   -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
   -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
@@ -146,7 +146,7 @@ changeLocalDecls ans (GHC.L l p) = do
         a' <- case sigs of
               []    -> return a1
               (s1:_) -> do
-                let a2 = setPrecedingLines a1 s1 2 0
+                let a2 = setPrecedingLines s1 2 0 a1
                 return a2
         putAnnsT a'
         let oldDecls = GHC.sortLocated $ map wrapDecl (GHC.bagToList binds) ++ map wrapSig sigs
@@ -168,7 +168,7 @@ changeAddDecl :: Changer
 changeAddDecl ans top = do
   Right (declAnns, decl) <- withDynFlags (\df -> parseDecl df "<interactive>" "nn = n2")
   -- putStrLn $ "changeDecl:(declAnns,decl)=" ++ showGhc (declAnns,decl)
-  let declAnns' = setPrecedingLines declAnns decl 2 0
+  let declAnns' = setPrecedingLines decl 2 0 declAnns
   -- putStrLn $ "changeDecl:(declAnns',decl)=" ++ showGhc (declAnns',decl)
 
   let (p',(ans',_),_) = runTransform ans doAddDecl
@@ -562,7 +562,7 @@ transformHighLevelTests =
 addLocaLDecl1 :: Changer
 addLocaLDecl1 ans lp = do
   Right (declAnns, newDecl@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
-  let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
+  let declAnns' = setPrecedingLines (GHC.L ld decl) 1 0 declAnns
 
       doAddLocal = do
          tlDecs <- hsDecls lp
@@ -570,7 +570,7 @@ addLocaLDecl1 ans lp = do
          decls <- hsDecls parent
          balanceComments parent (head $ tail tlDecs)
 
-         modifyAnnsT (\ans1 -> setPrecedingLines ans1 newDecl 1 4)
+         modifyAnnsT (setPrecedingLines newDecl 1 4)
 
          parent' <- replaceDecls parent (newDecl:decls)
          replaceDecls lp (parent':tail tlDecs)
@@ -583,7 +583,7 @@ addLocaLDecl1 ans lp = do
 addLocaLDecl2 :: Changer
 addLocaLDecl2 ans lp = do
   Right (declAnns, newDecl@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
-  let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
+  let declAnns' = setPrecedingLines (GHC.L ld decl) 1 0 declAnns
 
       doAddLocal = do
          tlDecs <- hsDecls lp
@@ -592,8 +592,8 @@ addLocaLDecl2 ans lp = do
          balanceComments parent (head $ tail tlDecs)
 
          DP (r,c) <- getEntryDPT (head decls)
-         modifyAnnsT (\ans1 -> setPrecedingLines ans1 newDecl r c)
-         modifyAnnsT (\ans1 -> setPrecedingLines ans1 (head decls) 1 0)
+         modifyAnnsT (setPrecedingLines newDecl r c)
+         modifyAnnsT (setPrecedingLines (head decls) 1 0)
 
          parent' <- replaceDecls parent (newDecl:decls)
          replaceDecls lp (parent':tail tlDecs)
@@ -606,7 +606,7 @@ addLocaLDecl2 ans lp = do
 addLocaLDecl3 :: Changer
 addLocaLDecl3 ans lp = do
   Right (declAnns, newDecl@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
-  let declAnns' = setPrecedingLines declAnns (GHC.L ld decl) 1 0
+  let declAnns' = setPrecedingLines (GHC.L ld decl) 1 0 declAnns
 
       doAddLocal = do
          tlDecs <- hsDecls lp
@@ -614,7 +614,7 @@ addLocaLDecl3 ans lp = do
          decls <- hsDecls parent
          balanceComments parent (head $ tail tlDecs)
 
-         modifyAnnsT (\ans1 -> setPrecedingLines ans1 newDecl 1 0)
+         modifyAnnsT (setPrecedingLines newDecl 1 0)
 
          moveTrailingComments parent (last decls)
          parent' <- replaceDecls parent (decls++[newDecl])

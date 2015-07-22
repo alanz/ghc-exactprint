@@ -64,6 +64,7 @@ import Debug.Trace
 --    appear with an optional String which is used when printing.
 -- ['MarkEOF']
 --    Special constructor which marks the end of file marker.
+-- ['MarkExternal'] TODO
 -- ['MarkOutside']  A @AnnKeywordId@ which is precisely located but not inside the
 --    current context. This is usually used to reassociated located
 --    @RdrName@ which are more naturally associated with their parent than
@@ -78,7 +79,7 @@ import Debug.Trace
 --  seperated by different @AnnKeywordId@. Thus using MarkMany is
 --  unsuitable and instead we provide an index to specify which specific
 --  instance to choose each time.
--- ['WithAST'] foo
+-- ['WithAST'] TODO
 -- ['CountAnns'] Sometimes the AST does not reflect the concrete source code and the
 --  only way to tell what the concrete source was is to count a certain
 --  kind of @AnnKeywordId@.
@@ -86,10 +87,12 @@ import Debug.Trace
 -- thrown away by the AST. This constructor captures the original
 -- ordering and reflects any changes in ordered as specified by the
 -- @annSortKey@ field in @Annotation@.
--- ['WithSortKey'] It is important to know precisely where layout rules apply. This
+-- ['SetLayoutFlag'] It is important to know precisely where layout rules apply. This
 --  constructor wraps a computation to indicate that LayoutRules apply to
 --  the corresponding construct.
---
+-- ['StoreOriginalSrcSpan'] TODO
+-- ['GetSrcSpanFromKw'] TODO
+-- ['StoreString'] TODO
 -- ['AnnotationsToComments'] Used when the AST is sufficiently vague that there is no other
 -- option but to convert a fragment of source code into a comment. This
 -- means it is impossible to edit such a fragment but means that
