@@ -17,9 +17,13 @@ module Language.Haskell.GHC.ExactPrint
         , exactPrintWithAnns
         , exactPrint
 
+        -- * Transformation
+        module Language.Haskell.GHC.ExactPrint.Transform
+
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Delta
 import Language.Haskell.GHC.ExactPrint.Print
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Parsers
+import Language.Haskell.GHC.ExactPrint.Transform
