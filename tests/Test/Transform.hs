@@ -3,7 +3,6 @@ module Test.Transform where
 
 import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Preprocess
-import Language.Haskell.GHC.ExactPrint.Transform
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Parsers
@@ -114,7 +113,7 @@ changeLocalDecls2 ans (GHC.L l p) = do
                   mkds2 = Map.insert (mkAnnKey m) ann1 mkds
                   ann2 = annNone
                              { annEntryDelta     = DP (1,0) }
-        modifyKeywordDeltasT addWhere
+        modifyAnnsT addWhere
         let decls = [s,d]
         logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)
         modifyAnnsT (captureOrderAnnKey newAnnKey decls)

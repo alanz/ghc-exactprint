@@ -9,8 +9,11 @@
 -- |
 -- Module      :  Language.Haskell.GHC.ExactPrint.Transform
 --
--- Do not depend directly on this module. The API will change significantly
--- for the 0.4 release.
+-- This module is currently under heavy development, and no promises are made
+-- about API stability. Use with care.
+--
+-- We weclome any feedback / contributions on this, as it is the main point of
+-- the library.
 --
 -----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint.Transform
@@ -20,7 +23,6 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , runTransform
         , logTr
         , getAnnsT, putAnnsT, modifyAnnsT
-        , modifyKeywordDeltasT
         , uniqueSrcSpanT
 
         , wrapSigT,wrapDeclT
@@ -75,8 +77,6 @@ import Data.List
 import qualified Bag           as GHC
 import qualified FastString    as GHC
 import qualified GHC           as GHC hiding (parseModule)
--- import qualified Outputable    as GHC
--- import qualified SrcLoc        as GHC
 
 import qualified Data.Generics as SYB
 
@@ -93,28 +93,28 @@ import qualified Data.Map as Map
 -- time. The W state is used to generate logging information if required.
 type Transform a = RWS () [String] (Anns,Int) a
 
-runTransform :: Anns ->Transform a -> (a,(Anns,Int),[String])
+-- | Run a transformation in the 'Transform' monad, returning the updated
+-- annotations and any logging generated via 'logTr'
+runTransform :: Anns -> Transform a -> (a,(Anns,Int),[String])
 runTransform ans f = runRWS f () (ans,0)
 
+-- |Log a string to the output of the Monad
 logTr :: String -> Transform ()
 logTr str = tell [str]
 
+-- |Access the 'Anns' being modified in this transformation
 getAnnsT :: Transform Anns
 getAnnsT = gets fst
 
+-- |Replace the 'Anns' after any changes
 putAnnsT :: Anns -> Transform ()
 putAnnsT ans = do
   (_,col) <- get
   put (ans,col)
 
+-- |Change the stored 'Anns'
 modifyAnnsT :: (Anns -> Anns) -> Transform ()
 modifyAnnsT f = do
-  ans <- getAnnsT
-  putAnnsT (f ans)
-
-modifyKeywordDeltasT :: (Map.Map AnnKey Annotation -> Map.Map AnnKey Annotation)
-                     -> Transform ()
-modifyKeywordDeltasT f = do
   ans <- getAnnsT
   putAnnsT (f ans)
 
@@ -607,7 +607,7 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
                     where
                       ann1 = ann { annsDP = annsDP ann ++ [(G GHC.AnnWhere,DP (1,2))]
                                  }
-            modifyKeywordDeltasT addWhere
+            modifyAnnsT addWhere
             newBinds' <- mapM pushDeclAnnT newBinds
             modifyAnnsT (captureOrderAnnKey (mkAnnKey m) newBinds')
             modifyAnnsT (\ans -> setPrecedingLinesDecl ans (ghead "LMatch.replaceDecls" newBinds') 1 4)
@@ -770,4 +770,4 @@ insertCommentBefore key toMove p = do
             -- ann' = error $ "insertCommentBefore:" ++ showGhc (before,after)
             ann' = ann { annsDP = before ++ (map comment2dp toMove) ++ after}
 
-  modifyKeywordDeltasT doInsert
+  modifyAnnsT doInsert

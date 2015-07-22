@@ -1,7 +1,7 @@
 name:                ghc-exactprint
 version:             0.3
 synopsis:            ExactPrint for GHC
-description:         Using the API Annotations available from GHC 7.10 RC2, this
+description:         Using the API Annotations available from GHC 7.10.2, this
                      library provides a means to round trip any code that can
                      be compiled by GHC, currently excluding lhs files.
                      .
@@ -70,7 +70,7 @@ library
                      , free
   hs-source-dirs:      src
   default-language:    Haskell2010
-  if impl (ghc < 7.10)
+  if impl (ghc < 7.10.2)
       buildable: False
 
 Test-Suite test
@@ -80,7 +80,7 @@ Test-Suite test
   other-modules:      Test.Common, Test.Consistency, Test.Transform
   GHC-Options:         -threaded
   Default-language:    Haskell2010
-  if impl (ghc < 7.10)
+  if impl (ghc < 7.10.2)
       buildable: False
   Build-depends:       HUnit
                      , base < 5
@@ -101,7 +101,7 @@ executable roundtrip
   hs-source-dirs: tests
   other-modules: Test.Common
   default-language:    Haskell2010
-  if impl (ghc >= 7.10) && flag (roundtrip)
+  if impl (ghc >= 7.10.2) && flag (roundtrip)
     build-depends:
                  HUnit
                , base

@@ -117,7 +117,6 @@ data AnnotationF next where
 
 deriving instance Functor (AnnotationF)
 
--- type Annotated = Free AnnotationF
 type Annotated = FreeT AnnotationF Identity
 
 

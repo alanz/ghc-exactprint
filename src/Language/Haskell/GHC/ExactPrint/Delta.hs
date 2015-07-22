@@ -85,7 +85,9 @@ relativiseApiAnns :: Annotate ast
 relativiseApiAnns = relativiseApiAnnsWithComments []
 
 -- | Exactly the same as 'relativiseApiAnns' but with the possibilty to
--- inject comments.
+-- inject comments. This is typically used if the source has been preprocessed
+-- by e.g. CPP, and the parts stripped out of the original source are re-added
+-- as comments so they are not lost for round tripping.
 relativiseApiAnnsWithComments ::
                      Annotate ast
                   => [Comment]
