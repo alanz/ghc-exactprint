@@ -695,6 +695,33 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
 
 -- ---------------------------------------------------------------------
 
+instance HasDecls (GHC.Stmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
+  hsDecls (GHC.LetStmt lb)          = hsDecls lb
+  hsDecls (GHC.LastStmt e _)        = hsDecls e
+  hsDecls (GHC.BindStmt _pat e _ _) = hsDecls e
+  hsDecls (GHC.BodyStmt e _ _ _)    = hsDecls e
+  hsDecls _                         = return []
+
+  replaceDecls (GHC.LetStmt lb) newDecls
+    = do
+      lb' <- replaceDecls lb newDecls
+      return (GHC.LetStmt lb')
+  replaceDecls (GHC.LastStmt e se) newDecls
+    = do
+        e' <- replaceDecls e newDecls
+        return (GHC.LastStmt e' se)
+  replaceDecls (GHC.BindStmt pat e a b) newDecls
+    = do
+      e' <- replaceDecls e newDecls
+      return (GHC.BindStmt pat e' a b)
+  replaceDecls (GHC.BodyStmt e a b c) newDecls
+    = do
+      e' <- replaceDecls e newDecls
+      return (GHC.BodyStmt e' a b c)
+  replaceDecls x newDecls = return x
+
+-- ---------------------------------------------------------------------
+
 instance HasDecls (GHC.LHsDecl GHC.RdrName) where
   hsDecls (GHC.L l (GHC.ValD d)) = hsDecls (GHC.L l d)
   -- hsDecls (GHC.L l (GHC.SigD d)) = hsDecls (GHC.L l d)
