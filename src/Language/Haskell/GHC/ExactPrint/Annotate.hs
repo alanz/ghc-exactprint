@@ -647,6 +647,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
      markLocated e
      markWithString GHC.AnnClose "#-}"
+     markOutside (GHC.AnnSemi) AnnSemiSep
 
 -- ---------------------------------------------------------------------
 

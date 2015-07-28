@@ -60,14 +60,14 @@ library
   -- other-extensions:
   GHC-Options:         -Wall
   build-depends:       base >=4.7 && <4.9
-                     , containers
-                     , directory
-                     , filepath
-                     , ghc
-                     , ghc-paths
-                     , mtl
-                     , syb
-                     , free
+                     , containers >= 0.5
+                     , directory >= 1.2
+                     , filepath  >= 1.4
+                     , ghc       >= 7.10.2
+                     , ghc-paths >= 0.1
+                     , mtl       >= 2.2.1
+                     , syb       >= 0.5
+                     , free      >= 4.12
   hs-source-dirs:      src
   default-language:    Haskell2010
   if impl (ghc < 7.10.2)
@@ -82,19 +82,18 @@ Test-Suite test
   Default-language:    Haskell2010
   if impl (ghc < 7.10.2)
       buildable: False
-  Build-depends:       HUnit
+  Build-depends:       HUnit >= 1.2
                      , base < 5
-                     , containers
-                     , directory
-                     , filepath
-                     , ghc
-                     , ghc-exactprint
-                     , ghc-paths
-                     , mtl
-                     , random
-                     , syb
-                     , silently
-                     , filemanip
+                     , containers >= 0.5
+                     , directory >= 1.2
+                     , filepath  >= 1.4
+                     , ghc  >= 7.10.2
+                     , ghc-exactprint >= 0.3
+                     , ghc-paths  >= 0.1
+                     , mtl        >= 2.2.1
+                     , syb        >= 0.5
+                     , silently   >= 1.2
+                     , filemanip  >= 0.3
 
 executable roundtrip
   main-is: Roundtrip.hs

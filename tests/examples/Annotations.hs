@@ -36,3 +36,5 @@ data Foo = Bar Int
 {-# ANN f 'f #-}
 {-# ANN f (-1 :: Int) #-}
 f x = x
+
+{-# ANN foo "HLint: ignore" #-};foo = map f (map g x)
