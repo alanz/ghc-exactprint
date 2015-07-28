@@ -556,6 +556,24 @@ instance HasDecls [GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)] where
 instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   hsDecls (GHC.L _ (GHC.Match _ _ _ grhs)) = hsDecls grhs
 
+  replaceDecls m@(GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds))) []
+    = do
+        let
+          noWhere (G GHC.AnnWhere,_) = False
+          noWhere _                  = True
+
+          removeWhere mkds =
+            case Map.lookup (mkAnnKey m) mkds of
+              Nothing -> error "wtf"
+              Just ann -> Map.insert (mkAnnKey m) ann1 mkds
+                where
+                  ann1 = ann { annsDP = filter noWhere (annsDP ann) 
+                                 }
+        modifyAnnsT removeWhere
+
+        binds' <- replaceDecls binds []
+        return (GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds')))
+
   replaceDecls m@(GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds))) newBinds
     = do
         -- Need to throw in a fresh where clause if the binds were empty,

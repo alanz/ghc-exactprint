@@ -469,6 +469,7 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     , manipulateAstTestWFnameMod rmDecl1       "RmDecl1.hs"       "RmDecl1"
     -- , manipulateAstTestWFname "RmDecl2.hs"                        "RmDecl2"
     , manipulateAstTestWFnameMod rmDecl2       "RmDecl2.hs"       "RmDecl2"
+    , manipulateAstTestWFnameMod rmDecl3       "RmDecl3.hs"       "RmDecl3"
     , manipulateAstTestWFnameMod rmTypeSig1    "RmTypeSig1.hs"    "RmTypeSig1"
     , manipulateAstTestWFname "StringGap.hs"                      "StringGap"
     {-
