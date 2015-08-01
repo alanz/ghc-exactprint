@@ -1656,7 +1656,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     if b == GHC.Boxed then mark GHC.AnnCloseP
                       else markWithString GHC.AnnClose "#)"
 
-  markAST l (GHC.HsCase e1 matches) = do
+  markAST l (GHC.HsCase e1 matches) = setLayoutFlag $ do
     mark GHC.AnnCase
     markLocated e1
     mark GHC.AnnOf
@@ -1665,7 +1665,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markMatchGroup l matches
     mark GHC.AnnCloseC
 
-  markAST _ (GHC.HsIf _ e1 e2 e3) = do
+  markAST _ (GHC.HsIf _ e1 e2 e3) = setLayoutFlag $ do
     mark GHC.AnnIf
     markLocated e1
     markOffset GHC.AnnSemi 0
