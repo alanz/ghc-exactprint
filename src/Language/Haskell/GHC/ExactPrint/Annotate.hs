@@ -1656,6 +1656,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     if b == GHC.Boxed then mark GHC.AnnCloseP
                       else markWithString GHC.AnnClose "#)"
 
+
+  -- We set the layout for HsCase and HsIf even though they need not obey
+  -- layout rules as when moving these expressions it's useful that they
+  -- maintain "internal integrity", that is to say the subparts remain
+  -- indented relative to each other.
   markAST l (GHC.HsCase e1 matches) = setLayoutFlag $ do
     mark GHC.AnnCase
     markLocated e1
