@@ -1,3 +1,10 @@
+2015-08-?? v0.3.1
+
+	* Mark LHS at the beginning of HsCase and HsIf expressions
+	* Mark trailing semi colons on ANN pragmas
+	* Correctly mark trailing semi colons distinctly from internal semicolons
+
+
 2015-07-20 v0.3
 	Substantial rework to manage changes introduced in GHC 7.10.2 rc2
 	and beyond.
