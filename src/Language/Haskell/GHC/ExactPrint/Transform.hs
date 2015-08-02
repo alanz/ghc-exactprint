@@ -205,7 +205,7 @@ wrapDeclT d@(GHC.L _ s) = do
     f ans = case Map.lookup (mkAnnKey d) ans of
       Nothing -> ans
       Just ann ->
-                  Map.insert (mkAnnKey (GHC.L newSpan s)) ann
+                  Map.insert (mkAnnKey (GHC.L newSpan           s )) ann
                 $ Map.insert (mkAnnKey (GHC.L newSpan (GHC.ValD s))) ann ans
   modifyAnnsT f
   return (GHC.L newSpan (GHC.ValD s))
@@ -322,7 +322,9 @@ mergeAnnList (x:xs) = foldr mergeAnns x xs
 -- |Unwrap a HsDecl and call setPrecedingLines on it
 setPrecedingLinesDecl :: GHC.LHsDecl GHC.RdrName -> Int -> Int -> Anns -> Anns
 setPrecedingLinesDecl ld n c ans =
-  declFun (\a -> setPrecedingLines a n c ans) ld
+  declFun (\a -> setPrecedingLines a n c ans') ld
+  where
+    ans' = Map.insert (mkAnnKey ld) annNone ans
 
 declFun :: (forall a . Data a => GHC.Located a -> b) -> GHC.LHsDecl GHC.RdrName -> b
 declFun f (GHC.L l de) =
@@ -352,8 +354,8 @@ setPrecedingLines :: (SYB.Data a) => GHC.Located a -> Int -> Int -> Anns -> Anns
 setPrecedingLines ast n c anne =
   Map.alter go (mkAnnKey ast) anne
   where
-    go Nothing  = Just (annNone { annEntryDelta = (DP (n,c)) })
-    go (Just a) = Just (a { annEntryDelta     = DP (n, c) } )
+    go Nothing  = Just (annNone { annEntryDelta = DP (n, c) })
+    go (Just a) = Just (a       { annEntryDelta = DP (n, c) })
 
 -- ---------------------------------------------------------------------
 

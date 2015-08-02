@@ -233,6 +233,7 @@ tests = TestList $
   , mkParserTest "Control.hs"
   , mkParserTest "T10196.hs"
   , mkParserTest "StringGap.hs"
+  , mkParserTest "RedundantDo.hs"
   ]
 
   ++ transformTests

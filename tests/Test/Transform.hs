@@ -677,10 +677,11 @@ rmDecl3 ans lp = do
          let [d1] = tlDecs
 
          subDecs <- hsDecls d1
-         -- let [sd1] = subDecs
+         let [sd1] = subDecs
 
+         modifyAnnsT (setPrecedingLinesDecl sd1 2 0)
          d1' <- replaceDecls d1 []
-         replaceDecls lp [d1']
+         replaceDecls lp [d1',sd1]
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   return (ans',lp')
