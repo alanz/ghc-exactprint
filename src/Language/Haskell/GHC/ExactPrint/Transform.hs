@@ -21,6 +21,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         -- * The Transform Monad
           Transform
         , runTransform
+        , runTransformFrom
 
         -- * Transform monad operations
         , logTr
@@ -95,6 +96,12 @@ type Transform a = RWS () [String] (Anns,Int) a
 -- annotations and any logging generated via 'logTr'
 runTransform :: Anns -> Transform a -> (a,(Anns,Int),[String])
 runTransform ans f = runRWS f () (ans,0)
+
+-- | Run a transformation in the 'Transform' monad, returning the updated
+-- annotations and any logging generated via 'logTr', allocating any new
+-- SrcSpans from the provided initial value.
+runTransformFrom :: Int -> Anns -> Transform a -> (a,(Anns,Int),[String])
+runTransformFrom seed ans f = runRWS f () (ans,seed)
 
 -- |Log a string to the output of the Monad
 logTr :: String -> Transform ()
