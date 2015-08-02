@@ -1,8 +1,10 @@
-2015-08-?? v0.3.1
+2015-08-02 v0.3.1
 
 	* Mark LHS at the beginning of HsCase and HsIf expressions
 	* Mark trailing semi colons on ANN pragmas
 	* Correctly mark trailing semi colons distinctly from internal semicolons
+	* setPrecedingLinesDecl applies the setting to both the Decl and
+	  the item wrapped in the Decl.
 
 
 2015-07-20 v0.3
