@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Language.Haskell.GHC.ExactPrint.Transform
@@ -31,6 +32,8 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , wrapSigT,wrapDeclT
         , pushDeclAnnT
         , decl2BindT,decl2SigT
+
+        , cloneT
 
         , getEntryDPT
         , addSimpleAnnT
@@ -80,6 +83,7 @@ import qualified GHC           as GHC hiding (parseModule)
 import qualified Data.Generics as SYB
 
 import Data.Data
+import Data.Maybe
 
 import qualified Data.Map as Map
 
@@ -140,15 +144,27 @@ isUniqueSrcSpan :: GHC.SrcSpan -> Bool
 isUniqueSrcSpan ss = srcSpanStartLine ss == -1
 
 -- ---------------------------------------------------------------------
-{-
--- TODO: I suspect this may be needed in future.
+
+-- TODO: HaRe uses a NameMap from Located RdrName to Name, for being able to
+--       rename elements. Consider how to manage this in the clone.
 
 -- |Make a copy of an AST element, replacing the existing SrcSpans with new
 -- ones, and duplicating the matching annotations.
-cloneT :: GHC.Located a -> Transform (GHC.Located a)
-cloneT _ast = do
-  error "Transform.cloneT undefined"
--}
+cloneT :: (Data a,Typeable a) => a -> Transform a
+cloneT ast = do
+  SYB.everywhereM (return `SYB.ext2M` replaceLocated) ast
+  where
+    replaceLocated :: forall loc a. (Typeable loc,Typeable a, Data a)
+                    => (GHC.GenLocated loc a) -> Transform (GHC.GenLocated loc a)
+    replaceLocated (GHC.L l t) = do
+      case cast l :: Maybe GHC.SrcSpan of
+        Just ss -> do
+          newSpan <- uniqueSrcSpanT
+          modifyAnnsT (\anns -> case Map.lookup (mkAnnKey (GHC.L ss t)) anns of
+                                  Nothing -> anns
+                                  Just an -> Map.insert (mkAnnKey (GHC.L newSpan t)) an anns)
+          return $ fromJust $ cast (GHC.L newSpan t)
+        Nothing -> return (GHC.L l t)
 
 -- ---------------------------------------------------------------------
 
@@ -745,7 +761,7 @@ instance HasDecls (GHC.Stmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
     = do
       e' <- replaceDecls e newDecls
       return (GHC.BodyStmt e' a b c)
-  replaceDecls x newDecls = return x
+  replaceDecls x _newDecls = return x
 
 -- ---------------------------------------------------------------------
 

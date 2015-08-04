@@ -1,0 +1,5 @@
+module AddHiding1 where
+
+import Blah.Baz hiding (n1,n2)
+
+f = 1
