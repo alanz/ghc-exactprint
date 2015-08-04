@@ -558,6 +558,10 @@ transformHighLevelTests =
   , mkTestModChange rmDecl3 "RmDecl3.hs" "RmDecl3"
 
   , mkTestModChange rmTypeSig1 "RmTypeSig1.hs" "RmTypeSig1"
+
+  -- , mkTestModChange addHiding1 "AddHiding1.hs" "AddHiding1"
+
+  , mkTestModChange cloneDecl1 "CloneDecl1.hs" "CloneDecl1"
   ]
 
 -- ---------------------------------------------------------------------
@@ -698,6 +702,33 @@ rmTypeSig1 ans lp = do
          replaceDecls lp (s1':d1:d2)
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  return (ans',lp')
+
+-- ---------------------------------------------------------------------
+
+addHiding1 :: Changer
+addHiding1 ans lp = do
+  let doRmDecl = do
+         tlDecs <- hsDecls lp
+         -- let (s1:d1:d2) = tlDecs
+         --     (GHC.L l (GHC.SigD (GHC.TypeSig names typ p))) = s1
+         --     s1' = (GHC.L l (GHC.SigD (GHC.TypeSig (tail names) typ p)))
+         replaceDecls lp tlDecs
+
+  let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  return (ans',lp')
+
+-- ---------------------------------------------------------------------
+
+cloneDecl1 :: Changer
+cloneDecl1 ans lp = do
+  let doChange = do
+         tlDecs <- hsDecls lp
+         let (d1:d2:ds) = tlDecs
+         d2' <- cloneT d2
+         replaceDecls lp (d1:d2:d2':ds)
+
+  let (lp',(ans',_),_w) = runTransform ans doChange
   return (ans',lp')
 
 -- ---------------------------------------------------------------------
