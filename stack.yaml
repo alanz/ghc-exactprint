@@ -1,14 +1,10 @@
 flags: {}
 packages:
 - '.'
-- location:
-    git: git@github.com:mpickering/refact
-    commit: 07fa5ff2ae554dcaf9ad93c04e195259be5dddd0
-  extra-dep: true
+# - location:
+#     git: git@github.com:mpickering/refact
+#     commit: 07fa5ff2ae554dcaf9ad93c04e195259be5dddd0
+#   extra-dep: true
 extra-deps:
 - cabal-helper-0.3.6.0
-# - binary-0.7.5.0
-# resolver: nightly-2015-06-25
-# resolver: nightly-2015-07-03
-# resolver: nightly-2015-07-12
-resolver: nightly-2015-07-19
+resolver: nightly-2015-08-04
