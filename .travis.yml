@@ -1,52 +1,47 @@
-# NB: don't set `language: haskell` here
+# Based on https://github.com/commercialhaskell/stack/wiki/Travis
 
-# See also https://github.com/hvr/multi-ghc-travis for more information
-env:
- # - CABALVER=1.22 GHCVER=7.10.1
- - CABALVER=head GHCVER=7.10.2
- - CABALVER=head GHCVER=head
+sudo: false # Use new caching docker based infrastructure
+cache:
+  directories:
+  - $HOME/.stack
 
-# Focus on head again when 7.10.2 sorted
+addons:
+  apt:
+    packages:
+    - libgmp-dev
+
 matrix:
+  include:
+  - env: GHCVER=7.10.1 STACK_YAML=stack.yaml
+  - env: GHCVER=head STACK_YAML=stack-7.11.yaml
+    addons:
+      apt:
+        sources:
+        - hvr-ghc
+        packages:
+        - ghc-head
   allow_failures:
-    - env: CABALVER=head GHCVER=head
+    - env: GHCVER=head STACK_YAML=stack-7.11.yaml
 
-# Note: the distinction between `before_install` and `install` is not important.
 before_install:
- - travis_retry sudo add-apt-repository -y ppa:hvr/ghc
- - travis_retry sudo apt-get update
- - travis_retry sudo apt-get install cabal-install-$CABALVER ghc-$GHCVER # see note about happy/alex
- - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
- - travis_retry cabal update
+  # ghc
+  - export PATH=/opt/ghc/$GHCVER/bin:$PATH
+  # stack
+  - mkdir -p ~/.local/bin
+  - export PATH=~/.local/bin:$PATH
+  - travis_retry curl -L https://github.com/commercialhaskell/stack/releases/download/v0.1.2.0/stack-0.1.2.0-x86_64-linux.gz | gunzip > ~/.local/bin/stack
+  - chmod a+x ~/.local/bin/stack
+  # versions
+  - stack +RTS -N1 -RTS --version
+  - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
 
 install:
- - cabal --version
- - cabal sandbox init
- - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
- - travis_retry cabal update
- - git clone https://github.com/mpickering/refact
- - cabal sandbox add-source ./refact
- - cabal install --only-dependencies --enable-tests --enable-benchmarks -froundtrip
+  - ./travis_long stack --no-terminal --skip-ghc-check setup 7.10
+  - ./travis_long stack --no-terminal --skip-ghc-check setup
+  - ./travis_long stack --no-terminal --skip-ghc-check test --only-snapshot
 
-# Here starts the actual work to be performed for the package under
-# test; any command which exits with a non-zero exit code causes the
-# build to fail.
 script:
- - if [ -f configure.ac ]; then autoreconf -i; fi
- - cabal configure --enable-coverage --enable-tests --enable-benchmarks -v2 -froundtrip # -v2 provides useful information for debugging
- - cabal build   # this builds all libraries and executables (including tests/benchmarks)
- - cabal test
- - cabal check
- - cabal sdist   # tests that a source-distribution can be generated
-
-# The following scriptlet checks that the resulting source distribution can be built & installed
- # - export SRC_TGZ=$(cabal info . | awk '{print $2 ".tar.gz";exit}') ;
- #   cd dist/;
- #   if [ -f "$SRC_TGZ" ]; then
- #      cabal install --force-reinstalls "$SRC_TGZ";
- #   else
- #      echo "expected '$SRC_TGZ' not found";
- #      exit 1;
+  - stack --no-terminal --skip-ghc-check test
 
 notifications:
   irc: "irc.freenode.org#haskell-refactorer"
