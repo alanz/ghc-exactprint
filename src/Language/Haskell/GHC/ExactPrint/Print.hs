@@ -24,7 +24,6 @@ import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Annotate
   (AnnotationF(..), Annotated, Annotate(..), annotate)
 import Language.Haskell.GHC.ExactPrint.Lookup (keywordToString, unicodeString)
-import Language.Haskell.GHC.ExactPrint.Delta ( relativiseApiAnns )
 
 import Control.Monad.RWS
 import Data.Data (Data)
@@ -34,7 +33,6 @@ import Data.Maybe (fromMaybe)
 
 import Control.Monad.Trans.Free
 
-import Debug.Trace
 import qualified GHC
 
 ------------------------------------------------------------------------------
@@ -47,7 +45,7 @@ exactPrint :: Annotate ast
                      => GHC.Located ast
                      -> Anns
                      -> String
-exactPrint = semanticPrint (\ast b -> b) id id
+exactPrint = semanticPrint (\_ b -> b) id id
 
 
 -- | A more general version of 'exactPrint' which allows the customisation
