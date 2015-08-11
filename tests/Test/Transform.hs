@@ -448,7 +448,7 @@ manipulateAstTest' mchange useTH file' modname = do
                    Just (change,_) -> change ann parsed
 
   let
-    printed = exactPrintWithAnns parsed' ann' -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
+    printed = exactPrint parsed' ann' -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
     outcome = if printed == contents
                 then "Match\n"
                 else "Fail\n"

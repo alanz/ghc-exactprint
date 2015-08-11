@@ -13,9 +13,7 @@
 -----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint.Print
         (
-          exactPrintWithAnns
-
-        , exactPrint
+        exactPrint
 
         ) where
 
@@ -40,20 +38,14 @@ import qualified GHC
 ------------------------------------------------------------------------------
 -- Printing of source elements
 
--- | Print an AST exactly as specified by the annotations on the nodes in the tree.
--- The output of this function should exactly match the source file.
-exactPrint :: Annotate ast => GHC.Located ast -> GHC.ApiAnns -> String
-exactPrint ast ghcAnns = exactPrintWithAnns ast relativeAnns
-  where
-    relativeAnns = relativiseApiAnns ast ghcAnns
-
 -- | Print an AST with a map of potential modified `Anns`. The usual way to
--- generate such a map is by calling `relativiseApiAnns`.
-exactPrintWithAnns :: Annotate ast
+-- generate such a map is by using one of the parsers in
+-- "Language.Haskell.GHC.ExactPrint.Parsers".
+exactPrint :: Annotate ast
                      => GHC.Located ast
                      -> Anns
                      -> String
-exactPrintWithAnns ast an = runEP (annotate ast) an
+exactPrint ast an = runEP (annotate ast) an
 
 
 ------------------------------------------------------
