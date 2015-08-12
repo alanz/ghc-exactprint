@@ -37,6 +37,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , cloneT
 
         , getEntryDPT
+        , transferEntryDPT
         , addSimpleAnnT
 
         -- ** Managing lists, Transform monad
@@ -68,6 +69,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , setPrecedingLinesDecl
         , setPrecedingLines
         , getEntryDP
+        , transferEntryDP
 
         ) where
 
@@ -334,6 +336,13 @@ getEntryDPT ast = do
 
 -- ---------------------------------------------------------------------
 
+-- |'Transform' monad version of 'transferEntryDP'
+transferEntryDPT :: (Data a,Data b) => GHC.Located a -> GHC.Located b -> Transform ()
+transferEntryDPT a b =
+  modifyAnnsT (\anns -> transferEntryDP anns a b)
+
+-- ---------------------------------------------------------------------
+
 -- | Left bias pair union
 mergeAnns :: Anns -> Anns -> Anns
 mergeAnns
@@ -393,6 +402,28 @@ getEntryDP anns ast =
   case Map.lookup (mkAnnKey ast) anns of
     Nothing  -> DP (0,0)
     Just ann -> annTrueEntryDelta ann
+-- ---------------------------------------------------------------------
+
+-- |Take the annEntryDelta associated with the first item and associate it with the second.
+-- Also transfer the AnnSpanEntry value, and any comments occuring before it.
+transferEntryDP :: (SYB.Data a, SYB.Data b) => Anns -> GHC.Located a -> GHC.Located b -> Anns
+transferEntryDP ans a b = (const anns') ans
+  where
+    anns = ans
+    maybeAnns = do -- Maybe monad
+      anA <- Map.lookup (mkAnnKey a) anns
+      anB <- Map.lookup (mkAnnKey b) anns
+      let anB'  = Ann { annEntryDelta        = annEntryDelta     anA
+                      , annPriorComments     = annPriorComments     anA ++ annPriorComments     anB
+                      , annFollowingComments = annFollowingComments anA ++ annFollowingComments anB
+                      , annsDP               = annsDP          anB
+                      , annSortKey           = annSortKey      anB
+                      , annCapturedSpan      = annCapturedSpan anB
+                      }
+      return (Map.insert (mkAnnKey b) anB' anns)
+    anns' = fromMaybe
+              (error $ "transferEntryDP: lookup failed (a,b)=" ++ show (mkAnnKey a,mkAnnKey b))
+              maybeAnns
 
 -- ---------------------------------------------------------------------
 
