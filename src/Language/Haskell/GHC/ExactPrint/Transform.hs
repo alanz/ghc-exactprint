@@ -6,6 +6,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Language.Haskell.GHC.ExactPrint.Transform
@@ -86,6 +87,7 @@ import Data.Data
 import Data.Maybe
 
 import qualified Data.Map as Map
+import Control.Monad.Writer
 
 -- import Debug.Trace
 
@@ -94,18 +96,19 @@ import qualified Data.Map as Map
 
 -- | Monad type for updating the AST and managing the annotations at the same
 -- time. The W state is used to generate logging information if required.
-type Transform a = RWS () [String] (Anns,Int) a
+newtype Transform a = Transform { getTransform :: RWS () [String] (Anns,Int) a }
+                        deriving (Monad, Applicative, Functor, MonadState (Anns, Int), MonadReader (), MonadWriter [String])
 
 -- | Run a transformation in the 'Transform' monad, returning the updated
 -- annotations and any logging generated via 'logTr'
 runTransform :: Anns -> Transform a -> (a,(Anns,Int),[String])
-runTransform ans f = runRWS f () (ans,0)
+runTransform ans f = runTransformFrom 0 ans f
 
 -- | Run a transformation in the 'Transform' monad, returning the updated
 -- annotations and any logging generated via 'logTr', allocating any new
 -- SrcSpans from the provided initial value.
 runTransformFrom :: Int -> Anns -> Transform a -> (a,(Anns,Int),[String])
-runTransformFrom seed ans f = runRWS f () (ans,seed)
+runTransformFrom seed ans f = runRWS (getTransform f) () (ans,seed)
 
 -- |Log a string to the output of the Monad
 logTr :: String -> Transform ()
@@ -150,20 +153,21 @@ isUniqueSrcSpan ss = srcSpanStartLine ss == -1
 
 -- |Make a copy of an AST element, replacing the existing SrcSpans with new
 -- ones, and duplicating the matching annotations.
-cloneT :: (Data a,Typeable a) => a -> Transform a
+cloneT :: (Data a,Typeable a) => a -> Transform (a, [(GHC.SrcSpan, GHC.SrcSpan)])
 cloneT ast = do
-  SYB.everywhereM (return `SYB.ext2M` replaceLocated) ast
+  runWriterT $ SYB.everywhereM (return `SYB.ext2M` replaceLocated) ast
   where
     replaceLocated :: forall loc a. (Typeable loc,Typeable a, Data a)
-                   => GHC.GenLocated loc a -> Transform (GHC.GenLocated loc a)
+                    => (GHC.GenLocated loc a) -> WriterT [(GHC.SrcSpan, GHC.SrcSpan)] Transform (GHC.GenLocated loc a)
     replaceLocated (GHC.L l t) = do
       case cast l :: Maybe GHC.SrcSpan of
         Just ss -> do
-          newSpan <- uniqueSrcSpanT
-          modifyAnnsT (\anns -> case Map.lookup (mkAnnKey (GHC.L ss t)) anns of
+          newSpan <- lift uniqueSrcSpanT
+          lift $ modifyAnnsT (\anns -> case Map.lookup (mkAnnKey (GHC.L ss t)) anns of
                                   Nothing -> anns
                                   Just an -> Map.insert (mkAnnKey (GHC.L newSpan t)) an anns)
-          return $ fromJust $ cast (GHC.L newSpan t)
+          tell [(ss, newSpan)]
+          return $ fromJust . cast  $ GHC.L newSpan t
         Nothing -> return (GHC.L l t)
 
 -- ---------------------------------------------------------------------
@@ -594,7 +598,7 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
               Nothing -> error "wtf"
               Just ann -> Map.insert (mkAnnKey m) ann1 mkds
                 where
-                  ann1 = ann { annsDP = filter noWhere (annsDP ann) 
+                  ann1 = ann { annsDP = filter noWhere (annsDP ann)
                                  }
         modifyAnnsT removeWhere
 
