@@ -87,6 +87,7 @@ import Data.Data
 import Data.Maybe
 
 import qualified Data.Map as Map
+import Control.Monad.Writer
 
 -- import Debug.Trace
 
@@ -152,20 +153,21 @@ isUniqueSrcSpan ss = srcSpanStartLine ss == -1
 
 -- |Make a copy of an AST element, replacing the existing SrcSpans with new
 -- ones, and duplicating the matching annotations.
-cloneT :: (Data a,Typeable a) => a -> Transform a
+cloneT :: (Data a,Typeable a) => a -> Transform (a, [(GHC.SrcSpan, GHC.SrcSpan)])
 cloneT ast = do
-  SYB.everywhereM (return `SYB.ext2M` replaceLocated) ast
+  runWriterT $ SYB.everywhereM (return `SYB.ext2M` replaceLocated) ast
   where
     replaceLocated :: forall loc a. (Typeable loc,Typeable a, Data a)
-                    => (GHC.GenLocated loc a) -> Transform (GHC.GenLocated loc a)
+                    => (GHC.GenLocated loc a) -> WriterT [(GHC.SrcSpan, GHC.SrcSpan)] Transform (GHC.GenLocated loc a)
     replaceLocated (GHC.L l t) = do
       case cast l :: Maybe GHC.SrcSpan of
         Just ss -> do
-          newSpan <- uniqueSrcSpanT
-          modifyAnnsT (\anns -> case Map.lookup (mkAnnKey (GHC.L ss t)) anns of
+          newSpan <- lift uniqueSrcSpanT
+          lift $ modifyAnnsT (\anns -> case Map.lookup (mkAnnKey (GHC.L ss t)) anns of
                                   Nothing -> anns
                                   Just an -> Map.insert (mkAnnKey (GHC.L newSpan t)) an anns)
-          return $ fromJust $ cast (GHC.L newSpan t)
+          tell [(ss, newSpan)]
+          return $ fromJust . cast  $ GHC.L newSpan t
         Nothing -> return (GHC.L l t)
 
 -- ---------------------------------------------------------------------
