@@ -32,6 +32,8 @@ import Data.Ord (comparing)
 import Data.Maybe (fromMaybe)
 
 import Control.Monad.Trans.Free
+import Control.Monad.Identity
+import Control.Monad.Writer
 
 import qualified GHC
 
@@ -51,6 +53,16 @@ exactPrint = semanticPrint (\_ b -> b) id id
 -- | A more general version of 'exactPrint' which allows the customisation
 -- of the output whilst retaining the original source formatting. This is
 -- useful for smarter syntax highlighting.
+semanticPrintM :: (Annotate ast, Monoid b, Monad m) =>
+              (forall a . Data a => GHC.Located a -> b -> m b) -- ^ How to surround an AST fragment
+              -> (String -> m b) -- ^ How to output a token
+              -> (String -> m b) -- ^ How to output whitespace
+              -> GHC.Located ast
+              -> Anns
+              -> m b
+semanticPrintM astOut tokenOut whiteOut ast as =  runEP astOut tokenOut whiteOut (annotate ast) as
+
+
 semanticPrint :: (Annotate ast, Monoid b) =>
               (forall a . Data a => GHC.Located a -> b -> b) -- ^ How to surround an AST fragment
               -> (String -> b) -- ^ How to output a token
@@ -58,18 +70,18 @@ semanticPrint :: (Annotate ast, Monoid b) =>
               -> GHC.Located ast
               -> Anns
               -> b
-semanticPrint astOut tokenOut whiteOut ast as =  runEP astOut tokenOut whiteOut (annotate ast) as
+semanticPrint a b c d e = runIdentity (semanticPrintM (\ast s -> Identity (a ast s)) (return . b) (return . c) d e)
 
 
 ------------------------------------------------------
 -- The EP monad and basic combinators
 
-data EPReader a = EPReader
+data EPReader m a = EPReader
             {
               epAnn :: !Annotation
-            , epAstPrint :: forall ast . Data ast => GHC.Located ast -> a -> a
-            , epTokenPrint :: String -> a
-            , epWhitespacePrint :: String -> a
+            , epAstPrint :: forall ast . Data ast => GHC.Located ast -> a -> m a
+            , epTokenPrint :: String -> m a
+            , epWhitespacePrint :: String -> m a
             }
 
 data EPWriter a = EPWriter
@@ -82,25 +94,25 @@ instance Monoid w => Monoid (EPWriter w) where
 data EPState = EPState
              { epPos    :: !Pos -- ^ Current output position
              , epAnns   :: !Anns
-             , epAnnKds :: ![[(KeywordId, DeltaPos)]] -- MP: Could this be moved to the local state with suitable refactoring?
+             , epAnnKds :: ![[(KeywordId, DeltaPos)]] -- MP: Could this be moved to the local statE w mith suitable refactoring?
              , epMarkLayout :: Bool
              , epLHS :: LayoutStartCol
              }
 
 ---------------------------------------------------------
 
-type EP w a = RWS (EPReader w) (EPWriter w) EPState a
+type EP w m a = RWST (EPReader m w) (EPWriter w) EPState m a
 
 
 
-runEP :: Monoid a =>
-      (forall ast . Data ast => GHC.Located ast -> a -> a)
-      -> (String -> a)
-      -> (String -> a)
-      -> Annotated () -> Anns -> a
+runEP :: (Monad m, Monoid a) =>
+      (forall ast . Data ast => GHC.Located ast -> a -> m a)
+      -> (String -> m a)
+      -> (String -> m a)
+      -> Annotated () -> Anns -> m a
 runEP astPrint wsPrint tokenPrint action ans =
-  output . snd
-  . (\next -> execRWS next (initialEPReader astPrint tokenPrint wsPrint) (defaultEPState ans))
+  fmap (output . snd) .
+    (\next -> execRWST next (initialEPReader astPrint tokenPrint wsPrint) (defaultEPState ans))
   . printInterpret $ action
 
 -- ---------------------------------------------------------------------
@@ -115,10 +127,10 @@ defaultEPState as = EPState
              }
 
 initialEPReader ::
-      (forall ast . Data ast => GHC.Located ast -> a -> a)
-      -> (String -> a)
-      -> (String -> a)
-      -> EPReader a
+      (forall ast . Data ast => GHC.Located ast -> a -> m a)
+      -> (String -> m a)
+      -> (String -> m a)
+      -> EPReader m a
 initialEPReader astPrint tokenPrint wsPrint  = EPReader
              {
                epAnn = annNone
@@ -129,10 +141,10 @@ initialEPReader astPrint tokenPrint wsPrint  = EPReader
 
 -- ---------------------------------------------------------------------
 
-printInterpret :: Monoid w => Annotated a -> EP w a
-printInterpret = iterTM go
+printInterpret :: forall w m a . (Monad m, Monoid w) => Annotated a -> EP w m a
+printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
   where
-    go :: Monoid w => AnnotationF (EP w a) -> EP w a
+    go :: (Monad m, Monoid w) => AnnotationF (EP w m a) -> EP w m a
     go (MarkEOF next) =
       printStringAtMaybeAnn (G GHC.AnnEofPos) "" >> next
     go (MarkPrim kwid mstr next) =
@@ -168,14 +180,14 @@ printInterpret = iterTM go
 
 -------------------------------------------------------------------------
 
-storeOriginalSrcSpanPrint :: Monoid w => EP w AnnKey
+storeOriginalSrcSpanPrint :: (Monad m, Monoid w) => EP w m AnnKey
 storeOriginalSrcSpanPrint = do
   Ann{..} <- asks epAnn
   case annCapturedSpan of
     Nothing -> error "Missing captured SrcSpan"
     Just v  -> return v
 
-printStoredString :: Monoid w => EP w ()
+printStoredString :: (Monad m, Monoid w) => EP w m ()
 printStoredString = do
   kd <- gets epAnnKds
 
@@ -187,7 +199,7 @@ printStoredString = do
     ((AnnString ss,_):_) -> printStringAtMaybeAnn (AnnString ss) ss
     _                    -> return ()
 
-withSortKey :: Monoid w => [(GHC.SrcSpan, Annotated ())] -> EP w ()
+withSortKey :: (Monad m, Monoid w) => [(GHC.SrcSpan, Annotated ())] -> EP w m ()
 withSortKey xs = do
   Ann{..} <- asks epAnn
   let ordered = case annSortKey of
@@ -202,12 +214,12 @@ withSortKey xs = do
 
 -------------------------------------------------------------------------
 
-allAnns :: Monoid w => GHC.AnnKeywordId -> EP w ()
+allAnns :: (Monad m, Monoid w) => GHC.AnnKeywordId -> EP w m ()
 allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString (G kwid))
 
 -------------------------------------------------------------------------
 -- |First move to the given location, then call exactP
-exactPC :: (Data ast, Monoid w) => GHC.Located ast -> EP w a -> EP w a
+exactPC :: (Data ast, Monad m, Monoid w) => GHC.Located ast -> EP w m a -> EP w m a
 exactPC ast action =
     do
       return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
@@ -221,28 +233,36 @@ exactPC ast action =
       r <- withContext kds an
        (mapM_ (uncurry printQueuedComment) comments
        >> advance edp
-       >> censor (\(EPWriter w) -> EPWriter (epAstPrint ast w)) action
+       >> censorM (epAstPrint ast) action
        <* mapM_ (uncurry printQueuedComment) fcomments)
       return r `debug` ("leaving exactPCfor:" ++ show (mkAnnKey ast))
 
-advance :: Monoid w => DeltaPos -> EP w ()
+censorM f m = passM (liftM (\x -> (x,f)) m)
+
+passM :: (Monoid w, Monad m) => EP w m (a, w -> m w) -> EP w m a
+passM m = RWST $ \r s -> do
+      ~((a, f),s', EPWriter w) <- runRWST m r s
+      w' <- f w
+      return (a, s', EPWriter w')
+
+advance :: (Monad m, Monoid w) => DeltaPos -> EP w m ()
 advance cl = do
   p <- getPos
   colOffset <- getLayoutOffset
   printWhitespace (undelta p cl colOffset)
 
-getAndRemoveAnnotation :: (Monoid w, Data a) => GHC.Located a -> EP w (Maybe Annotation)
+getAndRemoveAnnotation :: (Monad m, Monoid w, Data a) => GHC.Located a -> EP w m (Maybe Annotation)
 getAndRemoveAnnotation a = gets ((getAnnotationEP a) . epAnns)
 
-markPrim :: Monoid w => KeywordId -> Maybe String -> EP w ()
+markPrim :: (Monad m, Monoid w) => KeywordId -> Maybe String -> EP w m ()
 markPrim kwid mstr =
   let annString = fromMaybe (keywordToString kwid) mstr
   in printStringAtMaybeAnn kwid annString
 
-withContext :: Monoid w
+withContext :: (Monad m, Monoid w)
             => [(KeywordId, DeltaPos)]
             -> Annotation
-            -> EP w a -> EP w a
+            -> EP w m a -> EP w m a
 withContext kds an x = withKds kds (withOffset an x)
 
 -- ---------------------------------------------------------------------
@@ -250,7 +270,7 @@ withContext kds an x = withKds kds (withOffset an x)
 -- | Given an annotation associated with a specific SrcSpan, determines a new offset relative to the previous
 -- offset
 --
-withOffset :: Monoid w => Annotation -> (EP w a -> EP w a)
+withOffset :: (Monad m, Monoid w) => Annotation -> (EP w m a -> EP w m a)
 withOffset a =
   local (\s -> s { epAnn = a })
 
@@ -258,7 +278,7 @@ withOffset a =
 -- ---------------------------------------------------------------------
 --
 -- Necessary as there are destructive gets of Kds across scopes
-withKds :: Monoid w => [(KeywordId, DeltaPos)] -> EP w a -> EP w a
+withKds :: (Monad m, Monoid w) => [(KeywordId, DeltaPos)] -> EP w m a -> EP w m a
 withKds kd action = do
   modify (\s -> s { epAnnKds = kd : epAnnKds s })
   r <- action
@@ -267,7 +287,7 @@ withKds kd action = do
 
 ------------------------------------------------------------------------
 
-setLayout :: Monoid w => EP w () -> EP w ()
+setLayout :: (Monad m, Monoid w) => EP w m () -> EP w m ()
 setLayout k = do
   oldLHS <- gets epLHS
   modify (\a -> a { epMarkLayout = True } )
@@ -275,27 +295,27 @@ setLayout k = do
                               , epLHS = oldLHS } )
   k <* reset
 
-getPos :: Monoid w => EP w Pos
+getPos :: (Monad m, Monoid w) => EP w m Pos
 getPos = gets epPos
 
-setPos :: Monoid w => Pos -> EP w ()
+setPos :: (Monad m, Monoid w) => Pos -> EP w m ()
 setPos l = modify (\s -> s {epPos = l})
 
 -- |Get the current column offset
-getLayoutOffset :: Monoid w => EP w LayoutStartCol
+getLayoutOffset :: (Monad m, Monoid w) => EP w m LayoutStartCol
 getLayoutOffset = gets epLHS
 
 -- ---------------------------------------------------------------------
 
-printStringAtMaybeAnn :: Monoid w => KeywordId -> String -> EP w ()
+printStringAtMaybeAnn :: (Monad m, Monoid w) => KeywordId -> String -> EP w m ()
 printStringAtMaybeAnn an str = printStringAtMaybeAnnThen an str (return ())
 
-printStringAtMaybeAnnAll :: Monoid w => KeywordId -> String -> EP w ()
+printStringAtMaybeAnnAll :: (Monad m, Monoid w) => KeywordId -> String -> EP w m ()
 printStringAtMaybeAnnAll an str = go
   where
     go = printStringAtMaybeAnnThen an str go
 
-printStringAtMaybeAnnThen :: Monoid w => KeywordId -> String -> EP w () -> EP w ()
+printStringAtMaybeAnnThen :: (Monad m, Monoid w) => KeywordId -> String -> EP w m () -> EP w m ()
 printStringAtMaybeAnnThen an str next = do
   annFinal <- getAnnFinal an
   case (annFinal, an) of
@@ -318,7 +338,7 @@ printStringAtMaybeAnnThen an str next = do
 -- ---------------------------------------------------------------------
 
 -- |destructive get, hence use an annotation once only
-getAnnFinal :: Monoid w => KeywordId -> EP w (Maybe ([(Comment, DeltaPos)], DeltaPos))
+getAnnFinal :: (Monad m, Monoid w) => KeywordId -> EP w m (Maybe ([(Comment, DeltaPos)], DeltaPos))
 getAnnFinal kw = do
   kd <- gets epAnnKds
   case kd of
@@ -347,7 +367,7 @@ destructiveGetFirst  key (acc, (k,v):kvs )
 
 -- |This should be the final point where things are mode concrete,
 -- before output. Hence the point where comments can be inserted
-printStringAtLsDelta :: Monoid w => [(Comment, DeltaPos)] -> DeltaPos -> String -> EP w ()
+printStringAtLsDelta :: (Monad m, Monoid w) => [(Comment, DeltaPos)] -> DeltaPos -> String -> EP w m ()
 printStringAtLsDelta cs cl s = do
   p <- getPos
   colOffset <- getLayoutOffset
@@ -363,7 +383,7 @@ isGoodDeltaWithOffset :: DeltaPos -> LayoutStartCol -> Bool
 isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP (undelta (0,0) dp colOffset))
 
 -- AZ:TODO: harvest the commonality between this and printStringAtLsDelta
-printQueuedComment :: Monoid w => Comment -> DeltaPos -> EP w ()
+printQueuedComment :: (Monad m, Monoid w) => Comment -> DeltaPos -> EP w m ()
 printQueuedComment Comment{commentContents} dp = do
   p <- getPos
   colOffset <- getLayoutOffset
@@ -377,12 +397,12 @@ printQueuedComment Comment{commentContents} dp = do
 -- ---------------------------------------------------------------------
 
 -- |non-destructive get
-peekAnnFinal :: Monoid w => KeywordId -> EP w (Maybe DeltaPos)
+peekAnnFinal :: (Monad m, Monoid w) => KeywordId -> EP w m (Maybe DeltaPos)
 peekAnnFinal kw = do
   (r, _) <- (\kd -> destructiveGetFirst kw ([], kd)) <$> gets (ghead "peekAnnFinal" . epAnnKds)
   return (snd <$> r)
 
-countAnnsEP :: Monoid w => KeywordId -> EP w Int
+countAnnsEP :: (Monad m, Monoid w) => KeywordId -> EP w m Int
 countAnnsEP an = length <$> peekAnnFinal an
 
 -- ---------------------------------------------------------------------
@@ -391,7 +411,7 @@ countAnnsEP an = length <$> peekAnnFinal an
 -- ---------------------------------------------------------------------
 -- Printing functions
 
-printString :: Monoid w => Bool -> String -> EP w ()
+printString :: (Monad m, Monoid w) => Bool -> String -> EP w m ()
 printString layout str = do
   EPState{epPos = (l,c), epMarkLayout} <- get
   EPReader{epTokenPrint, epWhitespacePrint} <- ask
@@ -402,28 +422,28 @@ printString layout str = do
   -- tell (mempty {output = Endo $ showString str })
 
   if not layout && c == 0
-    then tell (EPWriter { output = epWhitespacePrint str })
-    else tell (EPWriter { output = epTokenPrint str } )
+    then lift (epWhitespacePrint str) >>= \s -> tell (EPWriter { output = s})
+    else lift (epTokenPrint str) >>= \s -> tell (EPWriter { output = s})
 
 
-newLine :: Monoid w => EP w ()
+newLine :: (Monad m, Monoid w) => EP w m ()
 newLine = do
     (l,_) <- getPos
     printString False "\n"
     setPos (l+1,1)
 
-padUntil :: Monoid w => Pos -> EP w ()
+padUntil :: (Monad m, Monoid w) => Pos -> EP w m ()
 padUntil (l,c) = do
     (l1,c1) <- getPos
     if | l1 == l && c1 <= c -> printString False $ replicate (c - c1) ' '
        | l1 < l             -> newLine >> padUntil (l,c)
        | otherwise          -> return ()
 
-printWhitespace :: Monoid w => Pos -> EP w ()
+printWhitespace :: (Monad m, Monoid w) => Pos -> EP w m ()
 printWhitespace = padUntil
 
-printCommentAt :: Monoid w => Pos -> String -> EP w ()
+printCommentAt :: (Monad m, Monoid w) => Pos -> String -> EP w m ()
 printCommentAt p str = printWhitespace p >> printString False str
 
-printStringAt :: Monoid w => Pos -> String -> EP w ()
+printStringAt :: (Monad m, Monoid w) => Pos -> String -> EP w m ()
 printStringAt p str = printWhitespace p >> printString True str
