@@ -556,6 +556,7 @@ transformHighLevelTests =
   , mkTestModChange rmDecl1 "RmDecl1.hs" "RmDecl1"
   , mkTestModChange rmDecl2 "RmDecl2.hs" "RmDecl2"
   , mkTestModChange rmDecl3 "RmDecl3.hs" "RmDecl3"
+  , mkTestModChange rmDecl4 "RmDecl4.hs" "RmDecl4"
 
   , mkTestModChange rmTypeSig1 "RmTypeSig1.hs" "RmTypeSig1"
 
@@ -685,6 +686,25 @@ rmDecl3 ans lp = do
 
          modifyAnnsT (setPrecedingLinesDecl sd1 2 0)
          d1' <- replaceDecls d1 []
+         replaceDecls lp [d1',sd1]
+
+  let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  return (ans',lp')
+
+-- ---------------------------------------------------------------------
+
+rmDecl4 :: Changer
+rmDecl4 ans lp = do
+  let
+      doRmDecl = do
+         tlDecs <- hsDecls lp
+         let [d1] = tlDecs
+
+         subDecs <- hsDecls d1
+         let [sd1,sd2] = subDecs
+
+         modifyAnnsT (setPrecedingLinesDecl sd1 2 0)
+         d1' <- replaceDecls d1 [sd2]
          replaceDecls lp [d1',sd1]
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
