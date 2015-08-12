@@ -725,7 +725,7 @@ cloneDecl1 ans lp = do
   let doChange = do
          tlDecs <- hsDecls lp
          let (d1:d2:ds) = tlDecs
-         d2' <- cloneT d2
+         d2' <- fst <$> cloneT d2
          replaceDecls lp (d1:d2:d2':ds)
 
   let (lp',(ans',_),_w) = runTransform ans doChange
