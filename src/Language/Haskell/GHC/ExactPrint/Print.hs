@@ -16,6 +16,7 @@ module Language.Haskell.GHC.ExactPrint.Print
         (
         exactPrint
         , semanticPrint
+        , semanticPrintM
 
         ) where
 
@@ -49,10 +50,7 @@ exactPrint :: Annotate ast
                      -> String
 exactPrint = semanticPrint (\_ b -> b) id id
 
-
--- | A more general version of 'exactPrint' which allows the customisation
--- of the output whilst retaining the original source formatting. This is
--- useful for smarter syntax highlighting.
+-- | A more general version of `semanticPrint`.
 semanticPrintM :: (Annotate ast, Monoid b, Monad m) =>
               (forall a . Data a => GHC.Located a -> b -> m b) -- ^ How to surround an AST fragment
               -> (String -> m b) -- ^ How to output a token
@@ -63,6 +61,9 @@ semanticPrintM :: (Annotate ast, Monoid b, Monad m) =>
 semanticPrintM astOut tokenOut whiteOut ast as =  runEP astOut tokenOut whiteOut (annotate ast) as
 
 
+-- | A more general version of 'exactPrint' which allows the customisation
+-- of the output whilst retaining the original source formatting. This is
+-- useful for smarter syntax highlighting.
 semanticPrint :: (Annotate ast, Monoid b) =>
               (forall a . Data a => GHC.Located a -> b -> b) -- ^ How to surround an AST fragment
               -> (String -> b) -- ^ How to output a token
