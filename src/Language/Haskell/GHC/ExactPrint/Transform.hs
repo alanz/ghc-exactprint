@@ -596,7 +596,7 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
               Nothing -> error "wtf"
               Just ann -> Map.insert (mkAnnKey m) ann1 mkds
                 where
-                  ann1 = ann { annsDP = filter noWhere (annsDP ann) 
+                  ann1 = ann { annsDP = filter noWhere (annsDP ann)
                                  }
         modifyAnnsT removeWhere
 
