@@ -577,3 +577,10 @@ This results in the following tree structure
          |                 (L {LayoutIn3.hs:12:83}      |
          |                 (L {LayoutIn3.hs:12:85}      |
 ```
+
+## Principles
+
+The following principles should apply to the annotated AST, to simplify Transform operations.
+
+### Locality
+
