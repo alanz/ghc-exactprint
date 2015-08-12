@@ -155,7 +155,7 @@ cloneT ast = do
   SYB.everywhereM (return `SYB.ext2M` replaceLocated) ast
   where
     replaceLocated :: forall loc a. (Typeable loc,Typeable a, Data a)
-                    => (GHC.GenLocated loc a) -> Transform (GHC.GenLocated loc a)
+                   => GHC.GenLocated loc a -> Transform (GHC.GenLocated loc a)
     replaceLocated (GHC.L l t) = do
       case cast l :: Maybe GHC.SrcSpan of
         Just ss -> do
@@ -513,7 +513,9 @@ insertBefore (GHC.getLoc -> k) = insertAt findBefore
       let (fs, bs) = span (/= k) xs
       in fs ++ (x : bs)
 
--- ---------------------------------------------------------------------
+-- =====================================================================
+-- start of HasDecls instances
+-- =====================================================================
 
 class (Data t) => HasDecls t where
 
@@ -739,6 +741,7 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
 -- ---------------------------------------------------------------------
 
 instance HasDecls (GHC.Stmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
+instance HasDecls (GHC.Stmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   hsDecls (GHC.LetStmt lb)          = hsDecls lb
   hsDecls (GHC.LastStmt e _)        = hsDecls e
   hsDecls (GHC.BindStmt _pat e _ _) = hsDecls e
@@ -778,7 +781,10 @@ instance HasDecls (GHC.LHsDecl GHC.RdrName) where
   --   return (GHC.L l1 (GHC.SigD d1))
   replaceDecls _d _  = error $ "LHsDecl.replaceDecls:not implemented"
 
--- ---------------------------------------------------------------------
+
+-- =====================================================================
+-- end of HasDecls instances
+-- =====================================================================
 
 matchApiAnn :: GHC.AnnKeywordId -> (KeywordId,DeltaPos) -> Bool
 matchApiAnn mkw (kw,_)
