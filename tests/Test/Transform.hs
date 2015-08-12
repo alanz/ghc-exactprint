@@ -702,6 +702,7 @@ rmDecl4 ans lp = do
 
          subDecs <- hsDecls d1
          let [sd1,sd2] = subDecs
+         transferEntryDPT sd1 sd2
 
          modifyAnnsT (setPrecedingLinesDecl sd1 2 0)
          d1' <- replaceDecls d1 [sd2]
