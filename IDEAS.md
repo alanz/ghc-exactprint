@@ -17,3 +17,6 @@ Make sure that all names are located, so e.g. HsTyVar will take a Located name
 Make BooleanFormula properly Located, or provide original source representation
 
 Show instance for BooleanFormula
+
+Sort out GADT parsing, as first class process.
+

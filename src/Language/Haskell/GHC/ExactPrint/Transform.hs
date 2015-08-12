@@ -745,7 +745,6 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
 -- ---------------------------------------------------------------------
 
 instance HasDecls (GHC.Stmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
-instance HasDecls (GHC.Stmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   hsDecls (GHC.LetStmt lb)          = hsDecls lb
   hsDecls (GHC.LastStmt e _)        = hsDecls e
   hsDecls (GHC.BindStmt _pat e _ _) = hsDecls e
