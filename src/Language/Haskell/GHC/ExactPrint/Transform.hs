@@ -6,6 +6,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Language.Haskell.GHC.ExactPrint.Transform
@@ -94,18 +95,19 @@ import qualified Data.Map as Map
 
 -- | Monad type for updating the AST and managing the annotations at the same
 -- time. The W state is used to generate logging information if required.
-type Transform a = RWS () [String] (Anns,Int) a
+newtype Transform a = Transform { getTransform :: RWS () [String] (Anns,Int) a }
+                        deriving (Monad, Applicative, Functor, MonadState (Anns, Int), MonadReader (), MonadWriter [String])
 
 -- | Run a transformation in the 'Transform' monad, returning the updated
 -- annotations and any logging generated via 'logTr'
 runTransform :: Anns -> Transform a -> (a,(Anns,Int),[String])
-runTransform ans f = runRWS f () (ans,0)
+runTransform ans f = runTransformFrom 0 ans f
 
 -- | Run a transformation in the 'Transform' monad, returning the updated
 -- annotations and any logging generated via 'logTr', allocating any new
 -- SrcSpans from the provided initial value.
 runTransformFrom :: Int -> Anns -> Transform a -> (a,(Anns,Int),[String])
-runTransformFrom seed ans f = runRWS f () (ans,seed)
+runTransformFrom seed ans f = runRWS (getTransform f) () (ans,seed)
 
 -- |Log a string to the output of the Monad
 logTr :: String -> Transform ()
