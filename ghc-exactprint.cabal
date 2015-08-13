@@ -1,5 +1,5 @@
 name:                ghc-exactprint
-version:             0.3.1
+version:             0.3.1.1
 synopsis:            ExactPrint for GHC
 description:         Using the API Annotations available from GHC 7.10.2, this
                      library provides a means to round trip any code that can
@@ -28,6 +28,7 @@ category:            Development
 build-type:          Simple
 extra-source-files:  ChangeLog
                      tests/examples/*.hs
+                     tests/examples/*.hs.bad
                      tests/examples/*.hs.expected
                      tests/examples/*.hs-boot
 cabal-version:       >=1.10
