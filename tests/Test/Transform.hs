@@ -560,7 +560,8 @@ transformHighLevelTests =
 
   , mkTestModChange rmTypeSig1 "RmTypeSig1.hs" "RmTypeSig1"
 
-  -- , mkTestModChange addHiding1 "AddHiding1.hs" "AddHiding1"
+  , mkTestModChange addHiding1 "AddHiding1.hs" "AddHiding1"
+  , mkTestModChange addHiding2 "AddHiding2.hs" "AddHiding2"
 
   , mkTestModChange cloneDecl1 "CloneDecl1.hs" "CloneDecl1"
   ]
@@ -728,15 +729,51 @@ rmTypeSig1 ans lp = do
 -- ---------------------------------------------------------------------
 
 addHiding1 :: Changer
-addHiding1 ans lp = do
-  let doRmDecl = do
-         tlDecs <- hsDecls lp
-         -- let (s1:d1:d2) = tlDecs
-         --     (GHC.L l (GHC.SigD (GHC.TypeSig names typ p))) = s1
-         --     s1' = (GHC.L l (GHC.SigD (GHC.TypeSig (tail names) typ p)))
-         replaceDecls lp tlDecs
+addHiding1 ans (GHC.L l p) = do
+  let doTransform = do
+        l0 <- uniqueSrcSpanT
+        l1 <- uniqueSrcSpanT
+        l2 <- uniqueSrcSpanT
+        let
+          [GHC.L li imp1,imp2] = GHC.hsmodImports p
+          n1 = GHC.L l1 (GHC.mkVarUnqual (GHC.mkFastString "n1"))
+          n2 = GHC.L l2 (GHC.mkVarUnqual (GHC.mkFastString "n2"))
+          v1 = GHC.L l1 (GHC.IEVar n1)
+          v2 = GHC.L l2 (GHC.IEVar n2)
+          impHiding = GHC.L l0 [v1,v2]
+          imp1' = imp1 { GHC.ideclHiding = Just (True,impHiding)}
+          p' = p { GHC.hsmodImports = [GHC.L li imp1',imp2]}
+        addSimpleAnnT impHiding (DP (0,1)) [((G GHC.AnnHiding),DP (0,0)),((G GHC.AnnOpenP),DP (0,1)),((G GHC.AnnCloseP),DP (0,0))]
+        addSimpleAnnT n1        (DP (0,0)) [((G GHC.AnnVal),DP (0,0)),((G GHC.AnnComma),DP (0,0))]
+        addSimpleAnnT n2        (DP (0,0)) [((G GHC.AnnVal),DP (0,0))]
+        return (GHC.L l p')
 
-  let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  let (lp',(ans',_),_w) = runTransform ans doTransform
+  return (ans',lp')
+
+-- ---------------------------------------------------------------------
+
+addHiding2 :: Changer
+addHiding2 ans (GHC.L l p) = do
+  let doTransform = do
+        l1 <- uniqueSrcSpanT
+        l2 <- uniqueSrcSpanT
+        let
+          [GHC.L li imp1] = GHC.hsmodImports p
+          Just (_,GHC.L lh ns) = GHC.ideclHiding imp1
+          (GHC.L _ (GHC.IEVar ln)) = last ns
+          n1 = GHC.L l1 (GHC.mkVarUnqual (GHC.mkFastString "n1"))
+          n2 = GHC.L l2 (GHC.mkVarUnqual (GHC.mkFastString "n2"))
+          v1 = GHC.L l1 (GHC.IEVar n1)
+          v2 = GHC.L l2 (GHC.IEVar n2)
+          imp1' = imp1 { GHC.ideclHiding = Just (True,GHC.L lh (ns ++ [v1,v2]))}
+          p' = p { GHC.hsmodImports = [GHC.L li imp1']}
+        addSimpleAnnT n1        (DP (0,0)) [((G GHC.AnnVal),DP (0,0)),((G GHC.AnnComma),DP (0,0))]
+        addSimpleAnnT n2        (DP (0,0)) [((G GHC.AnnVal),DP (0,0))]
+        addTrailingCommaT ln
+        return (GHC.L l p')
+
+  let (lp',(ans',_),_w) = runTransform ans doTransform
   return (ans',lp')
 
 -- ---------------------------------------------------------------------

@@ -6,5 +6,6 @@ packages:
 #     commit: 07fa5ff2ae554dcaf9ad93c04e195259be5dddd0
 #   extra-dep: true
 extra-deps:
-- cabal-helper-0.3.6.0
-resolver: nightly-2015-08-06
+- cabal-helper-0.5.1.0
+# resolver: nightly-2015-08-06
+resolver: lts-3.0

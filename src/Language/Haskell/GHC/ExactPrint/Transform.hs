@@ -1,12 +1,12 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Language.Haskell.GHC.ExactPrint.Transform
@@ -39,6 +39,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , getEntryDPT
         , transferEntryDPT
         , addSimpleAnnT
+        , addTrailingCommaT
 
         -- ** Managing lists, Transform monad
         , HasDecls (..)
@@ -70,6 +71,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , setPrecedingLines
         , getEntryDP
         , transferEntryDP
+        , addTrailingComma
 
         ) where
 
@@ -86,6 +88,7 @@ import qualified GHC           as GHC hiding (parseModule)
 import qualified Data.Generics as SYB
 
 import Data.Data
+import Data.List
 import Data.Maybe
 
 import qualified Data.Map as Map
@@ -328,6 +331,13 @@ addSimpleAnnT ast dp kds = do
 
 -- ---------------------------------------------------------------------
 
+-- |Add a trailing comma annotation, unless there is already one
+addTrailingCommaT :: (Data a) => GHC.Located a -> Transform ()
+addTrailingCommaT ast = do
+  modifyAnnsT (addTrailingComma ast (DP (0,0)))
+
+-- ---------------------------------------------------------------------
+
 -- |'Transform' monad version of 'getEntryDP'
 getEntryDPT :: (Data a) => GHC.Located a -> Transform DeltaPos
 getEntryDPT ast = do
@@ -407,9 +417,8 @@ getEntryDP anns ast =
 -- |Take the annEntryDelta associated with the first item and associate it with the second.
 -- Also transfer the AnnSpanEntry value, and any comments occuring before it.
 transferEntryDP :: (SYB.Data a, SYB.Data b) => Anns -> GHC.Located a -> GHC.Located b -> Anns
-transferEntryDP ans a b = (const anns') ans
+transferEntryDP anns a b = (const anns') anns
   where
-    anns = ans
     maybeAnns = do -- Maybe monad
       anA <- Map.lookup (mkAnnKey a) anns
       anB <- Map.lookup (mkAnnKey b) anns
@@ -424,6 +433,20 @@ transferEntryDP ans a b = (const anns') ans
     anns' = fromMaybe
               (error $ "transferEntryDP: lookup failed (a,b)=" ++ show (mkAnnKey a,mkAnnKey b))
               maybeAnns
+
+-- ---------------------------------------------------------------------
+
+addTrailingComma :: (SYB.Data a) => GHC.Located a -> DeltaPos -> Anns -> Anns
+addTrailingComma a dp anns =
+  case Map.lookup (mkAnnKey a) anns of
+    Nothing -> anns
+    Just an ->
+      case find isAnnComma (annsDP an) of
+        Nothing -> Map.insert (mkAnnKey a) (an { annsDP = annsDP an ++ [(G GHC.AnnComma,dp)]}) anns
+        Just _  -> anns
+      where
+        isAnnComma (G GHC.AnnComma,_) = True
+        isAnnComma _                  = False
 
 -- ---------------------------------------------------------------------
 
