@@ -37,6 +37,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , cloneT
 
         , getEntryDPT
+        , setEntryDPT
         , transferEntryDPT
         , addSimpleAnnT
         , addTrailingCommaT
@@ -70,6 +71,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , setPrecedingLinesDecl
         , setPrecedingLines
         , getEntryDP
+        , setEntryDP
         , transferEntryDP
         , addTrailingComma
 
@@ -346,6 +348,13 @@ getEntryDPT ast = do
 
 -- ---------------------------------------------------------------------
 
+-- |'Transform' monad version of 'getEntryDP'
+setEntryDPT :: (Data a) => GHC.Located a -> DeltaPos -> Transform ()
+setEntryDPT ast dp = do
+  modifyAnnsT (setEntryDP ast dp)
+
+-- ---------------------------------------------------------------------
+
 -- |'Transform' monad version of 'transferEntryDP'
 transferEntryDPT :: (Data a,Data b) => GHC.Located a -> GHC.Located b -> Transform ()
 transferEntryDPT a b =
@@ -412,6 +421,17 @@ getEntryDP anns ast =
   case Map.lookup (mkAnnKey ast) anns of
     Nothing  -> DP (0,0)
     Just ann -> annTrueEntryDelta ann
+
+-- ---------------------------------------------------------------------
+
+-- |Return the true entry 'DeltaPos' from the annotation for a given AST
+-- element. This is the 'DeltaPos' ignoring any comments.
+setEntryDP :: (Data a) => GHC.Located a -> DeltaPos -> Anns -> Anns
+setEntryDP ast dp anns =
+  case Map.lookup (mkAnnKey ast) anns of
+    Nothing  -> Map.insert (mkAnnKey ast) (annNone { annEntryDelta = dp}) anns
+    Just ann -> Map.insert (mkAnnKey ast) (ann     { annEntryDelta = dp}) anns
+
 -- ---------------------------------------------------------------------
 
 -- |Take the annEntryDelta associated with the first item and associate it with the second.
