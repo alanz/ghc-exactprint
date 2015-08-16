@@ -253,8 +253,6 @@ wrapDeclT d@(GHC.L _ s) = do
 -- the required annotations.
 pushDeclAnnT :: GHC.LHsDecl GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
 pushDeclAnnT ld@(GHC.L l decl) = do
-  newSpan <- uniqueSrcSpanT
-  logTr $ "pushDeclAnnT:(newSpan,ld)=" ++ showGhc (newSpan,ld)
   let
     blend ann Nothing = ann
     blend ann (Just annd)
@@ -264,10 +262,8 @@ pushDeclAnnT ld@(GHC.L l decl) = do
              }
     duplicateAnn d ans =
       case Map.lookup (mkAnnKey ld) ans of
-        -- Nothing -> error $ "pushDeclAnnT:no key found for:" ++ show (mkAnnKey ld)
-        Nothing -> error $ "pushDeclAnnT:no key found for:" ++ showGhc (mkAnnKey ld,newSpan)
-        -- Nothing -> Anns ans
-        Just ann -> Map.insert (mkAnnKey (GHC.L newSpan d))
+        Nothing -> error $ "pushDeclAnnT:no key found for:" ++ show (mkAnnKey ld)
+        Just ann -> Map.insert (mkAnnKey (GHC.L l d))
                                       (blend ann (Map.lookup (mkAnnKey (GHC.L l d)) ans))
                                       ans
   case decl of
@@ -288,7 +284,7 @@ pushDeclAnnT ld@(GHC.L l decl) = do
 #if __GLASGOW_HASKELL__ < 711
     GHC.QuasiQuoteD d -> modifyAnnsT (duplicateAnn d)
 #endif
-  return (GHC.L newSpan decl)
+  return (GHC.L l decl)
 
 -- ---------------------------------------------------------------------
 

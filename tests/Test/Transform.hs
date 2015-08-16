@@ -738,7 +738,7 @@ rmDecl5 ans lp = do
             dec' <- pushDeclAnnT dec
             -- dp3 <- getEntryDPT dec'
             -- logTr $ "edps=" ++ show (dp1,dp2,dp3)
-            lb' <- replaceDecls lb [dec']
+            lb' <- replaceDecls lb [dec]
             return (GHC.HsLet lb' expr)
           go x = return x
 
