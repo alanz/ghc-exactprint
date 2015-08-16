@@ -735,7 +735,7 @@ rmDecl5 ans lp = do
             -- dp2 <- getEntryDPT dec
             -- logTr $ "edps=" ++ show (dp1,dp2)
             transferEntryDPT (head decs) dec
-            dec' <- pushDeclAnnT dec
+            pushDeclAnnT dec
             -- dp3 <- getEntryDPT dec'
             -- logTr $ "edps=" ++ show (dp1,dp2,dp3)
             lb' <- replaceDecls lb [dec]

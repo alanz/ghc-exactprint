@@ -251,7 +251,7 @@ wrapDeclT d@(GHC.L _ s) = do
 -- |Copy the top level annotation to a new SrcSpan and the unwrapped decl. This
 -- is required so that 'decl2Sig' and 'decl2Bind' will produce values that have
 -- the required annotations.
-pushDeclAnnT :: GHC.LHsDecl GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
+pushDeclAnnT :: GHC.LHsDecl GHC.RdrName -> Transform ()
 pushDeclAnnT ld@(GHC.L l decl) = do
   let
     blend ann Nothing = ann
@@ -284,7 +284,6 @@ pushDeclAnnT ld@(GHC.L l decl) = do
 #if __GLASGOW_HASKELL__ < 711
     GHC.QuasiQuoteD d -> modifyAnnsT (duplicateAnn d)
 #endif
-  return (GHC.L l decl)
 
 -- ---------------------------------------------------------------------
 
@@ -708,16 +707,16 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
                       ann1 = ann { annsDP = annsDP ann ++ [(G GHC.AnnWhere,DP (1,2))]
                                  }
             modifyAnnsT addWhere
-            newBinds' <- mapM pushDeclAnnT newBinds
-            modifyAnnsT (captureOrderAnnKey (mkAnnKey m) newBinds')
-            modifyAnnsT (setPrecedingLinesDecl (ghead "LMatch.replaceDecls" newBinds') 1 4)
-            return newBinds'
+            mapM_ pushDeclAnnT newBinds
+            modifyAnnsT (captureOrderAnnKey (mkAnnKey m) newBinds)
+            modifyAnnsT (setPrecedingLinesDecl (ghead "LMatch.replaceDecls" newBinds) 1 4)
+            return newBinds
 
           _ -> do
             -- ++AZ++ TODO: move the duplicate code out of the case statement
-            newBinds' <- mapM pushDeclAnnT newBinds
-            modifyAnnsT (captureOrderAnnKey (mkAnnKey m) newBinds')
-            return newBinds'
+            mapM_ pushDeclAnnT newBinds
+            modifyAnnsT (captureOrderAnnKey (mkAnnKey m) newBinds)
+            return newBinds
 
         binds' <- replaceDecls binds newBinds2
         return (GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds')))
