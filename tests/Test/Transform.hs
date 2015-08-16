@@ -18,6 +18,7 @@ import qualified SrcLoc         as GHC
 import qualified FastString     as GHC
 
 import qualified Data.Generics as SYB
+-- import qualified GHC.SYB.Utils as SYB
 
 import Control.Monad
 import System.FilePath
@@ -553,6 +554,7 @@ transformHighLevelTests =
     mkTestModChange addLocaLDecl1  "AddLocalDecl1.hs"  "AddLocalDecl1"
   , mkTestModChange addLocaLDecl2  "AddLocalDecl2.hs"  "AddLocalDecl2"
   , mkTestModChange addLocaLDecl3  "AddLocalDecl3.hs"  "AddLocalDecl3"
+  , mkTestModChange addLocaLDecl4  "AddLocalDecl4.hs"  "AddLocalDecl4"
 
   , mkTestModChange rmDecl1 "RmDecl1.hs" "RmDecl1"
   , mkTestModChange rmDecl2 "RmDecl2.hs" "RmDecl2"
@@ -638,6 +640,32 @@ addLocaLDecl3 ans lp = do
          replaceDecls lp (parent':tail tlDecs)
 
   let (lp',(ans',_),_w) = runTransform (mergeAnns ans declAnns) doAddLocal
+  return (ans',lp')
+
+-- ---------------------------------------------------------------------
+
+addLocaLDecl4 :: Changer
+addLocaLDecl4 ans lp = do
+  Right (declAnns, newDecl) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
+  Right (sigAnns, newSig)   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
+  -- putStrLn $ "addLocaLDecl4:lp=" ++ showGhc lp
+  let
+      newAnns = mergeAnns declAnns sigAnns
+      doAddLocal = do
+         tlDecs <- hsDecls lp
+         let parent = head tlDecs
+         decls <- hsDecls parent
+         -- logTr $ "parent:" ++ SYB.showData SYB.Parser 0 parent
+         logTr $ "decls:" ++ showGhc decls
+
+         modifyAnnsT (setPrecedingLines newSig  1 0)
+         modifyAnnsT (setPrecedingLines newDecl 1 0)
+
+         parent' <- replaceDecls parent (decls++[newSig,newDecl])
+         replaceDecls lp (parent':tail tlDecs)
+
+  let (lp',(ans',_),_w) = runTransform (mergeAnns ans newAnns) doAddLocal
+  -- putStrLn $ "log\n" ++ intercalate "\n" _w
   return (ans',lp')
 
 -- ---------------------------------------------------------------------

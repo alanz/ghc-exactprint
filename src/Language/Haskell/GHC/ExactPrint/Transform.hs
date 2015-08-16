@@ -392,7 +392,9 @@ setPrecedingLinesDecl :: GHC.LHsDecl GHC.RdrName -> Int -> Int -> Anns -> Anns
 setPrecedingLinesDecl ld n c ans =
   declFun (\a -> setPrecedingLines a n c ans') ld
   where
-    ans' = Map.insert (mkAnnKey ld) annNone ans
+    ans' = case Map.lookup (mkAnnKey ld) ans of
+      Nothing -> Map.insert (mkAnnKey ld) annNone                         ans
+      Just an -> Map.insert (mkAnnKey ld) (an {annEntryDelta = DP (0,0)}) ans
 
 declFun :: (forall a . Data a => GHC.Located a -> b) -> GHC.LHsDecl GHC.RdrName -> b
 declFun f (GHC.L l de) =
@@ -757,8 +759,6 @@ instance HasDecls (GHC.HsLocalBinds GHC.RdrName) where
     = do
         let newBinds = map decl2Bind new
             newSigs  = map decl2Sig  new
-        ans <- getAnnsT
-        logTr $ "replaceDecls:newBinds=" ++ showAnnData ans 0 newBinds
         let decs = GHC.listToBag $ concat newBinds
         let sigs = concat newSigs
         return (GHC.HsValBinds (GHC.ValBindsIn decs sigs))
