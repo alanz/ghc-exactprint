@@ -39,6 +39,8 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , getEntryDPT
         , setEntryDPT
         , transferEntryDPT
+        , setPrecedingLinesDeclT
+        , setPrecedingLinesT
         , addSimpleAnnT
         , addTrailingCommaT
 
@@ -237,7 +239,7 @@ wrapDeclT d@(GHC.L _ s) = do
   newSpan <- uniqueSrcSpanT
   let
     f ans = case Map.lookup (mkAnnKey d) ans of
-      Nothing -> ans
+      Nothing -> error $ "wrapDeclT:no key found for:" ++ showGhc (mkAnnKey d,d)
       Just ann ->
                   Map.insert (mkAnnKey (GHC.L newSpan           s )) ann
                 $ Map.insert (mkAnnKey (GHC.L newSpan (GHC.ValD s))) ann ans
@@ -252,6 +254,7 @@ wrapDeclT d@(GHC.L _ s) = do
 pushDeclAnnT :: GHC.LHsDecl GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
 pushDeclAnnT ld@(GHC.L l decl) = do
   newSpan <- uniqueSrcSpanT
+  logTr $ "pushDeclAnnT:(newSpan,ld)=" ++ showGhc (newSpan,ld)
   let
     blend ann Nothing = ann
     blend ann (Just annd)
@@ -261,7 +264,8 @@ pushDeclAnnT ld@(GHC.L l decl) = do
              }
     duplicateAnn d ans =
       case Map.lookup (mkAnnKey ld) ans of
-        Nothing -> error $ "pushDeclAnnT:no key found for:" ++ show (mkAnnKey ld)
+        -- Nothing -> error $ "pushDeclAnnT:no key found for:" ++ show (mkAnnKey ld)
+        Nothing -> error $ "pushDeclAnnT:no key found for:" ++ showGhc (mkAnnKey ld,newSpan)
         -- Nothing -> Anns ans
         Just ann -> Map.insert (mkAnnKey (GHC.L newSpan d))
                                       (blend ann (Map.lookup (mkAnnKey (GHC.L l d)) ans))
@@ -359,6 +363,20 @@ setEntryDPT ast dp = do
 transferEntryDPT :: (Data a,Data b) => GHC.Located a -> GHC.Located b -> Transform ()
 transferEntryDPT a b =
   modifyAnnsT (\anns -> transferEntryDP anns a b)
+
+-- ---------------------------------------------------------------------
+
+-- |'Transform' monad version of 'setPrecedingLinesDecl'
+setPrecedingLinesDeclT ::  GHC.LHsDecl GHC.RdrName -> Int -> Int -> Transform ()
+setPrecedingLinesDeclT ld n c =
+  modifyAnnsT (setPrecedingLinesDecl ld n c)
+
+-- ---------------------------------------------------------------------
+
+-- |'Transform' monad version of 'setPrecedingLines'
+setPrecedingLinesT ::  (SYB.Data a) => GHC.Located a -> Int -> Int -> Transform ()
+setPrecedingLinesT ld n c =
+  modifyAnnsT (setPrecedingLines ld n c)
 
 -- ---------------------------------------------------------------------
 
@@ -733,6 +751,7 @@ instance HasDecls (GHC.HsLocalBinds GHC.RdrName) where
 
   replaceDecls (GHC.HsValBinds _b) new
     = do
+        -- new' <- mapM pushDeclAnnT new
         let decs = GHC.listToBag $ concatMap decl2Bind new
         let sigs = concatMap decl2Sig new
         return (GHC.HsValBinds (GHC.ValBindsIn decs sigs))

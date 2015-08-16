@@ -23,6 +23,7 @@ import Control.Monad
 import System.FilePath
 import System.IO
 import qualified Data.Map as Map
+-- import Data.List
 import Data.Maybe
 
 import System.IO.Silently
@@ -115,7 +116,7 @@ changeLocalDecls2 ans (GHC.L l p) = do
                              { annEntryDelta     = DP (1,0) }
         modifyAnnsT addWhere
         let decls = [s,d]
-        logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)
+        -- logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)
         modifyAnnsT (captureOrderAnnKey newAnnKey decls)
         return (GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs
                         (GHC.HsValBinds
@@ -153,7 +154,7 @@ changeLocalDecls ans (GHC.L l p) = do
             wrapSig (GHC.L l' w) = GHC.L l' (GHC.SigD w)
         let oldDecls = GHC.sortLocated $ map wrapDecl (GHC.bagToList binds) ++ map wrapSig sigs
         let decls = s:d:oldDecls
-        logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)
+        -- logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)
         modifyAnnsT (captureOrder m decls)
         return (GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs
                         (GHC.HsValBinds
@@ -557,6 +558,7 @@ transformHighLevelTests =
   , mkTestModChange rmDecl2 "RmDecl2.hs" "RmDecl2"
   , mkTestModChange rmDecl3 "RmDecl3.hs" "RmDecl3"
   , mkTestModChange rmDecl4 "RmDecl4.hs" "RmDecl4"
+  , mkTestModChange rmDecl5 "RmDecl5.hs" "RmDecl5"
 
   , mkTestModChange rmTypeSig1 "RmTypeSig1.hs" "RmTypeSig1"
 
@@ -614,9 +616,8 @@ addLocaLDecl2 ans lp = do
 
 addLocaLDecl3 :: Changer
 addLocaLDecl3 ans lp = do
-  Right (declAnns, newDecl@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
-  let declAnns' = setPrecedingLines (GHC.L ld decl) 1 0 declAnns
-
+  Right (declAnns, newDecl) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
+  let
       doAddLocal = do
          tlDecs <- hsDecls lp
          let parent = head tlDecs
@@ -624,13 +625,20 @@ addLocaLDecl3 ans lp = do
          balanceComments parent (head $ tail tlDecs)
 
          modifyAnnsT (setPrecedingLines newDecl 1 0)
+         -- setPrecedingLinesDeclT newDecl 1 0
 
          moveTrailingComments parent (last decls)
+
+         -- aaa <- getAnnsT
+         -- error $ "addLocalDecl3:aaa=" ++ showGhc aaa
+         -- (_,col) <- get
+         -- logTr $ "addLocalDecl3:col=" ++ showGhc col
+
          parent' <- replaceDecls parent (decls++[newDecl])
          replaceDecls lp (parent':tail tlDecs)
 
-  let (lp',(ans',_),_w) = runTransform ans doAddLocal
-  return (mergeAnnList [declAnns',ans'],lp')
+  let (lp',(ans',_),_w) = runTransform (mergeAnns ans declAnns) doAddLocal
+  return (ans',lp')
 
 -- ---------------------------------------------------------------------
 
@@ -710,6 +718,34 @@ rmDecl4 ans lp = do
          replaceDecls lp [d1',sd1]
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  return (ans',lp')
+
+-- ---------------------------------------------------------------------
+
+rmDecl5 :: Changer
+rmDecl5 ans lp = do
+  let
+      doRmDecl = do
+        let
+          go :: GHC.HsExpr GHC.RdrName -> Transform (GHC.HsExpr GHC.RdrName)
+          go (GHC.HsLet lb expr) = do
+            decs <- hsDecls lb
+            let dec = last decs
+            -- dp1 <- getEntryDPT (head decs)
+            -- dp2 <- getEntryDPT dec
+            -- logTr $ "edps=" ++ show (dp1,dp2)
+            transferEntryDPT (head decs) dec
+            dec' <- pushDeclAnnT dec
+            -- dp3 <- getEntryDPT dec'
+            -- logTr $ "edps=" ++ show (dp1,dp2,dp3)
+            lb' <- replaceDecls lb [dec']
+            return (GHC.HsLet lb' expr)
+          go x = return x
+
+        SYB.everywhereM (SYB.mkM go) lp
+
+  let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  -- putStrLn $ "log:" ++ intercalate "\n" _w
   return (ans',lp')
 
 -- ---------------------------------------------------------------------
