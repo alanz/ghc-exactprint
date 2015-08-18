@@ -33,6 +33,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   -- * Manipulating Annotations
   , getAnnotationEP
   , annTrueEntryDelta
+  , annCommentEntryDelta
 
   -- * General Utility
   , orderByKey
@@ -135,15 +136,38 @@ undelta (l,c) (DP (dl,dc)) (LayoutStartCol co) = (fl,fc)
     fl = l + dl
     fc = if dl == 0 then c  + dc
                     else co + dc
+
 -- | Add together two @DeltaPos@ taking into account newlines
 --
--- > DP (0, 1) `addDP` DP (0, 2) == DP (0,3)
+-- > DP (0, 1) `addDP` DP (0, 2) == DP (0, 3)
 -- > DP (0, 9) `addDP` DP (1, 5) == DP (1, 5)
 -- > DP (1, 4) `addDP` DP (1, 3) == DP (2, 3)
 addDP :: DeltaPos -> DeltaPos -> DeltaPos
 addDP (DP (a, b)) (DP (c, d)) =
   if c >= 1 then DP (a+c, d)
             else DP (a, b + d)
+
+-- | "Subtract" tow @DeltaPos@ from each other, in the sense of calculating the
+-- remaining delta for the second after the first has been applied.
+-- invariant : if c = a `addDP` b
+--             then a `stepDP` c == b
+--
+-- Cases where first DP is < than second
+-- > DP (0, 1) `addDP` DP (0, 2) == DP (0, 1)
+-- > DP (1, 1) `addDP` DP (2, 0) == DP (1, 0)
+-- > DP (1, 3) `addDP` DP (1, 4) == DP (0, 1)
+--
+-- Cases where first DP is < than second
+-- > DP (0, 3) `addDP` DP (0, 2) == DP (0,1)  -- advance one at least
+-- > DP (3, 3) `addDP` DP (2, 4) == DP (1, 4) -- go one line forward and to expected col
+-- > DP (3, 3) `addDP` DP (0, 4) == DP (0, 1) -- maintain col delta at least
+stepDP :: DeltaPos -> DeltaPos -> DeltaPos
+stepDP (DP (a,b)) (DP (c,d))
+  | a == c = if b < d then DP (0,d - b)
+                      else if d == 0
+                             then DP (1,0) else DP (0,1)
+  | a < c = DP (c - a,d)
+  | otherwise = DP (1,d)
 
 -- ---------------------------------------------------------------------
 
@@ -241,6 +265,15 @@ annTrueEntryDelta :: Annotation -> DeltaPos
 annTrueEntryDelta Ann{annEntryDelta, annPriorComments} =
   foldr addDP (DP (0,0)) (map (\(a, b) -> addDP b (dpFromString $ commentContents a)) annPriorComments )
     `addDP` annEntryDelta
+
+-- | Take an annotation and a required "true entry" and calculate an equivalent
+-- one relative to the last comment in the annPriorComments.
+annCommentEntryDelta :: Annotation -> DeltaPos -> DeltaPos
+annCommentEntryDelta Ann{annPriorComments} trueDP = dp
+  where
+    commentDP =
+      foldr addDP (DP (0,0)) (map (\(a, b) -> addDP b (dpFromString $ commentContents a)) annPriorComments )
+    dp = stepDP commentDP trueDP
 
 -- | Calculates the distance from the start of a string to the end of
 -- a string.

@@ -357,7 +357,7 @@ setEntryDPT ast dp = do
 -- |'Transform' monad version of 'transferEntryDP'
 transferEntryDPT :: (Data a,Data b) => GHC.Located a -> GHC.Located b -> Transform ()
 transferEntryDPT a b =
-  modifyAnnsT (\anns -> transferEntryDP anns a b)
+  modifyAnnsT (transferEntryDP a b)
 
 -- ---------------------------------------------------------------------
 
@@ -439,35 +439,37 @@ getEntryDP anns ast =
 
 -- ---------------------------------------------------------------------
 
--- |Return the true entry 'DeltaPos' from the annotation for a given AST
+-- |Set the true entry 'DeltaPos' from the annotation for a given AST
 -- element. This is the 'DeltaPos' ignoring any comments.
 setEntryDP :: (Data a) => GHC.Located a -> DeltaPos -> Anns -> Anns
 setEntryDP ast dp anns =
   case Map.lookup (mkAnnKey ast) anns of
     Nothing  -> Map.insert (mkAnnKey ast) (annNone { annEntryDelta = dp}) anns
-    Just ann -> Map.insert (mkAnnKey ast) (ann     { annEntryDelta = dp}) anns
+    Just ann -> Map.insert (mkAnnKey ast) (ann     { annEntryDelta = annCommentEntryDelta ann dp}) anns
 
 -- ---------------------------------------------------------------------
 
 -- |Take the annEntryDelta associated with the first item and associate it with the second.
 -- Also transfer the AnnSpanEntry value, and any comments occuring before it.
-transferEntryDP :: (SYB.Data a, SYB.Data b) => Anns -> GHC.Located a -> GHC.Located b -> Anns
-transferEntryDP anns a b = (const anns') anns
+transferEntryDP :: (SYB.Data a, SYB.Data b) => GHC.Located a -> GHC.Located b -> Anns -> Anns
+transferEntryDP a b anns = (const anns2) anns
   where
     maybeAnns = do -- Maybe monad
       anA <- Map.lookup (mkAnnKey a) anns
       anB <- Map.lookup (mkAnnKey b) anns
-      let anB'  = Ann { annEntryDelta        = annEntryDelta     anA
-                      , annPriorComments     = annPriorComments     anA ++ annPriorComments     anB
-                      , annFollowingComments = annFollowingComments anA ++ annFollowingComments anB
-                      , annsDP               = annsDP          anB
-                      , annSortKey           = annSortKey      anB
-                      , annCapturedSpan      = annCapturedSpan anB
-                      }
-      return (Map.insert (mkAnnKey b) anB' anns)
-    anns' = fromMaybe
-              (error $ "transferEntryDP: lookup failed (a,b)=" ++ show (mkAnnKey a,mkAnnKey b))
-              maybeAnns
+      let anB'  = Ann
+            { annEntryDelta        = DP (0,0) -- Need to adjust for comments after
+            , annPriorComments     = annPriorComments     anA ++ annPriorComments     anB
+            , annFollowingComments = annFollowingComments anA ++ annFollowingComments anB
+            , annsDP               = annsDP          anB
+            , annSortKey           = annSortKey      anB
+            , annCapturedSpan      = annCapturedSpan anB
+            }
+      return ((Map.insert (mkAnnKey b) anB' anns),annEntryDelta anA)
+    (anns',dp) = fromMaybe
+                  (error $ "transferEntryDP: lookup failed (a,b)=" ++ show (mkAnnKey a,mkAnnKey b))
+                  maybeAnns
+    anns2 = setEntryDP b dp anns'
 
 -- ---------------------------------------------------------------------
 

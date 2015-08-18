@@ -676,13 +676,15 @@ rmDecl1 ans lp = do
          tlDecs <- hsDecls lp
          let (d1:s1:d2:ds) = tlDecs
 
-         -- First delete the decl only
+         -- First delete the decl (d2) only
+         balanceComments s1 d2 -- ++AZ++
          balanceComments d2 (head ds)
          lp1 <- replaceDecls lp (d1:s1:ds)
 
          -- Then delete the sig separately
          tlDecs1 <- hsDecls lp1
          let (d1':s1':ds') = tlDecs1
+         transferEntryDPT s1' (head ds')  -- required in HaRe.
          balanceComments d1' s1'
          balanceComments s1' (head ds')
          replaceDecls lp (d1':ds')
