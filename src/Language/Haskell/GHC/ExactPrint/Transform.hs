@@ -27,6 +27,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
 
         -- * Transform monad operations
         , logTr
+        , logDataWithAnnsTr
         , getAnnsT, putAnnsT, modifyAnnsT
         , uniqueSrcSpanT
 
@@ -118,6 +119,11 @@ runTransformFrom seed ans f = runRWS (getTransform f) () (ans,seed)
 -- |Log a string to the output of the Monad
 logTr :: String -> Transform ()
 logTr str = tell [str]
+
+logDataWithAnnsTr :: (SYB.Data a) => String -> a -> Transform ()
+logDataWithAnnsTr str ast = do
+  anns <- getAnnsT
+  logTr $ str ++ showAnnData anns 0 ast
 
 -- |Access the 'Anns' being modified in this transformation
 getAnnsT :: Transform Anns
@@ -252,10 +258,12 @@ pushDeclAnnT ld@(GHC.L l decl) = do
   let
     blend ann Nothing = ann
     blend ann (Just annd)
-      = annd { annEntryDelta        = annEntryDelta ann
-             , annPriorComments     = annPriorComments     ann  ++ annPriorComments     annd
-             , annFollowingComments = annFollowingComments annd ++ annFollowingComments ann
-             }
+      = ann { annEntryDelta        = annEntryDelta ann
+            , annPriorComments     = annPriorComments     ann  ++ annPriorComments     annd
+            , annFollowingComments = annFollowingComments annd ++ annFollowingComments ann
+            -- ++AZ++: TODO: these should be at the top level
+            , annsDP               = annsDP annd
+            }
     duplicateAnn d ans =
       case Map.lookup (mkAnnKey ld) ans of
         Nothing -> error $ "pushDeclAnnT:no key found for:" ++ show (mkAnnKey ld)
@@ -675,7 +683,7 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
     = do
         -- Need to throw in a fresh where clause if the binds were empty,
         -- in the annotations.
-        newBinds2 <- case binds of
+        case binds of
           GHC.EmptyLocalBinds -> do
             let
               addWhere mkds =
@@ -686,18 +694,13 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
                       ann1 = ann { annsDP = annsDP ann ++ [(G GHC.AnnWhere,DP (1,2))]
                                  }
             modifyAnnsT addWhere
-            mapM_ pushDeclAnnT newBinds
-            modifyAnnsT (captureOrderAnnKey (mkAnnKey m) newBinds)
-            modifyAnnsT (setPrecedingLinesDecl (ghead "LMatch.replaceDecls" newBinds) 1 4)
-            return newBinds
+            modifyAnnsT (setPrecedingLines (ghead "LMatch.replaceDecls" newBinds) 1 4)
 
-          _ -> do
-            -- ++AZ++ TODO: move the duplicate code out of the case statement
-            mapM_ pushDeclAnnT newBinds
-            modifyAnnsT (captureOrderAnnKey (mkAnnKey m) newBinds)
-            return newBinds
+          _ -> return ()
 
-        binds' <- replaceDecls binds newBinds2
+        -- mapM_ pushDeclAnnT newBinds
+        modifyAnnsT (captureOrderAnnKey (mkAnnKey m) newBinds)
+        binds' <- replaceDecls binds newBinds
         return (GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds')))
 
 -- ---------------------------------------------------------------------
@@ -725,7 +728,7 @@ instance HasDecls (GHC.HsLocalBinds GHC.RdrName) where
 
   replaceDecls (GHC.HsValBinds _b) new
     = do
-        -- new' <- mapM pushDeclAnnT new
+        mapM_ pushDeclAnnT new
         let decs = GHC.listToBag $ concatMap decl2Bind new
         let sigs = concatMap decl2Sig new
         return (GHC.HsValBinds (GHC.ValBindsIn decs sigs))
@@ -734,6 +737,7 @@ instance HasDecls (GHC.HsLocalBinds GHC.RdrName) where
 
   replaceDecls (GHC.EmptyLocalBinds) new
     = do
+        mapM_ pushDeclAnnT new
         let newBinds = map decl2Bind new
             newSigs  = map decl2Sig  new
         let decs = GHC.listToBag $ concat newBinds

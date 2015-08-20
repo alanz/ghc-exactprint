@@ -595,8 +595,9 @@ addLocaLDecl1 ans lp = do
 
 addLocaLDecl2 :: Changer
 addLocaLDecl2 ans lp = do
-  Right (declAnns, newDecl@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
-  let declAnns' = setPrecedingLines (GHC.L ld decl) 1 0 declAnns
+  Right (declAnns, newDecl) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
+  -- let declAnns' = setPrecedingLines (GHC.L ld decl) 1 0 declAnns
+  let
 
       doAddLocal = do
          tlDecs <- hsDecls lp
@@ -605,14 +606,15 @@ addLocaLDecl2 ans lp = do
          balanceComments parent (head $ tail tlDecs)
 
          DP (r,c) <- getEntryDPT (head decls)
-         modifyAnnsT (setPrecedingLines newDecl r c)
-         modifyAnnsT (setPrecedingLines (head decls) 1 0)
+         setPrecedingLinesT newDecl r c
+         setPrecedingLinesT (head decls) 1 0
 
          parent' <- replaceDecls parent (newDecl:decls)
          replaceDecls lp (parent':tail tlDecs)
 
-  let (lp',(ans',_),_w) = runTransform ans doAddLocal
-  return (mergeAnnList [declAnns',ans'],lp')
+  let (lp',(ans',_),_w) = runTransform (mergeAnns ans declAnns) doAddLocal
+  -- putStrLn $ "log:\n" ++ intercalate "\n" _w
+  return (ans',lp')
 
 -- ---------------------------------------------------------------------
 
@@ -621,25 +623,27 @@ addLocaLDecl3 ans lp = do
   Right (declAnns, newDecl) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   let
       doAddLocal = do
+         -- logDataWithAnnsTr "parsed:" lp
+         logDataWithAnnsTr "newDecl:" newDecl
          tlDecs <- hsDecls lp
          let parent = head tlDecs
          decls <- hsDecls parent
          balanceComments parent (head $ tail tlDecs)
 
-         modifyAnnsT (setPrecedingLines newDecl 1 0)
+         -- logDataWithAnnsTr "parent:1:" parent
+
+         setPrecedingLinesT newDecl 1 0
          -- setPrecedingLinesDeclT newDecl 1 0
 
          moveTrailingComments parent (last decls)
-
-         -- aaa <- getAnnsT
-         -- error $ "addLocalDecl3:aaa=" ++ showGhc aaa
-         -- (_,col) <- get
-         -- logTr $ "addLocalDecl3:col=" ++ showGhc col
+         -- logDataWithAnnsTr "parent:2:" parent
 
          parent' <- replaceDecls parent (decls++[newDecl])
+         -- logDataWithAnnsTr "parent:3:" parent'
          replaceDecls lp (parent':tail tlDecs)
 
   let (lp',(ans',_),_w) = runTransform (mergeAnns ans declAnns) doAddLocal
+  -- putStrLn $ "log\n" ++ intercalate "\n" _w
   return (ans',lp')
 
 -- ---------------------------------------------------------------------
@@ -650,21 +654,21 @@ addLocaLDecl4 ans lp = do
   Right (sigAnns, newSig)   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
   -- putStrLn $ "addLocaLDecl4:lp=" ++ showGhc lp
   let
-      newAnns = mergeAnns declAnns sigAnns
       doAddLocal = do
          tlDecs <- hsDecls lp
          let parent = head tlDecs
          decls <- hsDecls parent
-         -- logTr $ "parent:" ++ SYB.showData SYB.Parser 0 parent
-         logTr $ "decls:" ++ showGhc decls
 
-         modifyAnnsT (setPrecedingLines newSig  1 0)
-         modifyAnnsT (setPrecedingLines newDecl 1 0)
+         setPrecedingLinesT newSig  1 0
+         setPrecedingLinesT newDecl 1 0
+
+         -- logDataWithAnnsTr "newSig:" newSig
+         -- logDataWithAnnsTr "newDecl:" newDecl
 
          parent' <- replaceDecls parent (decls++[newSig,newDecl])
          replaceDecls lp (parent':tail tlDecs)
 
-  let (lp',(ans',_),_w) = runTransform (mergeAnns ans newAnns) doAddLocal
+  let (lp',(ans',_),_w) = runTransform (mergeAnnList [ans,declAnns,sigAnns]) doAddLocal
   -- putStrLn $ "log\n" ++ intercalate "\n" _w
   return (ans',lp')
 
