@@ -12,8 +12,8 @@ addons:
 
 matrix:
   include:
-  - env: GHCVER=7.10.1 STACK_YAML=stack.yaml
-  - env: GHCVER=head STACK_YAML=stack-7.11.yaml
+  - env: GHCVER=7.10.1 STACK_YAML=stack-7.10.yaml
+  - env: GHCVER=head   STACK_YAML=stack-7.11.yaml
     addons:
       apt:
         sources:
