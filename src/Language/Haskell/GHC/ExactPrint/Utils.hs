@@ -1,5 +1,7 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Language.Haskell.GHC.ExactPrint.Utils
   (
    -- * Manipulating Positons
@@ -39,6 +41,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , orderByKey
 
 
+  , declFun
 
   -- * For tests
   , debug
@@ -54,7 +57,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
 
 import Control.Monad.State
 import Data.Data (Data, toConstr, showConstr, cast)
-import Data.Generics (extQ, ext1Q, ext2Q, gmapQ)
+import Data.Generics (extQ, ext1Q, ext2Q, gmapQ,mkQ,everything)
 import Data.List (intercalate, sortBy, elemIndex)
 import Data.Ord (comparing)
 
@@ -366,12 +369,44 @@ showAnnData anns n =
                       srcSpan s
                       ++ indent (n + 1) ++
                       show (getAnnotationEP (GHC.L s a) anns)
+                      ++ case showWrappedDeclAnns (GHC.L s a) of
+                        Nothing -> ""
+                        Just annStr  -> indent (n + 1) ++ annStr
                     Nothing -> "nnnnnnnn"
                   ++ showAnnData anns (n+1) a
                   ++ ")"
 
+        showWrappedDeclAnns :: (Data a) => GHC.Located a -> Maybe String
+        showWrappedDeclAnns t = everything mappend (Nothing `mkQ` showDecl) t
+          where
+            showDecl :: GHC.LHsDecl GHC.RdrName -> Maybe String
+            showDecl d = Just $ declFun doShowAnn  d
+
+        doShowAnn :: (Data a) => GHC.Located a -> String
+        doShowAnn a =  show (getAnnotationEP a anns)
+
 -- ---------------------------------------------------------------------
 
+declFun :: (forall a . Data a => GHC.Located a -> b) -> GHC.LHsDecl GHC.RdrName -> b
+declFun f (GHC.L l de) =
+  case de of
+      GHC.TyClD d       -> f (GHC.L l d)
+      GHC.InstD d       -> f (GHC.L l d)
+      GHC.DerivD d      -> f (GHC.L l d)
+      GHC.ValD d        -> f (GHC.L l d)
+      GHC.SigD d        -> f (GHC.L l d)
+      GHC.DefD d        -> f (GHC.L l d)
+      GHC.ForD d        -> f (GHC.L l d)
+      GHC.WarningD d    -> f (GHC.L l d)
+      GHC.AnnD d        -> f (GHC.L l d)
+      GHC.RuleD d       -> f (GHC.L l d)
+      GHC.VectD d       -> f (GHC.L l d)
+      GHC.SpliceD d     -> f (GHC.L l d)
+      GHC.DocD d        -> f (GHC.L l d)
+      GHC.RoleAnnotD d  -> f (GHC.L l d)
+#if __GLASGOW_HASKELL__ < 711
+      GHC.QuasiQuoteD d -> f (GHC.L l d)
+#endif
 
  -- ---------------------------------------------------------------------
 

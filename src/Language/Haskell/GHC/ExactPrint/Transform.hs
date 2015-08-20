@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -62,10 +62,6 @@ module Language.Haskell.GHC.ExactPrint.Transform
 
         -- * Operations
         , isUniqueSrcSpan
-
-
-        -- * Managing decls
-        , declFun
 
         -- * Pure functions
         , mergeAnns
@@ -395,27 +391,6 @@ setPrecedingLinesDecl ld n c ans =
     ans' = case Map.lookup (mkAnnKey ld) ans of
       Nothing -> Map.insert (mkAnnKey ld) annNone                         ans
       Just an -> Map.insert (mkAnnKey ld) (an {annEntryDelta = DP (0,0)}) ans
-
-declFun :: (forall a . Data a => GHC.Located a -> b) -> GHC.LHsDecl GHC.RdrName -> b
-declFun f (GHC.L l de) =
-  case de of
-      GHC.TyClD d       -> f (GHC.L l d)
-      GHC.InstD d       -> f (GHC.L l d)
-      GHC.DerivD d      -> f (GHC.L l d)
-      GHC.ValD d        -> f (GHC.L l d)
-      GHC.SigD d        -> f (GHC.L l d)
-      GHC.DefD d        -> f (GHC.L l d)
-      GHC.ForD d        -> f (GHC.L l d)
-      GHC.WarningD d    -> f (GHC.L l d)
-      GHC.AnnD d        -> f (GHC.L l d)
-      GHC.RuleD d       -> f (GHC.L l d)
-      GHC.VectD d       -> f (GHC.L l d)
-      GHC.SpliceD d     -> f (GHC.L l d)
-      GHC.DocD d        -> f (GHC.L l d)
-      GHC.RoleAnnotD d  -> f (GHC.L l d)
-#if __GLASGOW_HASKELL__ < 711
-      GHC.QuasiQuoteD d -> f (GHC.L l d)
-#endif
 
 -- ---------------------------------------------------------------------
 
