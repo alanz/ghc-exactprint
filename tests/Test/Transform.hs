@@ -616,7 +616,7 @@ addLocaLDecl2 ans lp = do
          replaceDecls lp (parent':tail tlDecs)
 
   let (lp',(ans',_),_w) = runTransform (mergeAnns ans declAnns) doAddLocal
-  putStrLn $ "log:\n" ++ intercalate "\n" _w
+  -- putStrLn $ "log:\n" ++ intercalate "\n" _w
   return (ans',lp')
 
 -- ---------------------------------------------------------------------

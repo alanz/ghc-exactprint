@@ -811,10 +811,11 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
                 toMove <- balanceTrailingComments (GHC.L l (GHC.ValD fn)) (last matches')
                 insertCommentBefore (mkAnnKey $ last ms) toMove (matchApiAnn GHC.AnnWhere)
               lbs -> do
-                decs <- hsDecls lbs
-                logDataWithAnnsTr "FunBind.replaceDecls:before:decs" decs
-                balanceComments (last decs) (GHC.L l (GHC.ValD fn))
-                logDataWithAnnsTr "FunBind.replaceDecls:after:decs" decs
+                -- logDataWithAnnsTr "FunBind.replaceDecls:before:matches'" matches'
+                -- decs <- hsDecls lbs
+                -- logDataWithAnnsTr "FunBind.replaceDecls:after:decs" decs
+                -- balanceComments (last decs) (GHC.L l (GHC.ValD fn))
+                return ()
         -- logDataWithAnnsTr "FunBind.replaceDecls:matches'" matches'
         return (GHC.L l (GHC.FunBind a b (GHC.MG matches' f g h) c d e))
 
