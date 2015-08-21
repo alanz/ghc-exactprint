@@ -85,6 +85,7 @@ import Control.Monad.RWS
 import qualified Bag           as GHC
 import qualified FastString    as GHC
 import qualified GHC           as GHC hiding (parseModule)
+import qualified Outputable    as GHC
 
 import qualified Data.Generics as SYB
 
@@ -220,22 +221,51 @@ decl2Sig _                      = []
 -- annotation for the 'GHC.LHsDecl'. This needs to be set up so that the
 -- original annotation is restored after a 'pushDeclAnnT' call.
 wrapSigT :: GHC.LSig GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
-wrapSigT d@(GHC.L _ s) = do
-  newSpan <- uniqueSrcSpanT
+wrapSigT d@(GHC.L l s) = do
+  -- ++AZ++:TODO: harvest the commonality between wrapSigT and wrapDeclT
   let
     f ans = case Map.lookup (mkAnnKey d) ans of
-      Nothing -> ans
+      Nothing -> error $ "wrapDeclT:no key found for:" ++ showGhc (mkAnnKey d,d)
       Just ann ->
-                  Map.insert (mkAnnKey (GHC.L newSpan s)) ann
-                $ Map.insert (mkAnnKey (GHC.L newSpan (GHC.SigD s))) ann ans
+                  Map.insert (mkAnnKey (GHC.L l           s ))
+                       ann { annEntryDelta        = DP (0,0)
+                           , annPriorComments     = []
+                           , annFollowingComments = []
+                           }
+                $ Map.insert (mkAnnKey (GHC.L l (GHC.SigD s)))
+                      ann { annsDP          = []
+                          , annSortKey      = Nothing
+                          , annCapturedSpan = Nothing
+                          }
+                  ans
   modifyAnnsT f
-  return (GHC.L newSpan (GHC.SigD s))
+  return (GHC.L l (GHC.SigD s))
 
 -- ---------------------------------------------------------------------
 
--- |Convert a 'GHC.LHsBind' into a 'GHC.LHsDecl', duplicating the 'GHC.LHsBind'
+-- |Convert a 'GHC.LHsBind' into a 'GHC.LHsDecl', splitting the 'GHC.LHsBind'
 -- annotation for the 'GHC.LHsDecl'. This needs to be set up so that the
 -- original annotation is restored after a 'pushDeclAnnT' call.
+wrapDeclT :: GHC.LHsBind GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
+wrapDeclT d@(GHC.L l s) = do
+  let
+    f ans = case Map.lookup (mkAnnKey d) ans of
+      Nothing -> error $ "wrapDeclT:no key found for:" ++ showGhc (mkAnnKey d,d)
+      Just ann ->
+                  Map.insert (mkAnnKey (GHC.L l           s ))
+                       ann { annEntryDelta        = DP (0,0)
+                           , annPriorComments     = []
+                           , annFollowingComments = []
+                           }
+                $ Map.insert (mkAnnKey (GHC.L l (GHC.ValD s)))
+                      ann { annsDP          = []
+                          , annSortKey      = Nothing
+                          , annCapturedSpan = Nothing
+                          }
+                  ans
+  modifyAnnsT f
+  return (GHC.L l (GHC.ValD s))
+{-
 wrapDeclT :: GHC.LHsBind GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
 wrapDeclT d@(GHC.L _ s) = do
   newSpan <- uniqueSrcSpanT
@@ -247,6 +277,7 @@ wrapDeclT d@(GHC.L _ s) = do
                 $ Map.insert (mkAnnKey (GHC.L newSpan (GHC.ValD s))) ann ans
   modifyAnnsT f
   return (GHC.L newSpan (GHC.ValD s))
+-}
 
 -- ---------------------------------------------------------------------
 
@@ -257,12 +288,10 @@ pushDeclAnnT :: GHC.LHsDecl GHC.RdrName -> Transform ()
 pushDeclAnnT ld@(GHC.L l decl) = do
   let
     blend ann Nothing = ann
-    blend ann (Just annd)
-      = ann { annEntryDelta        = annEntryDelta ann
-            , annPriorComments     = annPriorComments     ann  ++ annPriorComments     annd
-            , annFollowingComments = annFollowingComments annd ++ annFollowingComments ann
-            -- ++AZ++: TODO: these should be at the top level
-            , annsDP               = annsDP annd
+    blend ann (Just annl)
+      = annl { annEntryDelta        = annEntryDelta ann
+             , annPriorComments     = annPriorComments     ann  ++ annPriorComments     annl
+             , annFollowingComments = annFollowingComments annl ++ annFollowingComments ann
             }
     duplicateAnn d ans =
       case Map.lookup (mkAnnKey ld) ans of
@@ -294,16 +323,9 @@ pushDeclAnnT ld@(GHC.L l decl) = do
 -- |Unwrap a 'GHC.LHsDecl' to its underlying 'GHC.LHsBind', transferring the top
 -- level annotation to a new unique 'GHC.SrcSpan' in the process.
 decl2BindT :: GHC.LHsDecl GHC.RdrName -> Transform [GHC.LHsBind GHC.RdrName]
-decl2BindT vd@(GHC.L _ (GHC.ValD d)) = do
-  newSpan <- uniqueSrcSpanT
-  logTr $ "decl2BindT:newSpan=" ++ showGhc newSpan
-  let
-    duplicateAnn ans =
-      case Map.lookup (mkAnnKey vd) ans of
-        Nothing -> ans
-        Just ann -> Map.insert (mkAnnKey (GHC.L newSpan d)) ann ans
-  modifyAnnsT duplicateAnn
-  return [GHC.L newSpan d]
+decl2BindT vd@(GHC.L l (GHC.ValD d)) = do
+  pushDeclAnnT vd
+  return [GHC.L l d]
 decl2BindT _ = return []
 
 -- ---------------------------------------------------------------------
@@ -311,16 +333,9 @@ decl2BindT _ = return []
 -- |Unwrap a 'GHC.LHsDecl' to its underlying 'GHC.LSig', transferring the top
 -- level annotation to a new unique 'GHC.SrcSpan' in the process.
 decl2SigT :: GHC.LHsDecl GHC.RdrName -> Transform [GHC.LSig GHC.RdrName]
-decl2SigT vs@(GHC.L _ (GHC.SigD s)) = do
-  newSpan <- uniqueSrcSpanT
-  logTr $ "decl2SigT:newSpan=" ++ showGhc newSpan
-  let
-    duplicateAnn ans =
-      case Map.lookup (mkAnnKey vs) ans of
-        Nothing -> ans
-        Just ann -> Map.insert (mkAnnKey (GHC.L newSpan s)) ann ans
-  modifyAnnsT duplicateAnn
-  return [GHC.L newSpan s]
+decl2SigT vs@(GHC.L l (GHC.SigD s)) = do
+  pushDeclAnnT vs
+  return [GHC.L l s]
 decl2SigT _ = return []
 
 -- ---------------------------------------------------------------------
@@ -442,8 +457,10 @@ transferEntryDP a b anns = (const anns2) anns
       anB <- Map.lookup (mkAnnKey b) anns
       let anB'  = Ann
             { annEntryDelta        = DP (0,0) -- Need to adjust for comments after
-            , annPriorComments     = annPriorComments     anA ++ annPriorComments     anB
-            , annFollowingComments = annFollowingComments anA ++ annFollowingComments anB
+            -- , annPriorComments     = annPriorComments     anA ++ annPriorComments     anB
+            -- , annFollowingComments = annFollowingComments anA ++ annFollowingComments anB
+            , annPriorComments     = annPriorComments     anB
+            , annFollowingComments = annFollowingComments anB
             , annsDP               = annsDP          anB
             , annSortKey           = annSortKey      anB
             , annCapturedSpan      = annCapturedSpan anB
@@ -483,7 +500,6 @@ balanceComments first second = do
       where
         an1 = gfromJust "balanceComments k1" $ Map.lookup k1 ans
         an2 = gfromJust "balanceComments k2" $ Map.lookup k2 ans
-        -- cs1b = annPriorComments     an1
         cs1f = annFollowingComments an1
         cs2b = annPriorComments an2
         (move,stay) = break p cs2b
@@ -654,6 +670,7 @@ instance HasDecls [GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)] where
     = do
         -- ++AZ++: TODO: this one looks dodgy
         m' <- replaceDecls (ghead "replaceDecls" ms) newDecls
+        -- logDataWithAnnsTr "[Match].replaceDecls:m'" m'
         return (m':tail ms)
 
 -- ---------------------------------------------------------------------
@@ -698,9 +715,9 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 
           _ -> return ()
 
-        -- mapM_ pushDeclAnnT newBinds
         modifyAnnsT (captureOrderAnnKey (mkAnnKey m) newBinds)
         binds' <- replaceDecls binds newBinds
+        -- logDataWithAnnsTr "Match.replaceDecls:binds'" binds'
         return (GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds')))
 
 -- ---------------------------------------------------------------------
@@ -720,7 +737,6 @@ instance HasDecls (GHC.HsLocalBinds GHC.RdrName) where
     GHC.HsValBinds (GHC.ValBindsIn bs sigs) -> do
       bds <- mapM wrapDeclT (GHC.bagToList bs)
       sds <- mapM wrapSigT sigs
-      -- ++AZ++ TODO: return in annotated order
       return (bds ++ sds)
     GHC.HsValBinds (GHC.ValBindsOut _ _) -> error $ "hsDecls.ValbindsOut not valid"
     GHC.HsIPBinds _     -> return []
@@ -729,8 +745,10 @@ instance HasDecls (GHC.HsLocalBinds GHC.RdrName) where
   replaceDecls (GHC.HsValBinds _b) new
     = do
         mapM_ pushDeclAnnT new
+        -- logDataWithAnnsTr "HsValBinds.new:after pushDeclAnnT" new
         let decs = GHC.listToBag $ concatMap decl2Bind new
         let sigs = concatMap decl2Sig new
+        -- logDataWithAnnsTr "HsValBinds.decs:after pushDeclAnnT" decs
         return (GHC.HsValBinds (GHC.ValBindsIn decs sigs))
 
   replaceDecls (GHC.HsIPBinds _b) _new    = error "undefined replaceDecls HsIPBinds"
@@ -774,11 +792,11 @@ instance HasDecls [GHC.LHsBind GHC.RdrName] where
 -- ---------------------------------------------------------------------
 
 instance HasDecls (GHC.LHsBind GHC.RdrName) where
-  hsDecls (GHC.L _ (GHC.FunBind _ _ matches _ _ _)) = hsDecls matches
-  hsDecls (GHC.L _ (GHC.PatBind _ rhs _ _ _))       = hsDecls rhs
-  hsDecls (GHC.L _ (GHC.VarBind _ rhs _))           = hsDecls rhs
-  hsDecls (GHC.L _ (GHC.AbsBinds _ _ _ _ binds))    = hsDecls binds
-  hsDecls (GHC.L _ (GHC.PatSynBind _))      = error "hsDecls: PatSynBind to implement"
+  hsDecls d@(GHC.L _ (GHC.FunBind _ _ matches _ _ _)) = orderedDecls d matches
+  hsDecls d@(GHC.L _ (GHC.PatBind _ rhs _ _ _))       = orderedDecls d rhs
+  hsDecls d@(GHC.L _ (GHC.VarBind _ rhs _))           = orderedDecls d rhs
+  hsDecls d@(GHC.L _ (GHC.AbsBinds _ _ _ _ binds))    = orderedDecls d binds
+  hsDecls   (GHC.L _ (GHC.PatSynBind _))      = error "hsDecls: PatSynBind to implement"
 
 
   replaceDecls (GHC.L l fn@(GHC.FunBind a b (GHC.MG matches f g h) c d e)) newDecls
@@ -794,7 +812,10 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
                 insertCommentBefore (mkAnnKey $ last ms) toMove (matchApiAnn GHC.AnnWhere)
               lbs -> do
                 decs <- hsDecls lbs
+                logDataWithAnnsTr "FunBind.replaceDecls:before:decs" decs
                 balanceComments (last decs) (GHC.L l (GHC.ValD fn))
+                logDataWithAnnsTr "FunBind.replaceDecls:after:decs" decs
+        -- logDataWithAnnsTr "FunBind.replaceDecls:matches'" matches'
         return (GHC.L l (GHC.FunBind a b (GHC.MG matches' f g h) c d e))
 
   replaceDecls (GHC.L l (GHC.PatBind a rhs b c d)) newDecls
@@ -857,6 +878,26 @@ instance HasDecls (GHC.LHsDecl GHC.RdrName) where
 -- =====================================================================
 -- end of HasDecls instances
 -- =====================================================================
+
+-- |Look up the annotated order and sort the decls accordingly
+orderedDecls :: (Data a,HasDecls b,GHC.Outputable a) => GHC.Located a -> b -> Transform [GHC.LHsDecl GHC.RdrName]
+orderedDecls parent sub = do
+  decls <- hsDecls sub
+  logDataWithAnnsTr "orderedDecls:decls=" decls
+  ans <- getAnnsT
+  case getAnnotationEP parent ans of
+    Nothing -> error $ "orderedDecls:no annotation for:" ++ showGhc parent
+    Just ann -> case annSortKey ann of
+      Nothing -> do
+        logTr $ "orderedDecls:no annSortKey for:" ++ showGhc parent
+        return decls
+      Just keys -> do
+        let ds = map (\s -> (GHC.getLoc s,s)) decls
+            ordered = orderByKey ds keys
+        logDataWithAnnsTr "orderedDecls:ordered=" ordered
+        return ordered
+
+-- ---------------------------------------------------------------------
 
 matchApiAnn :: GHC.AnnKeywordId -> (KeywordId,DeltaPos) -> Bool
 matchApiAnn mkw (kw,_)

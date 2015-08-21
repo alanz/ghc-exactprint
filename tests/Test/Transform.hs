@@ -24,7 +24,7 @@ import Control.Monad
 import System.FilePath
 import System.IO
 import qualified Data.Map as Map
--- import Data.List
+import Data.List
 import Data.Maybe
 
 import System.IO.Silently
@@ -563,6 +563,7 @@ transformHighLevelTests =
   , mkTestModChange rmDecl5 "RmDecl5.hs" "RmDecl5"
 
   , mkTestModChange rmTypeSig1 "RmTypeSig1.hs" "RmTypeSig1"
+  , mkTestModChange rmTypeSig2 "RmTypeSig2.hs" "RmTypeSig2"
 
   , mkTestModChange addHiding1 "AddHiding1.hs" "AddHiding1"
   , mkTestModChange addHiding2 "AddHiding2.hs" "AddHiding2"
@@ -596,7 +597,6 @@ addLocaLDecl1 ans lp = do
 addLocaLDecl2 :: Changer
 addLocaLDecl2 ans lp = do
   Right (declAnns, newDecl) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
-  -- let declAnns' = setPrecedingLines (GHC.L ld decl) 1 0 declAnns
   let
 
       doAddLocal = do
@@ -605,15 +605,18 @@ addLocaLDecl2 ans lp = do
          decls <- hsDecls parent
          balanceComments parent (head $ tail tlDecs)
 
-         DP (r,c) <- getEntryDPT (head decls)
-         setPrecedingLinesT newDecl r c
-         setPrecedingLinesT (head decls) 1 0
+         transferEntryDPT (head decls) newDecl
+         -- setPrecedingLinesT (head decls) 1 0
+         setEntryDPT (head decls) (DP (1, 0))
+
+         logDataWithAnnsTr "addLocalDecl2:before:(newDecl,decls)" (newDecl,decls)
 
          parent' <- replaceDecls parent (newDecl:decls)
+         logDataWithAnnsTr "addLocalDecl2:after:(newDecl,decls)" (newDecl,decls)
          replaceDecls lp (parent':tail tlDecs)
 
   let (lp',(ans',_),_w) = runTransform (mergeAnns ans declAnns) doAddLocal
-  -- putStrLn $ "log:\n" ++ intercalate "\n" _w
+  putStrLn $ "log:\n" ++ intercalate "\n" _w
   return (ans',lp')
 
 -- ---------------------------------------------------------------------
@@ -794,6 +797,23 @@ rmTypeSig1 ans lp = do
          replaceDecls lp (s1':d1:d2)
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  return (ans',lp')
+
+-- ---------------------------------------------------------------------
+
+rmTypeSig2 :: Changer
+rmTypeSig2 ans lp = do
+  let doRmDecl = do
+         tlDecs <- hsDecls lp
+         let [d1] = tlDecs
+         [s,d] <- hsDecls d1
+         -- logDataWithAnnsTr "[s,d]" [s,d]
+         transferEntryDPT s d
+         d1' <- replaceDecls d1 [d]
+         replaceDecls lp [d1']
+
+  let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  -- putStrLn $ "log:" ++ intercalate "\n" _w
   return (ans',lp')
 
 -- ---------------------------------------------------------------------

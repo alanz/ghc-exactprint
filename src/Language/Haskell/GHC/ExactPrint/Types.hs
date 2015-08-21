@@ -71,6 +71,7 @@ annNone = Ann (DP (0,0)) [] [] [] Nothing Nothing
 
 data Annotation = Ann
   {
+    -- The first three fields relate to interfacing up into the AST
     annEntryDelta      :: !DeltaPos
     -- ^ Offset used to get to the start of the SrcSpan, from whatever the prior
     -- output was, including all annPriorComments (field below).
@@ -83,6 +84,8 @@ data Annotation = Ann
     -- ^ Comments coming after the last output for the element subject to this
     -- Annotation. These will only be added by AST transformations, and care
     -- must be taken not to disturb layout of following elements.
+
+  -- The next three fields relate to interacing down into the AST
   , annsDP             :: ![(KeywordId, DeltaPos)]
     -- ^ Annotations associated with this element.
   , annSortKey         :: !(Maybe [GHC.SrcSpan])

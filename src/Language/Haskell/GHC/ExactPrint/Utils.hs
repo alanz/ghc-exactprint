@@ -22,7 +22,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , comment2dp
 
     -- * GHC Functions
-  ,  srcSpanStartLine
+  , srcSpanStartLine
   , srcSpanEndLine
   , srcSpanStartColumn
   , srcSpanEndColumn
