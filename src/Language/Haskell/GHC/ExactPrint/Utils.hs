@@ -166,6 +166,7 @@ addDP (DP (a, b)) (DP (c, d)) =
 -- > DP (3, 3) `addDP` DP (0, 4) == DP (0, 1) -- maintain col delta at least
 stepDP :: DeltaPos -> DeltaPos -> DeltaPos
 stepDP (DP (a,b)) (DP (c,d))
+  | (a,b) == (0,0) && (c,d) == (0,0) = DP (0,0)
   | a == c = if b < d then DP (0,d - b)
                       else if d == 0
                              then DP (1,0) else DP (0,1)
