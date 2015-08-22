@@ -32,7 +32,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , uniqueSrcSpanT
 
         , wrapSigT,wrapDeclT
-        , pushDeclAnnT
+        -- , pushDeclAnnT
         , decl2BindT,decl2SigT
 
         , cloneT
@@ -175,9 +175,9 @@ cloneT ast = do
       case cast l :: Maybe GHC.SrcSpan of
         Just ss -> do
           newSpan <- lift uniqueSrcSpanT
-          lift $ modifyAnnsT (\anns -> case Map.lookup (mkAnnKey (GHC.L ss t)) anns of
+          lift $ modifyAnnsT (\anns -> case Map.lookup (mkAnnKeyU (GHC.L ss t)) anns of
                                   Nothing -> anns
-                                  Just an -> Map.insert (mkAnnKey (GHC.L newSpan t)) an anns)
+                                  Just an -> Map.insert (mkAnnKeyU (GHC.L newSpan t)) an anns)
           tell [(ss, newSpan)]
           return $ fromJust . cast  $ GHC.L newSpan t
         Nothing -> return (GHC.L l t)
@@ -188,7 +188,7 @@ cloneT ast = do
 -- the appropriate 'annSortKey' attached to the 'Annotation' for the first
 -- parameter.
 captureOrder :: (Data a) => GHC.Located a -> [GHC.Located b] -> Anns -> Anns
-captureOrder parent ls ans = captureOrderAnnKey (mkAnnKey parent) ls ans
+captureOrder parent ls ans = captureOrderAnnKey (mkAnnKeyU parent) ls ans
 
 -- |If a list has been re-ordered or had items added, capture the new order in
 -- the appropriate 'annSortKey' item of the supplied 'AnnKey'
@@ -223,22 +223,22 @@ decl2Sig _                      = []
 wrapSigT :: GHC.LSig GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
 wrapSigT d@(GHC.L l s) = do
   -- ++AZ++:TODO: harvest the commonality between wrapSigT and wrapDeclT
-  let
-    f ans = case Map.lookup (mkAnnKey d) ans of
-      Nothing -> error $ "wrapDeclT:no key found for:" ++ showGhc (mkAnnKey d,d)
-      Just ann ->
-                  Map.insert (mkAnnKey (GHC.L l           s ))
-                       ann { annEntryDelta        = DP (0,0)
-                           , annPriorComments     = []
-                           , annFollowingComments = []
-                           }
-                $ Map.insert (mkAnnKey (GHC.L l (GHC.SigD s)))
-                      ann { annsDP          = []
-                          , annSortKey      = Nothing
-                          , annCapturedSpan = Nothing
-                          }
-                  ans
-  modifyAnnsT f
+  -- let
+  --   f ans = case Map.lookup (mkAnnKey d) ans of
+  --     Nothing -> error $ "wrapDeclT:no key found for:" ++ showGhc (mkAnnKey d,d)
+  --     Just ann ->
+  --                 Map.insert (mkAnnKey (GHC.L l           s ))
+  --                      ann { annEntryDelta        = DP (0,0)
+  --                          , annPriorComments     = []
+  --                          , annFollowingComments = []
+  --                          }
+  --               $ Map.insert (mkAnnKey (GHC.L l (GHC.SigD s)))
+  --                     ann { annsDP          = []
+  --                         , annSortKey      = Nothing
+  --                         , annCapturedSpan = Nothing
+  --                         }
+  --                 ans
+  -- modifyAnnsT f
   return (GHC.L l (GHC.SigD s))
 
 -- ---------------------------------------------------------------------
@@ -248,36 +248,23 @@ wrapSigT d@(GHC.L l s) = do
 -- original annotation is restored after a 'pushDeclAnnT' call.
 wrapDeclT :: GHC.LHsBind GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
 wrapDeclT d@(GHC.L l s) = do
-  let
-    f ans = case Map.lookup (mkAnnKey d) ans of
-      Nothing -> error $ "wrapDeclT:no key found for:" ++ showGhc (mkAnnKey d,d)
-      Just ann ->
-                  Map.insert (mkAnnKey (GHC.L l s))
-                       ann { annEntryDelta        = DP (0,0)
-                           , annPriorComments     = []
-                           , annFollowingComments = []
-                           }
-                $ Map.insert (mkAnnKey (GHC.L l (GHC.ValD s)))
-                      ann { annsDP          = []
-                          , annSortKey      = Nothing
-                          , annCapturedSpan = Nothing
-                          }
-                  ans
-  modifyAnnsT f
+  -- let
+  --   f ans = case Map.lookup (mkAnnKey d) ans of
+  --     Nothing -> error $ "wrapDeclT:no key found for:" ++ showGhc (mkAnnKey d,d)
+  --     Just ann ->
+  --                 Map.insert (mkAnnKey (GHC.L l s))
+  --                      ann { annEntryDelta        = DP (0,0)
+  --                          , annPriorComments     = []
+  --                          , annFollowingComments = []
+  --                          }
+  --               $ Map.insert (mkAnnKey (GHC.L l (GHC.ValD s)))
+  --                     ann { annsDP          = []
+  --                         , annSortKey      = Nothing
+  --                         , annCapturedSpan = Nothing
+  --                         }
+  --                 ans
+  -- modifyAnnsT f
   return (GHC.L l (GHC.ValD s))
-{-
-wrapDeclT :: GHC.LHsBind GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
-wrapDeclT d@(GHC.L _ s) = do
-  newSpan <- uniqueSrcSpanT
-  let
-    f ans = case Map.lookup (mkAnnKey d) ans of
-      Nothing -> error $ "wrapDeclT:no key found for:" ++ showGhc (mkAnnKey d,d)
-      Just ann ->
-                  Map.insert (mkAnnKey (GHC.L newSpan           s )) ann
-                $ Map.insert (mkAnnKey (GHC.L newSpan (GHC.ValD s))) ann ans
-  modifyAnnsT f
-  return (GHC.L newSpan (GHC.ValD s))
--}
 
 -- ---------------------------------------------------------------------
 
@@ -324,7 +311,7 @@ pushDeclAnnT ld@(GHC.L l decl) = do
 -- level annotation to a new unique 'GHC.SrcSpan' in the process.
 decl2BindT :: GHC.LHsDecl GHC.RdrName -> Transform [GHC.LHsBind GHC.RdrName]
 decl2BindT vd@(GHC.L l (GHC.ValD d)) = do
-  pushDeclAnnT vd
+  -- pushDeclAnnT vd
   return [GHC.L l d]
 decl2BindT _ = return []
 
@@ -334,7 +321,7 @@ decl2BindT _ = return []
 -- level annotation to a new unique 'GHC.SrcSpan' in the process.
 decl2SigT :: GHC.LHsDecl GHC.RdrName -> Transform [GHC.LSig GHC.RdrName]
 decl2SigT vs@(GHC.L l (GHC.SigD s)) = do
-  pushDeclAnnT vs
+  -- pushDeclAnnT vs
   return [GHC.L l s]
 decl2SigT _ = return []
 
@@ -347,7 +334,7 @@ addSimpleAnnT ast dp kds = do
   let ann = annNone { annEntryDelta = dp
                     , annsDP = kds
                     }
-  modifyAnnsT (Map.insert (mkAnnKey ast) ann)
+  modifyAnnsT (Map.insert (mkAnnKeyU ast) ann)
 
 -- ---------------------------------------------------------------------
 
@@ -408,19 +395,19 @@ mergeAnnList (x:xs) = foldr mergeAnns x xs
 
 -- |Unwrap a HsDecl and call setPrecedingLines on it
 setPrecedingLinesDecl :: GHC.LHsDecl GHC.RdrName -> Int -> Int -> Anns -> Anns
-setPrecedingLinesDecl ld n c ans =
-  declFun (\a -> setPrecedingLines a n c ans') ld
-  where
-    ans' = case Map.lookup (mkAnnKey ld) ans of
-      Nothing -> Map.insert (mkAnnKey ld) annNone                         ans
-      Just an -> Map.insert (mkAnnKey ld) (an {annEntryDelta = DP (0,0)}) ans
+setPrecedingLinesDecl ld n c ans = setPrecedingLines ld n c ans
+  -- declFun (\a -> setPrecedingLines a n c ans') ld
+  -- where
+  --   ans' = case Map.lookup (mkAnnKey ld) ans of
+  --     Nothing -> Map.insert (mkAnnKey ld) annNone                         ans
+  --     Just an -> Map.insert (mkAnnKey ld) (an {annEntryDelta = DP (0,0)}) ans
 
 -- ---------------------------------------------------------------------
 
 -- | Adjust the entry annotations to provide an `n` line preceding gap
 setPrecedingLines :: (SYB.Data a) => GHC.Located a -> Int -> Int -> Anns -> Anns
 setPrecedingLines ast n c anne =
-  Map.alter go (mkAnnKey ast) anne
+  Map.alter go (mkAnnKeyU ast) anne
   where
     go Nothing  = Just (annNone { annEntryDelta = DP (n, c) })
     go (Just a) = Just (a       { annEntryDelta = DP (n, c) })
@@ -431,7 +418,7 @@ setPrecedingLines ast n c anne =
 -- element. This is the 'DeltaPos' ignoring any comments.
 getEntryDP :: (Data a) => Anns -> GHC.Located a -> DeltaPos
 getEntryDP anns ast =
-  case Map.lookup (mkAnnKey ast) anns of
+  case Map.lookup (mkAnnKeyU ast) anns of
     Nothing  -> DP (0,0)
     Just ann -> annTrueEntryDelta ann
 
@@ -441,9 +428,9 @@ getEntryDP anns ast =
 -- element. This is the 'DeltaPos' ignoring any comments.
 setEntryDP :: (Data a) => GHC.Located a -> DeltaPos -> Anns -> Anns
 setEntryDP ast dp anns =
-  case Map.lookup (mkAnnKey ast) anns of
-    Nothing  -> Map.insert (mkAnnKey ast) (annNone { annEntryDelta = dp}) anns
-    Just ann -> Map.insert (mkAnnKey ast) (ann     { annEntryDelta = annCommentEntryDelta ann dp}) anns
+  case Map.lookup (mkAnnKeyU ast) anns of
+    Nothing  -> Map.insert (mkAnnKeyU ast) (annNone { annEntryDelta = dp}) anns
+    Just ann -> Map.insert (mkAnnKeyU ast) (ann     { annEntryDelta = annCommentEntryDelta ann dp}) anns
 
 -- ---------------------------------------------------------------------
 
@@ -453,8 +440,8 @@ transferEntryDP :: (SYB.Data a, SYB.Data b) => GHC.Located a -> GHC.Located b ->
 transferEntryDP a b anns = (const anns2) anns
   where
     maybeAnns = do -- Maybe monad
-      anA <- Map.lookup (mkAnnKey a) anns
-      anB <- Map.lookup (mkAnnKey b) anns
+      anA <- Map.lookup (mkAnnKeyU a) anns
+      anB <- Map.lookup (mkAnnKeyU b) anns
       let anB'  = Ann
             { annEntryDelta        = DP (0,0) -- Need to adjust for comments after
             -- , annPriorComments     = annPriorComments     anA ++ annPriorComments     anB
@@ -465,9 +452,9 @@ transferEntryDP a b anns = (const anns2) anns
             , annSortKey           = annSortKey      anB
             , annCapturedSpan      = annCapturedSpan anB
             }
-      return ((Map.insert (mkAnnKey b) anB' anns),annEntryDelta anA)
+      return ((Map.insert (mkAnnKeyU b) anB' anns),annEntryDelta anA)
     (anns',dp) = fromMaybe
-                  (error $ "transferEntryDP: lookup failed (a,b)=" ++ show (mkAnnKey a,mkAnnKey b))
+                  (error $ "transferEntryDP: lookup failed (a,b)=" ++ show (mkAnnKeyU a,mkAnnKeyU b))
                   maybeAnns
     anns2 = setEntryDP b dp anns'
 
@@ -475,11 +462,11 @@ transferEntryDP a b anns = (const anns2) anns
 
 addTrailingComma :: (SYB.Data a) => GHC.Located a -> DeltaPos -> Anns -> Anns
 addTrailingComma a dp anns =
-  case Map.lookup (mkAnnKey a) anns of
+  case Map.lookup (mkAnnKeyU a) anns of
     Nothing -> anns
     Just an ->
       case find isAnnComma (annsDP an) of
-        Nothing -> Map.insert (mkAnnKey a) (an { annsDP = annsDP an ++ [(G GHC.AnnComma,dp)]}) anns
+        Nothing -> Map.insert (mkAnnKeyU a) (an { annsDP = annsDP an ++ [(G GHC.AnnComma,dp)]}) anns
         Just _  -> anns
       where
         isAnnComma (G GHC.AnnComma,_) = True
@@ -494,8 +481,8 @@ addTrailingComma a dp anns =
 balanceComments :: (Data a,Data b) => GHC.Located a -> GHC.Located b -> Transform ()
 balanceComments first second = do
   let
-    k1 = mkAnnKey first
-    k2 = mkAnnKey second
+    k1 = mkAnnKeyU first
+    k2 = mkAnnKeyU second
     moveComments p ans = ans'
       where
         an1 = gfromJust "balanceComments k1" $ Map.lookup k1 ans
@@ -520,8 +507,8 @@ balanceComments first second = do
 balanceTrailingComments :: (Data a,Data b) => GHC.Located a -> GHC.Located b -> Transform [(Comment, DeltaPos)]
 balanceTrailingComments first second = do
   let
-    k1 = mkAnnKey first
-    k2 = mkAnnKey second
+    k1 = mkAnnKeyU first
+    k2 = mkAnnKeyU second
     moveComments p ans = (ans',move)
       where
         an1 = gfromJust "balanceTrailingComments k1" $ Map.lookup k1 ans
@@ -552,8 +539,8 @@ moveTrailingComments :: (Data a,Data b)
                      => GHC.Located a -> GHC.Located b -> Transform ()
 moveTrailingComments first second = do
   let
-    k1 = mkAnnKey first
-    k2 = mkAnnKey second
+    k1 = mkAnnKeyU first
+    k2 = mkAnnKeyU second
     moveComments ans = ans'
       where
         an1 = gfromJust "moveTrailingComments k1" $ Map.lookup k1 ans
@@ -575,7 +562,7 @@ insertAt :: (Data ast, HasDecls (GHC.Located ast))
               -> Transform (GHC.Located ast)
 insertAt f m decl = do
   let newKey = GHC.getLoc decl
-      modKey = mkAnnKey m
+      modKey = mkAnnKeyU m
       newValue a@Ann{..} = a { annSortKey = f newKey <$> annSortKey }
   oldDecls <- hsDecls m
   modifyAnnsT (Map.adjust newValue modKey)
@@ -595,7 +582,7 @@ insertAfter, insertBefore :: (Data ast, HasDecls (GHC.Located ast))
                           -> GHC.Located ast
                           -> GHC.LHsDecl GHC.RdrName
                           -> Transform (GHC.Located ast)
--- insertAfter (mkAnnKey -> k) = insertAt findAfter
+-- insertAfter (mkAnnKeyU -> k) = insertAt findAfter
 insertAfter (GHC.getLoc -> k) = insertAt findAfter
   where
     findAfter x xs =
@@ -691,9 +678,9 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
           noWhere _                  = True
 
           removeWhere mkds =
-            case Map.lookup (mkAnnKey m) mkds of
+            case Map.lookup (mkAnnKeyU m) mkds of
               Nothing -> error "wtf"
-              Just ann -> Map.insert (mkAnnKey m) ann1 mkds
+              Just ann -> Map.insert (mkAnnKeyU m) ann1 mkds
                 where
                   ann1 = ann { annsDP = filter noWhere (annsDP ann)
                                  }
@@ -710,9 +697,9 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
           GHC.EmptyLocalBinds -> do
             let
               addWhere mkds =
-                case Map.lookup (mkAnnKey m) mkds of
+                case Map.lookup (mkAnnKeyU m) mkds of
                   Nothing -> error "wtf"
-                  Just ann -> Map.insert (mkAnnKey m) ann1 mkds
+                  Just ann -> Map.insert (mkAnnKeyU m) ann1 mkds
                     where
                       ann1 = ann { annsDP = annsDP ann ++ [(G GHC.AnnWhere,DP (1,2))]
                                  }
@@ -721,7 +708,7 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 
           _ -> return ()
 
-        modifyAnnsT (captureOrderAnnKey (mkAnnKey m) newBinds)
+        modifyAnnsT (captureOrderAnnKey (mkAnnKeyU m) newBinds)
         binds' <- replaceDecls binds newBinds
         -- logDataWithAnnsTr "Match.replaceDecls:binds'" binds'
         return (GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds')))
@@ -750,7 +737,7 @@ instance HasDecls (GHC.HsLocalBinds GHC.RdrName) where
 
   replaceDecls (GHC.HsValBinds _b) new
     = do
-        mapM_ pushDeclAnnT new
+        -- mapM_ pushDeclAnnT new
         -- logDataWithAnnsTr "HsValBinds.new:after pushDeclAnnT" new
         let decs = GHC.listToBag $ concatMap decl2Bind new
         let sigs = concatMap decl2Sig new
@@ -761,7 +748,7 @@ instance HasDecls (GHC.HsLocalBinds GHC.RdrName) where
 
   replaceDecls (GHC.EmptyLocalBinds) new
     = do
-        mapM_ pushDeclAnnT new
+        -- mapM_ pushDeclAnnT new
         let newBinds = map decl2Bind new
             newSigs  = map decl2Sig  new
         let decs = GHC.listToBag $ concat newBinds
@@ -793,7 +780,7 @@ instance HasDecls [GHC.LHsBind GHC.RdrName] where
 
   replaceDecls _bs newDecls
     = do
-        mapM_ pushDeclAnnT newDecls
+        -- mapM_ pushDeclAnnT newDecls
         return $ concatMap decl2Bind newDecls
 
 -- ---------------------------------------------------------------------
@@ -816,7 +803,7 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
               GHC.EmptyLocalBinds -> do
                 -- only move the comment if the original where clause was empty.
                 toMove <- balanceTrailingComments (GHC.L l (GHC.ValD fn)) (last matches')
-                insertCommentBefore (mkAnnKey $ last ms) toMove (matchApiAnn GHC.AnnWhere)
+                insertCommentBefore (mkAnnKeyU $ last ms) toMove (matchApiAnn GHC.AnnWhere)
               _lbs -> do
                 -- logDataWithAnnsTr "FunBind.replaceDecls:before:matches'" matches'
                 -- decs <- hsDecls lbs
