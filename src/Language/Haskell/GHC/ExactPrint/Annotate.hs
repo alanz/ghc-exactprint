@@ -268,7 +268,8 @@ instance Annotate (GHC.HsModule GHC.RdrName) where
     markMany GHC.AnnSemi -- possible leading semis
     mapM_ markLocated imps
 
-    mapM_ markLocated decs
+    -- mapM_ markLocated decs
+    mapM_ markLhsDecl decs
 
     mark GHC.AnnCloseC -- Possible '}'
 
@@ -492,10 +493,39 @@ instance (GHC.DataId name,Annotate name)
    markTrailingSemi
 
 -- ---------------------------------------------------------------------
+
 instance Annotate GHC.ModuleName where
    markAST l mname =
     markExternal l GHC.AnnVal (GHC.moduleNameString mname)
 
+-- instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
+markLhsDecl :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
+            => GHC.LHsDecl name -> Annotated ()
+markLhsDecl (GHC.L l decl) =
+    case decl of
+      GHC.TyClD d       -> markLocated (GHC.L l d)
+      GHC.InstD d       -> markLocated (GHC.L l d)
+      GHC.DerivD d      -> markLocated (GHC.L l d)
+      GHC.ValD d        -> markLocated (GHC.L l d)
+      GHC.SigD d        -> markLocated (GHC.L l d)
+      GHC.DefD d        -> markLocated (GHC.L l d)
+      GHC.ForD d        -> markLocated (GHC.L l d)
+      GHC.WarningD d    -> markLocated (GHC.L l d)
+      GHC.AnnD d        -> markLocated (GHC.L l d)
+      GHC.RuleD d       -> markLocated (GHC.L l d)
+      GHC.VectD d       -> markLocated (GHC.L l d)
+      GHC.SpliceD d     -> markLocated (GHC.L l d)
+      GHC.DocD d        -> markLocated (GHC.L l d)
+      GHC.RoleAnnotD d  -> markLocated (GHC.L l d)
+#if __GLASGOW_HASKELL__ < 711
+      GHC.QuasiQuoteD d -> markLocated (GHC.L l d)
+#endif
+
+-- instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
+--   => Annotate (GHC.HsDecl name) where
+--   markAST l decl = error $ "instance Annotate GHC.LHsDecl:rather use markLhsDecl"
+
+{-
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsDecl name) where
   markAST l decl = do
@@ -517,6 +547,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ < 711
       GHC.QuasiQuoteD d -> markLocated (GHC.L l d)
 #endif
+-}
 
 -- ---------------------------------------------------------------------
 
@@ -1831,7 +1862,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsBracket (GHC.DecBrL ds)) = do
     markWithString GHC.AnnOpen "[d|"
     mark GHC.AnnOpenC
-    mapM_ markLocated ds
+    -- mapM_ markLocated ds
+    mapM_ markLhsDecl ds
     mark GHC.AnnCloseC
     markWithString GHC.AnnClose "|]"
   -- Introduced after the renamer
