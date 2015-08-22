@@ -252,7 +252,7 @@ wrapDeclT d@(GHC.L l s) = do
     f ans = case Map.lookup (mkAnnKey d) ans of
       Nothing -> error $ "wrapDeclT:no key found for:" ++ showGhc (mkAnnKey d,d)
       Just ann ->
-                  Map.insert (mkAnnKey (GHC.L l           s ))
+                  Map.insert (mkAnnKey (GHC.L l s))
                        ann { annEntryDelta        = DP (0,0)
                            , annPriorComments     = []
                            , annFollowingComments = []
@@ -612,10 +612,16 @@ insertBefore (GHC.getLoc -> k) = insertAt findBefore
 -- =====================================================================
 
 class (Data t) => HasDecls t where
+-- ++AZ++: TODO: consider providing modifyDecls only, as each hsDecls has to be
+-- followed by a replaceDecls (or at least mapM_ pushDeclAnnT decs)
 
     -- | Return the 'GHC.HsDecl's that are directly enclosed in the
     -- given syntax phrase. They are always returned in the wrapped 'GHC.HsDecl'
-    -- form, even if orginating in local decls.
+    -- form, even if orginating in local decls. If wrapping is required, the
+    -- annotation will be split between the original and the wrapped one. This
+    -- is undone in a @replaceDecls@ call, which must hence always be called to
+    -- uwrap the annotations again, otherwise annEntryDelta and comments will be
+    -- lost.
     hsDecls :: t -> Transform [GHC.LHsDecl GHC.RdrName]
 
     -- | Replace the directly enclosed decl list by the given
@@ -787,6 +793,7 @@ instance HasDecls [GHC.LHsBind GHC.RdrName] where
 
   replaceDecls _bs newDecls
     = do
+        mapM_ pushDeclAnnT newDecls
         return $ concatMap decl2Bind newDecls
 
 -- ---------------------------------------------------------------------
@@ -810,7 +817,7 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
                 -- only move the comment if the original where clause was empty.
                 toMove <- balanceTrailingComments (GHC.L l (GHC.ValD fn)) (last matches')
                 insertCommentBefore (mkAnnKey $ last ms) toMove (matchApiAnn GHC.AnnWhere)
-              lbs -> do
+              _lbs -> do
                 -- logDataWithAnnsTr "FunBind.replaceDecls:before:matches'" matches'
                 -- decs <- hsDecls lbs
                 -- logDataWithAnnsTr "FunBind.replaceDecls:after:decs" decs

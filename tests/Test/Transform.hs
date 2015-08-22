@@ -24,7 +24,7 @@ import Control.Monad
 import System.FilePath
 import System.IO
 import qualified Data.Map as Map
-import Data.List
+-- import Data.List
 import Data.Maybe
 
 import System.IO.Silently
@@ -768,13 +768,8 @@ rmDecl5 ans lp = do
           go (GHC.HsLet lb expr) = do
             decs <- hsDecls lb
             let dec = last decs
-            -- dp1 <- getEntryDPT (head decs)
-            -- dp2 <- getEntryDPT dec
-            -- logTr $ "edps=" ++ show (dp1,dp2)
             transferEntryDPT (head decs) dec
             pushDeclAnnT dec
-            -- dp3 <- getEntryDPT dec'
-            -- logTr $ "edps=" ++ show (dp1,dp2,dp3)
             lb' <- replaceDecls lb [dec]
             return (GHC.HsLet lb' expr)
           go x = return x
