@@ -1,6 +1,9 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Language.Haskell.GHC.ExactPrint.Types
   ( -- * Core Types
    Anns
@@ -17,14 +20,16 @@ module Language.Haskell.GHC.ExactPrint.Types
   -- * AnnKey
   , AnnKey(..)
   , mkAnnKey
+  , mkAnnKeyU
   , AnnConName(..)
   , annGetConstr
   -- * Internal Types
   , LayoutStartCol(..)
+  , declFun
 
   ) where
 
-import Data.Data (Data, Typeable, toConstr)
+import Data.Data (Data, Typeable, toConstr,cast)
 
 import qualified DynFlags       as GHC
 import qualified GHC
@@ -132,6 +137,12 @@ instance Show AnnKey where
 mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
 mkAnnKey (GHC.L l a) = AnnKey l (annGetConstr a)
 
+-- |Make an unwrapped @AnnKey@ for the @LHsDecl@ case, a normal one otherwise.
+mkAnnKeyU :: (Data a) => GHC.Located a -> AnnKey
+mkAnnKeyU ld@(GHC.L l a) =
+  case cast ld :: Maybe (GHC.LHsDecl GHC.RdrName) of
+    Just d -> declFun mkAnnKey d
+    Nothing -> mkAnnKey ld
 
 -- Holds the name of a constructor
 data AnnConName = CN { unConName :: String }
@@ -181,6 +192,27 @@ instance GHC.Outputable DeltaPos where
   ppr a     = GHC.text (show a)
 
 -- ---------------------------------------------------------------------
+
+declFun :: (forall a . Data a => GHC.Located a -> b) -> GHC.LHsDecl GHC.RdrName -> b
+declFun f (GHC.L l de) =
+  case de of
+      GHC.TyClD d       -> f (GHC.L l d)
+      GHC.InstD d       -> f (GHC.L l d)
+      GHC.DerivD d      -> f (GHC.L l d)
+      GHC.ValD d        -> f (GHC.L l d)
+      GHC.SigD d        -> f (GHC.L l d)
+      GHC.DefD d        -> f (GHC.L l d)
+      GHC.ForD d        -> f (GHC.L l d)
+      GHC.WarningD d    -> f (GHC.L l d)
+      GHC.AnnD d        -> f (GHC.L l d)
+      GHC.RuleD d       -> f (GHC.L l d)
+      GHC.VectD d       -> f (GHC.L l d)
+      GHC.SpliceD d     -> f (GHC.L l d)
+      GHC.DocD d        -> f (GHC.L l d)
+      GHC.RoleAnnotD d  -> f (GHC.L l d)
+#if __GLASGOW_HASKELL__ < 711
+      GHC.QuasiQuoteD d -> f (GHC.L l d)
+#endif
 
 
 -- ---------------------------------------------------------------------
