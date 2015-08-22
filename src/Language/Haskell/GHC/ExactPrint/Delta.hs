@@ -51,6 +51,8 @@
 module Language.Haskell.GHC.ExactPrint.Delta
   ( relativiseApiAnns
   , relativiseApiAnnsWithComments
+  , relativiseApiAnnsLhsDecl
+  , relativiseApiAnnsLhsDeclWithComments
   ) where
 
 import Control.Monad.RWS
@@ -65,7 +67,7 @@ import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Lookup
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Annotate (AnnotationF(..), Annotated
-                                                , annotate,  Annotate(..))
+                                                , annotate, annotateLHsDecl, Annotate(..))
 
 import qualified GHC
 import qualified SrcLoc         as GHC
@@ -96,6 +98,29 @@ relativiseApiAnnsWithComments ::
                   -> Anns
 relativiseApiAnnsWithComments cs modu ghcAnns
    = runDeltaWithComments cs (annotate modu) ghcAnns (ss2pos $ GHC.getLoc modu)
+-- ---------------------------------------------------------------------
+
+-- | Transform concrete annotations into relative annotations which are
+-- more useful when transforming an AST. This version is specific to a @LHsDecl@
+-- as they need to be unwrapped while annotating.
+relativiseApiAnnsLhsDecl ::
+                     GHC.LHsDecl GHC.RdrName
+                  -> GHC.ApiAnns
+                  -> Anns
+relativiseApiAnnsLhsDecl = relativiseApiAnnsLhsDeclWithComments []
+
+-- | Exactly the same as 'relativiseApiAnnsLHsDecl' but with the possibilty to
+-- inject comments. This is typically used if the source has been preprocessed
+-- by e.g. CPP, and the parts stripped out of the original source are re-added
+-- as comments so they are not lost for round tripping. This version is specific
+-- to a @LHsDecl@ as they need to be unwrapped while annotating.
+relativiseApiAnnsLhsDeclWithComments ::
+                     [Comment]
+                  -> GHC.LHsDecl GHC.RdrName
+                  -> GHC.ApiAnns
+                  -> Anns
+relativiseApiAnnsLhsDeclWithComments cs decl ghcAnns
+   = runDeltaWithComments cs (annotateLHsDecl decl) ghcAnns (ss2pos $ GHC.getLoc decl)
 
 -- ---------------------------------------------------------------------
 --

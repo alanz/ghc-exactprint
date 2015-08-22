@@ -24,9 +24,11 @@
 module Language.Haskell.GHC.ExactPrint.Annotate
        (
          annotate
+       , annotateLHsDecl
        , AnnotationF(..)
        , Annotated
-       , Annotate(..)) where
+       , Annotate(..)
+       ) where
 
 import Data.Maybe ( fromMaybe )
 #if __GLASGOW_HASKELL__ <= 710
@@ -146,6 +148,13 @@ makeFreeCon  'WithSortKey
 -- where.
 annotate :: (Annotate ast) => GHC.Located ast -> Annotated ()
 annotate = markLocated
+
+-- ---------------------------------------------------------------------
+
+-- | Construct a syntax tree which represent which KeywordIds must appear
+-- where.
+annotateLHsDecl :: GHC.LHsDecl GHC.RdrName -> Annotated ()
+annotateLHsDecl = markLHsDecl
 
 -- ---------------------------------------------------------------------
 
@@ -269,7 +278,7 @@ instance Annotate (GHC.HsModule GHC.RdrName) where
     mapM_ markLocated imps
 
     -- mapM_ markLocated decs
-    mapM_ markLhsDecl decs
+    mapM_ markLHsDecl decs
 
     mark GHC.AnnCloseC -- Possible '}'
 
@@ -499,9 +508,9 @@ instance Annotate GHC.ModuleName where
     markExternal l GHC.AnnVal (GHC.moduleNameString mname)
 
 -- instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
-markLhsDecl :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
+markLHsDecl :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
             => GHC.LHsDecl name -> Annotated ()
-markLhsDecl (GHC.L l decl) =
+markLHsDecl (GHC.L l decl) =
     case decl of
       GHC.TyClD d       -> markLocated (GHC.L l d)
       GHC.InstD d       -> markLocated (GHC.L l d)
@@ -1863,7 +1872,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markWithString GHC.AnnOpen "[d|"
     mark GHC.AnnOpenC
     -- mapM_ markLocated ds
-    mapM_ markLhsDecl ds
+    mapM_ markLHsDecl ds
     mark GHC.AnnCloseC
     markWithString GHC.AnnClose "|]"
   -- Introduced after the renamer
