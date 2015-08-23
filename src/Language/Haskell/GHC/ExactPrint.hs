@@ -17,7 +17,6 @@ module Language.Haskell.GHC.ExactPrint
         , module Language.Haskell.GHC.ExactPrint.Transform
 
         -- * Printing
-        , exactPrintWithAnns
         , exactPrint
 
         ) where
