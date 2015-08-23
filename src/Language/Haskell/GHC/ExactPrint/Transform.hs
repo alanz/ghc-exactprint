@@ -599,16 +599,12 @@ insertBefore (GHC.getLoc -> k) = insertAt findBefore
 -- =====================================================================
 
 class (Data t) => HasDecls t where
--- ++AZ++: TODO: consider providing modifyDecls only, as each hsDecls has to be
--- followed by a replaceDecls (or at least mapM_ pushDeclAnnT decs)
+-- ++AZ++: TODO: add tests to confirm that hsDecls followed by replaceDecls is idempotent
 
     -- | Return the 'GHC.HsDecl's that are directly enclosed in the
     -- given syntax phrase. They are always returned in the wrapped 'GHC.HsDecl'
-    -- form, even if orginating in local decls. If wrapping is required, the
-    -- annotation will be split between the original and the wrapped one. This
-    -- is undone in a @replaceDecls@ call, which must hence always be called to
-    -- uwrap the annotations again, otherwise annEntryDelta and comments will be
-    -- lost.
+    -- form, even if orginating in local decls. This is safe, as annotations
+    -- never attach to the wrapper, only to the wrapped item.
     hsDecls :: t -> Transform [GHC.LHsDecl GHC.RdrName]
 
     -- | Replace the directly enclosed decl list by the given
@@ -669,7 +665,7 @@ instance HasDecls [GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)] where
 -- ---------------------------------------------------------------------
 
 instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
-  hsDecls (GHC.L _ (GHC.Match _ _ _ grhs)) = hsDecls grhs
+  hsDecls d@(GHC.L _ (GHC.Match _ _ _ (GHC.GRHSs _ lb))) = orderedDecls d lb
 
   replaceDecls m@(GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds))) []
     = do
@@ -786,7 +782,7 @@ instance HasDecls [GHC.LHsBind GHC.RdrName] where
 -- ---------------------------------------------------------------------
 
 instance HasDecls (GHC.LHsBind GHC.RdrName) where
-  hsDecls d@(GHC.L _ (GHC.FunBind _ _ matches _ _ _)) = orderedDecls d matches
+  hsDecls d@(GHC.L _ (GHC.FunBind _ _ matches _ _ _)) = hsDecls matches
   hsDecls d@(GHC.L _ (GHC.PatBind _ rhs _ _ _))       = orderedDecls d rhs
   hsDecls d@(GHC.L _ (GHC.VarBind _ rhs _))           = orderedDecls d rhs
   hsDecls d@(GHC.L _ (GHC.AbsBinds _ _ _ _ binds))    = orderedDecls d binds
@@ -875,21 +871,21 @@ instance HasDecls (GHC.LHsDecl GHC.RdrName) where
 -- =====================================================================
 
 -- |Look up the annotated order and sort the decls accordingly
-orderedDecls :: (Data a,HasDecls b,GHC.Outputable a) => GHC.Located a -> b -> Transform [GHC.LHsDecl GHC.RdrName]
+orderedDecls :: (Data a,HasDecls b) => GHC.Located a -> b -> Transform [GHC.LHsDecl GHC.RdrName]
 orderedDecls parent sub = do
   decls <- hsDecls sub
-  logDataWithAnnsTr "orderedDecls:decls=" decls
+  -- logDataWithAnnsTr "orderedDecls:decls=" decls
   ans <- getAnnsT
   case getAnnotationEP parent ans of
-    Nothing -> error $ "orderedDecls:no annotation for:" ++ showGhc parent
+    Nothing -> error $ "orderedDecls:no annotation for:" ++ showAnnData emptyAnns 0 parent
     Just ann -> case annSortKey ann of
       Nothing -> do
-        logTr $ "orderedDecls:no annSortKey for:" ++ showGhc parent
+        -- logTr $ "orderedDecls:no annSortKey for:" ++ showAnnData emptyAnns 0 parent
         return decls
       Just keys -> do
         let ds = map (\s -> (GHC.getLoc s,s)) decls
             ordered = orderByKey ds keys
-        logDataWithAnnsTr "orderedDecls:ordered=" ordered
+        -- logDataWithAnnsTr "orderedDecls:ordered=" ordered
         return ordered
 
 -- ---------------------------------------------------------------------

@@ -561,6 +561,7 @@ transformHighLevelTests =
   , mkTestModChange rmDecl3 "RmDecl3.hs" "RmDecl3"
   , mkTestModChange rmDecl4 "RmDecl4.hs" "RmDecl4"
   , mkTestModChange rmDecl5 "RmDecl5.hs" "RmDecl5"
+  , mkTestModChange rmDecl6 "RmDecl6.hs" "RmDecl6"
 
   , mkTestModChange rmTypeSig1 "RmTypeSig1.hs" "RmTypeSig1"
   , mkTestModChange rmTypeSig2 "RmTypeSig2.hs" "RmTypeSig2"
@@ -775,6 +776,26 @@ rmDecl5 ans lp = do
           go x = return x
 
         SYB.everywhereM (SYB.mkM go) lp
+
+  let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  -- putStrLn $ "log:" ++ intercalate "\n" _w
+  return (ans',lp')
+
+-- ---------------------------------------------------------------------
+
+rmDecl6 :: Changer
+rmDecl6 ans lp = do
+  let
+      doRmDecl = do
+         tlDecs <- hsDecls lp
+         let [d1] = tlDecs
+
+         subDecs <- hsDecls d1
+         let (ss1:_sd1:sd2:sds) = subDecs
+         transferEntryDPT ss1 sd2
+
+         d1' <- replaceDecls d1 (sd2:sds)
+         replaceDecls lp [d1']
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   -- putStrLn $ "log:" ++ intercalate "\n" _w
