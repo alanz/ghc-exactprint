@@ -24,7 +24,6 @@
 module Language.Haskell.GHC.ExactPrint.Annotate
        (
          annotate
-       , annotateLHsDecl
        , AnnotationF(..)
        , Annotated
        , Annotate(..)
@@ -151,13 +150,6 @@ annotate = markLocated
 
 -- ---------------------------------------------------------------------
 
--- | Construct a syntax tree which represent which KeywordIds must appear
--- where.
-annotateLHsDecl :: GHC.LHsDecl GHC.RdrName -> Annotated ()
-annotateLHsDecl = markLHsDecl
-
--- ---------------------------------------------------------------------
-
 workOutString :: GHC.AnnKeywordId -> (GHC.SrcSpan -> String) -> Annotated ()
 workOutString kw f = do
   ss <- getSrcSpanForKw kw
@@ -199,7 +191,10 @@ markTrailingSemi = markOutside GHC.AnnSemi AnnSemiSep
 -- | Constructs a syntax tree which contains information about which
 -- annotations are required by each element.
 markLocated :: (Annotate ast) => GHC.Located ast -> Annotated ()
-markLocated a = withLocated a markAST
+markLocated ast =
+  case cast ast :: Maybe (GHC.LHsDecl GHC.RdrName) of
+    Just d  -> markLHsDecl d
+    Nothing -> withLocated ast markAST
 
 withLocated :: Data a
             => GHC.Located a
@@ -277,8 +272,7 @@ instance Annotate (GHC.HsModule GHC.RdrName) where
     markMany GHC.AnnSemi -- possible leading semis
     mapM_ markLocated imps
 
-    -- mapM_ markLocated decs
-    mapM_ markLHsDecl decs
+    mapM_ markLocated decs
 
     mark GHC.AnnCloseC -- Possible '}'
 
@@ -530,33 +524,9 @@ markLHsDecl (GHC.L l decl) =
       GHC.QuasiQuoteD d -> markLocated (GHC.L l d)
 #endif
 
--- instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
---   => Annotate (GHC.HsDecl name) where
---   markAST l decl = error $ "instance Annotate GHC.LHsDecl:rather use markLhsDecl"
-
-{-
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsDecl name) where
-  markAST l decl = do
-    case decl of
-      GHC.TyClD d       -> markLocated (GHC.L l d)
-      GHC.InstD d       -> markLocated (GHC.L l d)
-      GHC.DerivD d      -> markLocated (GHC.L l d)
-      GHC.ValD d        -> markLocated (GHC.L l d)
-      GHC.SigD d        -> markLocated (GHC.L l d)
-      GHC.DefD d        -> markLocated (GHC.L l d)
-      GHC.ForD d        -> markLocated (GHC.L l d)
-      GHC.WarningD d    -> markLocated (GHC.L l d)
-      GHC.AnnD d        -> markLocated (GHC.L l d)
-      GHC.RuleD d       -> markLocated (GHC.L l d)
-      GHC.VectD d       -> markLocated (GHC.L l d)
-      GHC.SpliceD d     -> markLocated (GHC.L l d)
-      GHC.DocD d        -> markLocated (GHC.L l d)
-      GHC.RoleAnnotD d  -> markLocated (GHC.L l d)
-#if __GLASGOW_HASKELL__ < 711
-      GHC.QuasiQuoteD d -> markLocated (GHC.L l d)
-#endif
--}
+  markAST _l _decl = error  "instance Annotate GHC.LHsDecl:rather use markLhsDecl"
 
 -- ---------------------------------------------------------------------
 
@@ -1871,8 +1841,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsBracket (GHC.DecBrL ds)) = do
     markWithString GHC.AnnOpen "[d|"
     mark GHC.AnnOpenC
-    -- mapM_ markLocated ds
-    mapM_ markLHsDecl ds
+    mapM_ markLocated ds
     mark GHC.AnnCloseC
     markWithString GHC.AnnClose "|]"
   -- Introduced after the renamer

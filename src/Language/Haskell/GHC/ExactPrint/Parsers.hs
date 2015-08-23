@@ -73,18 +73,6 @@ parseWith dflags fileName parser s =
     GHC.POk (mkApiAnns -> apianns) pmod -> Right (as, pmod)
       where as = relativiseApiAnns pmod apianns
 
-parseDeclWith ::
-             GHC.DynFlags
-          -> FilePath
-          -> GHC.P (GHC.LHsDecl GHC.RdrName)
-          -> String
-          -> Either (GHC.SrcSpan, String) (Anns, GHC.LHsDecl GHC.RdrName)
-parseDeclWith dflags fileName parser s =
-  case runParser parser dflags fileName s of
-    GHC.PFailed ss m                    -> Left (ss, GHC.showSDoc dflags m)
-    GHC.POk (mkApiAnns -> apianns) pmod -> Right (as, pmod)
-      where as = relativiseApiAnnsLhsDecl pmod apianns
-
 -- ---------------------------------------------------------------------
 
 runParser :: GHC.P a -> GHC.DynFlags -> FilePath -> String -> GHC.ParseResult a
@@ -133,9 +121,9 @@ parseType df fp = parseWith df fp GHC.parseType
 -- safe, see D1007
 parseDecl :: Parser (GHC.LHsDecl GHC.RdrName)
 #if __GLASGOW_HASKELL__ <= 710
-parseDecl df fp = parseDeclWith df fp (head . OL.fromOL <$> GHC.parseDeclaration)
+parseDecl df fp = parseWith df fp (head . OL.fromOL <$> GHC.parseDeclaration)
 #else
-parseDecl df fp = parseDeclWith df fp GHC.parseDeclaration
+parseDecl df fp = parseWith df fp GHC.parseDeclaration
 #endif
 
 parseStmt :: Parser (GHC.ExprLStmt GHC.RdrName)

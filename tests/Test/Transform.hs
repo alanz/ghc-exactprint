@@ -432,8 +432,8 @@ manipulateAstTest' mchange useTH file' modname = do
   contents <- case mchange of
                    Nothing                 -> readFile file
                    Just (_,expectedSuffix) -> readFile (file <.> expectedSuffix)
-  -- (ghcAnns',p,cppComments) <- hSilence [stderr] $  parsedFileGhc file modname useTH
-  (ghcAnns',p,cppComments) <-                      parsedFileGhc file modname useTH
+  (ghcAnns',p,cppComments) <- hSilence [stderr] $  parsedFileGhc file modname useTH
+  -- (ghcAnns',p,cppComments) <-                      parsedFileGhc file modname useTH
   let
     parsedOrig = GHC.pm_parsed_source $ p
     (ghcAnns,parsed) = (ghcAnns', parsedOrig)
