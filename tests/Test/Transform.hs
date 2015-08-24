@@ -151,8 +151,6 @@ changeLocalDecls ans (GHC.L l p) = do
                 let a2 = setPrecedingLines s1 2 0 a1
                 return a2
         putAnnsT a'
-        let wrapDecl (GHC.L l' w) = GHC.L l' (GHC.ValD w)
-            wrapSig (GHC.L l' w) = GHC.L l' (GHC.SigD w)
         let oldDecls = GHC.sortLocated $ map wrapDecl (GHC.bagToList binds) ++ map wrapSig sigs
         let decls = s:d:oldDecls
         -- logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)
@@ -585,7 +583,7 @@ addLocaLDecl1 ans lp = do
          decls <- hsDecls parent
          balanceComments parent (head $ tail tlDecs)
 
-         modifyAnnsT (setPrecedingLines newDecl 1 4)
+         setPrecedingLinesT newDecl 1 4
 
          parent' <- replaceDecls parent (newDecl:decls)
          replaceDecls lp (parent':tail tlDecs)
@@ -731,7 +729,7 @@ rmDecl3 ans lp = do
          subDecs <- hsDecls d1
          let [sd1] = subDecs
 
-         modifyAnnsT (setPrecedingLinesDecl sd1 2 0)
+         setPrecedingLinesDeclT sd1 2 0
          d1' <- replaceDecls d1 []
          replaceDecls lp [d1',sd1]
 
@@ -751,7 +749,7 @@ rmDecl4 ans lp = do
          let [sd1,sd2] = subDecs
          transferEntryDPT sd1 sd2
 
-         modifyAnnsT (setPrecedingLinesDecl sd1 2 0)
+         setPrecedingLinesDeclT sd1 2 0
          d1' <- replaceDecls d1 [sd2]
          replaceDecls lp [d1',sd1]
 
@@ -770,7 +768,6 @@ rmDecl5 ans lp = do
             decs <- hsDecls lb
             let dec = last decs
             transferEntryDPT (head decs) dec
-            -- pushDeclAnnT dec
             lb' <- replaceDecls lb [dec]
             return (GHC.HsLet lb' expr)
           go x = return x

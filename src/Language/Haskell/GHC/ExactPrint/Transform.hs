@@ -31,9 +31,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , getAnnsT, putAnnsT, modifyAnnsT
         , uniqueSrcSpanT
 
-        , wrapSigT,wrapDeclT
-        -- , pushDeclAnnT
-        , decl2BindT,decl2SigT
+        , wrapSig,wrapDecl
 
         , cloneT
 
@@ -85,7 +83,6 @@ import Control.Monad.RWS
 import qualified Bag           as GHC
 import qualified FastString    as GHC
 import qualified GHC           as GHC hiding (parseModule)
-import qualified Outputable    as GHC
 
 import qualified Data.Generics as SYB
 
@@ -160,9 +157,6 @@ isUniqueSrcSpan ss = srcSpanStartLine ss == -1
 
 -- ---------------------------------------------------------------------
 
--- TODO: HaRe uses a NameMap from Located RdrName to Name, for being able to
---       rename elements. Consider how to manage this in the clone.
-
 -- |Make a copy of an AST element, replacing the existing SrcSpans with new
 -- ones, and duplicating the matching annotations.
 cloneT :: (Data a,Typeable a) => a -> Transform (a, [(GHC.SrcSpan, GHC.SrcSpan)])
@@ -217,113 +211,15 @@ decl2Sig _                      = []
 
 -- ---------------------------------------------------------------------
 
--- |Convert a 'GHC.LSig' into a 'GHC.LHsDecl', duplicating the 'GHC.LSig'
--- annotation for the 'GHC.LHsDecl'. This needs to be set up so that the
--- original annotation is restored after a 'pushDeclAnnT' call.
-wrapSigT :: GHC.LSig GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
-wrapSigT d@(GHC.L l s) = do
-  -- ++AZ++:TODO: harvest the commonality between wrapSigT and wrapDeclT
-  -- let
-  --   f ans = case Map.lookup (mkAnnKey d) ans of
-  --     Nothing -> error $ "wrapDeclT:no key found for:" ++ showGhc (mkAnnKey d,d)
-  --     Just ann ->
-  --                 Map.insert (mkAnnKey (GHC.L l           s ))
-  --                      ann { annEntryDelta        = DP (0,0)
-  --                          , annPriorComments     = []
-  --                          , annFollowingComments = []
-  --                          }
-  --               $ Map.insert (mkAnnKey (GHC.L l (GHC.SigD s)))
-  --                     ann { annsDP          = []
-  --                         , annSortKey      = Nothing
-  --                         , annCapturedSpan = Nothing
-  --                         }
-  --                 ans
-  -- modifyAnnsT f
-  return (GHC.L l (GHC.SigD s))
+-- |Convert a 'GHC.LSig' into a 'GHC.LHsDecl'
+wrapSig :: GHC.LSig GHC.RdrName -> GHC.LHsDecl GHC.RdrName
+wrapSig (GHC.L l s) = GHC.L l (GHC.SigD s)
 
 -- ---------------------------------------------------------------------
 
--- |Convert a 'GHC.LHsBind' into a 'GHC.LHsDecl', splitting the 'GHC.LHsBind'
--- annotation for the 'GHC.LHsDecl'. This needs to be set up so that the
--- original annotation is restored after a 'pushDeclAnnT' call.
-wrapDeclT :: GHC.LHsBind GHC.RdrName -> Transform (GHC.LHsDecl GHC.RdrName)
-wrapDeclT d@(GHC.L l s) = do
-  -- let
-  --   f ans = case Map.lookup (mkAnnKey d) ans of
-  --     Nothing -> error $ "wrapDeclT:no key found for:" ++ showGhc (mkAnnKey d,d)
-  --     Just ann ->
-  --                 Map.insert (mkAnnKey (GHC.L l s))
-  --                      ann { annEntryDelta        = DP (0,0)
-  --                          , annPriorComments     = []
-  --                          , annFollowingComments = []
-  --                          }
-  --               $ Map.insert (mkAnnKey (GHC.L l (GHC.ValD s)))
-  --                     ann { annsDP          = []
-  --                         , annSortKey      = Nothing
-  --                         , annCapturedSpan = Nothing
-  --                         }
-  --                 ans
-  -- modifyAnnsT f
-  return (GHC.L l (GHC.ValD s))
-
--- ---------------------------------------------------------------------
-
--- |Copy the top level annotation to a new SrcSpan and the unwrapped decl. This
--- is required so that 'decl2Sig' and 'decl2Bind' will produce values that have
--- the required annotations.
-pushDeclAnnT :: GHC.LHsDecl GHC.RdrName -> Transform ()
-pushDeclAnnT ld@(GHC.L l decl) = do
-  let
-    blend ann Nothing = ann
-    blend ann (Just annl)
-      = annl { annEntryDelta        = annEntryDelta ann
-             , annPriorComments     = annPriorComments     ann  ++ annPriorComments     annl
-             , annFollowingComments = annFollowingComments annl ++ annFollowingComments ann
-            }
-    duplicateAnn d ans =
-      case Map.lookup (mkAnnKey ld) ans of
-        Nothing -> error $ "pushDeclAnnT:no key found for:" ++ show (mkAnnKey ld)
-        Just ann -> Map.insert (mkAnnKey (GHC.L l d))
-                                      (blend ann (Map.lookup (mkAnnKey (GHC.L l d)) ans))
-                                      ans
-  case decl of
-    GHC.TyClD d       -> modifyAnnsT (duplicateAnn d)
-    GHC.InstD d       -> modifyAnnsT (duplicateAnn d)
-    GHC.DerivD d      -> modifyAnnsT (duplicateAnn d)
-    GHC.ValD d        -> modifyAnnsT (duplicateAnn d)
-    GHC.SigD d        -> modifyAnnsT (duplicateAnn d)
-    GHC.DefD d        -> modifyAnnsT (duplicateAnn d)
-    GHC.ForD d        -> modifyAnnsT (duplicateAnn d)
-    GHC.WarningD d    -> modifyAnnsT (duplicateAnn d)
-    GHC.AnnD d        -> modifyAnnsT (duplicateAnn d)
-    GHC.RuleD d       -> modifyAnnsT (duplicateAnn d)
-    GHC.VectD d       -> modifyAnnsT (duplicateAnn d)
-    GHC.SpliceD d     -> modifyAnnsT (duplicateAnn d)
-    GHC.DocD d        -> modifyAnnsT (duplicateAnn d)
-    GHC.RoleAnnotD d  -> modifyAnnsT (duplicateAnn d)
-#if __GLASGOW_HASKELL__ < 711
-    GHC.QuasiQuoteD d -> modifyAnnsT (duplicateAnn d)
-#endif
-
--- ---------------------------------------------------------------------
-
--- |Unwrap a 'GHC.LHsDecl' to its underlying 'GHC.LHsBind', transferring the top
--- level annotation to a new unique 'GHC.SrcSpan' in the process.
-decl2BindT :: GHC.LHsDecl GHC.RdrName -> Transform [GHC.LHsBind GHC.RdrName]
-decl2BindT vd@(GHC.L l (GHC.ValD d)) = do
-  -- pushDeclAnnT vd
-  return [GHC.L l d]
-decl2BindT _ = return []
-
--- ---------------------------------------------------------------------
-
--- |Unwrap a 'GHC.LHsDecl' to its underlying 'GHC.LSig', transferring the top
--- level annotation to a new unique 'GHC.SrcSpan' in the process.
-decl2SigT :: GHC.LHsDecl GHC.RdrName -> Transform [GHC.LSig GHC.RdrName]
-decl2SigT vs@(GHC.L l (GHC.SigD s)) = do
-  -- pushDeclAnnT vs
-  return [GHC.L l s]
-decl2SigT _ = return []
+-- |Convert a 'GHC.LHsBind' into a 'GHC.LHsDecl'
+wrapDecl :: GHC.LHsBind GHC.RdrName -> GHC.LHsDecl GHC.RdrName
+wrapDecl (GHC.L l s) = GHC.L l (GHC.ValD s)
 
 -- ---------------------------------------------------------------------
 
@@ -724,8 +620,9 @@ instance HasDecls (GHC.GRHSs GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 instance HasDecls (GHC.HsLocalBinds GHC.RdrName) where
   hsDecls lb = case lb of
     GHC.HsValBinds (GHC.ValBindsIn bs sigs) -> do
-      bds <- mapM wrapDeclT (GHC.bagToList bs)
-      sds <- mapM wrapSigT sigs
+      let
+        bds = map wrapDecl (GHC.bagToList bs)
+        sds = map wrapSig sigs
       return (bds ++ sds)
     GHC.HsValBinds (GHC.ValBindsOut _ _) -> error $ "hsDecls.ValbindsOut not valid"
     GHC.HsIPBinds _     -> return []
@@ -733,18 +630,14 @@ instance HasDecls (GHC.HsLocalBinds GHC.RdrName) where
 
   replaceDecls (GHC.HsValBinds _b) new
     = do
-        -- mapM_ pushDeclAnnT new
-        -- logDataWithAnnsTr "HsValBinds.new:after pushDeclAnnT" new
         let decs = GHC.listToBag $ concatMap decl2Bind new
         let sigs = concatMap decl2Sig new
-        -- logDataWithAnnsTr "HsValBinds.decs:after pushDeclAnnT" decs
         return (GHC.HsValBinds (GHC.ValBindsIn decs sigs))
 
   replaceDecls (GHC.HsIPBinds _b) _new    = error "undefined replaceDecls HsIPBinds"
 
   replaceDecls (GHC.EmptyLocalBinds) new
     = do
-        -- mapM_ pushDeclAnnT new
         let newBinds = map decl2Bind new
             newSigs  = map decl2Sig  new
         let decs = GHC.listToBag $ concat newBinds
@@ -772,17 +665,16 @@ instance HasDecls (GHC.LHsBinds GHC.RdrName) where
 -- ---------------------------------------------------------------------
 
 instance HasDecls [GHC.LHsBind GHC.RdrName] where
-  hsDecls bs = mapM wrapDeclT bs
+  hsDecls bs = return $ map wrapDecl bs
 
   replaceDecls _bs newDecls
     = do
-        -- mapM_ pushDeclAnnT newDecls
         return $ concatMap decl2Bind newDecls
 
 -- ---------------------------------------------------------------------
 
 instance HasDecls (GHC.LHsBind GHC.RdrName) where
-  hsDecls d@(GHC.L _ (GHC.FunBind _ _ matches _ _ _)) = hsDecls matches
+  hsDecls   (GHC.L _ (GHC.FunBind _ _ matches _ _ _)) = hsDecls matches
   hsDecls d@(GHC.L _ (GHC.PatBind _ rhs _ _ _))       = orderedDecls d rhs
   hsDecls d@(GHC.L _ (GHC.VarBind _ rhs _))           = orderedDecls d rhs
   hsDecls d@(GHC.L _ (GHC.AbsBinds _ _ _ _ binds))    = orderedDecls d binds
