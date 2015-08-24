@@ -42,7 +42,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , addTrailingCommaT
 
         -- ** Managing declarations, in Transform monad
-        , HasTransform
+        , HasTransform (..)
         , HasDecls (..)
         , modifyDeclsT
 
