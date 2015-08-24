@@ -12,6 +12,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , pos2delta
   , ss2delta
   , addDP
+  , stepDP
   , spanLength
   , isGoodDelta
 

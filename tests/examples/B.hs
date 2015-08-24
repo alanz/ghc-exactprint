@@ -1,4 +1,5 @@
 
-foo x = case (odd x) of
-            True  -> "Odd"
-            False -> "Even"
+-- comment
+foo x = case foo x of
+          True -> False -- commen1
+          False -> True -- comment2

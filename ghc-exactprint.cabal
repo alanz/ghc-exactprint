@@ -59,7 +59,7 @@ library
 
 
   -- other-modules:
-  -- other-extensions:
+  default-extensions: TemplateHaskell
   GHC-Options:         -Wall
   build-depends:       base >=4.7 && <4.9
                      , containers >= 0.5
