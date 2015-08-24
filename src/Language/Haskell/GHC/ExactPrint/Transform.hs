@@ -31,8 +31,6 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , getAnnsT, putAnnsT, modifyAnnsT
         , uniqueSrcSpanT
 
-        , wrapSig,wrapDecl
-
         , cloneT
 
         , getEntryDPT
@@ -71,6 +69,8 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , setEntryDP
         , transferEntryDP
         , addTrailingComma
+        , wrapSig, wrapDecl
+        , decl2Sig, decl2Bind
 
         ) where
 
