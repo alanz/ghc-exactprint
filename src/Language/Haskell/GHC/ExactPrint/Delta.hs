@@ -64,6 +64,7 @@ import Data.Ord
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Lookup
 import Language.Haskell.GHC.ExactPrint.Types
+import Language.Haskell.GHC.ExactPrint.Comments
 import Language.Haskell.GHC.ExactPrint.Annotate (AnnotationF(..), Annotated
                                                 , annotate,  Annotate(..))
 
@@ -95,23 +96,22 @@ relativiseApiAnnsWithComments ::
                   -> GHC.ApiAnns
                   -> Anns
 relativiseApiAnnsWithComments cs modu ghcAnns
-   = runDeltaWithComments cs (annotate modu) ghcAnns (ss2pos $ GHC.getLoc modu)
+   = runDeltaWithComments cs modu ghcAnns (ss2pos $ GHC.getLoc modu)
 
 -- ---------------------------------------------------------------------
 --
 -- | Type used in the Delta Monad.
 type Delta a = RWS DeltaReader DeltaWriter DeltaState a
 
-runDeltaWithComments :: [Comment] -> Annotated () -> GHC.ApiAnns -> Pos -> Anns
-runDeltaWithComments cs action ga priorEnd =
+runDeltaWithComments :: Annotate ast => [Comment] -> GHC.Located ast -> GHC.ApiAnns -> Pos -> Anns
+runDeltaWithComments cs ast ga priorEnd =
   mkAnns . snd
   . (\next -> execRWS next initialDeltaReader (defaultDeltaState cs priorEnd ga))
-  . deltaInterpret $ action
+  . deltaInterpret $ (annotate ast)
   where
     mkAnns :: DeltaWriter -> Anns
-    mkAnns = f . dwAnns
-    f :: Monoid a => Endo a -> a
-    f = ($ mempty) . appEndo
+    mkAnns (DeltaWriter{dwDelayedComments, dwAnns}) =
+      balanceComments ast dwDelayedComments (appEndo dwAnns mempty)
 
 -- ---------------------------------------------------------------------
 
@@ -134,6 +134,7 @@ data DeltaWriter = DeltaWriter
        , annKds         :: ![(KeywordId, DeltaPos)]
        , sortKeys       :: !(Maybe [GHC.SrcSpan])
        , dwCapturedSpan :: !(First AnnKey)
+       , dwDelayedComments :: [Comment] -- ^ Comments to allocate afterwards
        }
 
 data DeltaState = DeltaState
@@ -194,10 +195,13 @@ tellCapturedSpan key = tell ( mempty { dwCapturedSpan = First $ Just key })
 tellKd :: (KeywordId, DeltaPos) -> Delta ()
 tellKd kd = tell (mempty { annKds = [kd] })
 
+tellDelayedComments :: [Comment] -> Delta ()
+tellDelayedComments cs = tell (mempty { dwDelayedComments = cs })
+
 instance Monoid DeltaWriter where
-  mempty = DeltaWriter mempty mempty mempty mempty
-  (DeltaWriter a b e g) `mappend` (DeltaWriter c d f h)
-    = DeltaWriter (a <> c) (b <> d) (e <> f) (g <> h)
+  mempty = DeltaWriter mempty mempty mempty mempty mempty
+  (DeltaWriter a b e g i) `mappend` (DeltaWriter c d f h j)
+    = DeltaWriter (a <> c) (b <> d) (e <> f) (g <> h) (i <> j)
 
 -----------------------------------
 -- Free Monad Interpretation code
@@ -401,13 +405,19 @@ withAST lss@(GHC.L ss _) action = do
     -- make sure all kds are relative to the start of the SrcSpan
     let spanStart = ss2pos ss
 
-    cs <- do
+    -- Store comments which are not internal so we can assoicate them
+    -- later.
+    do
       priorEndBeforeComments <- getPriorEnd
       if GHC.isGoodSrcSpan ss && priorEndBeforeComments < ss2pos ss
-        then
-          commentAllocation (priorComment spanStart) return
+        then do
+--          commentAllocation (priorComment spanStart) return
+          cs <- getUnallocatedComments
+          let (allocated,cs') = allocateComments (priorComment spanStart) cs
+          putUnallocatedComments cs'
+          tellDelayedComments allocated
         else
-          return []
+          return ()
     priorEndAfterComments <- getPriorEnd
     let edp = adjustDeltaForOffset
                 -- Use the propagated offset if one is set
@@ -422,8 +432,8 @@ withAST lss@(GHC.L ss _) action = do
     let kds = annKds w
         an = Ann
                { annEntryDelta = edp
-               , annPriorComments = cs
-               , annFollowingComments = [] -- only used in Transform and Print
+               , annPriorComments = []
+               , annFollowingComments =  [] -- only used in Transform and Print
                , annsDP     = kds
                , annSortKey = sortKeys w
                , annCapturedSpan = getFirst $ dwCapturedSpan w }

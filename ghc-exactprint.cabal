@@ -55,6 +55,7 @@ library
                      , Language.Haskell.GHC.ExactPrint.Types
                      , Language.Haskell.GHC.ExactPrint.Utils
                      , Language.Haskell.GHC.ExactPrint.Parsers
+                     , Language.Haskell.GHC.ExactPrint.Comments
 
 
   -- other-modules:

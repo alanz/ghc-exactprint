@@ -1,6 +1,7 @@
 /dist/
 /tests/examples/*.out
 /tests/examples/*.incons
+/tests/examples/*.balance
 /tests/examples/*.hi
 /tests/examples/*.hspp
 /tests/examples/*.o
