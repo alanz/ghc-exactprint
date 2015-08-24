@@ -12,7 +12,7 @@ import qualified Data.Map as Map
 import Data.Maybe
 import Debug.Trace
 
--- | We process all comments individually.
+-- |
 -- If the comment trails a node we associate it with the innermost,
 -- rightmost node which ends before it on the same line.
 --
@@ -52,72 +52,6 @@ balanceComments ast as =
                     modify (Map.adjust (\a -> a {annFollowingComments = annFollowingComments a ++ [com]}) ak)
                     return Nothing
               else return (Just com)
-
-
-
-{-
-  where processComment ::
-                       Anns
-                       -> Anns
-        -- Add in a single comment to the ast.
-        processComment c@(Comment cont cspan _) as  =
-          -- Try to find the node after which this comment lies.
-          case (traceShowId (execState (collect After c ast) Nothing)) of
-            -- When no node is found, the comment is on its own line.
-            Nothing -> undefined
-
-            -- We found the node that this comment follows.
-            -- Check whether the node is on the same line.
-            Just k@(AnnKey l _)
-              | traceShow (k, c) False -> undefined
-              -- If it's on a different line than the node, but the node has an
-              -- EOL comment, and the EOL comment and this comment are aligned,
-              -- attach this comment to the preceding node.
---              | ownLine && alignedWithPrevious -> trace "ownLine, aligned" (insertAfter k)
-
-              -- If it's on a different line than the node, look for the following node to attach it to.
-              | ownLine ->
-                  case traceShowId (execState (collect Before c ast) Nothing) of
-                    -- If we don't find a node after the comment, leave it with the previous node.
-                    Nothing   -> insertAfter k
-                    Just ak -> insertBefore k ak
-
-
-              -- If it's on the same line, insert this comment into that node.
-              | otherwise -> insertAfter k
-              where
-                ownLine = srcSpanStartLine cspan /= srcSpanEndLine l
-                -- Quadratic
-                insertBefore (AnnKey ss _) akey =
-                  let commentDelta = adjustDeltaForOffset (LayoutStartCol 1) $
-                                      ss2delta (ss2posEnd ss) (commentIdentifier c)
-                  in traceShow commentDelta (Map.adjust (\a -> a {  annEntryDelta = commentDelta `stepDP` (annEntryDelta a),
-                                            annPriorComments =
-                                              annPriorComments a ++ [(c, commentDelta)]})
-                             akey as)
-                insertAfter akey@(AnnKey ss _) =
-                  let commentDelta = ss2delta (ss2posEnd ss) (commentIdentifier c)
-                  in Map.adjust (\a -> a { annFollowingComments =
-                                          annFollowingComments a ++ [(c, commentDelta)]})
-                             akey as
-                alignedWithPrevious =
-                  case Map.lookup k as of
-                    Nothing -> False
-                    Just (Ann{..})
-                      | null annFollowingComments -> False
-                      | otherwise -> case fst $ last annFollowingComments of
-                      -- Require single line comment after the node.
-                        (Comment _ prevSpan _)  ->
-                          srcSpanStartLine prevSpan == srcSpanStartLine cspan - 1 &&
-                          srcSpanStartColumn prevSpan == srcSpanStartColumn cspan
-                        _       -> False
-
-
--}
-
-adjustDeltaForOffset :: LayoutStartCol -> DeltaPos -> DeltaPos
-adjustDeltaForOffset _colOffset              dp@(DP (0,_)) = dp -- same line
-adjustDeltaForOffset (LayoutStartCol colOffset) (DP (l,c)) = DP (l,c - colOffset)
 
 
 
@@ -163,9 +97,6 @@ testBefore old new =
 commentLocated :: ComInfoLocation -> SrcSpan -> Comment -> Bool
 commentLocated loc' ss (Comment _ c _) =
   spanTest loc' ss c
-
-
-
 
 data ComInfoLocation = Before | After deriving (Show)
 
