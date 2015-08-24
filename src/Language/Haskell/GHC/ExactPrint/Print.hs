@@ -34,7 +34,6 @@ import Data.Maybe (fromMaybe)
 
 import Control.Monad.Trans.Free
 import Control.Monad.Identity
-import Control.Monad.Writer
 
 import qualified GHC
 
@@ -238,6 +237,7 @@ exactPC ast action =
        <* mapM_ (uncurry printQueuedComment) fcomments)
       return r `debug` ("leaving exactPCfor:" ++ show (mkAnnKey ast))
 
+censorM :: (Monoid w, Monad m) => (w -> m w) -> EP w m a -> EP w m a
 censorM f m = passM (liftM (\x -> (x,f)) m)
 
 passM :: (Monoid w, Monad m) => EP w m (a, w -> m w) -> EP w m a

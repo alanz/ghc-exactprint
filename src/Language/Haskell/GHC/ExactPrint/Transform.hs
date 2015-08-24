@@ -41,8 +41,12 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , addSimpleAnnT
         , addTrailingCommaT
 
-        -- ** Managing lists, Transform monad
+        -- ** Managing declarations, in Transform monad
+        , HasTransform
         , HasDecls (..)
+        , modifyDeclsT
+
+        -- ** Managing lists, Transform monad
         , insertAtStart
         , insertAtEnd
         , insertAfter
@@ -523,6 +527,22 @@ class (Data t) => HasDecls t where
     --     nn = 2
     -- @
     replaceDecls :: t -> [GHC.LHsDecl GHC.RdrName] -> Transform t
+
+-- ---------------------------------------------------------------------
+
+class (Monad m) => (HasTransform m) where
+  liftT :: Transform a -> m a
+
+-- ---------------------------------------------------------------------
+
+-- | Apply a transformation to the decls contained in @t@
+modifyDeclsT :: (HasDecls t,HasTransform m)
+             => ([GHC.LHsDecl GHC.RdrName] -> m [GHC.LHsDecl GHC.RdrName])
+             -> t -> m t
+modifyDeclsT action t = do
+  decls <- liftT $ hsDecls t
+  decls' <- action decls
+  liftT $ replaceDecls t decls'
 
 -- ---------------------------------------------------------------------
 

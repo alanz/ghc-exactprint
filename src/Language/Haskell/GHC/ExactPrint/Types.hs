@@ -139,7 +139,7 @@ mkAnnKey (GHC.L l a) = AnnKey l (annGetConstr a)
 
 -- |Make an unwrapped @AnnKey@ for the @LHsDecl@ case, a normal one otherwise.
 mkAnnKeyU :: (Data a) => GHC.Located a -> AnnKey
-mkAnnKeyU ld@(GHC.L l a) =
+mkAnnKeyU ld =
   case cast ld :: Maybe (GHC.LHsDecl GHC.RdrName) of
     Just d -> declFun mkAnnKey d
     Nothing -> mkAnnKey ld
