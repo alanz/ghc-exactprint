@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
 module Language.Haskell.GHC.ExactPrint.Comments (balanceComments) where
 
 import qualified SrcLoc as GHC
@@ -9,6 +9,7 @@ import Language.Haskell.GHC.ExactPrint.Types
 import Control.Monad.State
 import qualified Data.Generics as SYB
 import qualified Data.Map as Map
+import Data.Maybe
 import Debug.Trace
 
 -- | We process all comments individually.
@@ -18,11 +19,45 @@ import Debug.Trace
 -- If the comment is on a new line then we associate it with the
 -- immediately following node.
 --
-balanceComments :: Data ast => GHC.Located ast -> [Comment] -> Anns -> Anns
-balanceComments ast cs as = foldr processComment as cs
+balanceComments :: Data ast => GHC.Located ast -> Anns -> Anns
+balanceComments ast as =
+  execState (SYB.everywhereM (return `SYB.ext2M` reallocate) ast) as
+  where
+    reallocate :: (Data a, Data b) => GHC.GenLocated a b -> State Anns (GHC.GenLocated a b)
+    reallocate l@(GHC.L ss body) =
+      case cast ss of
+        Nothing -> return l
+        Just newL -> do
+            let cn = CN . show . toConstr $ body
+                ak = AnnKey newL cn
+                Ann{..} = fromMaybe annNone (Map.lookup ak as)
+            newPrior <- reallocateCs annPriorComments
+            -- Alter as it may change during realloc
+            modify (Map.adjust (\a -> a {annPriorComments = newPrior}) ak )
+            return l
 
-  where processComment :: Comment
-                       -> Anns
+    reallocateCs :: [(Comment, DeltaPos)] -> State Anns [(Comment, DeltaPos)]
+    reallocateCs cs = (++ toKeep) . catMaybes <$> mapM moveComment toMove
+      where
+        (toMove, toKeep) = span (\(c, DP (l,_)) -> l == 0 && isNothing (commentOrigin c)) cs
+
+
+    moveComment :: (Comment, DeltaPos) -> State Anns (Maybe (Comment, DeltaPos))
+    moveComment com@(c,_) =
+      case execState (collect After c ast) Nothing of
+        Nothing -> return (Just com)
+        Just ak@(AnnKey ss _) ->
+          if (fst $ ss2posEnd ss) == fst (ss2pos (commentIdentifier c))
+              then do
+                    modify (Map.adjust (\a -> a {annFollowingComments = annFollowingComments a ++ [com]}) ak)
+                    return Nothing
+              else return (Just com)
+
+
+
+{-
+  where processComment ::
+                       Anns
                        -> Anns
         -- Add in a single comment to the ast.
         processComment c@(Comment cont cspan _) as  =
@@ -78,7 +113,7 @@ balanceComments ast cs as = foldr processComment as cs
                         _       -> False
 
 
-
+-}
 
 adjustDeltaForOffset :: LayoutStartCol -> DeltaPos -> DeltaPos
 adjustDeltaForOffset _colOffset              dp@(DP (0,_)) = dp -- same line
@@ -98,7 +133,6 @@ collect loc' c ast =
             let cn = CN . show . toConstr $ body
                 ak = AnnKey newL cn
             when (commentLocated loc' newL c) (do
-              traceShowM ak
               (modify (maybe (Just ak)
                             (\oldak@(AnnKey oldL _) ->
                              Just (if (test loc' oldL newL)

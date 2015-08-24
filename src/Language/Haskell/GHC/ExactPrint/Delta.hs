@@ -111,7 +111,7 @@ runDeltaWithComments cs ast ga priorEnd =
   where
     mkAnns :: DeltaWriter -> Anns
     mkAnns (DeltaWriter{dwDelayedComments, dwAnns}) =
-      balanceComments ast dwDelayedComments (appEndo dwAnns mempty)
+      balanceComments ast (appEndo dwAnns mempty)
 
 -- ---------------------------------------------------------------------
 
@@ -405,19 +405,13 @@ withAST lss@(GHC.L ss _) action = do
     -- make sure all kds are relative to the start of the SrcSpan
     let spanStart = ss2pos ss
 
-    -- Store comments which are not internal so we can assoicate them
-    -- later.
-    do
+    cs <- do
       priorEndBeforeComments <- getPriorEnd
       if GHC.isGoodSrcSpan ss && priorEndBeforeComments < ss2pos ss
         then do
---          commentAllocation (priorComment spanStart) return
-          cs <- getUnallocatedComments
-          let (allocated,cs') = allocateComments (priorComment spanStart) cs
-          putUnallocatedComments cs'
-          tellDelayedComments allocated
+          commentAllocation (priorComment spanStart) return
         else
-          return ()
+          return []
     priorEndAfterComments <- getPriorEnd
     let edp = adjustDeltaForOffset
                 -- Use the propagated offset if one is set
@@ -432,7 +426,7 @@ withAST lss@(GHC.L ss _) action = do
     let kds = annKds w
         an = Ann
                { annEntryDelta = edp
-               , annPriorComments = []
+               , annPriorComments = cs
                , annFollowingComments =  [] -- only used in Transform and Print
                , annsDP     = kds
                , annSortKey = sortKeys w
