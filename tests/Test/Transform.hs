@@ -705,11 +705,11 @@ rmDecl2 ans lp = do
   let
       doRmDecl = do
         let
-          go :: GHC.HsExpr GHC.RdrName -> Transform (GHC.HsExpr GHC.RdrName)
-          go (GHC.HsLet lb expr) = do
-            decs <- hsDecls lb
-            lb' <- replaceDecls lb (init decs)
-            return (GHC.HsLet lb' expr)
+          go :: GHC.LHsExpr GHC.RdrName -> Transform (GHC.LHsExpr GHC.RdrName)
+          go e@(GHC.L _ (GHC.HsLet{})) = do
+            decs <- hsDecls e
+            e' <- replaceDecls e (init decs)
+            return e'
           go x = return x
 
         SYB.everywhereM (SYB.mkM go) lp
