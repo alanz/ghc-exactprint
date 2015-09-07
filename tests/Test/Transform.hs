@@ -24,7 +24,7 @@ import Control.Monad
 import System.FilePath
 import System.IO
 import qualified Data.Map as Map
--- import Data.List
+import Data.List
 import Data.Maybe
 
 import System.IO.Silently
@@ -553,6 +553,7 @@ transformHighLevelTests =
   , mkTestModChange addLocaLDecl2  "AddLocalDecl2.hs"  "AddLocalDecl2"
   , mkTestModChange addLocaLDecl3  "AddLocalDecl3.hs"  "AddLocalDecl3"
   , mkTestModChange addLocaLDecl4  "AddLocalDecl4.hs"  "AddLocalDecl4"
+  , mkTestModChange addLocaLDecl5  "AddLocalDecl5.hs"  "AddLocalDecl5"
 
   , mkTestModChange rmDecl1 "RmDecl1.hs" "RmDecl1"
   , mkTestModChange rmDecl2 "RmDecl2.hs" "RmDecl2"
@@ -676,6 +677,25 @@ addLocaLDecl4 ans lp = do
 
 -- ---------------------------------------------------------------------
 
+addLocaLDecl5 :: Changer
+addLocaLDecl5 ans lp = do
+  let
+      doAddLocal = do
+         [s1,d1,d2,d3] <- hsDecls lp
+         decls <- hsDecls d1
+
+         transferEntryDPT d2 d3
+
+         d1' <- replaceDecls d1 [d2]
+         replaceDecls lp [s1,d1',d3]
+
+  let (lp',(ans',_),_w) = runTransform ans doAddLocal
+  -- putStrLn $ "log\n" ++ intercalate "\n" _w
+  return (ans',lp')
+  -- return (ans,lp)
+
+-- ---------------------------------------------------------------------
+
 rmDecl1 :: Changer
 rmDecl1 ans lp = do
   let doRmDecl = do
@@ -686,13 +706,15 @@ rmDecl1 ans lp = do
          balanceComments s1 d2 -- ++AZ++
          balanceComments d2 (head ds)
          lp1 <- replaceDecls lp (d1:s1:ds)
+         -- return lp1
 
          -- Then delete the sig separately
          tlDecs1 <- hsDecls lp1
          let (d1':s1':ds') = tlDecs1
-         transferEntryDPT s1' (head ds')  -- required in HaRe.
+         -- transferEntryDPT s1' (head ds')  -- required in HaRe.
          balanceComments d1' s1'
          balanceComments s1' (head ds')
+         transferEntryDPT s1' (head ds')  -- required in HaRe.
          replaceDecls lp (d1':ds')
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl

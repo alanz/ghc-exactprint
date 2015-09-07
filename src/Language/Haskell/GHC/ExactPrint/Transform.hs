@@ -306,11 +306,7 @@ setPrecedingLinesDecl ld n c ans = setPrecedingLines ld n c ans
 
 -- | Adjust the entry annotations to provide an `n` line preceding gap
 setPrecedingLines :: (SYB.Data a) => GHC.Located a -> Int -> Int -> Anns -> Anns
-setPrecedingLines ast n c anne =
-  Map.alter go (mkAnnKeyU ast) anne
-  where
-    go Nothing  = Just (annNone { annEntryDelta = DP (n, c) })
-    go (Just a) = Just (a       { annEntryDelta = DP (n, c) })
+setPrecedingLines ast n c anne = setEntryDP ast (DP (n,c)) anne
 
 -- ---------------------------------------------------------------------
 
@@ -330,12 +326,26 @@ setEntryDP :: (Data a) => GHC.Located a -> DeltaPos -> Anns -> Anns
 setEntryDP ast dp anns =
   case Map.lookup (mkAnnKeyU ast) anns of
     Nothing  -> Map.insert (mkAnnKeyU ast) (annNone { annEntryDelta = dp}) anns
-    Just ann -> Map.insert (mkAnnKeyU ast) (ann     { annEntryDelta = annCommentEntryDelta ann dp}) anns
+    Just ann -> Map.insert (mkAnnKeyU ast) (ann'    { annEntryDelta = annCommentEntryDelta ann' dp}) anns
+      where
+        ann' = setCommentEntryDP ann dp
+
+-- ---------------------------------------------------------------------
+
+-- |When setting an entryDP, the leading comment needs to be adjusted too
+setCommentEntryDP :: Annotation -> DeltaPos -> Annotation
+-- setCommentEntryDP ann dp = error $ "setCommentEntryDP:ann'=" ++ show ann'
+setCommentEntryDP ann dp = ann'
+  where
+    ann' = case (annPriorComments ann) of
+      [] -> ann
+      [(pc,_)]     -> ann { annPriorComments = [(pc,dp)] }
+      ((pc,_):pcs) -> ann { annPriorComments = ((pc,dp):pcs) }
 
 -- ---------------------------------------------------------------------
 
 -- |Take the annEntryDelta associated with the first item and associate it with the second.
--- Also transfer the AnnSpanEntry value, and any comments occuring before it.
+-- Also transfer any comments occuring before it.
 transferEntryDP :: (SYB.Data a, SYB.Data b) => GHC.Located a -> GHC.Located b -> Anns -> Anns
 transferEntryDP a b anns = (const anns2) anns
   where
@@ -352,7 +362,7 @@ transferEntryDP a b anns = (const anns2) anns
             , annSortKey           = annSortKey      anB
             , annCapturedSpan      = annCapturedSpan anB
             }
-      return ((Map.insert (mkAnnKeyU b) anB' anns),annEntryDelta anA)
+      return ((Map.insert (mkAnnKeyU b) anB' anns),annLeadingCommentEntryDelta anA)
     (anns',dp) = fromMaybe
                   (error $ "transferEntryDP: lookup failed (a,b)=" ++ show (mkAnnKeyU a,mkAnnKeyU b))
                   maybeAnns

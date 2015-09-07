@@ -36,6 +36,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , getAnnotationEP
   , annTrueEntryDelta
   , annCommentEntryDelta
+  , annLeadingCommentEntryDelta
 
   -- * General Utility
   , orderByKey
@@ -153,21 +154,26 @@ addDP (DP (a, b)) (DP (c, d)) =
 -- invariant : if c = a `addDP` b
 --             then a `stepDP` c == b
 --
--- Cases where first DP is < than second
+-- Cases where first DP is <= than second
 -- > DP (0, 1) `addDP` DP (0, 2) == DP (0, 1)
 -- > DP (1, 1) `addDP` DP (2, 0) == DP (1, 0)
 -- > DP (1, 3) `addDP` DP (1, 4) == DP (0, 1)
+-- > DP (1, 4) `addDP` DP (1, 4) == DP (1, 4)
 --
--- Cases where first DP is < than second
--- > DP (0, 3) `addDP` DP (0, 2) == DP (0,1)  -- advance one at least
--- > DP (3, 3) `addDP` DP (2, 4) == DP (1, 4) -- go one line forward and to expected col
--- > DP (3, 3) `addDP` DP (0, 4) == DP (0, 1) -- maintain col delta at least
+-- Cases where first DP is > than second
+-- > DP (0,  3) `addDP` DP (0, 2) == DP (0,1)  -- advance one at least
+-- > DP (3,  3) `addDP` DP (2, 4) == DP (1, 4) -- go one line forward and to expected col
+-- > DP (3,  3) `addDP` DP (0, 4) == DP (0, 1) -- maintain col delta at least
+-- > DP (1, 21) `addDP` DP (1, 4) == DP (1, 4) -- go one line forward and to expected col
 stepDP :: DeltaPos -> DeltaPos -> DeltaPos
 stepDP (DP (a,b)) (DP (c,d))
-  | (a,b) == (0,0) && (c,d) == (0,0) = DP (0,0)
+  -- | (a,b) == (0,0) && (c,d) == (0,0) = DP (0,0)
+  | (a,b) == (c,d) = DP (a,b)
   | a == c = if b < d then DP (0,d - b)
                       else if d == 0
-                             then DP (1,0) else DP (0,1)
+                             then DP (1,0)
+                             -- else DP (0,1)
+                             else DP (c,d)
   | a < c = DP (c - a,d)
   | otherwise = DP (1,d)
 
@@ -276,6 +282,14 @@ annCommentEntryDelta Ann{annPriorComments} trueDP = dp
     commentDP =
       foldr addDP (DP (0,0)) (map (\(a, b) -> addDP b (dpFromString $ commentContents a)) annPriorComments )
     dp = stepDP commentDP trueDP
+
+-- | Return the DP of the first item that generates output, either a comment or the entry DP
+annLeadingCommentEntryDelta :: Annotation -> DeltaPos
+annLeadingCommentEntryDelta Ann{annPriorComments,annEntryDelta} = dp
+  where
+    dp = case annPriorComments of
+      [] -> annEntryDelta
+      ((_,ed):_) -> ed
 
 -- | Calculates the distance from the start of a string to the end of
 -- a string.
