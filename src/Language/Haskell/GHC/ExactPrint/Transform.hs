@@ -678,9 +678,10 @@ instance HasDecls (GHC.LHsExpr GHC.RdrName) where
   hsDecls (GHC.L _ (GHC.HsLet decls _ex)) = hsDecls decls
   hsDecls _                               = return []
 
-  replaceDecls (GHC.L l (GHC.HsLet decls ex)) newDecls
+  replaceDecls e@(GHC.L l (GHC.HsLet decls ex)) newDecls
     = do
         logTr "replaceDecls HsLet"
+        modifyAnnsT (captureOrder e newDecls)
         decls' <- replaceDecls decls newDecls
         return (GHC.L l (GHC.HsLet decls' ex))
   replaceDecls (GHC.L l (GHC.HsPar e)) newDecls
