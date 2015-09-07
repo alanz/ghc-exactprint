@@ -550,6 +550,7 @@ instance HasDecls GHC.ParsedSource where
   hsDecls (GHC.L _ (GHC.HsModule _mn _exps _imps decls _ _)) = return decls
   replaceDecls m@(GHC.L l (GHC.HsModule mn exps imps _decls deps haddocks)) decls
     = do
+        logTr "replaceDecls LHsModule"
         modifyAnnsT (captureOrder m decls)
         return (GHC.L l (GHC.HsModule mn exps imps decls deps haddocks))
 
@@ -560,6 +561,7 @@ instance HasDecls (GHC.MatchGroup GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 
   replaceDecls (GHC.MG matches a r o) newDecls
     = do
+        logTr "replaceDecls MatchGroup"
         matches' <- replaceDecls matches newDecls
         return (GHC.MG matches' a r o)
 
@@ -573,6 +575,7 @@ instance HasDecls [GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)] where
   replaceDecls [] _        = error "empty match list in replaceDecls [GHC.LMatch GHC.Name]"
   replaceDecls ms newDecls
     = do
+        logTr "replaceDecls [LMatch]"
         -- ++AZ++: TODO: this one looks dodgy
         m' <- replaceDecls (ghead "replaceDecls" ms) newDecls
         -- logDataWithAnnsTr "[Match].replaceDecls:m'" m'
@@ -585,6 +588,7 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 
   replaceDecls m@(GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds))) []
     = do
+        logTr "replaceDecls LMatch"
         let
           noWhere (G GHC.AnnWhere,_) = False
           noWhere _                  = True
@@ -603,6 +607,7 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 
   replaceDecls m@(GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds))) newBinds
     = do
+        logTr "replaceDecls LMatch"
         -- Need to throw in a fresh where clause if the binds were empty,
         -- in the annotations.
         case binds of
@@ -632,6 +637,7 @@ instance HasDecls (GHC.GRHSs GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 
   replaceDecls (GHC.GRHSs rhss b) new
     = do
+        logTr "replaceDecls GRHSs"
         b' <- replaceDecls b new
         return (GHC.GRHSs rhss b')
 
@@ -650,6 +656,7 @@ instance HasDecls (GHC.HsLocalBinds GHC.RdrName) where
 
   replaceDecls (GHC.HsValBinds _b) new
     = do
+        logTr "replaceDecls HsLocalBinds"
         let decs = GHC.listToBag $ concatMap decl2Bind new
         let sigs = concatMap decl2Sig new
         return (GHC.HsValBinds (GHC.ValBindsIn decs sigs))
@@ -658,6 +665,7 @@ instance HasDecls (GHC.HsLocalBinds GHC.RdrName) where
 
   replaceDecls (GHC.EmptyLocalBinds) new
     = do
+        logTr "replaceDecls HsLocalBinds"
         let newBinds = map decl2Bind new
             newSigs  = map decl2Sig  new
         let decs = GHC.listToBag $ concat newBinds
@@ -672,8 +680,14 @@ instance HasDecls (GHC.LHsExpr GHC.RdrName) where
 
   replaceDecls (GHC.L l (GHC.HsLet decls ex)) newDecls
     = do
+        logTr "replaceDecls HsLet"
         decls' <- replaceDecls decls newDecls
         return (GHC.L l (GHC.HsLet decls' ex))
+  replaceDecls (GHC.L l (GHC.HsPar e)) newDecls
+    = do
+        logTr "replaceDecls HsPar"
+        e' <- replaceDecls e newDecls
+        return (GHC.L l (GHC.HsPar e'))
   replaceDecls old _new = error $ "replaceDecls (GHC.LHsExpr GHC.RdrName) undefined for:" ++ showGhc old
 
 -- ---------------------------------------------------------------------
@@ -689,6 +703,7 @@ instance HasDecls [GHC.LHsBind GHC.RdrName] where
 
   replaceDecls _bs newDecls
     = do
+        logTr "replaceDecls [LHsBind]"
         return $ concatMap decl2Bind newDecls
 
 -- ---------------------------------------------------------------------
@@ -703,6 +718,7 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
 
   replaceDecls (GHC.L l fn@(GHC.FunBind a b (GHC.MG matches f g h) c d e)) newDecls
     = do
+        logTr "replaceDecls FundBind"
         matches' <- replaceDecls matches newDecls
         case matches' of
           [] -> return () -- Should be impossible
@@ -723,6 +739,7 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
 
   replaceDecls (GHC.L l (GHC.PatBind a rhs b c d)) newDecls
     = do
+        logTr "replaceDecls PatBind"
         rhs' <- replaceDecls rhs newDecls
         return (GHC.L l (GHC.PatBind a rhs' b c d))
   replaceDecls (GHC.L l (GHC.VarBind a rhs b)) newDecls
