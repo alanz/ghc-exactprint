@@ -394,8 +394,8 @@ removeTrailingComma a anns =
     Nothing -> anns
     Just an ->
       case find isAnnComma (annsDP an) of
-        Nothing -> Map.insert (mkAnnKeyU a) (an { annsDP = filter (not.isAnnComma) (annsDP an) }) anns
-        Just _  -> anns
+        Nothing -> anns
+        Just _  -> Map.insert (mkAnnKeyU a) (an { annsDP = filter (not.isAnnComma) (annsDP an) }) anns
       where
         isAnnComma (G GHC.AnnComma,_) = True
         isAnnComma _                  = False
