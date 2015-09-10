@@ -40,6 +40,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , setPrecedingLinesT
         , addSimpleAnnT
         , addTrailingCommaT
+        , removeTrailingCommaT
 
         -- ** Managing declarations, in Transform monad
         , HasTransform (..)
@@ -245,6 +246,13 @@ addTrailingCommaT ast = do
 
 -- ---------------------------------------------------------------------
 
+-- |Remove a trailing comma annotation, if there is one one
+removeTrailingCommaT :: (Data a) => GHC.Located a -> Transform ()
+removeTrailingCommaT ast = do
+  modifyAnnsT (removeTrailingComma ast)
+
+-- ---------------------------------------------------------------------
+
 -- |'Transform' monad version of 'getEntryDP'
 getEntryDPT :: (Data a) => GHC.Located a -> Transform DeltaPos
 getEntryDPT ast = do
@@ -294,13 +302,9 @@ mergeAnnList (x:xs) = foldr mergeAnns x xs
 -- ---------------------------------------------------------------------
 
 -- |Unwrap a HsDecl and call setPrecedingLines on it
+-- ++AZ++ TODO: get rid of this, it is a synonym only
 setPrecedingLinesDecl :: GHC.LHsDecl GHC.RdrName -> Int -> Int -> Anns -> Anns
 setPrecedingLinesDecl ld n c ans = setPrecedingLines ld n c ans
-  -- declFun (\a -> setPrecedingLines a n c ans') ld
-  -- where
-  --   ans' = case Map.lookup (mkAnnKey ld) ans of
-  --     Nothing -> Map.insert (mkAnnKey ld) annNone                         ans
-  --     Just an -> Map.insert (mkAnnKey ld) (an {annEntryDelta = DP (0,0)}) ans
 
 -- ---------------------------------------------------------------------
 
@@ -377,6 +381,20 @@ addTrailingComma a dp anns =
     Just an ->
       case find isAnnComma (annsDP an) of
         Nothing -> Map.insert (mkAnnKeyU a) (an { annsDP = annsDP an ++ [(G GHC.AnnComma,dp)]}) anns
+        Just _  -> anns
+      where
+        isAnnComma (G GHC.AnnComma,_) = True
+        isAnnComma _                  = False
+
+-- ---------------------------------------------------------------------
+
+removeTrailingComma :: (SYB.Data a) => GHC.Located a -> Anns -> Anns
+removeTrailingComma a anns =
+  case Map.lookup (mkAnnKeyU a) anns of
+    Nothing -> anns
+    Just an ->
+      case find isAnnComma (annsDP an) of
+        Nothing -> Map.insert (mkAnnKeyU a) (an { annsDP = filter (not.isAnnComma) (annsDP an) }) anns
         Just _  -> anns
       where
         isAnnComma (G GHC.AnnComma,_) = True

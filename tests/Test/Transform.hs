@@ -24,7 +24,7 @@ import Control.Monad
 import System.FilePath
 import System.IO
 import qualified Data.Map as Map
-import Data.List
+-- import Data.List
 import Data.Maybe
 
 import System.IO.Silently
@@ -561,6 +561,7 @@ transformHighLevelTests =
   , mkTestModChange rmDecl4 "RmDecl4.hs" "RmDecl4"
   , mkTestModChange rmDecl5 "RmDecl5.hs" "RmDecl5"
   , mkTestModChange rmDecl6 "RmDecl6.hs" "RmDecl6"
+  , mkTestModChange rmDecl7 "RmDecl7.hs" "RmDecl7"
 
   , mkTestModChange rmTypeSig1 "RmTypeSig1.hs" "RmTypeSig1"
   , mkTestModChange rmTypeSig2 "RmTypeSig2.hs" "RmTypeSig2"
@@ -682,7 +683,6 @@ addLocaLDecl5 ans lp = do
   let
       doAddLocal = do
          [s1,d1,d2,d3] <- hsDecls lp
-         decls <- hsDecls d1
 
          transferEntryDPT d2 d3
 
@@ -815,6 +815,26 @@ rmDecl6 ans lp = do
 
          d1' <- replaceDecls d1 (sd2:sds)
          replaceDecls lp [d1']
+
+  let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  -- putStrLn $ "log:" ++ intercalate "\n" _w
+  return (ans',lp')
+
+-- ---------------------------------------------------------------------
+
+rmDecl7 :: Changer
+rmDecl7 ans lp = do
+  let
+      doRmDecl = do
+         tlDecs <- hsDecls lp
+         let [s1,d1,d2,d3] = tlDecs
+
+         balanceComments d1 d2
+         balanceComments d2 d3
+
+         transferEntryDPT d2 d3
+
+         replaceDecls lp [s1,d1,d3]
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   -- putStrLn $ "log:" ++ intercalate "\n" _w
