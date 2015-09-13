@@ -766,11 +766,48 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
         -- logDataWithAnnsTr "FunBind.replaceDecls:matches'" matches'
         return (GHC.L l (GHC.FunBind a b (GHC.MG matches' f g h) c d e))
 
-  replaceDecls (GHC.L l (GHC.PatBind a rhs b c d)) newDecls
+  replaceDecls p@(GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds) b c d)) []
     = do
         logTr "replaceDecls PatBind"
-        rhs' <- replaceDecls rhs newDecls
-        return (GHC.L l (GHC.PatBind a rhs' b c d))
+        let
+          noWhere (G GHC.AnnWhere,_) = False
+          noWhere _                  = True
+
+          removeWhere mkds =
+            case Map.lookup (mkAnnKeyU p) mkds of
+              Nothing -> error "wtf"
+              Just ann -> Map.insert (mkAnnKeyU p) ann1 mkds
+                where
+                  ann1 = ann { annsDP = filter noWhere (annsDP ann)
+                                 }
+        modifyAnnsT removeWhere
+
+        binds' <- replaceDecls binds []
+        return (GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds') b c d))
+  replaceDecls p@(GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds) b c d)) newDecls
+    = do
+        logTr "replaceDecls PatBind"
+        -- Need to throw in a fresh where clause if the binds were empty,
+        -- in the annotations.
+        case binds of
+          GHC.EmptyLocalBinds -> do
+            let
+              addWhere mkds =
+                case Map.lookup (mkAnnKeyU p) mkds of
+                  Nothing -> error "wtf"
+                  Just ann -> Map.insert (mkAnnKeyU p) ann1 mkds
+                    where
+                      ann1 = ann { annsDP = annsDP ann ++ [(G GHC.AnnWhere,DP (1,2))]
+                                 }
+            modifyAnnsT addWhere
+            modifyAnnsT (setPrecedingLines (ghead "LMatch.replaceDecls" newDecls) 1 4)
+
+          _ -> return ()
+
+        modifyAnnsT (captureOrderAnnKey (mkAnnKeyU p) newDecls)
+        binds' <- replaceDecls binds newDecls
+        return (GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds') b c d))
+
   replaceDecls (GHC.L l (GHC.VarBind a rhs b)) newDecls
     = do
         rhs' <- replaceDecls rhs newDecls
@@ -783,29 +820,30 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
 
 -- ---------------------------------------------------------------------
 
-instance HasDecls (GHC.Stmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
-  hsDecls (GHC.LetStmt lb)          = hsDecls lb
-  hsDecls (GHC.LastStmt e _)        = hsDecls e
-  hsDecls (GHC.BindStmt _pat e _ _) = hsDecls e
-  hsDecls (GHC.BodyStmt e _ _ _)    = hsDecls e
-  hsDecls _                         = return []
+instance HasDecls (GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
+  hsDecls (GHC.L _ (GHC.LetStmt lb))          = hsDecls lb
+  hsDecls (GHC.L _ (GHC.LastStmt e _))        = hsDecls e
+  hsDecls (GHC.L _ (GHC.BindStmt _pat e _ _)) = hsDecls e
+  hsDecls (GHC.L _ (GHC.BodyStmt e _ _ _))    = hsDecls e
+  hsDecls _                                   = return []
 
-  replaceDecls (GHC.LetStmt lb) newDecls
+  replaceDecls s@(GHC.L l (GHC.LetStmt lb)) newDecls
     = do
-      lb' <- replaceDecls lb newDecls
-      return (GHC.LetStmt lb')
-  replaceDecls (GHC.LastStmt e se) newDecls
+        modifyAnnsT (captureOrder s newDecls)
+        lb' <- replaceDecls lb newDecls
+        return (GHC.L l (GHC.LetStmt lb'))
+  replaceDecls (GHC.L l (GHC.LastStmt e se)) newDecls
     = do
         e' <- replaceDecls e newDecls
-        return (GHC.LastStmt e' se)
-  replaceDecls (GHC.BindStmt pat e a b) newDecls
+        return (GHC.L l (GHC.LastStmt e' se))
+  replaceDecls (GHC.L l (GHC.BindStmt pat e a b)) newDecls
     = do
       e' <- replaceDecls e newDecls
-      return (GHC.BindStmt pat e' a b)
-  replaceDecls (GHC.BodyStmt e a b c) newDecls
+      return (GHC.L l (GHC.BindStmt pat e' a b))
+  replaceDecls (GHC.L l (GHC.BodyStmt e a b c)) newDecls
     = do
       e' <- replaceDecls e newDecls
-      return (GHC.BodyStmt e' a b c)
+      return (GHC.L l (GHC.BodyStmt e' a b c))
   replaceDecls x _newDecls = return x
 
 -- ---------------------------------------------------------------------
