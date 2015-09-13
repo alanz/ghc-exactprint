@@ -477,7 +477,7 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFnameMod rmDecl5       "RmDecl5.hs"       "RmDecl5"
     -- , manipulateAstTestWFname "RmDecl5.hs"                        "RmDecl5"
     -- , manipulateAstTestWFnameMod rmDecl6       "RmDecl6.hs"       "RmDecl6"
-    , manipulateAstTestWFnameMod rmDecl7       "RmDecl7.hs"       "RmDecl7"
+    -- , manipulateAstTestWFnameMod rmDecl7       "RmDecl7.hs"       "RmDecl7"
     -- , manipulateAstTestWFname "TypeSignature.hs"                  "TypeSignature"
     -- , manipulateAstTestWFnameMod rmTypeSig1    "RmTypeSig1.hs"    "RmTypeSig1"
     -- , manipulateAstTestWFnameMod rmTypeSig2    "RmTypeSig2.hs"    "RmTypeSig2"
@@ -487,6 +487,7 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFnameMod cloneDecl1    "CloneDecl1.hs"    "CloneDecl1"
     -- , manipulateAstTestWFname "SimpleDo.hs"                      "Main"
     -- , manipulateAstTestWFnameMod addLocaLDecl5 "AddLocalDecl5.hs" "AddLocaLDecl5"
+    , manipulateAstTestWFnameMod changeRename2    "Rename2.hs"  "Main"
     {-
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
     , manipulateAstTestWFname "Foo.hs"                   "Main"

@@ -48,6 +48,7 @@ transformLowLevelTests = [
   , mkTestModChange changeLayoutLet3  "LayoutLet3.hs"  "LayoutLet3"
   , mkTestModChange changeLayoutLet3  "LayoutLet4.hs"  "LayoutLet4"
   , mkTestModChange changeRename1     "Rename1.hs"     "Main"
+  , mkTestModChange changeRename2     "Rename2.hs"     "Main"
   , mkTestModChange changeLayoutIn1   "LayoutIn1.hs"   "LayoutIn1"
   , mkTestModChange changeLayoutIn3   "LayoutIn3.hs"   "LayoutIn3"
   , mkTestModChange changeLayoutIn3   "LayoutIn3a.hs"  "LayoutIn3a"
@@ -322,6 +323,9 @@ changeLayoutIn1 ans parsed = return (ans,rename "square" [((7,17),(7,19)),((7,24
 
 changeRename1 :: Changer
 changeRename1 ans parsed = return (ans,rename "bar2" [((3,1),(3,4))] parsed)
+
+changeRename2 :: Changer
+changeRename2 ans parsed = return (ans,rename "joe" [((2,1),(2,5))] parsed)
 
 changeLayoutLet3 :: Changer
 changeLayoutLet3 ans parsed = return (ans,rename "xxxlonger" [((7,5),(7,8)),((9,14),(9,17))] parsed)
