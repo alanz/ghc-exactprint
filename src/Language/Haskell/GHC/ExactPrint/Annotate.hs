@@ -1670,11 +1670,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
                       else markWithString GHC.AnnClose "#)"
 
 
-  -- We set the layout for HsCase and HsIf even though they need not obey
-  -- layout rules as when moving these expressions it's useful that they
-  -- maintain "internal integrity", that is to say the subparts remain
-  -- indented relative to each other.
-  markAST l (GHC.HsCase e1 matches) = setLayoutFlag $ do
+  markAST l (GHC.HsCase e1 matches) = do
     mark GHC.AnnCase
     markLocated e1
     mark GHC.AnnOf
@@ -1683,6 +1679,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markMatchGroup l matches
     mark GHC.AnnCloseC
 
+  -- We set the layout for HsIf even though it need not obey layout rules as
+  -- when moving these expressions it's useful that they maintain "internal
+  -- integrity", that is to say the subparts remain indented relative to each
+  -- other.
   markAST _ (GHC.HsIf _ e1 e2 e3) = setLayoutFlag $ do
     mark GHC.AnnIf
     markLocated e1
