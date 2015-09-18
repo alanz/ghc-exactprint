@@ -358,8 +358,6 @@ transferEntryDP a b anns = (const anns2) anns
       anB <- Map.lookup (mkAnnKeyU b) anns
       let anB'  = Ann
             { annEntryDelta        = DP (0,0) -- Need to adjust for comments after
-            -- , annPriorComments     = annPriorComments     anA ++ annPriorComments     anB
-            -- , annFollowingComments = annFollowingComments anA ++ annFollowingComments anB
             , annPriorComments     = annPriorComments     anB
             , annFollowingComments = annFollowingComments anB
             , annsDP               = annsDP          anB
@@ -444,16 +442,10 @@ balanceTrailingComments first second = do
         cs1f = annFollowingComments an1
         (move,stay) = break p cs1f
         an1' = an1 { annFollowingComments = stay }
-        an2' = an2 -- { annPriorComments = move ++ cs2b }
-        -- an1' = an1 { annFollowingComments = [] }
-        -- an2' = an2 { annPriorComments = cs1f ++ cs2b }
-        ans' = Map.insert k1 an1' $ Map.insert k2 an2' ans
-        -- ans' = error $ "balanceTrailingComments:(k1,k2)=" ++ showGhc (k1,k2)
-        -- ans' = error $ "balanceTrailingComments:(cs1b,cs1f,cs2b,annFollowingComments an2)=" ++ showGhc (cs1b,cs1f,cs2b,annFollowingComments an2)
+        ans' = Map.insert k1 an1' $ Map.insert k2 an2 ans
 
     simpleBreak (_,DP (r,_c)) = r > 0
 
-  -- modifyAnnsT (modifyKeywordDeltas (moveComments simpleBreak))
   ans <- getAnnsT
   let (ans',mov) = moveComments simpleBreak ans
   putAnnsT ans'
@@ -558,22 +550,6 @@ class (Data t) => HasDecls t where
 
 -- ---------------------------------------------------------------------
 
-class (Monad m) => (HasTransform m) where
-  liftT :: Transform a -> m a
-
--- ---------------------------------------------------------------------
-
--- | Apply a transformation to the decls contained in @t@
-modifyDeclsT :: (HasDecls t,HasTransform m)
-             => ([GHC.LHsDecl GHC.RdrName] -> m [GHC.LHsDecl GHC.RdrName])
-             -> t -> m t
-modifyDeclsT action t = do
-  decls <- liftT $ hsDecls t
-  decls' <- action decls
-  liftT $ replaceDecls t decls'
-
--- ---------------------------------------------------------------------
-
 instance HasDecls GHC.ParsedSource where
   hsDecls (GHC.L _ (GHC.HsModule _mn _exps _imps decls _ _)) = return decls
   replaceDecls m@(GHC.L l (GHC.HsModule mn exps imps _decls deps haddocks)) decls
@@ -660,17 +636,6 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 
 -- ---------------------------------------------------------------------
 
-instance HasDecls (GHC.GRHSs GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
-  hsDecls (GHC.GRHSs _ lb) = hsDecls lb
-
-  replaceDecls (GHC.GRHSs rhss b) new
-    = do
-        logTr "replaceDecls GRHSs"
-        b' <- replaceDecls b new
-        return (GHC.GRHSs rhss b')
-
--- ---------------------------------------------------------------------
-
 instance HasDecls (GHC.HsLocalBinds GHC.RdrName) where
   hsDecls lb = case lb of
     GHC.HsValBinds (GHC.ValBindsIn bs sigs) -> do
@@ -721,12 +686,6 @@ instance HasDecls (GHC.LHsExpr GHC.RdrName) where
 
 -- ---------------------------------------------------------------------
 
-instance HasDecls (GHC.LHsBinds GHC.RdrName) where
-  hsDecls binds = hsDecls $ GHC.bagToList binds
-  replaceDecls old _new = error $ "replaceDecls (GHC.LHsBinds name) undefined for:" ++ (showGhc old)
-
--- ---------------------------------------------------------------------
-
 instance HasDecls [GHC.LHsBind GHC.RdrName] where
   hsDecls bs = return $ map wrapDecl bs
 
@@ -739,10 +698,10 @@ instance HasDecls [GHC.LHsBind GHC.RdrName] where
 
 instance HasDecls (GHC.LHsBind GHC.RdrName) where
   hsDecls   (GHC.L _ (GHC.FunBind _ _ matches _ _ _)) = hsDecls matches
-  hsDecls d@(GHC.L _ (GHC.PatBind _ rhs _ _ _))       = orderedDecls d rhs
+  hsDecls d@(GHC.L _ (GHC.PatBind _ (GHC.GRHSs _grhs lb) _ _ _)) = orderedDecls d lb
   hsDecls d@(GHC.L _ (GHC.VarBind _ rhs _))           = orderedDecls d rhs
-  hsDecls d@(GHC.L _ (GHC.AbsBinds _ _ _ _ binds))    = orderedDecls d binds
-  hsDecls   (GHC.L _ (GHC.PatSynBind _))      = error "hsDecls: PatSynBind to implement"
+  hsDecls   (GHC.L _ (GHC.AbsBinds _ _ _ _ _binds)) = error "hsDecls:AbsBind only introduced after renamer"
+  hsDecls   (GHC.L _ (GHC.PatSynBind _))            = error "hsDecls: PatSynBind to implement"
 
 
   replaceDecls (GHC.L l fn@(GHC.FunBind a b (GHC.MG matches f g h) c d e)) newDecls
@@ -757,12 +716,7 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
                 -- only move the comment if the original where clause was empty.
                 toMove <- balanceTrailingComments (GHC.L l (GHC.ValD fn)) (last matches')
                 insertCommentBefore (mkAnnKeyU $ last ms) toMove (matchApiAnn GHC.AnnWhere)
-              _lbs -> do
-                -- logDataWithAnnsTr "FunBind.replaceDecls:before:matches'" matches'
-                -- decs <- hsDecls lbs
-                -- logDataWithAnnsTr "FunBind.replaceDecls:after:decs" decs
-                -- balanceComments (last decs) (GHC.L l (GHC.ValD fn))
-                return ()
+              _lbs -> return ()
         -- logDataWithAnnsTr "FunBind.replaceDecls:matches'" matches'
         return (GHC.L l (GHC.FunBind a b (GHC.MG matches' f g h) c d e))
 
@@ -812,10 +766,8 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
     = do
         rhs' <- replaceDecls rhs newDecls
         return (GHC.L l (GHC.VarBind a rhs' b))
-  replaceDecls (GHC.L l (GHC.AbsBinds a b c d binds)) newDecls
-    = do
-        binds' <- replaceDecls binds newDecls
-        return (GHC.L l (GHC.AbsBinds a b c d binds'))
+  replaceDecls (GHC.L _ (GHC.AbsBinds _ _ _ _ _)) _newDecls
+    = error "replaceDecls:AbsBind only introduced after renamer"
   replaceDecls (GHC.L _ (GHC.PatSynBind _)) _ = error "replaceDecls: PatSynBind to implement"
 
 -- ---------------------------------------------------------------------
@@ -883,6 +835,22 @@ orderedDecls parent sub = do
             ordered = orderByKey ds keys
         -- logDataWithAnnsTr "orderedDecls:ordered=" ordered
         return ordered
+
+-- ---------------------------------------------------------------------
+
+class (Monad m) => (HasTransform m) where
+  liftT :: Transform a -> m a
+
+-- ---------------------------------------------------------------------
+
+-- | Apply a transformation to the decls contained in @t@
+modifyDeclsT :: (HasDecls t,HasTransform m)
+             => ([GHC.LHsDecl GHC.RdrName] -> m [GHC.LHsDecl GHC.RdrName])
+             -> t -> m t
+modifyDeclsT action t = do
+  decls <- liftT $ hsDecls t
+  decls' <- action decls
+  liftT $ replaceDecls t decls'
 
 -- ---------------------------------------------------------------------
 
