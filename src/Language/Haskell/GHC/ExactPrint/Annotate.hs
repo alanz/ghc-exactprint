@@ -501,6 +501,8 @@ instance Annotate GHC.ModuleName where
    markAST l mname =
     markExternal l GHC.AnnVal (GHC.moduleNameString mname)
 
+-- ---------------------------------------------------------------------
+
 -- instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
 markLHsDecl :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
             => GHC.LHsDecl name -> Annotated ()
@@ -525,8 +527,8 @@ markLHsDecl (GHC.L l decl) =
 #endif
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
-  => Annotate (GHC.HsDecl name) where
-  markAST _l _decl = error  "instance Annotate GHC.LHsDecl:rather use markLhsDecl"
+            => Annotate (GHC.HsDecl name) where
+  markAST l d = markLHsDecl (GHC.L l d)
 
 -- ---------------------------------------------------------------------
 
