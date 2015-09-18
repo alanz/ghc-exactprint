@@ -41,7 +41,8 @@ install:
   - ./travis_long stack --no-terminal --skip-ghc-check test --only-snapshot
 
 script:
-  - stack --no-terminal --skip-ghc-check --haddock --test build
+  - stack --no-terminal --skip-ghc-check test
+  - stack --no-terminal --skip-ghc-check haddock
 
 notifications:
   irc: "irc.freenode.org#haskell-refactorer"
