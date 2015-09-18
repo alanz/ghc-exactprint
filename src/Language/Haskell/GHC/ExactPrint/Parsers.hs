@@ -142,7 +142,7 @@ parsePattern df fp = parseWith df fp GHC.parsePattern
 -- parseModule = parseModuleWithCpp defaultCppOptions
 -- @
 --
--- Note: 'GHC.ParsedSource' is a synonym for @Located (HsModule RdrName)@
+-- Note: 'GHC.ParsedSource' is a synonym for 'GHC.Located' ('GHC.HsModule' 'GHC.RdrName')
 parseModule :: FilePath -> IO (Either (GHC.SrcSpan, String) (Anns, (GHC.Located (GHC.HsModule GHC.RdrName))))
 parseModule = parseModuleWithCpp defaultCppOptions
 

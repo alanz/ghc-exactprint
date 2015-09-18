@@ -123,6 +123,8 @@ runTransformFrom seed ans f = runRWS (getTransform f) () (ans,seed)
 logTr :: String -> Transform ()
 logTr str = tell [str]
 
+-- |Log a representation of the given AST with annotations to the output of the
+-- Monad
 logDataWithAnnsTr :: (SYB.Data a) => String -> a -> Transform ()
 logDataWithAnnsTr str ast = do
   anns <- getAnnsT
@@ -475,20 +477,24 @@ moveTrailingComments first second = do
 
 -- ---------------------------------------------------------------------
 
+-- |Insert a declaration into an AST element having sub-declarations
+-- (@HasDecls@) according to the given location function.
 insertAt :: (Data ast, HasDecls (GHC.Located ast))
               => (GHC.SrcSpan -> [GHC.SrcSpan] -> [GHC.SrcSpan])
               -> GHC.Located ast
               -> GHC.LHsDecl GHC.RdrName
               -> Transform (GHC.Located ast)
-insertAt f m decl = do
+insertAt f t decl = do
   let newKey = GHC.getLoc decl
-      modKey = mkAnnKeyU m
+      modKey = mkAnnKeyU t
       newValue a@Ann{..} = a { annSortKey = f newKey <$> annSortKey }
-  oldDecls <- hsDecls m
+  oldDecls <- hsDecls t
   modifyAnnsT (Map.adjust newValue modKey)
 
-  replaceDecls m (decl : oldDecls )
+  replaceDecls t (decl : oldDecls )
 
+-- |Insert a declaration at the beginning or end of the subdecls of the given
+-- AST item
 insertAtStart, insertAtEnd :: (Data ast, HasDecls (GHC.Located ast))
               => GHC.Located ast
               -> GHC.LHsDecl GHC.RdrName
@@ -502,7 +508,6 @@ insertAfter, insertBefore :: (Data ast, HasDecls (GHC.Located ast))
                           -> GHC.Located ast
                           -> GHC.LHsDecl GHC.RdrName
                           -> Transform (GHC.Located ast)
--- insertAfter (mkAnnKeyU -> k) = insertAt findAfter
 insertAfter (GHC.getLoc -> k) = insertAt findAfter
   where
     findAfter x xs =
@@ -518,6 +523,8 @@ insertBefore (GHC.getLoc -> k) = insertAt findBefore
 -- start of HasDecls instances
 -- =====================================================================
 
+-- |Provide a means to get and process the immediate child declartions of a
+-- given AST element.
 class (Data t) => HasDecls t where
 -- ++AZ++: TODO: add tests to confirm that hsDecls followed by replaceDecls is idempotent
 
@@ -838,6 +845,7 @@ orderedDecls parent sub = do
 
 -- ---------------------------------------------------------------------
 
+-- |Used to integrate a @Transform@ into other Monad stacks
 class (Monad m) => (HasTransform m) where
   liftT :: Transform a -> m a
 
