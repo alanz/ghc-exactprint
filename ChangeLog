@@ -1,3 +1,16 @@
+2015-09-18 v0.4.0.0
+	* Manage LHsDecl instances so that the Annotation always attaches
+	to the wrapped item, so that they can be seamlessly used in a top
+	level (wrapped) or local (unwrapped) context.
+	* Tweak transformations based on HaRe integration.
+	* This release supports the HaRe 8.0 release, which finally works
+	with GHC 7.10.2
+	* Rename `exactPrintWithAnns` to `exactPrint`. This will possibly
+	break earlier client libraries, but is a simple rename.
+	* Bring in semanticPrintM which allows wrapper functions to be
+	provided for the generated output, for use when emitting e.g. HTML
+	marked up source.
+
 2015-08-13 v0.3.1.1
 	* Add missing test files to sdist, closes #23
 
