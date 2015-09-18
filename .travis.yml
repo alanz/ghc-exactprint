@@ -29,7 +29,7 @@ before_install:
   # stack
   - mkdir -p ~/.local/bin
   - export PATH=~/.local/bin:$PATH
-  - travis_retry curl -L https://github.com/commercialhaskell/stack/releases/download/v0.1.2.0/stack-0.1.2.0-x86_64-linux.gz | gunzip > ~/.local/bin/stack
+  - travis_retry curl -L https://github.com/commercialhaskell/stack/releases/download/v0.1.4.0/stack-0.1.4.0-x86_64-linux.tar.gz | tar xz -C ~/.local/bin
   - chmod a+x ~/.local/bin/stack
   # versions
   - stack +RTS -N1 -RTS --version
@@ -41,7 +41,7 @@ install:
   - ./travis_long stack --no-terminal --skip-ghc-check test --only-snapshot
 
 script:
-  - stack --no-terminal --skip-ghc-check --haddock test
+  - stack --no-terminal --skip-ghc-check --haddock --test build
 
 notifications:
   irc: "irc.freenode.org#haskell-refactorer"
