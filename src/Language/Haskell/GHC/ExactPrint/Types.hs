@@ -20,7 +20,6 @@ module Language.Haskell.GHC.ExactPrint.Types
   -- * AnnKey
   , AnnKey(..)
   , mkAnnKey
-  , mkAnnKeyU
   , AnnConName(..)
   , annGetConstr
   -- * Internal Types
@@ -134,15 +133,15 @@ data AnnKey   = AnnKey GHC.SrcSpan AnnConName
 instance Show AnnKey where
   show (AnnKey ss cn) = "AnnKey " ++ showGhc ss ++ " " ++ show cn
 
-mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
-mkAnnKey (GHC.L l a) = AnnKey l (annGetConstr a)
+mkAnnKeyPrim :: (Data a) => GHC.Located a -> AnnKey
+mkAnnKeyPrim (GHC.L l a) = AnnKey l (annGetConstr a)
 
 -- |Make an unwrapped @AnnKey@ for the @LHsDecl@ case, a normal one otherwise.
-mkAnnKeyU :: (Data a) => GHC.Located a -> AnnKey
-mkAnnKeyU ld =
+mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
+mkAnnKey ld =
   case cast ld :: Maybe (GHC.LHsDecl GHC.RdrName) of
-    Just d -> declFun mkAnnKey d
-    Nothing -> mkAnnKey ld
+    Just d -> declFun mkAnnKeyPrim d
+    Nothing -> mkAnnKeyPrim ld
 
 -- Holds the name of a constructor
 data AnnConName = CN { unConName :: String }
