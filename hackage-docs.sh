@@ -1,4 +1,10 @@
 #!/bin/bash
+# Generate hyperlinked docs for hackage.
+
+# Note: As at 2015-09-19, this requires haddock to be built from its repo, as
+# the current version (2.16.1) does not have this feature
+# See https://www.reddit.com/r/haskell/comments/3fucyv/hyperlinked_source_appearing_on_hackage/cv5b7oy
+
 set -e
 
 if [ "$#" -ne 1 ]; then
