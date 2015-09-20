@@ -47,7 +47,9 @@ data Comment = Comment
     , commentIdentifier :: !GHC.SrcSpan -- ^ Needed to uniquely identify two comments with the same contents
     , commentOrigin     :: !(Maybe GHC.AnnKeywordId) -- ^ We sometimes turn syntax into comments in order to process them properly.
     }
-  deriving (Eq,Show,Typeable,Data, Ord)
+  deriving (Eq,Typeable,Data,Ord)
+instance Show Comment where
+  show (Comment cs ss o) = "(Comment " ++ show cs ++ " " ++ showGhc ss ++ " " ++ show o ++ ")"
 
 instance GHC.Outputable Comment where
   ppr x = GHC.text (show x)

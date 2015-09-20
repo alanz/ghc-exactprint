@@ -580,6 +580,24 @@ transformHighLevelTests =
 
 addLocaLDecl1 :: Changer
 addLocaLDecl1 ans lp = do
+  Right (declAnns, newDecl) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
+  let declAnns' = setPrecedingLines newDecl 1 4 declAnns
+      doAddLocal = do
+        (d1:d2:_) <- hsDecls lp
+        balanceComments d1 d2
+        d1' <- modifyLocalDecl (Just (4,1)) (\_m d -> do
+                                              return (newDecl : d)) d1
+        replaceDecls lp [d1', d2]
+        -- return lp
+
+
+  let (lp',(ans',_),_w) = runTransform (mergeAnns ans declAnns') doAddLocal
+  -- putStrLn $ "log:\n" ++ intercalate "\n" _w
+  return (ans',lp')
+
+{-
+addLocaLDecl1 :: Changer
+addLocaLDecl1 ans lp = do
   Right (declAnns, newDecl@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   let declAnns' = setPrecedingLines (GHC.L ld decl) 1 0 declAnns
 
@@ -596,11 +614,12 @@ addLocaLDecl1 ans lp = do
 
   let (lp',(ans',_),_w) = runTransform ans doAddLocal
   return (mergeAnnList [declAnns',ans'],lp')
-
+-}
 -- ---------------------------------------------------------------------
 
 addLocaLDecl2 :: Changer
 addLocaLDecl2 ans lp = do
+  {-
   Right (declAnns, newDecl) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   let
 
@@ -623,11 +642,14 @@ addLocaLDecl2 ans lp = do
   let (lp',(ans',_),_w) = runTransform (mergeAnns ans declAnns) doAddLocal
   -- putStrLn $ "log:\n" ++ intercalate "\n" _w
   return (ans',lp')
+  -}
+  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 addLocaLDecl3 :: Changer
 addLocaLDecl3 ans lp = do
+  {-
   Right (declAnns, newDecl) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   let
       doAddLocal = do
@@ -653,11 +675,14 @@ addLocaLDecl3 ans lp = do
   let (lp',(ans',_),_w) = runTransform (mergeAnns ans declAnns) doAddLocal
   -- putStrLn $ "log\n" ++ intercalate "\n" _w
   return (ans',lp')
+  -}
+  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 addLocaLDecl4 :: Changer
 addLocaLDecl4 ans lp = do
+  {-
   Right (declAnns, newDecl) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   Right (sigAnns, newSig)   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
   -- putStrLn $ "addLocaLDecl4:lp=" ++ showGhc lp
@@ -679,11 +704,14 @@ addLocaLDecl4 ans lp = do
   let (lp',(ans',_),_w) = runTransform (mergeAnnList [ans,declAnns,sigAnns]) doAddLocal
   -- putStrLn $ "log\n" ++ intercalate "\n" _w
   return (ans',lp')
+  -}
+  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 addLocaLDecl5 :: Changer
 addLocaLDecl5 ans lp = do
+  {-
   let
       doAddLocal = do
          [s1,d1,d2,d3] <- hsDecls lp
@@ -696,12 +724,14 @@ addLocaLDecl5 ans lp = do
   let (lp',(ans',_),_w) = runTransform ans doAddLocal
   -- putStrLn $ "log\n" ++ intercalate "\n" _w
   return (ans',lp')
-  -- return (ans,lp)
+  -}
+  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 rmDecl1 :: Changer
 rmDecl1 ans lp = do
+  {-
   let doRmDecl = do
          tlDecs <- hsDecls lp
          let (d1:s1:d2:ds) = tlDecs
@@ -723,11 +753,14 @@ rmDecl1 ans lp = do
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   return (ans',lp')
+  -}
+  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 rmDecl2 :: Changer
 rmDecl2 ans lp = do
+  {-
   let
       doRmDecl = do
         let
@@ -742,11 +775,14 @@ rmDecl2 ans lp = do
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   return (ans',lp')
+  -}
+  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 rmDecl3 :: Changer
 rmDecl3 ans lp = do
+  {-
   let
       doRmDecl = do
          tlDecs <- hsDecls lp
@@ -761,11 +797,14 @@ rmDecl3 ans lp = do
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   return (ans',lp')
+  -}
+  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 rmDecl4 :: Changer
 rmDecl4 ans lp = do
+  {-
   let
       doRmDecl = do
          tlDecs <- hsDecls lp
@@ -781,11 +820,14 @@ rmDecl4 ans lp = do
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   return (ans',lp')
+  -}
+  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 rmDecl5 :: Changer
 rmDecl5 ans lp = do
+  {-
   let
       doRmDecl = do
         let
@@ -803,11 +845,14 @@ rmDecl5 ans lp = do
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   -- putStrLn $ "log:" ++ intercalate "\n" _w
   return (ans',lp')
+  -}
+  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 rmDecl6 :: Changer
 rmDecl6 ans lp = do
+  {-
   let
       doRmDecl = do
          tlDecs <- hsDecls lp
@@ -823,11 +868,14 @@ rmDecl6 ans lp = do
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   -- putStrLn $ "log:" ++ intercalate "\n" _w
   return (ans',lp')
+  -}
+  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 rmDecl7 :: Changer
 rmDecl7 ans lp = do
+  {-
   let
       doRmDecl = do
          tlDecs <- hsDecls lp
@@ -843,11 +891,14 @@ rmDecl7 ans lp = do
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   -- putStrLn $ "log:" ++ intercalate "\n" _w
   return (ans',lp')
+  -}
+  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 rmTypeSig1 :: Changer
 rmTypeSig1 ans lp = do
+  {-
   let doRmDecl = do
          tlDecs <- hsDecls lp
          let (s1:d1:d2) = tlDecs
@@ -857,11 +908,14 @@ rmTypeSig1 ans lp = do
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   return (ans',lp')
+  -}
+  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 rmTypeSig2 :: Changer
 rmTypeSig2 ans lp = do
+  {-
   let doRmDecl = do
          tlDecs <- hsDecls lp
          let [d1] = tlDecs
@@ -874,6 +928,8 @@ rmTypeSig2 ans lp = do
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   -- putStrLn $ "log:" ++ intercalate "\n" _w
   return (ans',lp')
+  -}
+  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 

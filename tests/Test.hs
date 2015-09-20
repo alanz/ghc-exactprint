@@ -473,7 +473,7 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFnameMod changeWhereIn3a "WhereIn3a.hs" "WhereIn3a"
     -- , manipulateAstTestWFname "Imports.hs"              "Imports"
     -- , manipulateAstTestWFname "T10196.hs"               "T10196"
-    -- , manipulateAstTestWFnameMod addLocaLDecl1 "AddLocalDecl1.hs" "AddLocaLDecl1"
+    , manipulateAstTestWFnameMod addLocaLDecl1 "AddLocalDecl1.hs" "AddLocaLDecl1"
     -- , manipulateAstTestWFnameMod addLocaLDecl2 "AddLocalDecl2.hs" "AddLocaLDecl2"
     -- , manipulateAstTestWFnameMod addLocaLDecl3 "AddLocalDecl3.hs" "AddLocaLDecl3"
     -- , manipulateAstTestWFnameMod addLocaLDecl4 "AddLocalDecl4.hs" "AddLocaLDecl4"
@@ -495,7 +495,7 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFnameMod cloneDecl1    "CloneDecl1.hs"    "CloneDecl1"
     -- , manipulateAstTestWFname "SimpleDo.hs"                      "Main"
     -- , manipulateAstTestWFnameMod addLocaLDecl5 "AddLocalDecl5.hs" "AddLocaLDecl5"
-    , manipulateAstTestWFnameMod changeRename2    "Rename2.hs"  "Main"
+    -- , manipulateAstTestWFnameMod changeRename2    "Rename2.hs"  "Main"
     {-
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
     , manipulateAstTestWFname "Foo.hs"                   "Main"

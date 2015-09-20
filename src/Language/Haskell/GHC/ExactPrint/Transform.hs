@@ -46,6 +46,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , HasTransform (..)
         , HasDecls (..)
         , modifyDeclsT
+        , modifyLocalDecl
 
         -- ** Managing lists, Transform monad
         , insertAtStart
@@ -98,7 +99,7 @@ import Data.Maybe
 import qualified Data.Map as Map
 import Control.Monad.Writer
 
--- import Debug.Trace
+import Debug.Trace
 
 ------------------------------------------------------------------------------
 -- Transformation of source elements
@@ -402,19 +403,38 @@ removeTrailingComma a anns =
 
 -- ---------------------------------------------------------------------
 
+balanceComments :: (Data a,Data b) => GHC.Located a -> GHC.Located b -> Transform ()
+balanceComments first second = do
+  -- ++AZ++ : replace the nested casts with appropriate SYB.gmapM
+  -- logTr $ "balanceComments entered"
+  -- logDataWithAnnsTr "first" first
+  case cast first :: Maybe (GHC.LHsDecl GHC.RdrName) of
+    Just (GHC.L l (GHC.ValD fb@(GHC.FunBind{}))) -> do
+      balanceCommentsFB (GHC.L l fb) second
+    _ -> case cast first :: Maybe (GHC.LHsBind GHC.RdrName) of
+      Just fb'@(GHC.L _ (GHC.FunBind{})) -> do
+        balanceCommentsFB fb' second
+      _ -> balanceComments' first second
+
+balanceCommentsFB :: (Data b) => GHC.LHsBind GHC.RdrName -> GHC.Located b -> Transform ()
+balanceCommentsFB (GHC.L _ (GHC.FunBind _ _ (GHC.MG matches _ _ _) _ _ _)) second = do
+  -- logTr $ "balanceCommentsFB entered"
+  balanceComments' (last matches) second
+balanceCommentsFB f s = balanceComments' f s
+
 -- |Prior to moving an AST element, make sure any trailing comments belonging to
 -- it are attached to it, and not the following element. Of necessity this is a
 -- heuristic process, to be tuned later. Possibly a variant should be provided
 -- with a passed-in decision function.
-balanceComments :: (Data a,Data b) => GHC.Located a -> GHC.Located b -> Transform ()
-balanceComments first second = do
+balanceComments' :: (Data a,Data b) => GHC.Located a -> GHC.Located b -> Transform ()
+balanceComments' first second = do
   let
     k1 = mkAnnKey first
     k2 = mkAnnKey second
     moveComments p ans = ans'
       where
-        an1 = gfromJust "balanceComments k1" $ Map.lookup k1 ans
-        an2 = gfromJust "balanceComments k2" $ Map.lookup k2 ans
+        an1 = gfromJust "balanceComments' k1" $ Map.lookup k1 ans
+        an2 = gfromJust "balanceComments' k2" $ Map.lookup k2 ans
         cs1f = annFollowingComments an1
         cs2b = annPriorComments an2
         (move,stay) = break p cs2b
@@ -427,6 +447,7 @@ balanceComments first second = do
   modifyAnnsT (moveComments simpleBreak)
 
 -- ---------------------------------------------------------------------
+
 
 -- |After moving an AST element, make sure any comments that may belong
 -- with the following element in fact do. Of necessity this is a heuristic
@@ -455,6 +476,7 @@ balanceTrailingComments first second = do
 
 -- ---------------------------------------------------------------------
 
+-- ++AZ++ TODO: This needs to be renamed/reworked, based on what it actually gets used for
 -- |Move any 'annFollowingComments' values from the 'Annotation' associated to
 -- the first parameter to that of the second.
 moveTrailingComments :: (Data a,Data b)
@@ -566,7 +588,7 @@ instance HasDecls GHC.ParsedSource where
         return (GHC.L l (GHC.HsModule mn exps imps decls deps haddocks))
 
 -- ---------------------------------------------------------------------
-
+{-
 instance HasDecls (GHC.MatchGroup GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   hsDecls (GHC.MG matches _ _ _) = hsDecls matches
 
@@ -575,9 +597,9 @@ instance HasDecls (GHC.MatchGroup GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
         logTr "replaceDecls MatchGroup"
         matches' <- replaceDecls matches newDecls
         return (GHC.MG matches' a r o)
-
+-}
 -- ---------------------------------------------------------------------
-
+{-
 instance HasDecls [GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)] where
   hsDecls ms = do
     ds <- mapM hsDecls ms
@@ -591,7 +613,7 @@ instance HasDecls [GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)] where
         m' <- replaceDecls (ghead "replaceDecls" ms) newDecls
         -- logDataWithAnnsTr "[Match].replaceDecls:m'" m'
         return (m':tail ms)
-
+-}
 -- ---------------------------------------------------------------------
 
 instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
@@ -634,6 +656,10 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
             modifyAnnsT addWhere
             modifyAnnsT (setPrecedingLines (ghead "LMatch.replaceDecls" newBinds) 1 4)
 
+            -- only move the comment if the original where clause was empty.
+            -- toMove <- balanceTrailingComments (GHC.L l (GHC.ValD fn)) m
+            toMove <- balanceTrailingComments m m
+            insertCommentBefore (mkAnnKey m) toMove (matchApiAnn GHC.AnnWhere)
           _ -> return ()
 
         modifyAnnsT (captureOrderAnnKey (mkAnnKey m) newBinds)
@@ -702,15 +728,22 @@ instance HasDecls [GHC.LHsBind GHC.RdrName] where
         return $ concatMap decl2Bind newDecls
 
 -- ---------------------------------------------------------------------
-
+{-
 instance HasDecls (GHC.LHsBind GHC.RdrName) where
-  hsDecls   (GHC.L _ (GHC.FunBind _ _ matches _ _ _)) = hsDecls matches
+  -- Cannot return anything for a FunBind, as there is no way to do replaceDecls
+  -- to the correct Match instance
+  -- hsDecls   (GHC.L _ (GHC.FunBind _ _ matches _ _ _)) = hsDecls matches
+  hsDecls   (GHC.L _ (GHC.FunBind _ _ matches _ _ _)) = return []
+
   hsDecls d@(GHC.L _ (GHC.PatBind _ (GHC.GRHSs _grhs lb) _ _ _)) = orderedDecls d lb
   hsDecls d@(GHC.L _ (GHC.VarBind _ rhs _))           = orderedDecls d rhs
   hsDecls   (GHC.L _ (GHC.AbsBinds _ _ _ _ _binds)) = error "hsDecls:AbsBind only introduced after renamer"
   hsDecls   (GHC.L _ (GHC.PatSynBind _))            = error "hsDecls: PatSynBind to implement"
 
 
+  replaceDecls (GHC.L l fn@(GHC.FunBind a b (GHC.MG matches f g h) c d e)) newDecls
+    = error "FunBind.replaceDecls: invalid operation"
+{-
   replaceDecls (GHC.L l fn@(GHC.FunBind a b (GHC.MG matches f g h) c d e)) newDecls
     = do
         logTr "replaceDecls FundBind"
@@ -726,6 +759,7 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
               _lbs -> return ()
         -- logDataWithAnnsTr "FunBind.replaceDecls:matches'" matches'
         return (GHC.L l (GHC.FunBind a b (GHC.MG matches' f g h) c d e))
+-}
 
   replaceDecls p@(GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds) b c d)) []
     = do
@@ -776,6 +810,49 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
   replaceDecls (GHC.L _ (GHC.AbsBinds _ _ _ _ _)) _newDecls
     = error "replaceDecls:AbsBind only introduced after renamer"
   replaceDecls (GHC.L _ (GHC.PatSynBind _)) _ = error "replaceDecls: PatSynBind to implement"
+-}
+
+hsDeclsPatBindD :: GHC.LHsDecl GHC.RdrName -> Transform [GHC.LHsDecl GHC.RdrName]
+hsDeclsPatBindD (GHC.L l (GHC.ValD d)) = hsDeclsPatBind (GHC.L l d)
+hsDeclsPatBindD x = error $ "hsDeclsPatBindD called for:" ++ showGhc x
+
+hsDeclsPatBind :: GHC.LHsBind GHC.RdrName -> Transform [GHC.LHsDecl GHC.RdrName]
+hsDeclsPatBind d@(GHC.L _ (GHC.PatBind _ (GHC.GRHSs _grhs lb) _ _ _)) = orderedDecls d lb
+hsDeclsPatBind x = error $ "hsDeclsPatBind called for:" ++ showGhc x
+
+-- -------------------------------------
+
+replaceDeclsPatBindD :: GHC.LHsDecl GHC.RdrName -> [GHC.LHsDecl GHC.RdrName] -> Transform (GHC.LHsDecl GHC.RdrName)
+replaceDeclsPatBindD (GHC.L l (GHC.ValD d)) newDecls = do
+  (GHC.L _ d') <- replaceDeclsPatBind (GHC.L l d) newDecls
+  return (GHC.L l (GHC.ValD d'))
+replaceDeclsPatBindD x _ = error $ "replaceDeclsPatBindD called for:" ++ showGhc x
+
+replaceDeclsPatBind :: GHC.LHsBind GHC.RdrName -> [GHC.LHsDecl GHC.RdrName] -> Transform (GHC.LHsBind GHC.RdrName)
+replaceDeclsPatBind p@(GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds) b c d)) newDecls
+    = do
+        logTr "replaceDecls PatBind"
+        -- Need to throw in a fresh where clause if the binds were empty,
+        -- in the annotations.
+        case binds of
+          GHC.EmptyLocalBinds -> do
+            let
+              addWhere mkds =
+                case Map.lookup (mkAnnKey p) mkds of
+                  Nothing -> error "wtf"
+                  Just ann -> Map.insert (mkAnnKey p) ann1 mkds
+                    where
+                      ann1 = ann { annsDP = annsDP ann ++ [(G GHC.AnnWhere,DP (1,2))]
+                                 }
+            modifyAnnsT addWhere
+            modifyAnnsT (setPrecedingLines (ghead "LMatch.replaceDecls" newDecls) 1 4)
+
+          _ -> return ()
+
+        modifyAnnsT (captureOrderAnnKey (mkAnnKey p) newDecls)
+        binds' <- replaceDecls binds newDecls
+        return (GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds') b c d))
+replaceDeclsPatBind x _ = error $ "replaceDeclsPatBind called for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -806,24 +883,35 @@ instance HasDecls (GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   replaceDecls x _newDecls = return x
 
 -- ---------------------------------------------------------------------
-
+{-
 instance HasDecls (GHC.LHsDecl GHC.RdrName) where
-  hsDecls (GHC.L l (GHC.ValD d)) = hsDecls (GHC.L l d)
+  -- hsDecls (GHC.L l (GHC.ValD d)) = hsDecls (GHC.L l d)
   -- hsDecls (GHC.L l (GHC.SigD d)) = hsDecls (GHC.L l d)
   hsDecls _                      = return []
 
-  replaceDecls (GHC.L l (GHC.ValD d)) newDecls = do
-    (GHC.L l1 d1) <- replaceDecls (GHC.L l d) newDecls
-    return (GHC.L l1 (GHC.ValD d1))
+  -- replaceDecls (GHC.L l (GHC.ValD d)) newDecls = do
+  --   (GHC.L l1 d1) <- replaceDecls (GHC.L l d) newDecls
+  --   return (GHC.L l1 (GHC.ValD d1))
   -- replaceDecls (GHC.L l (GHC.SigD d)) newDecls = do
   --   (GHC.L l1 d1) <- replaceDecls (GHC.L l d) newDecls
   --   return (GHC.L l1 (GHC.SigD d1))
   replaceDecls _d _  = error $ "LHsDecl.replaceDecls:not implemented"
-
+-}
 
 -- =====================================================================
 -- end of HasDecls instances
 -- =====================================================================
+
+{-
+-- |A 'GHC.FunBind' wraps up one or more 'GHC.Match' items. 'hsDecls' cannot
+-- return anything for these as there is not meaningful 'replaceDecls' for it.
+-- This function provides a version of 'hsDecls' that returns the 'GHC.FunBind'
+-- decls too, where they are needed for analysis only.
+hsDeclsGeneric :: (HasDecls t) => t -> Transform [GHC.LHsDecl GHC.RdrName]
+hsDeclsGeneric =
+  case cast
+-}
+-- ---------------------------------------------------------------------
 
 -- |Look up the annotated order and sort the decls accordingly
 orderedDecls :: (Data a,HasDecls b) => GHC.Located a -> b -> Transform [GHC.LHsDecl GHC.RdrName]
@@ -842,6 +930,34 @@ orderedDecls parent sub = do
             ordered = orderByKey ds keys
         -- logDataWithAnnsTr "orderedDecls:ordered=" ordered
         return ordered
+
+-- ---------------------------------------------------------------------
+
+type Decl  = GHC.LHsDecl GHC.RdrName
+type Match = GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)
+
+modifyLocalDecl ::
+                   Maybe Pos
+                -> (Match -> [Decl] -> Transform [Decl])
+                -> Decl
+                -> Transform Decl
+modifyLocalDecl p f m@(GHC.L ss (GHC.ValD (GHC.PatBind {} ))) =
+         if fromMaybe True ((ss2pos ss ==) <$> p)
+            then do
+              ds <- hsDeclsPatBindD m
+              traceShowM (map showGhc ds)
+              f undefined ds >>= replaceDeclsPatBindD m
+            else return m
+modifyLocalDecl p f ast = SYB.everywhereM (SYB.mkM doModLocal) ast
+  where
+    doModLocal :: Match
+                -> Transform Match
+    doModLocal  m@(GHC.L ss _) =
+         traceShow ss $
+         if fromMaybe True ((ss2pos ss ==) <$> p) then
+            -- orderedDecls m m >>= f m >>= replaceDecls m
+            hsDecls m >>= f m >>= replaceDecls m
+         else return m
 
 -- ---------------------------------------------------------------------
 

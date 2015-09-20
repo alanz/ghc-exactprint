@@ -381,9 +381,9 @@ showAnnData anns n =
                       srcSpan s
                       ++ indent (n + 1) ++
                       show (getAnnotationEP (GHC.L s a) anns)
-                      ++ case showWrappedDeclAnns (GHC.L s a) of
-                        Nothing -> ""
-                        Just annStr  -> indent (n + 1) ++ annStr
+                      -- ++ case showWrappedDeclAnns (GHC.L s a) of
+                      --   Nothing -> ""
+                      --   Just annStr  -> indent (n + 1) ++ annStr
                     Nothing -> "nnnnnnnn"
                   ++ showAnnData anns (n+1) a
                   ++ ")"
