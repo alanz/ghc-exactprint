@@ -39,6 +39,14 @@ main = hSilence [stderr] $ do
      then exitFailure
      else return () -- exitSuccess
 
+transform :: IO ()
+transform = hSilence [stderr] $ do
+  cnts <- fst <$> runTestText (putTextToHandle stdout True) (TestList transformTests)
+  putStrLn $ show cnts
+  if errors cnts > 0 || failures cnts > 0
+     then exitFailure
+     else return () -- exitSuccess
+
 -- ---------------------------------------------------------------------
 
 tests :: Test
