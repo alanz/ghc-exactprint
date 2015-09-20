@@ -523,6 +523,13 @@ insertBefore (GHC.getLoc -> k) = insertAt findBefore
 -- start of HasDecls instances
 -- =====================================================================
 
+{-
+-- |When a given item has immediate sub-structure, such a s a 'GHC.FunBind'
+-- which is composed of a 'GHC.MatchGroup', this type captures the decls that
+-- belong in each sub-structure item. Used in the 'HasDecls' class.
+type SubDecls = [(t,[GHC.LHsDecl GHC.RdrName])]
+-}
+
 -- |Provide a means to get and process the immediate child declartions of a
 -- given AST element.
 class (Data t) => HasDecls t where
@@ -532,7 +539,8 @@ class (Data t) => HasDecls t where
     -- given syntax phrase. They are always returned in the wrapped 'GHC.HsDecl'
     -- form, even if orginating in local decls. This is safe, as annotations
     -- never attach to the wrapper, only to the wrapped item.
-    hsDecls :: t -> Transform [GHC.LHsDecl GHC.RdrName]
+    -- hsDecls :: t -> Transform [GHC.LHsDecl GHC.RdrName]
+    hsDecls :: t -> Transform [(t1,[GHC.LHsDecl GHC.RdrName])]
 
     -- | Replace the directly enclosed decl list by the given
     --  decl list. Runs in the 'Transform' monad to be able to update list order
@@ -558,7 +566,7 @@ class (Data t) => HasDecls t where
 -- ---------------------------------------------------------------------
 
 instance HasDecls GHC.ParsedSource where
-  hsDecls (GHC.L _ (GHC.HsModule _mn _exps _imps decls _ _)) = return decls
+  hsDecls m@(GHC.L _ (GHC.HsModule _mn _exps _imps decls _ _)) = return [(m,decls)]
   replaceDecls m@(GHC.L l (GHC.HsModule mn exps imps _decls deps haddocks)) decls
     = do
         logTr "replaceDecls LHsModule"
@@ -567,17 +575,8 @@ instance HasDecls GHC.ParsedSource where
 
 -- ---------------------------------------------------------------------
 
-instance HasDecls (GHC.MatchGroup GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
-  hsDecls (GHC.MG matches _ _ _) = hsDecls matches
-
-  replaceDecls (GHC.MG matches a r o) newDecls
-    = do
-        logTr "replaceDecls MatchGroup"
-        matches' <- replaceDecls matches newDecls
-        return (GHC.MG matches' a r o)
-
--- ---------------------------------------------------------------------
-
+-- ++AZ++ : remove this
+{-
 instance HasDecls [GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)] where
   hsDecls ms = do
     ds <- mapM hsDecls ms
@@ -591,7 +590,7 @@ instance HasDecls [GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)] where
         m' <- replaceDecls (ghead "replaceDecls" ms) newDecls
         -- logDataWithAnnsTr "[Match].replaceDecls:m'" m'
         return (m':tail ms)
-
+-}
 -- ---------------------------------------------------------------------
 
 instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
@@ -643,6 +642,7 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 
 -- ---------------------------------------------------------------------
 
+-- ++AZ++ : remove this
 instance HasDecls (GHC.HsLocalBinds GHC.RdrName) where
   hsDecls lb = case lb of
     GHC.HsValBinds (GHC.ValBindsIn bs sigs) -> do
@@ -704,14 +704,17 @@ instance HasDecls [GHC.LHsBind GHC.RdrName] where
 -- ---------------------------------------------------------------------
 
 instance HasDecls (GHC.LHsBind GHC.RdrName) where
-  hsDecls   (GHC.L _ (GHC.FunBind _ _ matches _ _ _)) = hsDecls matches
-  hsDecls d@(GHC.L _ (GHC.PatBind _ (GHC.GRHSs _grhs lb) _ _ _)) = orderedDecls d lb
-  hsDecls d@(GHC.L _ (GHC.VarBind _ rhs _))           = orderedDecls d rhs
+  hsDecls   (GHC.L _ (GHC.FunBind _ _ (GHC.MG matches _ _ _) _ _ _)) = hsDecls matches
+    -- error $ "Cannot use hsDecls on a FunBind, call it on the individual Match items instead"
+  hsDecls d@(GHC.L _ (GHC.PatBind _ (GHC.GRHSs _grhs lb) _ _ _))     = orderedDecls d lb
+  hsDecls d@(GHC.L _ (GHC.VarBind _ rhs _))                          = orderedDecls d rhs
   hsDecls   (GHC.L _ (GHC.AbsBinds _ _ _ _ _binds)) = error "hsDecls:AbsBind only introduced after renamer"
   hsDecls   (GHC.L _ (GHC.PatSynBind _))            = error "hsDecls: PatSynBind to implement"
 
 
   replaceDecls (GHC.L l fn@(GHC.FunBind a b (GHC.MG matches f g h) c d e)) newDecls
+    = error $ "Cannot use replaceDecls on a FunBind, call it on the individual Match items instead"
+      {-
     = do
         logTr "replaceDecls FundBind"
         matches' <- replaceDecls matches newDecls
@@ -726,6 +729,7 @@ instance HasDecls (GHC.LHsBind GHC.RdrName) where
               _lbs -> return ()
         -- logDataWithAnnsTr "FunBind.replaceDecls:matches'" matches'
         return (GHC.L l (GHC.FunBind a b (GHC.MG matches' f g h) c d e))
+      -}
 
   replaceDecls p@(GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds) b c d)) []
     = do
@@ -826,7 +830,7 @@ instance HasDecls (GHC.LHsDecl GHC.RdrName) where
 -- =====================================================================
 
 -- |Look up the annotated order and sort the decls accordingly
-orderedDecls :: (Data a,HasDecls b) => GHC.Located a -> b -> Transform [GHC.LHsDecl GHC.RdrName]
+orderedDecls :: (Data a,HasDecls b) => GHC.Located a -> b -> Transform [(c,[GHC.LHsDecl GHC.RdrName])]
 orderedDecls parent sub = do
   decls <- hsDecls sub
   -- logDataWithAnnsTr "orderedDecls:decls=" decls
