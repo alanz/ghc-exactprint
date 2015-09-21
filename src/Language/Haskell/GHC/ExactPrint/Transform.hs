@@ -45,6 +45,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         -- ** Managing declarations, in Transform monad
         , HasTransform (..)
         , HasDecls (..)
+        , hsDeclsGeneric
         , hsDeclsPatBind, hsDeclsPatBindD
         , hsDeclsValBinds, replaceDeclsValbinds
         , modifyDeclsT
@@ -745,15 +746,40 @@ instance HasDecls (GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 -- end of HasDecls instances
 -- =====================================================================
 
-{-
 -- |A 'GHC.FunBind' wraps up one or more 'GHC.Match' items. 'hsDecls' cannot
 -- return anything for these as there is not meaningful 'replaceDecls' for it.
 -- This function provides a version of 'hsDecls' that returns the 'GHC.FunBind'
 -- decls too, where they are needed for analysis only.
-hsDeclsGeneric :: (HasDecls t) => t -> Transform [GHC.LHsDecl GHC.RdrName]
-hsDeclsGeneric =
-  case cast
--}
+-- hsDeclsGeneric :: (SYB.Data t) => t -> Transform [GHC.LHsDecl GHC.RdrName]
+hsDeclsGeneric :: (SYB.Data t,SYB.Typeable t) => t -> Transform [GHC.LHsDecl GHC.RdrName]
+hsDeclsGeneric t = q t
+  where
+    q = return []
+        `SYB.mkQ` parsedSource
+        `SYB.extQ` lmatch
+        `SYB.extQ` lexpr
+        -- `SYB.extQ` lhsdecl
+        `SYB.extQ` lstmt
+        `SYB.extQ` lhsbind
+
+    parsedSource (p::GHC.ParsedSource) = hsDecls p
+
+    lmatch (lm::GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) = hsDecls lm
+
+    lexpr (le::GHC.LHsExpr GHC.RdrName) = hsDecls le
+
+    -- lhsdecl (d::GHC.LHsDecl GHC.RdrName) = hsDecls d
+
+    lstmt (d::GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) = hsDecls d
+
+    lhsbind :: GHC.LHsBind GHC.RdrName -> Transform [GHC.LHsDecl GHC.RdrName]
+    lhsbind (GHC.L _ (GHC.FunBind _ _ (GHC.MG matches _ _ _) _ _ _)) = do
+        dss <- mapM hsDecls matches
+        return (concat dss)
+    lhsbind p@(GHC.L _ (GHC.PatBind{})) = do
+      hsDeclsPatBind p
+    lhsbind x = return []
+
 -- ---------------------------------------------------------------------
 
 -- |Look up the annotated order and sort the decls accordingly
