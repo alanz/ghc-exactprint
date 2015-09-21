@@ -5,4 +5,5 @@ ff y = y + zz
   where
     zz = 1
 
+foo = 3
 -- EOF

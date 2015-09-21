@@ -24,7 +24,7 @@ import Control.Monad
 import System.FilePath
 import System.IO
 import qualified Data.Map as Map
--- import Data.List
+import Data.List
 import Data.Maybe
 
 import System.IO.Silently
@@ -558,6 +558,7 @@ transformHighLevelTests =
   , mkTestModChange addLocaLDecl3  "AddLocalDecl3.hs"  "AddLocalDecl3"
   , mkTestModChange addLocaLDecl4  "AddLocalDecl4.hs"  "AddLocalDecl4"
   , mkTestModChange addLocaLDecl5  "AddLocalDecl5.hs"  "AddLocalDecl5"
+  , mkTestModChange addLocaLDecl6  "AddLocalDecl6.hs"  "AddLocalDecl6"
 
   , mkTestModChange rmDecl1 "RmDecl1.hs" "RmDecl1"
   , mkTestModChange rmDecl2 "RmDecl2.hs" "RmDecl2"
@@ -585,71 +586,40 @@ addLocaLDecl1 ans lp = do
       doAddLocal = do
         (d1:d2:_) <- hsDecls lp
         balanceComments d1 d2
-        d1' <- modifyLocalDecl (Just (4,1)) (\_m d -> do
-                                              return (newDecl : d)) d1
+        (d1',_) <- modifyLocalDecl (GHC.getLoc d1) d1 $ \_m d -> do
+          return ((newDecl : d),Nothing)
         replaceDecls lp [d1', d2]
-        -- return lp
-
 
   let (lp',(ans',_),_w) = runTransform (mergeAnns ans declAnns') doAddLocal
   -- putStrLn $ "log:\n" ++ intercalate "\n" _w
   return (ans',lp')
 
-{-
-addLocaLDecl1 :: Changer
-addLocaLDecl1 ans lp = do
-  Right (declAnns, newDecl@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
-  let declAnns' = setPrecedingLines (GHC.L ld decl) 1 0 declAnns
-
-      doAddLocal = do
-         tlDecs <- hsDecls lp
-         let parent = head tlDecs
-         decls <- hsDecls parent
-         balanceComments parent (head $ tail tlDecs)
-
-         setPrecedingLinesT newDecl 1 4
-
-         parent' <- replaceDecls parent (newDecl:decls)
-         replaceDecls lp (parent':tail tlDecs)
-
-  let (lp',(ans',_),_w) = runTransform ans doAddLocal
-  return (mergeAnnList [declAnns',ans'],lp')
--}
 -- ---------------------------------------------------------------------
 
 addLocaLDecl2 :: Changer
 addLocaLDecl2 ans lp = do
-  {-
   Right (declAnns, newDecl) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   let
-
       doAddLocal = do
          tlDecs <- hsDecls lp
          let parent = head tlDecs
-         decls <- hsDecls parent
          balanceComments parent (head $ tail tlDecs)
 
-         transferEntryDPT (head decls) newDecl
-         -- setPrecedingLinesT (head decls) 1 0
-         setEntryDPT (head decls) (DP (1, 0))
+         (parent',_) <- modifyLocalDecl (GHC.getLoc parent) parent $ \_m decls -> do
+           transferEntryDPT (head decls) newDecl
+           setEntryDPT (head decls) (DP (1, 0))
+           return ((newDecl:decls),Nothing)
 
-         logDataWithAnnsTr "addLocalDecl2:before:(newDecl,decls)" (newDecl,decls)
-
-         parent' <- replaceDecls parent (newDecl:decls)
-         logDataWithAnnsTr "addLocalDecl2:after:(newDecl,decls)" (newDecl,decls)
          replaceDecls lp (parent':tail tlDecs)
 
   let (lp',(ans',_),_w) = runTransform (mergeAnns ans declAnns) doAddLocal
   -- putStrLn $ "log:\n" ++ intercalate "\n" _w
   return (ans',lp')
-  -}
-  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 addLocaLDecl3 :: Changer
 addLocaLDecl3 ans lp = do
-  {-
   Right (declAnns, newDecl) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   let
       doAddLocal = do
@@ -657,32 +627,23 @@ addLocaLDecl3 ans lp = do
          logDataWithAnnsTr "newDecl:" newDecl
          tlDecs <- hsDecls lp
          let parent = head tlDecs
-         decls <- hsDecls parent
          balanceComments parent (head $ tail tlDecs)
 
-         -- logDataWithAnnsTr "parent:1:" parent
+         (parent',_) <- modifyLocalDecl (GHC.getLoc parent) parent $ \m decls -> do
+           setPrecedingLinesT newDecl 1 0
+           moveTrailingComments m (last decls)
+           return ((decls++[newDecl]),Nothing)
 
-         setPrecedingLinesT newDecl 1 0
-         -- setPrecedingLinesDeclT newDecl 1 0
-
-         moveTrailingComments parent (last decls)
-         -- logDataWithAnnsTr "parent:2:" parent
-
-         parent' <- replaceDecls parent (decls++[newDecl])
-         -- logDataWithAnnsTr "parent:3:" parent'
          replaceDecls lp (parent':tail tlDecs)
 
   let (lp',(ans',_),_w) = runTransform (mergeAnns ans declAnns) doAddLocal
   -- putStrLn $ "log\n" ++ intercalate "\n" _w
   return (ans',lp')
-  -}
-  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 addLocaLDecl4 :: Changer
 addLocaLDecl4 ans lp = do
-  {-
   Right (declAnns, newDecl) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   Right (sigAnns, newSig)   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
   -- putStrLn $ "addLocaLDecl4:lp=" ++ showGhc lp
@@ -690,48 +651,61 @@ addLocaLDecl4 ans lp = do
       doAddLocal = do
          tlDecs <- hsDecls lp
          let parent = head tlDecs
-         decls <- hsDecls parent
 
          setPrecedingLinesT newSig  1 0
          setPrecedingLinesT newDecl 1 0
 
-         -- logDataWithAnnsTr "newSig:" newSig
-         -- logDataWithAnnsTr "newDecl:" newDecl
+         (parent',_) <- modifyLocalDecl (GHC.getLoc parent) parent $ \_m decls -> do
+           return ((decls++[newSig,newDecl]),Nothing)
 
-         parent' <- replaceDecls parent (decls++[newSig,newDecl])
          replaceDecls lp (parent':tail tlDecs)
 
   let (lp',(ans',_),_w) = runTransform (mergeAnnList [ans,declAnns,sigAnns]) doAddLocal
   -- putStrLn $ "log\n" ++ intercalate "\n" _w
   return (ans',lp')
-  -}
-  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 addLocaLDecl5 :: Changer
 addLocaLDecl5 ans lp = do
-  {-
   let
       doAddLocal = do
          [s1,d1,d2,d3] <- hsDecls lp
 
          transferEntryDPT d2 d3
 
-         d1' <- replaceDecls d1 [d2]
+         (d1',_) <- modifyLocalDecl (GHC.getLoc d1) d1 $ \_m _decls -> do
+           return ([d2],Nothing)
          replaceDecls lp [s1,d1',d3]
 
   let (lp',(ans',_),_w) = runTransform ans doAddLocal
   -- putStrLn $ "log\n" ++ intercalate "\n" _w
   return (ans',lp')
-  -}
-  return (ans,lp)
 
+-- ---------------------------------------------------------------------
+
+addLocaLDecl6 :: Changer
+addLocaLDecl6 ans lp = do
+  Right (declAnns, newDecl) <- withDynFlags (\df -> parseDecl df "decl" "x = 3")
+  let declAnns' = setPrecedingLines newDecl 1 4 declAnns
+      doAddLocal = do
+        [d1,d2] <- hsDecls lp
+        balanceComments d1 d2
+
+        let GHC.L _ (GHC.ValD (GHC.FunBind  _ _ (GHC.MG [m1,m2] _ _ _) _ _ _)) = d1
+        balanceComments m1 m2
+
+        (d1',_) <- modifyLocalDecl (GHC.getLoc m1) d1 $ \_m decls -> do
+           return ((newDecl : decls),Nothing)
+        replaceDecls lp [d1', d2]
+
+  let (lp',(ans',_),_w) = runTransform (mergeAnns ans declAnns') doAddLocal
+  -- putStrLn $ "log:\n" ++ intercalate "\n" _w
+  return (ans',lp')
 -- ---------------------------------------------------------------------
 
 rmDecl1 :: Changer
 rmDecl1 ans lp = do
-  {-
   let doRmDecl = do
          tlDecs <- hsDecls lp
          let (d1:s1:d2:ds) = tlDecs
@@ -753,14 +727,11 @@ rmDecl1 ans lp = do
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   return (ans',lp')
-  -}
-  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 rmDecl2 :: Changer
 rmDecl2 ans lp = do
-  {-
   let
       doRmDecl = do
         let
@@ -774,60 +745,52 @@ rmDecl2 ans lp = do
         SYB.everywhereM (SYB.mkM go) lp
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  -- putStrLn $ "log:\n" ++ intercalate "\n" _w
   return (ans',lp')
-  -}
-  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 rmDecl3 :: Changer
 rmDecl3 ans lp = do
-  {-
   let
       doRmDecl = do
-         tlDecs <- hsDecls lp
-         let [d1] = tlDecs
+         [d1,d2] <- hsDecls lp
 
-         subDecs <- hsDecls d1
-         let [sd1] = subDecs
+         (d1',Just sd1) <- modifyLocalDecl (GHC.getLoc d1) d1 $ \_m [sd1] -> do
+           setPrecedingLinesDeclT sd1 2 0
+           return ([],Just sd1)
 
-         setPrecedingLinesDeclT sd1 2 0
-         d1' <- replaceDecls d1 []
-         replaceDecls lp [d1',sd1]
+         replaceDecls lp [d1',sd1,d2]
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  -- putStrLn $ "log:\n" ++ intercalate "\n" _w
   return (ans',lp')
-  -}
-  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 rmDecl4 :: Changer
 rmDecl4 ans lp = do
-  {-
   let
       doRmDecl = do
-         tlDecs <- hsDecls lp
-         let [d1] = tlDecs
+         [d1] <- hsDecls lp
 
-         subDecs <- hsDecls d1
-         let [sd1,sd2] = subDecs
-         transferEntryDPT sd1 sd2
+         (d1',Just sd1) <- modifyLocalDecl (GHC.getLoc d1) d1 $ \_m [sd1,sd2] -> do
+           -- [sd1,sd2] <- hsDecls d1
+           transferEntryDPT sd1 sd2
 
-         setPrecedingLinesDeclT sd1 2 0
-         d1' <- replaceDecls d1 [sd2]
+           setPrecedingLinesDeclT sd1 2 0
+           -- d1' <- replaceDecls d1 [sd2]
+           return ([sd2],Just sd1)
+
          replaceDecls lp [d1',sd1]
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   return (ans',lp')
-  -}
-  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 rmDecl5 :: Changer
 rmDecl5 ans lp = do
-  {-
   let
       doRmDecl = do
         let
@@ -845,37 +808,31 @@ rmDecl5 ans lp = do
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   -- putStrLn $ "log:" ++ intercalate "\n" _w
   return (ans',lp')
-  -}
-  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 rmDecl6 :: Changer
 rmDecl6 ans lp = do
-  {-
   let
       doRmDecl = do
-         tlDecs <- hsDecls lp
-         let [d1] = tlDecs
+         [d1] <- hsDecls lp
 
-         subDecs <- hsDecls d1
-         let (ss1:_sd1:sd2:sds) = subDecs
-         transferEntryDPT ss1 sd2
+         (d1',_) <- modifyLocalDecl (GHC.getLoc d1) d1 $ \_m subDecs -> do
+           let (ss1:_sd1:sd2:sds) = subDecs
+           transferEntryDPT ss1 sd2
 
-         d1' <- replaceDecls d1 (sd2:sds)
+           return (sd2:sds,Nothing)
+
          replaceDecls lp [d1']
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   -- putStrLn $ "log:" ++ intercalate "\n" _w
   return (ans',lp')
-  -}
-  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 rmDecl7 :: Changer
 rmDecl7 ans lp = do
-  {-
   let
       doRmDecl = do
          tlDecs <- hsDecls lp
@@ -891,14 +848,11 @@ rmDecl7 ans lp = do
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   -- putStrLn $ "log:" ++ intercalate "\n" _w
   return (ans',lp')
-  -}
-  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 rmTypeSig1 :: Changer
 rmTypeSig1 ans lp = do
-  {-
   let doRmDecl = do
          tlDecs <- hsDecls lp
          let (s1:d1:d2) = tlDecs
@@ -908,28 +862,23 @@ rmTypeSig1 ans lp = do
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   return (ans',lp')
-  -}
-  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 
 rmTypeSig2 :: Changer
 rmTypeSig2 ans lp = do
-  {-
   let doRmDecl = do
          tlDecs <- hsDecls lp
          let [d1] = tlDecs
-         [s,d] <- hsDecls d1
-         -- logDataWithAnnsTr "[s,d]" [s,d]
-         transferEntryDPT s d
-         d1' <- replaceDecls d1 [d]
+
+         (d1',_) <- modifyLocalDecl (GHC.getLoc d1) d1 $ \_m [s,d] -> do
+           transferEntryDPT s d
+           return ([d],Nothing)
          replaceDecls lp [d1']
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
   -- putStrLn $ "log:" ++ intercalate "\n" _w
   return (ans',lp')
-  -}
-  return (ans,lp)
 
 -- ---------------------------------------------------------------------
 

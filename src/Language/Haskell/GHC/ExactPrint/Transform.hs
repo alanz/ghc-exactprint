@@ -98,6 +98,7 @@ import Data.Maybe
 
 import qualified Data.Map as Map
 import Control.Monad.Writer
+import Control.Monad.State
 
 import Debug.Trace
 
@@ -580,6 +581,7 @@ class (Data t) => HasDecls t where
 -- ---------------------------------------------------------------------
 
 instance HasDecls GHC.ParsedSource where
+  -- ++AZ++ TODO: return ordered decls
   hsDecls (GHC.L _ (GHC.HsModule _mn _exps _imps decls _ _)) = return decls
   replaceDecls m@(GHC.L l (GHC.HsModule mn exps imps _decls deps haddocks)) decls
     = do
@@ -657,7 +659,6 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
             modifyAnnsT (setPrecedingLines (ghead "LMatch.replaceDecls" newBinds) 1 4)
 
             -- only move the comment if the original where clause was empty.
-            -- toMove <- balanceTrailingComments (GHC.L l (GHC.ValD fn)) m
             toMove <- balanceTrailingComments m m
             insertCommentBefore (mkAnnKey m) toMove (matchApiAnn GHC.AnnWhere)
           _ -> return ()
@@ -937,27 +938,35 @@ type Decl  = GHC.LHsDecl GHC.RdrName
 type Match = GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)
 
 modifyLocalDecl ::
-                   Maybe Pos
-                -> (Match -> [Decl] -> Transform [Decl])
+                   GHC.SrcSpan
                 -> Decl
-                -> Transform Decl
-modifyLocalDecl p f m@(GHC.L ss (GHC.ValD (GHC.PatBind {} ))) =
-         if fromMaybe True ((ss2pos ss ==) <$> p)
+                -> (Match -> [Decl] -> Transform ([Decl], Maybe t))
+                -> Transform (Decl,Maybe t)
+modifyLocalDecl p m@(GHC.L ss (GHC.ValD (GHC.PatBind {} ))) f =
+         if ss == p
             then do
               ds <- hsDeclsPatBindD m
-              traceShowM (map showGhc ds)
-              f undefined ds >>= replaceDeclsPatBindD m
-            else return m
-modifyLocalDecl p f ast = SYB.everywhereM (SYB.mkM doModLocal) ast
+              (ds',r) <- f undefined ds
+              m' <- replaceDeclsPatBindD m ds'
+              return (m',r)
+            else return (m,Nothing)
+modifyLocalDecl p ast f = do
+  (ast',r) <- runStateT (SYB.everywhereM (SYB.mkM doModLocal) ast) Nothing
+  return (ast',r)
   where
-    doModLocal :: Match
-                -> Transform Match
-    doModLocal  m@(GHC.L ss _) =
-         traceShow ss $
-         if fromMaybe True ((ss2pos ss ==) <$> p) then
-            -- orderedDecls m m >>= f m >>= replaceDecls m
-            hsDecls m >>= f m >>= replaceDecls m
-         else return m
+    -- doModLocal :: Match
+    --             -> Transform Match
+    doModLocal  (m@(GHC.L ss _) :: Match) = do
+         lift $ logTr $ "doModLocal entered:ss=" ++ showGhc ss
+         if ss == p
+           then do
+             lift $ logTr "doModLocal hit"
+             ds <- lift $ hsDecls m
+             (ds',r) <- lift $ f m ds
+             lift $ logTr $ "doModLocal:ds'=" ++ showGhc ds'
+             put r
+             lift $ replaceDecls m ds'
+           else return m
 
 -- ---------------------------------------------------------------------
 
