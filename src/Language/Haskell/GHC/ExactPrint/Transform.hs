@@ -136,28 +136,28 @@ runTransformFrom :: Int -> Anns -> Transform a -> (a,(Anns,Int),[String])
 runTransformFrom seed ans f = runRWS (runTransformT f) () (ans,seed)
 
 -- |Log a string to the output of the Monad
-logTr :: String -> Transform ()
+logTr :: (Monad m) => String -> TransformT m ()
 logTr str = tell [str]
 
 -- |Log a representation of the given AST with annotations to the output of the
 -- Monad
-logDataWithAnnsTr :: (SYB.Data a) => String -> a -> Transform ()
+logDataWithAnnsTr :: (Monad m) => (SYB.Data a) => String -> a -> TransformT m ()
 logDataWithAnnsTr str ast = do
   anns <- getAnnsT
   logTr $ str ++ showAnnData anns 0 ast
 
 -- |Access the 'Anns' being modified in this transformation
-getAnnsT :: Transform Anns
+getAnnsT :: (Monad m) => TransformT m Anns
 getAnnsT = gets fst
 
 -- |Replace the 'Anns' after any changes
-putAnnsT :: Anns -> Transform ()
+putAnnsT :: (Monad m) => Anns -> TransformT m ()
 putAnnsT ans = do
   (_,col) <- get
   put (ans,col)
 
 -- |Change the stored 'Anns'
-modifyAnnsT :: (Anns -> Anns) -> Transform ()
+modifyAnnsT :: (Monad m) => (Anns -> Anns) -> TransformT m ()
 modifyAnnsT f = do
   ans <- getAnnsT
   putAnnsT (f ans)
@@ -467,7 +467,8 @@ balanceComments' first second = do
 -- with the following element in fact do. Of necessity this is a heuristic
 -- process, to be tuned later. Possibly a variant should be provided with a
 -- passed-in decision function.
-balanceTrailingComments :: (Data a,Data b) => GHC.Located a -> GHC.Located b -> Transform [(Comment, DeltaPos)]
+balanceTrailingComments :: (Monad m) => (Data a,Data b) => GHC.Located a -> GHC.Located b
+                        -> TransformT m [(Comment, DeltaPos)]
 balanceTrailingComments first second = do
   let
     k1 = mkAnnKey first
@@ -568,7 +569,7 @@ class (Data t) => HasDecls t where
     -- given syntax phrase. They are always returned in the wrapped 'GHC.HsDecl'
     -- form, even if orginating in local decls. This is safe, as annotations
     -- never attach to the wrapper, only to the wrapped item.
-    hsDecls :: t -> Transform [GHC.LHsDecl GHC.RdrName]
+    hsDecls :: (Monad m) => t -> TransformT m [GHC.LHsDecl GHC.RdrName]
 
     -- | Replace the directly enclosed decl list by the given
     --  decl list. Runs in the 'Transform' monad to be able to update list order
@@ -589,7 +590,7 @@ class (Data t) => HasDecls t where
     --   where
     --     nn = 2
     -- @
-    replaceDecls :: t -> [GHC.LHsDecl GHC.RdrName] -> Transform t
+    replaceDecls :: (Monad m) => t -> [GHC.LHsDecl GHC.RdrName] -> TransformT m t
 
 -- ---------------------------------------------------------------------
 
@@ -678,11 +679,11 @@ instance HasDecls (GHC.LHsExpr GHC.RdrName) where
 
 -- ---------------------------------------------------------------------
 
-hsDeclsPatBindD :: GHC.LHsDecl GHC.RdrName -> Transform [GHC.LHsDecl GHC.RdrName]
+hsDeclsPatBindD :: (Monad m) => GHC.LHsDecl GHC.RdrName -> TransformT m [GHC.LHsDecl GHC.RdrName]
 hsDeclsPatBindD (GHC.L l (GHC.ValD d)) = hsDeclsPatBind (GHC.L l d)
 hsDeclsPatBindD x = error $ "hsDeclsPatBindD called for:" ++ showGhc x
 
-hsDeclsPatBind :: GHC.LHsBind GHC.RdrName -> Transform [GHC.LHsDecl GHC.RdrName]
+hsDeclsPatBind :: (Monad m) => GHC.LHsBind GHC.RdrName -> TransformT m [GHC.LHsDecl GHC.RdrName]
 hsDeclsPatBind d@(GHC.L _ (GHC.PatBind _ (GHC.GRHSs _grhs lb) _ _ _)) = do
   decls <- hsDeclsValBinds lb
   orderedDecls' d decls
@@ -690,13 +691,15 @@ hsDeclsPatBind x = error $ "hsDeclsPatBind called for:" ++ showGhc x
 
 -- -------------------------------------
 
-replaceDeclsPatBindD :: GHC.LHsDecl GHC.RdrName -> [GHC.LHsDecl GHC.RdrName] -> Transform (GHC.LHsDecl GHC.RdrName)
+replaceDeclsPatBindD :: (Monad m) => GHC.LHsDecl GHC.RdrName -> [GHC.LHsDecl GHC.RdrName]
+                     -> TransformT m (GHC.LHsDecl GHC.RdrName)
 replaceDeclsPatBindD (GHC.L l (GHC.ValD d)) newDecls = do
   (GHC.L _ d') <- replaceDeclsPatBind (GHC.L l d) newDecls
   return (GHC.L l (GHC.ValD d'))
 replaceDeclsPatBindD x _ = error $ "replaceDeclsPatBindD called for:" ++ showGhc x
 
-replaceDeclsPatBind :: GHC.LHsBind GHC.RdrName -> [GHC.LHsDecl GHC.RdrName] -> Transform (GHC.LHsBind GHC.RdrName)
+replaceDeclsPatBind :: (Monad m) => GHC.LHsBind GHC.RdrName -> [GHC.LHsDecl GHC.RdrName]
+                    -> TransformT m (GHC.LHsBind GHC.RdrName)
 replaceDeclsPatBind p@(GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds) b c d)) newDecls
     = do
         logTr "replaceDecls PatBind"
@@ -799,7 +802,7 @@ orderedDecls parent sub = do
   orderedDecls' parent decls
 
 -- |Look up the annotated order and sort the decls accordingly
-orderedDecls' :: (Data a) => GHC.Located a -> [GHC.LHsDecl GHC.RdrName] -> Transform [GHC.LHsDecl GHC.RdrName]
+orderedDecls' :: (Data a,Monad m) => GHC.Located a -> [GHC.LHsDecl GHC.RdrName] -> TransformT m [GHC.LHsDecl GHC.RdrName]
 orderedDecls' parent decls = do
   ans <- getAnnsT
   case getAnnotationEP parent ans of
@@ -814,7 +817,7 @@ orderedDecls' parent decls = do
 
 -- ---------------------------------------------------------------------
 
-hsDeclsValBinds :: GHC.HsLocalBinds GHC.RdrName -> Transform [GHC.LHsDecl GHC.RdrName]
+hsDeclsValBinds :: (Monad m) => GHC.HsLocalBinds GHC.RdrName -> TransformT m [GHC.LHsDecl GHC.RdrName]
 hsDeclsValBinds lb = case lb of
     GHC.HsValBinds (GHC.ValBindsIn bs sigs) -> do
       let
@@ -825,7 +828,8 @@ hsDeclsValBinds lb = case lb of
     GHC.HsIPBinds _     -> return []
     GHC.EmptyLocalBinds -> return []
 
-replaceDeclsValbinds :: GHC.HsLocalBinds GHC.RdrName -> [GHC.LHsDecl GHC.RdrName] -> Transform (GHC.HsLocalBinds GHC.RdrName)
+replaceDeclsValbinds :: (Monad m) => GHC.HsLocalBinds GHC.RdrName -> [GHC.LHsDecl GHC.RdrName]
+                     -> TransformT m (GHC.HsLocalBinds GHC.RdrName)
 replaceDeclsValbinds (GHC.HsValBinds _b) new
     = do
         logTr "replaceDecls HsLocalBinds"
@@ -847,69 +851,38 @@ replaceDeclsValbinds (GHC.EmptyLocalBinds) new
 type Decl  = GHC.LHsDecl GHC.RdrName
 type Match = GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)
 
-modifyLocalDecl ::
-                   GHC.SrcSpan
+modifyLocalDecl :: forall m t. (Monad m)
+                => GHC.SrcSpan
                 -> Decl
-                -> (Match -> [Decl] -> Transform ([Decl], Maybe t))
-                -> Transform (Decl,Maybe t)
-modifyLocalDecl p m@(GHC.L ss (GHC.ValD (GHC.PatBind {} ))) f =
+                -> (Match -> [Decl] -> TransformT m ([Decl], Maybe t))
+                -> TransformT m (Decl,Maybe t)
+modifyLocalDecl p pb@(GHC.L ss (GHC.ValD (GHC.PatBind {} ))) f =
          if ss == p
             then do
-              ds <- hsDeclsPatBindD m
+              ds <- hsDeclsPatBindD pb
               (ds',r) <- f undefined ds
-              m' <- replaceDeclsPatBindD m ds'
-              return (m',r)
-            else return (m,Nothing)
+              pb' <- replaceDeclsPatBindD pb ds'
+              return (pb',r)
+            else return (pb,Nothing)
 modifyLocalDecl p ast f = do
   (ast',r) <- runStateT (SYB.everywhereM (SYB.mkM doModLocal) ast) Nothing
+  -- logDataWithAnnsTr "modifyLocalDecl:ast'" ast'
   return (ast',r)
   where
-    -- doModLocal :: Match
-    --             -> Transform Match
-    doModLocal  (m@(GHC.L ss _) :: Match) = do
+    doModLocal :: Match -> StateT (Maybe t) (TransformT m) Match
+    doModLocal  (match@(GHC.L ss _) :: Match) = do
          lift $ logTr $ "doModLocal entered:ss=" ++ showGhc ss
          if ss == p
            then do
              lift $ logTr "doModLocal hit"
-             ds <- lift $ hsDecls m
-             (ds',r) <- lift $ f m ds
+             ds <- lift $ hsDecls match
+             (ds',r) <- lift $ f match ds
              lift $ logTr $ "doModLocal:ds'=" ++ showGhc ds'
              put r
-             lift $ replaceDecls m ds'
-           else return m
-
-{-
-modifyLocalDecl ::forall m t. (HasTransform m)
-                => GHC.SrcSpan
-                -> Decl
-                -> (Match -> [Decl] -> m ([Decl], Maybe t))
-                -> m (Decl,Maybe t)
-modifyLocalDecl p m@(GHC.L ss (GHC.ValD (GHC.PatBind {} ))) f =
-         if ss == p
-            then do
-              ds <- liftT $ hsDeclsPatBindD m
-              (ds',r) <- f undefined ds
-              m' <- liftT $ replaceDeclsPatBindD m ds'
-              return (m',r)
-            else return (m,Nothing)
-modifyLocalDecl p ast f = do
-  (ast',r) <- runStateT (SYB.everywhereM (SYB.mkM doModLocal) ast) Nothing
-  return (ast',r)
-  where
-    doModLocal :: Match -> StateT (Maybe t) m Match
-    doModLocal  (match@(GHC.L ss _) :: Match) = do
-         lift $ liftT $ logTr $ "doModLocal entered:ss=" ++ showGhc ss
-         if ss == p
-           then do
-             lift $ liftT $ logTr "doModLocal hit"
-             ds <- lift $ liftT $ hsDecls match
-             (ds',r) <- lift $ f match ds
-             lift $ liftT $ logTr $ "doModLocal:ds'=" ++ showGhc ds'
-             put r
-             lift $ liftT $ replaceDecls match ds'
-             return match
+             match' <- lift $ replaceDecls match ds'
+             -- lift $ logDataWithAnnsTr "modifyLocalDecl:ast'" ast'
+             return match'
            else return match
--}
 
 -- ---------------------------------------------------------------------
 
@@ -940,8 +913,8 @@ matchApiAnn mkw (kw,_)
 -- We comments extracted from annPriorComments or annFollowingComments, which
 -- need to move to just before the item identified by the predicate, if it
 -- fires, else at the end of the annotations.
-insertCommentBefore :: AnnKey -> [(Comment, DeltaPos)]
-                    -> ((KeywordId, DeltaPos) -> Bool) -> Transform ()
+insertCommentBefore :: (Monad m) => AnnKey -> [(Comment, DeltaPos)]
+                    -> ((KeywordId, DeltaPos) -> Bool) -> TransformT m ()
 insertCommentBefore key toMove p = do
   let
     doInsert ans =

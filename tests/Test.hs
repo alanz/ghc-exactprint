@@ -490,7 +490,7 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFnameMod rmDecl7       "RmDecl7.hs"       "RmDecl7"
     -- , manipulateAstTestWFname "TypeSignature.hs"                  "TypeSignature"
     -- , manipulateAstTestWFnameMod rmTypeSig1    "RmTypeSig1.hs"    "RmTypeSig1"
-    , manipulateAstTestWFnameMod rmTypeSig2    "RmTypeSig2.hs"    "RmTypeSig2"
+    -- , manipulateAstTestWFnameMod rmTypeSig2    "RmTypeSig2.hs"    "RmTypeSig2"
     -- , manipulateAstTestWFname "StringGap.hs"                      "StringGap"
     -- , manipulateAstTestWFnameMod addHiding1    "AddHiding1.hs"    "AddHiding1"
     -- , manipulateAstTestWFnameMod addHiding2    "AddHiding2.hs"    "AddHiding2"
