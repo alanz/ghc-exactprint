@@ -22,8 +22,10 @@ module Language.Haskell.GHC.ExactPrint.Transform
         (
         -- * The Transform Monad
           Transform
+        , TransformT(..)
         , runTransform
         , runTransformFrom
+        , runTransformFromT
 
         -- * Transform monad operations
         , logTr
@@ -114,13 +116,14 @@ import Control.Monad.Writer
 -- time. The W state is used to generate logging information if required.
 -- newtype Transform a = Transform { getTransform :: RWS () [String] (Anns,Int) a }
 --                         deriving (Monad, Applicative, Functor, MonadState (Anns, Int), MonadReader (), MonadWriter [String])
-
--- data TransformT m a = TransformT { runTransformT :: RWST () [String] (Anns,Int) m a }
-newtype TransformT m a = TransformT { runTransformT :: RWST () [String] (Anns,Int) m a }
-                deriving (Monad,Applicative,Functor,MonadState (Anns,Int), MonadReader (), MonadWriter [String])
-
 type Transform = TransformT Identity
--- type RWS r w s = RWST r w s Identity
+
+newtype TransformT m a = TransformT { runTransformT :: RWST () [String] (Anns,Int) m a }
+                deriving (Monad,Applicative,Functor
+                         ,MonadState (Anns,Int), MonadReader (), MonadWriter [String]
+                         ,MonadTrans
+                         )
+
 
 
 -- | Run a transformation in the 'Transform' monad, returning the updated
@@ -132,8 +135,10 @@ runTransform ans f = runTransformFrom 0 ans f
 -- annotations and any logging generated via 'logTr', allocating any new
 -- SrcSpans from the provided initial value.
 runTransformFrom :: Int -> Anns -> Transform a -> (a,(Anns,Int),[String])
--- runTransformFrom seed ans f = runRWS (getTransform f) () (ans,seed)
 runTransformFrom seed ans f = runRWS (runTransformT f) () (ans,seed)
+
+runTransformFromT :: (Monad m) => Int -> Anns -> TransformT m a -> m (a,(Anns,Int),[String])
+runTransformFromT seed ans f = runRWST (runTransformT f) () (ans,seed)
 
 -- |Log a string to the output of the Monad
 logTr :: (Monad m) => String -> TransformT m ()
@@ -866,7 +871,6 @@ modifyLocalDecl p pb@(GHC.L ss (GHC.ValD (GHC.PatBind {} ))) f =
             else return (pb,Nothing)
 modifyLocalDecl p ast f = do
   (ast',r) <- runStateT (SYB.everywhereM (SYB.mkM doModLocal) ast) Nothing
-  -- logDataWithAnnsTr "modifyLocalDecl:ast'" ast'
   return (ast',r)
   where
     doModLocal :: Match -> StateT (Maybe t) (TransformT m) Match
@@ -874,13 +878,12 @@ modifyLocalDecl p ast f = do
          lift $ logTr $ "doModLocal entered:ss=" ++ showGhc ss
          if ss == p
            then do
-             lift $ logTr "doModLocal hit"
+             -- lift $ logTr "doModLocal hit"
              ds <- lift $ hsDecls match
              (ds',r) <- lift $ f match ds
-             lift $ logTr $ "doModLocal:ds'=" ++ showGhc ds'
+             -- lift $ logTr $ "doModLocal:ds'=" ++ showGhc ds'
              put r
              match' <- lift $ replaceDecls match ds'
-             -- lift $ logDataWithAnnsTr "modifyLocalDecl:ast'" ast'
              return match'
            else return match
 
