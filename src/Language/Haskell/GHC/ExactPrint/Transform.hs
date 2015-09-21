@@ -100,18 +100,28 @@ import Data.List
 import Data.Maybe
 
 import qualified Data.Map as Map
-import Control.Monad.Writer
-import Control.Monad.State
 
-import Debug.Trace
+import Control.Monad.Identity
+import Control.Monad.State
+import Control.Monad.Writer
+
+-- import Debug.Trace
 
 ------------------------------------------------------------------------------
 -- Transformation of source elements
 
 -- | Monad type for updating the AST and managing the annotations at the same
 -- time. The W state is used to generate logging information if required.
-newtype Transform a = Transform { getTransform :: RWS () [String] (Anns,Int) a }
-                        deriving (Monad, Applicative, Functor, MonadState (Anns, Int), MonadReader (), MonadWriter [String])
+-- newtype Transform a = Transform { getTransform :: RWS () [String] (Anns,Int) a }
+--                         deriving (Monad, Applicative, Functor, MonadState (Anns, Int), MonadReader (), MonadWriter [String])
+
+-- data TransformT m a = TransformT { runTransformT :: RWST () [String] (Anns,Int) m a }
+newtype TransformT m a = TransformT { runTransformT :: RWST () [String] (Anns,Int) m a }
+                deriving (Monad,Applicative,Functor,MonadState (Anns,Int), MonadReader (), MonadWriter [String])
+
+type Transform = TransformT Identity
+-- type RWS r w s = RWST r w s Identity
+
 
 -- | Run a transformation in the 'Transform' monad, returning the updated
 -- annotations and any logging generated via 'logTr'
@@ -122,7 +132,8 @@ runTransform ans f = runTransformFrom 0 ans f
 -- annotations and any logging generated via 'logTr', allocating any new
 -- SrcSpans from the provided initial value.
 runTransformFrom :: Int -> Anns -> Transform a -> (a,(Anns,Int),[String])
-runTransformFrom seed ans f = runRWS (getTransform f) () (ans,seed)
+-- runTransformFrom seed ans f = runRWS (getTransform f) () (ans,seed)
+runTransformFrom seed ans f = runRWS (runTransformT f) () (ans,seed)
 
 -- |Log a string to the output of the Monad
 logTr :: String -> Transform ()
@@ -168,7 +179,6 @@ isUniqueSrcSpan :: GHC.SrcSpan -> Bool
 isUniqueSrcSpan ss = srcSpanStartLine ss == -1
 
 -- ---------------------------------------------------------------------
-
 -- |Make a copy of an AST element, replacing the existing SrcSpans with new
 -- ones, and duplicating the matching annotations.
 cloneT :: (Data a,Typeable a) => a -> Transform (a, [(GHC.SrcSpan, GHC.SrcSpan)])
@@ -778,7 +788,7 @@ hsDeclsGeneric t = q t
         return (concat dss)
     lhsbind p@(GHC.L _ (GHC.PatBind{})) = do
       hsDeclsPatBind p
-    lhsbind x = return []
+    lhsbind _ = return []
 
 -- ---------------------------------------------------------------------
 
@@ -867,6 +877,39 @@ modifyLocalDecl p ast f = do
              put r
              lift $ replaceDecls m ds'
            else return m
+
+{-
+modifyLocalDecl ::forall m t. (HasTransform m)
+                => GHC.SrcSpan
+                -> Decl
+                -> (Match -> [Decl] -> m ([Decl], Maybe t))
+                -> m (Decl,Maybe t)
+modifyLocalDecl p m@(GHC.L ss (GHC.ValD (GHC.PatBind {} ))) f =
+         if ss == p
+            then do
+              ds <- liftT $ hsDeclsPatBindD m
+              (ds',r) <- f undefined ds
+              m' <- liftT $ replaceDeclsPatBindD m ds'
+              return (m',r)
+            else return (m,Nothing)
+modifyLocalDecl p ast f = do
+  (ast',r) <- runStateT (SYB.everywhereM (SYB.mkM doModLocal) ast) Nothing
+  return (ast',r)
+  where
+    doModLocal :: Match -> StateT (Maybe t) m Match
+    doModLocal  (match@(GHC.L ss _) :: Match) = do
+         lift $ liftT $ logTr $ "doModLocal entered:ss=" ++ showGhc ss
+         if ss == p
+           then do
+             lift $ liftT $ logTr "doModLocal hit"
+             ds <- lift $ liftT $ hsDecls match
+             (ds',r) <- lift $ f match ds
+             lift $ liftT $ logTr $ "doModLocal:ds'=" ++ showGhc ds'
+             put r
+             lift $ liftT $ replaceDecls match ds'
+             return match
+           else return match
+-}
 
 -- ---------------------------------------------------------------------
 
