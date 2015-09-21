@@ -796,10 +796,10 @@ rmDecl5 ans lp = do
         let
           go :: GHC.HsExpr GHC.RdrName -> Transform (GHC.HsExpr GHC.RdrName)
           go (GHC.HsLet lb expr) = do
-            decs <- hsDecls lb
+            decs <- hsDeclsValBinds lb
             let dec = last decs
             transferEntryDPT (head decs) dec
-            lb' <- replaceDecls lb [dec]
+            lb' <- replaceDeclsValbinds lb [dec]
             return (GHC.HsLet lb' expr)
           go x = return x
 
