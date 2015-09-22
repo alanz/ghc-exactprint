@@ -774,7 +774,6 @@ data Parent = ParentParsed    GHC.ParsedSource
             | ParentLStmt    (GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName))
             | ParentLFunBind (GHC.LHsBind GHC.RdrName) (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
             | ParentLPatBind (GHC.LHsBind GHC.RdrName)
-            -- | ParentEmptyBind
 
 -- |A 'GHC.FunBind' wraps up one or more 'GHC.Match' items. 'hsDecls' cannot
 -- return anything for these as there is not meaningful 'replaceDecls' for it.
