@@ -586,7 +586,7 @@ addLocaLDecl1 ans lp = do
       doAddLocal = do
         (d1:d2:_) <- hsDecls lp
         balanceComments d1 d2
-        (d1',_) <- modifyLocalDecl (GHC.getLoc d1) d1 $ \_m d -> do
+        (d1',_) <- modifyValD (GHC.getLoc d1) d1 $ \_m d -> do
           return ((newDecl : d),Nothing)
         replaceDecls lp [d1', d2]
 
@@ -605,7 +605,7 @@ addLocaLDecl2 ans lp = do
          let parent = head tlDecs
          balanceComments parent (head $ tail tlDecs)
 
-         (parent',_) <- modifyLocalDecl (GHC.getLoc parent) parent $ \_m decls -> do
+         (parent',_) <- modifyValD (GHC.getLoc parent) parent $ \_m decls -> do
            transferEntryDPT (head decls) newDecl
            setEntryDPT (head decls) (DP (1, 0))
            return ((newDecl:decls),Nothing)
@@ -629,7 +629,7 @@ addLocaLDecl3 ans lp = do
          let parent = head tlDecs
          balanceComments parent (head $ tail tlDecs)
 
-         (parent',_) <- modifyLocalDecl (GHC.getLoc parent) parent $ \m decls -> do
+         (parent',_) <- modifyValD (GHC.getLoc parent) parent $ \m decls -> do
            setPrecedingLinesT newDecl 1 0
            moveTrailingComments m (last decls)
            return ((decls++[newDecl]),Nothing)
@@ -655,7 +655,7 @@ addLocaLDecl4 ans lp = do
          setPrecedingLinesT newSig  1 0
          setPrecedingLinesT newDecl 1 0
 
-         (parent',_) <- modifyLocalDecl (GHC.getLoc parent) parent $ \_m decls -> do
+         (parent',_) <- modifyValD (GHC.getLoc parent) parent $ \_m decls -> do
            return ((decls++[newSig,newDecl]),Nothing)
 
          replaceDecls lp (parent':tail tlDecs)
@@ -674,7 +674,7 @@ addLocaLDecl5 ans lp = do
 
          transferEntryDPT d2 d3
 
-         (d1',_) <- modifyLocalDecl (GHC.getLoc d1) d1 $ \_m _decls -> do
+         (d1',_) <- modifyValD (GHC.getLoc d1) d1 $ \_m _decls -> do
            return ([d2],Nothing)
          replaceDecls lp [s1,d1',d3]
 
@@ -695,7 +695,7 @@ addLocaLDecl6 ans lp = do
         let GHC.L _ (GHC.ValD (GHC.FunBind  _ _ (GHC.MG [m1,m2] _ _ _) _ _ _)) = d1
         balanceComments m1 m2
 
-        (d1',_) <- modifyLocalDecl (GHC.getLoc m1) d1 $ \_m decls -> do
+        (d1',_) <- modifyValD (GHC.getLoc m1) d1 $ \_m decls -> do
            return ((newDecl : decls),Nothing)
         replaceDecls lp [d1', d2]
 
@@ -756,7 +756,7 @@ rmDecl3 ans lp = do
       doRmDecl = do
          [d1,d2] <- hsDecls lp
 
-         (d1',Just sd1) <- modifyLocalDecl (GHC.getLoc d1) d1 $ \_m [sd1] -> do
+         (d1',Just sd1) <- modifyValD (GHC.getLoc d1) d1 $ \_m [sd1] -> do
            setPrecedingLinesDeclT sd1 2 0
            return ([],Just sd1)
 
@@ -774,7 +774,7 @@ rmDecl4 ans lp = do
       doRmDecl = do
          [d1] <- hsDecls lp
 
-         (d1',Just sd1) <- modifyLocalDecl (GHC.getLoc d1) d1 $ \_m [sd1,sd2] -> do
+         (d1',Just sd1) <- modifyValD (GHC.getLoc d1) d1 $ \_m [sd1,sd2] -> do
            -- [sd1,sd2] <- hsDecls d1
            transferEntryDPT sd1 sd2
 
@@ -817,7 +817,7 @@ rmDecl6 ans lp = do
       doRmDecl = do
          [d1] <- hsDecls lp
 
-         (d1',_) <- modifyLocalDecl (GHC.getLoc d1) d1 $ \_m subDecs -> do
+         (d1',_) <- modifyValD (GHC.getLoc d1) d1 $ \_m subDecs -> do
            let (ss1:_sd1:sd2:sds) = subDecs
            transferEntryDPT ss1 sd2
 
@@ -871,7 +871,7 @@ rmTypeSig2 ans lp = do
          tlDecs <- hsDecls lp
          let [d1] = tlDecs
 
-         (d1',_) <- modifyLocalDecl (GHC.getLoc d1) d1 $ \_m [s,d] -> do
+         (d1',_) <- modifyValD (GHC.getLoc d1) d1 $ \_m [s,d] -> do
            transferEntryDPT s d
            return ([d],Nothing)
          replaceDecls lp [d1']

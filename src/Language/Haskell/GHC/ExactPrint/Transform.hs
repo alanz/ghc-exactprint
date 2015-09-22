@@ -47,11 +47,12 @@ module Language.Haskell.GHC.ExactPrint.Transform
         -- ** Managing declarations, in Transform monad
         , HasTransform (..)
         , HasDecls (..)
+        , Parent(..),hsDeclsWithParent,replaceDeclsWithParent
         , hsDeclsGeneric
         , hsDeclsPatBind, hsDeclsPatBindD
         , hsDeclsValBinds, replaceDeclsValbinds
         , modifyDeclsT
-        , modifyLocalDecl
+        , modifyValD
 
         -- ** Managing lists, Transform monad
         , insertAtStart
@@ -103,6 +104,7 @@ import Data.Maybe
 
 import qualified Data.Map as Map
 
+import Data.Functor.Identity
 import Control.Monad.Identity
 import Control.Monad.State
 import Control.Monad.Writer
@@ -120,8 +122,10 @@ type Transform = TransformT Identity
 
 newtype TransformT m a = TransformT { runTransformT :: RWST () [String] (Anns,Int) m a }
                 deriving (Monad,Applicative,Functor
-                         ,MonadState (Anns,Int), MonadReader (), MonadWriter [String]
-                         ,MonadTrans
+                         ,MonadReader ()
+                         ,MonadWriter [String]
+                         ,MonadState (Anns,Int)
+                         -- ,MonadTrans
                          )
 
 
@@ -764,19 +768,85 @@ instance HasDecls (GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 -- end of HasDecls instances
 -- =====================================================================
 
+data Parent = ParentParsed    GHC.ParsedSource
+            | ParentLMatch   (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
+            | ParentLHsExpr  (GHC.LHsExpr GHC.RdrName)
+            | ParentLStmt    (GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName))
+            | ParentLFunBind (GHC.LHsBind GHC.RdrName) (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
+            | ParentLPatBind (GHC.LHsBind GHC.RdrName)
+            -- | ParentEmptyBind
+
 -- |A 'GHC.FunBind' wraps up one or more 'GHC.Match' items. 'hsDecls' cannot
 -- return anything for these as there is not meaningful 'replaceDecls' for it.
 -- This function provides a version of 'hsDecls' that returns the 'GHC.FunBind'
 -- decls too, where they are needed for analysis only.
--- hsDeclsGeneric :: (SYB.Data t) => t -> Transform [GHC.LHsDecl GHC.RdrName]
+hsDeclsWithParent :: (SYB.Data t,SYB.Typeable t) => t -> Transform [(Parent,[GHC.LHsDecl GHC.RdrName])]
+hsDeclsWithParent t = q t
+  where
+    q = return []
+        `SYB.mkQ`  parsedSource
+        `SYB.extQ` lmatch
+        `SYB.extQ` lexpr
+        `SYB.extQ` lstmt
+        `SYB.extQ` lhsbind
+
+    parsedSource (p::GHC.ParsedSource) = do
+      ds <- hsDecls p
+      return [(ParentParsed p,ds)]
+
+    lmatch (lm::GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) = do
+      ds <- hsDecls lm
+      return [(ParentLMatch lm,ds)]
+
+    lexpr (le::GHC.LHsExpr GHC.RdrName) = do
+      ds <- hsDecls le
+      return [(ParentLHsExpr le,ds)]
+
+    lstmt (d::GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) = do
+      ds <- hsDecls d
+      return [(ParentLStmt d,ds)]
+
+    lhsbind :: GHC.LHsBind GHC.RdrName -> Transform [(Parent,[GHC.LHsDecl GHC.RdrName])]
+    lhsbind p@(GHC.L _ (GHC.FunBind _ _ (GHC.MG matches _ _ _) _ _ _)) = do
+        dss <- mapM (\m -> do ds <- hsDecls m
+                              return (m,ds))
+                    matches
+        return (map (\(m,ds) -> (ParentLFunBind p m,ds)) dss)
+    lhsbind p@(GHC.L _ (GHC.PatBind{})) = do
+      ds <- hsDeclsPatBind p
+      return [(ParentLPatBind p,ds)]
+    lhsbind _ = return []
+
+-- ---------------------------------------------------------------------
+
+replaceDeclsWithParent :: (Monad m,HasTransform (TransformT m))
+                       => Parent -> [GHC.LHsDecl GHC.RdrName] -> TransformT m Parent
+replaceDeclsWithParent p newDecls = do
+  case p of
+    ParentParsed  d -> ParentParsed  <$> replaceDecls d newDecls
+    ParentLMatch  d -> ParentLMatch  <$> replaceDecls d newDecls
+    ParentLHsExpr d -> ParentLHsExpr <$> replaceDecls d newDecls
+    ParentLStmt   d -> ParentLStmt   <$> replaceDecls d newDecls
+    ParentLFunBind (GHC.L l d) m -> do
+      ((GHC.L l (GHC.ValD d')),_) <- modifyValD (GHC.getLoc m) (GHC.L l (GHC.ValD d)) $ \m decls -> do
+        return (newDecls,Nothing)
+      return (ParentLFunBind (GHC.L l d') m)
+    ParentLPatBind p -> ParentLPatBind <$> replaceDeclsPatBind p newDecls
+
+
+-- ---------------------------------------------------------------------
+
+-- |A 'GHC.FunBind' wraps up one or more 'GHC.Match' items. 'hsDecls' cannot
+-- return anything for these as there is not meaningful 'replaceDecls' for it.
+-- This function provides a version of 'hsDecls' that returns the 'GHC.FunBind'
+-- decls too, where they are needed for analysis only.
 hsDeclsGeneric :: (SYB.Data t,SYB.Typeable t) => t -> Transform [GHC.LHsDecl GHC.RdrName]
 hsDeclsGeneric t = q t
   where
     q = return []
-        `SYB.mkQ` parsedSource
+        `SYB.mkQ`  parsedSource
         `SYB.extQ` lmatch
         `SYB.extQ` lexpr
-        -- `SYB.extQ` lhsdecl
         `SYB.extQ` lstmt
         `SYB.extQ` lhsbind
 
@@ -785,8 +855,6 @@ hsDeclsGeneric t = q t
     lmatch (lm::GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) = hsDecls lm
 
     lexpr (le::GHC.LHsExpr GHC.RdrName) = hsDecls le
-
-    -- lhsdecl (d::GHC.LHsDecl GHC.RdrName) = hsDecls d
 
     lstmt (d::GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) = hsDecls d
 
@@ -856,34 +924,32 @@ replaceDeclsValbinds (GHC.EmptyLocalBinds) new
 type Decl  = GHC.LHsDecl GHC.RdrName
 type Match = GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)
 
-modifyLocalDecl :: forall m t. (Monad m)
+modifyValD :: forall m t. (HasTransform m)
                 => GHC.SrcSpan
                 -> Decl
-                -> (Match -> [Decl] -> TransformT m ([Decl], Maybe t))
-                -> TransformT m (Decl,Maybe t)
-modifyLocalDecl p pb@(GHC.L ss (GHC.ValD (GHC.PatBind {} ))) f =
-         if ss == p
-            then do
-              ds <- hsDeclsPatBindD pb
-              (ds',r) <- f undefined ds
-              pb' <- replaceDeclsPatBindD pb ds'
-              return (pb',r)
-            else return (pb,Nothing)
-modifyLocalDecl p ast f = do
+                -> (Match -> [Decl] -> m ([Decl], Maybe t))
+                -> m (Decl,Maybe t)
+modifyValD p pb@(GHC.L ss (GHC.ValD (GHC.PatBind {} ))) f =
+  if ss == p
+     then do
+       ds <- liftT $ hsDeclsPatBindD pb
+       (ds',r) <- f (error "modifyValD.PatBind should not touch Match") ds
+       pb' <- liftT $ replaceDeclsPatBindD pb ds'
+       return (pb',r)
+     else return (pb,Nothing)
+modifyValD p ast f = do
   (ast',r) <- runStateT (SYB.everywhereM (SYB.mkM doModLocal) ast) Nothing
   return (ast',r)
   where
-    doModLocal :: Match -> StateT (Maybe t) (TransformT m) Match
+    doModLocal :: Match -> StateT (Maybe t) m Match
     doModLocal  (match@(GHC.L ss _) :: Match) = do
-         lift $ logTr $ "doModLocal entered:ss=" ++ showGhc ss
+         let
          if ss == p
            then do
-             -- lift $ logTr "doModLocal hit"
-             ds <- lift $ hsDecls match
+             ds <- lift $ liftT $ hsDecls match
              (ds',r) <- lift $ f match ds
-             -- lift $ logTr $ "doModLocal:ds'=" ++ showGhc ds'
              put r
-             match' <- lift $ replaceDecls match ds'
+             match' <- lift $ liftT $ replaceDecls match ds'
              return match'
            else return match
 
@@ -892,6 +958,9 @@ modifyLocalDecl p ast f = do
 -- |Used to integrate a @Transform@ into other Monad stacks
 class (Monad m) => (HasTransform m) where
   liftT :: Transform a -> m a
+
+instance HasTransform (TransformT Identity) where
+  liftT = id
 
 -- ---------------------------------------------------------------------
 
