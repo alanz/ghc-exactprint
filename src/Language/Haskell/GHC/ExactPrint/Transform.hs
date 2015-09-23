@@ -50,6 +50,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , Parent(..),hsDeclsWithParent,replaceDeclsWithParent
         , hsDeclsGeneric
         , hsDeclsPatBind, hsDeclsPatBindD
+        , replaceDeclsPatBind, replaceDeclsPatBindD
         , hsDeclsValBinds, replaceDeclsValbinds
         , modifyDeclsT
         , modifyValD
@@ -848,6 +849,8 @@ hsDeclsGeneric t = q t
         `SYB.extQ` lexpr
         `SYB.extQ` lstmt
         `SYB.extQ` lhsbind
+        `SYB.extQ` lhsbindd
+        `SYB.extQ` localbinds
 
     parsedSource (p::GHC.ParsedSource) = hsDecls p
 
@@ -857,6 +860,8 @@ hsDeclsGeneric t = q t
 
     lstmt (d::GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) = hsDecls d
 
+    -- ---------------------------------
+
     lhsbind :: GHC.LHsBind GHC.RdrName -> Transform [GHC.LHsDecl GHC.RdrName]
     lhsbind (GHC.L _ (GHC.FunBind _ _ (GHC.MG matches _ _ _) _ _ _)) = do
         dss <- mapM hsDecls matches
@@ -864,6 +869,15 @@ hsDeclsGeneric t = q t
     lhsbind p@(GHC.L _ (GHC.PatBind{})) = do
       hsDeclsPatBind p
     lhsbind _ = return []
+
+    -- ---------------------------------
+
+    lhsbindd (GHC.L l (GHC.ValD d)) = lhsbind (GHC.L l d)
+
+    -- ---------------------------------
+
+    localbinds :: GHC.HsLocalBinds GHC.RdrName -> Transform [GHC.LHsDecl GHC.RdrName]
+    localbinds d = hsDeclsValBinds d
 
 -- ---------------------------------------------------------------------
 
@@ -900,8 +914,11 @@ hsDeclsValBinds lb = case lb of
     GHC.HsIPBinds _     -> return []
     GHC.EmptyLocalBinds -> return []
 
-replaceDeclsValbinds :: (Monad m) => GHC.HsLocalBinds GHC.RdrName -> [GHC.LHsDecl GHC.RdrName]
+replaceDeclsValbinds :: (Monad m)
+                     => GHC.HsLocalBinds GHC.RdrName -> [GHC.LHsDecl GHC.RdrName]
                      -> TransformT m (GHC.HsLocalBinds GHC.RdrName)
+replaceDeclsValbinds _ [] = do
+  return (GHC.EmptyLocalBinds)
 replaceDeclsValbinds (GHC.HsValBinds _b) new
     = do
         logTr "replaceDecls HsLocalBinds"
