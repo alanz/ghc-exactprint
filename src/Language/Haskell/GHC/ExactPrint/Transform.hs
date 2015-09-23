@@ -48,6 +48,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , HasTransform (..)
         , HasDecls (..)
         , Parent(..),hsDeclsWithParent,replaceDeclsWithParent
+        , hasDeclsSybTransform
         , hsDeclsGeneric
         , hsDeclsPatBind, hsDeclsPatBindD
         , replaceDeclsPatBind, replaceDeclsPatBindD
@@ -816,6 +817,47 @@ hsDeclsWithParent t = q t
       ds <- hsDeclsPatBind p
       return [(ParentLPatBind p,ds)]
     lhsbind _ = return []
+
+-- ---------------------------------------------------------------------
+-- ---------------------------------------------------------------------
+
+hasDeclsSybTransform :: (SYB.Data t2, SYB.Typeable t2,Monad m)
+       => (forall t. HasDecls t => t -> m t)
+             -- ^Worker function for the general case
+       -> (GHC.LHsBind GHC.RdrName -> m (GHC.LHsBind GHC.RdrName))
+             -- ^Worker function for FunBind/PatBind
+       -> t2 -- ^Item to be updated
+       -> m t2
+hasDeclsSybTransform workerHasDecls workerBind t = trf t
+  where
+    trf = SYB.mkM   parsedSource
+         `SYB.extM` lmatch
+         `SYB.extM` lexpr
+         `SYB.extM` lstmt
+         `SYB.extM` lhsbind
+         `SYB.extM` lvald
+
+    parsedSource (p::GHC.ParsedSource) = workerHasDecls p
+
+    lmatch (lm::GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
+      = workerHasDecls lm
+
+    lexpr (le::GHC.LHsExpr GHC.RdrName)
+      = workerHasDecls le
+
+    lstmt (d::GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName))
+      = workerHasDecls d
+
+    lhsbind (b@(GHC.L _ GHC.FunBind{}):: GHC.LHsBind GHC.RdrName)
+      = workerBind b
+    lhsbind b@(GHC.L _ GHC.PatBind{})
+      = workerBind b
+    lhsbind x = return x
+
+    lvald (GHC.L l (GHC.ValD d)) = do
+      (GHC.L _ d') <- lhsbind (GHC.L l d)
+      return (GHC.L l (GHC.ValD d'))
+    lvald x = return x
 
 -- ---------------------------------------------------------------------
 
