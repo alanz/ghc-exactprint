@@ -56,7 +56,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
 
 import Control.Monad.State
 import Data.Data (Data, toConstr, showConstr, cast)
-import Data.Generics (extQ, ext1Q, ext2Q, gmapQ,mkQ,everything)
+import Data.Generics (extQ, ext1Q, ext2Q, gmapQ)
 import Data.List (intercalate, sortBy, elemIndex)
 import Data.Ord (comparing)
 
@@ -388,6 +388,7 @@ showAnnData anns n =
                   ++ showAnnData anns (n+1) a
                   ++ ")"
 
+{-
         showWrappedDeclAnns :: (Data a) => GHC.Located a -> Maybe String
         showWrappedDeclAnns t = everything mappend (Nothing `mkQ` showDecl) t
           where
@@ -396,7 +397,7 @@ showAnnData anns n =
 
         doShowAnn :: (Data a) => GHC.Located a -> String
         doShowAnn a =  show (getAnnotationEP a anns)
-
+-}
  -- ---------------------------------------------------------------------
 
 showSDoc_ :: GHC.SDoc -> String

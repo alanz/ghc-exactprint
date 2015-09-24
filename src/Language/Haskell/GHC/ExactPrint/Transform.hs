@@ -107,7 +107,7 @@ import Data.Maybe
 import qualified Data.Map as Map
 
 import Data.Functor.Identity
-import Control.Monad.Identity
+-- import Control.Monad.Identity
 import Control.Monad.State
 import Control.Monad.Writer
 
@@ -618,7 +618,7 @@ instance HasDecls GHC.ParsedSource where
 instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   hsDecls d@(GHC.L _ (GHC.Match _ _ _ (GHC.GRHSs _ lb))) = do
     decls <- hsDeclsValBinds lb
-    orderedDecls' d decls
+    orderedDecls d decls
 
   replaceDecls m@(GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds))) []
     = do
@@ -672,7 +672,7 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 instance HasDecls (GHC.LHsExpr GHC.RdrName) where
   hsDecls ls@(GHC.L _ (GHC.HsLet decls _ex)) = do
     ds <- hsDeclsValBinds decls
-    orderedDecls' ls ds
+    orderedDecls ls ds
   hsDecls _                               = return []
 
   replaceDecls e@(GHC.L l (GHC.HsLet decls ex)) newDecls
@@ -697,7 +697,7 @@ hsDeclsPatBindD x = error $ "hsDeclsPatBindD called for:" ++ showGhc x
 hsDeclsPatBind :: (Monad m) => GHC.LHsBind GHC.RdrName -> TransformT m [GHC.LHsDecl GHC.RdrName]
 hsDeclsPatBind d@(GHC.L _ (GHC.PatBind _ (GHC.GRHSs _grhs lb) _ _ _)) = do
   decls <- hsDeclsValBinds lb
-  orderedDecls' d decls
+  orderedDecls d decls
 hsDeclsPatBind x = error $ "hsDeclsPatBind called for:" ++ showGhc x
 
 -- -------------------------------------
@@ -741,7 +741,7 @@ replaceDeclsPatBind x _ = error $ "replaceDeclsPatBind called for:" ++ showGhc x
 instance HasDecls (GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   hsDecls ls@(GHC.L _ (GHC.LetStmt lb))       = do
     decls <- hsDeclsValBinds lb
-    orderedDecls' ls decls
+    orderedDecls ls decls
   hsDecls (GHC.L _ (GHC.LastStmt e _))        = hsDecls e
   hsDecls (GHC.L _ (GHC.BindStmt _pat e _ _)) = hsDecls e
   hsDecls (GHC.L _ (GHC.BodyStmt e _ _ _))    = hsDecls e
@@ -869,11 +869,11 @@ replaceDeclsWithParent p newDecls = do
     ParentLMatch  d -> ParentLMatch  <$> replaceDecls d newDecls
     ParentLHsExpr d -> ParentLHsExpr <$> replaceDecls d newDecls
     ParentLStmt   d -> ParentLStmt   <$> replaceDecls d newDecls
-    ParentLFunBind (GHC.L l d) m -> do
-      ((GHC.L l (GHC.ValD d')),_) <- modifyValD (GHC.getLoc m) (GHC.L l (GHC.ValD d)) $ \m decls -> do
+    ParentLFunBind (GHC.L l d) mp -> do
+      ((GHC.L _ (GHC.ValD d')),_) <- modifyValD (GHC.getLoc mp) (GHC.L l (GHC.ValD d)) $ \_m _decls -> do
         return (newDecls,Nothing)
-      return (ParentLFunBind (GHC.L l d') m)
-    ParentLPatBind p -> ParentLPatBind <$> replaceDeclsPatBind p newDecls
+      return (ParentLFunBind (GHC.L l d') mp)
+    ParentLPatBind p' -> ParentLPatBind <$> replaceDeclsPatBind p' newDecls
 
 
 -- ---------------------------------------------------------------------
@@ -915,6 +915,7 @@ hsDeclsGeneric t = q t
     -- ---------------------------------
 
     lhsbindd (GHC.L l (GHC.ValD d)) = lhsbind (GHC.L l d)
+    lhsbindd _ = return []
 
     -- ---------------------------------
 
@@ -924,14 +925,8 @@ hsDeclsGeneric t = q t
 -- ---------------------------------------------------------------------
 
 -- |Look up the annotated order and sort the decls accordingly
-orderedDecls :: (Data a,HasDecls b) => GHC.Located a -> b -> Transform [GHC.LHsDecl GHC.RdrName]
-orderedDecls parent sub = do
-  decls <- hsDecls sub
-  orderedDecls' parent decls
-
--- |Look up the annotated order and sort the decls accordingly
-orderedDecls' :: (Data a,Monad m) => GHC.Located a -> [GHC.LHsDecl GHC.RdrName] -> TransformT m [GHC.LHsDecl GHC.RdrName]
-orderedDecls' parent decls = do
+orderedDecls :: (Data a,Monad m) => GHC.Located a -> [GHC.LHsDecl GHC.RdrName] -> TransformT m [GHC.LHsDecl GHC.RdrName]
+orderedDecls parent decls = do
   ans <- getAnnsT
   case getAnnotationEP parent ans of
     Nothing -> error $ "orderedDecls:no annotation for:" ++ showAnnData emptyAnns 0 parent
@@ -1053,7 +1048,6 @@ insertCommentBefore key toMove p = do
         Just ann -> Map.insert key ann' ans
           where
             (before,after) = break p (annsDP ann)
-            -- ann' = error $ "insertCommentBefore:" ++ showGhc (before,after)
             ann' = ann { annsDP = before ++ (map comment2dp toMove) ++ after}
 
   modifyAnnsT doInsert

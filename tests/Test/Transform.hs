@@ -24,7 +24,7 @@ import Control.Monad
 import System.FilePath
 import System.IO
 import qualified Data.Map as Map
-import Data.List
+-- import Data.List
 import Data.Maybe
 
 import System.IO.Silently
