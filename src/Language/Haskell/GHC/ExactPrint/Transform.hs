@@ -47,7 +47,6 @@ module Language.Haskell.GHC.ExactPrint.Transform
         -- ** Managing declarations, in Transform monad
         , HasTransform (..)
         , HasDecls (..)
-        , Parent(..),hsDeclsWithParent,replaceDeclsWithParent
         , hasDeclsSybTransform
         , hsDeclsGeneric
         , hsDeclsPatBind, hsDeclsPatBindD
@@ -770,55 +769,6 @@ instance HasDecls (GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 -- end of HasDecls instances
 -- =====================================================================
 
-data Parent = ParentParsed    GHC.ParsedSource
-            | ParentLMatch   (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
-            | ParentLHsExpr  (GHC.LHsExpr GHC.RdrName)
-            | ParentLStmt    (GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName))
-            | ParentLFunBind (GHC.LHsBind GHC.RdrName) (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
-            | ParentLPatBind (GHC.LHsBind GHC.RdrName)
-
--- |A 'GHC.FunBind' wraps up one or more 'GHC.Match' items. 'hsDecls' cannot
--- return anything for these as there is not meaningful 'replaceDecls' for it.
--- This function provides a version of 'hsDecls' that returns the 'GHC.FunBind'
--- decls too, where they are needed for analysis only.
-hsDeclsWithParent :: (SYB.Data t,SYB.Typeable t) => t -> Transform [(Parent,[GHC.LHsDecl GHC.RdrName])]
-hsDeclsWithParent t = q t
-  where
-    q = return []
-        `SYB.mkQ`  parsedSource
-        `SYB.extQ` lmatch
-        `SYB.extQ` lexpr
-        `SYB.extQ` lstmt
-        `SYB.extQ` lhsbind
-
-    parsedSource (p::GHC.ParsedSource) = do
-      ds <- hsDecls p
-      return [(ParentParsed p,ds)]
-
-    lmatch (lm::GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) = do
-      ds <- hsDecls lm
-      return [(ParentLMatch lm,ds)]
-
-    lexpr (le::GHC.LHsExpr GHC.RdrName) = do
-      ds <- hsDecls le
-      return [(ParentLHsExpr le,ds)]
-
-    lstmt (d::GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) = do
-      ds <- hsDecls d
-      return [(ParentLStmt d,ds)]
-
-    lhsbind :: GHC.LHsBind GHC.RdrName -> Transform [(Parent,[GHC.LHsDecl GHC.RdrName])]
-    lhsbind p@(GHC.L _ (GHC.FunBind _ _ (GHC.MG matches _ _ _) _ _ _)) = do
-        dss <- mapM (\m -> do ds <- hsDecls m
-                              return (m,ds))
-                    matches
-        return (map (\(m,ds) -> (ParentLFunBind p m,ds)) dss)
-    lhsbind p@(GHC.L _ (GHC.PatBind{})) = do
-      ds <- hsDeclsPatBind p
-      return [(ParentLPatBind p,ds)]
-    lhsbind _ = return []
-
--- ---------------------------------------------------------------------
 -- ---------------------------------------------------------------------
 
 hasDeclsSybTransform :: (SYB.Data t2, SYB.Typeable t2,Monad m)
@@ -858,23 +808,6 @@ hasDeclsSybTransform workerHasDecls workerBind t = trf t
       (GHC.L _ d') <- lhsbind (GHC.L l d)
       return (GHC.L l (GHC.ValD d'))
     lvald x = return x
-
--- ---------------------------------------------------------------------
-
-replaceDeclsWithParent :: (Monad m,HasTransform (TransformT m))
-                       => Parent -> [GHC.LHsDecl GHC.RdrName] -> TransformT m Parent
-replaceDeclsWithParent p newDecls = do
-  case p of
-    ParentParsed  d -> ParentParsed  <$> replaceDecls d newDecls
-    ParentLMatch  d -> ParentLMatch  <$> replaceDecls d newDecls
-    ParentLHsExpr d -> ParentLHsExpr <$> replaceDecls d newDecls
-    ParentLStmt   d -> ParentLStmt   <$> replaceDecls d newDecls
-    ParentLFunBind (GHC.L l d) mp -> do
-      ((GHC.L _ (GHC.ValD d')),_) <- modifyValD (GHC.getLoc mp) (GHC.L l (GHC.ValD d)) $ \_m _decls -> do
-        return (newDecls,Nothing)
-      return (ParentLFunBind (GHC.L l d') mp)
-    ParentLPatBind p' -> ParentLPatBind <$> replaceDeclsPatBind p' newDecls
-
 
 -- ---------------------------------------------------------------------
 
