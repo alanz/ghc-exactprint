@@ -51,9 +51,10 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , hsDeclsGeneric
         , hsDeclsPatBind, hsDeclsPatBindD
         , replaceDeclsPatBind, replaceDeclsPatBindD
-        , hsDeclsValBinds, replaceDeclsValbinds
         , modifyDeclsT
         , modifyValD
+        -- *** Utility, does not manage layout
+        , hsDeclsValBinds, replaceDeclsValbinds
 
         -- ** Managing lists, Transform monad
         , insertAtStart
@@ -117,10 +118,9 @@ import Control.Monad.Writer
 
 -- | Monad type for updating the AST and managing the annotations at the same
 -- time. The W state is used to generate logging information if required.
--- newtype Transform a = Transform { getTransform :: RWS () [String] (Anns,Int) a }
---                         deriving (Monad, Applicative, Functor, MonadState (Anns, Int), MonadReader (), MonadWriter [String])
 type Transform = TransformT Identity
 
+-- |Monad transformer version of 'Transform' monad
 newtype TransformT m a = TransformT { runTransformT :: RWST () [String] (Anns,Int) m a }
                 deriving (Monad,Applicative,Functor
                          ,MonadReader ()
@@ -142,6 +142,7 @@ runTransform ans f = runTransformFrom 0 ans f
 runTransformFrom :: Int -> Anns -> Transform a -> (a,(Anns,Int),[String])
 runTransformFrom seed ans f = runRWS (runTransformT f) () (ans,seed)
 
+-- |Run a monad transformer stack for the 'TransformT' monad transformer
 runTransformFromT :: (Monad m) => Int -> Anns -> TransformT m a -> m (a,(Anns,Int),[String])
 runTransformFromT seed ans f = runRWST (runTransformT f) () (ans,seed)
 
@@ -427,6 +428,12 @@ removeTrailingComma a anns =
 
 -- ---------------------------------------------------------------------
 
+-- |The relatavise phase puts all comments appearing between the end of one AST
+-- item and the beginning of the next as 'annPriorComments' for the second one.
+-- This function takes two adjacent AST items and moves any 'annPriorComments'
+-- from the second one to the 'annFollowingComments' of the first if they belong
+-- to it instead. This is typically required before deleting or duplicating
+-- either of the AST elements.
 balanceComments :: (Data a,Data b) => GHC.Located a -> GHC.Located b -> Transform ()
 balanceComments first second = do
   -- ++AZ++ : replace the nested casts with appropriate SYB.gmapM
@@ -439,12 +446,6 @@ balanceComments first second = do
       Just fb'@(GHC.L _ (GHC.FunBind{})) -> do
         balanceCommentsFB fb' second
       _ -> balanceComments' first second
-
-balanceCommentsFB :: (Data b) => GHC.LHsBind GHC.RdrName -> GHC.Located b -> Transform ()
-balanceCommentsFB (GHC.L _ (GHC.FunBind _ _ (GHC.MG matches _ _ _) _ _ _)) second = do
-  -- logTr $ "balanceCommentsFB entered"
-  balanceComments' (last matches) second
-balanceCommentsFB f s = balanceComments' f s
 
 -- |Prior to moving an AST element, make sure any trailing comments belonging to
 -- it are attached to it, and not the following element. Of necessity this is a
@@ -469,6 +470,15 @@ balanceComments' first second = do
     simpleBreak (_,DP (r,_c)) = r > 0
 
   modifyAnnsT (moveComments simpleBreak)
+
+-- |Once 'balanceComments' has been called to move trailing comments to a
+-- 'GHC.FunBind', these need to be pushed down from the top level to the last
+-- 'GHC.Match' if that 'GHC.Match' needs to be manipulated.
+balanceCommentsFB :: (Data b) => GHC.LHsBind GHC.RdrName -> GHC.Located b -> Transform ()
+balanceCommentsFB (GHC.L _ (GHC.FunBind _ _ (GHC.MG matches _ _ _) _ _ _)) second = do
+  -- logTr $ "balanceCommentsFB entered"
+  balanceComments' (last matches) second
+balanceCommentsFB f s = balanceComments' f s
 
 -- ---------------------------------------------------------------------
 
@@ -550,6 +560,8 @@ insertAtStart, insertAtEnd :: (Data ast, HasDecls (GHC.Located ast))
 insertAtStart = insertAt (:)
 insertAtEnd   = insertAt (\x xs -> xs ++ [x])
 
+-- |Insert a declaration at a specific location in the subdecls of the given
+-- AST item
 insertAfter, insertBefore :: (Data ast, HasDecls (GHC.Located ast))
                           => GHC.Located old
                           -> GHC.Located ast
@@ -689,10 +701,18 @@ instance HasDecls (GHC.LHsExpr GHC.RdrName) where
 
 -- ---------------------------------------------------------------------
 
+-- | Extract the immediate declarations for a 'GHC.PatBind' wrapped in a 'GHC.ValD'. This
+-- cannot be a member of 'HasDecls' because a 'GHC.FunBind' is not idempotent
+-- for 'hsDecls' \/ 'replaceDecls'. 'hsDeclsPatBindD' \/ 'replaceDeclsPatBindD' is
+-- idempotent.
 hsDeclsPatBindD :: (Monad m) => GHC.LHsDecl GHC.RdrName -> TransformT m [GHC.LHsDecl GHC.RdrName]
 hsDeclsPatBindD (GHC.L l (GHC.ValD d)) = hsDeclsPatBind (GHC.L l d)
 hsDeclsPatBindD x = error $ "hsDeclsPatBindD called for:" ++ showGhc x
 
+-- | Extract the immediate declarations for a 'GHC.PatBind'. This
+-- cannot be a member of 'HasDecls' because a 'GHC.FunBind' is not idempotent
+-- for 'hsDecls' \/ 'replaceDecls'. 'hsDeclsPatBind' \/ 'replaceDeclsPatBind' is
+-- idempotent.
 hsDeclsPatBind :: (Monad m) => GHC.LHsBind GHC.RdrName -> TransformT m [GHC.LHsDecl GHC.RdrName]
 hsDeclsPatBind d@(GHC.L _ (GHC.PatBind _ (GHC.GRHSs _grhs lb) _ _ _)) = do
   decls <- hsDeclsValBinds lb
@@ -701,6 +721,10 @@ hsDeclsPatBind x = error $ "hsDeclsPatBind called for:" ++ showGhc x
 
 -- -------------------------------------
 
+-- | Replace the immediate declarations for a 'GHC.PatBind' wrapped in a 'GHC.ValD'. This
+-- cannot be a member of 'HasDecls' because a 'GHC.FunBind' is not idempotent
+-- for 'hsDecls' \/ 'replaceDecls'. 'hsDeclsPatBindD' \/ 'replaceDeclsPatBindD' is
+-- idempotent.
 replaceDeclsPatBindD :: (Monad m) => GHC.LHsDecl GHC.RdrName -> [GHC.LHsDecl GHC.RdrName]
                      -> TransformT m (GHC.LHsDecl GHC.RdrName)
 replaceDeclsPatBindD (GHC.L l (GHC.ValD d)) newDecls = do
@@ -708,6 +732,10 @@ replaceDeclsPatBindD (GHC.L l (GHC.ValD d)) newDecls = do
   return (GHC.L l (GHC.ValD d'))
 replaceDeclsPatBindD x _ = error $ "replaceDeclsPatBindD called for:" ++ showGhc x
 
+-- | Replace the immediate declarations for a 'GHC.PatBind'. This
+-- cannot be a member of 'HasDecls' because a 'GHC.FunBind' is not idempotent
+-- for 'hsDecls' \/ 'replaceDecls'. 'hsDeclsPatBind' \/ 'replaceDeclsPatBind' is
+-- idempotent.
 replaceDeclsPatBind :: (Monad m) => GHC.LHsBind GHC.RdrName -> [GHC.LHsDecl GHC.RdrName]
                     -> TransformT m (GHC.LHsBind GHC.RdrName)
 replaceDeclsPatBind p@(GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds) b c d)) newDecls
@@ -771,6 +799,10 @@ instance HasDecls (GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 
 -- ---------------------------------------------------------------------
 
+-- |Do a transformation on an AST fragment by providing a function to process
+-- the general case and one specific for a 'GHC.LHsBind'. This is required
+-- because a 'GHC.FunBind' may have multiple 'GHC.Match' items, so we cannot
+-- gurantee that 'replaceDecls' after 'hsDecls' is idempotent.
 hasDeclsSybTransform :: (SYB.Data t2, SYB.Typeable t2,Monad m)
        => (forall t. HasDecls t => t -> m t)
              -- ^Worker function for the general case
@@ -873,6 +905,10 @@ orderedDecls parent decls = do
 
 -- ---------------------------------------------------------------------
 
+-- | Utility function for extracting decls from 'GHC.HsLocalBinds'. Use with
+-- care, as this does not necessarily return the declarations in order, the
+-- ordering should be done by the calling function from the 'GHC.HsLocalBinds'
+-- context in the AST.
 hsDeclsValBinds :: (Monad m) => GHC.HsLocalBinds GHC.RdrName -> TransformT m [GHC.LHsDecl GHC.RdrName]
 hsDeclsValBinds lb = case lb of
     GHC.HsValBinds (GHC.ValBindsIn bs sigs) -> do
@@ -884,6 +920,10 @@ hsDeclsValBinds lb = case lb of
     GHC.HsIPBinds _     -> return []
     GHC.EmptyLocalBinds -> return []
 
+-- | Utility function for returning decls to 'GHC.HsLocalBinds'. Use with
+-- care, as this does not manage the declaration order, the
+-- ordering should be done by the calling function from the 'GHC.HsLocalBinds'
+-- context in the AST.
 replaceDeclsValbinds :: (Monad m)
                      => GHC.HsLocalBinds GHC.RdrName -> [GHC.LHsDecl GHC.RdrName]
                      -> TransformT m (GHC.HsLocalBinds GHC.RdrName)
@@ -910,6 +950,10 @@ replaceDeclsValbinds (GHC.EmptyLocalBinds) new
 type Decl  = GHC.LHsDecl GHC.RdrName
 type Match = GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)
 
+-- |Modify a 'GHC.LHsBind' wrapped in a 'GHC.ValD'. For a 'GHC.PatBind' the
+-- declarations are extracted and returned after modification. For a
+-- 'GHC.FunBind' the supplied 'GHC.SrcSpan' is used to identify the specific
+-- 'GHC.Match' to be transformed, for when there are multiple of them.
 modifyValD :: forall m t. (HasTransform m)
                 => GHC.SrcSpan
                 -> Decl

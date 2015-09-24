@@ -1,4 +1,8 @@
-2015-09-18 v0.4.0.0
+2015-09-24 v0.4.0.0
+	* Rework HasDecls so that there are only instances for which it is
+	idempotent. Provide functions for managing an LHsBind which is not
+	idempotent, and performing general transformations on an AST
+	including FunBinds.
 	* Manage LHsDecl instances so that the Annotation always attaches
 	to the wrapped item, so that they can be seamlessly used in a top
 	level (wrapped) or local (unwrapped) context.
