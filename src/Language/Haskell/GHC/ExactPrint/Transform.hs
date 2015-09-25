@@ -537,18 +537,15 @@ moveTrailingComments first second = do
 -- |Insert a declaration into an AST element having sub-declarations
 -- (@HasDecls@) according to the given location function.
 insertAt :: (Data ast, HasDecls (GHC.Located ast))
-              => (GHC.SrcSpan -> [GHC.SrcSpan] -> [GHC.SrcSpan])
+              => (GHC.LHsDecl GHC.RdrName
+                  -> [GHC.LHsDecl GHC.RdrName]
+                  -> [GHC.LHsDecl GHC.RdrName])
               -> GHC.Located ast
               -> GHC.LHsDecl GHC.RdrName
               -> Transform (GHC.Located ast)
 insertAt f t decl = do
-  let newKey = GHC.getLoc decl
-      modKey = mkAnnKey t
-      newValue a@Ann{..} = a { annSortKey = f newKey <$> annSortKey }
   oldDecls <- hsDecls t
-  modifyAnnsT (Map.adjust newValue modKey)
-
-  replaceDecls t (decl : oldDecls )
+  replaceDecls t (f decl oldDecls)
 
 -- |Insert a declaration at the beginning or end of the subdecls of the given
 -- AST item
@@ -570,12 +567,12 @@ insertAfter, insertBefore :: (Data ast, HasDecls (GHC.Located ast))
 insertAfter (GHC.getLoc -> k) = insertAt findAfter
   where
     findAfter x xs =
-      let (fs, b:bs) = span (/= k) xs
+      let (fs, b:bs) = span (\(GHC.L l _) -> l /= k) xs
       in fs ++ (b : x : bs)
 insertBefore (GHC.getLoc -> k) = insertAt findBefore
   where
     findBefore x xs =
-      let (fs, bs) = span (/= k) xs
+      let (fs, bs) = span (\(GHC.L l _) -> l /= k) xs
       in fs ++ (x : bs)
 
 -- =====================================================================
