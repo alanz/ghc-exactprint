@@ -149,7 +149,7 @@ addDP (DP (a, b)) (DP (c, d)) =
   if c >= 1 then DP (a+c, d)
             else DP (a, b + d)
 
--- | "Subtract" tow @DeltaPos@ from each other, in the sense of calculating the
+-- | "Subtract" two @DeltaPos@ from each other, in the sense of calculating the
 -- remaining delta for the second after the first has been applied.
 -- invariant : if c = a `addDP` b
 --             then a `stepDP` c == b
