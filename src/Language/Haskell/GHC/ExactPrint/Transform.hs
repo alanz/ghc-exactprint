@@ -14,7 +14,7 @@
 -- This module is currently under heavy development, and no promises are made
 -- about API stability. Use with care.
 --
--- We weclome any feedback / contributions on this, as it is the main point of
+-- We welcome any feedback / contributions on this, as it is the main point of
 -- the library.
 --
 -----------------------------------------------------------------------------
