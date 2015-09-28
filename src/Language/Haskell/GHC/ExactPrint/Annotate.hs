@@ -191,7 +191,10 @@ markTrailingSemi = markOutside GHC.AnnSemi AnnSemiSep
 -- | Constructs a syntax tree which contains information about which
 -- annotations are required by each element.
 markLocated :: (Annotate ast) => GHC.Located ast -> Annotated ()
-markLocated ast = withLocated ast markAST
+markLocated ast =
+  case cast ast :: Maybe (GHC.LHsDecl GHC.RdrName) of
+    Just d  -> markLHsDecl d
+    Nothing -> withLocated ast markAST
 
 withLocated :: Data a
             => GHC.Located a
@@ -269,7 +272,7 @@ instance Annotate (GHC.HsModule GHC.RdrName) where
     markMany GHC.AnnSemi -- possible leading semis
     mapM_ markLocated imps
 
-    mapM_ (\(GHC.L l ast) -> markAST l ast) decs
+    mapM_ markLocated decs
 
     mark GHC.AnnCloseC -- Possible '}'
 
@@ -1840,7 +1843,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsBracket (GHC.DecBrL ds)) = do
     markWithString GHC.AnnOpen "[d|"
     mark GHC.AnnOpenC
-    mapM_ (\(GHC.L l d) -> markAST l d) ds
+    mapM_ markLocated ds
     mark GHC.AnnCloseC
     markWithString GHC.AnnClose "|]"
   -- Introduced after the renamer
