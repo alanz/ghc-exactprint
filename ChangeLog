@@ -1,4 +1,4 @@
-2015-09-24 v0.4.0.0
+2015-09-28 v0.4.0.0
 	* Rework HasDecls so that there are only instances for which it is
 	idempotent. Provide functions for managing an LHsBind which is not
 	idempotent, and performing general transformations on an AST
