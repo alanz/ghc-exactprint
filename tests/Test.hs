@@ -175,3 +175,10 @@ tt = do
   if errors cnts > 0 || failures cnts > 0
      then exitFailure
      else return () -- exitSuccess
+
+
+pwd :: IO FilePath
+pwd = getCurrentDirectory
+
+cd :: FilePath -> IO ()
+cd = setCurrentDirectory
