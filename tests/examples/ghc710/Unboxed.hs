@@ -12,7 +12,7 @@ f :: (Num a1, Num a) => a -> a1 -> (# a, a1 #)
 f x y = (# x+1, y-1 #)
 
 f1 :: (Num a1, Num a) => a -> a1 -> (# , #) a a1
-f1 x y = (# , #) x+1 y-1
+f1 x y = (# , #) (x+1) (y-1)
 
 g :: Num a => a -> a
 g x = case f x x of { (# a, b #) -> a + b }
