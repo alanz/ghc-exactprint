@@ -33,8 +33,8 @@ import Test.Common
 
 import Test.HUnit
 
-transformTests :: [Test]
-transformTests =
+transformTests :: Test
+transformTests = TestLabel "transformation tests" $ TestList
   [
     TestLabel "Low level transformations"
        (TestList transformLowLevelTests)
@@ -66,7 +66,7 @@ transformLowLevelTests = [
 
 mkTestModChange :: Changer -> FilePath -> String -> Test
 mkTestModChange change fileName modName
-  = TestCase (do r <- manipulateAstTestWithMod change "expected" fileName modName
+  = TestCase (do r <- manipulateAstTestWithMod change "expected" fileName modName "transform"
                  assertBool fileName r )
 
 type Changer = (Anns -> GHC.ParsedSource -> IO (Anns,GHC.ParsedSource))
@@ -399,21 +399,24 @@ changeLetIn1 ans parsed
 -- ---------------------------------------------------------------------
 
 
-manipulateAstTestWithMod :: Changer -> String -> FilePath -> String -> IO Bool
-manipulateAstTestWithMod change suffix file modname = manipulateAstTest' (Just (change, suffix)) False file modname
+manipulateAstTestWithMod :: Changer -> String
+                         -> FilePath -> String -> String -> IO Bool
+manipulateAstTestWithMod change suffix file modname dir =
+  manipulateAstTest' (Just (change, suffix)) False file dir modname
 
 manipulateAstTestWFnameMod :: Changer -> FilePath -> String -> IO (FilePath,Bool)
 manipulateAstTestWFnameMod change fileName modname
-  = do r <- manipulateAstTestWithMod change "expected" fileName modname
+  = do r <- manipulateAstTestWithMod change "expected" fileName modname "transform"
        return (fileName,r)
 
 manipulateAstTestWFnameBad :: FilePath -> String -> IO (FilePath,Bool)
 manipulateAstTestWFnameBad fileName modname
-  = do r <- manipulateAstTestWithMod noChange "bad" fileName modname
+  = do r <- manipulateAstTestWithMod noChange "bad" fileName modname "failing"
        return (fileName,r)
 
 manipulateAstTest :: FilePath -> String -> IO Bool
-manipulateAstTest file modname = manipulateAstTest' Nothing False file modname
+manipulateAstTest file modname =
+  manipulateAstTest' Nothing False file modname "transform"
 
 manipulateAstTestWFname :: FilePath -> String -> IO (FilePath, Bool)
 manipulateAstTestWFname file modname = (file,) <$> manipulateAstTest file modname
@@ -421,21 +424,24 @@ manipulateAstTestWFname file modname = (file,) <$> manipulateAstTest file modnam
 
 mkTestModBad :: FilePath -> String -> Test
 mkTestModBad fileName modName
-  = TestCase (do r <- manipulateAstTestWithMod noChange "bad" fileName modName
+  = TestCase (do r <- manipulateAstTestWithMod noChange "bad" fileName modName "failing"
                  assertBool fileName r )
 
 manipulateAstTest' :: Maybe (Changer, String)
-                   -> Bool -> FilePath -> String -> IO Bool
-manipulateAstTest' mchange useTH file' modname = do
-  let testpath = "./tests/examples/"
+                   -> Bool
+                   -> FilePath
+                   -> FilePath
+                   -> String
+                   -> IO Bool
+manipulateAstTest' mchange useTH file' dir _ = do
+  let testpath = "tests" </> "examples" </> dir
       file     = testpath </> file'
       out      = file <.> "out"
 
   contents <- case mchange of
                    Nothing                 -> readFile file
                    Just (_,expectedSuffix) -> readFile (file <.> expectedSuffix)
-  (ghcAnns',p,cppComments) <- hSilence [stderr] $  parsedFileGhc file modname useTH
-  -- (ghcAnns',p,cppComments) <-                      parsedFileGhc file modname useTH
+  (ghcAnns',p,cppComments) <- hSilence [stderr] $  parsedFileGhc file useTH
   let
     parsedOrig = GHC.pm_parsed_source $ p
     (ghcAnns,parsed) = (ghcAnns', parsedOrig)
@@ -488,8 +494,8 @@ manipulateAstTest' mchange useTH file' modname = do
 -- TypeCheckedModule produced by GHC.
 type ParseResult = GHC.ParsedModule
 
-parsedFileGhc :: String -> String -> Bool -> IO (GHC.ApiAnns,ParseResult,[Comment])
-parsedFileGhc fileName _modname useTH = do
+parsedFileGhc :: String -> Bool -> IO (GHC.ApiAnns,ParseResult,[Comment])
+parsedFileGhc fileName useTH = do
     -- putStrLn $ "parsedFileGhc:" ++ show fileName
     GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
       GHC.runGhc (Just libdir) $ do

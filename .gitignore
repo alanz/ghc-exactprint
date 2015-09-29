@@ -1,10 +1,10 @@
 /dist/
-/tests/examples/*.out
-/tests/examples/*.incons
-/tests/examples/*.hi
-/tests/examples/*.hspp
-/tests/examples/*.o
-/tests/examples/*.dyn*
+*.out
+*.incons
+*.hi
+*.hspp
+*.o
+*.dyn*
 *.refactored.hs
 /TAGS
 /tags
