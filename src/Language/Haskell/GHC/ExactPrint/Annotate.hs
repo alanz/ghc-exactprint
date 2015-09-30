@@ -431,8 +431,9 @@ instance Annotate GHC.RdrName where
          "()" -> do
            mark GHC.AnnOpenP  -- '('
            mark GHC.AnnCloseP -- ')'
-         "(##)" -> do
+         ('(':'#':_) -> do
            markWithString GHC.AnnOpen  "(#" -- '(#'
+           markMany GHC.AnnCommaTuple
            markWithString GHC.AnnClose  "#)"-- '#)'
          "[::]" -> do
            markWithString GHC.AnnOpen  "[:" -- '[:'
