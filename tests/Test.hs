@@ -45,11 +45,6 @@ testDirs :: [FilePath]
 testDirs =
   "ghc710" : ["ghc8" | ghcVersion >= GHC8]
 
-testPrefix :: FilePath
-testPrefix = "tests" </> "examples"
-
-testList :: String -> [Test] -> Test
-testList s ts = TestLabel s (TestList ts)
 
 -- ---------------------------------------------------------------------
 
@@ -83,7 +78,6 @@ findTestsDir dir = do
   let testFiles = filter (".hs" `isSuffixOf`) fs
   return $ testList dir (map (mkParserTest dir) testFiles)
 
-
 mkTests :: IO Test
 mkTests = do
   roundTripTests <- findTests
@@ -95,13 +89,13 @@ failingTests :: Test
 failingTests = testList "Failing tests"
   [
   -- Require current master #10313 / Phab:D907
-    mkTestModBad "Deprecation.hs"            "Deprecation"
-  , mkTestModBad "MultiLineWarningPragma.hs" "Main"
-  , mkTestModBad "UnicodeRules.hs"           "Main"
+    mkTestModBad "Deprecation.hs"
+  , mkTestModBad "MultiLineWarningPragma.hs"
+  , mkTestModBad "UnicodeRules.hs"
 
   -- Tests requiring future GHC modifications
-  , mkTestModBad "UnicodeSyntax.hs"          "Tutorial"
-  , mkTestModBad "InfixOperator.hs"          "Main"
+  , mkTestModBad "UnicodeSyntax.hs"
+  , mkTestModBad "InfixOperator.hs"
   ]
 
 
@@ -112,7 +106,7 @@ mkParserTest dir fp =
       writeHsPP      = writeFile (basename <.> "hspp")
       writeIncons s  = writeFile (basename <.> "incons") (showGhc s)
   in
-    TestCase (do r <- either (\(ParseFailure _ s) -> error s) id
+    TestCase (do r <- either (\(ParseFailure _ s) -> error (s ++ basename)) id
                         <$> roundTripTest basename
                  writeFailure (debugTxt r)
                  forM_ (inconsistent r) writeIncons
@@ -134,30 +128,23 @@ formatTT (ts, fs) = do
 
 tt' :: IO ()
 tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
-    , manipulateAstTestWFnameMod addLocaLDecl1 "AddLocalDecl1.hs" "AddLocaLDecl1"
-    -- , manipulateAstTestWFnameMod addLocaLDecl2 "AddLocalDecl2.hs" "AddLocaLDecl2"
-    -- , manipulateAstTestWFnameMod addLocaLDecl3 "AddLocalDecl3.hs" "AddLocaLDecl3"
-    -- , manipulateAstTestWFnameMod addLocaLDecl4 "AddLocalDecl4.hs" "AddLocaLDecl4"
-    -- , manipulateAstTestWFnameMod addLocaLDecl5 "AddLocalDecl5.hs" "AddLocaLDecl5"
-    -- , manipulateAstTestWFnameMod addLocaLDecl6 "AddLocalDecl6.hs" "AddLocaLDecl6"
-    -- , manipulateAstTestWFnameMod rmDecl1       "RmDecl1.hs"       "RmDecl1"
-    -- , manipulateAstTestWFname "RmDecl2.hs"                        "RmDecl2"
-    -- , manipulateAstTestWFnameMod rmDecl2       "RmDecl2.hs"       "RmDecl2"
-    -- , manipulateAstTestWFnameMod rmDecl3       "RmDecl3.hs"       "RmDecl3"
-    -- , manipulateAstTestWFnameMod rmDecl4       "RmDecl4.hs"       "RmDecl4"
-    -- , manipulateAstTestWFnameMod rmDecl5       "RmDecl5.hs"       "RmDecl5"
-    -- , manipulateAstTestWFname "RmDecl5.hs"                        "RmDecl5"
-    -- , manipulateAstTestWFnameMod rmDecl6       "RmDecl6.hs"       "RmDecl6"
-    -- , manipulateAstTestWFnameMod rmDecl7       "RmDecl7.hs"       "RmDecl7"
-    -- , manipulateAstTestWFname "TypeSignature.hs"                  "TypeSignature"
-    -- , manipulateAstTestWFnameMod rmTypeSig1    "RmTypeSig1.hs"    "RmTypeSig1"
-    -- , manipulateAstTestWFnameMod rmTypeSig2    "RmTypeSig2.hs"    "RmTypeSig2"
-    -- , manipulateAstTestWFname "StringGap.hs"                      "StringGap"
-    -- , manipulateAstTestWFnameMod addHiding1    "AddHiding1.hs"    "AddHiding1"
-    -- , manipulateAstTestWFnameMod addHiding2    "AddHiding2.hs"    "AddHiding2"
-    -- , manipulateAstTestWFnameMod cloneDecl1    "CloneDecl1.hs"    "CloneDecl1"
-    -- , manipulateAstTestWFname "SimpleDo.hs"                      "Main"
-    -- , manipulateAstTestWFnameMod changeRename2    "Rename2.hs"  "Main"
+  -- , mkTestModChange changeLayoutLet2  "LayoutLet2.hs"
+  -- , mkTestModChange changeLayoutLet3  "LayoutLet3.hs"
+  -- , mkTestModChange changeLayoutLet3  "LayoutLet4.hs"
+  -- , mkTestModChange changeRename1     "Rename1.hs"
+  -- , mkTestModChange changeRename2     "Rename2.hs"
+  -- , mkTestModChange changeLayoutIn1   "LayoutIn1.hs"
+  -- , mkTestModChange changeLayoutIn3   "LayoutIn3.hs"
+  -- , mkTestModChange changeLayoutIn3   "LayoutIn3a.hs"
+  -- , mkTestModChange changeLayoutIn3   "LayoutIn3b.hs"
+  -- , mkTestModChange changeLayoutIn4   "LayoutIn4.hs"
+  -- , mkTestModChange changeLocToName   "LocToName.hs"
+  -- , mkTestModChange changeLetIn1      "LetIn1.hs"
+  -- , mkTestModChange changeWhereIn4    "WhereIn4.hs"
+  -- , mkTestModChange changeAddDecl     "AddDecl.hs"
+  -- , mkTestModChange changeLocalDecls  "LocalDecls.hs"
+  -- , mkTestModChange changeLocalDecls2 "LocalDecls2.hs"
+  -- , mkTestModChange changeWhereIn3a   "WhereIn3a.hs"
     ]
 
 testsTT :: Test

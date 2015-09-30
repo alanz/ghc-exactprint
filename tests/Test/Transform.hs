@@ -44,32 +44,44 @@ transformTests = TestLabel "transformation tests" $ TestList
 
 transformLowLevelTests :: [Test]
 transformLowLevelTests = [
-    mkTestModChange changeLayoutLet2  "LayoutLet2.hs"  "LayoutLet2"
-  , mkTestModChange changeLayoutLet3  "LayoutLet3.hs"  "LayoutLet3"
-  , mkTestModChange changeLayoutLet3  "LayoutLet4.hs"  "LayoutLet4"
-  , mkTestModChange changeRename1     "Rename1.hs"     "Main"
-  , mkTestModChange changeRename2     "Rename2.hs"     "Main"
-  , mkTestModChange changeLayoutIn1   "LayoutIn1.hs"   "LayoutIn1"
-  , mkTestModChange changeLayoutIn3   "LayoutIn3.hs"   "LayoutIn3"
-  , mkTestModChange changeLayoutIn3   "LayoutIn3a.hs"  "LayoutIn3a"
-  , mkTestModChange changeLayoutIn3   "LayoutIn3b.hs"  "LayoutIn3b"
-  , mkTestModChange changeLayoutIn4   "LayoutIn4.hs"   "LayoutIn4"
-  , mkTestModChange changeLocToName   "LocToName.hs"   "LocToName"
-  , mkTestModChange changeLetIn1      "LetIn1.hs"      "LetIn1"
-  , mkTestModChange changeWhereIn4    "WhereIn4.hs"    "WhereIn4"
-  , mkTestModChange changeAddDecl     "AddDecl.hs"     "AddDecl"
-  , mkTestModChange changeLocalDecls  "LocalDecls.hs"  "LocalDecls"
-  , mkTestModChange changeLocalDecls2 "LocalDecls2.hs" "LocalDecls2"
-  , mkTestModChange changeWhereIn3a   "WhereIn3a.hs"   "WhereIn3a"
+    mkTestModChange changeLayoutLet2  "LayoutLet2.hs"
+  , mkTestModChange changeLayoutLet3  "LayoutLet3.hs"
+  , mkTestModChange changeLayoutLet3  "LayoutLet4.hs"
+  , mkTestModChange changeRename1     "Rename1.hs"
+  , mkTestModChange changeRename2     "Rename2.hs"
+  , mkTestModChange changeLayoutIn1   "LayoutIn1.hs"
+  , mkTestModChange changeLayoutIn3   "LayoutIn3.hs"
+  , mkTestModChange changeLayoutIn3   "LayoutIn3a.hs"
+  , mkTestModChange changeLayoutIn3   "LayoutIn3b.hs"
+  , mkTestModChange changeLayoutIn4   "LayoutIn4.hs"
+  , mkTestModChange changeLocToName   "LocToName.hs"
+  , mkTestModChange changeLetIn1      "LetIn1.hs"
+  , mkTestModChange changeWhereIn4    "WhereIn4.hs"
+  , mkTestModChange changeAddDecl     "AddDecl.hs"
+  , mkTestModChange changeLocalDecls  "LocalDecls.hs"
+  , mkTestModChange changeLocalDecls2 "LocalDecls2.hs"
+  , mkTestModChange changeWhereIn3a   "WhereIn3a.hs"
 --  , mkTestModChange changeCifToCase  "C.hs"          "C"
   ]
 
-mkTestModChange :: Changer -> FilePath -> String -> Test
-mkTestModChange change fileName modName
-  = TestCase (do r <- manipulateAstTestWithMod change "expected" fileName modName "transform"
-                 assertBool fileName r )
+mkTestModChange :: Changer -> FilePath -> Test
+mkTestModChange = mkTestMod "expected" "transform"
 
-type Changer = (Anns -> GHC.ParsedSource -> IO (Anns,GHC.ParsedSource))
+mkTestModBad :: FilePath -> Test
+mkTestModBad = mkTestMod "bad" "failing" noChange
+
+
+mkTestMod :: String -> FilePath -> Changer -> FilePath ->  Test
+mkTestMod suffix dir f fp =
+  let basename       = testPrefix </> dir </> fp
+      expected       = basename <.> suffix
+      writeFailure   = writeFile (basename <.> "out")
+  in
+    TestCase (do r <- either (\(ParseFailure _ s) -> error (s ++ basename)) id
+                        <$> genTest f basename expected
+                 writeFailure (debugTxt r)
+                 assertBool fp (status r == Success))
+
 
 -- ---------------------------------------------------------------------
 
@@ -302,8 +314,6 @@ changeCifToCase ans p = return (ans',p')
 -}
 -- ---------------------------------------------------------------------
 
-noChange :: Changer
-noChange ans parsed = return (ans,parsed)
 
 changeLayoutLet2 :: Changer
 changeLayoutLet2 ans parsed = return (ans,rename "xxxlonger" [((7,5),(7,8)),((8,24),(8,27))] parsed)
@@ -398,189 +408,31 @@ changeLetIn1 ans parsed
 
 -- ---------------------------------------------------------------------
 
-
-manipulateAstTestWithMod :: Changer -> String
-                         -> FilePath -> String -> String -> IO Bool
-manipulateAstTestWithMod change suffix file modname dir =
-  manipulateAstTest' (Just (change, suffix)) False file dir modname
-
-manipulateAstTestWFnameMod :: Changer -> FilePath -> String -> IO (FilePath,Bool)
-manipulateAstTestWFnameMod change fileName modname
-  = do r <- manipulateAstTestWithMod change "expected" fileName modname "transform"
-       return (fileName,r)
-
-manipulateAstTestWFnameBad :: FilePath -> String -> IO (FilePath,Bool)
-manipulateAstTestWFnameBad fileName modname
-  = do r <- manipulateAstTestWithMod noChange "bad" fileName modname "failing"
-       return (fileName,r)
-
-manipulateAstTest :: FilePath -> String -> IO Bool
-manipulateAstTest file modname =
-  manipulateAstTest' Nothing False file modname "transform"
-
-manipulateAstTestWFname :: FilePath -> String -> IO (FilePath, Bool)
-manipulateAstTestWFname file modname = (file,) <$> manipulateAstTest file modname
-
-
-mkTestModBad :: FilePath -> String -> Test
-mkTestModBad fileName modName
-  = TestCase (do r <- manipulateAstTestWithMod noChange "bad" fileName modName "failing"
-                 assertBool fileName r )
-
-manipulateAstTest' :: Maybe (Changer, String)
-                   -> Bool
-                   -> FilePath
-                   -> FilePath
-                   -> String
-                   -> IO Bool
-manipulateAstTest' mchange useTH file' dir _ = do
-  let testpath = "tests" </> "examples" </> dir
-      file     = testpath </> file'
-      out      = file <.> "out"
-
-  contents <- case mchange of
-                   Nothing                 -> readFile file
-                   Just (_,expectedSuffix) -> readFile (file <.> expectedSuffix)
-  (ghcAnns',p,cppComments) <- hSilence [stderr] $  parsedFileGhc file useTH
-  let
-    parsedOrig = GHC.pm_parsed_source $ p
-    (ghcAnns,parsed) = (ghcAnns', parsedOrig)
-    parsedAST = showAnnData emptyAnns 0 parsed
-    -- cppComments = map (tokComment . commentToAnnotation . fst) cppCommentToks
-    -- parsedAST = showGhc parsed
-       -- `debug` ("getAnn:=" ++ (show (getAnnotationValue (snd ann) (GHC.getLoc parsed) :: Maybe AnnHsModule)))
-    -- try to pretty-print; summarize the test result
-    ann = relativiseApiAnnsWithComments cppComments parsedOrig ghcAnns'
-      `debug` ("ghcAnns:" ++ showGhc ghcAnns)
-
-  (ann',parsed') <- case mchange of
-                   Nothing         -> return (ann,parsed)
-                   Just (change,_) -> change ann parsed
-
-  let
-    printed = exactPrint parsed' ann' -- `debug` ("ann=" ++ (show $ map (\(s,a) -> (ss2span s, a)) $ Map.toList ann))
-    outcome = if printed == contents
-                then "Match\n"
-                else "Fail\n"
-    result = printed ++ "\n==============\n"
-             ++ outcome ++ "\n==============\n"
-             ++ "lengths:" ++ show (length printed,length contents) ++ "\n"
-             ++ showAnnData ann' 0 parsed'
-             ++ "\n========================\n"
-             ++ showGhc ann'
-             ++ "\n========================\n"
-             ++ showGhc ghcAnns
-             ++ "\n========================\n"
-             ++ parsedAST
-             ++ "\n========================\n"
-             ++ showGhc ann
-  -- putStrLn $ "Test:ann :" ++ showGhc ann
-  writeFile out $ result
-  -- putStrLn $ "Test:contents' :" ++ contents
-  -- putStrLn $ "Test:parsed=" ++ parsedAST
-  -- putStrLn $ "Test:showdata:parsedOrig" ++ SYB.showData SYB.Parser 0 parsedOrig
-  -- putStrLn $ "Test:ann :" ++ showGhc ann
-  -- putStrLn $ "Test:ghcAnns :" ++ showGhc ghcAnns
-  -- putStrLn $ "Test:ghcAnns' :" ++ showGhc ghcAnns'
-  -- putStrLn $ "Test:showdata:" ++ showAnnData ann 0 parsed
-  -- putStrLn $ "Test:showdata:parsed'" ++ SYB.showData SYB.Parser 0 parsed'
-  -- putStrLn $ "Test:showdata:parsed'" ++ showAnnData ann 0 parsed'
-  -- putStrLn $ "Test:outcome' :" ++ outcome
-  return (printed == contents)
-
-
--- ---------------------------------------------------------------------
--- |Result of parsing a Haskell source file. It is simply the
--- TypeCheckedModule produced by GHC.
-type ParseResult = GHC.ParsedModule
-
-parsedFileGhc :: String -> Bool -> IO (GHC.ApiAnns,ParseResult,[Comment])
-parsedFileGhc fileName useTH = do
-    -- putStrLn $ "parsedFileGhc:" ++ show fileName
-    GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
-      GHC.runGhc (Just libdir) $ do
-        dflags <- GHC.getSessionDynFlags
-        let dflags2 = dflags { GHC.importPaths = ["./tests/examples/","../tests/examples/",
-                                                  "./src/","../src/"] }
-            tgt = if useTH then GHC.HscInterpreted
-                           else GHC.HscNothing -- allows FFI
-            dflags3 = dflags2 { GHC.hscTarget = tgt
-                              , GHC.ghcLink =  GHC.LinkInMemory
-                              }
-
-            dflags4 = GHC.gopt_set dflags3 GHC.Opt_KeepRawTokenStream
-
-        (dflags5,_args,_warns) <- GHC.parseDynamicFlagsCmdLine dflags4 [GHC.noLoc "-package ghc"]
-        -- GHC.liftIO $ putStrLn $ "dflags set:(args,warns)" ++ show (map GHC.unLoc _args,map GHC.unLoc _warns)
-        void $ GHC.setSessionDynFlags dflags5
-        -- GHC.liftIO $ putStrLn $ "dflags set"
-
-        -- hsc_env <- GHC.getSession
-        -- (dflags6,fn_pp) <- GHC.liftIO $ GHC.preprocess hsc_env (fileName,Nothing)
-        -- GHC.liftIO $ putStrLn $ "preprocess got:" ++ show fn_pp
-
-
-        target <- GHC.guessTarget fileName Nothing
-        GHC.setTargets [target]
-        -- GHC.liftIO $ putStrLn $ "target set:" ++ showGhc (GHC.targetId target)
-        void $ GHC.load GHC.LoadAllTargets -- Loads and compiles, much as calling make
-        -- GHC.liftIO $ putStrLn $ "targets loaded"
-        -- g <- GHC.getModuleGraph
-        -- let showStuff ms = show (GHC.moduleNameString $ GHC.moduleName $ GHC.ms_mod ms,GHC.ms_location ms)
-        -- GHC.liftIO $ putStrLn $ "module graph:" ++ (intercalate "," (map showStuff g))
-
-        -- modSum <- GHC.getModSummary $ GHC.mkModuleName modname
-        Just modSum <- getModSummaryForFile fileName
-        -- GHC.liftIO $ putStrLn $ "got modSum"
-        -- let modSum = head g
-        cppComments <-  if (GHC.xopt GHC.Opt_Cpp dflags5)
-                        then getCppTokensAsComments defaultCppOptions fileName
-                        else return []
-        -- let cppComments = [] :: [(GHC.Located GHC.Token, String)]
---        GHC.liftIO $ putStrLn $ "\ncppTokensAsComments for:"  ++ fileName ++ "=========\n"
---                              ++ showGhc cppComments ++ "\n================\n"
-{-
-        (sourceFile, source, flags) <- getModuleSourceAndFlags (GHC.ms_mod modSum)
-        strSrcBuf <- getPreprocessedSrc sourceFile
-        GHC.liftIO $ putStrLn $ "preprocessedSrc====\n" ++ strSrcBuf ++ "\n================\n"
--}
-        p <- GHC.parseModule modSum
-        -- GHC.liftIO $ putStrLn $ "got parsedModule"
---        t <- GHC.typecheckModule p
-        -- GHC.liftIO $ putStrLn $ "typechecked"
-        -- toks <- GHC.getRichTokenStream (GHC.ms_mod modSum)
-        -- GHC.liftIO $ putStrLn $ "toks" ++ show toks
-        let anns = GHC.pm_annotations p
-        -- GHC.liftIO $ putStrLn $ "anns"
-        return (anns,p,cppComments)
-
--- ---------------------------------------------------------------------
-
 transformHighLevelTests :: [Test]
 transformHighLevelTests =
   [
-    mkTestModChange addLocaLDecl1  "AddLocalDecl1.hs"  "AddLocalDecl1"
-  , mkTestModChange addLocaLDecl2  "AddLocalDecl2.hs"  "AddLocalDecl2"
-  , mkTestModChange addLocaLDecl3  "AddLocalDecl3.hs"  "AddLocalDecl3"
-  , mkTestModChange addLocaLDecl4  "AddLocalDecl4.hs"  "AddLocalDecl4"
-  , mkTestModChange addLocaLDecl5  "AddLocalDecl5.hs"  "AddLocalDecl5"
-  , mkTestModChange addLocaLDecl6  "AddLocalDecl6.hs"  "AddLocalDecl6"
+    mkTestModChange addLocaLDecl1  "AddLocalDecl1.hs"
+  , mkTestModChange addLocaLDecl2  "AddLocalDecl2.hs"
+  , mkTestModChange addLocaLDecl3  "AddLocalDecl3.hs"
+  , mkTestModChange addLocaLDecl4  "AddLocalDecl4.hs"
+  , mkTestModChange addLocaLDecl5  "AddLocalDecl5.hs"
+  , mkTestModChange addLocaLDecl6  "AddLocalDecl6.hs"
 
-  , mkTestModChange rmDecl1 "RmDecl1.hs" "RmDecl1"
-  , mkTestModChange rmDecl2 "RmDecl2.hs" "RmDecl2"
-  , mkTestModChange rmDecl3 "RmDecl3.hs" "RmDecl3"
-  , mkTestModChange rmDecl4 "RmDecl4.hs" "RmDecl4"
-  , mkTestModChange rmDecl5 "RmDecl5.hs" "RmDecl5"
-  , mkTestModChange rmDecl6 "RmDecl6.hs" "RmDecl6"
-  , mkTestModChange rmDecl7 "RmDecl7.hs" "RmDecl7"
+  , mkTestModChange rmDecl1 "RmDecl1.hs"
+  , mkTestModChange rmDecl2 "RmDecl2.hs"
+  , mkTestModChange rmDecl3 "RmDecl3.hs"
+  , mkTestModChange rmDecl4 "RmDecl4.hs"
+  , mkTestModChange rmDecl5 "RmDecl5.hs"
+  , mkTestModChange rmDecl6 "RmDecl6.hs"
+  , mkTestModChange rmDecl7 "RmDecl7.hs"
 
-  , mkTestModChange rmTypeSig1 "RmTypeSig1.hs" "RmTypeSig1"
-  , mkTestModChange rmTypeSig2 "RmTypeSig2.hs" "RmTypeSig2"
+  , mkTestModChange rmTypeSig1 "RmTypeSig1.hs"
+  , mkTestModChange rmTypeSig2 "RmTypeSig2.hs"
 
-  , mkTestModChange addHiding1 "AddHiding1.hs" "AddHiding1"
-  , mkTestModChange addHiding2 "AddHiding2.hs" "AddHiding2"
+  , mkTestModChange addHiding1 "AddHiding1.hs"
+  , mkTestModChange addHiding2 "AddHiding2.hs"
 
-  , mkTestModChange cloneDecl1 "CloneDecl1.hs" "CloneDecl1"
+  , mkTestModChange cloneDecl1 "CloneDecl1.hs"
   ]
 
 -- ---------------------------------------------------------------------

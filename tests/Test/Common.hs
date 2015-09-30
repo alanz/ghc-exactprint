@@ -12,6 +12,12 @@ module Test.Common (
               , ReportType(..)
               , roundTripTest
               , getModSummaryForFile
+
+              , testList
+              , testPrefix
+              , Changer
+              , genTest
+              , noChange
               ) where
 
 
@@ -44,8 +50,15 @@ import System.Directory
 import Test.Consistency
 
 import Control.Arrow (first)
+import Test.HUnit
+import System.FilePath
 
 -- import Debug.Trace
+testPrefix :: FilePath
+testPrefix = "tests" </> "examples"
+
+testList :: String -> [Test] -> Test
+testList s ts = TestLabel s (TestList ts)
 
 -- ---------------------------------------------------------------------
 -- Roundtrip machinery
@@ -94,42 +107,49 @@ initDynFlags file = do
   return dflags2
 
 roundTripTest :: FilePath -> IO Report
-roundTripTest file =
+roundTripTest f = genTest noChange f f
+
+type Changer = (Anns -> GHC.ParsedSource -> IO (Anns,GHC.ParsedSource))
+
+noChange :: Changer
+noChange ans parsed = return (ans,parsed)
+
+genTest :: Changer -> FilePath -> FilePath -> IO Report
+genTest f origFile expectedFile  =
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
     GHC.runGhc (Just libdir) $ do
-      dflags <- initDynFlags file
+      dflags <- initDynFlags origFile
       let useCpp = GHC.xopt GHC.Opt_Cpp dflags
       (fileContents, injectedComments) <-
         if useCpp
           then do
-            contents <- getPreprocessedSrcDirect defaultCppOptions file
-            cppComments <- getCppTokensAsComments defaultCppOptions file
+            contents <- getPreprocessedSrcDirect defaultCppOptions origFile
+            cppComments <- getCppTokensAsComments defaultCppOptions origFile
             return (contents,cppComments)
           else do
-            txt <- GHC.liftIO $ readFile file
+            txt <- GHC.liftIO $ readFile origFile
             let (contents1,lp) = stripLinePragmas txt
             return (contents1,lp)
 
-      orig <- GHC.liftIO $ readFile file
+      orig <- GHC.liftIO $ readFile origFile
+      expected <- GHC.liftIO $ readFile expectedFile
       let origContents = removeSpaces fileContents
-          pristine     = removeSpaces orig
-      return $
-        case parseFile dflags file origContents of
-          GHC.PFailed ss m -> Left $ ParseFailure ss (GHC.showSDoc dflags m)
-          GHC.POk (mkApiAnns -> apianns) pmod   ->
-            let (printed, anns) = first trimPrinted $ runRoundTrip apianns pmod injectedComments
-                -- Clang cpp adds an extra newline character
-                -- Do not remove this line!
-                trimPrinted p = if useCpp
-                                  then unlines $ take (length (lines pristine)) (lines p)
-                                  else p
-                debugTxt = mkDebugOutput file printed pristine apianns anns pmod
-                consistency = checkConsistency apianns pmod
-                inconsistent = if null consistency then Nothing else Just consistency
-                status = if printed == pristine then Success else RoundTripFailure
-                cppStatus = if useCpp then Just origContents else Nothing
-            in
-              Right Report {..}
+          pristine     = removeSpaces expected
+      case parseFile dflags origFile origContents of
+        GHC.PFailed ss m -> return . Left $ ParseFailure ss (GHC.showSDoc dflags m)
+        GHC.POk (mkApiAnns -> apianns) pmod   -> do
+          let -- Clang cpp adds an extra newline character
+              -- Do not remove this line!
+              trimPrinted p = if useCpp
+                                then unlines $ take (length (lines pristine)) (lines p)
+                                else p
+          (printed, anns) <- first trimPrinted <$> GHC.liftIO (runRoundTrip f apianns pmod injectedComments)
+          let debugTxt = mkDebugOutput origFile printed pristine apianns anns pmod
+              consistency = checkConsistency apianns pmod
+              inconsistent = if null consistency then Nothing else Just consistency
+              status = if printed == pristine then Success else RoundTripFailure
+              cppStatus = if useCpp then Just origContents else Nothing
+          return $ Right Report {..}
 
 
 mkDebugOutput :: FilePath -> String -> String
@@ -149,14 +169,15 @@ mkDebugOutput filename printed original apianns anns parsed =
 
 
 
-runRoundTrip :: GHC.ApiAnns -> GHC.Located (GHC.HsModule GHC.RdrName)
+runRoundTrip :: Changer
+             -> GHC.ApiAnns -> GHC.Located (GHC.HsModule GHC.RdrName)
              -> [Comment]
-             -> (String, Anns)
-runRoundTrip !anns !parsedOrig cs =
-  let
-    !relAnns = relativiseApiAnnsWithComments cs parsedOrig anns
-    !printed = exactPrint parsedOrig relAnns
-  in (printed,  relAnns)
+             -> IO (String, Anns)
+runRoundTrip f !anns !parsedOrig cs = do
+  let !relAnns = relativiseApiAnnsWithComments cs parsedOrig anns
+  (annsMod, pmod) <- f relAnns parsedOrig
+  let !printed = exactPrint pmod annsMod
+  return (printed,  relAnns)
 
 -- ---------------------------------------------------------------------`
 
