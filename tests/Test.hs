@@ -126,8 +126,9 @@ formatTT (ts, fs) = do
     putStrLn "Fail"
     mapM_ (putStrLn . fst) fs)
 
-tt' :: IO ()
-tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
+-- tt' :: IO ()
+-- tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
+tt' = runTestText (putTextToHandle stdout True) $ TestList [
   -- , mkTestModChange changeLayoutLet2  "LayoutLet2.hs"
   -- , mkTestModChange changeLayoutLet3  "LayoutLet3.hs"
   -- , mkTestModChange changeLayoutLet3  "LayoutLet4.hs"
@@ -142,9 +143,11 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
   -- , mkTestModChange changeLetIn1      "LetIn1.hs"
   -- , mkTestModChange changeWhereIn4    "WhereIn4.hs"
   -- , mkTestModChange changeAddDecl     "AddDecl.hs"
-  -- , mkTestModChange changeLocalDecls  "LocalDecls.hs"
+    mkTestModChange changeLocalDecls  "LocalDecls.hs"
   -- , mkTestModChange changeLocalDecls2 "LocalDecls2.hs"
   -- , mkTestModChange changeWhereIn3a   "WhereIn3a.hs"
+    , mkTestModChange changeRenameCase1 "RenameCase1.hs"
+    , mkTestModChange changeRenameCase2 "RenameCase2.hs"
     ]
 
 testsTT :: Test

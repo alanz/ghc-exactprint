@@ -1,0 +1,6 @@
+module RenameCase2 where
+
+fooLonger x = case (baz x) of
+    1 -> "a"
+    _ -> "b"
+

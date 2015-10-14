@@ -44,7 +44,8 @@ transformTests = TestLabel "transformation tests" $ TestList
 
 transformLowLevelTests :: [Test]
 transformLowLevelTests = [
-    mkTestModChange changeLayoutLet2  "LayoutLet2.hs"
+    mkTestModChange changeRenameCase1 "RenameCase1.hs"
+  , mkTestModChange changeLayoutLet2  "LayoutLet2.hs"
   , mkTestModChange changeLayoutLet3  "LayoutLet3.hs"
   , mkTestModChange changeLayoutLet3  "LayoutLet4.hs"
   , mkTestModChange changeRename1     "Rename1.hs"
@@ -211,109 +212,12 @@ changeWhereIn3 declIndex ans p = return (ans',p')
       -- error $ "doRmDecl:decls2=" ++ showGhc (length decls,decls1,decls2)
 
 -- ---------------------------------------------------------------------
-{-
--- |Convert the if statement in C.hs to a case, adjusting layout appropriately.
-changeCifToCase :: Changer
-changeCifToCase ans p = return (ans',p')
-  where
-    (p',(ans',_),_) = runTransform ans doTransform
-    doTransform = SYB.everywhereM (SYB.mkM ifToCaseTransform) p
 
-    ifToCaseTransform :: GHC.Located (GHC.HsExpr GHC.RdrName)
-                      -> Transform (GHC.Located (GHC.HsExpr GHC.RdrName))
-    ifToCaseTransform li@(GHC.L l (GHC.HsIf _se e1 e2 e3)) = do
-      caseLoc        <- uniqueSrcSpanT -- HaRe:-1:1
-      trueMatchLoc   <- uniqueSrcSpanT -- HaRe:-1:2
-      trueLoc1       <- uniqueSrcSpanT -- HaRe:-1:3
-      trueLoc        <- uniqueSrcSpanT -- HaRe:-1:4
-      trueRhsLoc     <- uniqueSrcSpanT -- HaRe:-1:5
-      falseLoc1      <- uniqueSrcSpanT -- HaRe:-1:6
-      falseLoc       <- uniqueSrcSpanT -- HaRe:-1:7
-      falseMatchLoc  <- uniqueSrcSpanT -- HaRe:-1:8
-      falseRhsLoc    <- uniqueSrcSpanT -- HaRe:-1:9
-      caseVirtualLoc <- uniqueSrcSpanT -- HaRe:-1:10
-      let trueName  = mkRdrName "True"
-      let falseName = mkRdrName "False"
-      let ret = GHC.L caseLoc (GHC.HsCase e1
-                 (GHC.MG
-                  [
-                    (GHC.L trueMatchLoc $ GHC.Match
-                     Nothing
-                     [
-                       GHC.L trueLoc1 $ GHC.ConPatIn (GHC.L trueLoc trueName) (GHC.PrefixCon [])
-                     ]
-                     Nothing
-                     (GHC.GRHSs
-                       [
-                         GHC.L trueRhsLoc $ GHC.GRHS [] e2
-                       ] GHC.EmptyLocalBinds)
-                    )
-                  , (GHC.L falseMatchLoc $ GHC.Match
-                     Nothing
-                     [
-                       GHC.L falseLoc1 $ GHC.ConPatIn (GHC.L falseLoc falseName) (GHC.PrefixCon [])
-                     ]
-                     Nothing
-                     (GHC.GRHSs
-                       [
-                         GHC.L falseRhsLoc $ GHC.GRHS [] e3
-                       ] GHC.EmptyLocalBinds)
-                    )
-                  ] [] GHC.placeHolderType GHC.FromSource))
+changeRenameCase1 :: Changer
+changeRenameCase1 ans parsed = return (ans,rename "bazLonger" [((3,15),(3,18))] parsed)
 
-      oldAnns <- getAnnsT
-      let annIf   = gfromJust "Case.annIf"   $ getAnnotationEP li NotNeeded oldAnns
-      let annCond = gfromJust "Case.annCond" $ getAnnotationEP e1 NotNeeded oldAnns
-      let annThen = gfromJust "Case.annThen" $ getAnnotationEP e2 NotNeeded oldAnns
-      let annElse = gfromJust "Case.annElse" $ getAnnotationEP e3 NotNeeded oldAnns
-      logTr $ "Case:annIf="   ++ show annIf
-      logTr $ "Case:annThen=" ++ show annThen
-      logTr $ "Case:annElse=" ++ show annElse
-
-      -- let ((_ifr,    ifc),  ifDP) = getOriginalPos oldAnns li (G GHC.AnnIf)
-      -- let ((_thenr,thenc),thenDP) = getOriginalPos oldAnns li (G GHC.AnnThen)
-      -- let ((_elser,elsec),elseDP) = getOriginalPos oldAnns li (G GHC.AnnElse)
-      -- let newCol = ifc + 2
-      let newCol = 6
-
-      -- AZ:TODO: under some circumstances the GRHS annotations need LineSame, in others LineChanged.
-      let ifDelta     = gfromJust "Case.ifDelta"     $ lookup (G GHC.AnnIf) (annsDP annIf)
-      -- let ifSpanEntry = gfromJust "Case.ifSpanEntry" $ lookup AnnSpanEntry (annsDP annIf)
-      -- let ifSpanEntry = annEntryDelta annIf
-      let anne2' =
-            [ ( AnnKey caseLoc       (CN "HsCase") NotNeeded,   annIf { annsDP = [ (G GHC.AnnCase, ifDelta)
-                                                                     , (G GHC.AnnOf,     DP (0,1))]
-                                                                     , annCapturedSpan = Just (AnnKey caseVirtualLoc (CN "(:)") NotNeeded)
-                                                                     } )
-            , ( AnnKey caseVirtualLoc (CN "(:)") NotNeeded,     Ann (DP (1,newCol)) (ColDelta newCol) (DP (1,newCol)) [] [] [(AnnSpanEntry,DP (1,0))] Nothing Nothing)
-            , ( AnnKey trueMatchLoc  (CN "Match") NotNeeded,   annNone )
-            , ( AnnKey trueLoc1      (CN "ConPatIn") NotNeeded, annNone )
-            , ( AnnKey trueLoc       (CN "Unqual") NotNeeded,  annNone )
-            , ( AnnKey trueRhsLoc    (CN "GRHS") NotNeeded,     Ann (DP (0,2)) 6 (DP (0,0)) [] [] [(AnnSpanEntry,DP (0,2)),(G GHC.AnnRarrow, DP (0,0))] Nothing Nothing )
-
-            , ( AnnKey falseMatchLoc (CN "Match") NotNeeded,    Ann (DP (1,0)) 0 (DP (0,0)) [] [] [(AnnSpanEntry,DP (1,0))] Nothing Nothing )
-            , ( AnnKey falseLoc1     (CN "ConPatIn") NotNeeded, annNone )
-            , ( AnnKey falseLoc      (CN "Unqual") NotNeeded, annNone )
-            , ( AnnKey falseRhsLoc   (CN "GRHS") NotNeeded,     Ann (DP (0,1)) 6 (DP (0,0)) [] [] [(AnnSpanEntry,DP (0,1)),(G GHC.AnnRarrow, DP (0,0))] Nothing Nothing )
-            ]
-
-      let annThen' = adjustAnnOffset (ColDelta 6) annThen
-      let anne1 = modifyKeywordDeltas (Map.delete (AnnKey l (CN "HsIf") NotNeeded)) oldAnns
-          final = modifyKeywordDeltas (\s -> Map.union s (Map.fromList anne2')) anne1
-          anne3 = setLocatedAnns final
-                    [ (e1, annCond)
-                    , (e2, annThen')
-                    , (e3, annElse)
-                    ]
-      putAnnsT anne3
-      return ret
-    ifToCaseTransform x = return x
-
-    mkRdrName :: String -> GHC.RdrName
-    mkRdrName s = GHC.mkVarUnqual (GHC.mkFastString s)
--}
--- ---------------------------------------------------------------------
-
+changeRenameCase2 :: Changer
+changeRenameCase2 ans parsed = return (ans,rename "fooLonger" [((3,1),(3,4))] parsed)
 
 changeLayoutLet2 :: Changer
 changeLayoutLet2 ans parsed = return (ans,rename "xxxlonger" [((7,5),(7,8)),((8,24),(8,27))] parsed)
