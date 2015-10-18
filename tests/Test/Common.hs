@@ -143,8 +143,9 @@ genTest f origFile expectedFile  =
               trimPrinted p = if useCpp
                                 then unlines $ take (length (lines pristine)) (lines p)
                                 else p
-          (printed, anns) <- first trimPrinted <$> GHC.liftIO (runRoundTrip f apianns pmod injectedComments)
-          let debugTxt = mkDebugOutput origFile printed pristine apianns anns pmod
+          (printed', anns, pmod') <- GHC.liftIO (runRoundTrip f apianns pmod injectedComments)
+          let printed = trimPrinted printed'
+          let debugTxt = mkDebugOutput origFile printed pristine apianns anns pmod'
               consistency = checkConsistency apianns pmod
               inconsistent = if null consistency then Nothing else Just consistency
               status = if printed == pristine then Success else RoundTripFailure
@@ -155,7 +156,7 @@ genTest f origFile expectedFile  =
 mkDebugOutput :: FilePath -> String -> String
               -> GHC.ApiAnns
               -> Anns
-              -> GHC.Located (GHC.HsModule GHC.RdrName) -> String
+              -> GHC.ParsedSource -> String
 mkDebugOutput filename printed original apianns anns parsed =
   intercalate sep [ printed
                  , filename
@@ -172,12 +173,12 @@ mkDebugOutput filename printed original apianns anns parsed =
 runRoundTrip :: Changer
              -> GHC.ApiAnns -> GHC.Located (GHC.HsModule GHC.RdrName)
              -> [Comment]
-             -> IO (String, Anns)
+             -> IO (String, Anns, GHC.ParsedSource)
 runRoundTrip f !anns !parsedOrig cs = do
   let !relAnns = relativiseApiAnnsWithComments cs parsedOrig anns
   (annsMod, pmod) <- f relAnns parsedOrig
   let !printed = exactPrint pmod annsMod
-  return (printed,  relAnns)
+  return (printed,  relAnns, pmod)
 
 -- ---------------------------------------------------------------------`
 
