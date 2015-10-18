@@ -62,6 +62,7 @@ transformLowLevelTests = [
   , mkTestModChange changeLocalDecls  "LocalDecls.hs"
   , mkTestModChange changeLocalDecls2 "LocalDecls2.hs"
   , mkTestModChange changeWhereIn3a   "WhereIn3a.hs"
+  , mkTestModChange moveCase          "MoveCase.hs"
 --  , mkTestModChange changeCifToCase  "C.hs"          "C"
   ]
 
@@ -82,6 +83,22 @@ mkTestMod suffix dir f fp =
                         <$> genTest f basename expected
                  writeFailure (debugTxt r)
                  assertBool fp (status r == Success))
+
+-- ---------------------------------------------------------------------
+
+
+moveCase :: Changer
+moveCase as d = return (as', res)
+  where
+    (res, (as', _), _) = runTransform as (SYB.everywhereM (SYB.mkM removeDo) d)
+    removeDo :: GHC.LHsExpr GHC.RdrName -> Transform (GHC.LHsExpr GHC.RdrName)
+    removeDo e@(GHC.L _ (GHC.HsDo _ [stmt] _)) =
+      case stmt of
+        s@(GHC.L _ (GHC.BodyStmt expr _ _ _)) ->
+          expr <$ transferEntryDPT s expr
+        _ -> return e
+    removeDo e = return e
+
 
 
 -- ---------------------------------------------------------------------
