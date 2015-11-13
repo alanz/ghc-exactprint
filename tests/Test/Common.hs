@@ -99,23 +99,23 @@ roundTripTest file =
     GHC.runGhc (Just libdir) $ do
       dflags <- initDynFlags file
       let useCpp = GHC.xopt GHC.Opt_Cpp dflags
-      (fileContents, injectedComments) <-
+      (fileContents, injectedComments, dflags') <-
         if useCpp
           then do
-            contents <- getPreprocessedSrcDirect defaultCppOptions file
+            (contents,dflags1) <- getPreprocessedSrcDirect defaultCppOptions file
             cppComments <- getCppTokensAsComments defaultCppOptions file
-            return (contents,cppComments)
+            return (contents,cppComments,dflags1)
           else do
             txt <- GHC.liftIO $ readFile file
             let (contents1,lp) = stripLinePragmas txt
-            return (contents1,lp)
+            return (contents1,lp,dflags)
 
       orig <- GHC.liftIO $ readFile file
       let origContents = removeSpaces fileContents
           pristine     = removeSpaces orig
       return $
-        case parseFile dflags file origContents of
-          GHC.PFailed ss m -> Left $ ParseFailure ss (GHC.showSDoc dflags m)
+        case parseFile dflags' file origContents of
+          GHC.PFailed ss m -> Left $ ParseFailure ss (GHC.showSDoc dflags' m)
           GHC.POk (mkApiAnns -> apianns) pmod   ->
             let (printed, anns) = first trimPrinted $ runRoundTrip apianns pmod injectedComments
                 -- Clang cpp adds an extra newline character

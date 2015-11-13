@@ -155,18 +155,18 @@ parseModuleWithCpp cppOptions file =
     GHC.runGhc (Just libdir) $ do
       dflags <- initDynFlags file
       let useCpp = GHC.xopt GHC.Opt_Cpp dflags
-      (fileContents, injectedComments) <-
+      (fileContents, injectedComments, dflags') <-
         if useCpp
           then do
-            contents <- getPreprocessedSrcDirect cppOptions file
+            (contents,dflags1) <- getPreprocessedSrcDirect cppOptions file
             cppComments <- getCppTokensAsComments cppOptions file
-            return (contents,cppComments)
+            return (contents,cppComments,dflags1)
           else do
             txt <- GHC.liftIO $ readFile file
             let (contents1,lp) = stripLinePragmas txt
-            return (contents1,lp)
+            return (contents1,lp,dflags)
       return $
-        case parseFile dflags file fileContents of
+        case parseFile dflags' file fileContents of
           GHC.PFailed ss m -> Left $ (ss, (GHC.showSDoc dflags m))
           GHC.POk (mkApiAnns -> apianns) pmod  ->
             let as = relativiseApiAnnsWithComments injectedComments pmod apianns in
