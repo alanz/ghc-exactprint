@@ -58,6 +58,7 @@ tests = TestList $
   , mkTestMod "Annotations.hs"           "Annotations"
   , mkTestMod "Arrow.hs"                 "Arrow"
   , mkParserTest "Arrows.hs"
+  , mkParserTest "Arrow2.hs"
   , mkTestMod "Associated.hs"            "Main"
   , mkTestMod "B.hs"                     "Main"
   , mkTestMod "C.hs"                     "C"
