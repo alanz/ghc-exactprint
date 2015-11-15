@@ -494,7 +494,7 @@ checkUnicode gkw@(G kw) ss =
       , GHC.Annlarrowtail
       , GHC.Annrarrowtail
       , GHC.AnnLarrowtail
-      , GHC.AnnLarrowtail]
+      , GHC.AnnRarrowtail]
 checkUnicode kwid _ = kwid
 
 -- ---------------------------------------------------------------------

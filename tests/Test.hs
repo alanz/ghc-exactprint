@@ -498,6 +498,7 @@ tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
     -- , manipulateAstTestWFnameMod cloneDecl1    "CloneDecl1.hs"    "CloneDecl1"
     -- , manipulateAstTestWFname "SimpleDo.hs"                      "Main"
     -- , manipulateAstTestWFnameMod changeRename2    "Rename2.hs"  "Main"
+    , manipulateAstTestWFname "Arrow2.hs"                      "Arrow2"
     {-
     , manipulateAstTestWFname "Lhs.lhs"                  "Main"
     , manipulateAstTestWFname "Foo.hs"                   "Main"

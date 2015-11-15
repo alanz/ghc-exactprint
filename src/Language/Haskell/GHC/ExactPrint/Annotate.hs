@@ -1902,15 +1902,21 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnStatic
     markLocated e
 
-  markAST _ (GHC.HsArrApp e1 e2 _ _ _) = do
-    markLocated e1
-    -- only one of the next 4 will be resent
+  markAST _ (GHC.HsArrApp e1 e2 _ _ isRightToLeft) = do
+        -- isRightToLeft True  => right-to-left (f -< arg)
+        --               False => left-to-right (arg >- f)
+    if isRightToLeft
+      then markLocated e1
+      else markLocated e2
+    -- only one of the next 4 will be present
     mark GHC.Annlarrowtail
     mark GHC.Annrarrowtail
     mark GHC.AnnLarrowtail
     mark GHC.AnnRarrowtail
 
-    markLocated e2
+    if isRightToLeft
+      then markLocated e2
+      else markLocated e1
 
   markAST _ (GHC.HsArrForm e _ cs) = do
     markWithString GHC.AnnOpen "(|"
@@ -1991,15 +1997,21 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
    => Annotate (GHC.HsCmd name) where
-  markAST _ (GHC.HsCmdArrApp e1 e2 _ _ _) = do
-    markLocated e1
-    -- only one of the next 4 will be resent
+  markAST _ (GHC.HsCmdArrApp e1 e2 _ _ isRightToLeft) = do
+        -- isRightToLeft True  => right-to-left (f -< arg)
+        --               False => left-to-right (arg >- f)
+    if isRightToLeft
+      then markLocated e1
+      else markLocated e2
+    -- only one of the next 4 will be present
     mark GHC.Annlarrowtail
     mark GHC.Annrarrowtail
     mark GHC.AnnLarrowtail
     mark GHC.AnnRarrowtail
 
-    markLocated e2
+    if isRightToLeft
+      then markLocated e2
+      else markLocated e1
 
   markAST _ (GHC.HsCmdArrForm e _mf cs) = do
     markWithString GHC.AnnOpen "(|"
