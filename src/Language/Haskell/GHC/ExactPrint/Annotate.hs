@@ -1860,7 +1860,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLocated e
     markWithString GHC.AnnClose "|]"
   markAST _ (GHC.HsBracket (GHC.TExpBr e)) = do
-    markWithString GHC.AnnOpen "[||"
+    -- markWithString GHC.AnnOpen "[||"
+    -- This exists like this as the lexer collapses [e|| and [|| into the
+    -- same construtor
+    workOutString GHC.AnnOpen
+      (\ss -> if spanLength ss == 3
+                then "[||"
+                else "[e||")
     markLocated e
     markWithString GHC.AnnClose "||]"
   markAST _ (GHC.HsBracket (GHC.TypBr e)) = do
