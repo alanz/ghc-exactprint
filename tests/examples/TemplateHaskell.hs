@@ -38,3 +38,6 @@ foo = do
 
 class QQExp a b where
   qqExp x = [||fst $ runState $$(qqExpM x) ((0,M.empty) :: (Int,M.Map L.Name [L.Operand]))||]
+
+class QQExp2 a b where
+  qqExp x = [e||fst $ runState $$(qqExpM x) ((0,M.empty) :: (Int,M.Map L.Name [L.Operand]))||]
