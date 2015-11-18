@@ -96,7 +96,7 @@ keywordToString kw =
       (G GHC.AnnVbar     ) -> "|"
       (G GHC.AnnWhere    ) -> "where"
       (G GHC.Annlarrowtail ) -> "-<"
-      (G GHC.Annrarrowtail ) -> "->"
+      (G GHC.Annrarrowtail ) -> ">-"
       (G GHC.AnnLarrowtail ) -> "-<<"
       (G GHC.AnnRarrowtail ) -> ">>-"
       (G GHC.AnnSimpleQuote ) -> "'"

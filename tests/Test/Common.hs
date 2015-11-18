@@ -120,16 +120,16 @@ genTest f origFile expectedFile  =
     GHC.runGhc (Just libdir) $ do
       dflags <- initDynFlags origFile
       let useCpp = GHC.xopt GHC.Opt_Cpp dflags
-      (fileContents, injectedComments) <-
+      (fileContents, injectedComments, dflags') <-
         if useCpp
           then do
-            contents <- getPreprocessedSrcDirect defaultCppOptions origFile
+            (contents,dflags1) <- getPreprocessedSrcDirect defaultCppOptions origFile
             cppComments <- getCppTokensAsComments defaultCppOptions origFile
-            return (contents,cppComments)
+            return (contents,cppComments,dflags1)
           else do
             txt <- GHC.liftIO $ readFile origFile
             let (contents1,lp) = stripLinePragmas txt
-            return (contents1,lp)
+            return (contents1,lp,dflags)
 
       orig <- GHC.liftIO $ readFile origFile
       expected <- GHC.liftIO $ readFile expectedFile
@@ -138,14 +138,15 @@ genTest f origFile expectedFile  =
       case parseFile dflags origFile origContents of
         GHC.PFailed ss m -> return . Left $ ParseFailure ss (GHC.showSDoc dflags m)
         GHC.POk (mkApiAnns -> apianns) pmod   -> do
-          let -- Clang cpp adds an extra newline character
+          (printed', anns, pmod') <- GHC.liftIO (runRoundTrip f apianns pmod injectedComments)
+          let printed = trimPrinted printed'
+          -- let (printed, anns) = first trimPrinted $ runRoundTrip apianns pmod injectedComments
+              -- Clang cpp adds an extra newline character
               -- Do not remove this line!
               trimPrinted p = if useCpp
                                 then unlines $ take (length (lines pristine)) (lines p)
                                 else p
-          (printed', anns, pmod') <- GHC.liftIO (runRoundTrip f apianns pmod injectedComments)
-          let printed = trimPrinted printed'
-          let debugTxt = mkDebugOutput origFile printed pristine apianns anns pmod'
+              debugTxt = mkDebugOutput origFile printed pristine apianns anns pmod'
               consistency = checkConsistency apianns pmod
               inconsistent = if null consistency then Nothing else Just consistency
               status = if printed == pristine then Success else RoundTripFailure

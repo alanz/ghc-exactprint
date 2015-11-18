@@ -1,0 +1,63 @@
+% ghcexactprint-Mg.tex
+\documentclass[DIV16,twocolumn,10pt]{scrreprt}
+\usepackage{paralist}
+\usepackage{graphicx}
+\usepackage[final]{hcar}
+
+\begin{document}
+
+\begin{hcarentry}[new]{ghc-exactprint}
+\report{Matthew Pickering}%05/15
+\status{Active, Experimental}
+\participants{Alan Zimmerman,Matthew Pickering}% optional
+\makeheader
+
+\texttt{ghc-exactprint} aims to be a low-level foundation for
+refactoring tools. Unlike most refactoring tools, it works directly with
+the GHC API which means that it can understand any legal Haskell source
+file.
+
+The program works in two phases. The first phase takes the output from
+the parser and converts all absolute source positions into relative
+source positions. This means that it is much easier to manipulate the
+AST as you do not have to worry about updating irrelevant parts of your
+program. The second phase performs the reverse process, it converts
+relative source positions back into absolute positions before printing the
+source file. The entire library is based around a free monad which keeps track
+of which annotations should be where. Each process is then a different
+interpretation of this structure.
+
+In theory these two processes should be entirely separate but at the moment they
+are not entirely decoupled due to shortcomings we are addressing in GHC 8.0.
+
+In order to verify our foundations, the program has been run on every
+source file on Hackage. This testing highlighted a number of bugs which
+have been fixed for GHC 7.10.2. Apart from a few outstanding issues with
+very rare cases, we can now confidently say that \texttt{ghc-exactprint}
+is capable of processing \emph{any} Haskell source file.
+
+Over the last few months Alan Zimmerman has integrated \texttt{ghc-exactprint}
+into HaRe\cref{hare} whilst Matthew Pickering participated in Google Summer of
+Code to provide integration with \texttt{HLint}.
+
+Both of these proceeded smoothly, and are now working.
+
+\texttt{ghc-exactprint} has also been used for a proof of concept tool to
+migrate code forward for AMP and MRP, see link below.
+
+Alan Zimmerman also presented \texttt{ghc-exactprint} at HIW2015, and Matthew
+Pickering at SkillsMatter in October. Links to the respective videos are
+provided below.
+
+\FurtherReading
+\begin{compactitem}
+  \item \url{https://github.com/alanz/ghc-exactprint}
+  \item \url{https://github.com/hvr/Hs2010To201x}
+  \item \url{https://www.youtube.com/watch?v=U5_9mfQAUBo} - HIW2015
+  \item
+    \url{https://skillsmatter.com/skillscasts/6539-a-new-foundation-for-refactoring-ghc-exactprint}
+    - Skills Matter, (free) registration required
+\end{compactitem}
+\end{hcarentry}
+
+\end{document}

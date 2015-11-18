@@ -21,6 +21,7 @@ import qualified HscTypes       as GHC
 import qualified Lexer          as GHC
 import qualified MonadUtils     as GHC
 import qualified SrcLoc         as GHC
+import qualified DriverPhases   as GHC
 import qualified StringBuffer   as GHC
 
 import SrcLoc (mkSrcSpan, mkSrcLoc)
@@ -87,7 +88,7 @@ getPragma s@(x:xs)
 -- See bug <http://ghc.haskell.org/trac/ghc/ticket/8265>
 getCppTokensAsComments :: GHC.GhcMonad m
                        => CppOptions  -- ^ Preprocessor Options
-                       -> FilePath  -- ^ Path to source file
+                       -> FilePath    -- ^ Path to source file
                        -> m [Comment]
 getCppTokensAsComments cppOptions sourceFile = do
   source <- GHC.liftIO $ GHC.hGetStringBuffer sourceFile
@@ -173,9 +174,12 @@ sbufToString :: GHC.StringBuffer -> String
 sbufToString sb@(GHC.StringBuffer _buf len _cur) = GHC.lexemeToString sb len
 
 -- ---------------------------------------------------------------------
-getPreprocessedSrcDirect :: (GHC.GhcMonad m) => CppOptions -> FilePath -> m String
+getPreprocessedSrcDirect :: (GHC.GhcMonad m)
+                         => CppOptions
+                         -> FilePath
+                         -> m (String, GHC.DynFlags)
 getPreprocessedSrcDirect cppOptions src =
-    (\(a,_,_) -> a) <$> getPreprocessedSrcDirectPrim cppOptions src
+    (\(s,_,d) -> (s,d)) <$> getPreprocessedSrcDirectPrim cppOptions src
 
 getPreprocessedSrcDirectPrim :: (GHC.GhcMonad m)
                               => CppOptions
@@ -185,7 +189,8 @@ getPreprocessedSrcDirectPrim cppOptions src_fn = do
   hsc_env <- GHC.getSession
   let dfs = GHC.extractDynFlags hsc_env
       new_env = GHC.replaceDynFlags hsc_env (injectCppOptions cppOptions dfs)
-  (dflags', hspp_fn) <- GHC.liftIO $ GHC.preprocess new_env (src_fn, Nothing)
+  (dflags', hspp_fn) <-
+      GHC.liftIO $ GHC.preprocess new_env (src_fn, Just (GHC.Cpp GHC.HsSrcFile))
   buf <- GHC.liftIO $ GHC.hGetStringBuffer hspp_fn
   txt <- GHC.liftIO $ readFile hspp_fn
   return (txt, buf, dflags')
