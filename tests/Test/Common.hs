@@ -49,7 +49,6 @@ import System.Directory
 
 import Test.Consistency
 
-import Control.Arrow (first)
 import Test.HUnit
 import System.FilePath
 
@@ -131,11 +130,10 @@ genTest f origFile expectedFile  =
             let (contents1,lp) = stripLinePragmas txt
             return (contents1,lp,dflags)
 
-      orig <- GHC.liftIO $ readFile origFile
       expected <- GHC.liftIO $ readFile expectedFile
       let origContents = removeSpaces fileContents
           pristine     = removeSpaces expected
-      case parseFile dflags origFile origContents of
+      case parseFile dflags' origFile origContents of
         GHC.PFailed ss m -> return . Left $ ParseFailure ss (GHC.showSDoc dflags m)
         GHC.POk (mkApiAnns -> apianns) pmod   -> do
           (printed', anns, pmod') <- GHC.liftIO (runRoundTrip f apianns pmod injectedComments)

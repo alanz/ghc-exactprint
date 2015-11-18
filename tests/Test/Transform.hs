@@ -2,15 +2,11 @@
 module Test.Transform where
 
 import Language.Haskell.GHC.ExactPrint
-import Language.Haskell.GHC.ExactPrint.Preprocess
 import Language.Haskell.GHC.ExactPrint.Types
-import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Parsers
 
-import GHC.Paths ( libdir )
 
 import qualified Bag            as GHC
-import qualified DynFlags       as GHC
 import qualified GHC            as GHC
 import qualified OccName        as GHC
 import qualified RdrName        as GHC
@@ -20,14 +16,10 @@ import qualified FastString     as GHC
 import qualified Data.Generics as SYB
 -- import qualified GHC.SYB.Utils as SYB
 
-import Control.Monad
 import System.FilePath
-import System.IO
 import qualified Data.Map as Map
 -- import Data.List
 import Data.Maybe
-
-import System.IO.Silently
 
 import Test.Common
 

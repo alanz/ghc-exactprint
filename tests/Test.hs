@@ -6,8 +6,8 @@ module Main where
 
 import Language.Haskell.GHC.ExactPrint.Utils (showGhc)
 
-import qualified FastString     as GHC
-import qualified GHC            as GHC
+-- import qualified FastString     as GHC
+-- import qualified GHC            as GHC
 
 -- import qualified Data.Generics as SYB
 -- import qualified GHC.SYB.Utils as SYB
@@ -126,8 +126,7 @@ formatTT (ts, fs) = do
     putStrLn "Fail"
     mapM_ (putStrLn . fst) fs)
 
--- tt' :: IO ()
--- tt' = formatTT =<< partition snd <$> sequence [ return ("", True)
+tt' :: IO (Counts,Int)
 tt' = runTestText (putTextToHandle stdout True) $ TestList [
   -- , mkTestModChange changeLayoutLet2  "LayoutLet2.hs"
   -- , mkTestModChange changeLayoutLet3  "LayoutLet3.hs"
