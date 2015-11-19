@@ -24,6 +24,7 @@ module Test.Common (
 
 import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Utils
+import Language.Haskell.GHC.ExactPrint.Parsers (parseModuleApiAnnsWithCpp)
 import Language.Haskell.GHC.ExactPrint.Preprocess
 
 import GHC.Paths (libdir)
@@ -95,16 +96,6 @@ mkApiAnns pstate = (Map.fromListWith (++) . GHC.annotations $ pstate
 removeSpaces :: String -> String
 removeSpaces = map (\case {'\160' -> ' '; s -> s})
 
-initDynFlags :: GHC.GhcMonad m => FilePath -> m GHC.DynFlags
-initDynFlags file = do
-  dflags0 <- GHC.getSessionDynFlags
-  let dflags1 = GHC.gopt_set dflags0 GHC.Opt_KeepRawTokenStream
-  src_opts <- GHC.liftIO $ GHC.getOptionsFromFile dflags1 file
-  (!dflags2, _, _)
-    <- GHC.parseDynamicFilePragma dflags1 src_opts
-  void $ GHC.setSessionDynFlags dflags2
-  return dflags2
-
 roundTripTest :: FilePath -> IO Report
 roundTripTest f = genTest noChange f f
 
@@ -114,30 +105,18 @@ noChange :: Changer
 noChange ans parsed = return (ans,parsed)
 
 genTest :: Changer -> FilePath -> FilePath -> IO Report
-genTest f origFile expectedFile  =
-  GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
-    GHC.runGhc (Just libdir) $ do
-      dflags <- initDynFlags origFile
-      let useCpp = GHC.xopt GHC.Opt_Cpp dflags
-      (fileContents, injectedComments, dflags') <-
-        if useCpp
-          then do
-            (contents,dflags1) <- getPreprocessedSrcDirect defaultCppOptions origFile
-            cppComments <- getCppTokensAsComments defaultCppOptions origFile
-            return (contents,cppComments,dflags1)
-          else do
-            txt <- GHC.liftIO $ readFile origFile
-            let (contents1,lp) = stripLinePragmas txt
-            return (contents1,lp,dflags)
-
+genTest f origFile expectedFile  = do
+      res <- parseModuleApiAnnsWithCpp defaultCppOptions origFile
       expected <- GHC.liftIO $ readFile expectedFile
-      let origContents = removeSpaces fileContents
-          pristine     = removeSpaces expected
-      case parseFile dflags' origFile origContents of
-        GHC.PFailed ss m -> return . Left $ ParseFailure ss (GHC.showSDoc dflags m)
-        GHC.POk (mkApiAnns -> apianns) pmod   -> do
+      orig <- GHC.liftIO $ readFile origFile
+      let pristine = removeSpaces expected
+
+      case res of
+        Left (ss, m) -> return . Left $ ParseFailure ss m
+        Right (apianns, injectedComments, dflags, pmod)  -> do
           (printed', anns, pmod') <- GHC.liftIO (runRoundTrip f apianns pmod injectedComments)
-          let printed = trimPrinted printed'
+          let useCpp = GHC.xopt GHC.Opt_Cpp dflags
+              printed = trimPrinted printed'
           -- let (printed, anns) = first trimPrinted $ runRoundTrip apianns pmod injectedComments
               -- Clang cpp adds an extra newline character
               -- Do not remove this line!
@@ -148,7 +127,7 @@ genTest f origFile expectedFile  =
               consistency = checkConsistency apianns pmod
               inconsistent = if null consistency then Nothing else Just consistency
               status = if printed == pristine then Success else RoundTripFailure
-              cppStatus = if useCpp then Just origContents else Nothing
+              cppStatus = if useCpp then Just orig else Nothing
           return $ Right Report {..}
 
 
