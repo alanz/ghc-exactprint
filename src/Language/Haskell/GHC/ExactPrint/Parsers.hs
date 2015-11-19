@@ -196,10 +196,11 @@ parseModuleApiAnnsWithCpp cppOptions file =
 initDynFlags :: GHC.GhcMonad m => FilePath -> m GHC.DynFlags
 initDynFlags file = do
   dflags0 <- GHC.getSessionDynFlags
-  let dflags1 = GHC.gopt_set dflags0 GHC.Opt_KeepRawTokenStream
-  src_opts <- GHC.liftIO $ GHC.getOptionsFromFile dflags1 file
-  (dflags2, _, _)
-    <- GHC.parseDynamicFilePragma dflags1 src_opts
+  src_opts <- GHC.liftIO $ GHC.getOptionsFromFile dflags0 file
+  (dflags1, _, _)
+    <- GHC.parseDynamicFilePragma dflags0 src_opts
+  -- Turn this on last to avoid T10942
+  let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
   void $ GHC.setSessionDynFlags dflags2
   return dflags2
 
