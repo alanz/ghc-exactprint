@@ -28,6 +28,10 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
         , parseStmt
 
         , parseWith
+
+        -- * Internal
+
+        , parseModuleApiAnnsWithCpp
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Annotate
@@ -143,14 +147,30 @@ parsePattern df fp = parseWith df fp GHC.parsePattern
 -- @
 --
 -- Note: 'GHC.ParsedSource' is a synonym for 'GHC.Located' ('GHC.HsModule' 'GHC.RdrName')
-parseModule :: FilePath -> IO (Either (GHC.SrcSpan, String) (Anns, (GHC.Located (GHC.HsModule GHC.RdrName))))
+parseModule :: FilePath
+            -> IO (Either (GHC.SrcSpan, String)
+                          (Anns, GHC.ParsedSource))
 parseModule = parseModuleWithCpp defaultCppOptions
 
 -- | Parse a module with specific instructions for the C pre-processor.
 parseModuleWithCpp :: CppOptions
                    -> FilePath
-                   -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.Located (GHC.HsModule GHC.RdrName)))
-parseModuleWithCpp cppOptions file =
+                   -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource))
+parseModuleWithCpp cpp fp = do
+  res <- parseModuleApiAnnsWithCpp cpp fp
+  return (either Left mkAnns res)
+  where
+    mkAnns (apianns, cs, _, m) =
+      Right (relativiseApiAnnsWithComments cs m apianns, m)
+
+-- | Low level function which is used in the internal tests.
+-- It is advised to use 'parseModule' or 'parseModuleWithCpp' instead of
+-- this function.
+parseModuleApiAnnsWithCpp :: CppOptions
+                          -> FilePath
+                          -> IO (Either (GHC.SrcSpan, String)
+                                        (GHC.ApiAnns, [Comment], GHC.DynFlags, GHC.ParsedSource))
+parseModuleApiAnnsWithCpp cppOptions file =
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
     GHC.runGhc (Just libdir) $ do
       dflags <- initDynFlags file
@@ -169,18 +189,18 @@ parseModuleWithCpp cppOptions file =
         case parseFile dflags' file fileContents of
           GHC.PFailed ss m -> Left $ (ss, (GHC.showSDoc dflags m))
           GHC.POk (mkApiAnns -> apianns) pmod  ->
-            let as = relativiseApiAnnsWithComments injectedComments pmod apianns in
-            Right $ (as, pmod)
+            Right $ (apianns, injectedComments, dflags', pmod)
 
 -- ---------------------------------------------------------------------
 
 initDynFlags :: GHC.GhcMonad m => FilePath -> m GHC.DynFlags
 initDynFlags file = do
   dflags0 <- GHC.getSessionDynFlags
-  let dflags1 = GHC.gopt_set dflags0 GHC.Opt_KeepRawTokenStream
-  src_opts <- GHC.liftIO $ GHC.getOptionsFromFile dflags1 file
-  (dflags2, _, _)
-    <- GHC.parseDynamicFilePragma dflags1 src_opts
+  src_opts <- GHC.liftIO $ GHC.getOptionsFromFile dflags0 file
+  (dflags1, _, _)
+    <- GHC.parseDynamicFilePragma dflags0 src_opts
+  -- Turn this on last to avoid T10942
+  let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
   void $ GHC.setSessionDynFlags dflags2
   return dflags2
 
