@@ -82,6 +82,7 @@ data EPReader m a = EPReader
             , epAstPrint :: forall ast . Data ast => GHC.Located ast -> a -> m a
             , epTokenPrint :: String -> m a
             , epWhitespacePrint :: String -> m a
+            , epRigidity :: Rigidity
             }
 
 data EPWriter a = EPWriter
@@ -137,6 +138,7 @@ initialEPReader astPrint tokenPrint wsPrint  = EPReader
              , epAstPrint = astPrint
              , epWhitespacePrint = wsPrint
              , epTokenPrint = tokenPrint
+             , epRigidity = NormalLayout
              }
 
 -- ---------------------------------------------------------------------
@@ -167,8 +169,10 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
       exactPC lss (printInterpret action) >> next
     go (CountAnns kwid next) =
       countAnnsEP (G kwid) >>= next
-    go (SetLayoutFlag  action next) =
-      setLayout (printInterpret action) >> next
+    go (SetLayoutFlag r action next) = do
+      rigidity <- asks epRigidity
+      (if (r <= rigidity) then setLayout else id) (printInterpret action)
+      next
     go (MarkExternal _ akwid s next) =
       printStringAtMaybeAnn (G akwid) s >> next
     go (StoreOriginalSrcSpan _ next) = storeOriginalSrcSpanPrint >>= next

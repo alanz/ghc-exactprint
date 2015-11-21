@@ -123,6 +123,9 @@ data DeltaReader = DeltaReader
          -- | Constuctor of current AST element, part of current AnnKey
        , annConName       :: !AnnConName
 
+        -- | Whether to use rigid or normal layout rules
+       , drRigidity :: Rigidity
+
        }
 
 data DeltaWriter = DeltaWriter
@@ -158,6 +161,7 @@ initialDeltaReader =
   DeltaReader
     { curSrcSpan = GHC.noSrcSpan
     , annConName = annGetConstr ()
+    , drRigidity = NormalLayout
     }
 
 defaultDeltaState :: [Comment] -> Pos -> GHC.ApiAnns -> DeltaState
@@ -214,7 +218,10 @@ deltaInterpret = iterTM go
     go (MarkOffsetPrim akwid n _ next)  = addDeltaAnnotationLs akwid n >> next
     go (WithAST lss prog next)          = withAST lss (deltaInterpret prog) >> next
     go (CountAnns kwid next)             = countAnnsDelta kwid >>= next
-    go (SetLayoutFlag action next)       = setLayoutFlag (deltaInterpret action)  >> next
+    go (SetLayoutFlag r action next)     = do
+      rigidity <- asks drRigidity
+      (if (r <= rigidity) then setLayoutFlag else id) (deltaInterpret action)
+      next
     go (MarkExternal ss akwid _ next)    = addDeltaAnnotationExt ss akwid >> next
     go (StoreOriginalSrcSpan key next)   = storeOriginalSrcSpanDelta key >>= next
     go (GetSrcSpanForKw kw next)         = getSrcSpanForKw kw >>= next

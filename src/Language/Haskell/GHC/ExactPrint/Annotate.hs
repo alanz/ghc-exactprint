@@ -111,7 +111,7 @@ data AnnotationF next where
   CountAnns      :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
   WithSortKey    :: [(GHC.SrcSpan, Annotated ())]                       -> next -> AnnotationF next
 
-  SetLayoutFlag  ::  Annotated ()                         -> next -> AnnotationF next
+  SetLayoutFlag  ::  Rigidity -> Annotated ()                         -> next -> AnnotationF next
 
   -- Required to work around deficiencies in the GHC AST
   StoreOriginalSrcSpan :: AnnKey                        -> (AnnKey -> next) -> AnnotationF next
@@ -138,10 +138,15 @@ makeFreeCon  'StoreOriginalSrcSpan
 makeFreeCon  'GetSrcSpanForKw
 makeFreeCon  'StoreString
 makeFreeCon  'AnnotationsToComments
-makeFreeCon  'SetLayoutFlag
 makeFreeCon  'WithSortKey
 
 -- ---------------------------------------------------------------------
+
+setLayoutFlag :: Annotated () -> Annotated ()
+setLayoutFlag action = liftF (SetLayoutFlag NormalLayout action ())
+
+setRigidFlag :: Annotated () -> Annotated ()
+setRigidFlag action = liftF (SetLayoutFlag RigidLayout action ())
 
 -- | Construct a syntax tree which represent which KeywordIds must appear
 -- where.
@@ -1673,7 +1678,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
                       else markWithString GHC.AnnClose "#)"
 
 
-  markAST l (GHC.HsCase e1 matches) = do
+  markAST l (GHC.HsCase e1 matches) = setRigidFlag $ do
     mark GHC.AnnCase
     markLocated e1
     mark GHC.AnnOf
@@ -1686,7 +1691,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   -- when moving these expressions it's useful that they maintain "internal
   -- integrity", that is to say the subparts remain indented relative to each
   -- other.
-  markAST _ (GHC.HsIf _ e1 e2 e3) = setLayoutFlag $ do
+  markAST _ (GHC.HsIf _ e1 e2 e3) = setRigidFlag $ do
     mark GHC.AnnIf
     markLocated e1
     markOffset GHC.AnnSemi 0
