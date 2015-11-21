@@ -15,8 +15,12 @@
 module Language.Haskell.GHC.ExactPrint.Print
         (
         exactPrint
-        , semanticPrint
-        , semanticPrintM
+        , exactPrintWithOptions
+
+        -- * Configuration
+        , PrintOptions(epRigidity, epAstPrint, epTokenPrint, epWhitespacePrint)
+        , stringOptions
+        , printOptions
 
         ) where
 
@@ -47,37 +51,22 @@ exactPrint :: Annotate ast
                      => GHC.Located ast
                      -> Anns
                      -> String
-exactPrint = semanticPrint (\_ b -> b) id id
+exactPrint ast as = runIdentity (exactPrintWithOptions stringOptions ast as)
 
--- | A more general version of `semanticPrint`.
-semanticPrintM :: (Annotate ast, Monoid b, Monad m) =>
-              (forall a . Data a => GHC.Located a -> b -> m b) -- ^ How to surround an AST fragment
-              -> (String -> m b) -- ^ How to output a token
-              -> (String -> m b) -- ^ How to output whitespace
-              -> GHC.Located ast
-              -> Anns
-              -> m b
-semanticPrintM astOut tokenOut whiteOut ast as =
-    runEP astOut tokenOut whiteOut (annotate ast) as
-
-
--- | A more general version of 'exactPrint' which allows the customisation
--- of the output whilst retaining the original source formatting. This is
--- useful for smarter syntax highlighting.
-semanticPrint :: (Annotate ast, Monoid b) =>
-              (forall a . Data a => GHC.Located a -> b -> b) -- ^ How to surround an AST fragment
-              -> (String -> b) -- ^ How to output a token
-              -> (String -> b) -- ^ How to output whitespace
-              -> GHC.Located ast
-              -> Anns
-              -> b
-semanticPrint a b c d e = runIdentity (semanticPrintM (\ast s -> Identity (a ast s)) (return . b) (return . c) d e)
-
+-- | The additional option to specify the rigidity and printing
+-- configuration.
+exactPrintWithOptions :: (Annotate ast, Monoid b, Monad m)
+                      => PrintOptions m b
+                      -> GHC.Located ast
+                      -> Anns
+                      -> m b
+exactPrintWithOptions r ast as =
+    runEP r (annotate ast) as
 
 ------------------------------------------------------
 -- The EP monad and basic combinators
 
-data EPReader m a = EPReader
+data PrintOptions m a = PrintOptions
             {
               epAnn :: !Annotation
             , epAstPrint :: forall ast . Data ast => GHC.Located ast -> a -> m a
@@ -85,6 +74,26 @@ data EPReader m a = EPReader
             , epWhitespacePrint :: String -> m a
             , epRigidity :: Rigidity
             }
+
+-- | Helper to create a 'PrintOptions'
+printOptions ::
+      (forall ast . Data ast => GHC.Located ast -> a -> m a)
+      -> (String -> m a)
+      -> (String -> m a)
+      -> Rigidity
+      -> PrintOptions m a
+printOptions astPrint tokenPrint wsPrint rigidity = PrintOptions
+             {
+               epAnn = annNone
+             , epAstPrint = astPrint
+             , epWhitespacePrint = wsPrint
+             , epTokenPrint = tokenPrint
+             , epRigidity = rigidity
+             }
+
+-- | Options which can be used to print as a normal String.
+stringOptions :: PrintOptions Identity String
+stringOptions = printOptions (\_ b -> return b) return return NormalLayout
 
 data EPWriter a = EPWriter
               { output :: !a }
@@ -103,18 +112,17 @@ data EPState = EPState
 
 ---------------------------------------------------------
 
-type EP w m a = RWST (EPReader m w) (EPWriter w) EPState m a
+type EP w m a = RWST (PrintOptions m w) (EPWriter w) EPState m a
 
 
 
-runEP :: (Monad m, Monoid a) =>
-      (forall ast . Data ast => GHC.Located ast -> a -> m a)
-      -> (String -> m a)
-      -> (String -> m a)
+runEP :: (Monad m, Monoid a)
+      => PrintOptions m a
       -> Annotated () -> Anns -> m a
-runEP astPrint wsPrint tokenPrint action ans =
+runEP epReader action ans =
   fmap (output . snd) .
-    (\next -> execRWST next (initialEPReader astPrint tokenPrint wsPrint) (defaultEPState ans))
+    (\next -> execRWST next epReader
+    (defaultEPState ans))
   . printInterpret $ action
 
 -- ---------------------------------------------------------------------
@@ -128,19 +136,6 @@ defaultEPState as = EPState
              , epMarkLayout = False
              }
 
-initialEPReader ::
-      (forall ast . Data ast => GHC.Located ast -> a -> m a)
-      -> (String -> m a)
-      -> (String -> m a)
-      -> EPReader m a
-initialEPReader astPrint tokenPrint wsPrint  = EPReader
-             {
-               epAnn = annNone
-             , epAstPrint = astPrint
-             , epWhitespacePrint = wsPrint
-             , epTokenPrint = tokenPrint
-             , epRigidity = NormalLayout
-             }
 
 -- ---------------------------------------------------------------------
 
@@ -234,7 +229,7 @@ exactPC ast action =
                 , annFollowingComments=fcomments
                 , annsDP=kds
                 } = fromMaybe annNone ma
-      EPReader{epAstPrint} <- ask
+      PrintOptions{epAstPrint} <- ask
       r <- withContext kds an
        (mapM_ (uncurry printQueuedComment) comments
        >> advance edp
@@ -420,7 +415,7 @@ countAnnsEP an = length <$> peekAnnFinal an
 printString :: (Monad m, Monoid w) => Bool -> String -> EP w m ()
 printString layout str = do
   EPState{epPos = (l,c), epMarkLayout} <- get
-  EPReader{epTokenPrint, epWhitespacePrint} <- ask
+  PrintOptions{epTokenPrint, epWhitespacePrint} <- ask
   when (epMarkLayout && layout) (
                       modify (\s -> s { epLHS = LayoutStartCol c, epMarkLayout = False } ))
   setPos (l, c + length str)
