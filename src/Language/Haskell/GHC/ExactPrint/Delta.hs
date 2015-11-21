@@ -51,6 +51,12 @@
 module Language.Haskell.GHC.ExactPrint.Delta
   ( relativiseApiAnns
   , relativiseApiAnnsWithComments
+  , relativiseApiAnnsWithOptions
+
+  -- * Configuration
+  , DeltaOptions(drRigidity)
+  , deltaOptions
+  , normalLayout
   ) where
 
 import Control.Monad.RWS
@@ -94,18 +100,30 @@ relativiseApiAnnsWithComments ::
                   -> GHC.Located ast
                   -> GHC.ApiAnns
                   -> Anns
-relativiseApiAnnsWithComments cs modu ghcAnns
-   = runDeltaWithComments cs (annotate modu) ghcAnns (ss2pos $ GHC.getLoc modu)
+relativiseApiAnnsWithComments =
+    relativiseApiAnnsWithOptions normalLayout
+
+relativiseApiAnnsWithOptions ::
+                     Annotate ast
+                  => DeltaOptions
+                  -> [Comment]
+                  -> GHC.Located ast
+                  -> GHC.ApiAnns
+                  -> Anns
+relativiseApiAnnsWithOptions opts cs modu ghcAnns
+   = runDeltaWithComments
+      opts cs (annotate modu) ghcAnns
+      (ss2pos $ GHC.getLoc modu)
 
 -- ---------------------------------------------------------------------
 --
 -- | Type used in the Delta Monad.
-type Delta a = RWS DeltaReader DeltaWriter DeltaState a
+type Delta a = RWS DeltaOptions DeltaWriter DeltaState a
 
-runDeltaWithComments :: [Comment] -> Annotated () -> GHC.ApiAnns -> Pos -> Anns
-runDeltaWithComments cs action ga priorEnd =
+runDeltaWithComments :: DeltaOptions -> [Comment] -> Annotated () -> GHC.ApiAnns -> Pos -> Anns
+runDeltaWithComments opts cs action ga priorEnd =
   mkAnns . snd
-  . (\next -> execRWS next initialDeltaReader (defaultDeltaState cs priorEnd ga))
+  . (\next -> execRWS next opts (defaultDeltaState cs priorEnd ga))
   . deltaInterpret $ action
   where
     mkAnns :: DeltaWriter -> Anns
@@ -115,7 +133,7 @@ runDeltaWithComments cs action ga priorEnd =
 
 -- ---------------------------------------------------------------------
 
-data DeltaReader = DeltaReader
+data DeltaOptions = DeltaOptions
        {
          -- | Current `SrcSpan, part of current AnnKey`
          curSrcSpan  :: !GHC.SrcSpan
@@ -156,13 +174,16 @@ data DeltaState = DeltaState
 
 -- ---------------------------------------------------------------------
 
-initialDeltaReader :: DeltaReader
-initialDeltaReader =
-  DeltaReader
+deltaOptions :: Rigidity -> DeltaOptions
+deltaOptions ridigity =
+  DeltaOptions
     { curSrcSpan = GHC.noSrcSpan
     , annConName = annGetConstr ()
-    , drRigidity = NormalLayout
+    , drRigidity = ridigity
     }
+
+normalLayout :: DeltaOptions
+normalLayout = deltaOptions NormalLayout
 
 defaultDeltaState :: [Comment] -> Pos -> GHC.ApiAnns -> DeltaState
 defaultDeltaState injectedComments priorEnd ga =
@@ -381,8 +402,8 @@ addAnnotationsDelta ann = do
     l <- ask
     tellFinalAnn (getAnnKey l,ann)
 
-getAnnKey :: DeltaReader -> AnnKey
-getAnnKey DeltaReader {curSrcSpan, annConName}
+getAnnKey :: DeltaOptions -> AnnKey
+getAnnKey DeltaOptions {curSrcSpan, annConName}
   = AnnKey curSrcSpan annConName
 
 -- -------------------------------------
