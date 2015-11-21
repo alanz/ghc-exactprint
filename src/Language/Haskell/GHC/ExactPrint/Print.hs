@@ -57,7 +57,8 @@ semanticPrintM :: (Annotate ast, Monoid b, Monad m) =>
               -> GHC.Located ast
               -> Anns
               -> m b
-semanticPrintM astOut tokenOut whiteOut ast as =  runEP astOut tokenOut whiteOut (annotate ast) as
+semanticPrintM astOut tokenOut whiteOut ast as =
+    runEP astOut tokenOut whiteOut (annotate ast) as
 
 
 -- | A more general version of 'exactPrint' which allows the customisation
