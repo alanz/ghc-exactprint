@@ -1,3 +1,14 @@
+2015-11-21 v0.5
+	* Add new options to enable "rigid" layout rules. This makes the
+	annotations more rigid in the sense that if you move AST fragments around
+	it is more likely that their internal components will remain in the same
+	position relative to each other.
+
+	* Fix a bug where files failed to parse if the file started with comments.
+
+	* Fix a bug where "[e||" was turned into "[||"
+
+
 2015-11-15 v0.4.2
 	* Fix round tripping of arrow notation using ">-" and ">>-".
 2015-09-28 v0.4.1

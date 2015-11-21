@@ -22,9 +22,15 @@ module Language.Haskell.GHC.ExactPrint.Types
   , mkAnnKey
   , AnnConName(..)
   , annGetConstr
+
+  -- * Other
+
+  , Rigidity(..)
+
   -- * Internal Types
   , LayoutStartCol(..)
   , declFun
+
 
   ) where
 
@@ -193,6 +199,9 @@ instance GHC.Outputable DeltaPos where
   ppr a     = GHC.text (show a)
 
 -- ---------------------------------------------------------------------
+--
+-- Flag used to control whether we use rigid or normal layout rules.
+data Rigidity = NormalLayout | RigidLayout deriving (Eq, Ord, Show)
 
 declFun :: (forall a . Data a => GHC.Located a -> b) -> GHC.LHsDecl GHC.RdrName -> b
 declFun f (GHC.L l de) =
