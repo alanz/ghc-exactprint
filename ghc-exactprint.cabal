@@ -27,10 +27,13 @@ maintainer:          alan.zimm@gmail.com
 category:            Development
 build-type:          Simple
 extra-source-files:  ChangeLog
-                     tests/examples/*.hs
-                     tests/examples/*.hs.bad
-                     tests/examples/*.hs.expected
-                     tests/examples/*.hs-boot
+                     tests/examples/failing/*.hs
+                     tests/examples/ghc710/*.hs
+                     tests/examples/ghc8/*.hs
+                     tests/examples/transform/*.hs
+                     tests/examples/failing/*.hs.bad
+                     tests/examples/transform/*.hs.expected
+                     tests/examples/ghc710/*.hs-boot
 cabal-version:       >=1.10
 
 source-repository head
