@@ -17,6 +17,7 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
 
         -- * Module Parsers
         , parseModule
+        , parseModuleWithOptions
         , parseModuleWithCpp
 
         -- * Basic Parsers
@@ -150,18 +151,27 @@ parsePattern df fp = parseWith df fp GHC.parsePattern
 parseModule :: FilePath
             -> IO (Either (GHC.SrcSpan, String)
                           (Anns, GHC.ParsedSource))
-parseModule = parseModuleWithCpp defaultCppOptions
+parseModule = parseModuleWithCpp defaultCppOptions normalLayout
+
+parseModuleWithOptions :: DeltaOptions
+                       -> FilePath
+                       -> IO (Either (GHC.SrcSpan, String)
+                                     (Anns, GHC.ParsedSource))
+parseModuleWithOptions opts fp =
+  parseModuleWithCpp defaultCppOptions opts fp
+
 
 -- | Parse a module with specific instructions for the C pre-processor.
 parseModuleWithCpp :: CppOptions
+                   -> DeltaOptions
                    -> FilePath
                    -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource))
-parseModuleWithCpp cpp fp = do
+parseModuleWithCpp cpp opts fp = do
   res <- parseModuleApiAnnsWithCpp cpp fp
   return (either Left mkAnns res)
   where
     mkAnns (apianns, cs, _, m) =
-      Right (relativiseApiAnnsWithComments cs m apianns, m)
+      Right (relativiseApiAnnsWithOptions opts cs m apianns, m)
 
 -- | Low level function which is used in the internal tests.
 -- It is advised to use 'parseModule' or 'parseModuleWithCpp' instead of
