@@ -96,6 +96,9 @@ failingTests = testList "Failing tests"
   -- Tests requiring future GHC modifications
   , mkTestModBad "UnicodeSyntax.hs"
   , mkTestModBad "InfixOperator.hs"
+
+  -- Unknown
+  , mkTestModBad "QuasiQuote2.hs"
   ]
 
 

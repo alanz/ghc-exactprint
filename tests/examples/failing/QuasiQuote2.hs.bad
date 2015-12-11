@@ -1,0 +1,439 @@
+{-# LANGUAGE QuasiQuotes #-}
+module Test where
+
+a = bar
+    where
+        bar = 
+
+
+b = bar
+    where
+        bar = [q|
+           |]
+
+c = bar
+    where
+        bar = [q|
+             |]
+
+d = [q|
+            |]
+
+==============
+tests/examples/failing/QuasiQuote2.hs
+==============
+lengths:(210,209)
+
+==============
+
+({ tests/examples/failing/QuasiQuote2.hs:1:1 }
+ Just (Ann (DP (0,0)) [] [] [((AnnComment (Comment "{-# LANGUAGE QuasiQuotes #-}" tests/examples/failing/QuasiQuote2.hs:1:1-28 Nothing)),DP (0,0)),((G AnnModule),DP (1,0)),((G AnnVal),DP (0,1)),((G AnnWhere),DP (0,1)),((G AnnEofPos),DP (1,0))] Nothing Nothing)
+ (HsModule 
+  (Just 
+   ({ tests/examples/failing/QuasiQuote2.hs:2:8-11 }
+    Nothing{ModuleName: Test})) 
+  (Nothing) 
+  [] 
+  [
+   ({ tests/examples/failing/QuasiQuote2.hs:(4,1)-(7,14) }
+    Just (Ann (DP (2,0)) [] [] [] Nothing Nothing)
+    (ValD 
+     (FunBind 
+      ({ tests/examples/failing/QuasiQuote2.hs:4:1 }
+       Just (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+       (Unqual {OccName: a})) 
+      (False) 
+      (MG 
+       [
+        ({ tests/examples/failing/QuasiQuote2.hs:(4,1)-(7,14) }
+         Just (Ann (DP (0,0)) [] [] [((G AnnEqual),DP (0,1)),((G AnnWhere),DP (1,4))] Just [tests/examples/failing/QuasiQuote2.hs:(6,9)-(7,14)] Nothing)
+         (Match 
+          (Just 
+           ((,) 
+            ({ tests/examples/failing/QuasiQuote2.hs:4:1 }
+             Just (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+             (Unqual {OccName: a})) 
+            (False))) 
+          [] 
+          (Nothing) 
+          (GRHSs 
+           [
+            ({ tests/examples/failing/QuasiQuote2.hs:(4,3)-(7,14) }
+             Just (Ann (DP (0,-1)) [] [] [] Nothing Nothing)
+             (GRHS 
+              [] 
+              ({ tests/examples/failing/QuasiQuote2.hs:4:5-7 }
+               Just (Ann (DP (0,1)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+               (HsVar 
+                (Unqual {OccName: bar})))))] 
+           (HsValBinds 
+            (ValBindsIn {Bag(Located (HsBind RdrName)): 
+             [
+              ({ tests/examples/failing/QuasiQuote2.hs:(6,9)-(7,14) }
+               Just (Ann (DP (1,8)) [] [] [] Nothing Nothing)
+               (FunBind 
+                ({ tests/examples/failing/QuasiQuote2.hs:6:9-11 }
+                 Just (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+                 (Unqual {OccName: bar})) 
+                (False) 
+                (MG 
+                 [
+                  ({ tests/examples/failing/QuasiQuote2.hs:(6,9)-(7,14) }
+                   Just (Ann (DP (0,0)) [] [] [((G AnnEqual),DP (0,1))] Nothing Nothing)
+                   (Match 
+                    (Just 
+                     ((,) 
+                      ({ tests/examples/failing/QuasiQuote2.hs:6:9-11 }
+                       Just (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+                       (Unqual {OccName: bar})) 
+                      (False))) 
+                    [] 
+                    (Nothing) 
+                    (GRHSs 
+                     [
+                      ({ tests/examples/failing/QuasiQuote2.hs:(6,13)-(7,14) }
+                       Just (Ann (DP (0,-1)) [] [] [] Nothing Nothing)
+                       (GRHS 
+                        [] 
+                        ({ tests/examples/failing/QuasiQuote2.hs:(6,15)-(7,14) }
+                         Just (Ann (DP (0,1)) [] [] [] Nothing Nothing)
+                         (HsQuasiQuoteE 
+                          (HsQuasiQuote 
+                           (Unqual {OccName: q}) { tests/examples/failing/QuasiQuote2.hs:(6,18)-(7,14) } {FastString: "\n            "})))))] 
+                     (EmptyLocalBinds))))] 
+                 [] 
+                 (PlaceHolder) 
+                 (FromSource)) 
+                (WpHole) 
+                (PlaceHolder) 
+                []))]} 
+             [])))))] 
+       [] 
+       (PlaceHolder) 
+       (FromSource)) 
+      (WpHole) 
+      (PlaceHolder) 
+      []))),
+   ({ tests/examples/failing/QuasiQuote2.hs:(9,1)-(12,13) }
+    Just (Ann (DP (3,0)) [] [] [] Nothing Nothing)
+    (ValD 
+     (FunBind 
+      ({ tests/examples/failing/QuasiQuote2.hs:9:1 }
+       Just (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+       (Unqual {OccName: b})) 
+      (False) 
+      (MG 
+       [
+        ({ tests/examples/failing/QuasiQuote2.hs:(9,1)-(12,13) }
+         Just (Ann (DP (0,0)) [] [] [((G AnnEqual),DP (0,1)),((G AnnWhere),DP (1,4))] Just [tests/examples/failing/QuasiQuote2.hs:(11,9)-(12,13)] Nothing)
+         (Match 
+          (Just 
+           ((,) 
+            ({ tests/examples/failing/QuasiQuote2.hs:9:1 }
+             Just (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+             (Unqual {OccName: b})) 
+            (False))) 
+          [] 
+          (Nothing) 
+          (GRHSs 
+           [
+            ({ tests/examples/failing/QuasiQuote2.hs:(9,3)-(12,13) }
+             Just (Ann (DP (0,-1)) [] [] [] Nothing Nothing)
+             (GRHS 
+              [] 
+              ({ tests/examples/failing/QuasiQuote2.hs:9:5-7 }
+               Just (Ann (DP (0,1)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+               (HsVar 
+                (Unqual {OccName: bar})))))] 
+           (HsValBinds 
+            (ValBindsIn {Bag(Located (HsBind RdrName)): 
+             [
+              ({ tests/examples/failing/QuasiQuote2.hs:(11,9)-(12,13) }
+               Just (Ann (DP (1,8)) [] [] [] Nothing Nothing)
+               (FunBind 
+                ({ tests/examples/failing/QuasiQuote2.hs:11:9-11 }
+                 Just (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+                 (Unqual {OccName: bar})) 
+                (False) 
+                (MG 
+                 [
+                  ({ tests/examples/failing/QuasiQuote2.hs:(11,9)-(12,13) }
+                   Just (Ann (DP (0,0)) [] [] [((G AnnEqual),DP (0,1))] Nothing Nothing)
+                   (Match 
+                    (Just 
+                     ((,) 
+                      ({ tests/examples/failing/QuasiQuote2.hs:11:9-11 }
+                       Just (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+                       (Unqual {OccName: bar})) 
+                      (False))) 
+                    [] 
+                    (Nothing) 
+                    (GRHSs 
+                     [
+                      ({ tests/examples/failing/QuasiQuote2.hs:(11,13)-(12,13) }
+                       Just (Ann (DP (0,-1)) [] [] [] Nothing Nothing)
+                       (GRHS 
+                        [] 
+                        ({ tests/examples/failing/QuasiQuote2.hs:(11,15)-(12,13) }
+                         Just (Ann (DP (0,1)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+                         (HsQuasiQuoteE 
+                          (HsQuasiQuote 
+                           (Unqual {OccName: q}) { tests/examples/failing/QuasiQuote2.hs:(11,18)-(12,13) } {FastString: "\n           "})))))] 
+                     (EmptyLocalBinds))))] 
+                 [] 
+                 (PlaceHolder) 
+                 (FromSource)) 
+                (WpHole) 
+                (PlaceHolder) 
+                []))]} 
+             [])))))] 
+       [] 
+       (PlaceHolder) 
+       (FromSource)) 
+      (WpHole) 
+      (PlaceHolder) 
+      []))),
+   ({ tests/examples/failing/QuasiQuote2.hs:(14,1)-(17,15) }
+    Just (Ann (DP (2,0)) [] [] [] Nothing Nothing)
+    (ValD 
+     (FunBind 
+      ({ tests/examples/failing/QuasiQuote2.hs:14:1 }
+       Just (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+       (Unqual {OccName: c})) 
+      (False) 
+      (MG 
+       [
+        ({ tests/examples/failing/QuasiQuote2.hs:(14,1)-(17,15) }
+         Just (Ann (DP (0,0)) [] [] [((G AnnEqual),DP (0,1)),((G AnnWhere),DP (1,4))] Just [tests/examples/failing/QuasiQuote2.hs:(16,9)-(17,15)] Nothing)
+         (Match 
+          (Just 
+           ((,) 
+            ({ tests/examples/failing/QuasiQuote2.hs:14:1 }
+             Just (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+             (Unqual {OccName: c})) 
+            (False))) 
+          [] 
+          (Nothing) 
+          (GRHSs 
+           [
+            ({ tests/examples/failing/QuasiQuote2.hs:(14,3)-(17,15) }
+             Just (Ann (DP (0,-1)) [] [] [] Nothing Nothing)
+             (GRHS 
+              [] 
+              ({ tests/examples/failing/QuasiQuote2.hs:14:5-7 }
+               Just (Ann (DP (0,1)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+               (HsVar 
+                (Unqual {OccName: bar})))))] 
+           (HsValBinds 
+            (ValBindsIn {Bag(Located (HsBind RdrName)): 
+             [
+              ({ tests/examples/failing/QuasiQuote2.hs:(16,9)-(17,15) }
+               Just (Ann (DP (1,8)) [] [] [] Nothing Nothing)
+               (FunBind 
+                ({ tests/examples/failing/QuasiQuote2.hs:16:9-11 }
+                 Just (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+                 (Unqual {OccName: bar})) 
+                (False) 
+                (MG 
+                 [
+                  ({ tests/examples/failing/QuasiQuote2.hs:(16,9)-(17,15) }
+                   Just (Ann (DP (0,0)) [] [] [((G AnnEqual),DP (0,1))] Nothing Nothing)
+                   (Match 
+                    (Just 
+                     ((,) 
+                      ({ tests/examples/failing/QuasiQuote2.hs:16:9-11 }
+                       Just (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+                       (Unqual {OccName: bar})) 
+                      (False))) 
+                    [] 
+                    (Nothing) 
+                    (GRHSs 
+                     [
+                      ({ tests/examples/failing/QuasiQuote2.hs:(16,13)-(17,15) }
+                       Just (Ann (DP (0,-1)) [] [] [] Nothing Nothing)
+                       (GRHS 
+                        [] 
+                        ({ tests/examples/failing/QuasiQuote2.hs:(16,15)-(17,15) }
+                         Just (Ann (DP (0,1)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+                         (HsQuasiQuoteE 
+                          (HsQuasiQuote 
+                           (Unqual {OccName: q}) { tests/examples/failing/QuasiQuote2.hs:(16,18)-(17,15) } {FastString: "\n             "})))))] 
+                     (EmptyLocalBinds))))] 
+                 [] 
+                 (PlaceHolder) 
+                 (FromSource)) 
+                (WpHole) 
+                (PlaceHolder) 
+                []))]} 
+             [])))))] 
+       [] 
+       (PlaceHolder) 
+       (FromSource)) 
+      (WpHole) 
+      (PlaceHolder) 
+      []))),
+   ({ tests/examples/failing/QuasiQuote2.hs:(19,1)-(20,14) }
+    Just (Ann (DP (2,0)) [] [] [] Nothing Nothing)
+    (ValD 
+     (FunBind 
+      ({ tests/examples/failing/QuasiQuote2.hs:19:1 }
+       Just (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+       (Unqual {OccName: d})) 
+      (False) 
+      (MG 
+       [
+        ({ tests/examples/failing/QuasiQuote2.hs:(19,1)-(20,14) }
+         Just (Ann (DP (0,0)) [] [] [((G AnnEqual),DP (0,1))] Nothing Nothing)
+         (Match 
+          (Just 
+           ((,) 
+            ({ tests/examples/failing/QuasiQuote2.hs:19:1 }
+             Just (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+             (Unqual {OccName: d})) 
+            (False))) 
+          [] 
+          (Nothing) 
+          (GRHSs 
+           [
+            ({ tests/examples/failing/QuasiQuote2.hs:(19,3)-(20,14) }
+             Just (Ann (DP (0,-1)) [] [] [] Nothing Nothing)
+             (GRHS 
+              [] 
+              ({ tests/examples/failing/QuasiQuote2.hs:(19,5)-(20,14) }
+               Just (Ann (DP (0,1)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)
+               (HsQuasiQuoteE 
+                (HsQuasiQuote 
+                 (Unqual {OccName: q}) { tests/examples/failing/QuasiQuote2.hs:(19,8)-(20,14) } {FastString: "\n            "})))))] 
+           (EmptyLocalBinds))))] 
+       [] 
+       (PlaceHolder) 
+       (FromSource)) 
+      (WpHole) 
+      (PlaceHolder) 
+      [])))] 
+  (Nothing) 
+  (Nothing)))
+==============
+[(AnnKey tests/examples/failing/QuasiQuote2.hs:1:1 CN "HsModule",
+  (Ann (DP (0,0)) [] [] [((AnnComment (Comment "{-# LANGUAGE QuasiQuotes #-}" tests/examples/failing/QuasiQuote2.hs:1:1-28 Nothing)),DP (0,0)),((G AnnModule),DP (1,0)),((G AnnVal),DP (0,1)),((G AnnWhere),DP (0,1)),((G AnnEofPos),DP (1,0))] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:4:1 CN "Unqual",
+  (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(4,1)-(7,14) CN "FunBind",
+  (Ann (DP (2,0)) [] [] [] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(4,1)-(7,14) CN "Match",
+  (Ann (DP (0,0)) [] [] [((G AnnEqual),DP (0,1)),((G AnnWhere),DP (1,4))] Just [tests/examples/failing/QuasiQuote2.hs:(6,9)-(7,14)] Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(4,3)-(7,14) CN "GRHS",
+  (Ann (DP (0,-1)) [] [] [] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:4:5-7 CN "HsVar",
+  (Ann (DP (0,1)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:6:9-11 CN "Unqual",
+  (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(6,9)-(7,14) CN "FunBind",
+  (Ann (DP (1,8)) [] [] [] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(6,9)-(7,14) CN "Match",
+  (Ann (DP (0,0)) [] [] [((G AnnEqual),DP (0,1))] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(6,13)-(7,14) CN "GRHS",
+  (Ann (DP (0,-1)) [] [] [] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(6,15)-(7,14) CN "HsQuasiQuoteE",
+  (Ann (DP (0,1)) [] [] [] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:9:1 CN "Unqual",
+  (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(9,1)-(12,13) CN "FunBind",
+  (Ann (DP (3,0)) [] [] [] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(9,1)-(12,13) CN "Match",
+  (Ann (DP (0,0)) [] [] [((G AnnEqual),DP (0,1)),((G AnnWhere),DP (1,4))] Just [tests/examples/failing/QuasiQuote2.hs:(11,9)-(12,13)] Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(9,3)-(12,13) CN "GRHS",
+  (Ann (DP (0,-1)) [] [] [] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:9:5-7 CN "HsVar",
+  (Ann (DP (0,1)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:11:9-11 CN "Unqual",
+  (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(11,9)-(12,13) CN "FunBind",
+  (Ann (DP (1,8)) [] [] [] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(11,9)-(12,13) CN "Match",
+  (Ann (DP (0,0)) [] [] [((G AnnEqual),DP (0,1))] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(11,13)-(12,13) CN "GRHS",
+  (Ann (DP (0,-1)) [] [] [] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(11,15)-(12,13) CN "HsQuasiQuoteE",
+  (Ann (DP (0,1)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:14:1 CN "Unqual",
+  (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(14,1)-(17,15) CN "FunBind",
+  (Ann (DP (2,0)) [] [] [] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(14,1)-(17,15) CN "Match",
+  (Ann (DP (0,0)) [] [] [((G AnnEqual),DP (0,1)),((G AnnWhere),DP (1,4))] Just [tests/examples/failing/QuasiQuote2.hs:(16,9)-(17,15)] Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(14,3)-(17,15) CN "GRHS",
+  (Ann (DP (0,-1)) [] [] [] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:14:5-7 CN "HsVar",
+  (Ann (DP (0,1)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:16:9-11 CN "Unqual",
+  (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(16,9)-(17,15) CN "FunBind",
+  (Ann (DP (1,8)) [] [] [] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(16,9)-(17,15) CN "Match",
+  (Ann (DP (0,0)) [] [] [((G AnnEqual),DP (0,1))] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(16,13)-(17,15) CN "GRHS",
+  (Ann (DP (0,-1)) [] [] [] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(16,15)-(17,15) CN "HsQuasiQuoteE",
+  (Ann (DP (0,1)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:19:1 CN "Unqual",
+  (Ann (DP (0,0)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(19,1)-(20,14) CN "FunBind",
+  (Ann (DP (2,0)) [] [] [] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(19,1)-(20,14) CN "Match",
+  (Ann (DP (0,0)) [] [] [((G AnnEqual),DP (0,1))] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(19,3)-(20,14) CN "GRHS",
+  (Ann (DP (0,-1)) [] [] [] Nothing Nothing)),
+ (AnnKey tests/examples/failing/QuasiQuote2.hs:(19,5)-(20,14) CN "HsQuasiQuoteE",
+  (Ann (DP (0,1)) [] [] [((G AnnVal),DP (0,0))] Nothing Nothing))]
+==============
+([((tests/examples/failing/QuasiQuote2.hs:1:1, AnnModule),
+   [tests/examples/failing/QuasiQuote2.hs:2:1-6]),
+  ((tests/examples/failing/QuasiQuote2.hs:1:1, AnnWhere),
+   [tests/examples/failing/QuasiQuote2.hs:2:13-17]),
+  ((tests/examples/failing/QuasiQuote2.hs:(4,1)-(7,14), AnnEqual),
+   [tests/examples/failing/QuasiQuote2.hs:4:3]),
+  ((tests/examples/failing/QuasiQuote2.hs:(4,1)-(7,14), AnnFunId),
+   [tests/examples/failing/QuasiQuote2.hs:4:1]),
+  ((tests/examples/failing/QuasiQuote2.hs:(4,1)-(7,14), AnnSemi),
+   [tests/examples/failing/QuasiQuote2.hs:9:1]),
+  ((tests/examples/failing/QuasiQuote2.hs:(4,1)-(7,14), AnnWhere),
+   [tests/examples/failing/QuasiQuote2.hs:5:5-9]),
+  ((tests/examples/failing/QuasiQuote2.hs:(6,9)-(7,14), AnnEqual),
+   [tests/examples/failing/QuasiQuote2.hs:6:13]),
+  ((tests/examples/failing/QuasiQuote2.hs:(6,9)-(7,14), AnnFunId),
+   [tests/examples/failing/QuasiQuote2.hs:6:9-11]),
+  ((tests/examples/failing/QuasiQuote2.hs:(9,1)-(12,13), AnnEqual),
+   [tests/examples/failing/QuasiQuote2.hs:9:3]),
+  ((tests/examples/failing/QuasiQuote2.hs:(9,1)-(12,13), AnnFunId),
+   [tests/examples/failing/QuasiQuote2.hs:9:1]),
+  ((tests/examples/failing/QuasiQuote2.hs:(9,1)-(12,13), AnnSemi),
+   [tests/examples/failing/QuasiQuote2.hs:14:1]),
+  ((tests/examples/failing/QuasiQuote2.hs:(9,1)-(12,13), AnnWhere),
+   [tests/examples/failing/QuasiQuote2.hs:10:5-9]),
+  ((tests/examples/failing/QuasiQuote2.hs:(11,9)-(12,13), AnnEqual),
+   [tests/examples/failing/QuasiQuote2.hs:11:13]),
+  ((tests/examples/failing/QuasiQuote2.hs:(11,9)-(12,13), AnnFunId),
+   [tests/examples/failing/QuasiQuote2.hs:11:9-11]),
+  ((tests/examples/failing/QuasiQuote2.hs:(14,1)-(17,15), AnnEqual),
+   [tests/examples/failing/QuasiQuote2.hs:14:3]),
+  ((tests/examples/failing/QuasiQuote2.hs:(14,1)-(17,15), AnnFunId),
+   [tests/examples/failing/QuasiQuote2.hs:14:1]),
+  ((tests/examples/failing/QuasiQuote2.hs:(14,1)-(17,15), AnnSemi),
+   [tests/examples/failing/QuasiQuote2.hs:19:1]),
+  ((tests/examples/failing/QuasiQuote2.hs:(14,1)-(17,15), AnnWhere),
+   [tests/examples/failing/QuasiQuote2.hs:15:5-9]),
+  ((tests/examples/failing/QuasiQuote2.hs:(16,9)-(17,15), AnnEqual),
+   [tests/examples/failing/QuasiQuote2.hs:16:13]),
+  ((tests/examples/failing/QuasiQuote2.hs:(16,9)-(17,15), AnnFunId),
+   [tests/examples/failing/QuasiQuote2.hs:16:9-11]),
+  ((tests/examples/failing/QuasiQuote2.hs:(19,1)-(20,14), AnnEqual),
+   [tests/examples/failing/QuasiQuote2.hs:19:3]),
+  ((tests/examples/failing/QuasiQuote2.hs:(19,1)-(20,14), AnnFunId),
+   [tests/examples/failing/QuasiQuote2.hs:19:1]),
+  ((tests/examples/failing/QuasiQuote2.hs:(19,1)-(20,14), AnnSemi),
+   [tests/examples/failing/QuasiQuote2.hs:21:1]),
+  ((<no location info>, AnnEofPos),
+   [tests/examples/failing/QuasiQuote2.hs:21:1])],
+ [(<no location info>,
+   [AnnBlockComment "{-# LANGUAGE QuasiQuotes #-}"])])
