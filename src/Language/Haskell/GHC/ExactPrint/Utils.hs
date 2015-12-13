@@ -206,7 +206,8 @@ spanLength = (-) <$> srcSpanEndColumn <*> srcSpanStartColumn
 -- ---------------------------------------------------------------------
 -- | Checks whether a SrcSpan has zero length.
 isPointSrcSpan :: GHC.SrcSpan -> Bool
-isPointSrcSpan = (== 0 ) . spanLength
+isPointSrcSpan ss = spanLength ss == 0
+                  && srcSpanStartLine ss == srcSpanEndLine ss
 
 -- ---------------------------------------------------------------------
 

@@ -27,16 +27,13 @@ import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Parsers (parseModuleApiAnnsWithCpp)
 import Language.Haskell.GHC.ExactPrint.Preprocess
 
-import GHC.Paths (libdir)
 
 import qualified ApiAnnotation as GHC
 import qualified DynFlags      as GHC
 import qualified FastString    as GHC
 import qualified GHC           as GHC hiding (parseModule)
-import qualified HeaderInfo    as GHC
 import qualified Lexer         as GHC
 import qualified MonadUtils    as GHC
-import qualified Outputable    as GHC
 import qualified Parser        as GHC
 import qualified SrcLoc        as GHC
 import qualified StringBuffer  as GHC
@@ -45,7 +42,6 @@ import qualified Data.Map as Map
 
 import Data.List hiding (find)
 
-import Control.Monad
 import System.Directory
 
 import Test.Consistency

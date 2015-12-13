@@ -97,8 +97,6 @@ failingTests = testList "Failing tests"
   , mkTestModBad "UnicodeSyntax.hs"
   , mkTestModBad "InfixOperator.hs"
 
-  -- Unknown
-  , mkTestModBad "QuasiQuote2.hs"
   ]
 
 
@@ -145,11 +143,12 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
   -- , mkTestModChange changeLetIn1      "LetIn1.hs"
   -- , mkTestModChange changeWhereIn4    "WhereIn4.hs"
   -- , mkTestModChange changeAddDecl     "AddDecl.hs"
-    mkTestModChange changeLocalDecls  "LocalDecls.hs"
+    -- mkTestModChange changeLocalDecls  "LocalDecls.hs"
   -- , mkTestModChange changeLocalDecls2 "LocalDecls2.hs"
   -- , mkTestModChange changeWhereIn3a   "WhereIn3a.hs"
-    , mkTestModChange changeRenameCase1 "RenameCase1.hs"
-    , mkTestModChange changeRenameCase2 "RenameCase2.hs"
+    -- , mkTestModChange changeRenameCase1 "RenameCase1.hs"
+    -- , mkTestModChange changeRenameCase2 "RenameCase2.hs"
+      mkTestModBad "QuasiQuote2.hs"
     ]
 
 testsTT :: Test
