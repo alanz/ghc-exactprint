@@ -1,3 +1,6 @@
+2015-12-13 v0.5.0.1
+	* Fix a bug (#34) where quasiquote values would not roundtrip.
+
 2015-11-21 v0.5
 	* Add new options to enable "rigid" layout rules. This makes the
 	annotations more rigid in the sense that if you move AST fragments around
