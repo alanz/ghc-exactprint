@@ -1,3 +1,4 @@
 module A where
 
-data A = A
+class A a where
+  has :: a

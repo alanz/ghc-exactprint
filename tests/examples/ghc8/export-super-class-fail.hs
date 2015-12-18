@@ -18,7 +18,7 @@ instance C A Int where
   destruct (A n) = n
 
 
-pattern P :: () => C f a => a -> f a
+pattern P :: C f a => a -> f a
 pattern P x <- (destruct -> x)
   where
         P x = build x
