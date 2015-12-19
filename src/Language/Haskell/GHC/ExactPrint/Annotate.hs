@@ -1085,7 +1085,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #endif
     mapM_ markLocated lns
     mark GHC.AnnDcolon
+#if __GLASGOW_HASKELL__ <= 710
+    markLocated typ
+#else
     markLHsSigWcType st
+#endif
     markTrailingSemi
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -1183,7 +1187,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnCloseS -- ']'
     markLocated ln
     mark GHC.AnnDcolon -- '::'
+#if __GLASGOW_HASKELL__ <= 710
+    mapM_ markLocated typs
+#else
     mapM_ markLHsSigType typs
+#endif
     markWithString GHC.AnnClose "#-}" -- '#-}'
     markTrailingSemi
 
@@ -1566,9 +1574,12 @@ data ConDeclField name  -- Record fields have Haddoc docs on them
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ <= 710
+#else
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
       => Annotate (GHC.FieldOcc name) where
   markAST l (GHC.FieldOcc rn _) = markLocated (GHC.L l rn)
+#endif
 
 -- ---------------------------------------------------------------------
 

@@ -72,7 +72,8 @@ library
                      , mtl       >= 2.2.1
                      , syb       >= 0.5
                      , free      >= 4.12
-                     , ghc-boot
+  if impl (ghc > 7.11)
+      build-depends: ghc-boot
   hs-source-dirs:      src
   default-language:    Haskell2010
   if impl (ghc < 7.10.2)

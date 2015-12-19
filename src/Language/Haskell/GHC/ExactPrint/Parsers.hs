@@ -55,10 +55,11 @@ import qualified Outputable    as GHC
 import qualified Parser        as GHC
 import qualified SrcLoc        as GHC
 import qualified StringBuffer  as GHC
-import qualified GHC.LanguageExtensions as LangExt
 
 #if __GLASGOW_HASKELL__ <= 710
 import qualified OrdList as OL
+#else
+import qualified GHC.LanguageExtensions as LangExt
 #endif
 
 import qualified Data.Map as Map
