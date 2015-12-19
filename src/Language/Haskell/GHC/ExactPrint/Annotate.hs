@@ -30,10 +30,8 @@ module Language.Haskell.GHC.ExactPrint.Annotate
        ) where
 
 import Data.Maybe ( fromMaybe )
-#if __GLASGOW_HASKELL__ <= 710
 import Data.Ord ( comparing )
 import Data.List ( sortBy )
-#endif
 
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
@@ -243,10 +241,8 @@ prepareListAnnotation ls = map (\b -> (GHC.getLoc b,markLocated b)) ls
 applyListAnnotations :: [(GHC.SrcSpan, Annotated ())] -> Annotated ()
 applyListAnnotations ls = withSortKey ls
 
-#if __GLASGOW_HASKELL__ <= 710
 lexicalSortLocated :: [GHC.Located a] -> [GHC.Located a]
 lexicalSortLocated = sortBy (comparing GHC.getLoc)
-#endif
 
 -- ---------------------------------------------------------------------
 
@@ -301,6 +297,14 @@ instance Annotate GHC.WarningTxt where
     markWithString GHC.AnnClose "#-}"
 
 -- ---------------------------------------------------------------------
+#if __GLASGOW_HASKELL__ <= 710
+#else
+instance Annotate GHC.StringLiteral where
+  markAST l (GHC.StringLiteral src _) = markWithString GHC.AnnVal src
+#endif
+
+-- ---------------------------------------------------------------------
+
 instance Annotate (GHC.SourceText,GHC.FastString) where
   markAST l (_,fs) = markAST l fs
 
@@ -343,7 +347,21 @@ instance (GHC.DataId name,Annotate name)
               markLocatedFromKw GHC.AnnVal n
             else markLocated ln
 
+#if __GLASGOW_HASKELL__ <= 710
         (GHC.IEThingWith ln ns) -> do
+#else
+        (GHC.IEThingWith ln wc ns lfs) -> do
+{-
+  | IEThingWith (Located name)
+                IEWildcard
+                [Located name]
+                [Located (FieldLbl name)]
+                 -- ^ Class/Type plus some methods/constructors
+                 -- and record fields; see Note [IEThingWith]
+
+-}
+#endif
+          -- TODO: Deal with GHC 8.0 additions
           markLocated ln
           mark GHC.AnnOpenP
           mapM_ markLocated ns
@@ -483,7 +501,7 @@ instance (GHC.DataId name,Annotate name)
 #if __GLASGOW_HASKELL__ <= 710
     Just pkg -> markWithString GHC.AnnPackageName (show (GHC.unpackFS pkg))
 #else
-    Just (srcPkg,_pkg) -> markWithString GHC.AnnPackageName srcPkg
+    Just (GHC.StringLiteral srcPkg _) -> markWithString GHC.AnnPackageName srcPkg
 #endif
 
    markLocated modname
@@ -646,13 +664,36 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
    => Annotate (GHC.RuleBndr name) where
   markAST _ (GHC.RuleBndr ln) = markLocated ln
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.RuleBndrSig ln (GHC.HsWB thing _ _ _)) = do
     mark GHC.AnnOpenP -- "("
     markLocated ln
     mark GHC.AnnDcolon
     markLocated thing
     mark GHC.AnnCloseP -- ")"
-
+#else
+  markAST _ (GHC.RuleBndrSig ln st) = do
+    mark GHC.AnnOpenP -- "("
+    markLocated ln
+    mark GHC.AnnDcolon
+    markLHsSigWcType st
+    mark GHC.AnnCloseP -- ")"
+#endif
+-- ---------------------------------------------------------------------
+#if __GLASGOW_HASKELL__ <= 710
+#else
+markLHsSigWcType :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
+                 => GHC.LHsSigWcType name -> Annotated ()
+markLHsSigWcType (GHC.HsIB _ (GHC.HsWC _ mwc ty)) = do
+    case mwc of
+      Nothing -> markLocated ty
+      Just lwc -> do
+       -- let sorted = lexicalSortLocated (GHC.L lwc GHC.HsWildCardTy:[ty])
+       -- markLocated (GHC.L lc sorted)
+       applyListAnnotations ([(lwc,markExternal lwc GHC.AnnVal "_")]
+                          ++ prepareListAnnotation [ty]
+                            )
+#endif
 -- ---------------------------------------------------------------------
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
@@ -699,9 +740,21 @@ instance Annotate GHC.FastString where
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
    => Annotate (GHC.ForeignDecl name) where
-
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.ForeignImport ln typ _
                (GHC.CImport cconv safety@(GHC.L ll _) _mh _imp (GHC.L ls src))) = do
+#else
+  markAST _ (GHC.ForeignImport ln (GHC.HsIB _ typ) _
+               (GHC.CImport cconv safety@(GHC.L ll _) _mh _imp (GHC.L ls src))) = do
+{-
+  = ForeignImport
+      { fd_name   :: Located name          -- defines this name
+      , fd_sig_ty :: LHsSigType name       -- sig_ty
+      , fd_co     :: PostTc name Coercion  -- rep_ty ~ sig_ty
+      , fd_fi     :: ForeignImport }
+
+-}
+#endif
     mark GHC.AnnForeign
     mark GHC.AnnImport
     markLocated cconv
@@ -716,7 +769,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markTrailingSemi
 
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _l (GHC.ForeignExport ln typ _ (GHC.CExport spec (GHC.L ls src))) = do
+#else
+  markAST _l (GHC.ForeignExport ln (GHC.HsIB _ typ) _ (GHC.CExport spec (GHC.L ls src))) = do
+#endif
     mark GHC.AnnForeign
     mark GHC.AnnExport
     markLocated spec
@@ -756,7 +813,11 @@ instance (Annotate GHC.Safety) where
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
    => Annotate (GHC.DerivDecl name) where
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.DerivDecl typ mov) = do
+#else
+  markAST _ (GHC.DerivDecl (GHC.HsIB _ typ) mov) = do
+#endif
     mark GHC.AnnDeriving
     mark GHC.AnnInstance
     markMaybe mov
@@ -811,7 +872,11 @@ instance Annotate GHC.OverlapMode where
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
    => Annotate (GHC.ClsInstDecl name) where
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.ClsInstDecl poly binds sigs tyfams datafams mov) = do
+#else
+  markAST _ (GHC.ClsInstDecl (GHC.HsIB _ poly) binds sigs tyfams datafams mov) = do
+#endif
     mark GHC.AnnInstance
     markMaybe mov
     markLocated poly
@@ -844,7 +909,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
    => Annotate (GHC.DataFamInstDecl name) where
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST l (GHC.DataFamInstDecl ln (GHC.HsWB pats _ _ _) defn _) = do
+#else
+  markAST l (GHC.DataFamInstDecl ln (GHC.HsIB _ pats) defn _) = do
+#endif
     mark GHC.AnnData
     mark GHC.AnnNewtype
     mark GHC.AnnInstance
@@ -863,12 +932,18 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsBind name) where
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.FunBind (GHC.L _ln _n) _ (GHC.MG matches _ _ _) _ _ _) = do
+#else
+  markAST _ (GHC.FunBind (GHC.L _ln _n) (GHC.MG (GHC.L _ matches) _ _ _) _ _ _) = do
+#endif
     mapM_ markLocated matches
-    --markTrailingSemi
-    -- markMatchGroup l mg
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
+#else
+  markAST _ (GHC.PatBind lhs (GHC.GRHSs grhs (GHC.L _ lb)) _typ _fvs _ticks) = do
+#endif
     markLocated lhs
     mark GHC.AnnEqual
     mapM_ markLocated grhs
@@ -932,24 +1007,43 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
                                                   Annotate body)
   => Annotate (GHC.Match name (GHC.Located body)) where
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.Match mln pats _typ (GHC.GRHSs grhs lb)) = do
+#else
+  markAST _ (GHC.Match mln pats _typ (GHC.GRHSs grhs (GHC.L _ lb))) = do
+#endif
     let
+#if __GLASGOW_HASKELL__ <= 710
       get_infix Nothing = False
       get_infix (Just (_,f)) = f
+#else
+      get_infix GHC.NonFunBindMatch = False
+      get_infix (GHC.FunBindMatch _ f) = f
+#endif
     case (get_infix mln,pats) of
       (True, (a:b:xs)) -> do
         mark GHC.AnnOpenP
         markLocated a
         case mln of
+#if __GLASGOW_HASKELL__ <= 710
           Nothing -> return ()
           Just (n,_) -> markLocated n
+#else
+          GHC.NonFunBindMatch -> return ()
+          GHC.FunBindMatch n _ -> markLocated n
+#endif
         markLocated b
         mark GHC.AnnCloseP
         mapM_ markLocated xs
       _ -> do
         case mln of
+#if __GLASGOW_HASKELL__ <= 710
           Nothing -> mark GHC.AnnFunId
           Just (n,_) -> markLocated n
+#else
+          GHC.NonFunBindMatch -> mark GHC.AnnFunId
+          GHC.FunBindMatch n _ -> markLocated n
+#endif
         mapM_ markLocated pats
 
     -- TODO: The AnnEqual annotation actually belongs in the first GRHS value
@@ -984,12 +1078,17 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.Sig name) where
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.TypeSig lns typ _) = do
+#else
+  markAST _ (GHC.TypeSig lns st)  = do
+#endif
     mapM_ markLocated lns
     mark GHC.AnnDcolon
-    markLocated typ
+    markLHsSigWcType st
     markTrailingSemi
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.PatSynSig ln (_,GHC.HsQTvs _ns bndrs) ctx1 ctx2 typ) = do
     mark GHC.AnnPattern
     markLocated ln
@@ -1005,9 +1104,28 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLocated ctx2
     markOffset GHC.AnnDarrow 1
     markLocated typ
+#else
+  markAST _ (GHC.PatSynSig ln (GHC.HsIB _ typ)) = do
+    mark GHC.AnnPattern
+    markLocated ln
+    mark GHC.AnnDcolon
+    markLocated typ
+#endif
 
-
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.GenericSig ns typ) = do
+#else
+  markAST _ (GHC.ClassOpSig _ ns (GHC.HsIB _ typ)) = do
+{-
+      | A signature for a class method
+        False: ordinary class-method signauure
+        True:  default class method signature
+      e.g.   class C a where
+               op :: a -> a                   -- Ordinary
+               default op :: Eq a => a -> a   -- Generic default
+      | ClassOpSig Bool [Located name] (LHsSigType name)
+-}
+#endif
     mark GHC.AnnDefault
     mapM_ markLocated ns
     mark GHC.AnnDcolon
@@ -1045,7 +1163,19 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markTrailingSemi
 
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.SpecSig ln typs inl) = do
+#else
+  markAST _ (GHC.SpecSig ln typs inl) = do
+{-
+  | SpecSig     (Located name)     -- Specialise a function or datatype  ...
+                [LHsSigType name]  -- ... to these types
+                InlinePragma       -- The pragma on SPECIALISE_INLINE form.
+                                   -- If it's just defaultInlinePragma, then we said
+                                   --    SPECIALISE, not SPECIALISE_INLINE
+
+-}
+#endif
     markWithString GHC.AnnOpen (GHC.inl_src inl)
     mark GHC.AnnOpenS --  '['
     mark GHC.AnnTilde -- ~
@@ -1053,7 +1183,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnCloseS -- ']'
     markLocated ln
     mark GHC.AnnDcolon -- '::'
-    mapM_ markLocated typs
+    mapM_ markLHsSigType typs
     markWithString GHC.AnnClose "#-}" -- '#-}'
     markTrailingSemi
 
@@ -1062,23 +1192,44 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.SpecInstSig src typ) = do
     markWithString GHC.AnnOpen src
     mark GHC.AnnInstance
+#if __GLASGOW_HASKELL__ <= 710
     markLocated typ
+#else
+    markLHsSigType typ
+#endif
     markWithString GHC.AnnClose "#-}" -- '#-}'
     markTrailingSemi
 
 
 
   -- MinimalSig (BooleanFormula (Located name))
-  markAST l (GHC.MinimalSig src  formula) = do
+  markAST l (GHC.MinimalSig src formula) = do
     markWithString GHC.AnnOpen src
     annotationsToComments [GHC.AnnOpenP,GHC.AnnCloseP,GHC.AnnComma,GHC.AnnVbar]
+#if __GLASGOW_HASKELL__ <= 710
     markAST l formula
+#else
+    markLocated formula
+#endif
     markWithString GHC.AnnClose "#-}"
     markTrailingSemi
 
+-- --------------------------------------------------------------------
+
+#if __GLASGOW_HASKELL__ <= 710
+#else
+markLHsSigType :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
+               => GHC.LHsSigType name -> Annotated ()
+markLHsSigType (GHC.HsIB _ typ) = markLocated typ
+
+instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
+   => Annotate [GHC.LHsSigType name] where
+  markAST l ls = mapM_ markLHsSigType ls
+#endif
 
 -- --------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ <= 710
 -- In practice, due to the way the BooleanFormula is constructed in the parser,
 -- we will get the following variants
 -- a | b : Or [a,b]
@@ -1093,13 +1244,23 @@ instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) wh
   markAST _ (GHC.Var x)  = markLocated x
   markAST l (GHC.Or ls)  = mapM_ (markAST l) ls
   markAST l (GHC.And ls) = mapM_ (markAST l) ls
+#else
+instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) where
+  markAST _ (GHC.Var x)  = markLocated x
+  markAST l (GHC.Or ls)  = mapM_ markLocated ls
+  markAST l (GHC.And ls) = mapM_ markLocated ls
+#endif
 
 -- ---------------------------------------------------------------------
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsTyVarBndr name) where
   markAST l (GHC.UserTyVar n) = do
+#if __GLASGOW_HASKELL__ <= 710
     markAST l n
+#else
+    markLocated n
+#endif
 
   markAST _ (GHC.KindedTyVar n ty) = do
     mark GHC.AnnOpenP  -- '('
@@ -1113,6 +1274,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
    => Annotate (GHC.HsType name) where
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsForAllTy _f mwc (GHC.HsQTvs _kvs tvs) ctx@(GHC.L lc ctxs) typ) = do
     mark GHC.AnnOpenP -- "("
     mark GHC.AnnForall
@@ -1122,17 +1284,29 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     case mwc of
       Nothing -> if lc /= GHC.noSrcSpan then markLocated ctx else return ()
       Just lwc -> do
-#if __GLASGOW_HASKELL__ <= 710
        let sorted = lexicalSortLocated (GHC.L lwc GHC.HsWildcardTy:ctxs)
        markLocated (GHC.L lc sorted)
-#else
-        applyListAnnotations (prepareListAnnotation [GHC.L lwc WildCardAnon]
-                           ++ prepareListAnnotation ctxs)
-#endif
 
     mark GHC.AnnDarrow
     markLocated typ
     mark GHC.AnnCloseP -- ")"
+#else
+  markAST _ (GHC.HsForAllTy tvs typ) = do
+    mark GHC.AnnOpenP -- "("
+    mark GHC.AnnForall
+    mapM_ markLocated tvs
+    mark GHC.AnnDot
+    markLocated typ
+    mark GHC.AnnCloseP -- ")"
+
+{-
+  = HsForAllTy   -- See Note [HsType binders]
+      { hst_bndrs :: [LHsTyVarBndr name]   -- Explicit, user-supplied 'forall a b c'
+      , hst_body  :: LHsType name          -- body type
+      }
+
+-}
+#endif
 
   markAST l (GHC.HsTyVar name) = do
     mark GHC.AnnDcolon -- for HsKind, alias for HsType
@@ -1140,8 +1314,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     case n of
       1 -> do
           mark GHC.AnnSimpleQuote
+#if __GLASGOW_HASKELL__ <= 710
           markLocatedFromKw GHC.AnnName name
       _ -> markAST l name
+#else
+          markLocatedFromKw GHC.AnnName (GHC.unLoc name)
+      _ -> markLocated name
+#endif
 
   markAST _ (GHC.HsAppTy t1 t2) = do
     mark GHC.AnnDcolon -- for HsKind, alias for HsType
@@ -1173,7 +1352,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnCloseP -- ')'
     markWithString GHC.AnnClose "#)" --  '#)'
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsOpTy t1 (_,lo) t2) = do
+#else
+  markAST _ (GHC.HsOpTy t1 lo t2) = do
+  -- | HsOpTy              (LHsType name) (Located name) (LHsType name)
+
+#endif
     markLocated t1
     mark GHC.AnnSimpleQuote
     markLocated lo
@@ -1212,6 +1397,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLocated t
     markLocated ds
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsBangTy b t) = do
     case b of
       (GHC.HsSrcBang ms (Just True) _) -> do
@@ -1223,6 +1409,32 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       _ -> return ()
     mark GHC.AnnBang
     markLocated t
+#else
+  markAST _ (GHC.HsBangTy (GHC.HsSrcBang mt up str) t) = do
+    case mt of
+      Nothing -> return ()
+      Just src -> do
+        markWithString GHC.AnnOpen src
+        markWithString GHC.AnnClose "#-}"
+    mark GHC.AnnBang
+    mark GHC.AnnTilde
+    markLocated t
+{-
+  | HsBangTy    HsSrcBang (LHsType name)   -- Bang-style type annotations
+data HsSrcBang =
+  HsSrcBang (Maybe SourceText) -- Note [Pragma source text] in BasicTypes
+            SrcUnpackedness
+            SrcStrictness
+data SrcStrictness = SrcLazy -- ^ Lazy, ie '~'
+                   | SrcStrict -- ^ Strict, ie '!'
+                   | NoSrcStrict -- ^ no strictness annotation
+
+data SrcUnpackedness = SrcUnpack -- ^ {-# UNPACK #-} specified
+                     | SrcNoUnpack -- ^ {-# NOUNPACK #-} specified
+                     | NoSrcUnpack -- ^ no unpack pragma
+
+-}
+#endif
 
   -- HsRecTy [LConDeclField name]
   markAST _ (GHC.HsRecTy cons) = do
@@ -1255,8 +1467,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markExternal l GHC.AnnVal s
 
   -- HsWrapTy HsTyAnnotated (HsType name)
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsWrapTy _ _) =
     traceM "warning: HsWrapTyy Introduced after renaming"
+#endif
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST l (GHC.HsWildcardTy) = do
@@ -1284,7 +1498,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markExternal l GHC.AnnVal
               ("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS fs) ++ "|]")
 
+#if __GLASGOW_HASKELL__ <= 710
       GHC.HsTypedSplice _n b@(GHC.L _ (GHC.HsVar n))  -> do
+#else
+      GHC.HsTypedSplice _n b@(GHC.L _ (GHC.HsVar (GHC.L _ n)))  -> do
+#endif
         markWithString GHC.AnnThIdTySplice ("$$" ++ (GHC.occNameString (GHC.occName n)))
         markLocated b
       GHC.HsTypedSplice _n b -> do
@@ -1292,7 +1510,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markLocated b
         mark GHC.AnnCloseP
 
+#if __GLASGOW_HASKELL__ <= 710
       GHC.HsUntypedSplice _n b@(GHC.L _ (GHC.HsVar n))  -> do
+#else
+      GHC.HsUntypedSplice _n b@(GHC.L _ (GHC.HsVar (GHC.L _ n)))  -> do
+#endif
         markWithString GHC.AnnThIdSplice ("$" ++ (GHC.occNameString (GHC.occName n)))
         markLocated b
       GHC.HsUntypedSplice _n b  -> do
@@ -1329,10 +1551,24 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name) =>
                              Annotate (GHC.ConDeclField name) where
   markAST _ (GHC.ConDeclField ns ty mdoc) = do
+{-
+data ConDeclField name  -- Record fields have Haddoc docs on them
+  = ConDeclField { cd_fld_names :: [LFieldOcc name],
+                                   -- ^ See Note [ConDeclField names]
+                   cd_fld_type :: LBangType name,
+                   cd_fld_doc  :: Maybe LHsDocString }
+
+-}
     mapM_ markLocated ns
     mark GHC.AnnDcolon
     markLocated ty
     markMaybe mdoc
+
+-- ---------------------------------------------------------------------
+
+instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
+      => Annotate (GHC.FieldOcc name) where
+  markAST l (GHC.FieldOcc rn _) = markLocated (GHC.L l rn)
 
 -- ---------------------------------------------------------------------
 
@@ -1345,7 +1581,11 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
   => Annotate (GHC.Pat name) where
   markAST l (GHC.WildPat _) = markExternal l GHC.AnnVal "_"
   markAST l (GHC.VarPat n)  = do
+#if __GLASGOW_HASKELL__ <= 710
     markAST l n
+#else
+    markLocated n
+#endif
   markAST _ (GHC.LazyPat p) = do
     mark GHC.AnnTilde
     markLocated p
@@ -1414,10 +1654,17 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
     markLocated ol
 
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.SigPatIn pat (GHC.HsWB ty _ _ _)) = do
     markLocated pat
     mark GHC.AnnDcolon
     markLocated ty
+#else
+  markAST _ (GHC.SigPatIn pat ty) = do
+    markLocated pat
+    mark GHC.AnnDcolon
+    markLHsSigWcType ty
+#endif
 
   markAST _ (GHC.SigPatOut {}) =
     traceM "warning: SigPatOut introduced after renaming"
@@ -1506,10 +1753,17 @@ instance (GHC.DataId name) => Annotate (GHC.HsOverLit name) where
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ <= 710
 instance (GHC.DataId name,Annotate arg)
     => Annotate (GHC.HsWithBndrs name (GHC.Located arg)) where
   markAST _ (GHC.HsWB thing _ _ _) = do
     markLocated thing
+#else
+instance (GHC.DataId name,Annotate arg)
+    => Annotate (GHC.HsImplicitBndrs name (GHC.Located arg)) where
+  markAST _ (GHC.HsIB _ thing) = do
+    markLocated thing
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -1517,7 +1771,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
          ,GHC.HasOccName name,Annotate body)
   => Annotate (GHC.Stmt name (GHC.Located body)) where
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.LastStmt body _) = markLocated body
+#else
+  markAST _ (GHC.LastStmt body _ _) = markLocated body
+#endif
 
   markAST _ (GHC.BindStmt pat body _ _) = do
     markLocated pat
@@ -1531,7 +1789,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     mark GHC.AnnVbar -- possible in list comprehension
     markTrailingSemi
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.LetStmt lb) = do
+#else
+  markAST _ (GHC.LetStmt (GHC.L l lb)) = do
+#endif
     -- return () `debug` ("markP.LetStmt entered")
     mark GHC.AnnLet
     mark GHC.AnnOpenC -- '{'
@@ -1610,7 +1872,11 @@ markMatchGroup :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,A
                                                Annotate body)
                    => GHC.SrcSpan -> GHC.MatchGroup name (GHC.Located body)
                    -> Annotated ()
+#if __GLASGOW_HASKELL__ <= 710
 markMatchGroup _ (GHC.MG matches _ _ _)
+#else
+markMatchGroup _ (GHC.MG (GHC.L _ matches) _ _ _)
+#endif
   = markListWithLayout matches
 
 -- ---------------------------------------------------------------------
@@ -1624,7 +1890,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsExpr name) where
+#if __GLASGOW_HASKELL__ <= 710
   markAST l (GHC.HsVar n)           = markAST l n
+#else
+  markAST l (GHC.HsVar n)           = markLocated n
+#endif
   markAST l (GHC.HsIPVar (GHC.HsIPName v))         =
     markExternal l GHC.AnnVal ("?" ++ GHC.unpackFS v)
   markAST l (GHC.HsOverLit ov)     = markAST l ov
@@ -1633,7 +1903,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsLam match)       = do
     mark GHC.AnnLam
     -- TODO: Change this, HsLam binds do not need obey layout rules.
+#if __GLASGOW_HASKELL__ <= 710
     mapM_ markLocated (GHC.mg_alts match)
+#else
+    mapM_ markLocated (GHC.unLoc $ GHC.mg_alts match)
+#endif
 
   markAST l (GHC.HsLamCase _ match) = do
     mark GHC.AnnLam
@@ -1705,7 +1979,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnIf
     mapM_ markLocated rhs
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsLet binds e) = do
+#else
+  markAST _ (GHC.HsLet (GHC.L _ binds) e) = do
+#endif
     setLayoutFlag (do -- Make sure the 'in' gets indented too
       mark GHC.AnnLet
       mark GHC.AnnOpenC
@@ -1715,7 +1993,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       mark GHC.AnnIn
       markLocated e)
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsDo cts es _) = do
+#else
+  markAST _ (GHC.HsDo cts (GHC.L _ es) _) = do
+#endif
     mark GHC.AnnDo
     mark GHC.AnnMdo
     let (ostr,cstr,_isComp) =
@@ -1750,29 +2032,49 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mapM_ markLocated es
     markWithString GHC.AnnClose ":]"
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.RecordCon n _ (GHC.HsRecFields fs _)) = do
+#else
+  markAST _ (GHC.RecordCon n _ _ (GHC.HsRecFields fs _)) = do
+#endif
     markLocated n
     mark GHC.AnnOpenC
     mapM_ markLocated fs
     mark GHC.AnnDotdot
     mark GHC.AnnCloseC
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.RecordUpd e (GHC.HsRecFields fs _) _cons _ _) = do
+#else
+  markAST _ (GHC.RecordUpd e fs _cons _ _ _) = do
+#endif
     markLocated e
     mark GHC.AnnOpenC
     mapM_ markLocated fs
     mark GHC.AnnDotdot
     mark GHC.AnnCloseC
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.ExprWithTySig e typ _) = do
+#else
+  markAST _ (GHC.ExprWithTySig e typ) = do
+#endif
     markLocated e
     mark GHC.AnnDcolon
+#if __GLASGOW_HASKELL__ <= 710
     markLocated typ
+#else
+    markLHsSigWcType typ
+#endif
 
   markAST _ (GHC.ExprWithTySigOut e typ) = do
     markLocated e
     mark GHC.AnnDcolon
+#if __GLASGOW_HASKELL__ <= 710
     markLocated typ
+#else
+    markLHsSigWcType typ
+#endif
 
   markAST _ (GHC.ArithSeq _ _ seqInfo) = do
     mark GHC.AnnOpenS -- '['
@@ -1826,8 +2128,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markWithString GHC.AnnVal (GHC.unpackFS csFStr)
     markWithString GHC.AnnValStr ("\"" ++ GHC.unpackFS csFStr ++ "\"")
 #else
-    markWithString GHC.AnnVal (fst csFStr)
-    markWithString GHC.AnnValStr (fst csFStr)
+    markWithString GHC.AnnVal (GHC.sl_st csFStr)
+    markWithString GHC.AnnValStr (GHC.sl_st csFStr)
 #endif
     markWithString GHC.AnnClose "#-}"
     markLocated e
@@ -1837,7 +2139,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
     markWithString GHC.AnnVal ("\"" ++ GHC.unpackFS csFStr ++ "\"")
 #else
-    markWithString GHC.AnnVal (fst csFStr)
+    markWithString GHC.AnnVal (GHC.sl_st csFStr)
 #endif
     markWithString GHC.AnnClose "#-}"
     markLocated e
@@ -1945,7 +2247,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
     markOffsetWithString GHC.AnnVal 0 (show (GHC.unpackFS str)) -- STRING
 #else
-    markOffsetWithString GHC.AnnVal 0 (fst str) -- STRING
+    markOffsetWithString GHC.AnnVal 0 (GHC.sl_st str) -- STRING
 #endif
     markOffsetWithString GHC.AnnVal 1 (show v1) -- INTEGER
     markOffset GHC.AnnColon 0 -- ':'
@@ -1983,6 +2285,34 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 instance Annotate GHC.HsLit where
   markAST l lit = markExternal l GHC.AnnVal (hsLit2String lit)
+
+-- ---------------------------------------------------------------------
+#if __GLASGOW_HASKELL__ <= 710
+#else
+instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
+  => Annotate (GHC.HsRecUpdField name) where
+  markAST _ (GHC.HsRecField lbl expr isPun) = do
+    markLocated lbl
+    markLocated expr
+{-
+type HsRecUpdField id     = HsRecField' (AmbiguousFieldOcc id) (LHsExpr id)
+
+-- |  - 'ApiAnnotation.AnnKeywordId' : 'ApiAnnotation.AnnEqual',
+--
+-- For details on above see note [Api annotations] in ApiAnnotation
+data HsRecField' id arg = HsRecField {
+        hsRecFieldLbl :: Located id,
+        hsRecFieldArg :: arg,           -- ^ Filled in by renamer when punning
+        hsRecPun      :: Bool           -- ^ Note [Punning]
+  } deriving (Data, Typeable)
+
+-}
+
+instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
+  => Annotate (GHC.AmbiguousFieldOcc name) where
+  markAST l (GHC.Unambiguous n _) = markLocated (GHC.L l n)
+  markAST l (GHC.Ambiguous   n _) = markLocated (GHC.L l n)
+#endif
 -- ---------------------------------------------------------------------
 
 -- |Used for declarations that need to be aligned together, e.g. in a
@@ -2065,7 +2395,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnElse
     markLocated e3
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsCmdLet binds e) = do
+#else
+  markAST _ (GHC.HsCmdLet (GHC.L _ binds) e) = do
+#endif
     mark GHC.AnnLet
     mark GHC.AnnOpenC
     markLocalBindsWithLayout binds
@@ -2073,7 +2407,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnIn
     markLocated e
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsCmdDo es _) = do
+#else
+  markAST _ (GHC.HsCmdDo (GHC.L _ es) _) = do
+#endif
     mark GHC.AnnDo
     mark GHC.AnnOpenC
     markListWithLayout es
@@ -2167,7 +2505,20 @@ markTyClass ln tyVars = do
 
 instance (GHC.DataId name,Annotate name, GHC.OutputableBndr name,GHC.HasOccName name)
    => Annotate (GHC.FamilyDecl name) where
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.FamilyDecl info ln (GHC.HsQTvs _ tyvars) mkind) = do
+#else
+  markAST _ (GHC.FamilyDecl info ln (GHC.HsQTvs _ tyvars) rsig minj) = do
+{-
+data FamilyDecl name = FamilyDecl
+  { fdInfo           :: FamilyInfo name              -- type/data, closed/open
+  , fdLName          :: Located name                 -- type constructor
+  , fdTyVars         :: LHsQTyVars name              -- type variables
+  , fdResultSig      :: LFamilyResultSig name        -- result signature
+  , fdInjectivityAnn :: Maybe (LInjectivityAnn name) -- optional injectivity ann
+  }
+-}
+#endif
     mark GHC.AnnType
     mark GHC.AnnData
     mark GHC.AnnFamily
@@ -2176,7 +2527,12 @@ instance (GHC.DataId name,Annotate name, GHC.OutputableBndr name,GHC.HasOccName 
                          ++ prepareListAnnotation tyvars)
     mark GHC.AnnCloseP
     mark GHC.AnnDcolon
+#if __GLASGOW_HASKELL__ <= 710
     markMaybe mkind
+#else
+    markLocated rsig
+    markMaybe minj
+#endif
     mark GHC.AnnWhere
     mark GHC.AnnOpenC -- {
     case info of
@@ -2191,9 +2547,37 @@ instance (GHC.DataId name,Annotate name, GHC.OutputableBndr name,GHC.HasOccName 
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ <= 710
+#else
+instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName name)
+  => Annotate (GHC.FamilyResultSig name) where
+  markAST _ (GHC.NoSig)        = return ()
+  markAST _ (GHC.KindSig k)    = markLocated k
+  markAST _ (GHC.TyVarSig ltv) = markLocated ltv
+#endif
+
+-- ---------------------------------------------------------------------
+
+#if __GLASGOW_HASKELL__ <= 710
+#else
+instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName name)
+  => Annotate (GHC.InjectivityAnn name) where
+  markAST l (GHC.InjectivityAnn ln lns) = do
+    mark GHC.AnnVbar
+    markLocated ln
+    mark GHC.AnnRarrow
+    mapM_ markLocated lns
+#endif
+
+-- ---------------------------------------------------------------------
+
 instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName name)
   => Annotate (GHC.TyFamInstEqn name) where
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.TyFamEqn ln (GHC.HsWB pats _ _ _) typ) = do
+#else
+  markAST _ (GHC.TyFamEqn ln (GHC.HsIB _ pats) typ) = do
+#endif
     mark GHC.AnnOpenP
     applyListAnnotations (prepareListAnnotation [ln]
                          ++ prepareListAnnotation pats)
@@ -2257,6 +2641,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName name)
       => Annotate (GHC.ConDecl name) where
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.ConDecl lns _expr (GHC.HsQTvs _ns bndrs) ctx
                          dets res _ depc_syntax) = do
     case res of
@@ -2302,7 +2687,59 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 
     mark GHC.AnnVbar
     markTrailingSemi
+#else
+  markAST _ (GHC.ConDeclH98 ln mqtvs ctx
+                         dets _ ) = do
+{-
+  | ConDeclH98
+      { con_name    :: Located name
 
+      , con_qvars     :: Maybe (LHsQTyVars name)
+        -- User-written forall (if any), and its implicit
+        -- kind variables
+        -- Non-Nothing needs -XExistentialQuantification
+        --               e.g. data T a = forall b. MkT b (b->a)
+        --               con_qvars = {b}
+
+      , con_cxt       :: Maybe (LHsContext name)
+        -- ^ User-written context (if any)
+
+      , con_details   :: HsConDeclDetails name
+          -- ^ Arguments
+
+      , con_doc       :: Maybe LHsDocString
+          -- ^ A possible Haddock comment.
+
+-}
+    case mqtvs of
+      Nothing -> return ()
+      Just (GHC.HsQTvs _ns bndrs) -> do
+        mark GHC.AnnForall
+        mapM_ markLocated bndrs
+        mark GHC.AnnDot
+
+    markMaybe ctx
+    mark GHC.AnnDarrow
+    case dets of
+      GHC.InfixCon _ _ -> return ()
+      _ -> markLocated ln
+
+    markHsConDeclDetails [ln] dets
+
+    mark GHC.AnnVbar
+    markTrailingSemi
+  markAST _ (GHC.ConDeclGADT lns (GHC.HsIB _ typ) _) = do
+    mapM_ markLocated lns
+    mark GHC.AnnDcolon
+    markLocated typ
+{-
+      { con_names   :: [Located name]
+      , con_type    :: LHsSigType name
+        -- ^ The type after the ‘::’
+      , con_doc     :: Maybe LHsDocString
+
+-}
+#endif
 
 -- ResTyGADT has a SrcSpan for the original sigtype, we need to create
 -- a type for exactPC and annotatePC

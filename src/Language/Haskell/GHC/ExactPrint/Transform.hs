@@ -475,7 +475,11 @@ balanceComments' first second = do
 -- 'GHC.FunBind', these need to be pushed down from the top level to the last
 -- 'GHC.Match' if that 'GHC.Match' needs to be manipulated.
 balanceCommentsFB :: (Data b) => GHC.LHsBind GHC.RdrName -> GHC.Located b -> Transform ()
+#if __GLASGOW_HASKELL__ <= 710
 balanceCommentsFB (GHC.L _ (GHC.FunBind _ _ (GHC.MG matches _ _ _) _ _ _)) second = do
+#else
+balanceCommentsFB (GHC.L _ (GHC.FunBind _ (GHC.MG (GHC.L _ matches) _ _ _) _ _ _)) second = do
+#endif
   -- logTr $ "balanceCommentsFB entered"
   balanceComments' (last matches) second
 balanceCommentsFB f s = balanceComments' f s
@@ -624,7 +628,11 @@ instance HasDecls GHC.ParsedSource where
 -- ---------------------------------------------------------------------
 
 instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
+#if __GLASGOW_HASKELL__ <= 710
   hsDecls d@(GHC.L _ (GHC.Match _ _ _ (GHC.GRHSs _ lb))) = do
+#else
+  hsDecls d@(GHC.L _ (GHC.Match _ _ _ (GHC.GRHSs _ (GHC.L _ lb)))) = do
+#endif
     decls <- hsDeclsValBinds lb
     orderedDecls d decls
 
@@ -644,7 +652,12 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
                                  }
         modifyAnnsT removeWhere
 
+#if __GLASGOW_HASKELL__ <= 710
         binds' <- replaceDeclsValbinds binds []
+#else
+        binds'' <- replaceDeclsValbinds (GHC.unLoc binds) []
+        let binds' = GHC.L (GHC.getLoc binds) binds''
+#endif
         return (GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds')))
 
   replaceDecls m@(GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds))) newBinds
@@ -652,7 +665,11 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
         logTr "replaceDecls LMatch"
         -- Need to throw in a fresh where clause if the binds were empty,
         -- in the annotations.
+#if __GLASGOW_HASKELL__ <= 710
         case binds of
+#else
+        case GHC.unLoc binds of
+#endif
           GHC.EmptyLocalBinds -> do
             let
               addWhere mkds =
@@ -671,14 +688,23 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
           _ -> return ()
 
         modifyAnnsT (captureOrderAnnKey (mkAnnKey m) newBinds)
+#if __GLASGOW_HASKELL__ <= 710
         binds' <- replaceDeclsValbinds binds newBinds
+#else
+        binds'' <- replaceDeclsValbinds (GHC.unLoc binds) newBinds
+        let binds' = GHC.L (GHC.getLoc binds) binds''
+#endif
         -- logDataWithAnnsTr "Match.replaceDecls:binds'" binds'
         return (GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds')))
 
 -- ---------------------------------------------------------------------
 
 instance HasDecls (GHC.LHsExpr GHC.RdrName) where
+#if __GLASGOW_HASKELL__ <= 710
   hsDecls ls@(GHC.L _ (GHC.HsLet decls _ex)) = do
+#else
+  hsDecls ls@(GHC.L _ (GHC.HsLet (GHC.L _ decls) _ex)) = do
+#endif
     ds <- hsDeclsValBinds decls
     orderedDecls ls ds
   hsDecls _                               = return []
@@ -687,7 +713,12 @@ instance HasDecls (GHC.LHsExpr GHC.RdrName) where
     = do
         logTr "replaceDecls HsLet"
         modifyAnnsT (captureOrder e newDecls)
+#if __GLASGOW_HASKELL__ <= 710
         decls' <- replaceDeclsValbinds decls newDecls
+#else
+        decls'' <- replaceDeclsValbinds (GHC.unLoc decls) newDecls
+        let decls' = GHC.L (GHC.getLoc decls) decls''
+#endif
         return (GHC.L l (GHC.HsLet decls' ex))
   replaceDecls (GHC.L l (GHC.HsPar e)) newDecls
     = do
@@ -711,7 +742,11 @@ hsDeclsPatBindD x = error $ "hsDeclsPatBindD called for:" ++ showGhc x
 -- for 'hsDecls' \/ 'replaceDecls'. 'hsDeclsPatBind' \/ 'replaceDeclsPatBind' is
 -- idempotent.
 hsDeclsPatBind :: (Monad m) => GHC.LHsBind GHC.RdrName -> TransformT m [GHC.LHsDecl GHC.RdrName]
+#if __GLASGOW_HASKELL__ <= 710
 hsDeclsPatBind d@(GHC.L _ (GHC.PatBind _ (GHC.GRHSs _grhs lb) _ _ _)) = do
+#else
+hsDeclsPatBind d@(GHC.L _ (GHC.PatBind _ (GHC.GRHSs _grhs (GHC.L _ lb)) _ _ _)) = do
+#endif
   decls <- hsDeclsValBinds lb
   orderedDecls d decls
 hsDeclsPatBind x = error $ "hsDeclsPatBind called for:" ++ showGhc x
@@ -740,7 +775,11 @@ replaceDeclsPatBind p@(GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds) b c d)) new
         logTr "replaceDecls PatBind"
         -- Need to throw in a fresh where clause if the binds were empty,
         -- in the annotations.
+#if __GLASGOW_HASKELL__ <= 710
         case binds of
+#else
+        case GHC.unLoc binds of
+#endif
           GHC.EmptyLocalBinds -> do
             let
               addWhere mkds =
@@ -756,17 +795,30 @@ replaceDeclsPatBind p@(GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds) b c d)) new
           _ -> return ()
 
         modifyAnnsT (captureOrderAnnKey (mkAnnKey p) newDecls)
+#if __GLASGOW_HASKELL__ <= 710
         binds' <- replaceDeclsValbinds binds newDecls
+#else
+        binds'' <- replaceDeclsValbinds (GHC.unLoc binds) newDecls
+        let binds' = GHC.L (GHC.getLoc binds) binds''
+#endif
         return (GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds') b c d))
 replaceDeclsPatBind x _ = error $ "replaceDeclsPatBind called for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
 instance HasDecls (GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
+#if __GLASGOW_HASKELL__ <= 710
   hsDecls ls@(GHC.L _ (GHC.LetStmt lb))       = do
+#else
+  hsDecls ls@(GHC.L _ (GHC.LetStmt (GHC.L _ lb))) = do
+#endif
     decls <- hsDeclsValBinds lb
     orderedDecls ls decls
+#if __GLASGOW_HASKELL__ <= 710
   hsDecls (GHC.L _ (GHC.LastStmt e _))        = hsDecls e
+#else
+  hsDecls (GHC.L _ (GHC.LastStmt e _ _))      = hsDecls e
+#endif
   hsDecls (GHC.L _ (GHC.BindStmt _pat e _ _)) = hsDecls e
   hsDecls (GHC.L _ (GHC.BodyStmt e _ _ _))    = hsDecls e
   hsDecls _                                   = return []
@@ -774,12 +826,24 @@ instance HasDecls (GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   replaceDecls s@(GHC.L l (GHC.LetStmt lb)) newDecls
     = do
         modifyAnnsT (captureOrder s newDecls)
+#if __GLASGOW_HASKELL__ <= 710
         lb' <- replaceDeclsValbinds lb newDecls
+#else
+        lb'' <- replaceDeclsValbinds (GHC.unLoc lb) newDecls
+        let lb' = GHC.L (GHC.getLoc lb) lb''
+#endif
         return (GHC.L l (GHC.LetStmt lb'))
+#if __GLASGOW_HASKELL__ <= 710
   replaceDecls (GHC.L l (GHC.LastStmt e se)) newDecls
     = do
         e' <- replaceDecls e newDecls
         return (GHC.L l (GHC.LastStmt e' se))
+#else
+  replaceDecls (GHC.L l (GHC.LastStmt e d se)) newDecls
+    = do
+        e' <- replaceDecls e newDecls
+        return (GHC.L l (GHC.LastStmt e' d se))
+#endif
   replaceDecls (GHC.L l (GHC.BindStmt pat e a b)) newDecls
     = do
       e' <- replaceDecls e newDecls
@@ -867,7 +931,11 @@ hsDeclsGeneric t = q t
     -- ---------------------------------
 
     lhsbind :: GHC.LHsBind GHC.RdrName -> Transform [GHC.LHsDecl GHC.RdrName]
+#if __GLASGOW_HASKELL__ <= 710
     lhsbind (GHC.L _ (GHC.FunBind _ _ (GHC.MG matches _ _ _) _ _ _)) = do
+#else
+    lhsbind (GHC.L _ (GHC.FunBind _ (GHC.MG (GHC.L _ matches) _ _ _) _ _ _)) = do
+#endif
         dss <- mapM hsDecls matches
         return (concat dss)
     lhsbind p@(GHC.L _ (GHC.PatBind{})) = do

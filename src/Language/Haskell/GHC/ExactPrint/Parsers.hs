@@ -55,6 +55,7 @@ import qualified Outputable    as GHC
 import qualified Parser        as GHC
 import qualified SrcLoc        as GHC
 import qualified StringBuffer  as GHC
+import qualified GHC.LanguageExtensions as LangExt
 
 #if __GLASGOW_HASKELL__ <= 710
 import qualified OrdList as OL
@@ -184,7 +185,11 @@ parseModuleApiAnnsWithCpp cppOptions file =
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
     GHC.runGhc (Just libdir) $ do
       dflags <- initDynFlags file
+#if __GLASGOW_HASKELL__ <= 710
       let useCpp = GHC.xopt GHC.Opt_Cpp dflags
+#else
+      let useCpp = GHC.xopt LangExt.Cpp dflags
+#endif
       (fileContents, injectedComments, dflags') <-
         if useCpp
           then do
