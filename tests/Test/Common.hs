@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -37,6 +38,11 @@ import qualified MonadUtils    as GHC
 import qualified Parser        as GHC
 import qualified SrcLoc        as GHC
 import qualified StringBuffer  as GHC
+
+#if __GLASGOW_HASKELL__ <= 710
+#else
+import qualified GHC.LanguageExtensions as LangExt
+#endif
 
 import qualified Data.Map as Map
 
@@ -111,7 +117,11 @@ genTest f origFile expectedFile  = do
         Left (ss, m) -> return . Left $ ParseFailure ss m
         Right (apianns, injectedComments, dflags, pmod)  -> do
           (printed', anns, pmod') <- GHC.liftIO (runRoundTrip f apianns pmod injectedComments)
+#if __GLASGOW_HASKELL__ <= 710
           let useCpp = GHC.xopt GHC.Opt_Cpp dflags
+#else
+          let useCpp = GHC.xopt LangExt.Cpp dflags
+#endif
               printed = trimPrinted printed'
           -- let (printed, anns) = first trimPrinted $ runRoundTrip apianns pmod injectedComments
               -- Clang cpp adds an extra newline character

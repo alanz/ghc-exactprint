@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TupleSections #-}
 module Test.Transform where
 
@@ -105,7 +106,11 @@ changeLocalDecls2 ans (GHC.L l p) = do
       doAddLocal = SYB.everywhereM (SYB.mkM replaceLocalBinds) p
       replaceLocalBinds :: GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)
                         -> Transform (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
+#if __GLASGOW_HASKELL__ <= 710
       replaceLocalBinds m@(GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.EmptyLocalBinds)))) = do
+#else
+      replaceLocalBinds m@(GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.L _ GHC.EmptyLocalBinds)))) = do
+#endif
         newSpan <- uniqueSrcSpanT
         let
           newAnnKey = AnnKey newSpan (CN "HsValBinds")
@@ -125,10 +130,14 @@ changeLocalDecls2 ans (GHC.L l p) = do
         let decls = [s,d]
         -- logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)
         modifyAnnsT (captureOrderAnnKey newAnnKey decls)
-        return (GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs
-                        (GHC.HsValBinds
-                          (GHC.ValBindsIn (GHC.listToBag $ [GHC.L ld decl])
-                                          [GHC.L ls sig])))))
+        let binds = (GHC.HsValBinds (GHC.ValBindsIn (GHC.listToBag $ [GHC.L ld decl])
+                                    [GHC.L ls sig]))
+#if __GLASGOW_HASKELL__ <= 710
+        return (GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs binds)))
+#else
+        bindSpan <- uniqueSrcSpanT
+        return (GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.L bindSpan binds))))
+#endif
       replaceLocalBinds x = return x
   -- putStrLn $ "log:" ++ intercalate "\n" w
   return (mergeAnnList [declAnns',sigAnns',ans'],GHC.L l p')
@@ -149,7 +158,11 @@ changeLocalDecls ans (GHC.L l p) = do
       doAddLocal = SYB.everywhereM (SYB.mkM replaceLocalBinds) p
       replaceLocalBinds :: GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)
                         -> Transform (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
+#if __GLASGOW_HASKELL__ <= 710
       replaceLocalBinds m@(GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.HsValBinds (GHC.ValBindsIn binds sigs))))) = do
+#else
+      replaceLocalBinds m@(GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.L lb (GHC.HsValBinds (GHC.ValBindsIn binds sigs)))))) = do
+#endif
         a1 <- getAnnsT
         a' <- case sigs of
               []    -> return a1
@@ -161,10 +174,14 @@ changeLocalDecls ans (GHC.L l p) = do
         let decls = s:d:oldDecls
         -- logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)
         modifyAnnsT (captureOrder m decls)
-        return (GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs
-                        (GHC.HsValBinds
+        let binds' = (GHC.HsValBinds
                           (GHC.ValBindsIn (GHC.listToBag $ (GHC.L ld decl):GHC.bagToList binds)
-                                          (GHC.L ls sig:sigs))))))
+                                          (GHC.L ls sig:sigs)))
+#if __GLASGOW_HASKELL__ <= 710
+        return (GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs binds')))
+#else
+        return (GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.L lb binds'))))
+#endif
       replaceLocalBinds x = return x
   -- putStrLn $ "log:" ++ intercalate "\n" w
   return (mergeAnnList [declAnns',sigAnns',ans'],GHC.L l p')
@@ -239,6 +256,7 @@ changeLayoutLet3 ans parsed = return (ans,rename "xxxlonger" [((7,5),(7,8)),((9,
 changeLayoutLet5 :: Changer
 changeLayoutLet5 ans parsed = return (ans,rename "x" [((7,5),(7,8)),((9,14),(9,17))] parsed)
 
+-- AZ:TODO: the GHC 8 version only needs to consider Located RdrName
 rename :: (SYB.Data a) => String -> [(Pos, Pos)] -> a -> a
 rename newNameStr spans a
   = SYB.everywhere ( SYB.mkT   replaceRdr
@@ -263,11 +281,19 @@ rename newNameStr spans a
 
     replaceHsVar :: GHC.LHsExpr GHC.RdrName -> GHC.LHsExpr GHC.RdrName
     replaceHsVar (GHC.L ln (GHC.HsVar _))
+#if __GLASGOW_HASKELL__ <= 710
         | cond ln = GHC.L ln (GHC.HsVar newName)
+#else
+        | cond ln = GHC.L ln (GHC.HsVar (GHC.L ln newName))
+#endif
     replaceHsVar x = x
 
     replacePat (GHC.L ln (GHC.VarPat _))
+#if __GLASGOW_HASKELL__ <= 710
         | cond ln = GHC.L ln (GHC.VarPat newName)
+#else
+        | cond ln = GHC.L ln (GHC.VarPat (GHC.L ln newName))
+#endif
     replacePat x = x
 
 
@@ -294,11 +320,19 @@ changeLetIn1 ans parsed
   = return (ans,SYB.everywhere (SYB.mkT replace) parsed)
   where
     replace :: GHC.HsExpr GHC.RdrName -> GHC.HsExpr GHC.RdrName
+#if __GLASGOW_HASKELL__ <= 710
     replace (GHC.HsLet localDecls expr@(GHC.L _ _))
+#else
+    replace (GHC.HsLet (GHC.L lb localDecls) expr@(GHC.L _ _))
+#endif
       =
          let (GHC.HsValBinds (GHC.ValBindsIn bagDecls sigs)) = localDecls
              bagDecls' = GHC.listToBag $ init $ GHC.bagToList bagDecls
+#if __GLASGOW_HASKELL__ <= 710
          in (GHC.HsLet (GHC.HsValBinds (GHC.ValBindsIn bagDecls' sigs)) expr)
+#else
+         in (GHC.HsLet (GHC.L lb (GHC.HsValBinds (GHC.ValBindsIn bagDecls' sigs))) expr)
+#endif
 
     replace x = x
 
@@ -446,7 +480,11 @@ addLocaLDecl6 ans lp = do
         [d1,d2] <- hsDecls lp
         balanceComments d1 d2
 
+#if __GLASGOW_HASKELL__ <= 710
         let GHC.L _ (GHC.ValD (GHC.FunBind  _ _ (GHC.MG [m1,m2] _ _ _) _ _ _)) = d1
+#else
+        let GHC.L _ (GHC.ValD (GHC.FunBind  _ (GHC.MG (GHC.L _ [m1,m2]) _ _ _) _ _ _)) = d1
+#endif
         balanceComments m1 m2
 
         (d1',_) <- modifyValD (GHC.getLoc m1) d1 $ \_m decls -> do
@@ -549,12 +587,20 @@ rmDecl5 ans lp = do
       doRmDecl = do
         let
           go :: GHC.HsExpr GHC.RdrName -> Transform (GHC.HsExpr GHC.RdrName)
+#if __GLASGOW_HASKELL__ <= 710
           go (GHC.HsLet lb expr) = do
+#else
+          go (GHC.HsLet (GHC.L l lb) expr) = do
+#endif
             decs <- hsDeclsValBinds lb
             let dec = last decs
             transferEntryDPT (head decs) dec
             lb' <- replaceDeclsValbinds lb [dec]
+#if __GLASGOW_HASKELL__ <= 710
             return (GHC.HsLet lb' expr)
+#else
+            return (GHC.HsLet (GHC.L l lb') expr)
+#endif
           go x = return x
 
         SYB.everywhereM (SYB.mkM go) lp
@@ -610,8 +656,13 @@ rmTypeSig1 ans lp = do
   let doRmDecl = do
          tlDecs <- hsDecls lp
          let (s1:d1:d2) = tlDecs
+#if __GLASGOW_HASKELL__ <= 710
              (GHC.L l (GHC.SigD (GHC.TypeSig names typ p))) = s1
              s1' = (GHC.L l (GHC.SigD (GHC.TypeSig (tail names) typ p)))
+#else
+             (GHC.L l (GHC.SigD (GHC.TypeSig names typ))) = s1
+             s1' = (GHC.L l (GHC.SigD (GHC.TypeSig (tail names) typ)))
+#endif
          replaceDecls lp (s1':d1:d2)
 
   let (lp',(ans',_),_w) = runTransform ans doRmDecl
