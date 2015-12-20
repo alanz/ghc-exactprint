@@ -1,11 +1,14 @@
-{-# LANGUAGE QuasiQuotes, ViewPatterns #-}
+-- Copyright (C) 2015, Luke Iannini
+
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ForeignFunctionInterface #-}
 
 module Main where
+import Printf ( pr )
 
-import A
+foreign import ccall "talkToCxx" talkToCxx :: IO ()
 
+main :: IO ()
 main = do
-  case 1 of
-    [foo|x|] -> print x
-  case 1 of
-    [bar|<!anything~|] -> print fixed_var
+  putStrLn ( $(pr "Hello From Template Haskell!") )
+  talkToCxx

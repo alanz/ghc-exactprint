@@ -1,8 +1,4 @@
-{-# LANGUAGE NoImplicitPrelude #-}
-
 module B where
 
-import A
-
-b :: Maybe a
-b = Nothing
+class B a where
+  has :: a
