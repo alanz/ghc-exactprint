@@ -970,9 +970,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       GHC.PrefixPatSyn ns -> do
         markLocated ln
         mapM_ markLocated ns
+#if __GLASGOW_HASKELL__ <= 710
+#else
       GHC.RecordPatSyn fs -> do
         markLocated ln
         mapM_ (markLocated . GHC.recordPatSynSelectorId) fs
+#endif
     mark GHC.AnnEqual
     mark GHC.AnnLarrow
     markLocated def
