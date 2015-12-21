@@ -1264,13 +1264,18 @@ instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) wh
   markAST l (GHC.And ls) = mapM_ (markAST l) ls
 #else
 instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) where
-  markAST _ (GHC.Var x)  = markLocated x
+  markAST _ (GHC.Var x)  = do
+    markLocated x
+    mark GHC.AnnVbar -- '|'
   markAST l (GHC.Or ls)  = mapM_ markLocated ls
-  markAST l (GHC.And ls) = mapM_ markLocated ls
+  markAST l (GHC.And ls) = do
+    mapM_ markLocated ls
+    mark GHC.AnnVbar -- '|'
   markAST _ (GHC.Parens x)  = do
     mark GHC.AnnOpenP -- '('
     markLocated x
     mark GHC.AnnCloseP -- ')'
+    mark GHC.AnnVbar -- '|'
 #endif
 
 -- ---------------------------------------------------------------------

@@ -148,7 +148,8 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
   -- , mkTestModChange changeWhereIn3a   "WhereIn3a.hs"
     -- , mkTestModChange changeRenameCase1 "RenameCase1.hs"
     -- , mkTestModChange changeRenameCase2 "RenameCase2.hs"
-      mkTestModBad "QuasiQuote2.hs"
+      -- mkTestModBad "QuasiQuote2.hs"
+      mkParserTest "ghc710" "Minimal.hs"
     ]
 
 testsTT :: Test

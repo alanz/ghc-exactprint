@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskellQuotes #-}
 -- Crashed GHC 6.12
 
 module T4165 where
