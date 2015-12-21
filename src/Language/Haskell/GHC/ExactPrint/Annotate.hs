@@ -1242,7 +1242,11 @@ markLHsSigType (GHC.HsIB _ typ) = markLocated typ
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
    => Annotate [GHC.LHsSigType name] where
-  markAST l ls = mapM_ markLHsSigType ls
+  markAST l ls = do
+    mark GHC.AnnDeriving
+    markMany GHC.AnnOpenP
+    mapM_ markLHsSigType ls
+    markMany GHC.AnnCloseP
 #endif
 
 -- --------------------------------------------------------------------
@@ -2705,7 +2709,9 @@ markDataDefn _ (GHC.HsDataDefn _ ctx typ mk cons mderivs) = do
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
      => Annotate [GHC.LHsType name] where
   markAST _ ts = do
+#if __GLASGOW_HASKELL__ <= 710
     mark GHC.AnnDeriving
+#endif
     markMany GHC.AnnOpenP -- may be nested parens around context
     mapM_ markLocated ts
     markMany GHC.AnnCloseP -- may be nested parens around context
@@ -2807,13 +2813,6 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
     mapM_ markLocated lns
     mark GHC.AnnDcolon
     markLocated typ
-{-
-      { con_names   :: [Located name]
-      , con_type    :: LHsSigType name
-        -- ^ The type after the ‘::’
-      , con_doc     :: Maybe LHsDocString
-
--}
 #endif
 
 -- ResTyGADT has a SrcSpan for the original sigtype, we need to create
