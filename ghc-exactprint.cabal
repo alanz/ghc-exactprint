@@ -100,6 +100,8 @@ Test-Suite test
                      , syb        >= 0.5
                      , silently   >= 1.2
                      , filemanip  >= 0.3
+  if impl (ghc >= 7.11)
+      build-depends: ghc-boot
 
 executable roundtrip
   main-is: Roundtrip.hs

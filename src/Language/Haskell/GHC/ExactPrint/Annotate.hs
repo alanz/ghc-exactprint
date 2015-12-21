@@ -2237,23 +2237,31 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsBracket (GHC.DecBrG _)) =
     traceM "warning: DecBrG introduced after renamer"
   markAST _ (GHC.HsBracket (GHC.ExpBr e)) = do
---    markWithString GHC.AnnOpen "[|"
+#if __GLASGOW_HASKELL__ <= 710
     -- This exists like this as the lexer collapses [e| and [| into the
     -- same construtor
     workOutString GHC.AnnOpen
       (\ss -> if spanLength ss == 2
                 then "[|"
                 else "[e|")
+#else
+    markWithString GHC.AnnOpen "[|"
+    mark GHC.AnnOpenE  -- "[e|"
+#endif
     markLocated e
     markWithString GHC.AnnClose "|]"
   markAST _ (GHC.HsBracket (GHC.TExpBr e)) = do
-    -- markWithString GHC.AnnOpen "[||"
+#if __GLASGOW_HASKELL__ <= 710
     -- This exists like this as the lexer collapses [e|| and [|| into the
     -- same construtor
     workOutString GHC.AnnOpen
       (\ss -> if spanLength ss == 3
                 then "[||"
                 else "[e||")
+#else
+    markWithString GHC.AnnOpen  "[||"
+    markWithString GHC.AnnOpenE "[e||"
+#endif
     markLocated e
     markWithString GHC.AnnClose "||]"
   markAST _ (GHC.HsBracket (GHC.TypBr e)) = do
