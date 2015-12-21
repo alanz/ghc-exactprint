@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module Language.Haskell.GHC.ExactPrint.Lookup
   (
     keywordToString
@@ -74,7 +75,9 @@ keywordToString kw =
       (G GHC.AnnNewtype  ) -> "newtype"
       (G GHC.AnnOf       ) -> "of"
       (G GHC.AnnOpenC    ) -> "{"
+#if __GLASGOW_HASKELL__ > 710
       (G GHC.AnnOpenE    ) -> "[e|"
+#endif
       (G GHC.AnnOpenP    ) -> "("
       (G GHC.AnnOpenPE   ) -> "$("
       (G GHC.AnnOpenPTE  ) -> "$$("

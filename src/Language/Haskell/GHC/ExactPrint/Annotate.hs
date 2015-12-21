@@ -1118,32 +1118,26 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLocated ctx2
     markOffset GHC.AnnDarrow 1
     markLocated typ
+    markTrailingSemi
 #else
   markAST _ (GHC.PatSynSig ln (GHC.HsIB _ typ)) = do
     mark GHC.AnnPattern
     markLocated ln
     mark GHC.AnnDcolon
     markLocated typ
+    markTrailingSemi
 #endif
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.GenericSig ns typ) = do
 #else
   markAST _ (GHC.ClassOpSig _ ns (GHC.HsIB _ typ)) = do
-{-
-      | A signature for a class method
-        False: ordinary class-method signauure
-        True:  default class method signature
-      e.g.   class C a where
-               op :: a -> a                   -- Ordinary
-               default op :: Eq a => a -> a   -- Generic default
-      | ClassOpSig Bool [Located name] (LHsSigType name)
--}
 #endif
     mark GHC.AnnDefault
     mapM_ markLocated ns
     mark GHC.AnnDcolon
     markLocated typ
+    markTrailingSemi
 
   markAST _ (GHC.IdSig _) =
     traceM "warning: Introduced after renaming"
@@ -1545,7 +1539,9 @@ data SrcUnpackedness = SrcUnpack -- ^ {-# UNPACK #-} specified
 #else
 markHsAppType :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => GHC.HsAppType name -> Annotated ()
-markHsAppType (GHC.HsAppInfix t)  = markLocated t
+markHsAppType (GHC.HsAppInfix t)  = do
+  mark GHC.AnnSimpleQuote
+  markLocated t
 markHsAppType (GHC.HsAppPrefix t) = markLocated t
 #endif
 -- ---------------------------------------------------------------------
