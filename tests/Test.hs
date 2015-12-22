@@ -150,6 +150,10 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkTestModChange changeRenameCase2 "RenameCase2.hs"
       -- mkTestModBad "QuasiQuote2.hs"
       mkParserTest "ghc710" "Unicode.hs"
+    , mkParserTest "ghc710" "ForeignDecl.hs"
+    , mkParserTest "ghc710" "SemiWorkout.hs"
+    , mkParserTest "ghc710" "LiftedConstructors.hs"
+    , mkParserTest "ghc710" "Control.hs"
     , mkParserTest "ghc8" "T10689a.hs"
     ]
 

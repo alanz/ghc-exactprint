@@ -1377,9 +1377,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
 #else
   markAST _ (GHC.HsAppsTy ts) = do
-    mark GHC.AnnOpenP
+    -- mark GHC.AnnOpenP
     mapM_ markLocated ts
-    mark GHC.AnnCloseP
+    -- mark GHC.AnnCloseP
 #endif
 
   markAST _ (GHC.HsAppTy t1 t2) = do
