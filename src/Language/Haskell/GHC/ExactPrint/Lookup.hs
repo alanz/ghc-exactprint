@@ -108,6 +108,17 @@ keywordToString kw =
       (G GHC.AnnThIdSplice  ) -> "$"
       (G GHC.AnnThIdTySplice ) -> "$$"
       (G GHC.AnnEofPos       ) -> ""
+#if __GLASGOW_HASKELL__ > 710
+      (G GHC.AnnDcolonU) -> "∷"
+      (G GHC.AnnDarrowU) -> "⇒"
+      (G GHC.AnnForallU) -> "∀"
+      (G GHC.AnnRarrowU) -> "→"
+      (G GHC.AnnLarrowU) -> "←"
+      (G GHC.AnnlarrowtailU) -> "⤙"
+      (G GHC.AnnrarrowtailU) -> "⤚"
+      (G GHC.AnnLarrowtailU) -> "⤛"
+      (G GHC.AnnRarrowtailU) -> "⤜"
+#endif
 
 -- | Tries to find a unicode equivalent to a 'KeywordId'.
 -- If none exists then fall back to find the ASCII version.
