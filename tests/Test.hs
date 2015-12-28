@@ -72,15 +72,27 @@ transform = hSilence [stderr] $ do
 findTests :: IO Test
 findTests = testList "Round-trip tests" <$> mapM findTestsDir testDirs
 
+listTests :: IO ()
+listTests = do
+  let
+    ftd dir = do
+      let fp = testPrefix </> dir
+      fs <- getDirectoryContents fp
+      let testFiles = sort $ filter (".hs" `isSuffixOf`) fs
+      return (zip [0::Integer ..] testFiles)
+  files <- mapM ftd testDirs
+  putStrLn $ "round trip tests:" ++ show (zip testDirs files)
+
 findTestsDir :: FilePath -> IO Test
 findTestsDir dir = do
   let fp = testPrefix </> dir
   fs <- getDirectoryContents fp
-  let testFiles = filter (".hs" `isSuffixOf`) fs
+  let testFiles = sort $ filter (".hs" `isSuffixOf`) fs
   return $ testList dir (map (mkParserTest dir) testFiles)
 
 mkTests :: IO Test
 mkTests = do
+  -- listTests
   roundTripTests <- findTests
   return $ TestList [roundTripTests, transformTests, failingTests]
 

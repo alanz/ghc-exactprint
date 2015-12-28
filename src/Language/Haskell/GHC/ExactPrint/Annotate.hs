@@ -747,7 +747,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
    => Annotate (GHC.ForeignDecl name) where
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.ForeignImport ln typ _
-               (GHC.CImport cconv safety@(GHC.L ll _) _mh imp (GHC.L ls src))) = do
+               (GHC.CImport cconv safety@(GHC.L ll _) _mh _imp (GHC.L ls src))) = do
 #else
   markAST _ (GHC.ForeignImport ln (GHC.HsIB _ typ) _
                (GHC.CImport cconv safety@(GHC.L ll _) mh imp (GHC.L ls src))) = do

@@ -6,5 +6,3 @@ f1 = const
 
 f2 :: _ -> _f
 f2 = const
-
-
