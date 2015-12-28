@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskellQuotes #-}
 module TH_bracket2 where
 
 d_show = [d| data A = A

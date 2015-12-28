@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE GHCForeignImportPrim, UnliftedFFITypes, QuasiQuotes, MagicHash #-}
 
 import Language.Haskell.TH

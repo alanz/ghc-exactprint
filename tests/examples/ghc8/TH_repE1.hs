@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskellQuotes #-}
 -- test the representation of literals and also explicit type annotations
 
 module TH_repE1

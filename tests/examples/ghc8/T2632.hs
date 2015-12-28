@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskellQuotes #-}
 -- Trac #2632
 
 module MkData where

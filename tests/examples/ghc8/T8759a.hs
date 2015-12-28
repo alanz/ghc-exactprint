@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskellQuotes #-}
 {-# LANGUAGE PatternSynonyms #-}
 
 module T8759a where

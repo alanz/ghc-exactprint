@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskellQuotes #-}
 -- Test for Trac #2188
 
 module TH_scope where

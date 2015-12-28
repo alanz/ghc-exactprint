@@ -22,7 +22,7 @@ data G1 a :: * where
   G1C :: Double -> G1 a
 
 data G2 a :: * where
-  G2A :: { g2a :: a, g2b :: Int } -> G2 a
+  G2A { g2a :: a, g2b :: Int } :: G2 a
   G2C :: Double -> G2 a
 
 

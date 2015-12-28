@@ -33,7 +33,7 @@ apache_mime_types = [here|
 application/andrew-inset      ez |]
 
 
-testComplex    = assertBool "" ([istr|
+testComplex    = assertBool "" ([$istr|
         ok
 #{Foo 4 "Great!" : [Foo 3 "Scott!"]}
         then

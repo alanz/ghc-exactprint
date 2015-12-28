@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 module T10279 where
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax

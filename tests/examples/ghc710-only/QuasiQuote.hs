@@ -20,7 +20,7 @@ px4 [qq|p4|] = undefined
 
 {-# LANGUAGE QuasiQuotes #-}
 
-testComplex    = assertBool "" ([istr|
+testComplex    = assertBool "" ([$istr|
         ok
 #{Foo 4 "Great!" : [Foo 3 "Scott!"]}
         then

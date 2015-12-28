@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskellQuotes #-}
 module T4170 where
 
 import Language.Haskell.TH

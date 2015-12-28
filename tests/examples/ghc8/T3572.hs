@@ -1,4 +1,5 @@
 {-# LANGUAGE EmptyDataDecls #-}
+{-# LANGUAGE TemplateHaskellQuotes #-}
 
 -- Trac #3572
 

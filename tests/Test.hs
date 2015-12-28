@@ -43,8 +43,9 @@ ghcVersion =
 -- | Directories to automatically find roundtrip tests
 testDirs :: [FilePath]
 testDirs =
-  "ghc710" : ["ghc8" | ghcVersion >= GHC8]
-
+  case ghcVersion of
+    GHC710 -> ["ghc710-only","ghc710"]
+    GHC8   -> ["ghc710", "ghc8"]
 
 -- ---------------------------------------------------------------------
 
@@ -151,10 +152,13 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkTestModBad "QuasiQuote2.hs"
       mkParserTest "ghc710" "Unicode.hs"
     , mkParserTest "ghc710" "ForeignDecl.hs"
-    , mkParserTest "ghc710" "SemiWorkout.hs"
-    , mkParserTest "ghc710" "LiftedConstructors.hs"
     , mkParserTest "ghc710" "Control.hs"
     , mkParserTest "ghc8" "T10689a.hs"
+    , mkParserTest "ghc8" "ExportSyntax.hs"
+    , mkParserTest "ghc8" "T5908.hs"
+    , mkParserTest "ghc8" "T11076A.hs"
+    , mkParserTest "ghc8" "export-class.hs"
+
     ]
 
 testsTT :: Test

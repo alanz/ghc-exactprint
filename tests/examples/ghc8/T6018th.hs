@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies, DataKinds, UndecidableInstances, PolyKinds #-}
 
 module T6018th where

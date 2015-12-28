@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskellQuotes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Main (main) where

@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskellQuotes #-}
 module TH_abstractFamily where
 
 import Language.Haskell.TH

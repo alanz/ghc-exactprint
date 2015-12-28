@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskellQuotes #-}
 module TH_spliceE5_prof_ext_Lib where
 
 import Language.Haskell.TH

@@ -750,7 +750,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
                (GHC.CImport cconv safety@(GHC.L ll _) _mh imp (GHC.L ls src))) = do
 #else
   markAST _ (GHC.ForeignImport ln (GHC.HsIB _ typ) _
-               (GHC.CImport cconv safety@(GHC.L ll _) _mh imp (GHC.L ls src))) = do
+               (GHC.CImport cconv safety@(GHC.L ll _) mh imp (GHC.L ls src))) = do
 {-
   = ForeignImport
       { fd_name   :: Located name          -- defines this name
@@ -770,12 +770,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
     markExternal ls GHC.AnnVal (show src)
 #else
-    let (GHC.CFunction tgt) = imp
-    case imp of
-      GHC.CFunction (GHC.StaticTarget srcs _ _ _) ->
-        markExternal ls GHC.AnnVal ("\"" ++ srcs ++ "\"")
-      _ ->
-        markExternal ls GHC.AnnVal (show src)
+    markExternal ls GHC.AnnVal (show src)
 #endif
     markLocated ln
     mark GHC.AnnDcolon
@@ -988,7 +983,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #else
       GHC.RecordPatSyn fs -> do
         markLocated ln
+        mark GHC.AnnOpenC  -- '{'
         mapM_ (markLocated . GHC.recordPatSynSelectorId) fs
+        mark GHC.AnnCloseC -- '}'
 #endif
     mark GHC.AnnEqual
     mark GHC.AnnLarrow
@@ -996,7 +993,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     case dir of
       GHC.Unidirectional           -> return ()
       GHC.ImplicitBidirectional    -> return ()
-      GHC.ExplicitBidirectional mg -> markMatchGroup l mg
+      GHC.ExplicitBidirectional mg -> do
+        mark GHC.AnnWhere
+        mark GHC.AnnOpenC  -- '{'
+        markMatchGroup l mg
+        mark GHC.AnnCloseC -- '}'
 
     mark GHC.AnnWhere
     mark GHC.AnnOpenC  -- '{'
@@ -1540,8 +1541,8 @@ data SrcUnpackedness = SrcUnpack -- ^ {-# UNPACK #-} specified
 #else
   markAST l (GHC.HsWildCardTy (GHC.AnonWildCard _)) = do
     markExternal l GHC.AnnVal "_"
-  markAST l (GHC.HsWildCardTy (GHC.NamedWildCard n)) = do
-    markExternal l GHC.AnnVal  (showGhc n)
+  -- markAST l (GHC.HsWildCardTy (GHC.NamedWildCard n)) = do
+  --   markExternal l GHC.AnnVal  (showGhc n)
 #endif
 
 #if __GLASGOW_HASKELL__ <= 710
