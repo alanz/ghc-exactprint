@@ -540,7 +540,7 @@ moveTrailingComments first second = do
 
 -- |Insert a declaration into an AST element having sub-declarations
 -- (@HasDecls@) according to the given location function.
-insertAt :: (Data ast, HasDecls (GHC.Located ast))
+insertAt :: (HasDecls (GHC.Located ast))
               => (GHC.LHsDecl GHC.RdrName
                   -> [GHC.LHsDecl GHC.RdrName]
                   -> [GHC.LHsDecl GHC.RdrName])
@@ -908,7 +908,7 @@ hasDeclsSybTransform workerHasDecls workerBind t = trf t
 -- return anything for these as there is not meaningful 'replaceDecls' for it.
 -- This function provides a version of 'hsDecls' that returns the 'GHC.FunBind'
 -- decls too, where they are needed for analysis only.
-hsDeclsGeneric :: (SYB.Data t,SYB.Typeable t) => t -> Transform [GHC.LHsDecl GHC.RdrName]
+hsDeclsGeneric :: (SYB.Data t) => t -> Transform [GHC.LHsDecl GHC.RdrName]
 hsDeclsGeneric t = q t
   where
     q = return []

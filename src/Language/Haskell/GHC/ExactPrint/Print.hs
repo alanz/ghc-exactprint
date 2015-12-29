@@ -40,7 +40,9 @@ import Data.Maybe (fromMaybe)
 import Data.Ord (comparing)
 
 import qualified GHC
+#if __GLASGOW_HASKELL__ > 710
 import qualified ApiAnnotation as GHC
+#endif
 
 ------------------------------------------------------------------------------
 -- Printing of source elements
@@ -143,7 +145,7 @@ defaultEPState as = EPState
 printInterpret :: forall w m a . (Monad m, Monoid w) => Annotated a -> EP w m a
 printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
   where
-    go :: (Monad m, Monoid w) => AnnotationF (EP w m a) -> EP w m a
+    go :: AnnotationF (EP w m a) -> EP w m a
     go (MarkEOF next) =
       printStringAtMaybeAnn (G GHC.AnnEofPos) (Just "") >> next
     go (MarkPrim kwid mstr next) =
@@ -173,8 +175,10 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
       printStringAtMaybeAnn (G akwid) (Just s) >> next
     go (StoreOriginalSrcSpan _ next) = storeOriginalSrcSpanPrint >>= next
     go (GetSrcSpanForKw _ next) = return GHC.noSrcSpan >>= next
+#if __GLASGOW_HASKELL__ <= 710
     go (StoreString _ _ next) =
       printStoredString >> next
+#endif
     go (AnnotationsToComments _ next) = next
     go (WithSortKey ks next) = withSortKey ks >> next
 
@@ -187,6 +191,7 @@ storeOriginalSrcSpanPrint = do
     Nothing -> error "Missing captured SrcSpan"
     Just v  -> return v
 
+#if __GLASGOW_HASKELL__ <= 710
 printStoredString :: (Monad m, Monoid w) => EP w m ()
 printStoredString = do
   kd <- gets epAnnKds
@@ -198,6 +203,7 @@ printStoredString = do
   case filter isAnnString (ghead "printStoredString" kd) of
     ((AnnString ss,_):_) -> printStringAtMaybeAnn (AnnString ss) (Just ss)
     _                    -> return ()
+#endif
 
 withSortKey :: (Monad m, Monoid w) => [(GHC.SrcSpan, Annotated ())] -> EP w m ()
 withSortKey xs = do
@@ -240,7 +246,7 @@ exactPC ast action =
 censorM :: (Monoid w, Monad m) => (w -> m w) -> EP w m a -> EP w m a
 censorM f m = passM (liftM (\x -> (x,f)) m)
 
-passM :: (Monoid w, Monad m) => EP w m (a, w -> m w) -> EP w m a
+passM :: (Monad m) => EP w m (a, w -> m w) -> EP w m a
 passM m = RWST $ \r s -> do
       ~((a, f),s', EPWriter w) <- runRWST m r s
       w' <- f w

@@ -69,17 +69,23 @@ import Data.List (sort, nub, partition, sortBy)
 import Data.Ord
 
 import Language.Haskell.GHC.ExactPrint.Utils
+#if __GLASGOW_HASKELL__ <= 710
 import Language.Haskell.GHC.ExactPrint.Lookup
+#endif
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Annotate (AnnotationF(..), Annotated
                                                 , annotate, Annotate(..))
 
 import qualified GHC
+#if __GLASGOW_HASKELL__ > 710
 import qualified ApiAnnotation as GHC
+#endif
 import qualified SrcLoc        as GHC
 
 import qualified Data.Map as Map
+#if __GLASGOW_HASKELL__ <= 710
 import qualified Data.Set as Set
+#endif
 
 -- import Debug.Trace
 
@@ -249,7 +255,9 @@ deltaInterpret = iterTM go
     go (MarkExternal ss akwid _ next)    = addDeltaAnnotationExt ss akwid >> next
     go (StoreOriginalSrcSpan key next)   = storeOriginalSrcSpanDelta key >>= next
     go (GetSrcSpanForKw kw next)         = getSrcSpanForKw kw >>= next
+#if __GLASGOW_HASKELL__ <= 710
     go (StoreString s ss next)           = storeString s ss >> next
+#endif
     go (AnnotationsToComments kws next)  = annotationsToCommentsDelta kws >> next
     go (WithSortKey kws next)            = withSortKey kws >> next
 
@@ -278,8 +286,10 @@ storeOriginalSrcSpanDelta key = do
   tellCapturedSpan key
   return key
 
+#if __GLASGOW_HASKELL__ <= 710
 storeString :: String -> GHC.SrcSpan -> Delta ()
 storeString s ss = addAnnotationWorker (AnnString s) ss
+#endif
 
 -- ---------------------------------------------------------------------
 

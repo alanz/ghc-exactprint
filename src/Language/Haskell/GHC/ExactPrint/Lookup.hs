@@ -9,7 +9,9 @@ module Language.Haskell.GHC.ExactPrint.Lookup
 
 import Language.Haskell.GHC.ExactPrint.Types
 import qualified GHC (AnnKeywordId(..))
+#if __GLASGOW_HASKELL__ <= 710
 import Data.Maybe
+#endif
 
 -- | Maps `AnnKeywordId` to the corresponding String representation.
 -- There is no specific mapping for the following constructors.

@@ -116,7 +116,9 @@ data AnnotationF next where
   -- Required to work around deficiencies in the GHC AST
   StoreOriginalSrcSpan :: AnnKey                        -> (AnnKey -> next) -> AnnotationF next
   GetSrcSpanForKw :: GHC.AnnKeywordId                   -> (GHC.SrcSpan -> next) -> AnnotationF next
+#if __GLASGOW_HASKELL__ <= 710
   StoreString :: String -> GHC.SrcSpan                  -> next -> AnnotationF next
+#endif
   AnnotationsToComments :: [GHC.AnnKeywordId]           -> next -> AnnotationF next
 
 deriving instance Functor (AnnotationF)
@@ -136,7 +138,9 @@ makeFreeCon  'MarkOffsetPrim
 makeFreeCon  'CountAnns
 makeFreeCon  'StoreOriginalSrcSpan
 makeFreeCon  'GetSrcSpanForKw
+#if __GLASGOW_HASKELL__ <= 710
 makeFreeCon  'StoreString
+#endif
 makeFreeCon  'AnnotationsToComments
 makeFreeCon  'WithSortKey
 
@@ -155,11 +159,12 @@ annotate = markLocated
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ <= 710
 workOutString :: GHC.AnnKeywordId -> (GHC.SrcSpan -> String) -> Annotated ()
 workOutString kw f = do
   ss <- getSrcSpanForKw kw
   storeString (f ss) ss
-
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -355,7 +360,7 @@ instance (GHC.DataId name,Annotate name)
 #if __GLASGOW_HASKELL__ <= 710
         (GHC.IEThingWith ln ns) -> do
 #else
-        (GHC.IEThingWith ln wc ns lfs) -> do
+        (GHC.IEThingWith ln _wc ns _lfs) -> do
 {-
   | IEThingWith (Located name)
                 IEWildcard
@@ -750,7 +755,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
                (GHC.CImport cconv safety@(GHC.L ll _) _mh _imp (GHC.L ls src))) = do
 #else
   markAST _ (GHC.ForeignImport ln (GHC.HsIB _ typ) _
-               (GHC.CImport cconv safety@(GHC.L ll _) mh imp (GHC.L ls src))) = do
+               (GHC.CImport cconv safety@(GHC.L ll _) _mh _imp (GHC.L ls src))) = do
 {-
   = ForeignImport
       { fd_name   :: Located name          -- defines this name
@@ -1472,7 +1477,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnBang
     markLocated t
 #else
-  markAST _ (GHC.HsBangTy (GHC.HsSrcBang mt up str) t) = do
+  markAST _ (GHC.HsBangTy (GHC.HsSrcBang mt _up _str) t) = do
     case mt of
       Nothing -> return ()
       Just src -> do
@@ -1642,9 +1647,8 @@ data ConDeclField name  -- Record fields have Haddoc docs on them
 
 -- ---------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ <= 710
-#else
-instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
+#if __GLASGOW_HASKELL__ > 710
+instance (GHC.DataId name)
       => Annotate (GHC.FieldOcc name) where
   markAST l (GHC.FieldOcc rn _) = markLocated rn
 #endif
@@ -2388,11 +2392,10 @@ instance Annotate GHC.HsLit where
   markAST l lit = markExternal l GHC.AnnVal (hsLit2String lit)
 
 -- ---------------------------------------------------------------------
-#if __GLASGOW_HASKELL__ <= 710
-#else
+#if __GLASGOW_HASKELL__ > 710
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsRecUpdField name) where
-  markAST _ (GHC.HsRecField lbl expr isPun) = do
+  markAST _ (GHC.HsRecField lbl expr _isPun) = do
     markLocated lbl
     mark GHC.AnnEqual
     markLocated expr
@@ -2410,7 +2413,7 @@ data HsRecField' id arg = HsRecField {
 
 -}
 
-instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
+instance (GHC.DataId name)
   => Annotate (GHC.AmbiguousFieldOcc name) where
   markAST l (GHC.Unambiguous n _) = markLocated n
   markAST l (GHC.Ambiguous   n _) = markLocated n
@@ -2664,7 +2667,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 
 #if __GLASGOW_HASKELL__ <= 710
 #else
-instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName name)
+instance (GHC.DataId name,Annotate name)
   => Annotate (GHC.InjectivityAnn name) where
   markAST l (GHC.InjectivityAnn ln lns) = do
     mark GHC.AnnVbar
