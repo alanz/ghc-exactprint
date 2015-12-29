@@ -388,23 +388,26 @@ peekAnnotationDelta an = do
     return $ unicodeAnns ++ GHC.getAnnotation ga ss an
 #endif
 
-getAnnotationDelta :: GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
+getAnnotationDelta :: GHC.AnnKeywordId -> Delta ([GHC.SrcSpan],GHC.AnnKeywordId)
 getAnnotationDelta an = do
     ss <- getSrcSpan
     getAndRemoveAnnotationDelta ss an
 
-getAndRemoveAnnotationDelta :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
+getAndRemoveAnnotationDelta :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta ([GHC.SrcSpan],GHC.AnnKeywordId)
 getAndRemoveAnnotationDelta sp an = do
     ga <- gets apAnns
 #if __GLASGOW_HASKELL__ <= 710
-    let (r,ga') = GHC.getAndRemoveAnnotation ga sp an
+    let (r,ga',kw) = GHC.getAndRemoveAnnotation ga sp an
 #else
-    let (r,ga') = case GHC.getAndRemoveAnnotation ga sp an of
-                    ([],_) -> GHC.getAndRemoveAnnotation ga sp (GHC.unicodeAnn an)
-                    v      -> v
+    let (r,ga',kw) = case GHC.getAndRemoveAnnotation ga sp an of
+                    ([],_) -> (ss,g,k)
+                      where
+                        k = GHC.unicodeAnn an
+                        (ss,g) = GHC.getAndRemoveAnnotation ga sp k
+                    (ss,g)  -> (ss,g,an)
 #endif
     modify (\s -> s { apAnns = ga' })
-    return r
+    return (r,kw)
 
 getOneAnnotationDelta :: GHC.AnnKeywordId -> Delta ([GHC.SrcSpan],GHC.AnnKeywordId)
 getOneAnnotationDelta an = do
@@ -644,8 +647,8 @@ addDeltaAnnotationLs ann off = do
 -- position, and advance the position to the end of the annotations
 addDeltaAnnotations :: GHC.AnnKeywordId -> Delta ()
 addDeltaAnnotations ann = do
-  ma <- getAnnotationDelta ann
-  let do_one ap' = addAnnotationWorker (G ann) ap'
+  (ma,kw) <- getAnnotationDelta ann
+  let do_one ap' = addAnnotationWorker (G kw) ap'
                     `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
   mapM_ do_one (sort ma)
 
@@ -664,11 +667,17 @@ addDeltaAnnotationsInside ann = do
 -- | Look up and add possibly multiple Delta annotations not enclosed by
 -- the current SrcSpan at the current position, and advance the
 -- position to the end of the annotations
+-- The first argument (gann) is the one to look up in the GHC annotations, the
+-- second is the one to apply in the ghc-exactprint ones. These are different
+-- for GHC.AnnSemi mapping to AnnSemiSep, to ensure that it reflects the ';'
+-- outside the current span.
 addDeltaAnnotationsOutside :: GHC.AnnKeywordId -> KeywordId -> Delta ()
 addDeltaAnnotationsOutside gann ann = do
   ss <- getSrcSpan
-  ma <- getAndRemoveAnnotationDelta ss gann
-  let do_one ap' = addAnnotationWorker ann ap'
+  (ma,kw) <- getAndRemoveAnnotationDelta ss gann
+  let do_one ap' = if ann == AnnSemiSep
+                     then addAnnotationWorker ann    ap'
+                     else addAnnotationWorker (G kw) ap'
   mapM_ do_one (sort $ filter (\s -> not (GHC.isSubspanOf s ss)) ma)
 
 -- | Add a Delta annotation at the current position, and advance the
@@ -679,7 +688,7 @@ addDeltaAnnotationExt s ann = addAnnotationWorker (G ann) s
 addEofAnnotation :: Delta ()
 addEofAnnotation = do
   pe <- getPriorEnd
-  ma <- withSrcSpanDelta (GHC.noLoc ()) (getAnnotationDelta GHC.AnnEofPos)
+  (ma,_kw) <- withSrcSpanDelta (GHC.noLoc ()) (getAnnotationDelta GHC.AnnEofPos)
   case ma of
     [] -> return ()
     (pa:pss) -> do
