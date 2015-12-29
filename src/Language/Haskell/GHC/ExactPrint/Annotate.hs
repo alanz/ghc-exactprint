@@ -1353,6 +1353,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST l (GHC.HsQualTy cxt ty) = do
     mark GHC.AnnDcolon -- for HsKind, alias for HsType
     markLocated cxt
+    mark GHC.AnnDarrow
     markLocated ty
 {-
   | HsQualTy   -- See Note [HsType binders]
@@ -1881,7 +1882,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     -- return () `debug` ("markP.LetStmt entered")
     mark GHC.AnnLet
     mark GHC.AnnOpenC -- '{'
-    --markOffset GHC.AnnSemi 0
     markInside GHC.AnnSemi
     markLocalBindsWithLayout lb
     mark GHC.AnnCloseC -- '}'

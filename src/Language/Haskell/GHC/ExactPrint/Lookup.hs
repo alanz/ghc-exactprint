@@ -2,7 +2,9 @@
 module Language.Haskell.GHC.ExactPrint.Lookup
   (
     keywordToString
+#if __GLASGOW_HASKELL__ <= 710
   , unicodeString
+#endif
   ) where
 
 import Language.Haskell.GHC.ExactPrint.Types
@@ -22,7 +24,9 @@ keywordToString kw =
       -- warnings if new constructors are added.
       AnnComment _      -> mkErr kw
       AnnString _       -> mkErr kw
+#if __GLASGOW_HASKELL__ <= 710
       AnnUnicode kw'    -> keywordToString (G kw')
+#endif
       AnnSemiSep        -> ";"
       (G GHC.AnnOpen  ) -> mkErr kw
       (G GHC.AnnClose ) -> mkErr kw
@@ -109,17 +113,18 @@ keywordToString kw =
       (G GHC.AnnThIdTySplice ) -> "$$"
       (G GHC.AnnEofPos       ) -> ""
 #if __GLASGOW_HASKELL__ > 710
-      (G GHC.AnnDcolonU) -> "∷"
       (G GHC.AnnDarrowU) -> "⇒"
+      (G GHC.AnnDcolonU) -> "∷"
       (G GHC.AnnForallU) -> "∀"
-      (G GHC.AnnRarrowU) -> "→"
       (G GHC.AnnLarrowU) -> "←"
+      (G GHC.AnnLarrowtailU) -> "⤛"
+      (G GHC.AnnRarrowU) -> "→"
+      (G GHC.AnnRarrowtailU) -> "⤜"
       (G GHC.AnnlarrowtailU) -> "⤙"
       (G GHC.AnnrarrowtailU) -> "⤚"
-      (G GHC.AnnLarrowtailU) -> "⤛"
-      (G GHC.AnnRarrowtailU) -> "⤜"
 #endif
 
+#if __GLASGOW_HASKELL__ <= 710
 -- | Tries to find a unicode equivalent to a 'KeywordId'.
 -- If none exists then fall back to find the ASCII version.
 unicodeString :: KeywordId -> String
@@ -128,15 +133,17 @@ unicodeString kw =
 
 unicodeChars :: [(KeywordId, String)]
 unicodeChars =
-      [ (G GHC.AnnDcolon, "∷")
-      , (G GHC.AnnDarrow, "⇒")
+    -- AZ:TODO:make this a Data.Map, doing linear scan each time
+      [ (G GHC.AnnDarrow, "⇒")
+      , (G GHC.AnnDcolon, "∷")
       , (G GHC.AnnForall, "∀")
-      , (G GHC.AnnRarrow, "→")
       , (G GHC.AnnLarrow, "←")
-      , (G GHC.Annlarrowtail, "⤙")
-      , (G GHC.Annrarrowtail, "⤚")
       , (G GHC.AnnLarrowtail, "⤛")
-      , (G GHC.AnnRarrowtail, "⤜")]
+      , (G GHC.AnnRarrow, "→")
+      , (G GHC.AnnRarrowtail, "⤜")
+      , (G GHC.Annlarrowtail, "⤙")
+      , (G GHC.Annrarrowtail, "⤚")]
+
 {-
 From Lexer.x
 
@@ -154,3 +161,5 @@ From Lexer.x
        ,("★", ITstar, unicodeSyntaxEnabled)
 
 -}
+
+#endif

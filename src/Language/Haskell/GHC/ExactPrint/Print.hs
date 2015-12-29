@@ -1,8 +1,9 @@
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -28,18 +29,18 @@ import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Annotate
   (AnnotationF(..), Annotated, Annotate(..), annotate)
-import Language.Haskell.GHC.ExactPrint.Lookup (keywordToString, unicodeString)
+import Language.Haskell.GHC.ExactPrint.Lookup
 
+import Control.Monad.Identity
 import Control.Monad.RWS
+import Control.Monad.Trans.Free
 import Data.Data (Data)
 import Data.List (sortBy, elemIndex)
-import Data.Ord (comparing)
 import Data.Maybe (fromMaybe)
-
-import Control.Monad.Trans.Free
-import Control.Monad.Identity
+import Data.Ord (comparing)
 
 import qualified GHC
+import qualified ApiAnnotation as GHC
 
 ------------------------------------------------------------------------------
 -- Printing of source elements
@@ -144,23 +145,22 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
   where
     go :: (Monad m, Monoid w) => AnnotationF (EP w m a) -> EP w m a
     go (MarkEOF next) =
-      printStringAtMaybeAnn (G GHC.AnnEofPos) "" >> next
+      printStringAtMaybeAnn (G GHC.AnnEofPos) (Just "") >> next
     go (MarkPrim kwid mstr next) =
       markPrim (G kwid) mstr >> next
       -- let annString = fromMaybe (keywordToString kwid) mstr in
       --   printStringAtMaybeAnn (G kwid) annString >> next
     go (MarkOutside _ kwid next) =
       -- markPrim kwid Nothing >> next
-      let annString = keywordToString kwid in
-      printStringAtMaybeAnnAll kwid annString  >> next
+      -- let annString = keywordToString kwid in
+      printStringAtMaybeAnnAll kwid Nothing  >> next
       -- printStringAtMaybeAnnAll kwid ";"  >> next
     go (MarkInside akwid next) =
       allAnns akwid >> next
     go (MarkMany akwid next) =
       allAnns akwid >> next
     go (MarkOffsetPrim kwid _ mstr next) =
-      let annString = fromMaybe (keywordToString (G kwid)) mstr in
-        printStringAtMaybeAnn (G kwid) annString >> next
+      printStringAtMaybeAnn (G kwid) mstr >> next
     go (WithAST lss action next) =
       exactPC lss (printInterpret action) >> next
     go (CountAnns kwid next) =
@@ -170,7 +170,7 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
       (if (r <= rigidity) then setLayout else id) (printInterpret action)
       next
     go (MarkExternal _ akwid s next) =
-      printStringAtMaybeAnn (G akwid) s >> next
+      printStringAtMaybeAnn (G akwid) (Just s) >> next
     go (StoreOriginalSrcSpan _ next) = storeOriginalSrcSpanPrint >>= next
     go (GetSrcSpanForKw _ next) = return GHC.noSrcSpan >>= next
     go (StoreString _ _ next) =
@@ -196,7 +196,7 @@ printStoredString = do
     isAnnString _             = False
 
   case filter isAnnString (ghead "printStoredString" kd) of
-    ((AnnString ss,_):_) -> printStringAtMaybeAnn (AnnString ss) ss
+    ((AnnString ss,_):_) -> printStringAtMaybeAnn (AnnString ss) (Just ss)
     _                    -> return ()
 
 withSortKey :: (Monad m, Monoid w) => [(GHC.SrcSpan, Annotated ())] -> EP w m ()
@@ -215,7 +215,7 @@ withSortKey xs = do
 -------------------------------------------------------------------------
 
 allAnns :: (Monad m, Monoid w) => GHC.AnnKeywordId -> EP w m ()
-allAnns kwid = printStringAtMaybeAnnAll (G kwid) (keywordToString (G kwid))
+allAnns kwid = printStringAtMaybeAnnAll (G kwid) Nothing
 
 -------------------------------------------------------------------------
 -- |First move to the given location, then call exactP
@@ -257,8 +257,9 @@ getAndRemoveAnnotation a = gets ((getAnnotationEP a) . epAnns)
 
 markPrim :: (Monad m, Monoid w) => KeywordId -> Maybe String -> EP w m ()
 markPrim kwid mstr =
-  let annString = fromMaybe (keywordToString kwid) mstr
-  in printStringAtMaybeAnn kwid annString
+  -- let annString = fromMaybe (keywordToString kwid) mstr
+  -- in printStringAtMaybeAnn kwid annString
+  printStringAtMaybeAnn kwid mstr
 
 withContext :: (Monad m, Monoid w)
             => [(KeywordId, DeltaPos)]
@@ -308,18 +309,20 @@ getLayoutOffset = gets epLHS
 
 -- ---------------------------------------------------------------------
 
-printStringAtMaybeAnn :: (Monad m, Monoid w) => KeywordId -> String -> EP w m ()
-printStringAtMaybeAnn an str = printStringAtMaybeAnnThen an str (return ())
+printStringAtMaybeAnn :: (Monad m, Monoid w) => KeywordId -> Maybe String -> EP w m ()
+printStringAtMaybeAnn an mstr = printStringAtMaybeAnnThen an mstr (return ())
 
-printStringAtMaybeAnnAll :: (Monad m, Monoid w) => KeywordId -> String -> EP w m ()
-printStringAtMaybeAnnAll an str = go
+printStringAtMaybeAnnAll :: (Monad m, Monoid w) => KeywordId -> Maybe String -> EP w m ()
+printStringAtMaybeAnnAll an mstr = go
   where
-    go = printStringAtMaybeAnnThen an str go
+    go = printStringAtMaybeAnnThen an mstr go
 
-printStringAtMaybeAnnThen :: (Monad m, Monoid w) => KeywordId -> String -> EP w m () -> EP w m ()
-printStringAtMaybeAnnThen an str next = do
+printStringAtMaybeAnnThen :: (Monad m, Monoid w) => KeywordId -> Maybe String -> EP w m () -> EP w m ()
+printStringAtMaybeAnnThen an mstr next = do
+  let str = fromMaybe (keywordToString an) mstr
   annFinal <- getAnnFinal an
   case (annFinal, an) of
+#if __GLASGOW_HASKELL__ <= 710
     -- Could be unicode syntax
     -- TODO: This is a bit fishy, refactor
     (Nothing, G kw) -> do
@@ -330,6 +333,20 @@ printStringAtMaybeAnnThen an str next = do
           res
           (\(comments, ma) -> printStringAtLsDelta comments ma (unicodeString (G kw)))
         next
+#else
+    -- Could be unicode syntax
+    -- TODO: This is a bit fishy, refactor
+    (Nothing, G kw') -> do
+      let kw = GHC.unicodeAnn kw'
+      let str = fromMaybe (keywordToString (G kw)) mstr
+      res <- getAnnFinal (G kw)
+      return () `debug` ("printStringAtMaybeAnn:missed:Unicode:(an,res)" ++ show (an,res))
+      unless (null res) $ do
+        forM_
+          res
+          (\(comments, ma) -> printStringAtLsDelta comments ma str)
+        next
+#endif
     (Just (comments, ma),_) -> printStringAtLsDelta comments ma str >> next
     (Nothing, _) -> return () `debug` ("printStringAtMaybeAnn:missed:(an)" ++ show an)
                     -- Note: do not call next, nothing to chain

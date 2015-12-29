@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE BangPatterns #-}
 -- |  This module converts 'GHC.ApiAnns' into 'Anns' by traversing a
@@ -74,9 +75,11 @@ import Language.Haskell.GHC.ExactPrint.Annotate (AnnotationF(..), Annotated
                                                 , annotate, Annotate(..))
 
 import qualified GHC
-import qualified SrcLoc         as GHC
+import qualified ApiAnnotation as GHC
+import qualified SrcLoc        as GHC
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 -- import Debug.Trace
 
@@ -238,8 +241,8 @@ deltaInterpret = iterTM go
     go (MarkMany akwid next)            = addDeltaAnnotations akwid >> next
     go (MarkOffsetPrim akwid n _ next)  = addDeltaAnnotationLs akwid n >> next
     go (WithAST lss prog next)          = withAST lss (deltaInterpret prog) >> next
-    go (CountAnns kwid next)             = countAnnsDelta kwid >>= next
-    go (SetLayoutFlag r action next)     = do
+    go (CountAnns kwid next)            = countAnnsDelta kwid >>= next
+    go (SetLayoutFlag r action next)    = do
       rigidity <- asks drRigidity
       (if (r <= rigidity) then setLayoutFlag else id) (deltaInterpret action)
       next
@@ -248,7 +251,7 @@ deltaInterpret = iterTM go
     go (GetSrcSpanForKw kw next)         = getSrcSpanForKw kw >>= next
     go (StoreString s ss next)           = storeString s ss >> next
     go (AnnotationsToComments kws next)  = annotationsToCommentsDelta kws >> next
-    go (WithSortKey kws next)  = withSortKey kws >> next
+    go (WithSortKey kws next)            = withSortKey kws >> next
 
 withSortKey :: [(GHC.SrcSpan, Annotated b)] -> Delta ()
 withSortKey kws =
@@ -366,7 +369,14 @@ peekAnnotationDelta :: GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
 peekAnnotationDelta an = do
     ga <- gets apAnns
     ss <- getSrcSpan
+#if __GLASGOW_HASKELL__ <= 710
     return $ GHC.getAnnotation ga ss an
+#else
+    let unicodeAnns = case unicodeEquivalent an of
+          [] -> []
+          [kw] -> GHC.getAnnotation ga ss kw
+    return $ unicodeAnns ++ GHC.getAnnotation ga ss an
+#endif
 
 getAnnotationDelta :: GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
 getAnnotationDelta an = do
@@ -376,23 +386,43 @@ getAnnotationDelta an = do
 getAndRemoveAnnotationDelta :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
 getAndRemoveAnnotationDelta sp an = do
     ga <- gets apAnns
+#if __GLASGOW_HASKELL__ <= 710
     let (r,ga') = GHC.getAndRemoveAnnotation ga sp an
-    r <$ modify (\s -> s { apAnns = ga' })
+#else
+    let (r,ga') = case GHC.getAndRemoveAnnotation ga sp an of
+                    ([],_) -> GHC.getAndRemoveAnnotation ga sp (GHC.unicodeAnn an)
+                    v      -> v
+#endif
+    modify (\s -> s { apAnns = ga' })
+    return r
 
-getOneAnnotationDelta :: GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
+getOneAnnotationDelta :: GHC.AnnKeywordId -> Delta ([GHC.SrcSpan],GHC.AnnKeywordId)
 getOneAnnotationDelta an = do
     ss <- getSrcSpan
     getAndRemoveOneAnnotationDelta ss an
 
-getAndRemoveOneAnnotationDelta :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
+getAndRemoveOneAnnotationDelta :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta ([GHC.SrcSpan],GHC.AnnKeywordId)
 getAndRemoveOneAnnotationDelta sp an = do
     (anns,cs) <- gets apAnns
-    let (r,ga') = case Map.lookup (sp,an) anns of
-                    Nothing -> ([],(anns,cs))
-                    Just []     -> ([], (Map.delete (sp,an)    anns,cs))
-                    Just (s:ss) -> ([s],(Map.insert (sp,an) ss anns,cs))
+#if __GLASGOW_HASKELL__ <= 710
+    let (r,ga',kw) = case Map.lookup (sp,an) anns of
+                    Nothing -> ([],(anns,cs),an)
+                    Just []     -> ([], (Map.delete (sp,an)    anns,cs),an)
+                    Just (s:ss) -> ([s],(Map.insert (sp,an) ss anns,cs),an)
+#else
+    let getKw kw =
+          case Map.lookup (sp,kw) anns of
+            Nothing -> ([],(anns,cs),kw)
+            Just []     -> ([], (Map.delete (sp,kw)    anns,cs),kw)
+            Just (s:ss) -> ([s],(Map.insert (sp,kw) ss anns,cs),kw)
+
+    let (r,ga',kw) =
+          case getKw an of
+            ([],_,_) -> getKw (GHC.unicodeAnn an)
+            v        -> v
+#endif
     modify (\s -> s { apAnns = ga' })
-    return r
+    return (r,kw)
 
 -- ---------------------------------------------------------------------
 
@@ -498,13 +528,18 @@ addAnnotationWorker ann pa =
         _ -> do
           p' <- adjustDeltaForOffsetM p
           commentAllocation (priorComment (ss2pos pa)) (mapM_ (uncurry addDeltaComment))
+#if __GLASGOW_HASKELL__ <= 710
           addAnnDeltaPos (checkUnicode ann pa) p'
+#else
+          addAnnDeltaPos ann p'
+#endif
           setPriorEndAST pa
               `debug` ("addAnnotationWorker:(ss,ss,pe,pa,p,p',ann)=" ++ show (showGhc ss,showGhc ss,pe,showGhc pa,p,p',ann))
 
+#if __GLASGOW_HASKELL__ <= 710
 checkUnicode :: KeywordId -> GHC.SrcSpan -> KeywordId
 checkUnicode gkw@(G kw) ss =
-  if kw `elem` unicodeSyntax
+  if kw `Set.member` unicodeSyntax
     then
       let s = keywordToString gkw in
       if (length s /= spanLength ss)
@@ -513,7 +548,7 @@ checkUnicode gkw@(G kw) ss =
   else
     gkw
   where
-    unicodeSyntax =
+    unicodeSyntax = Set.fromList
       [ GHC.AnnDcolon
       , GHC.AnnDarrow
       , GHC.AnnForall
@@ -524,6 +559,26 @@ checkUnicode gkw@(G kw) ss =
       , GHC.AnnLarrowtail
       , GHC.AnnRarrowtail]
 checkUnicode kwid _ = kwid
+#else
+
+unicodeEquivalent :: GHC.AnnKeywordId -> [GHC.AnnKeywordId]
+unicodeEquivalent kw =
+  case Map.lookup kw unicodeSyntax of
+    Nothing -> []
+    Just kwu -> [kwu]
+  where
+    unicodeSyntax = Map.fromList
+      [ (GHC.AnnDcolon,     GHC.AnnDcolonU)
+      , (GHC.AnnDarrow,     GHC.AnnDarrowU)
+      , (GHC.AnnForall,     GHC.AnnForallU)
+      , (GHC.AnnRarrow,     GHC.AnnRarrowU)
+      , (GHC.AnnLarrow,     GHC.AnnLarrowU)
+      , (GHC.Annlarrowtail, GHC.AnnlarrowtailU)
+      , (GHC.Annrarrowtail, GHC.AnnrarrowtailU)
+      , (GHC.AnnLarrowtail, GHC.AnnLarrowtailU)
+      , (GHC.AnnRarrowtail, GHC.AnnRarrowtailU)]
+#endif
+
 
 -- ---------------------------------------------------------------------
 
@@ -555,10 +610,9 @@ addDeltaComment d p = do
 -- | Look up and add a Delta annotation at the current position, and
 -- advance the position to the end of the annotation
 addDeltaAnnotation :: GHC.AnnKeywordId -> Delta ()
-addDeltaAnnotation ann = do
+addDeltaAnnotation ann' = do
   ss <- getSrcSpan
-  -- ma <- getAnnotationDelta ann
-  ma <- getOneAnnotationDelta ann
+  (ma,ann) <- getOneAnnotationDelta ann'
   case nub ma of -- ++AZ++ TODO: get rid of duplicates earlier
     []     -> return () `debug` ("addDeltaAnnotation empty ma for:" ++ show (ss,ann))
     [pa]   -> addAnnotationWorker (G ann) pa

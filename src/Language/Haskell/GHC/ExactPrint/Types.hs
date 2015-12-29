@@ -171,7 +171,9 @@ data KeywordId = G GHC.AnnKeywordId  -- ^ A normal keyword
                                      -- Delta to Print when we have to work
                                      -- out details from the original
                                      -- SrcSpan.
+#if __GLASGOW_HASKELL__ <= 710
                | AnnUnicode GHC.AnnKeywordId -- ^ Used to indicate that we should print using unicode syntax if possible.
+#endif
                deriving (Eq,Ord)
 
 instance Show KeywordId where
@@ -179,7 +181,9 @@ instance Show KeywordId where
   show AnnSemiSep      = "AnnSemiSep"
   show (AnnComment dc) = "(AnnComment " ++ show dc ++ ")"
   show (AnnString s)   = "(AnnString " ++ s ++ ")"
+#if __GLASGOW_HASKELL__ <= 710
   show (AnnUnicode gc) = "(AnnUnicode " ++ show gc ++ ")"
+#endif
 
 -- ---------------------------------------------------------------------
 
