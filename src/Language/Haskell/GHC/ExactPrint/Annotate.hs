@@ -360,7 +360,7 @@ instance (GHC.DataId name,Annotate name)
 #if __GLASGOW_HASKELL__ <= 710
         (GHC.IEThingWith ln ns) -> do
 #else
-        (GHC.IEThingWith ln _wc ns _lfs) -> do
+        (GHC.IEThingWith ln wc ns _lfs) -> do
 {-
   | IEThingWith (Located name)
                 IEWildcard
@@ -374,7 +374,17 @@ instance (GHC.DataId name,Annotate name)
           -- TODO: Deal with GHC 8.0 additions
           markLocated ln
           mark GHC.AnnOpenP
+#if __GLASGOW_HASKELL__ <= 710
           mapM_ markLocated ns
+#else
+          case wc of
+            GHC.NoIEWildcard -> mapM_ markLocated ns
+            GHC.IEWildcard n -> do
+              mapM_ markLocated (take n ns)
+              mark GHC.AnnDotdot
+              mark GHC.AnnComma
+              mapM_ markLocated (drop n ns)
+#endif
           mark GHC.AnnCloseP
 
         (GHC.IEThingAll ln) -> do
@@ -2642,6 +2652,7 @@ data FamilyDecl name = FamilyDecl
 #endif
     mark GHC.AnnWhere
     mark GHC.AnnOpenC -- {
+    mark GHC.AnnDotdot
     case info of
 #if __GLASGOW_HASKELL__ > 710
       GHC.ClosedTypeFamily (Just eqns) -> mapM_ markLocated eqns

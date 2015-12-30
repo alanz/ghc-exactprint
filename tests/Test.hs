@@ -143,14 +143,21 @@ formatTT (ts, fs) = do
 tt' :: IO (Counts,Int)
 tt' = runTestText (putTextToHandle stdout True) $ TestList [
       mkParserTest "ghc710" "Unicode.hs"
-    -- , mkParserTest "ghc710" "ForeignDecl.hs"
-    -- , mkParserTest "ghc710" "Control.hs"
-    -- , mkParserTest "ghc8" "T10689a.hs"
-    -- , mkParserTest "ghc8" "ExportSyntax.hs"
-    -- , mkParserTest "ghc8" "T5908.hs"
-    -- , mkParserTest "ghc8" "T11076A.hs"
-    -- , mkParserTest "ghc8" "export-class.hs"
 
+    -- , mkParserTest "ghc8" "BundleExport.hs"
+    , mkParserTest "ghc8" "ExportSyntax.hs"
+    , mkParserTest "ghc8" "T10689a.hs"
+    , mkParserTest "ghc8" "Test10313.hs"
+    , mkParserTest "ghc8" "Test11018.hs"
+    , mkParserTest "ghc8" "determ004.hs"
+    , mkParserTest "ghc8" "export-class.hs"
+    , mkParserTest "ghc8" "export-syntax.hs"
+    , mkParserTest "ghc8" "export-type.hs"
+    , mkParserTest "ghc8" "overloadedlabelsrun04.hs"
+    , mkParserTest "failing" "Deprecation.hs"
+    , mkParserTest "failing" "MultiLineWarningPragma.hs"
+    , mkParserTest "failing" "UnicodeRules.hs"
+    , mkParserTest "failing" "UnicodeSyntax.hs"
     ]
 
 testsTT :: Test
