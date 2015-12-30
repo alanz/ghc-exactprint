@@ -154,6 +154,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     , mkParserTest "ghc8" "export-syntax.hs"
     , mkParserTest "ghc8" "export-type.hs"
     , mkParserTest "ghc8" "overloadedlabelsrun04.hs"
+    , mkParserTest "ghc8" "T10620.hs"
     , mkParserTest "failing" "Deprecation.hs"
     , mkParserTest "failing" "MultiLineWarningPragma.hs"
     , mkParserTest "failing" "UnicodeRules.hs"

@@ -397,7 +397,8 @@ getAndRemoveAnnotationDelta :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta ([GHC.Sr
 getAndRemoveAnnotationDelta sp an = do
     ga <- gets apAnns
 #if __GLASGOW_HASKELL__ <= 710
-    let (r,ga',kw) = GHC.getAndRemoveAnnotation ga sp an
+    let (r,ga') = GHC.getAndRemoveAnnotation ga sp an
+        kw = an
 #else
     let (r,ga',kw) = case GHC.getAndRemoveAnnotation ga sp an of
                     ([],_) -> (ss,g,k)

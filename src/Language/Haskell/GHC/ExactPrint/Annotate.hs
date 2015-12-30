@@ -2391,12 +2391,35 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnTilde
     markLocated e
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsType ty) = markLocated ty
+#else
+  markAST _ (GHC.HsType ty) = markLHsWcType ty
+  markAST _ (GHC.HsTypeOut _) =
+    traceM "warning: HsTypeOut introduced after renaming"
+#endif
 
   markAST _ (GHC.HsWrap _ _) =
     traceM "warning: HsWrap introduced after renaming"
   markAST _ (GHC.HsUnboundVar _) =
     traceM "warning: HsUnboundVar introduced after renaming"
+
+
+-- ---------------------------------------------------------------------
+#if __GLASGOW_HASKELL__ > 710
+markLHsWcType :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
+              => GHC.LHsWcType name -> Annotated ()
+markLHsWcType (GHC.HsWC _ mwc ty) = do
+  case mwc of
+    Nothing -> markLocated ty
+    Just lwc -> do
+     -- let sorted = lexicalSortLocated (GHC.L lwc GHC.HsWildCardTy:[ty])
+     -- markLocated (GHC.L lc sorted)
+     applyListAnnotations ([(lwc,markExternal lwc GHC.AnnVal "_")]
+                        ++ prepareListAnnotation [ty]
+                          )
+#endif
+-- ---------------------------------------------------------------------
 
 instance Annotate GHC.HsLit where
   markAST l lit = markExternal l GHC.AnnVal (hsLit2String lit)
@@ -2532,9 +2555,21 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markListWithLayout es
     mark GHC.AnnCloseC
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsCmdCast {}) =
     traceM "warning: HsCmdCast introduced after renaming"
+#endif
 
+#if __GLASGOW_HASKELL__ > 710
+  markAST _ (GHC.HsCmdWrap {}) =
+    traceM "warning: HsCmdWrap introduced after renaming"
+{-
+  | HsCmdWrap   HsWrapper
+                (HsCmd id)     -- If   cmd :: arg1 --> res
+                               --      wrap :: arg1 "->" arg2
+                               -- Then (HsCmdWrap wrap cmd) :: arg2 --> res
+-}
+#endif
 
 -- ---------------------------------------------------------------------
 

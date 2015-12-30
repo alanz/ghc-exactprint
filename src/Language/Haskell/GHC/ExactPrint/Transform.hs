@@ -143,7 +143,7 @@ runTransformFrom :: Int -> Anns -> Transform a -> (a,(Anns,Int),[String])
 runTransformFrom seed ans f = runRWS (runTransformT f) () (ans,seed)
 
 -- |Run a monad transformer stack for the 'TransformT' monad transformer
-runTransformFromT :: (Monad m) => Int -> Anns -> TransformT m a -> m (a,(Anns,Int),[String])
+runTransformFromT :: Int -> Anns -> TransformT m a -> m (a,(Anns,Int),[String])
 runTransformFromT seed ans f = runRWST (runTransformT f) () (ans,seed)
 
 -- |Log a string to the output of the Monad
@@ -192,11 +192,11 @@ isUniqueSrcSpan ss = srcSpanStartLine ss == -1
 -- ---------------------------------------------------------------------
 -- |Make a copy of an AST element, replacing the existing SrcSpans with new
 -- ones, and duplicating the matching annotations.
-cloneT :: (Data a,Typeable a) => a -> Transform (a, [(GHC.SrcSpan, GHC.SrcSpan)])
+cloneT :: (Data a) => a -> Transform (a, [(GHC.SrcSpan, GHC.SrcSpan)])
 cloneT ast = do
   runWriterT $ SYB.everywhereM (return `SYB.ext2M` replaceLocated) ast
   where
-    replaceLocated :: forall loc a. (Typeable loc,Typeable a, Data a)
+    replaceLocated :: forall loc a. (Typeable loc,Data a)
                     => (GHC.GenLocated loc a) -> WriterT [(GHC.SrcSpan, GHC.SrcSpan)] Transform (GHC.GenLocated loc a)
     replaceLocated (GHC.L l t) = do
       case cast l :: Maybe GHC.SrcSpan of
@@ -553,7 +553,7 @@ insertAt f t decl = do
 
 -- |Insert a declaration at the beginning or end of the subdecls of the given
 -- AST item
-insertAtStart, insertAtEnd :: (Data ast, HasDecls (GHC.Located ast))
+insertAtStart, insertAtEnd :: (HasDecls (GHC.Located ast))
               => GHC.Located ast
               -> GHC.LHsDecl GHC.RdrName
               -> Transform (GHC.Located ast)
@@ -563,7 +563,7 @@ insertAtEnd   = insertAt (\x xs -> xs ++ [x])
 
 -- |Insert a declaration at a specific location in the subdecls of the given
 -- AST item
-insertAfter, insertBefore :: (Data ast, HasDecls (GHC.Located ast))
+insertAfter, insertBefore :: (HasDecls (GHC.Located ast))
                           => GHC.Located old
                           -> GHC.Located ast
                           -> GHC.LHsDecl GHC.RdrName
@@ -864,7 +864,7 @@ instance HasDecls (GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 -- the general case and one specific for a 'GHC.LHsBind'. This is required
 -- because a 'GHC.FunBind' may have multiple 'GHC.Match' items, so we cannot
 -- gurantee that 'replaceDecls' after 'hsDecls' is idempotent.
-hasDeclsSybTransform :: (SYB.Data t2, SYB.Typeable t2,Monad m)
+hasDeclsSybTransform :: (SYB.Data t2, Monad m)
        => (forall t. HasDecls t => t -> m t)
              -- ^Worker function for the general case
        -> (GHC.LHsBind GHC.RdrName -> m (GHC.LHsBind GHC.RdrName))
