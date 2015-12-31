@@ -44,11 +44,36 @@ ExportSyntax.hs
   Missing AnnDotdot on IEThingWith. Also, document IEWildCard
 
 T10689a.hs
-dterm004.hs
+determ004.hs
   AnnTilde in the wrong place.
 
 
 Needs triage
 ------------
 
+
+### Failure in: 0:Round-trip tests:1:ghc8:43
+/home/alanz/mysrc/github/alanz/ghc-exactprint/tests/Test.hs:131
+ExportSyntax.hs
+### Error in:   0:Round-trip tests:1:ghc8:256
+Data.ByteString.ByteString.toConstr
+CallStack (from ImplicitParams):
+  error, called at libraries/bytestring/Data/ByteString/Internal.hs:184:20 in bytestring-0.10.7.0:Data.ByteString.Internal
+### Failure in: 0:Round-trip tests:1:ghc8:270
+/home/alanz/mysrc/github/alanz/ghc-exactprint/tests/Test.hs:131
+T10689a.hs
+### Failure in: 0:Round-trip tests:1:ghc8:526
+/home/alanz/mysrc/github/alanz/ghc-exactprint/tests/Test.hs:131
+determ004.hs
+### Failure in: 0:Round-trip tests:1:ghc8:547
+/home/alanz/mysrc/github/alanz/ghc-exactprint/tests/Test.hs:131
+overloadedlabelsrun04.hs
+### Failure in: 2:Failing tests:0
+./Test/Transform.hs:77
+UnicodeRules.hs
+### Failure in: 2:Failing tests:1
+./Test/Transform.hs:77
+UnicodeSyntax.hs
+Cases: 848  Tried: 848  Errors: 2  Failures: 6
+Counts {cases = 848, tried = 848, errors = 2, failures = 6}
 

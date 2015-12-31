@@ -785,7 +785,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
     markExternal ls GHC.AnnVal (show src)
 #else
-    markExternal ls GHC.AnnVal (show src)
+    if GHC.unLoc cconv == GHC.PrimCallConv
+      then markExternal ls GHC.AnnVal src
+      else markExternal ls GHC.AnnVal (show src)
 #endif
     markLocated ln
     mark GHC.AnnDcolon

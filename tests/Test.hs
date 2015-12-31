@@ -102,9 +102,12 @@ failingTests :: Test
 failingTests = testList "Failing tests"
   [
   -- Require current master #10313 / Phab:D907
-    mkTestModBad "Deprecation.hs"
+
+    mkTestModBad "UnicodeRules.hs"
+#if __GLASGOW_HASKELL__ <= 710
+  , mkTestModBad "Deprecation.hs"
   , mkTestModBad "MultiLineWarningPragma.hs"
-  , mkTestModBad "UnicodeRules.hs"
+#endif
 
   -- Tests requiring future GHC modifications
   , mkTestModBad "UnicodeSyntax.hs"
