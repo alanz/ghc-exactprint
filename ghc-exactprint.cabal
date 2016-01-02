@@ -26,6 +26,7 @@ author:              Alan Zimmerman, Matthew Pickering
 maintainer:          alan.zimm@gmail.com
 category:            Development
 build-type:          Simple
+tested-with:    GHC == 7.10.3, GHC == 8.1
 extra-source-files:  ChangeLog
                      tests/examples/failing/*.hs
                      tests/examples/ghc710/*.hs
