@@ -382,8 +382,11 @@ instance (GHC.DataId name,Annotate name)
             GHC.IEWildcard n -> do
               mapM_ markLocated (take n ns)
               mark GHC.AnnDotdot
-              mark GHC.AnnComma
-              mapM_ markLocated (drop n ns)
+              case drop n ns of
+                [] -> return ()
+                ns' -> do
+                  markOffset GHC.AnnComma 0
+                  mapM_ markLocated ns'
 #endif
           mark GHC.AnnCloseP
 
