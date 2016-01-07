@@ -64,7 +64,7 @@ library
   -- other-modules:
   -- other-extensions:
   GHC-Options:         -Wall
-  build-depends:       base >=4.7 && <4.9
+  build-depends:       base >=4.7 && <5.0
                      , containers >= 0.5
                      , directory >= 1.2
                      , filepath  >= 1.4
