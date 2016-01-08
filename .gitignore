@@ -20,3 +20,9 @@
 /test.pdf
 /test.ps
 /ghc.hp
+/cpp.txt
+/pfail.txt
+/processed.txt
+/tests/hackage/cpp.txt
+/tests/hackage/pfail.txt
+/tests/hackage/processed.txt
