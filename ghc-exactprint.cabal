@@ -140,7 +140,26 @@ executable static
                  , filepath
                  , Diff
     buildable: True
+    if impl (ghc >= 7.11)
+        build-depends: ghc-boot
   else
     buildable: False
 
-
+executable prepare-hackage
+  main-is: PrepareHackage.hs
+  hs-source-dirs: tests
+  default-language:    Haskell2010
+  if flag (roundtrip)
+    build-depends: base
+                 , directory
+                 , filemanip
+                 , filepath
+                 , ghc       >= 7.10.2
+                 , ghc-paths >= 0.1
+                 , text >= 1.2.2
+                 , turtle >= 1.2.5
+    buildable: True
+    if impl (ghc >= 7.11)
+        build-depends: ghc-boot
+  else
+    buildable: False

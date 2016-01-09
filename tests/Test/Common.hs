@@ -109,8 +109,8 @@ noChange ans parsed = return (ans,parsed)
 genTest :: Changer -> FilePath -> FilePath -> IO Report
 genTest f origFile expectedFile  = do
       res <- parseModuleApiAnnsWithCpp defaultCppOptions origFile
-      expected <- GHC.liftIO $ readFile expectedFile
-      orig <- GHC.liftIO $ readFile origFile
+      expected <- GHC.liftIO $ readFileGhc expectedFile
+      orig <- GHC.liftIO $ readFileGhc origFile
       let pristine = removeSpaces expected
 
       case res of
@@ -192,3 +192,4 @@ getModSummaryForFile fileName = do
   case mm of
    [] -> return Nothing
    fs -> return (Just (snd $ head fs))
+

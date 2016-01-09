@@ -1,10 +1,11 @@
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE CPP #-}
 -- | Use "runhaskell Setup.hs test" or "cabal test" to run these tests.
 module Main where
 
-import Language.Haskell.GHC.ExactPrint.Utils (showGhc)
+import Language.Haskell.GHC.ExactPrint.Utils ( showGhc )
 
 -- import qualified FastString     as GHC
 -- import qualified GHC            as GHC
@@ -29,6 +30,8 @@ import Test.HUnit
 
 
 -- import Debug.Trace
+
+-- ---------------------------------------------------------------------
 
 data GHCVersion = GHC710 | GHC8 deriving (Eq, Ord, Show)
 
@@ -94,7 +97,7 @@ mkTests :: IO Test
 mkTests = do
   -- listTests
   roundTripTests <- findTests
-  return $ TestList [roundTripTests, transformTests, failingTests]
+  return $ TestList [internalTests,roundTripTests, transformTests, failingTests]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
 -- future GHC
@@ -179,6 +182,35 @@ tt = do
      then exitFailure
      else return () -- exitSuccess
 
+-- ---------------------------------------------------------------------
+
+ii :: IO ()
+ii = do
+  cnts <- fst <$> runTestText (putTextToHandle stdout True) internalTests
+  putStrLn $ show cnts
+  if errors cnts > 0 || failures cnts > 0
+     then exitFailure
+     else return () -- exitSuccess
+
+internalTests :: Test
+internalTests = testList "Internal tests"
+  [
+    -- testCleanupOneLine
+  ]
+
+{-
+testCleanupOneLine :: Test
+testCleanupOneLine = do
+  let
+    makeCase n = (show n
+                 ,(T.replicate n " ") <> "\t|" <> T.replicate n " " <> "\t"
+                 ,(T.replicate 8 " " <> "|"))
+    mkTest n = TestCase $ assertEqual name outp (cleanupOneLine inp)
+      where (name,inp,outp) = makeCase n
+  testList "cleanupOneLine" $ map mkTest [1..7]
+-}
+
+-- ---------------------------------------------------------------------
 
 pwd :: IO FilePath
 pwd = getCurrentDirectory

@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 -- | This module provides support for CPP, interpreter directives and line
 -- pragmas.
 module Language.Haskell.GHC.ExactPrint.Preprocess
@@ -6,12 +7,14 @@ module Language.Haskell.GHC.ExactPrint.Preprocess
      stripLinePragmas
    , getCppTokensAsComments
    , getPreprocessedSrcDirect
+   , readFileGhc
 
    , CppOptions(..)
    , defaultCppOptions
    ) where
 
 import qualified Bag            as GHC
+import qualified DriverPhases   as GHC
 import qualified DriverPipeline as GHC
 import qualified DynFlags       as GHC
 import qualified ErrUtils       as GHC
@@ -21,7 +24,6 @@ import qualified HscTypes       as GHC
 import qualified Lexer          as GHC
 import qualified MonadUtils     as GHC
 import qualified SrcLoc         as GHC
-import qualified DriverPhases   as GHC
 import qualified StringBuffer   as GHC
 
 import SrcLoc (mkSrcSpan, mkSrcLoc)
@@ -34,6 +36,7 @@ import Language.Haskell.GHC.ExactPrint.GhcInterim (commentToAnnotation)
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 import qualified Data.Set as Set
+
 
 -- import Debug.Trace
 --
@@ -192,7 +195,7 @@ getPreprocessedSrcDirectPrim cppOptions src_fn = do
   (dflags', hspp_fn) <-
       GHC.liftIO $ GHC.preprocess new_env (src_fn, Just (GHC.Cpp GHC.HsSrcFile))
   buf <- GHC.liftIO $ GHC.hGetStringBuffer hspp_fn
-  txt <- GHC.liftIO $ readFile hspp_fn
+  txt <- GHC.liftIO $ readFileGhc hspp_fn
   return (txt, buf, dflags')
 
 injectCppOptions :: CppOptions -> GHC.DynFlags -> GHC.DynFlags
@@ -216,7 +219,7 @@ alterSettings f dflags = dflags { GHC.settings = f (GHC.settings dflags) }
 -- source.
 getPreprocessorAsComments :: FilePath -> IO [(GHC.Located GHC.Token, String)]
 getPreprocessorAsComments srcFile = do
-  fcontents <- readFile srcFile
+  fcontents <- readFileGhc srcFile
   let directives = filter (\(_lineNum,line) -> line /= [] && head line == '#')
                     $ zip [1..] (lines fcontents)
 
@@ -234,6 +237,13 @@ getPreprocessorAsComments srcFile = do
 parseError :: GHC.DynFlags -> GHC.SrcSpan -> GHC.MsgDoc -> m b
 parseError dflags sspan err = do
      throw $ GHC.mkSrcErr (GHC.unitBag $ GHC.mkPlainErrMsg dflags sspan err)
+
+-- ---------------------------------------------------------------------
+
+readFileGhc :: FilePath -> IO String
+readFileGhc file = do
+  buf@(GHC.StringBuffer _ len _) <- GHC.hGetStringBuffer file
+  return (GHC.lexemeToString buf len)
 
 -- ---------------------------------------------------------------------
 
@@ -258,6 +268,4 @@ mergeBy cmp (allx@(x:xs)) (ally@(y:ys))
         -- Someone please put this code out of its misery.
     | (x `cmp` y) <= EQ = x : mergeBy cmp xs ally
     | otherwise = y : mergeBy cmp allx ys
-
-
 

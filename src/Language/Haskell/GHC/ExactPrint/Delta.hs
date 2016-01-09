@@ -77,9 +77,6 @@ import Language.Haskell.GHC.ExactPrint.Annotate (AnnotationF(..), Annotated
                                                 , annotate, Annotate(..))
 
 import qualified GHC
-#if __GLASGOW_HASKELL__ > 710
-import qualified ApiAnnotation as GHC
-#endif
 import qualified SrcLoc        as GHC
 
 import qualified Data.Map as Map

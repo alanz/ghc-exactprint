@@ -198,7 +198,7 @@ parseModuleApiAnnsWithCpp cppOptions file =
             cppComments <- getCppTokensAsComments cppOptions file
             return (contents,cppComments,dflags1)
           else do
-            txt <- GHC.liftIO $ readFile file
+            txt <- GHC.liftIO $ readFileGhc file
             let (contents1,lp) = stripLinePragmas txt
             return (contents1,lp,dflags)
       return $

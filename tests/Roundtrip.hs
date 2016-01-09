@@ -5,15 +5,12 @@ module Main where
 
 import System.FilePath
 
-import Data.List hiding (find)
-
 import System.Exit
 
 import System.Directory
 
+import Test.CommonUtils
 import Test.HUnit
-
-import System.FilePath.Find
 
 import Debug.Trace
 import Control.Monad
@@ -80,34 +77,11 @@ tests dir = do
 
 -- Selection:
 
--- Given base directory finds all haskell source files
-findSrcFiles :: FilePath -> IO [FilePath]
-findSrcFiles = find filterDirectory filterFilename
-
-filterDirectory :: FindClause Bool
-filterDirectory =
-  p <$> fileName
-  where
-    p x
-      | "." `isPrefixOf` x = False
-      | otherwise = True
-
-filterFilename :: FindClause Bool
-filterFilename = do
-  ext <- extension
-  fname <- fileName
-  return (ext == ".hs" && p fname)
-  where
-    p x
-      | "refactored" `isInfixOf` x = False
-      | "Setup.hs" `isInfixOf` x = False
-      | "HLint.hs" `isInfixOf` x = False -- HLint config files
-      | otherwise                 = True
-
 -- Hackage dir
 roundTripHackage :: S.Set String -> FilePath -> IO Test
 roundTripHackage done hackageDir = do
   packageDirs <- drop 2 <$> getDirectoryContents hackageDir
+  when (verb <= Debug) (traceShowM hackageDir)
   when (verb <= Debug) (traceShowM packageDirs)
   TestList <$> mapM (roundTripPackage done) (zip [0..] (map (hackageDir </>) packageDirs))
 

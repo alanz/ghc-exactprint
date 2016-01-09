@@ -40,9 +40,6 @@ import Data.Maybe (fromMaybe)
 import Data.Ord (comparing)
 
 import qualified GHC
-#if __GLASGOW_HASKELL__ > 710
-import qualified ApiAnnotation as GHC
-#endif
 
 ------------------------------------------------------------------------------
 -- Printing of source elements
@@ -344,13 +341,13 @@ printStringAtMaybeAnnThen an mstr next = do
     -- TODO: This is a bit fishy, refactor
     (Nothing, G kw') -> do
       let kw = GHC.unicodeAnn kw'
-      let str = fromMaybe (keywordToString (G kw)) mstr
+      let str' = fromMaybe (keywordToString (G kw)) mstr
       res <- getAnnFinal (G kw)
       return () `debug` ("printStringAtMaybeAnn:missed:Unicode:(an,res)" ++ show (an,res))
       unless (null res) $ do
         forM_
           res
-          (\(comments, ma) -> printStringAtLsDelta comments ma str)
+          (\(comments, ma) -> printStringAtLsDelta comments ma str')
         next
 #endif
     (Just (comments, ma),_) -> printStringAtLsDelta comments ma str >> next
