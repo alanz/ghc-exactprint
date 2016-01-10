@@ -151,6 +151,7 @@ executable prepare-hackage
   default-language:    Haskell2010
   if flag (roundtrip)
     build-depends: base
+                 , containers
                  , directory
                  , filemanip
                  , filepath
@@ -163,3 +164,4 @@ executable prepare-hackage
         build-depends: ghc-boot
   else
     buildable: False
+  GHC-Options:         -threaded

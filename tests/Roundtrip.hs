@@ -21,7 +21,7 @@ import qualified Data.Set as S
 import Test.Common
 
 import System.IO.Temp
-import System.IO (hClose, hPutStr)
+import System.IO
 
 
 data Verbosity = Debug | Status | None deriving (Eq, Show, Ord, Enum)
@@ -29,21 +29,26 @@ data Verbosity = Debug | Status | None deriving (Eq, Show, Ord, Enum)
 verb :: Verbosity
 verb = Debug
 
-cppFile, parseFailFile, processed :: String
-cppFile = "cpp.txt"
+cppFile, parseFailFile, processed,logFile :: String
+cppFile       = "cpp.txt"
 parseFailFile = "pfail.txt"
-processed = "processed.txt"
+processed     = "processed.txt"
+logFile       = "roundtrip.log"
 
 writeCPP :: FilePath -> IO ()
-writeCPP fp = appendFile cppFile (('\n' : fp))
+writeCPP fp = appendFileFlush cppFile (('\n' : fp))
 
 writeParseFail :: FilePath -> String -> IO ()
-writeParseFail fp s = appendFile parseFailFile (('\n' : (fp ++ " " ++ s)))
+writeParseFail fp s = appendFileFlush parseFailFile (('\n' : (fp ++ " " ++ s)))
 
 writeProcessed :: FilePath -> IO ()
-writeProcessed fp = appendFile processed (('\n' : fp))
+writeProcessed fp = appendFileFlush processed (('\n' : fp))
 
+writeLog :: String -> IO ()
+writeLog msg = appendFileFlush logFile (('\n' : msg))
 
+appendFileFlush      :: FilePath -> String -> IO ()
+appendFileFlush f txt = withFile f AppendMode (\ hdl -> hPutStr hdl txt >> hFlush hdl)
 
 main :: IO ()
 main = do
@@ -55,9 +60,10 @@ main = do
       () <$ runTests (TestList (map mkParserTest fs))
     ["clean"] -> do
       putStrLn "Cleaning..."
-      writeFile "processed.txt" ""
-      writeFile "pfail.txt" ""
-      writeFile "cpp.txt" ""
+      writeFile processed ""
+      writeFile parseFailFile ""
+      writeFile cppFile ""
+      writeFile logFile ""
       removeDirectoryRecursive "tests/roundtrip"
       createDirectory "tests/roundtrip"
       putStrLn "Done."
@@ -72,7 +78,7 @@ runTests t = do
 
 tests :: FilePath -> IO Test
 tests dir = do
-  done <- S.fromList . lines <$> readFile processed
+  !done <- S.fromList . lines <$> readFile processed
   roundTripHackage done dir
 
 -- Selection:
@@ -96,16 +102,30 @@ roundTripPackage done (n, dir) = do
 
 mkParserTest :: FilePath -> Test
 mkParserTest fp =
+    TestLabel fp $
+    TestCase (do writeLog $ "starting:" ++ fp
+                 r1 <- roundTripTest fp
+                 case r1 of
+                   Left (ParseFailure _ s) -> do
+                     writeParseFail fp s
+                     exitFailure
+                   Right r -> do
+                     writeProcessed fp
+                     unless (status r == Success) (writeFailure fp (debugTxt r))
+                     assertBool fp (status r == Success))
+{-
+mkParserTest fp =
+    TestLabel fp $
     TestCase (do r <- either (\(ParseFailure _ s) -> exitFailure) return
                         =<< roundTripTest fp
                  writeProcessed fp
                  unless (status r == Success) (writeFailure fp (debugTxt r))
                  assertBool fp (status r == Success))
-
+-}
 
 writeFailure :: FilePath -> String -> IO ()
 writeFailure fp db = do
   let outdir      = "tests" </> "roundtrip"
       outname     = takeFileName fp <.> "out"
-  (fname, handle) <- openTempFile outdir outname
+  (_fname, handle) <- openTempFile outdir outname
   (hPutStr handle db >> hClose handle)

@@ -6,6 +6,7 @@ import System.Directory
 import System.FilePath.Posix
 import Test.CommonUtils
 import Turtle hiding (FilePath,(<.>))
+import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
@@ -14,13 +15,24 @@ main = do
   packages <- allCabalPackages
   -- packages <- allCabalPackagesTest
   echo (T.pack $ "number of packages:" ++ (show $ length packages))
-  mapM_ preparePackage packages
+  packageDirs <- drop 2 <$> getDirectoryContents (T.unpack workDir)
+  echo (T.pack $ "packageDirs:" ++ (show $ take 5 packageDirs))
+  let cond c = c == '.' || c == '-' || isDigit c
+  let alreadyUnpacked = Set.fromList $ map (T.dropWhileEnd cond . T.pack) packageDirs
+  _ <- shell ("mkdir -p " <> workDir) empty
+  mapM_ (preparePackage alreadyUnpacked) packages
 
 -- ---------------------------------------------------------------------
 
-preparePackage :: Text -> IO ()
-preparePackage package = do
-  _ <- shell ("mkdir -p " <> workDir) empty
+preparePackage :: Set.Set Text -> Text -> IO ()
+preparePackage alreadyUnpacked package = do
+  echo $ "preparePackage:" <> package
+  if Set.member package alreadyUnpacked
+     then echo $ "already unpacked:" <> package
+     else preparePackage' package
+
+preparePackage' :: Text -> IO ()
+preparePackage' package = do
   (ec,dir) <- shellStrict ("cabal get --destdir=" <> workDir <> " " <> package) empty
   -- echo (T.pack $ "cabal get:" ++ show dir)
   echo (T.pack $ show ec)
@@ -36,10 +48,12 @@ preparePackage package = do
 
 cleanPackage :: Text -> IO ()
 cleanPackage dir = do
+  echo ("cleaning:" <> dir)
   fs <- findSrcFiles (T.unpack dir)
   let
     doOne :: FilePath -> IO ()
     doOne fn = do
+      echo ("doOne:" <> T.pack fn)
       let tmpFn = fn <.> "clean"
       clean <- cleanupWhiteSpace fn
       T.writeFile tmpFn clean
@@ -54,7 +68,7 @@ cleanPackage dir = do
 allCabalPackagesTest :: IO [Text]
 allCabalPackagesTest
   = return ["3d-graphics-examples","3dmodels","4Blocks","AAI","ABList"]
-  -- = return ["3d-graphics-examples"]
+  -- = return ["airship"]
 
 
 allCabalPackages :: IO [Text]
@@ -80,7 +94,6 @@ cleanupWhiteSpace file = do
   -- buf@(GHC.StringBuffer _ len _) <- GHC.hGetStringBuffer file
   -- let contents = GHC.lexemeToString buf len
   contents <- readFileGhc file
-  -- let cleaned = T.pack contents
   let cleaned = map cleanupOneLine (T.lines $ T.pack contents)
   return (T.unlines cleaned)
 
@@ -104,7 +117,17 @@ cleanupOneLine str = str'
              '\t' -> go (col + toAdd) (res <> T.replicate toAdd " ") (T.tail cur)
                 where
                   toAdd = numSpacesForTab col
+             '\xa0' -> go (col + 1) (T.snoc res ' ') (T.tail cur)
+             -- nonBreakingSpace -> go (col + 1) (T.snoc res ' ') (T.tail cur)
              c -> go (col + 1) (T.snoc res c) (T.tail cur)
     str1 = go 0 T.empty str
-    str2 = T.map (\c -> if c == nonBreakingSpace then ' ' else c) str1
-    str' = T.dropWhileEnd isSpace str2
+    -- str2 = T.map (\c -> if c == nonBreakingSpace then ' ' else c) str1
+    str' = T.dropWhileEnd isSpace str1
+
+-- ---------------------------------------------------------------------
+
+pwd :: IO FilePath
+pwd = getCurrentDirectory
+
+mcd :: FilePath -> IO ()
+mcd = setCurrentDirectory
