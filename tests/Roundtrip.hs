@@ -67,7 +67,12 @@ main = do
       removeDirectoryRecursive "tests/roundtrip"
       createDirectory "tests/roundtrip"
       putStrLn "Done."
-    ds -> () <$ (runTests =<< (TestList <$> mapM tests ds))
+    -- ds -> () <$ (runTests =<< (TestList <$> mapM tests ds))
+    ds -> do
+      !done <- S.fromList . lines <$> readFile processed
+      tsts <- TestList <$> mapM (tests done) ds
+      runTests tsts
+      return ()
 
 runTests :: Test -> IO Counts
 runTests t = do
@@ -76,9 +81,8 @@ runTests t = do
   putStrLn $ "Verbosity: " ++ show verb
   runTestTT t
 
-tests :: FilePath -> IO Test
-tests dir = do
-  !done <- S.fromList . lines <$> readFile processed
+tests :: S.Set String ->  FilePath -> IO Test
+tests done dir = do
   roundTripHackage done dir
 
 -- Selection:
