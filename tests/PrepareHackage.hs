@@ -8,7 +8,8 @@ import Test.CommonUtils
 import Turtle hiding (FilePath,(<.>))
 import qualified Data.Set as Set
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
+
+import Test.HUnit
 
 main :: IO ()
 main = do
@@ -56,7 +57,7 @@ cleanPackage dir = do
       echo ("doOne:" <> T.pack fn)
       let tmpFn = fn <.> "clean"
       clean <- cleanupWhiteSpace fn
-      T.writeFile tmpFn clean
+      writeFile tmpFn clean
       removeFile fn
       renameFile tmpFn fn
       return ()
@@ -88,21 +89,41 @@ workDir = "./hackage-roundtrip-work"
 -- ---------------------------------------------------------------------
 
 -- |strip trailing whitespace, and turn tabs into spaces
--- Note: using Text as its append performance beats String
+cleanupWhiteSpace :: FilePath -> IO String
+cleanupWhiteSpace file = do
+  contents <- readFileGhc file
+  let cleaned = map cleanupOneLine (lines $ contents)
+  return (unlines cleaned)
+{-
 cleanupWhiteSpace :: FilePath -> IO T.Text
 cleanupWhiteSpace file = do
-  -- buf@(GHC.StringBuffer _ len _) <- GHC.hGetStringBuffer file
-  -- let contents = GHC.lexemeToString buf len
   contents <- readFileGhc file
   let cleaned = map cleanupOneLine (T.lines $ T.pack contents)
   return (T.unlines cleaned)
-
+-}
 tabWidth :: Int
 tabWidth = 8
 
 nonBreakingSpace :: Char
 nonBreakingSpace = '\xa0'
 
+cleanupOneLine :: String -> String
+cleanupOneLine str = str'
+  where
+    numSpacesForTab n = tabWidth - (n `mod` tabWidth)
+    -- loop over the line, keeping current pos. Where a tab is found, insert
+    -- spaces until the next tab stop. Discard any trailing whitespace.
+    go col res cur =
+      case cur of
+        [] -> res
+        ('\t':cur') -> go (col + toAdd) ((replicate toAdd ' ') ++ res) cur'
+                where
+                  toAdd = numSpacesForTab col
+        ('\xa0':cur') -> go (col + 1) (' ':res) cur'
+        (c:cur') ->go (col + 1) (c:res) cur'
+    str1 = go 0 [] str
+    str' = reverse $ dropWhile isSpace str1
+{-
 cleanupOneLine :: T.Text -> T.Text
 cleanupOneLine str = str'
   where
@@ -123,6 +144,25 @@ cleanupOneLine str = str'
     str1 = go 0 T.empty str
     -- str2 = T.map (\c -> if c == nonBreakingSpace then ' ' else c) str1
     str' = T.dropWhileEnd isSpace str1
+-}
+
+-- ---------------------------------------------------------------------
+
+tt :: IO Counts
+tt = runTestTT testCleanupOneLine
+
+testCleanupOneLine :: Test
+testCleanupOneLine = do
+  let
+    makeCase n = (show n
+                 ,(replicate n ' ') <> "\t|" <> replicate n ' ' <> "\t"
+                 ,(replicate 8 ' ' <> "|"))
+    mkTest n = TestCase $ assertEqual name outp (cleanupOneLine inp)
+      where (name,inp,outp) = makeCase n
+  testList "cleanupOneLine" $ map mkTest [1..7]
+
+testList :: String -> [Test] -> Test
+testList str ts = TestLabel str (TestList ts)
 
 -- ---------------------------------------------------------------------
 

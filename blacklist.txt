@@ -1,0 +1,17 @@
+./hackage-roundtrip-work/alex-3.1.7/dist/build/alex/alex-tmp/Parser.hs
+./hackage-roundtrip-work/alex-3.1.7/dist/build/alex/alex-tmp/Scan.hs
+./hackage-roundtrip-work/alex-3.1.7/src/Scan.hs
+./hackage-roundtrip-work/beautifHOL-0.11/LexHOL.hs
+./hackage-roundtrip-work/beautifHOL-0.11/ParHOL.hs
+./hackage-roundtrip-work/Ebnf2ps-1.0.15/dist/build/ebnf2ps/ebnf2ps-tmp/Ebnf2psParser.hs
+./hackage-roundtrip-work/EditTimeReport-1.0/dist/build/report/report-tmp/QueryLexer.hs
+./hackage-roundtrip-work/EditTimeReport-1.0/dist/build/report/report-tmp/QueryParser.hs
+./hackage-roundtrip-work/gf-3.7.1/src/tools/c/GFCC/Lex.hs
+./hackage-roundtrip-work/gf-3.7.1/src/tools/c/GFCC/Par.hs
+./hackage-roundtrip-work/ghcjs-dom-0.2.3.1/src/GHCJS/DOM/Types.hs
+./hackage-roundtrip-work/happy-1.19.5/dist/build/happy/happy-tmp/AttrGrammarParser.hs
+./hackage-roundtrip-work/happy-1.19.5/dist/build/happy/happy-tmp/Parser.hs
+./hackage-roundtrip-work/haskell-src-exts-1.17.1/tests/examples/CParser.hs
+./hackage-roundtrip-work/hburg-1.1.2/hburg/hburg-tmp/Parser/Lexer.hs
+./hackage-roundtrip-work/hburg-1.1.2/hburg/hburg-tmp/Parser/Parser.hs
+./hackage-roundtrip-work/HXQ-0.20.1/src/Text/XML/HXQ/Parser.hs

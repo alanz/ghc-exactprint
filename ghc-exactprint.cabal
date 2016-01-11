@@ -157,6 +157,7 @@ executable prepare-hackage
                  , filepath
                  , ghc       >= 7.10.2
                  , ghc-paths >= 0.1
+                 , HUnit
                  , text >= 1.2.2
                  , turtle >= 1.2.5
     buildable: True

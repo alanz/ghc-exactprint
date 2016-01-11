@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
+import Control.Exception
 import System.FilePath
 
 import System.Exit
@@ -29,17 +30,21 @@ data Verbosity = Debug | Status | None deriving (Eq, Show, Ord, Enum)
 verb :: Verbosity
 verb = Debug
 
-cppFile, parseFailFile, processed,logFile :: String
+cppFile, parseFailFile, processed,blackListed,logFile :: String
 cppFile       = "cpp.txt"
 parseFailFile = "pfail.txt"
 processed     = "processed.txt"
+blackListed   = "blacklist.txt"
 logFile       = "roundtrip.log"
 
 writeCPP :: FilePath -> IO ()
 writeCPP fp = appendFileFlush cppFile (('\n' : fp))
 
+writeError = writeCPP
+
 writeParseFail :: FilePath -> String -> IO ()
-writeParseFail fp s = appendFileFlush parseFailFile (('\n' : (fp ++ " " ++ s)))
+writeParseFail fp _s = appendFileFlush parseFailFile (('\n' : fp))
+-- writeParseFail fp s = appendFileFlush parseFailFile (('\n' : (fp ++ " " ++ s)))
 
 writeProcessed :: FilePath -> IO ()
 writeProcessed fp = appendFileFlush processed (('\n' : fp))
@@ -69,7 +74,14 @@ main = do
       putStrLn "Done."
     -- ds -> () <$ (runTests =<< (TestList <$> mapM tests ds))
     ds -> do
-      !done <- S.fromList . lines <$> readFile processed
+      isBlackList <- doesFileExist blackListed
+      blackList <- if isBlackList
+                      then lines <$> readFile blackListed
+                      else return []
+      !processedList <- lines <$> readFile processed
+      !cppList       <- lines <$> readFile cppFile
+      !parseFailList <- lines <$> readFile parseFailFile
+      let done = S.fromList (processedList ++ cppList ++ blackList)
       tsts <- TestList <$> mapM (tests done) ds
       runTests tsts
       return ()
@@ -108,7 +120,15 @@ mkParserTest :: FilePath -> Test
 mkParserTest fp =
     TestLabel fp $
     TestCase (do writeLog $ "starting:" ++ fp
-                 r1 <- roundTripTest fp
+                 -- r1 <- roundTripTest fp
+                 r1 <- catchAny (roundTripTest fp) $ \e -> do
+                   writeError fp
+                   throwIO e
+    {-
+    x <- catchAny dangerous $ \e -> do
+        putStrLn $ "Caught an exception: " ++ show e
+        return (-1)
+    -}
                  case r1 of
                    Left (ParseFailure _ s) -> do
                      writeParseFail fp s
@@ -126,6 +146,10 @@ mkParserTest fp =
                  unless (status r == Success) (writeFailure fp (debugTxt r))
                  assertBool fp (status r == Success))
 -}
+
+catchAny :: IO a -> (SomeException -> IO a) -> IO a
+catchAny = Control.Exception.catch
+
 
 writeFailure :: FilePath -> String -> IO ()
 writeFailure fp db = do
