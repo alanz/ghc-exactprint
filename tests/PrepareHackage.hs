@@ -4,10 +4,14 @@ import Data.Char
 import Data.Monoid
 import System.Directory
 import System.FilePath.Posix
+import System.IO
 import Test.CommonUtils
 import Turtle hiding (FilePath,(<.>))
 import qualified Data.Set as Set
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
+
+import qualified GHC.IO.Handle.Text as GHC
 
 import Test.HUnit
 
@@ -16,10 +20,15 @@ main = do
   packages <- allCabalPackages
   -- packages <- allCabalPackagesTest
   echo (T.pack $ "number of packages:" ++ (show $ length packages))
-  packageDirs <- drop 2 <$> getDirectoryContents (T.unpack workDir)
-  echo (T.pack $ "packageDirs:" ++ (show $ take 5 packageDirs))
+  packageDirsFull <- drop 2 <$> getDirectoryContents (T.unpack workDir)
   let cond c = c == '.' || c == '-' || isDigit c
-  let alreadyUnpacked = Set.fromList $ map (T.dropWhileEnd cond . T.pack) packageDirs
+  let packageDirs = map (T.dropWhileEnd cond . T.pack) packageDirsFull
+  let badpackageFile = "badpackages.txt"
+  isBadPackages <- doesFileExist badpackageFile
+  badPackages <- if isBadPackages
+                   then T.lines <$> T.readFile badpackageFile
+                   else return []
+  let alreadyUnpacked = Set.fromList $ packageDirs ++ badPackages
   _ <- shell ("mkdir -p " <> workDir) empty
   mapM_ (preparePackage alreadyUnpacked) packages
 
@@ -58,11 +67,20 @@ cleanPackage dir = do
       let tmpFn = fn <.> "clean"
       clean <- cleanupWhiteSpace fn
       writeFile tmpFn clean
+      -- writeFileUtf8 tmpFn clean
+      -- T.writeFile tmpFn (T.pack clean) -- convert to Text to deal with encoding issues of is8859 euro symbol
       removeFile fn
       renameFile tmpFn fn
       return ()
   mapM_ doOne fs
   echo ("cleaned up:" <> dir)
+
+-- ---------------------------------------------------------------------
+-- | The computation 'writeFile' @file str@ function writes the string @str@,
+-- to the file @file@.
+writeFileUtf8 :: FilePath -> String -> IO ()
+-- writeFileUtf8 ff txt = withFile ff WriteMode (\ hdl -> hSetEncoding hdl utf8 >> hPutStr hdl txt)
+writeFileUtf8 ff txt = withFile ff WriteMode (\ hdl -> hSetEncoding hdl utf8 >> GHC.hPutStr hdl txt)
 
 -- ---------------------------------------------------------------------
 
@@ -120,6 +138,9 @@ cleanupOneLine str = str'
                 where
                   toAdd = numSpacesForTab col
         ('\xa0':cur') -> go (col + 1) (' ':res) cur'
+
+        -- convert ISO 8859-16 euro symbol to the UTF8 equivalent
+        -- ('\xa4':cur') -> go (col + 1) ('\x20ac':res) cur'
         (c:cur') ->go (col + 1) (c:res) cur'
     str1 = go 0 [] str
     str' = reverse $ dropWhile isSpace str1
