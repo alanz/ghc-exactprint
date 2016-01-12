@@ -111,7 +111,8 @@ genTest f origFile expectedFile  = do
       res <- parseModuleApiAnnsWithCpp defaultCppOptions origFile
       expected <- GHC.liftIO $ readFileGhc expectedFile
       orig <- GHC.liftIO $ readFileGhc origFile
-      let pristine = removeSpaces expected
+      -- let pristine = removeSpaces expected
+      let pristine = expected
 
       case res of
         Left (ss, m) -> return . Left $ ParseFailure ss m

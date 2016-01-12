@@ -20,15 +20,7 @@
 /test.pdf
 /test.ps
 /ghc.hp
-/cpp.txt
-/pfail.txt
-/processed.txt
-/tests/hackage/cpp.txt
-/tests/hackage/pfail.txt
-/tests/hackage/processed.txt
 /failures
 /origfailures.txt
-/tests/cpp.txt
-/tests/hackage-roundtrip-work
-/tests/pfail.txt
-/tests/processed.txt
+/hackage-roundtrip-work
+/roundtrip-work
