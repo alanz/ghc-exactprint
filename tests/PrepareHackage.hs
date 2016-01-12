@@ -23,10 +23,9 @@ main = do
   packageDirsFull <- drop 2 <$> getDirectoryContents hackageWorkDir
   let cond c = c == '.' || c == '-' || isDigit c
   let packageDirs = map (T.dropWhileEnd cond . T.pack) packageDirsFull
-  let badpackageFile = "badpackages.txt"
-  isBadPackages <- doesFileExist badpackageFile
+  isBadPackages <- doesFileExist badpackagesFile
   badPackages <- if isBadPackages
-                   then T.lines <$> T.readFile badpackageFile
+                   then T.lines <$> T.readFile badpackagesFile
                    else return []
   let alreadyUnpacked = Set.fromList $ packageDirs ++ badPackages
   _ <- shell ("mkdir -p " <> (T.pack hackageWorkDir)) empty

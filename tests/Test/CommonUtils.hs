@@ -15,6 +15,7 @@ module Test.CommonUtils
   , processedFailFile
   , logFile
   , origFailuresFile
+  , badpackagesFile
   , blackListed
   , knownFailuresFile
   , failuresHtmlFile
@@ -82,6 +83,10 @@ failuresHtmlFile = "failures.html"
 -- failuresHtmlFile = failuresHtmlDir </> "failures.html"
 
 -- ---------------------------------------------------------------------
+
+-- |Hand edited list of files known to segfault
+badpackagesFile :: FilePath
+badpackagesFile = configDir </> "badpackages.txt"
 
 -- |Hand edited list of files known to segfault
 blackListed :: FilePath

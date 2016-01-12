@@ -77,3 +77,10 @@ UnicodeSyntax.hs
 Cases: 848  Tried: 848  Errors: 2  Failures: 6
 Counts {cases = 848, tried = 848, errors = 2, failures = 6}
 
+----------------------------------------------------------------------
+
+
+Consider ./hackage-roundtrip-work/atomic-primops-foreign-0.6.2/testing/CounterForeign.hs
+
+It has a file included from another, which appears in the output. We must only
+generate output if the SrcSpan file is the one we are processing.
