@@ -160,12 +160,11 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest "ghc8" "export-type.hs"
     -- , mkParserTest "ghc8" "overloadedlabelsrun04.hs"
     -- , mkParserTest "ghc8" "T10620.hs"
-    , mkParserTest "ghc8" "Decision.hs"
-    , mkParserTest "ghc8" "Get.hs"
-    , mkParserTest "failing" "Deprecation.hs"
-    , mkParserTest "failing" "MultiLineWarningPragma.hs"
-    , mkParserTest "failing" "UnicodeRules.hs"
-    , mkParserTest "failing" "UnicodeSyntax.hs"
+    -- , mkParserTest "ghc8" "Decision.hs"
+    -- , mkParserTest "failing" "Deprecation.hs"
+    -- , mkParserTest "failing" "MultiLineWarningPragma.hs"
+    -- , mkParserTest "failing" "UnicodeRules.hs"
+    -- , mkParserTest "failing" "UnicodeSyntax.hs"
     ]
 
 testsTT :: Test

@@ -28,54 +28,6 @@ verb = Debug
 
 -- ---------------------------------------------------------------------
 
--- | Round trip working dir, can be deleted
-workDir :: FilePath
-workDir = "./roundtrip-work"
-
--- | Round trip configuration dir, keept under version control
-configDir :: FilePath
-configDir = "./roundtrip-config"
-
--- |Directory where results of failing tests are stored for later analysis
-failuresDir :: FilePath
-failuresDir = workDir </> "failures"
-
--- |Generated:files known to fail due to CPP parse failures, caused by an Exception
-cppFile :: FilePath
-cppFile = workDir </> "cpp.txt"
-
--- |Generated:files returning ParseFail status
-parseFailFile :: FilePath
-parseFailFile = workDir </> "pfail.txt"
-
--- |Generated:files successfully processed
-processed :: FilePath
-processed = workDir </> "processed.txt"
-
--- |Generated:files which failed comparison
-processedFailFile :: FilePath
-processedFailFile = workDir </> "failed.txt"
-
--- |log of current file being processed, for knowing what to blacklist
-logFile :: FilePath
-logFile = workDir </> "roundtrip.log"
-
--- |list of original failures, when rerunning tests after static processing
-origFailuresFile :: FilePath
-origFailuresFile = workDir </> "origfailures.txt"
-
--- ---------------------------------------------------------------------
-
--- |Hand edited list of files known to segfault
-blackListed :: FilePath
-blackListed = configDir </> "blacklist.txt"
-
--- |Hand edited list of files known to fail, no fix required/possible
-knownFailuresFile :: FilePath
-knownFailuresFile = configDir </> "knownfailures.txt"
-
--- ---------------------------------------------------------------------
-
 writeCPP :: FilePath -> IO ()
 writeCPP fp = appendFileFlush cppFile (('\n' : fp))
 
@@ -94,6 +46,17 @@ writeFailed fp = appendFileFlush processedFailFile (('\n' : fp))
 writeLog :: String -> IO ()
 writeLog msg = appendFileFlush logFile (('\n' : msg))
 
+getTimeStamp :: IO String
+getTimeStamp = do
+  t <- getCurrentTime
+  return $ formatTime defaultTimeLocale (iso8601DateFormat (Just "%H%M%S")) t
+
+writeFailure :: FilePath -> String -> IO ()
+writeFailure fp db = do
+  ts <- getTimeStamp
+  let outname = failuresDir </> takeFileName fp <.> ts <.> "out"
+  writeFile outname db
+
 appendFileFlush      :: FilePath -> String -> IO ()
 appendFileFlush f txt = withFile f AppendMode (\ hdl -> hPutStr hdl txt >> hFlush hdl)
 
@@ -106,6 +69,7 @@ readFileIfPresent fileName = do
     else return []
 
 -- ---------------------------------------------------------------------
+
 main :: IO ()
 main = do
   createDirectoryIfMissing True workDir
@@ -188,20 +152,3 @@ mkParserTest fp =
 catchAny :: IO a -> (SomeException -> IO a) -> IO a
 catchAny = Control.Exception.catch
 
-getTimeStamp :: IO String
-getTimeStamp = do
-  t <- getCurrentTime
-  return $ formatTime defaultTimeLocale (iso8601DateFormat (Just "%H:%M:%S")) t
-
-writeFailure :: FilePath -> String -> IO ()
-writeFailure fp db = do
-  ts <- getTimeStamp
-  let outname = failuresDir </> takeFileName fp <.> ts <.> "out"
-  writeFile outname db
-{-
-writeFailure :: FilePath -> String -> IO ()
-writeFailure fp db = do
-  let outname = takeFileName fp <.> "out"
-  (_fname, hdl) <- openTempFile failuresDir outname
-  (hPutStr hdl db >> hClose hdl)
--}

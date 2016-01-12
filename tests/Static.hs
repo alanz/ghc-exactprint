@@ -8,6 +8,7 @@ import Data.Algorithm.DiffOutput (ppDiff)
 import System.Directory
 import System.FilePath
 
+import Test.CommonUtils
 import Control.Monad
 
 import Debug.Trace
@@ -19,6 +20,7 @@ import Text.Read
 
 main :: IO ()
 main = do
+  createDirectoryIfMissing True failuresHtmlDir
   n <- getArgs
   case readMaybe =<< listToMaybe n of
     Nothing -> site 100
@@ -27,12 +29,13 @@ main = do
 site :: Int -> IO ()
 site n = do
   putStrLn $ "Generating site for first: " ++ show n
-  failPaths <- filterM doesFileExist =<< (map ("tests/roundtrip" </>)  . take n <$> getDirectoryContents "tests/roundtrip")
+  failPaths <- filterM doesFileExist =<< (map (failuresDir </>)  . take n <$> getDirectoryContents failuresDir)
   traceShowM failPaths
   fails <- mapM parseFail failPaths
-  writeFile "origfailures.txt" (intercalate "\n" (map getfname fails))
-  writeFile "failures/failures.html" (makeIndex failPaths)
-  let padded = "failures.html" : (map makeFailLink failPaths ++ ["failures.html"])
+  writeFile origFailuresFile (intercalate "\n" (map getfname fails))
+  -- writeFile "failures/failures.html" (makeIndex failPaths)
+  writeFile (failuresHtmlDir </> failuresHtmlFile) (makeIndex failPaths)
+  let padded = failuresHtmlFile : (map makeFailLink failPaths ++ [failuresHtmlFile])
   let resolved = zipWith (\x (y,z) -> (x, y, z)) padded (zip (tail padded) (tail (tail padded)))
   mapM_ (uncurry page) (zip resolved fails)
 
@@ -56,17 +59,20 @@ page (prev, out, next) (Failure res fname) = do
   if (l > 50000)
     then putStrLn ("Skipping: " ++ fname) >> print l
     else
-      writeFile ("failures" </> out) (mkPage (ppDiff diff) prev next original res)
+      -- writeFile ("failures" </> out) (mkPage (ppDiff diff) prev next original res)
+      writeFile (failuresHtmlDir </> out) (mkPage fname (ppDiff diff) prev next original res)
   where
     tokenize :: String -> [[String]]
     tokenize s = map (:[]) . lines $ s
 
-mkPage :: String -> String -> String -> String -> String -> String
-mkPage diff prev next original printed  =
+mkPage :: FilePath -> String -> String -> String -> String -> String -> String
+mkPage filename diff prev next original printed  =
   intercalate "</br>"
   [mkLink prev "prev"
-  , mkLink "failures.html" "home"
+  , mkLink failuresHtmlFile "home"
   , mkLink next "next"
+  , ""
+  , "<pre>" ++ filename ++ "</pre>"
   , ""
   , "<pre>" ++ diff ++ "</pre>"
   , "<h2>original</h2>"
@@ -81,6 +87,7 @@ mkLink s label =
 
 data Failure = Failure String FilePath
 
+getfname :: Failure -> FilePath
 getfname (Failure _ fp) = fp
 
 parseFail :: FilePath -> IO Failure

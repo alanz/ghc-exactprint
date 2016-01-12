@@ -138,7 +138,9 @@ executable static
   if flag (roundtrip)
     build-depends: base
                  , directory
+                 , filemanip
                  , filepath
+                 , ghc
                  , Diff
     buildable: True
     if impl (ghc >= 7.11)

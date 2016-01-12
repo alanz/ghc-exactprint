@@ -1,1 +1,12 @@
 ./hackage-roundtrip-work/AERN-RnToRm-Plot-0.2.0.3/src/Data/Number/ER/RnToRm/Plot/FnView.hs
+./hackage-roundtrip-work/ajhc-0.8.0.10/src/Util/IntBag.hs
+./hackage-roundtrip-work/alex-meta-0.3.0.8/src/Text/Alex/AlexTemplate.hs
+./hackage-roundtrip-work/apelsin-1.2.3/src/Config.hs
+./hackage-roundtrip-work/apelsin-1.2.3/src/Preferences.hs
+./hackage-roundtrip-work/arbb-vm-0.1.1.20/Intel/ArbbVM/Convenience.hs
+./hackage-roundtrip-work/arguedit-0.1.0.1/src/Main.hs
+./hackage-roundtrip-work/arithmoi-0.4.1.3/Math/NumberTheory/GCD.hs
+./hackage-roundtrip-work/arithmoi-0.4.1.3/Math/NumberTheory/Lucas.hs
+./hackage-roundtrip-work/ArrayRef-0.1.3.1/GHC/Unboxed.hs
+./hackage-roundtrip-work/base-4.8.1.0/GHC/Fingerprint.hs
+./hackage-roundtrip-work/base-4.8.1.0/GHC/Float/RealFracMethods.hs

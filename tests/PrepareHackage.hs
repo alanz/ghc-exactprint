@@ -20,7 +20,7 @@ main = do
   packages <- allCabalPackages
   -- packages <- allCabalPackagesTest
   echo (T.pack $ "number of packages:" ++ (show $ length packages))
-  packageDirsFull <- drop 2 <$> getDirectoryContents (T.unpack workDir)
+  packageDirsFull <- drop 2 <$> getDirectoryContents hackageWorkDir
   let cond c = c == '.' || c == '-' || isDigit c
   let packageDirs = map (T.dropWhileEnd cond . T.pack) packageDirsFull
   let badpackageFile = "badpackages.txt"
@@ -29,7 +29,7 @@ main = do
                    then T.lines <$> T.readFile badpackageFile
                    else return []
   let alreadyUnpacked = Set.fromList $ packageDirs ++ badPackages
-  _ <- shell ("mkdir -p " <> workDir) empty
+  _ <- shell ("mkdir -p " <> (T.pack hackageWorkDir)) empty
   mapM_ (preparePackage alreadyUnpacked) packages
 
 -- ---------------------------------------------------------------------
@@ -43,7 +43,7 @@ preparePackage alreadyUnpacked package = do
 
 preparePackage' :: Text -> IO ()
 preparePackage' package = do
-  (ec,dir) <- shellStrict ("cabal get --destdir=" <> workDir <> " " <> package) empty
+  (ec,dir) <- shellStrict ("cabal get --destdir=" <> T.pack hackageWorkDir <> " " <> package) empty
   -- echo (T.pack $ "cabal get:" ++ show dir)
   echo (T.pack $ show ec)
   when (ec == ExitSuccess) $ do
@@ -98,11 +98,6 @@ allCabalPackages = do
   let packages = T.lines r
   echo (T.pack $ show $ take 5 packages)
   return packages
-
--- ---------------------------------------------------------------------
-
-workDir :: Text
-workDir = "./hackage-roundtrip-work"
 
 -- ---------------------------------------------------------------------
 
