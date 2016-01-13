@@ -175,6 +175,7 @@
 ./hackage-roundtrip-work/happstack-server-7.4.5/src/Happstack/Server/Internal/Listen.hs
   - CPP in coment
 
+./hackage-roundtrip-work/spline3-0.0.2/src/RealFunction.hs
 ./hackage-roundtrip-work/haskell-src-exts-1.17.1/tests/examples/ParenFunBind.hs
   - missing parens around function
     3c3
@@ -199,6 +200,8 @@
 ./hackage-roundtrip-work/haskell-src-exts-1.17.1/tests/examples/CStyleLinePragmas.hs
 
 ./hackage-roundtrip-work/haskell-src-exts-1.17.1/tests/examples/SpecializePhaseControl.hs
+./hackage-roundtrip-work/lol-0.1.0.0/src/Crypto/Lol/Types/Numeric.hs
+./hackage-roundtrip-work/rangemin-2.2.2/Data/RangeMin/Cartesian.hs
   - SPECIALISE PRAGMA
 
 ./hackage-roundtrip-work/Hayoo-1.2.3/src/HayooSnap.hs
@@ -249,3 +252,56 @@
 
 ./hackage-roundtrip-work/ideas-math-1.2/src/Domain/Math/Polynomial/BuggyRules.hs
   - haskell string literal split with `\` as last char, next stanza starts in wrong place.
+
+./hackage-roundtrip-work/leksah-0.15.1.4/src/IDE/Pane/WebKit/Documentation.hs
+./hackage-roundtrip-work/lambdacube-samples-0.2.0/ShadowMapping.hs
+./hackage-roundtrip-work/keera-posture-0.2.3/src/Paths.hs
+./hackage-roundtrip-work/leksah-0.15.1.4/src/IDE/Pane/WebKit/Output.hs
+./hackage-roundtrip-work/language-c-quote-0.11.4/tests/unit/MainCPP.hs
+./hackage-roundtrip-work/libssh2-0.2.0.3/src/Network/SSH/Client/LibSSH2/WaitSocket.hs
+./hackage-roundtrip-work/MissingH-1.3.0.1/src/Network/Email/Sendmail.hs
+./hackage-roundtrip-work/mighttpd2-3.3.0/src/Server.hs
+./hackage-roundtrip-work/mighttpd-0.4.3/Parsec.hs
+./hackage-roundtrip-work/monad-par-0.3.4.7/Control/Monad/Par/Scheds/Direct.hs
+./hackage-roundtrip-work/openpgp-0.6.1/tests/suite.hs
+./hackage-roundtrip-work/scholdoc-0.1.3/src/Text/Pandoc/Shared.hs
+./hackage-roundtrip-work/stomp-queue-0.2.2/Network/Mom/Stompl/Client/Queue.hs
+./hackage-roundtrip-work/template-hsml-0.2.0.3/src/Template/HSML/Internal/TH.hs
+./hackage-roundtrip-work/template-hsml-0.2.0.3/src/Template/HSML/Internal/Parser/Syntax.hs
+./hackage-roundtrip-work/text-show-instances-2.1/src/TextShow/System/Posix.hs
+./hackage-roundtrip-work/template-hsml-0.2.0.3/src/Template/HSML/Internal/Parser.hs
+./hackage-roundtrip-work/Takusen-0.8.7/Control/Exception/Extensible.hs
+./hackage-roundtrip-work/tsparse-0.4.0.0/TsParse.hs
+./hackage-roundtrip-work/tls-1.3.4/Network/TLS/IO.hs
+./hackage-roundtrip-work/transformations-0.2.0.0/examples/LUA.hs
+/hackage-roundtrip-work/typedquery-0.1.0.3/src/Database/TypedQuery/SQLParser.hs
+  - spacing after CPP #else or #endif
+  
+./hackage-roundtrip-work/machinecell-3.0.1/src/Control/Arrow/Machine/Types.hs
+  - spacing around an arrow
+  
+./hackage-roundtrip-work/newsynth-0.3.0.2/Quantum/Synthesis/GridProblems.hs
+./hackage-roundtrip-work/scyther-proof-0.10.0.1/src/Scyther/GoalFlow.hs
+   - extra blank lines in the middle
+
+./hackage-roundtrip-work/singletons-2.0.1/src/Data/Singletons/Prelude/Eq.hs
+  - misplaced type operator
+    40d39
+    <   type (x :: a) :== (y :: a) = x == y
+    41c40
+    <   type (x :: a) :/= (y :: a) = Not (x :== y)
+    ---
+    >   type          :==x :: a)     (y :: a) = x == y
+    41a41
+    >   type          :/=x :: a)     (y :: a) = Not (x :== y)
+    63a64
+    > 
+
+./hackage-roundtrip-work/synthesizer-midi-0.6.0.2/src/Synthesizer/MIDI/CausalIO/Process.hs
+  - extra space
+    365c365
+    <            AllNotesOff -> VoiceMsg.normalVelocity -} )
+    ---
+    >            AllNotesOff -> VoiceMsg.normalVelocity -})
+    717a718
+    > 
