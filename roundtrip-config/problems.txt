@@ -1,0 +1,251 @@
+./hackage-roundtrip-work/cabal-dev-0.9.2/src/Distribution/Dev/Sandbox.hs
+
+./hackage-roundtrip-work/cabal-install-bundle-1.18.0.2.1/Network/HTTP/Proxy.hs
+  - CPP inside a comment
+      {-
+      #if !defined(WIN32) && defined(mingw32_HOST_OS)
+      #define WIN32 1
+      #endif
+      -}
+  - perhaps strip comments before cpp step?
+
+
+./hackage-roundtrip-work/cabal-install-bundle-1.18.0.2.1/Network/Browser.hs
+ - spacing in #else leg
+    425c425
+    <  deriving (Functor, Applicative, Monad, MonadIO, MonadState (BrowserState conn))
+    ---
+    >  deriving         (Functor, Applicative, Monad, MonadIO, MonadState (BrowserState conn))
+    1064a1065
+    > 
+
+./hackage-roundtrip-work/cluss-0.3/src/Type/Cluss.hs
+    258c258
+    < type Is = (~)
+    ---
+    > type Is =  ~ )
+    641a642
+    > 
+
+./hackage-roundtrip-work/cnc-spec-compiler-0.2.0.1/Intel/Cnc/Spec/Codegen/CppOld.hs
+  - C comment inside haskell comment disappears
+
+    {-
+    /****************************************************************************
+    /* The following code provides an example of what the user code that invokes
+    /* this graph might look, using the inputs and outputs defined for the
+    /* environment (ENV).
+    /***************************************************************************/
+    -}
+
+./hackage-roundtrip-work/compdata-param-0.9/src/Data/Comp/Param/Algebra.hs
+  - CPP directive not picked up as comment
+    707c707
+    < #ifndef NO_RULES
+    ---
+    > 
+    961c961
+    < #endif
+    ---
+    > 
+    962a963
+    > 
+
+./hackage-roundtrip-work/cpsa-2.5.3/src/CPSA/Lib/Strand.hs
+  - extra blank lines added to output
+
+./hackage-roundtrip-work/cryptol-2.2.6/cryptol/Main.hs
+ - spacing in #else leg
+    190c190
+    <       where path' = splitSearchPath path
+    ---
+    >       where      path' = splitSearchPath path
+    199a200
+    > 
+
+/hackage-roundtrip-work/crunghc-0.1.1.1/main.hs
+ - spacing in #else leg
+    265c265
+    < installSignalHandlers = return ()
+    ---
+    > installSignalHandlers                      = return ()
+    288a289
+    > 
+
+
+./hackage-roundtrip-work/equational-reasoning-0.2.0.7/Proof/Equational.hs
+  - error in SPECIALISE pragma
+    > - {-# SPECIALISE INLINE[1] (=<=) :: x :~: y -> Reason (:~:) y z -> x :~: z #-}
+    > + {-# SPECIALISE INLINE[ ] (=<=) :: x :~: y -> Reason (:~:) y z -> x :~: z #-}
+
+
+./hackage-roundtrip-work/foldl-incremental-0.2.0.0/src/Data/Histogram/Bin/BinDU.hs
+  - CPP in comment
+
+
+./hackage-roundtrip-work/for-free-0.1/Control/ForFree.hs
+  - missing semi at end of deriving
+
+    deriving instance (Eq (f (Free f a)), Eq a) => Eq (Free f a);
+    deriving instance (Ord (f (Free f a)), Ord a) => Ord (Free f a);
+    deriving instance (Read (f (Free f a)), Read a) => Read (Free f a);
+    deriving instance (Show (f (Free f a)), Show a) => Show (Free f a);
+
+
+./hackage-roundtrip-work/feed2lj-0.0.3.1/LjPost.hs
+  - spacing in #else leg
+    82c82
+    <   where smd5 = show . md5 . fromString
+    ---
+    >   where      smd5 = show . md5 . fromString
+    113a114
+    > 
+
+./hackage-roundtrip-work/filepath-1.4.1.0/System/FilePath.hs
+  - spacing in #else leg
+    27c27
+    < module System.FilePath(module System.FilePath.Posix) where
+    ---
+    > module       System.FilePath(module System.FilePath.Posix) where
+    29a30
+    > 
+
+
+./hackage-roundtrip-work/gf-3.7.1/src/compiler/GF/System/Console.hs
+  - spacing after #if .. #endif
+    26c26
+    <        return () :: IO ()
+    ---
+    >        return       () :: IO ()
+    71a72
+    > 
+
+./hackage-roundtrip-work/gf-3.7.1/src/compiler/GF/Interactive2.hs
+  - CPP in comment
+
+
+./hackage-roundtrip-work/git-annex-5.20151218/Remote/Git.hs
+  - spacing in #else leg
+    641c641
+    <         ifM (sameDeviceIds src dest) (docopy, dorsync)
+    ---
+    >         ifM    (sameDeviceIds src dest) (docopy, dorsync)
+    704a705
+    > 
+
+./hackage-roundtrip-work/git-annex-5.20151218/Assistant/Threads/SanityChecker.hs
+  - spacing in #else leg
+    268c268
+    <                 debug [show $ renderTense Past msg]
+    ---
+    >                 debug      [show $ renderTense Past msg]
+    327a328
+    > 
+
+
+./hackage-roundtrip-work/git-annex-5.20151218/git-annex.hs
+  - spacing in #else leg
+    36c36
+    <                         gitannex ps
+    ---
+    >                         gitannex         ps
+    56a57
+    > 
+
+
+./hackage-roundtrip-work/git-annex-5.20151218/Utility/Glob.hs
+  - spacing in #else leg
+    42c42
+    <         mkRegexWithOpts regex casesentitive True
+    ---
+    >         mkRegexWithOpts                regex casesentitive True
+    57c57
+    <         isJust $ matchRegex regex val
+    ---
+    >         isJust       $ matchRegex regex val
+    58a59
+    > 
+
+./hackage-roundtrip-work/HAppS-Server-0.9.3.1/src/HAppS/Server/HTTP/Listen.hs
+  - CPP in coment
+
+./hackage-roundtrip-work/HAppS-State-0.9.3/src/HAppS/State/Control.hs
+  - CPP in coment
+
+./hackage-roundtrip-work/happstack-server-7.4.5/src/Happstack/Server/Internal/Listen.hs
+  - CPP in coment
+
+./hackage-roundtrip-work/haskell-src-exts-1.17.1/tests/examples/ParenFunBind.hs
+  - missing parens around function
+    3c3
+    < (foo x) y = x + y
+    ---
+    >  foo x  y = x + y
+    3a4
+    > 
+
+./hackage-roundtrip-work/hask-home-2009.3.18/hask-home.hs
+  - shebang. Why does this pass the ghc-exactprint tests?
+
+
+/hackage-roundtrip-work/haskell-src-exts-1.17.1/tests/examples/HexPrec.hs
+    6c6
+    < infixl 0x02 %%
+    ---
+    > infixl 2 %%
+    6a7
+    > 
+
+./hackage-roundtrip-work/haskell-src-exts-1.17.1/tests/examples/CStyleLinePragmas.hs
+
+./hackage-roundtrip-work/haskell-src-exts-1.17.1/tests/examples/SpecializePhaseControl.hs
+  - SPECIALISE PRAGMA
+
+./hackage-roundtrip-work/Hayoo-1.2.3/src/HayooSnap.hs
+  - spacing after CPP #else
+
+./hackage-roundtrip-work/hdirect-0.21.0/src/OmgParser.hs
+
+
+./hackage-roundtrip-work/haskell-src-exts-1.17.1/tests/examples/MultiWayIf.hs
+
+
+./hackage-roundtrip-work/hLLVM-0.5.0.1/src/Llvm/Data/CoreIr.hs
+  - missing final '}' in GADT data declaration
+    41c41
+    <   } deriving (Eq, Ord, Show)
+    ---
+    >     deriving (Eq, Ord, Show)
+    201c201
+    <   } deriving (Eq, Ord, Show)
+    ---
+    >     deriving (Eq, Ord, Show)
+    695c695
+    <   } deriving (Eq, Ord, Show)
+    ---
+    >     deriving (Eq, Ord, Show)
+    782a783
+    > 
+
+./hackage-roundtrip-work/hmpfr-0.3.3.5/src/Data/Number/MPFR.hs
+  -- CPP in comments
+
+./hackage-roundtrip-work/hLLVM-0.5.0.1/src/Llvm/Data/Conversion/AstIrConversion.hs
+  - missing final '}' in GADT data declaration
+
+./hackage-roundtrip-work/hoodle-core-0.15.0/src/Hoodle/Coroutine/Minibuffer.hs
+  - spacing after CPP #else
+
+./hackage-roundtrip-work/hood-0.3/Debug/Hood/Observe.hs
+  - ^L converted to space
+
+./hackage-roundtrip-work/hs-fltk-0.2.5/src/Graphics/UI/FLTK/MultiBrowser.hs
+    26c26
+    < --  /*
+    ---
+    > --  --  /*
+    38a39
+    > 
+
+./hackage-roundtrip-work/ideas-math-1.2/src/Domain/Math/Polynomial/BuggyRules.hs
+  - haskell string literal split with `\` as last char, next stanza starts in wrong place.

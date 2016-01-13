@@ -164,7 +164,10 @@ cleanupOneLine str = str'
 -- ---------------------------------------------------------------------
 
 tt :: IO Counts
-tt = runTestTT testCleanupOneLine
+tt = runTestTT $ TestList
+                  [ testCleanupOneLine
+                  , testTabs
+                  ]
 
 testCleanupOneLine :: Test
 testCleanupOneLine = do
@@ -175,6 +178,12 @@ testCleanupOneLine = do
     mkTest n = TestCase $ assertEqual name outp (cleanupOneLine inp)
       where (name,inp,outp) = makeCase n
   testList "cleanupOneLine" $ map mkTest [1..7]
+
+testTabs :: Test
+testTabs = TestCase $ assertEqual "testTabs" t2tabsExpected (cleanupOneLine t2tabs)
+  where
+    t2tabs = "import Data.Foldable\t\t    ( foldMap )"
+    t2tabsExpected ="import Data.Foldable                ( foldMap )"
 
 testList :: String -> [Test] -> Test
 testList str ts = TestLabel str (TestList ts)
