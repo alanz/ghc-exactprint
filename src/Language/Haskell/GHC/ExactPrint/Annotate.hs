@@ -2095,7 +2095,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   markAST _ (GHC.HsMultiIf _ rhs) = do
     mark GHC.AnnIf
+    mark GHC.AnnOpenC
     mapM_ markLocated rhs
+    mark GHC.AnnCloseC
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsLet binds e) = do
