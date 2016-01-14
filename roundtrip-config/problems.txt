@@ -274,7 +274,10 @@
 ./hackage-roundtrip-work/tsparse-0.4.0.0/TsParse.hs
 ./hackage-roundtrip-work/tls-1.3.4/Network/TLS/IO.hs
 ./hackage-roundtrip-work/transformations-0.2.0.0/examples/LUA.hs
-/hackage-roundtrip-work/typedquery-0.1.0.3/src/Database/TypedQuery/SQLParser.hs
+./hackage-roundtrip-work/typedquery-0.1.0.3/src/Database/TypedQuery/SQLParser.hs
+./hackage-roundtrip-work/vector-bytestring-0.0.0.1/tests/spellcheck.hs
+./hackage-roundtrip-work/warp-3.2.1/Network/Wai/Handler/Warp/FdCache.hs
+./hackage-roundtrip-work/xmobar-0.23.1/src/ColorCache.hs
   - spacing after CPP #else or #endif
   
 ./hackage-roundtrip-work/machinecell-3.0.1/src/Control/Arrow/Machine/Types.hs
@@ -305,3 +308,7 @@
     >            AllNotesOff -> VoiceMsg.normalVelocity -})
     717a718
     > 
+
+./hackage-roundtrip-work/yesod-goodies-0.0.5/Yesod/Goodies/Markdown.hs
+  - missing lines in #else
+

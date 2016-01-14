@@ -2,7 +2,7 @@
 module Main where
 
 -- Static site generator for failing tests
-import Data.Algorithm.Diff (getDiff)
+import Data.Algorithm.Diff (getGroupedDiff)
 import Data.Algorithm.DiffOutput (ppDiff)
 
 import System.Directory
@@ -54,10 +54,15 @@ page :: (FilePath, FilePath, FilePath) -> Failure -> IO ()
 page (prev, out, next) (Failure res fname) = do
 --  traceM out
   original <- readFile fname
-  let diff = getDiff (tokenize original) (tokenize res)
-  let l = length (lines res)
+  -- let diff = getDiff (tokenize original) (tokenize res)
+  let lres = lines res
+  let diff = getGroupedDiff (lines original) lres
+  let l = length lres
   if (l > 50000)
-    then putStrLn ("Skipping: " ++ fname) >> print l
+    then  do -- putStrLn ("Skipping: " ++ fname) >> print l
+      let resTrunc = (intercalate "\n" $ take 50000 lres)
+                  ++ "\n*****************TRUNCATED*******"
+      writeFile (failuresHtmlDir </> out) (mkPage fname (ppDiff diff) prev next original resTrunc)
     else
       -- writeFile ("failures" </> out) (mkPage (ppDiff diff) prev next original res)
       writeFile (failuresHtmlDir </> out) (mkPage fname (ppDiff diff) prev next original res)
