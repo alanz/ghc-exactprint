@@ -98,7 +98,7 @@ main = do
       !processedList <- lines <$> readFile processed
       !cppList       <- lines <$> readFile cppFile
       !parseFailList <- lines <$> readFile parseFailFile
-      let done = S.fromList (processedList ++ cppList ++ blackList ++ knownFailures)
+      let done = S.fromList (processedList ++ cppList ++ blackList ++ knownFailures ++ parseFailList)
       tsts <- TestList <$> mapM (tests done) ds
       runTests tsts
       return ()
