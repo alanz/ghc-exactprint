@@ -21,6 +21,7 @@
 -- to different sitations which annotations can arise. It is hoped that in
 -- future versions of GHC these can be simplified by making suitable
 -- modifications to the AST.
+
 module Language.Haskell.GHC.ExactPrint.Annotate
        (
          annotate
@@ -57,6 +58,7 @@ import Data.Data
 import Debug.Trace
 
 
+{-# ANN module "HLint: ignore Eta reduce" #-}
 -- ---------------------------------------------------------------------
 
 -- |
@@ -1062,11 +1064,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       get_infix Nothing = False
       get_infix (Just (_,f)) = f
 #else
-      get_infix GHC.NonFunBindMatch = False
+      get_infix GHC.NonFunBindMatch    = False
       get_infix (GHC.FunBindMatch _ f) = f
 #endif
     case (get_infix mln,pats) of
-      (True, (a:b:xs)) -> do
+      (True, a:b:xs) -> do
         mark GHC.AnnOpenP
         markLocated a
         case mln of
@@ -1081,15 +1083,18 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         mark GHC.AnnCloseP
         mapM_ markLocated xs
       _ -> do
-        case mln of
+        annotationsToComments [GHC.AnnOpenP,GHC.AnnCloseP]
 #if __GLASGOW_HASKELL__ <= 710
+        case mln of
           Nothing -> mark GHC.AnnFunId
           Just (n,_) -> markLocated n
-#else
-          GHC.NonFunBindMatch -> mark GHC.AnnFunId
-          GHC.FunBindMatch n _ -> markLocated n
-#endif
         mapM_ markLocated pats
+#else
+        case mln of
+          GHC.NonFunBindMatch  -> mark GHC.AnnFunId
+          GHC.FunBindMatch n _ -> markLocated n
+        mapM_ markLocated pats
+#endif
 
     -- TODO: The AnnEqual annotation actually belongs in the first GRHS value
     mark GHC.AnnEqual

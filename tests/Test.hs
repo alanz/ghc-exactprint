@@ -147,7 +147,7 @@ formatTT (ts, fs) = do
 
 tt' :: IO (Counts,Int)
 tt' = runTestText (putTextToHandle stdout True) $ TestList [
-      mkParserTest "ghc710" "Unicode.hs"
+      -- mkParserTest "ghc710" "Unicode.hs"
 
     -- , mkParserTest "ghc8" "BundleExport.hs"
     -- , mkParserTest "ghc8" "ExportSyntax.hs"
@@ -160,7 +160,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest "ghc8" "export-type.hs"
     -- , mkParserTest "ghc8" "overloadedlabelsrun04.hs"
     -- , mkParserTest "ghc8" "T10620.hs"
-    -- , mkParserTest "ghc8" "Decision.hs"
+      mkParserTest "ghc8" "ParenFunBind.hs"
     -- , mkParserTest "failing" "Deprecation.hs"
     -- , mkParserTest "failing" "MultiLineWarningPragma.hs"
     -- , mkParserTest "failing" "UnicodeRules.hs"
