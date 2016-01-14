@@ -460,7 +460,7 @@ instance Annotate GHC.RdrName where
         markMany GHC.AnnCommaTuple -- For '(,,,)'
         case cnt of
           0 -> if cntT > 0
-                 then return () -- traceM $ "Printing RdrName, no AnnVal, multiple AnnCommTuple:" ++ showGhc (l,n)
+                 then return ()
                  else markExternal l GHC.AnnVal str'
           1 -> markWithString GHC.AnnVal str'
           _ -> traceM $ "Printing RdrName, more than 1 AnnVal:" ++ showGhc (l,n)
@@ -494,10 +494,12 @@ instance Annotate GHC.RdrName where
            mark GHC.AnnOpenP -- '('
            mark GHC.AnnTildehsh
            mark GHC.AnnCloseP
+#if __GLASGOW_HASKELL__ <= 710
          "~" -> do
            mark GHC.AnnOpenP
            mark GHC.AnnTilde
            mark GHC.AnnCloseP
+#endif
          _ -> doNormalRdrName
 
 -- ---------------------------------------------------------------------
@@ -1393,6 +1395,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     case n of
       1 -> do
           mark GHC.AnnSimpleQuote
+          mark GHC.AnnOpenC
 #if __GLASGOW_HASKELL__ <= 710
           markLocatedFromKw GHC.AnnName name
       _ -> markAST l name
@@ -2753,8 +2756,9 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
   markAST _ (GHC.TyFamEqn ln (GHC.HsQTvs _ns bndrs) typ) = do
     mark GHC.AnnType
     mark GHC.AnnInstance
-    markLocated ln
-    mapM_ markLocated bndrs
+    applyListAnnotations (prepareListAnnotation [ln]
+                       ++ prepareListAnnotation bndrs
+                         )
     mark GHC.AnnEqual
     markLocated typ
 
