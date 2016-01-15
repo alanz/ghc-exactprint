@@ -2651,8 +2651,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnWhere
     mark GHC.AnnOpenC
     mapM_ markLocated cons
-    markMaybe mderivs
     mark GHC.AnnCloseC
+    markMaybe mderivs
     markTrailingSemi
 
   -- -----------------------------------
