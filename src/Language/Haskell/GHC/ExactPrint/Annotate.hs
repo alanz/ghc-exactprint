@@ -1139,7 +1139,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,
       (_:_) -> mark GHC.AnnVbar >> mapM_ markLocated guards
     mark GHC.AnnEqual
     cntL <- countAnns GHC.AnnLam
-    when (cntL == 0) $ mark GHC.AnnRarrow -- For HsLam
+    cntP <- countAnns GHC.AnnProc
+    when (cntL == 0 && cntP == 0) $ mark GHC.AnnRarrow -- For HsLam
     markLocated expr
 
 -- ---------------------------------------------------------------------
