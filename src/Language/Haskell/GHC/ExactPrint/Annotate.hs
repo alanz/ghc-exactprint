@@ -668,14 +668,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
    => Annotate (GHC.RuleDecl name) where
   markAST _ (GHC.HsRule ln act bndrs lhs _ rhs _) = do
     markLocated ln
-    -- activation
-    mark GHC.AnnOpenS -- "["
-    mark GHC.AnnTilde
-    case act of
-      GHC.ActiveBefore n -> markWithString GHC.AnnVal (show n)
-      GHC.ActiveAfter n  -> markWithString GHC.AnnVal (show n)
-      _                  -> return ()
-    mark GHC.AnnCloseS -- "]"
+    markActivation act
 
     mark GHC.AnnForall
     mapM_ markLocated bndrs
@@ -685,6 +678,30 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnEqual
     markLocated rhs
     markTrailingSemi
+
+-- ---------------------------------------------------------------------
+
+markActivation :: GHC.Activation -> Annotated ()
+markActivation act = do
+  mark GHC.AnnOpenS --  '['
+  mark GHC.AnnTilde -- ~
+#if __GLASGOW_HASKELL__ <= 710
+  case act of
+    GHC.ActiveBefore n -> do
+      markWithString GHC.AnnVal (show n)
+    GHC.ActiveAfter n -> do
+      markWithString GHC.AnnVal (show n)
+    _ -> return ()
+#else
+  case act of
+    GHC.ActiveBefore src _ -> do
+      mark GHC.AnnTilde -- ~
+      markWithString GHC.AnnVal src
+    GHC.ActiveAfter src _ -> do
+      markWithString GHC.AnnVal src
+    _ -> return ()
+#endif
+  mark GHC.AnnCloseS -- ']'
 
 -- ---------------------------------------------------------------------
 
@@ -1185,33 +1202,32 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     traceM "warning: Introduced after renaming"
 
   -- FixSig (FixitySig name)
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.FixSig (GHC.FixitySig lns (GHC.Fixity v fdir))) = do
+#else
+  markAST _ (GHC.FixSig (GHC.FixitySig lns (GHC.Fixity src v fdir))) = do
+#endif
     let fixstr = case fdir of
          GHC.InfixL -> "infixl"
          GHC.InfixR -> "infixr"
          GHC.InfixN -> "infix"
     markWithString GHC.AnnInfix fixstr
+#if __GLASGOW_HASKELL__ <= 710
     markWithString GHC.AnnVal (show v)
+#else
+    markWithString GHC.AnnVal src
+#endif
     mapM_ markLocated lns
     markTrailingSemi
 
   -- InlineSig (Located name) InlinePragma
   -- '{-# INLINE' activation qvar '#-}'
   markAST _ (GHC.InlineSig ln inl) = do
-    let actStr = case GHC.inl_act inl of
-          GHC.NeverActive -> ""
-          GHC.AlwaysActive -> ""
-          GHC.ActiveBefore np -> show np
-          GHC.ActiveAfter  np -> show np
     markWithString GHC.AnnOpen (GHC.inl_src inl) -- '{-# INLINE'
-    mark GHC.AnnOpenS  -- '['
-    mark  GHC.AnnTilde -- ~
-    markWithString  GHC.AnnVal actStr -- e.g. 34
-    mark GHC.AnnCloseS -- ']'
+    markActivation (GHC.inl_act inl)
     markLocated ln
     markWithString GHC.AnnClose "#-}" -- '#-}'
     markTrailingSemi
-
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.SpecSig ln typs inl) = do
@@ -1227,10 +1243,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 -}
 #endif
     markWithString GHC.AnnOpen (GHC.inl_src inl)
-    mark GHC.AnnOpenS --  '['
-    mark GHC.AnnTilde -- ~
-
-    mark GHC.AnnCloseS -- ']'
+    markActivation (GHC.inl_act inl)
     markLocated ln
     mark GHC.AnnDcolon -- '::'
 #if __GLASGOW_HASKELL__ <= 710
@@ -2369,14 +2382,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsTick _ _) = return ()
   markAST _ (GHC.HsBinTick _ _ _) = return ()
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsTickPragma src (str,(v1,v2),(v3,v4)) e) = do
     -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
     markWithString       GHC.AnnOpen  src
-#if __GLASGOW_HASKELL__ <= 710
     markOffsetWithString GHC.AnnVal 0 (show (GHC.unpackFS str)) -- STRING
-#else
-    markOffsetWithString GHC.AnnVal 0 (GHC.sl_st str) -- STRING
-#endif
     markOffsetWithString GHC.AnnVal 1 (show v1) -- INTEGER
     markOffset GHC.AnnColon 0 -- ':'
     markOffsetWithString GHC.AnnVal 2 (show v2) -- INTEGER
@@ -2386,6 +2396,21 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markOffsetWithString GHC.AnnVal 4 (show v4) -- INTEGER
     markWithString   GHC.AnnClose  "#-}"
     markLocated e
+#else
+  markAST _ (GHC.HsTickPragma src (str,_,_) ((v1,v2),(v3,v4)) e) = do
+    -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
+    markWithString       GHC.AnnOpen  src
+    markOffsetWithString GHC.AnnVal 0 (GHC.sl_st str) -- STRING
+    markOffsetWithString GHC.AnnVal 1 v1 -- INTEGER
+    markOffset GHC.AnnColon 0 -- ':'
+    markOffsetWithString GHC.AnnVal 2 v2 -- INTEGER
+    mark   GHC.AnnMinus   -- '-'
+    markOffsetWithString GHC.AnnVal 3 v3 -- INTEGER
+    markOffset GHC.AnnColon 1 -- ':'
+    markOffsetWithString GHC.AnnVal 4 v4 -- INTEGER
+    markWithString   GHC.AnnClose  "#-}"
+    markLocated e
+#endif
 
   markAST l (GHC.EWildPat) = do
     markExternal l GHC.AnnVal "_"
