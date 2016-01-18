@@ -147,6 +147,8 @@ executable static
         build-depends: ghc-boot
   else
     buildable: False
+  ghc-options:
+    -threaded
 
 executable prepare-hackage
   main-is: PrepareHackage.hs

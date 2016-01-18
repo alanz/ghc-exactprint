@@ -4,10 +4,10 @@
 export PROFILING=
 
 # https://github.com/alanz/bifunctors.git master
-(cd ../../alanz/bifunctors && cabal clean && cabal install --allow-newer $PROFILING)
+# (cd ../../alanz/bifunctors && cabal clean && cabal install --allow-newer $PROFILING)
 
 # https://github.com/alanz/free.git master
-(cd ../../alanz/free       && cabal clean && cabal install --allow-newer $PROFILING)
+# (cd ../../alanz/free       && cabal clean && cabal install --allow-newer $PROFILING)
 
 # # https://github.com/alanz/HUnit.git ghc-head
 # (cd ../../alanz/HUnit       && cabal clean && cabal install --allow-newer $PROFILING)

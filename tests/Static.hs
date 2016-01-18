@@ -56,11 +56,12 @@ page (prev, out, next) (Failure res fname) = do
   original <- readFile fname
   -- let diff = getDiff (tokenize original) (tokenize res)
   let lres = lines res
-  let diff = getGroupedDiff (lines original) lres
+  let maxLines = 50000
+  let diff = getGroupedDiff (lines original) (take maxLines lres)
   let l = length lres
-  if (l > 50000)
+  if (l > maxLines)
     then  do -- putStrLn ("Skipping: " ++ fname) >> print l
-      let resTrunc = (intercalate "\n" $ take 50000 lres)
+      let resTrunc = (intercalate "\n" $ take maxLines lres)
                   ++ "\n*****************TRUNCATED*******"
       writeFile (failuresHtmlDir </> out) (mkPage fname (ppDiff diff) prev next original resTrunc)
     else
