@@ -65,6 +65,7 @@ library
   -- other-extensions:
   GHC-Options:         -Wall
   build-depends:       base >=4.7 && <5.0
+                     , bytestring >= 0.10.6
                      , containers >= 0.5
                      , directory >= 1.2
                      , filepath  >= 1.4

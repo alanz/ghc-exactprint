@@ -55,6 +55,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
 
 
 import Control.Monad.State
+import qualified Data.ByteString as B
 import Data.Data (Data, toConstr, showConstr, cast)
 import Data.Generics (extQ, ext1Q, ext2Q, gmapQ)
 import Data.List (intercalate, sortBy, elemIndex)
@@ -328,6 +329,7 @@ showAnnData anns n =
   generic -- `ext1Q` located
           `ext1Q` list
           `extQ` string `extQ` fastString `extQ` srcSpan
+          `extQ` bytestring
           `extQ` name `extQ` occName `extQ` moduleName `extQ` var `extQ` dataCon
           `extQ` overLit
           `extQ` bagName `extQ` bagRdrName `extQ` bagVar `extQ` nameSet
@@ -341,6 +343,7 @@ showAnnData anns n =
         indent i = "\n" ++ replicate i ' '
         string     = show :: String -> String
         fastString = ("{FastString: "++) . (++"}") . show :: GHC.FastString -> String
+        bytestring = show :: B.ByteString -> String
         list l     = indent n ++ "["
                               ++ intercalate "," (map (showAnnData anns (n+1)) l) ++ "]"
 

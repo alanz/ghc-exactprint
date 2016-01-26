@@ -107,7 +107,9 @@ failingTests = testList "Failing tests"
   -- Tests requiring future GHC modifications
     mkTestModBad "InfixOperator.hs"
 
-#if __GLASGOW_HASKELL__ <= 710
+#if __GLASGOW_HASKELL__ > 710
+  , mkTestModBad "overloadedlabelsrun04.hs"
+#else
   , mkTestModBad "UnicodeSyntax.hs"
   , mkTestModBad "UnicodeRules.hs"
   , mkTestModBad "Deprecation.hs"
@@ -160,7 +162,8 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest "ghc8" "export-type.hs"
     -- , mkParserTest "ghc8" "overloadedlabelsrun04.hs"
       -- mkParserTest "ghc710" "RdrNames.hs"
-      mkParserTest "ghc710" "BinDU.hs"
+      -- mkParserTest "ghc710" "BinDU.hs"
+      mkParserTest "ghc8" "T10620.hs"
     -- , mkParserTest "failing" "Deprecation.hs"
     -- , mkParserTest "failing" "MultiLineWarningPragma.hs"
     -- , mkParserTest "failing" "UnicodeRules.hs"
