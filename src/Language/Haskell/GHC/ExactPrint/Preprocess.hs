@@ -187,8 +187,8 @@ getPreprocessedSrcDirectPrim :: (GHC.GhcMonad m)
                               -> m (String, GHC.StringBuffer, GHC.DynFlags)
 getPreprocessedSrcDirectPrim cppOptions src_fn = do
   hsc_env <- GHC.getSession
-  let dfs = GHC.extractDynFlags hsc_env
-      new_env = GHC.replaceDynFlags hsc_env (injectCppOptions cppOptions dfs)
+  let dfs = GHC.hsc_dflags hsc_env
+      new_env = hsc_env { GHC.hsc_dflags = injectCppOptions cppOptions dfs }
   (dflags', hspp_fn) <-
       GHC.liftIO $ GHC.preprocess new_env (src_fn, Just (GHC.Cpp GHC.HsSrcFile))
   buf <- GHC.liftIO $ GHC.hGetStringBuffer hspp_fn
