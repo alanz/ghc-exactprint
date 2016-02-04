@@ -1761,7 +1761,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
   markAST l (GHC.LitPat lp) = markExternal l GHC.AnnVal (hsLit2String lp)
 
   -- NPat (HsOverLit id) (Maybe (SyntaxExpr id)) (SyntaxExpr id)
-#if __GLASGOW_HASKELL__ <= 800
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.NPat ol _ _) = do
 #else
   markAST _ (GHC.NPat ol _ _ _) = do
@@ -1770,7 +1770,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
     markLocated ol
 
   -- NPlusKPat (Located id) (HsOverLit id) (SyntaxExpr id) (SyntaxExpr id)
-#if __GLASGOW_HASKELL__ <= 800
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.NPlusKPat ln ol _ _) = do
 #else
   markAST _ (GHC.NPlusKPat ln ol _ _ _ _) = do
@@ -1903,7 +1903,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
   markAST _ (GHC.LastStmt body _ _) = markLocated body
 #endif
 
-#if __GLASGOW_HASKELL__ <= 800
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.BindStmt pat body _ _) = do
 #else
   markAST _ (GHC.BindStmt pat body _ _ _) = do
@@ -1940,7 +1940,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     mark GHC.AnnVbar -- possible in list comprehension
     markTrailingSemi
 
-#if __GLASGOW_HASKELL__ <= 800
+#if __GLASGOW_HASKELL__ <= 710
   markAST l (GHC.ParStmt pbs _ _) = do
 #else
   markAST l (GHC.ParStmt pbs _ _ _) = do
@@ -1949,7 +1949,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     mark GHC.AnnVbar -- possible in list comprehension
     markTrailingSemi
 
-#if __GLASGOW_HASKELL__ <= 800
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.TransStmt form stmts _b using by _ _ _) = do
 #else
   markAST _ (GHC.TransStmt form stmts _b using by _ _ _ _) = do
@@ -1973,7 +1973,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     mark GHC.AnnVbar -- possible in list comprehension
     markTrailingSemi
 
-#if __GLASGOW_HASKELL__ <= 800
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.RecStmt stmts _ _ _ _ _ _ _ _) = do
 #else
   markAST _ (GHC.RecStmt stmts _ _ _ _ _ _ _ _ _) = do

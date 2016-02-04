@@ -819,7 +819,7 @@ instance HasDecls (GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 #else
   hsDecls (GHC.L _ (GHC.LastStmt e _ _))      = hsDecls e
 #endif
-#if __GLASGOW_HASKELL__ <= 800
+#if __GLASGOW_HASKELL__ <= 710
   hsDecls (GHC.L _ (GHC.BindStmt _pat e _ _)) = hsDecls e
 #else
   hsDecls (GHC.L _ (GHC.BindStmt _pat e _ _ _)) = hsDecls e
@@ -848,7 +848,7 @@ instance HasDecls (GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
         e' <- replaceDecls e newDecls
         return (GHC.L l (GHC.LastStmt e' d se))
 #endif
-#if __GLASGOW_HASKELL__ <= 800
+#if __GLASGOW_HASKELL__ <= 710
   replaceDecls (GHC.L l (GHC.BindStmt pat e a b)) newDecls
     = do
       e' <- replaceDecls e newDecls
