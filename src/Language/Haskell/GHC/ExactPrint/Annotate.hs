@@ -2457,7 +2457,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsType ty) = markLocated ty
 #else
-  markAST _ (GHC.HsType ty) = markLHsWcType ty
+  markAST _ (GHC.HsType ty) = do
+    mark GHC.AnnAt
+    markLHsWcType ty
   markAST _ (GHC.HsTypeOut _) =
     traceM "warning: HsTypeOut introduced after renaming"
 #endif
