@@ -408,7 +408,11 @@ showSDoc_ :: GHC.SDoc -> String
 showSDoc_ = GHC.showSDoc GHC.unsafeGlobalDynFlags
 
 showSDocDebug_ :: GHC.SDoc -> String
+#if __GLASGOW_HASKELL__ <= 710
+showSDocDebug_ = GHC.showSDoc GHC.unsafeGlobalDynFlags
+#else
 showSDocDebug_ = GHC.showSDocDebug GHC.unsafeGlobalDynFlags
+#endif
 
 -- ---------------------------------------------------------------------
 -- Putting these here for the time being, to avoid import loops
