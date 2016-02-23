@@ -347,7 +347,7 @@ showAnnData anns n =
         list l     = indent n ++ "["
                               ++ intercalate "," (map (showAnnData anns (n+1)) l) ++ "]"
 
-        name       = ("{Name: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Name -> String
+        name       = ("{Name: "++) . (++"}") . showSDocDebug_ . GHC.ppr :: GHC.Name -> String
         occName    = ("{OccName: "++) . (++"}") .  OccName.occNameString
         moduleName = ("{ModuleName: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.ModuleName -> String
 
@@ -359,7 +359,7 @@ showAnnData anns n =
                                                  )
                       ++"}"
 
-        var        = ("{Var: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Var -> String
+        var        = ("{Var: "++) . (++"}") . showSDocDebug_ . GHC.ppr :: GHC.Var -> String
         dataCon    = ("{DataCon: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.DataCon -> String
 
         overLit :: GHC.HsOverLit GHC.RdrName -> String
@@ -407,6 +407,8 @@ showAnnData anns n =
 showSDoc_ :: GHC.SDoc -> String
 showSDoc_ = GHC.showSDoc GHC.unsafeGlobalDynFlags
 
+showSDocDebug_ :: GHC.SDoc -> String
+showSDocDebug_ = GHC.showSDocDebug GHC.unsafeGlobalDynFlags
 
 -- ---------------------------------------------------------------------
 -- Putting these here for the time being, to avoid import loops
