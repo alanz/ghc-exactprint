@@ -1418,8 +1418,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       _ -> markLocated name
 #endif
 
-#if __GLASGOW_HASKELL__ <= 710
-#else
+#if __GLASGOW_HASKELL__ > 710
   markAST _ (GHC.HsAppsTy ts) = do
     mapM_ markLocated ts
 #endif

@@ -6,7 +6,6 @@ import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Parsers
 
-
 import qualified Bag            as GHC
 import qualified GHC            as GHC
 import qualified OccName        as GHC

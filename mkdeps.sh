@@ -17,5 +17,6 @@ export PROFILING=
 
 cabal install --allow-newer cpphs # otherwise cpp will fail
 #cabal install  --allow-newer -f-semigroups contravariant
-cabal clean && cabal install   --enable-tests --dependencies-only --allow-newer $PROFILING
+# cabal clean && cabal install   --enable-tests --dependencies-only --allow-newer $PROFILING
+cabal clean && cabal install   --enable-tests --dependencies-only  $PROFILING
 

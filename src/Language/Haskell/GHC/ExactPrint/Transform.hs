@@ -930,6 +930,7 @@ hsDeclsGeneric t = q t
         `SYB.extQ` lstmt
         `SYB.extQ` lhsbind
         `SYB.extQ` lhsbindd
+        `SYB.extQ` llocalbinds
         `SYB.extQ` localbinds
 
     parsedSource (p::GHC.ParsedSource) = hsDecls p
@@ -958,6 +959,11 @@ hsDeclsGeneric t = q t
 
     lhsbindd (GHC.L l (GHC.ValD d)) = lhsbind (GHC.L l d)
     lhsbindd _ = return []
+
+    -- ---------------------------------
+
+    llocalbinds :: GHC.Located (GHC.HsLocalBinds GHC.RdrName) -> Transform [GHC.LHsDecl GHC.RdrName]
+    llocalbinds (GHC.L _ ds) = localbinds ds
 
     -- ---------------------------------
 
