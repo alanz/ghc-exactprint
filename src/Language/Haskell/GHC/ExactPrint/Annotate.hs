@@ -1047,8 +1047,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   -- Introduced after renaming.
   markAST _ (GHC.AbsBinds _ _ _ _ _) =
-    traceM "warning: AbsBind introduced after renaming"
+    traceM "warning: AbsBinds introduced after renaming"
 
+#if __GLASGOW_HASKELL__ > 710
+  -- Introduced after renaming.
+  markAST _ GHC.AbsBindsSig{} =
+    traceM "warning: AbsBindsSig introduced after renaming"
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -1206,7 +1211,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.FixSig (GHC.FixitySig lns (GHC.Fixity v fdir))) = do
 #else
-  markAST _ (GHC.FixSig (GHC.FixitySig lns (GHC.Fixity src v fdir))) = do
+  markAST _ (GHC.FixSig (GHC.FixitySig lns (GHC.Fixity src _v fdir))) = do
 #endif
     let fixstr = case fdir of
          GHC.InfixL -> "infixl"
@@ -1652,8 +1657,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         mark GHC.AnnCloseP
 #endif
 
-#if __GLASGOW_HASKELL__ > 710
-#else
+#if __GLASGOW_HASKELL__ <= 710
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsQuasiQuote name) where
   markAST l (GHC.HsQuasiQuote n _pos fs) = do
@@ -1913,8 +1917,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     mark GHC.AnnVbar -- possible in list comprehension
     markTrailingSemi
 
-#if __GLASGOW_HASKELL__ <= 710
-#else
+#if __GLASGOW_HASKELL__ > 710
   markAST _ GHC.ApplicativeStmt{}
     = error "ApplicativeStmt should not appear in ParsedSource"
 #endif
@@ -2456,11 +2459,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsType ty) = markLocated ty
 #else
-  markAST _ (GHC.HsType ty) = do
+  markAST _ (GHC.HsAppType e ty) = do
+    markLocated e
     mark GHC.AnnAt
     markLHsWcType ty
-  markAST _ (GHC.HsTypeOut _) =
-    traceM "warning: HsTypeOut introduced after renaming"
+  markAST _ (GHC.HsAppTypeOut _ _) =
+    traceM "warning: HsAppTypeOut introduced after renaming"
 #endif
 
   markAST _ (GHC.HsWrap _ _) =
@@ -2648,7 +2652,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   markAST l (GHC.FamDecl famdecl) = markAST l famdecl
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.SynDecl ln (GHC.HsQTvs _ tyvars) typ _) = do
+#else
+  markAST _ (GHC.SynDecl ln (GHC.HsQTvs _ tyvars _) typ _) = do
+#endif
     -- There may be arbitrary parens around parts of the constructor that are
     -- infix.
     -- Turn these into comments so that they feed into the right place automatically
@@ -2663,8 +2671,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLocated typ
     markTrailingSemi
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.DataDecl ln (GHC.HsQTvs _ns tyVars)
                 (GHC.HsDataDefn _ ctx mctyp mk cons mderivs) _) = do
+#else
+  markAST _ (GHC.DataDecl ln (GHC.HsQTvs _ns tyVars _)
+                (GHC.HsDataDefn _ ctx mctyp mk cons mderivs) _ _) = do
+#endif
     mark GHC.AnnData
     mark GHC.AnnNewtype
     markMaybe mctyp
@@ -2683,8 +2696,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   -- -----------------------------------
 
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.ClassDecl ctx ln (GHC.HsQTvs _ns tyVars) fds
                           sigs meths ats atdefs docs _) = do
+#else
+  markAST _ (GHC.ClassDecl ctx ln (GHC.HsQTvs _ns tyVars _) fds
+                          sigs meths ats atdefs docs _) = do
+#endif
     mark GHC.AnnClass
     markLocated ctx
 
@@ -2722,7 +2740,7 @@ instance (GHC.DataId name,Annotate name, GHC.OutputableBndr name,GHC.HasOccName 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.FamilyDecl info ln (GHC.HsQTvs _ tyvars) mkind) = do
 #else
-  markAST _ (GHC.FamilyDecl info ln (GHC.HsQTvs _ tyvars) rsig minj) = do
+  markAST _ (GHC.FamilyDecl info ln (GHC.HsQTvs _ tyvars _) rsig minj) = do
 {-
 data FamilyDecl name = FamilyDecl
   { fdInfo           :: FamilyInfo name              -- type/data, closed/open
@@ -2806,7 +2824,11 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 
 instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName name)
   => Annotate (GHC.TyFamDefltEqn name) where
+#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.TyFamEqn ln (GHC.HsQTvs _ns bndrs) typ) = do
+#else
+  markAST _ (GHC.TyFamEqn ln (GHC.HsQTvs _ns bndrs _) typ) = do
+#endif
     mark GHC.AnnType
     mark GHC.AnnInstance
     applyListAnnotations (prepareListAnnotation [ln]
@@ -2934,7 +2956,11 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 -}
     case mqtvs of
       Nothing -> return ()
+#if __GLASGOW_HASKELL__ <= 710
       Just (GHC.HsQTvs _ns bndrs) -> do
+#else
+      Just (GHC.HsQTvs _ns bndrs _) -> do
+#endif
         mark GHC.AnnForall
         mapM_ markLocated bndrs
         mark GHC.AnnDot

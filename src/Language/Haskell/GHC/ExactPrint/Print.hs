@@ -413,7 +413,11 @@ printQueuedComment Comment{commentContents} dp = do
   when (isGoodDelta (DP (dr,max 0 dc)))
     (do
       printCommentAt (undelta p dp colOffset) commentContents
-      setPos (undelta p (dp `addDP` dpFromString commentContents) colOffset))
+      let commentDP@(DP (cr,_cc)) = dpFromString commentContents
+      if cr == 0
+        then setPos (undelta p (dp `addDP` commentDP) colOffset)
+        else setPos (undelta p (dp `addDP` commentDP) 1)
+      )
 
 -- ---------------------------------------------------------------------
 
@@ -444,7 +448,7 @@ printString layout str = do
 
   if not layout && c == 0
     then lift (epWhitespacePrint str) >>= \s -> tell (EPWriter { output = s})
-    else lift (epTokenPrint str) >>= \s -> tell (EPWriter { output = s})
+    else lift (epTokenPrint      str) >>= \s -> tell (EPWriter { output = s})
 
 
 newLine :: (Monad m, Monoid w) => EP w m ()

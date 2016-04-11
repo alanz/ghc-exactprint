@@ -148,7 +148,7 @@ undelta (l,c) (DP (dl,dc)) (LayoutStartCol co) = (fl,fc)
 addDP :: DeltaPos -> DeltaPos -> DeltaPos
 addDP (DP (a, b)) (DP (c, d)) =
   if c >= 1 then DP (a+c, d)
-            else DP (a, b + d)
+            else DP (a,   b+d)
 
 -- | "Subtract" two @DeltaPos@ from each other, in the sense of calculating the
 -- remaining delta for the second after the first has been applied.
@@ -298,8 +298,8 @@ dpFromString ::  String -> DeltaPos
 dpFromString xs = dpFromString' xs 0 0
   where
     dpFromString' "" line col = DP (line, col)
-    dpFromString' ('\n': cs) line _ = dpFromString' cs (line + 1) 0
-    dpFromString' (_:cs)     line col = dpFromString' cs line (col + 1)
+    dpFromString' ('\n': cs) line _   = dpFromString' cs (line + 1) 0
+    dpFromString' (_:cs)     line col = dpFromString' cs line       (col + 1)
 
 -- ---------------------------------------------------------------------
 
