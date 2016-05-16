@@ -49,6 +49,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , showGhc
   , showAnnData
 
+  , showSDoc_,  showSDocDebug_
   -- AZ's baggage
   , ghead,glast,gtail,gfromJust
   ) where

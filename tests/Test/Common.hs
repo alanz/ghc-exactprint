@@ -12,6 +12,7 @@ module Test.Common (
               , ParseFailure(..)
               , ReportType(..)
               , roundTripTest
+              , mkParsingTest
               , getModSummaryForFile
 
               , testList
@@ -19,6 +20,7 @@ module Test.Common (
               , Changer
               , genTest
               , noChange
+              , mkDebugOutput
               ) where
 
 
@@ -46,6 +48,7 @@ import qualified GHC.LanguageExtensions as LangExt
 
 import qualified Data.Map as Map
 
+import Control.Monad
 import Data.List hiding (find)
 
 import System.Directory
@@ -69,9 +72,9 @@ type Report = Either ParseFailure RoundtripReport
 
 data RoundtripReport =
   Report
-   { debugTxt :: String
-   , status   :: ReportType
-   , cppStatus :: Maybe String -- Result of CPP if invoked
+   { debugTxt     :: String
+   , status       :: ReportType
+   , cppStatus    :: Maybe String -- Result of CPP if invoked
    , inconsistent :: Maybe [(GHC.SrcSpan, (GHC.AnnKeywordId, [GHC.SrcSpan]))]
    }
 
@@ -100,6 +103,22 @@ removeSpaces = map (\case {'\160' -> ' '; s -> s})
 
 roundTripTest :: FilePath -> IO Report
 roundTripTest f = genTest noChange f f
+
+
+mkParsingTest :: (FilePath -> IO Report) -> FilePath -> FilePath -> Test
+mkParsingTest tester dir fp =
+  let basename       = testPrefix </> dir </> fp
+      writeFailure   = writeFile (basename <.> "out")
+      writeHsPP      = writeFile (basename <.> "hspp")
+      writeIncons s  = writeFile (basename <.> "incons") (showGhc s)
+  in
+    TestCase (do r <- either (\(ParseFailure _ s) -> error (s ++ basename)) id
+                        <$> tester basename
+                 writeFailure (debugTxt r)
+                 forM_ (inconsistent r) writeIncons
+                 forM_ (cppStatus r) writeHsPP
+                 assertBool fp (status r == Success))
+
 
 type Changer = (Anns -> GHC.ParsedSource -> IO (Anns,GHC.ParsedSource))
 

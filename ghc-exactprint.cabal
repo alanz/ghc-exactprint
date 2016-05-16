@@ -54,6 +54,7 @@ library
                      , Language.Haskell.GHC.ExactPrint.GhcInterim
                      , Language.Haskell.GHC.ExactPrint.Lookup
                      , Language.Haskell.GHC.ExactPrint.Preprocess
+                     , Language.Haskell.GHC.ExactPrint.Pretty
                      , Language.Haskell.GHC.ExactPrint.Print
                      , Language.Haskell.GHC.ExactPrint.Transform
                      , Language.Haskell.GHC.ExactPrint.Types
@@ -85,7 +86,10 @@ Test-Suite test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      tests
   main-is:             Test.hs
-  other-modules:      Test.Common, Test.Consistency, Test.Transform
+  other-modules:       Test.Common
+                     , Test.Consistency
+                     , Test.NoAnnotations
+                     , Test.Transform
   GHC-Options:         -threaded
   Default-language:    Haskell2010
   if impl (ghc < 7.10.2)

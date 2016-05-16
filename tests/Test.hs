@@ -5,13 +5,7 @@
 -- | Use "runhaskell Setup.hs test" or "cabal test" to run these tests.
 module Main where
 
-import Language.Haskell.GHC.ExactPrint.Utils ( showGhc )
-
--- import qualified FastString     as GHC
--- import qualified GHC            as GHC
-
--- import qualified Data.Generics as SYB
--- import qualified GHC.SYB.Utils as SYB
+-- import Language.Haskell.GHC.ExactPrint.Utils ( showGhc )
 
 import Control.Monad
 import System.Directory
@@ -24,6 +18,7 @@ import Data.List
 import System.IO.Silently
 
 import Test.Common
+import Test.NoAnnotations
 import Test.Transform
 
 import Test.HUnit
@@ -97,7 +92,7 @@ mkTests :: IO Test
 mkTests = do
   -- listTests
   roundTripTests <- findTests
-  return $ TestList [internalTests,roundTripTests, transformTests, failingTests]
+  return $ TestList [internalTests, roundTripTests, transformTests, failingTests, noAnnotationTests ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
 -- future GHC
@@ -121,19 +116,7 @@ failingTests = testList "Failing tests"
 
 
 mkParserTest :: FilePath -> FilePath -> Test
-mkParserTest dir fp =
-  let basename       = testPrefix </> dir </> fp
-      writeFailure   = writeFile (basename <.> "out")
-      writeHsPP      = writeFile (basename <.> "hspp")
-      writeIncons s  = writeFile (basename <.> "incons") (showGhc s)
-  in
-    TestCase (do r <- either (\(ParseFailure _ s) -> error (s ++ basename)) id
-                        <$> roundTripTest basename
-                 writeFailure (debugTxt r)
-                 forM_ (inconsistent r) writeIncons
-                 forM_ (cppStatus r) writeHsPP
-                 assertBool fp (status r == Success))
-
+mkParserTest dir fp = mkParsingTest roundTripTest dir fp
 
 -- ---------------------------------------------------------------------
 
@@ -162,7 +145,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest "ghc8" "export-type.hs"
     -- , mkParserTest "ghc8" "overloadedlabelsrun04.hs"
       -- mkParserTest "ghc710" "RdrNames.hs"
-      mkParserTest "ghc710" "Process1.hs"
+      -- mkParserTest "ghc710" "Process1.hs"
       -- mkParserTest "ghc8" "T10620.hs"
       -- mkParserTest "ghc8" "Vta1.hs"
     -- , mkParserTest "ghc8" "Vta2.hs"
@@ -170,6 +153,8 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest "failing" "MultiLineWarningPragma.hs"
     -- , mkParserTest "failing" "UnicodeRules.hs"
     -- , mkParserTest "failing" "UnicodeSyntax.hs"
+
+      mkPrettyRoundtrip "ghc710" "Process1.hs"
     ]
 
 testsTT :: Test
