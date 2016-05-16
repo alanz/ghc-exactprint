@@ -6,4 +6,4 @@ packages:
 #     commit: 07fa5ff2ae554dcaf9ad93c04e195259be5dddd0
 #   extra-dep: true
 extra-deps: []
-resolver: lts-3.18
+resolver: lts-5.16
