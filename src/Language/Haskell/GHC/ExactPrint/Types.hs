@@ -205,6 +205,7 @@ instance GHC.Outputable DeltaPos where
 -- ---------------------------------------------------------------------
 --
 -- Flag used to control whether we use rigid or normal layout rules.
+-- NOTE: check is done via comparison of enumeration order, be careful with any changes
 data Rigidity = NormalLayout | RigidLayout deriving (Eq, Ord, Show)
 
 declFun :: (forall a . Data a => GHC.Located a -> b) -> GHC.LHsDecl GHC.RdrName -> b

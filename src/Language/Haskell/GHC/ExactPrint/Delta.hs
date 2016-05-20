@@ -1,6 +1,5 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE BangPatterns #-}
 -- |  This module converts 'GHC.ApiAnns' into 'Anns' by traversing a
 -- structure created by the "Annotate" modue.
 --
@@ -86,6 +85,7 @@ import qualified Data.Set as Set
 
 -- import Debug.Trace
 
+{-# ANN module "HLint: ignore Eta reduce" #-}
 
 -- ---------------------------------------------------------------------
 -- | Transform concrete annotations into relative annotations which are
@@ -695,6 +695,7 @@ addEofAnnotation = do
       addAnnDeltaPos (G GHC.AnnEofPos) (DP (r, c - 1))
       setPriorEndAST pa `warn` ("Trailing annotations after Eof: " ++ showGhc pss)
 
+-- ---------------------------------------------------------------------
 
 countAnnsDelta :: GHC.AnnKeywordId -> Delta Int
 countAnnsDelta ann = do
