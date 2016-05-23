@@ -26,6 +26,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   -- * Other
 
   , Rigidity(..)
+  , AstContext(..),AstContextSet(..),defaultACS
 
   -- * Internal Types
   , LayoutStartCol(..)
@@ -36,11 +37,12 @@ module Language.Haskell.GHC.ExactPrint.Types
 
 import Data.Data (Data, Typeable, toConstr,cast)
 
-import qualified DynFlags       as GHC
+import qualified DynFlags      as GHC
 import qualified GHC
 import qualified Outputable    as GHC
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 -- ---------------------------------------------------------------------
 
@@ -207,6 +209,46 @@ instance GHC.Outputable DeltaPos where
 -- Flag used to control whether we use rigid or normal layout rules.
 -- NOTE: check is done via comparison of enumeration order, be careful with any changes
 data Rigidity = NormalLayout | RigidLayout deriving (Eq, Ord, Show)
+
+-- ---------------------------------------------------------------------
+
+data AstContextSet = ACS
+  { acs :: !(Map.Map AstContext Int) -- ^ how many levels each AstContext should
+                                     -- propagate down the AST. Removed when it
+                                     -- hits zero
+  } deriving (Show)
+
+defaultACS = ACS Map.empty
+
+-- mirror of GHC.HsMatchContext
+data AstContext = FunRhs
+                | LambdaExpr
+                | CaseAlt
+                | IfAlt
+                deriving (Eq, Ord, Show)
+
+{-
+data HsMatchContext id  -- Context of a Match
+  = FunRhs id Bool              -- Function binding for f; True <=> written infix
+  | LambdaExpr                  -- Patterns of a lambda
+  | CaseAlt                     -- Patterns and guards on a case alternative
+  | IfAlt                       -- Guards of a multi-way if alternative
+  | ProcExpr                    -- Patterns of a proc
+  | PatBindRhs                  -- A pattern binding  eg [y] <- e = e
+
+  | RecUpd                      -- Record update [used only in DsExpr to
+                                --    tell matchWrapper what sort of
+                                --    runtime error message to generate]
+
+  | StmtCtxt (HsStmtContext id) -- Pattern of a do-stmt, list comprehension,
+                                -- pattern guard, etc
+
+  | ThPatSplice                 -- A Template Haskell pattern splice
+  | ThPatQuote                  -- A Template Haskell pattern quotation [p| (a,b) |]
+  | PatSyn                      -- A pattern synonym declaration
+-}
+
+-- ---------------------------------------------------------------------
 
 declFun :: (forall a . Data a => GHC.Located a -> b) -> GHC.LHsDecl GHC.RdrName -> b
 declFun f (GHC.L l de) =

@@ -42,6 +42,11 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , orderByKey
 
 
+  -- * AST Context management
+  , setAcs
+  , inAcs
+  , pushAcs
+
   -- * For tests
   , debug
   , debugM
@@ -83,6 +88,8 @@ import Control.Arrow
 --import qualified Data.Generics as SYB
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
+import Data.List
 
 import Debug.Trace
 
@@ -321,6 +328,28 @@ rdrName2String r =
 
 name2String :: GHC.Name -> String
 name2String = showGhc
+
+-- ---------------------------------------------------------------------
+
+-- | Put the provided context elements into the existing set with fresh level
+-- counts
+setAcs :: Set.Set AstContext -> AstContextSet -> AstContextSet
+setAcs ctxt (ACS a) = ACS a'
+  where
+    upd s (k,v) = Map.insert k v s
+    a' = foldl' upd a $ zip (Set.toList ctxt) (repeat 2)
+
+-- | Are any of the contexts currently active?
+inAcs :: Set.Set AstContext -> AstContextSet -> Bool
+inAcs ctxt (ACS a) = not $ Set.null $ Set.intersection ctxt (Set.fromList $ Map.keys a)
+
+-- | propagate the ACS down a level, dropping all values which hit zero
+pushAcs :: AstContextSet -> AstContextSet
+pushAcs (ACS a) = ACS $ Map.mapMaybe f a
+  where
+    f n
+      | n <= 1    = Nothing
+      | otherwise = Just (n - 1)
 
 -- ---------------------------------------------------------------------
 

@@ -48,12 +48,15 @@ import qualified FastString     as GHC
 import qualified ForeignCall    as GHC
 import qualified GHC            as GHC
 import qualified OccName        as GHC
+import qualified RdrName        as GHC
 import qualified Outputable     as GHC
 
 import Control.Monad.Trans.Free
 import Control.Monad.Free.TH (makeFreeCon)
 import Control.Monad.Identity
 import Data.Data
+
+import qualified Data.Set as Set
 
 import Debug.Trace
 
@@ -123,6 +126,13 @@ data AnnotationF next where
 #endif
   AnnotationsToComments :: [GHC.AnnKeywordId]           -> next -> AnnotationF next
 
+  -- AZ experimenting with pretty printing
+  -- Set the context for child element
+  SetContext   :: Set.Set AstContext -> Annotated ()    -> next -> AnnotationF next
+  -- Query the context while in a child element
+  InContext    :: Set.Set AstContext -> Annotated ()    -> next -> AnnotationF next
+  NotInContext :: Set.Set AstContext -> Annotated ()    -> next -> AnnotationF next
+
 deriving instance Functor (AnnotationF)
 
 type Annotated = FreeT AnnotationF Identity
@@ -145,6 +155,9 @@ makeFreeCon  'StoreString
 #endif
 makeFreeCon  'AnnotationsToComments
 makeFreeCon  'WithSortKey
+makeFreeCon  'SetContext
+makeFreeCon  'InContext
+makeFreeCon  'NotInContext
 
 -- ---------------------------------------------------------------------
 
@@ -217,6 +230,15 @@ withLocated a@(GHC.L l ast) action =
 
 -- ---------------------------------------------------------------------
 
+markLocatedPushContext :: (Annotate ast) => Set.Set AstContext -> GHC.Located ast -> Annotated ()
+markLocatedPushContext ctxt ast = do
+  -- TODO:AZ: make this an if statement
+  inContext ctxt $ do setContext ctxt (markLocated ast)
+
+  notInContext ctxt $ do markLocated ast
+
+-- ---------------------------------------------------------------------
+
 markListWithLayout :: Annotate ast => [GHC.Located ast] -> Annotated ()
 markListWithLayout ls =
   setLayoutFlag (mapM_ markLocated ls)
@@ -271,15 +293,16 @@ instance Annotate (GHC.HsModule GHC.RdrName) where
         mark GHC.AnnModule
         markExternal ln GHC.AnnVal (GHC.moduleNameString mn)
 
-    case mdepr of
-      Nothing -> return ()
-      Just depr -> markLocated depr
+        case mdepr of
+          Nothing -> return ()
+          Just depr -> markLocated depr
 
-    case mexp of
-      Nothing   -> return ()
-      Just expr -> markLocated expr
+        case mexp of
+          Nothing   -> return ()
+          Just expr -> markLocated expr
 
-    mark GHC.AnnWhere
+        mark GHC.AnnWhere
+
     mark GHC.AnnOpenC -- Possible '{'
     markMany GHC.AnnSemi -- possible leading semis
     mapM_ markLocated imps
@@ -452,7 +475,7 @@ instance Annotate GHC.RdrName where
         let str' = case str of
                         "forall" -> if spanLength l == 1 then "∀" else str
                         _ -> str
-        mark GHC.AnnType
+        when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ mark GHC.AnnType
         mark GHC.AnnOpenP -- '('
         markOffset GHC.AnnBackquote 0
         cnt  <- countAnns GHC.AnnVal
@@ -1121,16 +1144,22 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #endif
 
     -- TODO: The AnnEqual annotation actually belongs in the first GRHS value
-    mark GHC.AnnEqual
-    mark GHC.AnnRarrow -- For HsLam
+    case grhs of
+      (GHC.L _ (GHC.GRHS [] _):_) -> mark GHC.AnnEqual
+      _ -> return ()
+    inContext (Set.fromList [LambdaExpr,CaseAlt]) $ do mark GHC.AnnRarrow -- For HsLam
 
     mapM_ markLocated grhs
+    -- mapM_ (markLocatedPushContext (Set.singleton LambdaExpr)) grhs
 
-    mark GHC.AnnWhere
-    mark GHC.AnnOpenC -- '{'
-    markInside GHC.AnnSemi
-    markLocalBindsWithLayout lb
-    mark GHC.AnnCloseC -- '}'
+    case lb of
+      GHC.EmptyLocalBinds -> return ()
+      _ -> do
+        mark GHC.AnnWhere
+        mark GHC.AnnOpenC -- '{'
+        markInside GHC.AnnSemi
+        markLocalBindsWithLayout lb
+        mark GHC.AnnCloseC -- '}'
     markTrailingSemi
 
 -- ---------------------------------------------------------------------
@@ -1143,9 +1172,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,
       [] -> return ()
       (_:_) -> mark GHC.AnnVbar >> mapM_ markLocated guards
     mark GHC.AnnEqual
-    cntL <- countAnns GHC.AnnLam
-    cntP <- countAnns GHC.AnnProc
-    when (cntL == 0 && cntP == 0) $ mark GHC.AnnRarrow -- For HsLam
+    -- cntL <- countAnns GHC.AnnLam
+    -- cntP <- countAnns GHC.AnnProc
+    -- when (cntL == 0 && cntP == 0) $ mark GHC.AnnRarrow -- For HsLam
+    notInContext (Set.fromList [LambdaExpr]) $ mark GHC.AnnRarrow -- For HsLam
+    inContext (Set.fromList [CaseAlt]) $ mark GHC.AnnRarrow -- For HsLam
     markLocated expr
 
 -- ---------------------------------------------------------------------
@@ -2056,15 +2087,16 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST l (GHC.HsIPVar (GHC.HsIPName v))         =
     markExternal l GHC.AnnVal ("?" ++ GHC.unpackFS v)
   markAST l (GHC.HsOverLit ov)     = markAST l ov
-  markAST l (GHC.HsLit lit)           = markAST l lit
+  markAST l (GHC.HsLit lit)        = markAST l lit
 
-  markAST _ (GHC.HsLam match)       = do
+  markAST _ (GHC.HsLam match) = do
     mark GHC.AnnLam
+    setContext (Set.singleton LambdaExpr) $ do
     -- TODO: Change this, HsLam binds do not need obey layout rules.
 #if __GLASGOW_HASKELL__ <= 710
-    mapM_ markLocated (GHC.mg_alts match)
+      mapM_ markLocated (GHC.mg_alts match)
 #else
-    mapM_ markLocated (GHC.unLoc $ GHC.mg_alts match)
+      mapM_ markLocated (GHC.unLoc $ GHC.mg_alts match)
 #endif
 
   markAST l (GHC.HsLamCase _ match) = do
@@ -2116,7 +2148,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnOf
     mark GHC.AnnOpenC
     markInside GHC.AnnSemi
-    markMatchGroup l matches
+    setContext (Set.singleton CaseAlt) $ do markMatchGroup l matches
     mark GHC.AnnCloseC
 
   -- We set the layout for HsIf even though it need not obey layout rules as
@@ -2576,7 +2608,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   markAST l (GHC.HsCmdLam match) = do
     mark GHC.AnnLam
-    markMatchGroup l match
+    -- markMatchGroup l match
+    setContext (Set.singleton LambdaExpr) $ do markMatchGroup l match
 
   markAST _ (GHC.HsCmdPar e) = do
     mark GHC.AnnOpenP

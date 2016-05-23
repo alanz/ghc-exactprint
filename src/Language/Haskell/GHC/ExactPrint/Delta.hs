@@ -59,6 +59,7 @@ module Language.Haskell.GHC.ExactPrint.Delta
   , normalLayout
   ) where
 
+-- import Control.Exception
 import Control.Monad.RWS
 import Control.Monad.Trans.Free
 
@@ -139,17 +140,21 @@ runDeltaWithComments opts cs action ga priorEnd =
 
 -- ---------------------------------------------------------------------
 
+-- TODO: rename this, it is the R part of the RWS
 data DeltaOptions = DeltaOptions
        {
          -- | Current `SrcSpan, part of current AnnKey`
-         curSrcSpan  :: !GHC.SrcSpan
+         curSrcSpan :: !GHC.SrcSpan
 
          -- | Constuctor of current AST element, part of current AnnKey
-       , annConName       :: !AnnConName
+       , annConName :: !AnnConName
 
         -- | Whether to use rigid or normal layout rules
-       , drRigidity :: Rigidity
+       , drRigidity :: !Rigidity
 
+       -- | Current higher level context. e.g. whether a Match is part of a
+       -- LambdaExpr or a FunBind
+       , drContext :: !AstContextSet
        }
 
 data DeltaWriter = DeltaWriter
@@ -186,6 +191,7 @@ deltaOptions ridigity =
     { curSrcSpan = GHC.noSrcSpan
     , annConName = annGetConstr ()
     , drRigidity = ridigity
+    , drContext  = defaultACS
     }
 
 normalLayout :: DeltaOptions
@@ -258,6 +264,10 @@ deltaInterpret = iterTM go
     go (AnnotationsToComments kws next)  = annotationsToCommentsDelta kws >> next
     go (WithSortKey kws next)            = withSortKey kws >> next
 
+    go (SetContext   ctxt action next)   = setContextDelta ctxt (deltaInterpret action) >> next
+    go (InContext    ctxt action next)   = inContextDelta ctxt action >> next
+    go (NotInContext ctxt action next)   = notInContextDelta ctxt action >> next
+
 withSortKey :: [(GHC.SrcSpan, Annotated b)] -> Delta ()
 withSortKey kws =
   let order = sortBy (comparing fst) kws
@@ -275,6 +285,23 @@ setLayoutFlag action = do
                                 , apLayoutStart = oldLay })
   action <* reset
 
+-- ---------------------------------------------------------------------
+
+setContextDelta :: Set.Set AstContext -> Delta () -> Delta ()
+setContextDelta ctxt =
+  local (\s -> s { drContext = setAcs ctxt (drContext s) } )
+
+inContextDelta :: Set.Set AstContext -> Annotated () -> Delta ()
+inContextDelta ctxt action = do
+  cur <- asks drContext
+  let inContext = inAcs ctxt cur
+  when inContext (deltaInterpret action)
+
+notInContextDelta :: Set.Set AstContext -> Annotated () -> Delta ()
+notInContextDelta ctxt action = do
+  cur <- asks drContext
+  let notInContext = not $ inAcs ctxt cur
+  when notInContext (deltaInterpret action)
 
 -- ---------------------------------------------------------------------
 
@@ -328,6 +355,7 @@ withSrcSpanDelta :: Data a => GHC.Located a -> Delta b -> Delta b
 withSrcSpanDelta (GHC.L l a) =
   local (\s -> s { curSrcSpan = l
                  , annConName = annGetConstr a
+                 , drContext = pushAcs (drContext s)
                  })
 
 
@@ -504,7 +532,9 @@ withAST lss@(GHC.L ss _) action = do
 resetAnns :: Delta a -> Delta a
 resetAnns action = do
   ans <- gets apAnns
-  action <* modify (\s -> s { apAnns = ans })
+  -- action <* modify (\s -> s { apAnns = ans })
+  modify (\s -> s { apAnns = ans })
+  action
 
 
 -- ---------------------------------------------------------------------

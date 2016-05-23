@@ -31,6 +31,7 @@ import Language.Haskell.GHC.ExactPrint.Annotate
   (AnnotationF(..), Annotated, Annotate(..), annotate)
 import Language.Haskell.GHC.ExactPrint.Lookup
 
+import Control.Exception
 import Control.Monad.Identity
 import Control.Monad.RWS
 import Control.Monad.Trans.Free
@@ -38,6 +39,8 @@ import Data.Data (Data)
 import Data.List (sortBy, elemIndex)
 import Data.Maybe (fromMaybe)
 import Data.Ord (comparing)
+
+import qualified Data.Set as Set
 
 import qualified GHC
 
@@ -73,6 +76,7 @@ data PrintOptions m a = PrintOptions
             , epTokenPrint :: String -> m a
             , epWhitespacePrint :: String -> m a
             , epRigidity :: Rigidity
+            , epContext :: !AstContextSet
             }
 
 -- | Helper to create a 'PrintOptions'
@@ -89,6 +93,7 @@ printOptions astPrint tokenPrint wsPrint rigidity = PrintOptions
              , epWhitespacePrint = wsPrint
              , epTokenPrint = tokenPrint
              , epRigidity = rigidity
+             , epContext = defaultACS
              }
 
 -- | Options which can be used to print as a normal String.
@@ -179,6 +184,14 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
     go (AnnotationsToComments _ next) = next
     go (WithSortKey ks next) = withSortKey ks >> next
 
+    go (SetContext r action next)   = printInterpret action >> next
+    go (InContext r action next)    = printInterpret action >> next
+    go (NotInContext r action next) = printInterpret action >> next
+
+    go (SetContext   ctxt action next)   = setContextPrint ctxt (printInterpret action) >> next
+    go (InContext    ctxt action next)   = inContextPrint ctxt action >> next
+    go (NotInContext ctxt action next)   = notInContextPrint ctxt action >> next
+
 -------------------------------------------------------------------------
 
 storeOriginalSrcSpanPrint :: (Monad m, Monoid w) => EP w m AnnKey
@@ -215,7 +228,25 @@ withSortKey xs = do
                                          )
   mapM_ printInterpret ordered
 
--------------------------------------------------------------------------
+-- ---------------------------------------------------------------------
+
+setContextPrint :: (Monad m, Monoid w) => Set.Set AstContext -> EP w m () -> EP w m ()
+setContextPrint ctxt =
+  local (\s -> s { epContext = setAcs ctxt (epContext s) } )
+
+inContextPrint :: (Monad m, Monoid w) => Set.Set AstContext -> Annotated () -> EP w m ()
+inContextPrint ctxt action = do
+  cur <- asks epContext
+  let inContext = inAcs ctxt cur
+  when inContext (printInterpret action)
+
+notInContextPrint :: (Monad m, Monoid w) => Set.Set AstContext -> Annotated () -> EP w m ()
+notInContextPrint ctxt action = do
+  cur <- asks epContext
+  let notInContext = not $ inAcs ctxt cur
+  when notInContext (printInterpret action)
+
+-- ---------------------------------------------------------------------
 
 allAnns :: (Monad m, Monoid w) => GHC.AnnKeywordId -> EP w m ()
 allAnns kwid = printStringAtMaybeAnnAll (G kwid) Nothing
@@ -277,7 +308,7 @@ withContext kds an x = withKds kds (withOffset an x)
 --
 withOffset :: (Monad m, Monoid w) => Annotation -> (EP w m a -> EP w m a)
 withOffset a =
-  local (\s -> s { epAnn = a })
+  local (\s -> s { epAnn = a, epContext = pushAcs (epContext s) })
 
 
 -- ---------------------------------------------------------------------

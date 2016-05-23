@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -14,48 +15,30 @@
 
 module Language.Haskell.GHC.ExactPrint.Pretty
         (
-        addAnnotationsPretty
+        addAnnotationsForPretty
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Annotate
-  (AnnotationF(..), Annotated, Annotate(..), annotate)
-import Language.Haskell.GHC.ExactPrint.Lookup
 
+import Control.Exception
 import Control.Monad.Identity
 import Control.Monad.RWS
 import Control.Monad.Trans.Free
 import Data.Data (Data)
-import Data.List (sortBy, elemIndex)
-import Data.Maybe (fromMaybe)
-import Data.Ord (comparing)
-
-import qualified GHC
-
-import Control.Monad.RWS
-import Control.Monad.Trans.Free
-
-import Data.Data (Data)
-import Data.List (sort, nub, partition, sortBy)
-
+import Data.List
 import Data.Ord
 
-import Language.Haskell.GHC.ExactPrint.Utils
 #if __GLASGOW_HASKELL__ <= 710
 import Language.Haskell.GHC.ExactPrint.Lookup
 #endif
-import Language.Haskell.GHC.ExactPrint.Types
-import Language.Haskell.GHC.ExactPrint.Annotate (AnnotationF(..), Annotated
-                                                , annotate, Annotate(..))
 
 import qualified GHC
 import qualified SrcLoc        as GHC
 
 import qualified Data.Map as Map
-#if __GLASGOW_HASKELL__ <= 710
 import qualified Data.Set as Set
-#endif
 
 -- import Debug.Trace
 
@@ -65,18 +48,21 @@ import qualified Data.Set as Set
 
 -- |Add any missing annotations so that the full AST element will exactprint
 -- properly when done.
-addAnnotationsPretty :: (Data a) => [Comment] -> a -> Anns -> Anns
-addAnnotationsPretty cs ast = mempty
+addAnnotationsForPretty :: (Annotate a) => [Comment] -> GHC.Located a -> Anns -> Anns
+addAnnotationsForPretty cs ast ans
+  = runPrettyWithComments opts cs (annotate ast) ans (0,0)
+  where
+    opts = prettyOptions NormalLayout
 
 -- ---------------------------------------------------------------------
 --
 -- | Type used in the Pretty Monad.
 type Pretty a = RWS PrettyOptions PrettyWriter PrettyState a
 
-runPrettyWithComments :: PrettyOptions -> [Comment] -> Annotated () -> GHC.ApiAnns -> Pos -> Anns
-runPrettyWithComments opts cs action ga priorEnd =
+runPrettyWithComments :: PrettyOptions -> [Comment] -> Annotated () -> Anns -> Pos -> Anns
+runPrettyWithComments opts cs action ans priorEnd =
   mkAnns . snd
-  . (\next -> execRWS next opts (defaultPrettyState cs priorEnd ga))
+  . (\next -> execRWS next opts (defaultPrettyState cs priorEnd ans))
   . prettyInterpret $ action
   where
     mkAnns :: PrettyWriter -> Anns
@@ -86,6 +72,7 @@ runPrettyWithComments opts cs action ga priorEnd =
 
 -- ---------------------------------------------------------------------
 
+-- TODO: rename this, it is the R part of the RWS
 data PrettyOptions = PrettyOptions
        {
          -- | Current `SrcSpan, part of current AnnKey`
@@ -95,8 +82,11 @@ data PrettyOptions = PrettyOptions
        , annConName       :: !AnnConName
 
         -- | Whether to use rigid or normal layout rules
-       , drRigidity :: Rigidity
+       , drRigidity :: !Rigidity
 
+       -- | Current higher level context. e.g. whether a Match is part of a
+       -- LambdaExpr or a FunBind
+       , prContext :: !AstContextSet
        }
 
 data PrettyWriter = PrettyWriter
@@ -138,23 +128,26 @@ prettyOptions ridigity =
     { curSrcSpan = GHC.noSrcSpan
     , annConName = annGetConstr ()
     , drRigidity = ridigity
+    , prContext  = defaultACS
     }
 
 normalLayout :: PrettyOptions
 normalLayout = prettyOptions NormalLayout
 
-defaultPrettyState :: [Comment] -> Pos -> GHC.ApiAnns -> PrettyState
-defaultPrettyState injectedComments priorEnd ga =
+defaultPrettyState :: [Comment] -> Pos -> Anns -> PrettyState
+defaultPrettyState injectedComments priorEnd ans =
     PrettyState
       { priorEndPosition    = priorEnd
       , apComments = cs ++ injectedComments
-      , apAnns     = ga
+      -- , apAnns     = ga
+      , apAnns     = mempty
       , apLayoutStart = 1
       , apMarkLayout = False
       }
   where
     cs :: [Comment]
-    cs = flattenedComments ga
+    -- cs = flattenedComments ga
+    cs = []
 
     flattenedComments :: GHC.ApiAnns -> [Comment]
     flattenedComments (_,cm) =
@@ -169,7 +162,7 @@ prettyInterpret = iterTM go
     go :: AnnotationF (Pretty a) -> Pretty a
     go (MarkPrim kwid _ next)           = addPrettyAnnotation kwid >> next
     go (MarkEOF next)                   = addEofAnnotation >> next
-    go (MarkExternal ss akwid _ next)   = addPrettyAnnotationExt ss akwid >> next
+    go (MarkExternal ss akwid _ next)   = addPrettyAnnotation akwid >> next
     go (MarkOutside akwid kwid next)    = addPrettyAnnotationsOutside akwid kwid >> next
     go (MarkInside akwid next)          = addPrettyAnnotationsInside akwid >> next
     go (MarkMany akwid next)            = addPrettyAnnotations akwid >> next
@@ -188,20 +181,23 @@ prettyInterpret = iterTM go
 #endif
     go (AnnotationsToComments kws next) = annotationsToCommentsPretty kws >> next
 
+    go (SetContext   ctxt action next)  = setContextPretty ctxt (prettyInterpret action) >> next
+    go (InContext    ctxt action next)  = inContextPretty ctxt action >> next
+    go (NotInContext ctxt action next)  = notInContextPretty ctxt action >> next
+
 -- ---------------------------------------------------------------------
 
 addEofAnnotation :: Pretty ()
-addEofAnnotation = return ()
+addEofAnnotation = tellKd (G GHC.AnnEofPos, DP (1,0))
 
 -- ---------------------------------------------------------------------
 
 addPrettyAnnotation :: GHC.AnnKeywordId -> Pretty ()
-addPrettyAnnotation ann' = return ()
-
--- ---------------------------------------------------------------------
-
-addPrettyAnnotationExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> Pretty ()
-addPrettyAnnotationExt s ann = return ()
+addPrettyAnnotation ann =
+  case ann of
+    GHC.AnnVal   -> tellKd (G ann,DP (0,1))
+    GHC.AnnWhere -> tellKd (G ann,DP (0,1))
+    _ ->            tellKd (G ann,DP (0,0))
 
 -- ---------------------------------------------------------------------
 
@@ -225,16 +221,64 @@ addPrettyAnnotationLs ann off = return ()
 
 -- ---------------------------------------------------------------------
 
+withSrcSpanPretty :: Data a => GHC.Located a -> Pretty b -> Pretty b
+withSrcSpanPretty (GHC.L l a) =
+  local (\s -> s { curSrcSpan = l
+                 , annConName = annGetConstr a
+                 , prContext = pushAcs (prContext s)
+                 })
+
+-- ---------------------------------------------------------------------
+
 -- | Enter a new AST element. Maintain SrcSpan stack
 withAST :: Data a
         => GHC.Located a
         -> Pretty b -> Pretty b
-withAST lss@(GHC.L ss _) action = undefined
+withAST lss@(GHC.L ss _) action = do
+  -- Calculate offset required to get to the start of the SrcSPan
+  off <- gets apLayoutStart
+  withSrcSpanPretty lss $ do
+
+    let maskWriter s = s { annKds = []
+                         , sortKeys = Nothing
+                         , dwCapturedSpan = mempty
+                         }
+
+    let spanStart = ss2pos ss
+        edp = DP (0,0)
+
+    let cs = []
+    (res, w) <- censor maskWriter (listen action)
+
+    let kds = annKds w
+        an = Ann
+               { annEntryDelta = edp
+               , annPriorComments = cs
+               , annFollowingComments = [] -- only used in Transform and Print
+               , annsDP     = kds
+               , annSortKey = sortKeys w
+               , annCapturedSpan = getFirst $ dwCapturedSpan w }
+
+    addAnnotationsPretty an
+     `debug` ("leaveAST:(annkey,an)=" ++ show (mkAnnKey lss,an))
+    return res
+
+-- ---------------------------------------------------------------------
+
+-- |Add some annotation to the currently active SrcSpan
+addAnnotationsPretty :: Annotation -> Pretty ()
+addAnnotationsPretty ann = do
+    l <- ask
+    tellFinalAnn (getAnnKey l,ann)
+
+getAnnKey :: PrettyOptions -> AnnKey
+getAnnKey PrettyOptions {curSrcSpan, annConName}
+  = AnnKey curSrcSpan annConName
 
 -- ---------------------------------------------------------------------
 
 countAnnsPretty :: GHC.AnnKeywordId -> Pretty Int
-countAnnsPretty ann = undefined
+countAnnsPretty ann = return 0
 
 -- ---------------------------------------------------------------------
 
@@ -249,7 +293,7 @@ storeOriginalSrcSpanPretty key = return key
 -- ---------------------------------------------------------------------
 
 getSrcSpanForKw :: GHC.AnnKeywordId -> Pretty GHC.SrcSpan
-getSrcSpanForKw kw = undefined
+getSrcSpanForKw kw = assert False undefined
 
 -- ---------------------------------------------------------------------
 
@@ -265,7 +309,34 @@ setLayoutFlag action = return ()
 
 -- ---------------------------------------------------------------------
 
+setContextPretty :: Set.Set AstContext -> Pretty () -> Pretty ()
+setContextPretty ctxt =
+  local (\s -> s { prContext = setAcs ctxt (prContext s) } )
+
+inContextPretty :: Set.Set AstContext -> Annotated () -> Pretty ()
+inContextPretty ctxt action = do
+  cur <- asks prContext
+  let inContext = inAcs ctxt cur
+  when inContext (prettyInterpret action)
+
+notInContextPretty :: Set.Set AstContext -> Annotated () -> Pretty ()
+notInContextPretty ctxt action = do
+  cur <- asks prContext
+  let notInContext = not $ inAcs ctxt cur
+  when notInContext (prettyInterpret action)
+
+-- ---------------------------------------------------------------------
+
 annotationsToCommentsPretty :: [GHC.AnnKeywordId] -> Pretty ()
 annotationsToCommentsPretty kws = return ()
 
 -- ---------------------------------------------------------------------
+
+-- Writer helpers
+
+tellFinalAnn :: (AnnKey, Annotation) -> Pretty ()
+tellFinalAnn (k, v) =
+  tell (mempty { dwAnns = Endo (Map.insert k v) })
+
+tellKd :: (KeywordId, DeltaPos) -> Pretty ()
+tellKd kd = tell (mempty { annKds = [kd] })

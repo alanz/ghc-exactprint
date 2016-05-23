@@ -90,11 +90,16 @@ prettyRoundtripTest origFile = do
               let
                 originalStructure  = astStructure parsed []
                 roundtripStructure = astStructure parsed' []
-                (status,debugTxt) = if roundtripStructure == originalStructure
+                (status,debugTxt') = if roundtripStructure == originalStructure
                   then (Success, "ok")
                   else (RoundTripFailure,diffText originalStructure roundtripStructure)
                 cppStatus = Nothing
                 inconsistent = Nothing
+                !annsOrig = relativiseApiAnnsWithComments injectedComments parsed apianns
+                debugTxt = intercalate sep [debugTxt'
+                                           ,showAnnData annsOrig 0 parsed
+                                           ]
+                sep = "\n=====================================\n"
               return $ Right Report {debugTxt,status,cppStatus,inconsistent}
 
 -- ---------------------------------------------------------------------
@@ -103,18 +108,19 @@ runPrettyRoundTrip :: FilePath -> GHC.ApiAnns -> GHC.ParsedSource
                    -> [Comment]
                    -> IO (Either (GHC.SrcSpan, String)(Anns, GHC.ParsedSource))
 runPrettyRoundTrip origFile !anns !parsedOrig cs = do
-  let !newAnns = addAnnotationsPretty cs parsedOrig mempty
+  let !newAnns = addAnnotationsForPretty cs parsedOrig mempty
   let !printed = exactPrint parsedOrig newAnns
-  parseString origFile printed
+  parseString origFile printed newAnns
 
 
-parseString :: FilePath -> String
+parseString :: FilePath -> String -> Anns
             -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource))
-parseString origFile src = do
+parseString origFile src newAnns = do
   tmpDir <- getTemporaryDirectory
   let workDir = tmpDir </> "ghc-exactprint" </> "noannotations"
   createDirectoryIfMissing True workDir
   let fileName = workDir </> takeFileName origFile
+  writeFile (workDir </> takeFileName origFile <.> ".anns") (showGhc newAnns)
   writeFile fileName src
   parseModule fileName
 
