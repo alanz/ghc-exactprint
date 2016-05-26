@@ -1131,6 +1131,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         mapM_ markLocated xs
       _ -> do
         annotationsToComments [GHC.AnnOpenP,GHC.AnnCloseP]
+        inContext (Set.fromList [LambdaExpr]) $ do mark GHC.AnnLam -- For HsLam
 #if __GLASGOW_HASKELL__ <= 710
         case mln of
           Nothing -> mark GHC.AnnFunId
@@ -1175,7 +1176,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,
     -- cntL <- countAnns GHC.AnnLam
     -- cntP <- countAnns GHC.AnnProc
     -- when (cntL == 0 && cntP == 0) $ mark GHC.AnnRarrow -- For HsLam
-    notInContext (Set.fromList [LambdaExpr]) $ mark GHC.AnnRarrow -- For HsLam
+    -- notInContext (Set.fromList [LambdaExpr]) $ mark GHC.AnnRarrow -- For HsLam
     inContext (Set.fromList [CaseAlt]) $ mark GHC.AnnRarrow -- For HsLam
     markLocated expr
 
@@ -2090,7 +2091,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST l (GHC.HsLit lit)        = markAST l lit
 
   markAST _ (GHC.HsLam match) = do
-    mark GHC.AnnLam
+    -- mark GHC.AnnLam
     setContext (Set.singleton LambdaExpr) $ do
     -- TODO: Change this, HsLam binds do not need obey layout rules.
 #if __GLASGOW_HASKELL__ <= 710
@@ -2103,7 +2104,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnLam
     mark GHC.AnnCase
     mark GHC.AnnOpenC
-    markMatchGroup l match
+    setContext (Set.singleton CaseAlt) $ do
+      markMatchGroup l match
     mark GHC.AnnCloseC
 
   markAST _ (GHC.HsApp e1 e2) = do

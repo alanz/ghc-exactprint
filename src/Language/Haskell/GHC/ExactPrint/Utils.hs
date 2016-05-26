@@ -337,7 +337,7 @@ setAcs :: Set.Set AstContext -> AstContextSet -> AstContextSet
 setAcs ctxt (ACS a) = ACS a'
   where
     upd s (k,v) = Map.insert k v s
-    a' = foldl' upd a $ zip (Set.toList ctxt) (repeat 2)
+    a' = foldl' upd a $ zip (Set.toList ctxt) (repeat 3)
 
 -- | Are any of the contexts currently active?
 inAcs :: Set.Set AstContext -> AstContextSet -> Bool
