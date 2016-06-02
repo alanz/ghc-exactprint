@@ -24,3 +24,5 @@
 /origfailures.txt
 /hackage-roundtrip-work
 /roundtrip-work
+.cabal-sandbox/
+cabal.sandbox.config

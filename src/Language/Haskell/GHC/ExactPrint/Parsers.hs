@@ -17,6 +17,7 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
 
         -- * Module Parsers
         , parseModule
+        , parseModuleFromString
         , parseModuleWithOptions
         , parseModuleWithCpp
 
@@ -155,6 +156,21 @@ parseModule :: FilePath
                           (Anns, GHC.ParsedSource))
 parseModule = parseModuleWithCpp defaultCppOptions normalLayout
 
+-- | This entry point will work out which language extensions are
+-- required but will _not_ perform CPP processing.
+-- In contrast to `parseModoule` the input source is read from the provided
+-- string; the `FilePath` parameter solely exists to provide a name
+-- in source location annotations.
+parseModuleFromString :: FilePath
+                      -> String
+                      -> IO (Either (GHC.SrcSpan, String)
+                                    (Anns, GHC.ParsedSource))
+parseModuleFromString fp s = do
+  GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
+    GHC.runGhc (Just libdir) $ do
+      dflags <- initDynFlagsPure fp s
+      return $ parseWith dflags fp GHC.parseModule s
+
 parseModuleWithOptions :: DeltaOptions
                        -> FilePath
                        -> IO (Either (GHC.SrcSpan, String)
@@ -215,6 +231,27 @@ initDynFlags file = do
   src_opts <- GHC.liftIO $ GHC.getOptionsFromFile dflags0 file
   (dflags1, _, _)
     <- GHC.parseDynamicFilePragma dflags0 src_opts
+  -- Turn this on last to avoid T10942
+  let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
+  void $ GHC.setSessionDynFlags dflags2
+  return dflags2
+
+-- | Requires GhcMonad constraint because there is
+-- no pure variant of `parseDynamicFilePragma`. Yet, in constrast to
+-- `initDynFlags`, it does not (try to) read the file at filepath, but
+-- solely depends on the module source in the input string.
+initDynFlagsPure :: GHC.GhcMonad m => FilePath -> String -> m GHC.DynFlags
+initDynFlagsPure fp s = do
+  -- I was told we could get away with using the unsafeGlobalDynFlags.
+  -- as long as `parseDynamicFilePragma` is impure there seems to be
+  -- no reason to use it.
+  dflags0 <- GHC.getSessionDynFlags
+  let pragmaInfo = GHC.getOptions
+        dflags0
+        (GHC.stringToStringBuffer $ s)
+        fp
+  (dflags1, _, _)
+    <- GHC.parseDynamicFilePragma dflags0 pragmaInfo
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
   void $ GHC.setSessionDynFlags dflags2
