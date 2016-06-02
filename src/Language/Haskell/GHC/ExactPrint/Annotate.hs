@@ -1146,7 +1146,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
     -- TODO: The AnnEqual annotation actually belongs in the first GRHS value
     case grhs of
-      (GHC.L _ (GHC.GRHS [] _):_) -> mark GHC.AnnEqual
+      (GHC.L _ (GHC.GRHS [] _):_) -> mark GHC.AnnEqual -- empty guards
       _ -> return ()
     inContext (Set.fromList [LambdaExpr,CaseAlt]) $ do mark GHC.AnnRarrow -- For HsLam
 
@@ -2170,7 +2170,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsMultiIf _ rhs) = do
     mark GHC.AnnIf
     mark GHC.AnnOpenC
-    mapM_ markLocated rhs
+    setContext (Set.singleton CaseAlt) $ do
+      mapM_ markLocated rhs
     mark GHC.AnnCloseC
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -2623,7 +2624,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLocated e1
     mark GHC.AnnOf
     mark GHC.AnnOpenC
-    markMatchGroup l matches
+    setContext (Set.singleton CaseAlt) $ do
+      markMatchGroup l matches
     mark GHC.AnnCloseC
 
   markAST _ (GHC.HsCmdIf _ e1 e2 e3) = do

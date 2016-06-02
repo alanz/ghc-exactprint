@@ -155,14 +155,14 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest "failing" "UnicodeSyntax.hs"
 
       -- mkPrettyRoundtrip "ghc710" "Process1.hs"
-    --   mkPrettyRoundtrip "ghc710" "ModuleOnly.hs"
-    -- , mkPrettyRoundtrip "ghc710" "Simple.hs"
+      mkPrettyRoundtrip "ghc710" "ModuleOnly.hs"
+    , mkPrettyRoundtrip "ghc710" "Simple.hs"
     -- , mkParserTest      "ghc710" "ModuleOnly.hs"
-    -- , mkParserTest      "ghc710" "Simple.hs"
-      mkParserTest      "ghc710" "ShiftingLambda.hs"
-    , mkParserTest      "ghc710" "LambdaCase.hs"
-    , mkParserTest      "ghc710" "MultiWayIf.hs"
-    , mkParserTest      "ghc710" "ProcNotation.hs"
+    , mkParserTest      "ghc710" "Simple.hs"
+    --   mkParserTest      "ghc710" "ShiftingLambda.hs"
+    -- , mkParserTest      "ghc710" "LambdaCase.hs"
+    -- , mkParserTest      "ghc710" "MultiWayIf.hs"
+    -- , mkParserTest      "ghc710" "ProcNotation.hs"
     -- , mkParserTest      "ghc710" "UnicodeSyntax.hs"
     ]
 
