@@ -1,6 +1,6 @@
 2016-06-02 v0.5.1.0
 	* Support for GHC 8.0.1
-
+	* Add graftT to the Transform module, courtesy of @xich
 
 2015-12-13 v0.5.0.1
 	* Fix a bug (#34) where quasiquote values would not roundtrip.
