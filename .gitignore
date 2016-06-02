@@ -20,3 +20,5 @@
 /test.pdf
 /test.ps
 /ghc.hp
+.cabal-sandbox/
+cabal.sandbox.config
