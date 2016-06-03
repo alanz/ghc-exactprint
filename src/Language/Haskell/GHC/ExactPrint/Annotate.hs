@@ -1462,8 +1462,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsOpTy t1 (_,lo) t2) = do
 #else
   markAST _ (GHC.HsOpTy t1 lo t2) = do
-  -- | HsOpTy              (LHsType name) (Located name) (LHsType name)
-
+  -- HsOpTy              (LHsType name) (Located name) (LHsType name)
 #endif
     markLocated t1
     mark GHC.AnnSimpleQuote
