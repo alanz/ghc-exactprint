@@ -1,5 +1,5 @@
 name:                ghc-exactprint
-version:             0.5.1.0
+version:             0.5.1.1
 synopsis:            ExactPrint for GHC
 description:         Using the API Annotations available from GHC 7.10.2, this
                      library provides a means to round trip any code that can
@@ -30,6 +30,7 @@ tested-with:    GHC == 7.10.3, GHC == 8.0.1
 extra-source-files:  ChangeLog
                      tests/examples/failing/*.hs
                      tests/examples/ghc710/*.hs
+                     tests/examples/ghc710-only/*.hs
                      tests/examples/ghc8/*.hs
                      tests/examples/transform/*.hs
                      tests/examples/failing/*.hs.bad
