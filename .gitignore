@@ -5,6 +5,7 @@
 *.hspp
 *.o
 *.dyn*
+*.liquid
 *.refactored.hs
 /TAGS
 /tags
@@ -24,4 +25,5 @@
 /origfailures.txt
 /hackage-roundtrip-work
 /roundtrip-work
-*.liquid
+.cabal-sandbox/
+cabal.sandbox.config

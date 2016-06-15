@@ -34,6 +34,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , uniqueSrcSpanT
 
         , cloneT
+        , graftT
 
         , getEntryDPT
         , setEntryDPT
@@ -207,6 +208,23 @@ cloneT ast = do
                                   Just an -> Map.insert (mkAnnKey (GHC.L newSpan t)) an anns)
           tell [(ss, newSpan)]
           return $ fromJust . cast  $ GHC.L newSpan t
+        Nothing -> return (GHC.L l t)
+
+-- ---------------------------------------------------------------------
+-- |Slightly more general form of cloneT
+graftT :: (Data a) => Anns -> a -> Transform a
+graftT origAnns = SYB.everywhereM (return `SYB.ext2M` replaceLocated)
+  where
+    replaceLocated :: forall loc a. (Typeable loc, Data a)
+                    => GHC.GenLocated loc a -> Transform (GHC.GenLocated loc a)
+    replaceLocated (GHC.L l t) = do
+      case cast l :: Maybe GHC.SrcSpan of
+        Just ss -> do
+          newSpan <- uniqueSrcSpanT
+          modifyAnnsT (\anns -> case Map.lookup (mkAnnKey (GHC.L ss t)) origAnns of
+                                  Nothing -> anns
+                                  Just an -> Map.insert (mkAnnKey (GHC.L newSpan t)) an anns)
+          return $ fromJust $ cast $ GHC.L newSpan t
         Nothing -> return (GHC.L l t)
 
 -- ---------------------------------------------------------------------
