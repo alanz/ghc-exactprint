@@ -97,7 +97,9 @@ Test-Suite test
       buildable: False
   Build-depends:       HUnit >= 1.2
                      , base < 5
+                     , bytestring
                      , containers >= 0.5
+                     , Diff
                      , directory >= 1.2
                      , filepath  >= 1.4
                      , ghc  >= 7.10.2

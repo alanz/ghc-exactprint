@@ -471,31 +471,30 @@ instance Annotate GHC.RdrName where
   markAST l n = do
     let
       str = rdrName2String n
+      isSym = GHC.isSymOcc $ GHC.rdrNameOcc n
       doNormalRdrName = do
         let str' = case str of
+              -- TODO: unicode support?
                         "forall" -> if spanLength l == 1 then "∀" else str
                         _ -> str
         when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ mark GHC.AnnType
-        mark GHC.AnnOpenP -- '('
+        when isSym $ mark GHC.AnnOpenP -- '('
         markOffset GHC.AnnBackquote 0
         cnt  <- countAnns GHC.AnnVal
-        cntT <- countAnns GHC.AnnCommaTuple
-        markMany GHC.AnnCommaTuple -- For '(,,,)'
         case cnt of
-          0 -> if cntT > 0
-                 then return ()
-                 else markExternal l GHC.AnnVal str'
+          0 -> markExternal l GHC.AnnVal str'
           1 -> markWithString GHC.AnnVal str'
           _ -> traceM $ "Printing RdrName, more than 1 AnnVal:" ++ showGhc (l,n)
         markOffset GHC.AnnBackquote 1
-        mark GHC.AnnCloseP
+        when isSym $ mark GHC.AnnCloseP -- ')'
 
     case n of
       GHC.Unqual _ -> doNormalRdrName
       GHC.Qual _ _ -> doNormalRdrName
-      _            -> do
+      GHC.Orig _ _ -> markExternal l GHC.AnnVal str
+      GHC.Exact n  -> do
        case str of
-         -- Special handling for atypical RdrNames.
+         -- Special handling for Exact RdrNames, which are built-in Names
          "[]" -> do
            mark GHC.AnnOpenS  -- '['
            mark GHC.AnnCloseS -- ']'
@@ -517,13 +516,34 @@ instance Annotate GHC.RdrName where
            mark GHC.AnnOpenP -- '('
            mark GHC.AnnTildehsh
            mark GHC.AnnCloseP
+         "*"  -> do
+           -- mark GHC.AnnOpenP  -- '('
+           markExternal l GHC.AnnVal str
+           -- mark GHC.AnnCloseP -- ')'
+         ":"  -> do
+           doNormalRdrName
+           -- mark GHC.AnnOpenP -- '('
+           -- markExternal l GHC.AnnVal str
+           -- mark GHC.AnnCloseP -- ')'
+         ('(':',':_) -> do
+           mark GHC.AnnOpenP
+           let n = length $ filter (==',') str
+           -- markExternal l GHC.AnnVal str
+           replicateM_ n (mark GHC.AnnCommaTuple)
+           mark GHC.AnnCloseP -- ')'
 #if __GLASGOW_HASKELL__ <= 710
          "~" -> do
            mark GHC.AnnOpenP
            mark GHC.AnnTilde
            mark GHC.AnnCloseP
 #endif
-         _ -> doNormalRdrName
+         -- _ -> doNormalRdrName
+         _ -> do
+            let isSym = GHC.isSymOcc $ GHC.getOccName n
+            when isSym $ mark GHC.AnnOpenP -- '('
+            markWithString GHC.AnnVal str
+            -- markExternal l GHC.AnnVal str
+            when isSym $ mark GHC.AnnCloseP -- ')'
 
 -- ---------------------------------------------------------------------
 
@@ -2338,8 +2358,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markWithString GHC.AnnClose "#-}"
     markLocated e
   -- TODO: make monomorphic
-  markAST _ (GHC.HsBracket (GHC.VarBr _single v)) = do
+  markAST _ (GHC.HsBracket (GHC.VarBr True v)) = do
     mark GHC.AnnSimpleQuote
+    markLocatedFromKw GHC.AnnName v
+  markAST _ (GHC.HsBracket (GHC.VarBr False v)) = do
     mark GHC.AnnThTyQuote
     markLocatedFromKw GHC.AnnName v
   markAST _ (GHC.HsBracket (GHC.DecBrL ds)) = do

@@ -81,7 +81,7 @@ import qualified Outputable     as GHC
 import qualified RdrName        as GHC
 import qualified Var            as GHC
 
-import qualified OccName(occNameString)
+import qualified OccName(occNameString,isSymOcc)
 
 import Control.Arrow
 
@@ -322,9 +322,9 @@ rdrName2String r =
       case r of
         GHC.Unqual occ       -> GHC.occNameString occ
         GHC.Qual modname occ -> GHC.moduleNameString modname ++ "."
-                            ++ GHC.occNameString occ
-        GHC.Orig _ occ          -> GHC.occNameString occ
-        GHC.Exact _           -> error $ "GHC.Exact introduced after renaming" ++ showGhc r
+                                ++ GHC.occNameString occ
+        GHC.Orig _ occ       -> GHC.occNameString occ
+        GHC.Exact n          -> GHC.getOccString n
 
 name2String :: GHC.Name -> String
 name2String = showGhc
@@ -378,7 +378,9 @@ showAnnData anns n =
                               ++ intercalate "," (map (showAnnData anns (n+1)) l) ++ "]"
 
         name       = ("{Name: "++) . (++"}") . showSDocDebug_ . GHC.ppr :: GHC.Name -> String
-        occName    = ("{OccName: "++) . (++"}") .  OccName.occNameString
+        -- occName    = ("{OccName: "++) . (++"}") .  OccName.occNameString
+        occName :: GHC.OccName -> String
+        occName n  = ("{OccName: "++ (OccName.occNameString n ++ ":" ++ (show (OccName.isSymOcc n))) ++"}")
         moduleName = ("{ModuleName: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.ModuleName -> String
 
         -- srcSpan    = ("{"++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.SrcSpan -> String

@@ -225,6 +225,7 @@ data AstContext = FunRhs
                 | LambdaExpr
                 | CaseAlt
                 | IfAlt
+                | Infix -- RdrName being used infix. May have backticks
                 deriving (Eq, Ord, Show)
 
 {-
