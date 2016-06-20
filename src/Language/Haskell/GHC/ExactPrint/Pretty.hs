@@ -27,6 +27,7 @@ import Control.Monad.Identity
 import Control.Monad.RWS
 import Control.Monad.Trans.Free
 import Data.Data (Data)
+import Data.Generics
 import Data.List
 import Data.Ord
 
@@ -195,8 +196,10 @@ addEofAnnotation = tellKd (G GHC.AnnEofPos, DP (1,0))
 addPrettyAnnotation :: GHC.AnnKeywordId -> Pretty ()
 addPrettyAnnotation ann =
   case ann of
-    GHC.AnnVal   -> tellKd (G ann,DP (0,1))
-    GHC.AnnWhere -> tellKd (G ann,DP (0,1))
+    GHC.AnnVal    -> tellKd (G ann,DP (0,1))
+    GHC.AnnWhere  -> tellKd (G ann,DP (0,1))
+    GHC.AnnOpenC  -> return ()
+    GHC.AnnCloseC -> return ()
     _ ->            tellKd (G ann,DP (0,0))
 
 -- ---------------------------------------------------------------------
@@ -234,7 +237,7 @@ withSrcSpanPretty (GHC.L l a) =
 withAST :: Data a
         => GHC.Located a
         -> Pretty b -> Pretty b
-withAST lss@(GHC.L ss _) action = do
+withAST lss@(GHC.L ss t) action = do
   -- Calculate offset required to get to the start of the SrcSPan
   off <- gets apLayoutStart
   withSrcSpanPretty lss $ do
@@ -245,7 +248,8 @@ withAST lss@(GHC.L ss _) action = do
                          }
 
     let spanStart = ss2pos ss
-        edp = DP (0,0)
+        -- edp = DP (0,0)
+        edp = entryDpFor t
 
     let cs = []
     (res, w) <- censor maskWriter (listen action)
@@ -262,6 +266,22 @@ withAST lss@(GHC.L ss _) action = do
     addAnnotationsPretty an
      `debug` ("leaveAST:(annkey,an)=" ++ show (mkAnnKey lss,an))
     return res
+
+-- ---------------------------------------------------------------------
+
+entryDpFor :: Typeable a => a -> DeltaPos
+entryDpFor a =
+  (def
+  `extQ` funBind
+  ) a
+  where
+    def :: Typeable a => a -> DeltaPos
+    def _ = DP (0,0)
+
+    funBind :: GHC.HsBind GHC.RdrName -> DeltaPos
+    funBind GHC.FunBind{} = DP (2,0)
+    funBind GHC.PatBind{} = DP (2,0)
+    funBind _ = DP (0,0)
 
 -- ---------------------------------------------------------------------
 

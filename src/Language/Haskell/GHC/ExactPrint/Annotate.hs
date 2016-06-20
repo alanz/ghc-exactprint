@@ -1044,7 +1044,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLocated lhs
     mark GHC.AnnEqual
     mapM_ markLocated grhs
-    mark GHC.AnnWhere
+    when (not (GHC.isEmptyLocalBinds lb)) $ mark GHC.AnnWhere
 
     markLocalBindsWithLayout lb
     markTrailingSemi
