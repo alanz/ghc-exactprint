@@ -1191,8 +1191,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,
   markAST _ (GHC.GRHS guards expr) = do
     case guards of
       [] -> return ()
-      (_:_) -> mark GHC.AnnVbar >> mapM_ markLocated guards
-    mark GHC.AnnEqual
+      (_:_) -> do
+        mark GHC.AnnVbar
+        mapM_ markLocated guards
+        mark GHC.AnnEqual
+
     -- cntL <- countAnns GHC.AnnLam
     -- cntP <- countAnns GHC.AnnProc
     -- when (cntL == 0 && cntP == 0) $ mark GHC.AnnRarrow -- For HsLam
