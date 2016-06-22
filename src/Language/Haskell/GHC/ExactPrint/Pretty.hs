@@ -194,12 +194,16 @@ addEofAnnotation = tellKd (G GHC.AnnEofPos, DP (1,0))
 -- ---------------------------------------------------------------------
 
 addPrettyAnnotation :: GHC.AnnKeywordId -> Pretty ()
-addPrettyAnnotation ann =
+addPrettyAnnotation ann = do
+  cur <- asks prContext
   case ann of
-    GHC.AnnVal    -> tellKd (G ann,DP (0,1))
+    GHC.AnnVal    -> if inAcs (Set.fromList [NoPrecedingSpace]) cur
+                       then tellKd (G ann,DP (0,0))
+                       else tellKd (G ann,DP (0,1))
     GHC.AnnWhere  -> tellKd (G ann,DP (0,1))
-    GHC.AnnOpenC  -> return ()
-    GHC.AnnCloseC -> return ()
+    GHC.AnnDcolon -> tellKd (G ann,DP (0,1))
+    GHC.AnnOpenC  -> tellKd (G ann,DP (0,0))
+    GHC.AnnCloseC -> tellKd (G ann,DP (0,0))
     _ ->            tellKd (G ann,DP (0,0))
 
 -- ---------------------------------------------------------------------

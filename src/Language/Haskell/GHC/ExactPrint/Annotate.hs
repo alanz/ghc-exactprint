@@ -55,6 +55,7 @@ import Control.Monad.Trans.Free
 import Control.Monad.Free.TH (makeFreeCon)
 import Control.Monad.Identity
 import Data.Data
+import Data.Maybe
 
 import qualified Data.Set as Set
 
@@ -361,7 +362,7 @@ instance (GHC.DataId name,Annotate name)
         (GHC.IEVar ln) -> do
           mark GHC.AnnPattern
           mark GHC.AnnType
-          markLocated ln
+          setContext (Set.singleton InIE) $ markLocated ln
 
         (GHC.IEThingAbs ln@(GHC.L _ n)) -> do
           {-
@@ -380,7 +381,7 @@ instance (GHC.DataId name,Annotate name)
             then do
               mark GHC.AnnType
               markLocatedFromKw GHC.AnnVal n
-            else markLocated ln
+            else setContext (Set.singleton InIE) $ markLocated ln
 
 #if __GLASGOW_HASKELL__ <= 710
         (GHC.IEThingWith ln ns) -> do
@@ -397,10 +398,10 @@ instance (GHC.DataId name,Annotate name)
 -}
 #endif
           -- TODO: Deal with GHC 8.0 additions
-          markLocated ln
+          setContext (Set.singleton InIE) $ markLocated ln
           mark GHC.AnnOpenP
 #if __GLASGOW_HASKELL__ <= 710
-          mapM_ markLocated ns
+          setContext (Set.singleton InIE) $ mapM_ markLocated ns
 #else
           case wc of
             GHC.NoIEWildcard -> mapM_ markLocated ns
@@ -411,12 +412,12 @@ instance (GHC.DataId name,Annotate name)
                 [] -> return ()
                 ns' -> do
                   markOffset GHC.AnnComma 0
-                  mapM_ markLocated ns'
+                  setContext (Set.singleton InIE) $ mapM_ markLocated ns'
 #endif
           mark GHC.AnnCloseP
 
         (GHC.IEThingAll ln) -> do
-          markLocated ln
+          setContext (Set.singleton InIE) $ markLocated ln
           mark GHC.AnnOpenP
           mark GHC.AnnDotdot
           mark GHC.AnnCloseP
@@ -477,7 +478,7 @@ instance Annotate GHC.RdrName where
               -- TODO: unicode support?
                         "forall" -> if spanLength l == 1 then "∀" else str
                         _ -> str
-        when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ mark GHC.AnnType
+        when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.fromList [InIE]) $ mark GHC.AnnType
         when isSym $ mark GHC.AnnOpenP -- '('
         markOffset GHC.AnnBackquote 0
         cnt  <- countAnns GHC.AnnVal
@@ -1155,7 +1156,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
         case mln of
           Nothing -> mark GHC.AnnFunId
-          Just (n,_) -> markLocated n
+          Just (n,_) -> setContext (Set.singleton NoPrecedingSpace) $ markLocated n
         mapM_ markLocated pats
 #else
         case mln of
@@ -1213,7 +1214,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #else
   markAST _ (GHC.TypeSig lns st)  = do
 #endif
-    mapM_ markLocated lns
+    -- mapM_ markLocated lns
+    case lns of
+      [] -> return ()
+      (ln:lns') ->do
+        setContext (Set.singleton NoPrecedingSpace) $ markLocated ln
+        mapM_ markLocated lns'
     mark GHC.AnnDcolon
 #if __GLASGOW_HASKELL__ <= 710
     markLocated typ
@@ -1418,17 +1424,19 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsForAllTy _f mwc (GHC.HsQTvs _kvs tvs) ctx@(GHC.L lc ctxs) typ) = do
     mark GHC.AnnOpenP -- "("
-    mark GHC.AnnForall
-    mapM_ markLocated tvs
-    mark GHC.AnnDot
+    when (not $ null tvs) $ do
+      mark GHC.AnnForall
+      mapM_ markLocated tvs
+      mark GHC.AnnDot
 
     case mwc of
       Nothing -> if lc /= GHC.noSrcSpan then markLocated ctx else return ()
       Just lwc -> do
        let sorted = lexicalSortLocated (GHC.L lwc GHC.HsWildcardTy:ctxs)
        markLocated (GHC.L lc sorted)
+       mark GHC.AnnDarrow
 
-    mark GHC.AnnDarrow
+    -- mark GHC.AnnDarrow
     markLocated typ
     mark GHC.AnnCloseP -- ")"
 #else
@@ -1452,7 +1460,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
 #else
   markAST l (GHC.HsQualTy cxt ty) = do
-    mark GHC.AnnDcolon -- for HsKind, alias for HsType
+    inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
     markLocated cxt
     mark GHC.AnnDarrow
     markLocated ty
@@ -1464,7 +1472,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #endif
 
   markAST l (GHC.HsTyVar name) = do
-    mark GHC.AnnDcolon -- for HsKind, alias for HsType
+    inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
     n <- countAnns  GHC.AnnSimpleQuote
     case n of
       1 -> do
@@ -1484,18 +1492,18 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #endif
 
   markAST _ (GHC.HsAppTy t1 t2) = do
-    mark GHC.AnnDcolon -- for HsKind, alias for HsType
+    inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
     markLocated t1
     markLocated t2
 
   markAST _ (GHC.HsFunTy t1 t2) = do
-    mark GHC.AnnDcolon -- for HsKind, alias for HsType
+    inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
     markLocated t1
     mark GHC.AnnRarrow
     markLocated t2
 
   markAST _ (GHC.HsListTy t) = do
-    mark GHC.AnnDcolon -- for HsKind, alias for HsType
+    inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
     mark GHC.AnnOpenS -- '['
     markLocated t
     mark GHC.AnnCloseS -- ']'
@@ -1756,10 +1764,15 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
   => Annotate (GHC.Pat name) where
   markAST l (GHC.WildPat _) = markExternal l GHC.AnnVal "_"
   markAST l (GHC.VarPat n)  = do
+    -- The parser inserts a placeholder value for a record pun rhs. This must be
+    -- filtered out until https://ghc.haskell.org/trac/ghc/ticket/12224 is
+    -- resolved, particularly for pretty printing where annotations are added.
+    let pun_RDR = "pun-right-hand-side"
+    when (showGhc n /= pun_RDR) $
 #if __GLASGOW_HASKELL__ <= 710
-    markAST l n
+      markAST l n
 #else
-    markLocated n
+      markLocated n
 #endif
   markAST _ (GHC.LazyPat p) = do
     mark GHC.AnnTilde
@@ -1887,11 +1900,11 @@ markHsConPatDetails ln dets = do
     GHC.PrefixCon args -> do
       markLocated ln
       mapM_ markLocated args
-    GHC.RecCon (GHC.HsRecFields fs _) -> do
+    GHC.RecCon (GHC.HsRecFields fs dd) -> do
       markLocated ln
       mark GHC.AnnOpenC -- '{'
       mapM_ markLocated fs
-      mark GHC.AnnDotdot
+      when (isJust dd) $ mark GHC.AnnDotdot
       mark GHC.AnnCloseC -- '}'
     GHC.InfixCon a1 a2 -> do
       markLocated a1
@@ -2215,8 +2228,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #else
   markAST _ (GHC.HsDo cts (GHC.L _ es) _) = do
 #endif
-    mark GHC.AnnDo
-    mark GHC.AnnMdo
+    case cts of
+      GHC.MDoExpr -> mark GHC.AnnMdo
+      _           -> mark GHC.AnnDo
     let (ostr,cstr,_isComp) =
           if isListComp cts
             then case cts of
@@ -2555,9 +2569,9 @@ instance Annotate GHC.HsLit where
 #if __GLASGOW_HASKELL__ > 710
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsRecUpdField name) where
-  markAST _ (GHC.HsRecField lbl expr _isPun) = do
+  markAST _ (GHC.HsRecField lbl expr punFlag) = do
     markLocated lbl
-    mark GHC.AnnEqual
+    when (punFlag == False) $ mark GHC.AnnEqual
     markLocated expr
 {-
 type HsRecUpdField id     = HsRecField' (AmbiguousFieldOcc id) (LHsExpr id)
@@ -3080,9 +3094,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 instance (Annotate name, GHC.DataId name, GHC.OutputableBndr name,GHC.HasOccName name)
   => Annotate (GHC.HsRecField name (GHC.LPat name)) where
-  markAST _ (GHC.HsRecField n e _) = do
+  markAST _ (GHC.HsRecField n e punFlag) = do
     markLocated n
-    mark GHC.AnnEqual
+    -- mark GHC.AnnEqual
+    when (punFlag == False) $ mark GHC.AnnEqual
     markLocated e
 
 

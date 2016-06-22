@@ -225,7 +225,11 @@ data AstContext = FunRhs
                 | LambdaExpr
                 | CaseAlt
                 | IfAlt
-                | Infix -- RdrName being used infix. May have backticks
+                | Infix   -- RdrName being used infix. May have backticks
+                | NoPrecedingSpace
+                -- TODO: all GHC 7.10.3 tests pass with TypeAsKind not set. Can we get rid of it
+                | TypeAsKind -- For GHC < 8.0
+                | InIE
                 deriving (Eq, Ord, Show)
 
 {-
