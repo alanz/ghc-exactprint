@@ -5,52 +5,52 @@
 {-# LANGUAGE TupleSections #-}
 module Test.NoAnnotations where
 
-import Control.Monad.State
+-- import Control.Monad.State
 import Data.Algorithm.Diff
 import Data.Algorithm.DiffOutput
 import Data.Data (Data, toConstr, showConstr, cast)
 import Data.Generics (extQ, ext1Q, ext2Q, gmapQ)
-import Data.List (intercalate, sortBy, elemIndex)
-import Data.Ord (comparing)
+import Data.List
+-- import Data.Ord (comparing)
 import qualified Data.ByteString as B
 
 import Language.Haskell.GHC.ExactPrint
-import Language.Haskell.GHC.ExactPrint.Annotate
+-- import Language.Haskell.GHC.ExactPrint.Annotate
 import Language.Haskell.GHC.ExactPrint.Parsers
 import Language.Haskell.GHC.ExactPrint.Pretty
-import Language.Haskell.GHC.ExactPrint.Types
+-- import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
 import qualified ApiAnnotation as GHC
 import qualified Bag           as GHC
-import qualified DynFlags      as GHC
+-- import qualified DynFlags      as GHC
 import qualified FastString    as GHC
 import qualified GHC           as GHC hiding (parseModule)
-import qualified Lexer         as GHC
+-- import qualified Lexer         as GHC
 import qualified MonadUtils    as GHC
-import qualified Name          as GHC
+-- import qualified Name          as GHC
 import qualified NameSet       as GHC
-import qualified OccName       as GHC
+-- import qualified OccName       as GHC
 import qualified Outputable    as GHC
-import qualified Parser        as GHC
-import qualified RdrName       as GHC
-import qualified SrcLoc        as GHC
-import qualified StringBuffer  as GHC
+-- import qualified Parser        as GHC
+-- import qualified RdrName       as GHC
+-- import qualified SrcLoc        as GHC
+-- import qualified StringBuffer  as GHC
 import qualified Var           as GHC
 
 import qualified OccName(occNameString)
 
-import qualified Data.Generics as SYB
+-- import qualified Data.Generics as SYB
 -- import qualified GHC.SYB.Utils as SYB
 
 
 import System.Directory
 import System.FilePath
-import System.FilePath.Posix
-import System.IO
-import qualified Data.Map as Map
+-- import System.FilePath.Posix
+-- import System.IO
+-- import qualified Data.Map as Map
 -- import Data.List
-import Data.Maybe
+-- import Data.Maybe
 
 import Test.Common
 
@@ -109,7 +109,9 @@ runPrettyRoundTrip :: FilePath -> GHC.ApiAnns -> GHC.ParsedSource
                    -> IO (Either (GHC.SrcSpan, String)(Anns, GHC.ParsedSource))
 runPrettyRoundTrip origFile !anns !parsedOrig cs = do
   let !newAnns = addAnnotationsForPretty cs parsedOrig mempty
+  putStrLn $ "newAnns:" ++ showGhc newAnns
   let !printed = exactPrint parsedOrig newAnns
+  putStrLn $ "printed:[" ++ printed ++ "]"
   parseString origFile printed newAnns
 
 
@@ -118,6 +120,7 @@ parseString :: FilePath -> String -> Anns
 parseString origFile src newAnns = do
   tmpDir <- getTemporaryDirectory
   let workDir = tmpDir </> "ghc-exactprint" </> "noannotations"
+  putStrLn $ "workDir=" ++ workDir
   createDirectoryIfMissing True workDir
   let fileName = workDir </> takeFileName origFile
   writeFile (workDir </> takeFileName origFile <.> ".anns") (showGhc newAnns)

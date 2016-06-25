@@ -184,13 +184,13 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
     go (AnnotationsToComments _ next) = next
     go (WithSortKey ks next) = withSortKey ks >> next
 
-    go (SetContext r action next)   = printInterpret action >> next
-    go (InContext r action next)    = printInterpret action >> next
-    go (NotInContext r action next) = printInterpret action >> next
+    go (SetContextLevel _ _ action next) = printInterpret action >> next
+    go (InContext _ action next)         = printInterpret action >> next
+    go (NotInContext _ action next)      = printInterpret action >> next
 
-    go (SetContext   ctxt action next)   = setContextPrint ctxt (printInterpret action) >> next
-    go (InContext    ctxt action next)   = inContextPrint ctxt action >> next
-    go (NotInContext ctxt action next)   = notInContextPrint ctxt action >> next
+    -- go (SetContext   ctxt lvl action next)   = setContextPrint ctxt lvl (printInterpret action) >> next
+    -- go (InContext    ctxt     action next)   = inContextPrint ctxt action >> next
+    -- go (NotInContext ctxt     action next)   = notInContextPrint ctxt action >> next
 
 -------------------------------------------------------------------------
 
@@ -230,9 +230,9 @@ withSortKey xs = do
 
 -- ---------------------------------------------------------------------
 
-setContextPrint :: (Monad m, Monoid w) => Set.Set AstContext -> EP w m () -> EP w m ()
-setContextPrint ctxt =
-  local (\s -> s { epContext = setAcs ctxt (epContext s) } )
+setContextPrint :: (Monad m, Monoid w) => Set.Set AstContext -> Int -> EP w m () -> EP w m ()
+setContextPrint ctxt lvl =
+  local (\s -> s { epContext = setAcsWithLevel ctxt lvl (epContext s) } )
 
 inContextPrint :: (Monad m, Monoid w) => Set.Set AstContext -> Annotated () -> EP w m ()
 inContextPrint ctxt action = do

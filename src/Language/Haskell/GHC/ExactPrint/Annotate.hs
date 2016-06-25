@@ -115,9 +115,9 @@ data AnnotationF next where
   WithAST        :: Data a => GHC.Located a
                            -> Annotated b                                -> next -> AnnotationF next
   CountAnns      :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
-  WithSortKey    :: [(GHC.SrcSpan, Annotated ())]                       -> next -> AnnotationF next
+  WithSortKey    :: [(GHC.SrcSpan, Annotated ())]                        -> next -> AnnotationF next
 
-  SetLayoutFlag  ::  Rigidity -> Annotated ()                         -> next -> AnnotationF next
+  SetLayoutFlag  ::  Rigidity -> Annotated ()                           -> next -> AnnotationF next
 
   -- Required to work around deficiencies in the GHC AST
   StoreOriginalSrcSpan :: AnnKey                        -> (AnnKey -> next) -> AnnotationF next
@@ -129,10 +129,10 @@ data AnnotationF next where
 
   -- AZ experimenting with pretty printing
   -- Set the context for child element
-  SetContext   :: Set.Set AstContext -> Annotated ()    -> next -> AnnotationF next
+  SetContextLevel :: Set.Set AstContext -> Int -> Annotated () -> next -> AnnotationF next
   -- Query the context while in a child element
-  InContext    :: Set.Set AstContext -> Annotated ()    -> next -> AnnotationF next
-  NotInContext :: Set.Set AstContext -> Annotated ()    -> next -> AnnotationF next
+  InContext    :: Set.Set AstContext -> Annotated ()        -> next -> AnnotationF next
+  NotInContext :: Set.Set AstContext -> Annotated ()        -> next -> AnnotationF next
 
 deriving instance Functor (AnnotationF)
 
@@ -156,11 +156,15 @@ makeFreeCon  'StoreString
 #endif
 makeFreeCon  'AnnotationsToComments
 makeFreeCon  'WithSortKey
-makeFreeCon  'SetContext
+makeFreeCon  'SetContextLevel
 makeFreeCon  'InContext
 makeFreeCon  'NotInContext
 
 -- ---------------------------------------------------------------------
+
+setContext :: Set.Set AstContext -> Annotated () -> Annotated ()
+-- setContext ctxt = liftF (SetContextLevel ctxt 3 ())
+setContext ctxt action = liftF (SetContextLevel ctxt 3 action ())
 
 setLayoutFlag :: Annotated () -> Annotated ()
 setLayoutFlag action = liftF (SetLayoutFlag NormalLayout action ())
@@ -1155,23 +1159,26 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         inContext (Set.fromList [LambdaExpr]) $ do mark GHC.AnnLam -- For HsLam
 #if __GLASGOW_HASKELL__ <= 710
         case mln of
-          Nothing -> mark GHC.AnnFunId
+          -- Nothing -> mark GHC.AnnFunId
+          Nothing -> return ()
           Just (n,_) -> setContext (Set.singleton NoPrecedingSpace) $ markLocated n
         mapM_ markLocated pats
 #else
         case mln of
-          GHC.NonFunBindMatch  -> mark GHC.AnnFunId
+          -- GHC.NonFunBindMatch  -> mark GHC.AnnFunId
+          GHC.NonFunBindMatch  -> return ()
           GHC.FunBindMatch n _ -> markLocated n
         mapM_ markLocated pats
 #endif
 
     -- TODO: The AnnEqual annotation actually belongs in the first GRHS value
     case grhs of
-      (GHC.L _ (GHC.GRHS [] _):_) -> mark GHC.AnnEqual -- empty guards
+      (GHC.L _ (GHC.GRHS [] _):_) -> when (isJust mln) $ mark GHC.AnnEqual -- empty guards
       _ -> return ()
-    inContext (Set.fromList [LambdaExpr,CaseAlt]) $ do mark GHC.AnnRarrow -- For HsLam
+    inContext (Set.fromList [LambdaExpr]) $ do mark GHC.AnnRarrow -- For HsLam
 
-    mapM_ markLocated grhs
+    -- inContext (Set.fromList [CaseAlt]) $ setContextLevel (Set.singleton AdvanceLine) 2 $ mapM_ markLocated grhs
+    setContextLevel (Set.singleton AdvanceLine) 2 $ mapM_ markLocated grhs
     -- mapM_ (markLocatedPushContext (Set.singleton LambdaExpr)) grhs
 
     case lb of
@@ -1810,7 +1817,8 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
     markWithString GHC.AnnClose ":]"
 
   markAST _ (GHC.ConPatIn n dets) = do
-    markHsConPatDetails n dets
+    -- markHsConPatDetails n dets
+    trace ("ConPatIn") markHsConPatDetails n dets
 
   markAST _ (GHC.ConPatOut {}) =
     traceM "warning: ConPatOut Introduced after renaming"
@@ -1898,7 +1906,7 @@ markHsConPatDetails :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName n
 markHsConPatDetails ln dets = do
   case dets of
     GHC.PrefixCon args -> do
-      markLocated ln
+      trace "PrefixCon" markLocated ln
       mapM_ markLocated args
     GHC.RecCon (GHC.HsRecFields fs dd) -> do
       markLocated ln
@@ -1981,7 +1989,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     markLocated pat
     mark GHC.AnnLarrow
     markLocated body
-    mark GHC.AnnVbar -- possible in list comprehension
+    inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
     markTrailingSemi
 
 #if __GLASGOW_HASKELL__ > 710
@@ -1991,7 +1999,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
 
   markAST _ (GHC.BodyStmt body _ _ _) = do
     markLocated body
-    mark GHC.AnnVbar -- possible in list comprehension
+    -- mark GHC.AnnVbar -- possible in list comprehension
+    inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
     markTrailingSemi
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -2006,7 +2015,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     markLocalBindsWithLayout lb
     mark GHC.AnnCloseC -- '}'
     -- return () `debug` ("markP.LetStmt done")
-    mark GHC.AnnVbar -- possible in list comprehension
+    inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
     markTrailingSemi
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -2015,7 +2024,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
   markAST l (GHC.ParStmt pbs _ _ _) = do
 #endif
     mapM_ (markAST l) pbs
-    mark GHC.AnnVbar -- possible in list comprehension
+    inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
     markTrailingSemi
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -2039,7 +2048,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
           Nothing -> return ()
         mark GHC.AnnUsing
         markLocated using
-    mark GHC.AnnVbar -- possible in list comprehension
+    inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
     markTrailingSemi
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -2052,7 +2061,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     markInside GHC.AnnSemi
     mapM_ markLocated stmts
     mark GHC.AnnCloseC
-    mark GHC.AnnVbar -- possible in list comprehension
+    inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
     markTrailingSemi
 
 -- ---------------------------------------------------------------------
@@ -2093,7 +2102,8 @@ markMatchGroup _ (GHC.MG matches _ _ _)
 #else
 markMatchGroup _ (GHC.MG (GHC.L _ matches) _ _ _)
 #endif
-  = markListWithLayout matches
+  -- = markListWithLayout matches
+  = trace "markMatchGroup" $ markListWithLayout matches
 
 -- ---------------------------------------------------------------------
 
@@ -2185,7 +2195,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnOf
     mark GHC.AnnOpenC
     markInside GHC.AnnSemi
-    setContext (Set.singleton CaseAlt) $ do markMatchGroup l matches
+    setContext (Set.singleton CaseAlt) $ markMatchGroup l matches
+    -- markMatchGroup l matches
     mark GHC.AnnCloseC
 
   -- We set the layout for HsIf even though it need not obey layout rules as
@@ -2243,7 +2254,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnOpenC
     markInside GHC.AnnSemi
     if isListComp cts
-      then do
+      then setContext (Set.singleton ListComp) $ do
         markLocated (last es)
         mark GHC.AnnVbar
         mapM_ markLocated (init es)

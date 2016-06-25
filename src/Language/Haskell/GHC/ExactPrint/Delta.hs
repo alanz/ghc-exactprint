@@ -253,7 +253,7 @@ deltaInterpret = iterTM go
     go (CountAnns kwid next)            = countAnnsDelta kwid >>= next
     go (SetLayoutFlag r action next)    = do
       rigidity <- asks drRigidity
-      (if (r <= rigidity) then setLayoutFlag else id) (deltaInterpret action)
+      (if r <= rigidity then setLayoutFlag else id) (deltaInterpret action)
       next
     go (MarkExternal ss akwid _ next)    = addDeltaAnnotationExt ss akwid >> next
     go (StoreOriginalSrcSpan key next)   = storeOriginalSrcSpanDelta key >>= next
@@ -264,9 +264,9 @@ deltaInterpret = iterTM go
     go (AnnotationsToComments kws next)  = annotationsToCommentsDelta kws >> next
     go (WithSortKey kws next)            = withSortKey kws >> next
 
-    go (SetContext   ctxt action next)   = setContextDelta ctxt (deltaInterpret action) >> next
-    go (InContext    ctxt action next)   = inContextDelta ctxt action >> next
-    go (NotInContext ctxt action next)   = notInContextDelta ctxt action >> next
+    go (SetContextLevel ctxt lvl action next) = setContextDelta ctxt lvl (deltaInterpret action) >> next
+    go (InContext    ctxt action next)        = inContextDelta ctxt action >> next
+    go (NotInContext ctxt action next)        = notInContextDelta ctxt action >> next
 
 withSortKey :: [(GHC.SrcSpan, Annotated b)] -> Delta ()
 withSortKey kws =
@@ -287,9 +287,9 @@ setLayoutFlag action = do
 
 -- ---------------------------------------------------------------------
 
-setContextDelta :: Set.Set AstContext -> Delta () -> Delta ()
-setContextDelta ctxt =
-  local (\s -> s { drContext = setAcs ctxt (drContext s) } )
+setContextDelta :: Set.Set AstContext -> Int -> Delta () -> Delta ()
+setContextDelta ctxt lvl =
+  local (\s -> s { drContext = setAcsWithLevel ctxt lvl (drContext s) } )
 
 inContextDelta :: Set.Set AstContext -> Annotated () -> Delta ()
 inContextDelta ctxt action = do

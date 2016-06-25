@@ -43,7 +43,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
 
 
   -- * AST Context management
-  , setAcs
+  , setAcs, setAcsWithLevel
   , inAcs
   , pushAcs
 
@@ -334,10 +334,17 @@ name2String = showGhc
 -- | Put the provided context elements into the existing set with fresh level
 -- counts
 setAcs :: Set.Set AstContext -> AstContextSet -> AstContextSet
-setAcs ctxt (ACS a) = ACS a'
+setAcs ctxt acs = setAcsWithLevel ctxt 3 acs
+
+-- | Put the provided context elements into the existing set with given level
+-- counts
+setAcsWithLevel :: Set.Set AstContext -> Int -> AstContextSet -> AstContextSet
+setAcsWithLevel ctxt level (ACS a) = ACS a'
   where
     upd s (k,v) = Map.insert k v s
-    a' = foldl' upd a $ zip (Set.toList ctxt) (repeat 3)
+    a' = foldl' upd a $ zip (Set.toList ctxt) (repeat level)
+
+-- ---------------------------------------------------------------------
 
 -- | Are any of the contexts currently active?
 inAcs :: Set.Set AstContext -> AstContextSet -> Bool

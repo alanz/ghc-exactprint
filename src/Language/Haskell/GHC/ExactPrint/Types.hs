@@ -230,6 +230,8 @@ data AstContext = FunRhs
                 -- TODO: all GHC 7.10.3 tests pass with TypeAsKind not set. Can we get rid of it
                 | TypeAsKind -- For GHC < 8.0
                 | InIE
+                | AdvanceLine
+                | ListComp
                 deriving (Eq, Ord, Show)
 
 {-

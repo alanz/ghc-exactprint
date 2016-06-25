@@ -26,13 +26,13 @@ import Control.Exception
 import Control.Monad.Identity
 import Control.Monad.RWS
 import Control.Monad.Trans.Free
-import Data.Data (Data)
+-- import Data.Data (Data)
 import Data.Generics
-import Data.List
-import Data.Ord
+-- import Data.List
+-- import Data.Ord
 
 #if __GLASGOW_HASKELL__ <= 710
-import Language.Haskell.GHC.ExactPrint.Lookup
+-- import Language.Haskell.GHC.ExactPrint.Lookup
 #endif
 
 import qualified GHC
@@ -88,7 +88,7 @@ data PrettyOptions = PrettyOptions
        -- | Current higher level context. e.g. whether a Match is part of a
        -- LambdaExpr or a FunBind
        , prContext :: !AstContextSet
-       }
+       } deriving Show
 
 data PrettyWriter = PrettyWriter
        { -- | Final list of annotations, and sort keys
@@ -173,7 +173,7 @@ prettyInterpret = iterTM go
     go (WithSortKey kws next)           = withSortKey kws >> next
     go (SetLayoutFlag r action next)    = do
       rigidity <- asks drRigidity
-      (if (r <= rigidity) then setLayoutFlag else id) (prettyInterpret action)
+      (if r <= rigidity then setLayoutFlag else id) (prettyInterpret action)
       next
     go (StoreOriginalSrcSpan key next)  = storeOriginalSrcSpanPretty key >>= next
     go (GetSrcSpanForKw kw next)        = getSrcSpanForKw kw >>= next
@@ -182,7 +182,7 @@ prettyInterpret = iterTM go
 #endif
     go (AnnotationsToComments kws next) = annotationsToCommentsPretty kws >> next
 
-    go (SetContext   ctxt action next)  = setContextPretty ctxt (prettyInterpret action) >> next
+    go (SetContextLevel ctxt lvl action next)  = setContextPretty ctxt lvl (prettyInterpret action) >> next
     go (InContext    ctxt action next)  = inContextPretty ctxt action >> next
     go (NotInContext ctxt action next)  = notInContextPretty ctxt action >> next
 
@@ -202,9 +202,10 @@ addPrettyAnnotation ann = do
                        else tellKd (G ann,DP (0,1))
     GHC.AnnWhere  -> tellKd (G ann,DP (0,1))
     GHC.AnnDcolon -> tellKd (G ann,DP (0,1))
+    GHC.AnnOf     -> tellKd (G ann,DP (0,1))
     GHC.AnnOpenC  -> tellKd (G ann,DP (0,0))
     GHC.AnnCloseC -> tellKd (G ann,DP (0,0))
-    _ ->            tellKd (G ann,DP (0,0))
+    _ ->             tellKd (G ann,DP (0,0))
 
 -- ---------------------------------------------------------------------
 
@@ -245,15 +246,16 @@ withAST lss@(GHC.L ss t) action = do
   -- Calculate offset required to get to the start of the SrcSPan
   off <- gets apLayoutStart
   withSrcSpanPretty lss $ do
+    return () `debug` ("Pretty.withAST:(ss)=" ++ showGhc (ss))
 
     let maskWriter s = s { annKds = []
                          , sortKeys = Nothing
                          , dwCapturedSpan = mempty
                          }
-
+    ctx <- asks prContext
     let spanStart = ss2pos ss
         -- edp = DP (0,0)
-        edp = entryDpFor t
+        edp = entryDpFor ctx t
 
     let cs = []
     (res, w) <- censor maskWriter (listen action)
@@ -268,24 +270,26 @@ withAST lss@(GHC.L ss t) action = do
                , annCapturedSpan = getFirst $ dwCapturedSpan w }
 
     addAnnotationsPretty an
-     `debug` ("leaveAST:(annkey,an)=" ++ show (mkAnnKey lss,an))
+     `debug` ("Pretty.withAST:(annkey,an)=" ++ show (mkAnnKey lss,an))
     return res
 
 -- ---------------------------------------------------------------------
 
-entryDpFor :: Typeable a => a -> DeltaPos
-entryDpFor a =
+entryDpFor :: Typeable a => AstContextSet -> a -> DeltaPos
+entryDpFor ctx a =
   (def
   `extQ` funBind
   ) a
   where
+    lineDefault = if inAcs (Set.singleton AdvanceLine) ctx
+                    then 1 else 0
     def :: Typeable a => a -> DeltaPos
-    def _ = DP (0,0)
+    def _ = DP (lineDefault,0)
 
     funBind :: GHC.HsBind GHC.RdrName -> DeltaPos
     funBind GHC.FunBind{} = DP (2,0)
     funBind GHC.PatBind{} = DP (2,0)
-    funBind _ = DP (0,0)
+    funBind _ = DP (lineDefault,0)
 
 -- ---------------------------------------------------------------------
 
@@ -293,6 +297,7 @@ entryDpFor a =
 addAnnotationsPretty :: Annotation -> Pretty ()
 addAnnotationsPretty ann = do
     l <- ask
+    -- return () `debug` ("addAnnotationsPretty:l=" ++ show l)
     tellFinalAnn (getAnnKey l,ann)
 
 getAnnKey :: PrettyOptions -> AnnKey
@@ -329,13 +334,19 @@ storeString s ss = return ()
 -- ---------------------------------------------------------------------
 
 setLayoutFlag :: Pretty () -> Pretty ()
-setLayoutFlag action = return ()
+setLayoutFlag action = do
+  oldLay <- gets apLayoutStart
+  modify (\s -> s { apMarkLayout = True } )
+  let reset = do
+                modify (\s -> s { apMarkLayout = False
+                                , apLayoutStart = oldLay })
+  action <* reset
 
 -- ---------------------------------------------------------------------
 
-setContextPretty :: Set.Set AstContext -> Pretty () -> Pretty ()
-setContextPretty ctxt =
-  local (\s -> s { prContext = setAcs ctxt (prContext s) } )
+setContextPretty :: Set.Set AstContext -> Int -> Pretty () -> Pretty ()
+setContextPretty ctxt lvl =
+  local (\s -> s { prContext = setAcsWithLevel ctxt lvl (prContext s) } )
 
 inContextPretty :: Set.Set AstContext -> Annotated () -> Pretty ()
 inContextPretty ctxt action = do
