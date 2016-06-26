@@ -280,7 +280,7 @@ entryDpFor :: Typeable a => AstContextSet -> a -> DeltaPos
 entryDpFor ctx a =
   (def
   `extQ` funBind
-  `extQ` match
+  -- `extQ` match
   ) a
   where
     lineDefault = if inAcs (Set.singleton AdvanceLine) ctx

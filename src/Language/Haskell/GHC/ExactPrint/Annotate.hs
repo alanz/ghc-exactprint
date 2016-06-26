@@ -172,13 +172,14 @@ setLayoutFlag action = liftF (SetLayoutFlag NormalLayout action ())
 setRigidFlag :: Annotated () -> Annotated ()
 setRigidFlag action = liftF (SetLayoutFlag RigidLayout action ())
 
--- | Construct a syntax tree which represent which KeywordIds must appear
--- where.
-annotate :: (Annotate ast) => GHC.Located ast -> Annotated ()
-annotate = markLocated
-
 inContext :: Set.Set AstContext -> Annotated () -> Annotated ()
 inContext ctxt action = liftF (IfInContext ctxt action (return ()) ())
+
+-- ---------------------------------------------------------------------
+
+-- | Construct a syntax tree which represent which KeywordIds must appear where.
+annotate :: (Annotate ast) => GHC.Located ast -> Annotated ()
+annotate = markLocated
 
 -- ---------------------------------------------------------------------
 
@@ -262,10 +263,18 @@ markListWithLayout :: Annotate ast => [GHC.Located ast] -> Annotated ()
 markListWithLayout ls =
   setLayoutFlag (mapM_ markLocated ls)
 
+#if __GLASGOW_HASKELL__ <= 710
 markLocalBindsWithLayout :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => GHC.HsLocalBinds name -> Annotated ()
 markLocalBindsWithLayout binds =
   setLayoutFlag (markHsLocalBinds binds)
+#else
+markLocalBindsWithLayout :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
+  => GHC.Located (GHC.HsLocalBinds name) -> Annotated ()
+markLocalBindsWithLayout binds =
+  -- setLayoutFlag (markHsLocalBinds binds)
+  setLayoutFlag (markLocated binds)
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -1067,15 +1076,15 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #endif
     mapM_ markLocated matches
 
-#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
-#else
-  markAST _ (GHC.PatBind lhs (GHC.GRHSs grhs (GHC.L _ lb)) _typ _fvs _ticks) = do
-#endif
     markLocated lhs
     mark GHC.AnnEqual
     mapM_ markLocated grhs
+#if __GLASGOW_HASKELL__ <= 710
     when (not (GHC.isEmptyLocalBinds lb)) $ mark GHC.AnnWhere
+#else
+    when (not (GHC.isEmptyLocalBinds $ GHC.unLoc lb)) $ mark GHC.AnnWhere
+#endif
 
     markLocalBindsWithLayout lb
     markTrailingSemi
@@ -1152,11 +1161,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
                                                   Annotate body)
   => Annotate (GHC.Match name (GHC.Located body)) where
 
-#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.Match mln pats _typ (GHC.GRHSs grhs lb)) = do
-#else
-  markAST _ (GHC.Match mln pats _typ (GHC.GRHSs grhs (GHC.L _ lb))) = do
-#endif
     let
 #if __GLASGOW_HASKELL__ <= 710
       get_infix Nothing = False
@@ -1211,7 +1216,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     inContext (Set.fromList [LambdaExpr]) $ mark GHC.AnnRarrow -- For HsLam
     mapM_ markLocated grhs
 
+#if __GLASGOW_HASKELL__ <= 710
     case lb of
+#else
+    case GHC.unLoc lb of
+#endif
       GHC.EmptyLocalBinds -> return ()
       _ -> do
         mark GHC.AnnWhere
@@ -2036,7 +2045,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.LetStmt lb) = do
 #else
-  markAST _ (GHC.LetStmt (GHC.L l lb)) = do
+  -- markAST _ (GHC.LetStmt (GHC.L l lb)) = do
+  markAST _ (GHC.LetStmt lb@(GHC.L l _)) = do
 #endif
     -- return () `debug` ("markP.LetStmt entered")
     mark GHC.AnnLet
@@ -2248,11 +2258,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       mapM_ markLocated rhs
     mark GHC.AnnCloseC
 
-#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsLet binds e) = do
-#else
-  markAST _ (GHC.HsLet (GHC.L _ binds) e) = do
-#endif
     setLayoutFlag (do -- Make sure the 'in' gets indented too
       mark GHC.AnnLet
       mark GHC.AnnOpenC
@@ -2715,11 +2721,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnElse
     markLocated e3
 
-#if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsCmdLet binds e) = do
-#else
-  markAST _ (GHC.HsCmdLet (GHC.L _ binds) e) = do
-#endif
     mark GHC.AnnLet
     mark GHC.AnnOpenC
     markLocalBindsWithLayout binds

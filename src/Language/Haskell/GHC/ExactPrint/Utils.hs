@@ -385,9 +385,7 @@ showAnnData anns n =
                               ++ intercalate "," (map (showAnnData anns (n+1)) l) ++ "]"
 
         name       = ("{Name: "++) . (++"}") . showSDocDebug_ . GHC.ppr :: GHC.Name -> String
-        -- occName    = ("{OccName: "++) . (++"}") .  OccName.occNameString
-        occName :: GHC.OccName -> String
-        occName n  = ("{OccName: "++ (OccName.occNameString n ++ ":" ++ (show (OccName.isSymOcc n))) ++"}")
+        occName    = ("{OccName: "++) . (++"}") .  OccName.occNameString
         moduleName = ("{ModuleName: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.ModuleName -> String
 
         -- srcSpan    = ("{"++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.SrcSpan -> String
