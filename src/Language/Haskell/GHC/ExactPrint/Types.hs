@@ -218,6 +218,7 @@ data AstContextSet = ACS
                                      -- hits zero
   } deriving (Show)
 
+defaultACS :: AstContextSet
 defaultACS = ACS Map.empty
 
 instance GHC.Outputable AstContextSet where

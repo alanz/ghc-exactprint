@@ -422,9 +422,9 @@ instance (GHC.DataId name,Annotate name)
           setContext (Set.singleton InIE) $ mapM_ markLocated ns
 #else
           case wc of
-            GHC.NoIEWildcard -> mapM_ markLocated ns
+            GHC.NoIEWildcard -> setContext (Set.singleton InIE) $ mapM_ markLocated ns
             GHC.IEWildcard n -> do
-              mapM_ markLocated (take n ns)
+              setContext (Set.singleton InIE) $ mapM_ markLocated (take n ns)
               mark GHC.AnnDotdot
               case drop n ns of
                 [] -> return ()
@@ -497,6 +497,7 @@ instance Annotate GHC.RdrName where
                         "forall" -> if spanLength l == 1 then "∀" else str
                         _ -> str
         when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.fromList [InIE]) $ mark GHC.AnnType
+        -- when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ mark GHC.AnnType
         when isSym $ mark GHC.AnnOpenP -- '('
         markOffset GHC.AnnBackquote 0
         cnt  <- countAnns GHC.AnnVal
@@ -510,7 +511,18 @@ instance Annotate GHC.RdrName where
     case n of
       GHC.Unqual _ -> doNormalRdrName
       GHC.Qual _ _ -> doNormalRdrName
+#if __GLASGOW_HASKELL__ <= 710
       GHC.Orig _ _ -> markExternal l GHC.AnnVal str
+#else
+      GHC.Orig _ _ -> if str == "~"
+                        then do
+                          mark GHC.AnnOpenP -- '('
+                          -- NOTE: GHC8 parser annotates oqtycon with AnnVal, oqtycon_no_varcon with AnnTilde
+                          markWithString GHC.AnnVal "~"
+                          mark GHC.AnnTilde
+                          mark GHC.AnnCloseP -- ')'
+                        else markExternal l GHC.AnnVal str
+#endif
       GHC.Exact n  -> do
        case str of
          -- Special handling for Exact RdrNames, which are built-in Names
@@ -1153,6 +1165,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       get_infix GHC.NonFunBindMatch    = False
       get_infix (GHC.FunBindMatch _ f) = f
 #endif
+#if __GLASGOW_HASKELL__ <= 710
+      isFunBind = isJust
+#else
+      isFunBind GHC.NonFunBindMatch = False
+      isFunBind GHC.FunBindMatch{}  = True
+#endif
     case (get_infix mln,pats) of
       (True, a:b:xs) -> do
         mark GHC.AnnOpenP
@@ -1188,7 +1206,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
     -- TODO: The AnnEqual annotation actually belongs in the first GRHS value
     case grhs of
-      (GHC.L _ (GHC.GRHS [] _):_) -> when (isJust mln) $ mark GHC.AnnEqual -- empty guards
+      (GHC.L _ (GHC.GRHS [] _):_) -> when (isFunBind mln) $ mark GHC.AnnEqual -- empty guards
       _ -> return ()
     inContext (Set.fromList [LambdaExpr]) $ mark GHC.AnnRarrow -- For HsLam
     mapM_ markLocated grhs

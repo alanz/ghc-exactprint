@@ -167,6 +167,9 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest      "ghc710" "MultiWayIf.hs"
     -- , mkParserTest      "ghc710" "ProcNotation.hs"
     -- , mkParserTest      "ghc710" "UnicodeSyntax.hs"
+
+    , mkParserTest      "ghc710" "RdrNames.hs"
+    , mkParserTest      "ghc8"   "ParenTypeSynonym.hs"
     ]
 
 testsTT :: Test

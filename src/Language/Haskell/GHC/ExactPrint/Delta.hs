@@ -80,9 +80,7 @@ import qualified GHC
 import qualified SrcLoc        as GHC
 
 import qualified Data.Map as Map
-#if __GLASGOW_HASKELL__ <= 710
 import qualified Data.Set as Set
-#endif
 
 -- import Debug.Trace
 
