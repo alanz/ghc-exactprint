@@ -183,7 +183,7 @@ prettyInterpret = iterTM go
     go (AnnotationsToComments kws next) = annotationsToCommentsPretty kws >> next
 
     go (SetContextLevel ctxt lvl action next)  = setContextPretty ctxt lvl (prettyInterpret action) >> next
-    go (InContext    ctxt action next)  = inContextPretty ctxt action >> next
+    go (IfInContext  ctxt ifAction elseAction next) = ifInContextPretty ctxt ifAction elseAction >> next
     go (NotInContext ctxt action next)  = notInContextPretty ctxt action >> next
 
 -- ---------------------------------------------------------------------
@@ -200,11 +200,12 @@ addPrettyAnnotation ann = do
     GHC.AnnVal    -> if inAcs (Set.fromList [NoPrecedingSpace]) cur
                        then tellKd (G ann,DP (0,0))
                        else tellKd (G ann,DP (0,1))
-    GHC.AnnWhere  -> tellKd (G ann,DP (0,1))
+    GHC.AnnCloseC -> tellKd (G ann,DP (0,0))
     GHC.AnnDcolon -> tellKd (G ann,DP (0,1))
     GHC.AnnOf     -> tellKd (G ann,DP (0,1))
     GHC.AnnOpenC  -> tellKd (G ann,DP (0,0))
-    GHC.AnnCloseC -> tellKd (G ann,DP (0,0))
+    GHC.AnnRarrow -> tellKd (G ann,DP (0,1))
+    GHC.AnnWhere  -> tellKd (G ann,DP (0,1))
     _ ->             tellKd (G ann,DP (0,0))
 
 -- ---------------------------------------------------------------------
@@ -246,7 +247,7 @@ withAST lss@(GHC.L ss t) action = do
   -- Calculate offset required to get to the start of the SrcSPan
   off <- gets apLayoutStart
   withSrcSpanPretty lss $ do
-    return () `debug` ("Pretty.withAST:(ss)=" ++ showGhc (ss))
+    return () `debug` ("Pretty.withAST:enter:(ss)=" ++ showGhc (ss))
 
     let maskWriter s = s { annKds = []
                          , sortKeys = Nothing
@@ -279,6 +280,7 @@ entryDpFor :: Typeable a => AstContextSet -> a -> DeltaPos
 entryDpFor ctx a =
   (def
   `extQ` funBind
+  `extQ` match
   ) a
   where
     lineDefault = if inAcs (Set.singleton AdvanceLine) ctx
@@ -286,10 +288,15 @@ entryDpFor ctx a =
     def :: Typeable a => a -> DeltaPos
     def _ = DP (lineDefault,0)
 
+    inCase = inAcs (Set.singleton CaseAlt) ctx
+
     funBind :: GHC.HsBind GHC.RdrName -> DeltaPos
     funBind GHC.FunBind{} = DP (2,0)
     funBind GHC.PatBind{} = DP (2,0)
     funBind _ = DP (lineDefault,0)
+
+    match :: GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> DeltaPos
+    match _ = if inCase then DP (1,2) else DP (0,0)
 
 -- ---------------------------------------------------------------------
 
@@ -297,7 +304,7 @@ entryDpFor ctx a =
 addAnnotationsPretty :: Annotation -> Pretty ()
 addAnnotationsPretty ann = do
     l <- ask
-    -- return () `debug` ("addAnnotationsPretty:l=" ++ show l)
+    return () `debug` ("addAnnotationsPretty:=" ++ showGhc (curSrcSpan l,prContext l))
     tellFinalAnn (getAnnKey l,ann)
 
 getAnnKey :: PrettyOptions -> AnnKey
@@ -348,11 +355,13 @@ setContextPretty :: Set.Set AstContext -> Int -> Pretty () -> Pretty ()
 setContextPretty ctxt lvl =
   local (\s -> s { prContext = setAcsWithLevel ctxt lvl (prContext s) } )
 
-inContextPretty :: Set.Set AstContext -> Annotated () -> Pretty ()
-inContextPretty ctxt action = do
+ifInContextPretty :: Set.Set AstContext -> Annotated () -> Annotated () -> Pretty ()
+ifInContextPretty ctxt ifAction elseAction = do
   cur <- asks prContext
   let inContext = inAcs ctxt cur
-  when inContext (prettyInterpret action)
+  if inContext
+    then prettyInterpret ifAction
+    else prettyInterpret elseAction
 
 notInContextPretty :: Set.Set AstContext -> Annotated () -> Pretty ()
 notInContextPretty ctxt action = do

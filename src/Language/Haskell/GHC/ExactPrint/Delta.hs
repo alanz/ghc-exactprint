@@ -265,7 +265,7 @@ deltaInterpret = iterTM go
     go (WithSortKey kws next)            = withSortKey kws >> next
 
     go (SetContextLevel ctxt lvl action next) = setContextDelta ctxt lvl (deltaInterpret action) >> next
-    go (InContext    ctxt action next)        = inContextDelta ctxt action >> next
+    go (IfInContext    ctxt ifAction elseAction next) = ifInContextDelta ctxt ifAction elseAction >> next
     go (NotInContext ctxt action next)        = notInContextDelta ctxt action >> next
 
 withSortKey :: [(GHC.SrcSpan, Annotated b)] -> Delta ()
@@ -291,11 +291,13 @@ setContextDelta :: Set.Set AstContext -> Int -> Delta () -> Delta ()
 setContextDelta ctxt lvl =
   local (\s -> s { drContext = setAcsWithLevel ctxt lvl (drContext s) } )
 
-inContextDelta :: Set.Set AstContext -> Annotated () -> Delta ()
-inContextDelta ctxt action = do
+ifInContextDelta :: Set.Set AstContext -> Annotated () -> Annotated () -> Delta ()
+ifInContextDelta ctxt ifAction elseAction = do
   cur <- asks drContext
   let inContext = inAcs ctxt cur
-  when inContext (deltaInterpret action)
+  if inContext
+    then deltaInterpret ifAction
+    else deltaInterpret elseAction
 
 notInContextDelta :: Set.Set AstContext -> Annotated () -> Delta ()
 notInContextDelta ctxt action = do

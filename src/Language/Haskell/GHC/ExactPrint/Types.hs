@@ -220,6 +220,9 @@ data AstContextSet = ACS
 
 defaultACS = ACS Map.empty
 
+instance GHC.Outputable AstContextSet where
+  ppr x = GHC.text $ show x
+
 -- mirror of GHC.HsMatchContext
 data AstContext = FunRhs
                 | LambdaExpr

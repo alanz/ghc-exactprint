@@ -131,8 +131,8 @@ data AnnotationF next where
   -- Set the context for child element
   SetContextLevel :: Set.Set AstContext -> Int -> Annotated () -> next -> AnnotationF next
   -- Query the context while in a child element
-  InContext    :: Set.Set AstContext -> Annotated ()        -> next -> AnnotationF next
-  NotInContext :: Set.Set AstContext -> Annotated ()        -> next -> AnnotationF next
+  IfInContext  :: Set.Set AstContext -> Annotated () -> Annotated () -> next -> AnnotationF next
+  NotInContext :: Set.Set AstContext -> Annotated ()                 -> next -> AnnotationF next
 
 deriving instance Functor (AnnotationF)
 
@@ -157,7 +157,7 @@ makeFreeCon  'StoreString
 makeFreeCon  'AnnotationsToComments
 makeFreeCon  'WithSortKey
 makeFreeCon  'SetContextLevel
-makeFreeCon  'InContext
+makeFreeCon  'IfInContext
 makeFreeCon  'NotInContext
 
 -- ---------------------------------------------------------------------
@@ -176,6 +176,9 @@ setRigidFlag action = liftF (SetLayoutFlag RigidLayout action ())
 -- where.
 annotate :: (Annotate ast) => GHC.Located ast -> Annotated ()
 annotate = markLocated
+
+inContext :: Set.Set AstContext -> Annotated () -> Annotated ()
+inContext ctxt action = liftF (IfInContext ctxt action (return ()) ())
 
 -- ---------------------------------------------------------------------
 
@@ -241,6 +244,17 @@ markLocatedPushContext ctxt ast = do
   inContext ctxt $ do setContext ctxt (markLocated ast)
 
   notInContext ctxt $ do markLocated ast
+
+-- ---------------------------------------------------------------------
+
+-- |When adding missing annotations, do not put a preceding space in front of a list
+markListNoPrecedingSpace :: Annotate ast => [GHC.Located ast] -> Annotated ()
+markListNoPrecedingSpace ls =
+    case ls of
+      [] -> return ()
+      (l:ls') -> do
+        setContext (Set.singleton NoPrecedingSpace) $ markLocated l
+        mapM_ markLocated ls'
 
 -- ---------------------------------------------------------------------
 
@@ -1162,7 +1176,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
           -- Nothing -> mark GHC.AnnFunId
           Nothing -> return ()
           Just (n,_) -> setContext (Set.singleton NoPrecedingSpace) $ markLocated n
-        mapM_ markLocated pats
+        -- mapM_ markLocated pats
+        markListNoPrecedingSpace pats
 #else
         case mln of
           -- GHC.NonFunBindMatch  -> mark GHC.AnnFunId
@@ -1175,11 +1190,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     case grhs of
       (GHC.L _ (GHC.GRHS [] _):_) -> when (isJust mln) $ mark GHC.AnnEqual -- empty guards
       _ -> return ()
-    inContext (Set.fromList [LambdaExpr]) $ do mark GHC.AnnRarrow -- For HsLam
-
-    -- inContext (Set.fromList [CaseAlt]) $ setContextLevel (Set.singleton AdvanceLine) 2 $ mapM_ markLocated grhs
-    setContextLevel (Set.singleton AdvanceLine) 2 $ mapM_ markLocated grhs
-    -- mapM_ (markLocatedPushContext (Set.singleton LambdaExpr)) grhs
+    inContext (Set.fromList [LambdaExpr]) $ mark GHC.AnnRarrow -- For HsLam
+    mapM_ markLocated grhs
 
     case lb of
       GHC.EmptyLocalBinds -> return ()
@@ -2102,8 +2114,7 @@ markMatchGroup _ (GHC.MG matches _ _ _)
 #else
 markMatchGroup _ (GHC.MG (GHC.L _ matches) _ _ _)
 #endif
-  -- = markListWithLayout matches
-  = trace "markMatchGroup" $ markListWithLayout matches
+  = setContextLevel (Set.singleton AdvanceLine) 2 $ markListWithLayout matches
 
 -- ---------------------------------------------------------------------
 
@@ -2196,7 +2207,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnOpenC
     markInside GHC.AnnSemi
     setContext (Set.singleton CaseAlt) $ markMatchGroup l matches
-    -- markMatchGroup l matches
     mark GHC.AnnCloseC
 
   -- We set the layout for HsIf even though it need not obey layout rules as
