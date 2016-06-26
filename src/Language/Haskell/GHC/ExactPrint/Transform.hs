@@ -179,7 +179,7 @@ modifyAnnsT f = do
 -- |Once we have 'Anns', a 'GHC.SrcSpan' is used purely as part of an 'AnnKey'
 -- to index into the 'Anns'. If we need to add new elements to the AST, they
 -- need their own 'GHC.SrcSpan' for this.
-uniqueSrcSpanT :: Transform GHC.SrcSpan
+uniqueSrcSpanT :: (Monad m) => TransformT m GHC.SrcSpan
 uniqueSrcSpanT = do
   (an,col) <- get
   put (an,col + 1 )
@@ -276,7 +276,7 @@ wrapDecl (GHC.L l s) = GHC.L l (GHC.ValD s)
 
 -- |Create a simple 'Annotation' without comments, and attach it to the first
 -- parameter.
-addSimpleAnnT :: (Data a) => GHC.Located a -> DeltaPos -> [(KeywordId, DeltaPos)] -> Transform ()
+addSimpleAnnT :: (Data a,Monad m) => GHC.Located a -> DeltaPos -> [(KeywordId, DeltaPos)] -> TransformT m ()
 addSimpleAnnT ast dp kds = do
   let ann = annNone { annEntryDelta = dp
                     , annsDP = kds
@@ -681,6 +681,20 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   replaceDecls m@(GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds))) newBinds
     = do
         logTr "replaceDecls LMatch"
+#if __GLASGOW_HASKELL__ <= 710
+        modifyAnnsT (captureOrderAnnKey (mkAnnKey m) newBinds)
+        binds' <- replaceDeclsValbinds binds newBinds
+#else
+        bindSpan <- if GHC.getLoc binds == GHC.noSrcSpan
+                      then uniqueSrcSpanT
+                      else return (GHC.getLoc binds)
+        binds'' <- replaceDeclsValbinds (GHC.unLoc binds) newBinds
+        let binds' = GHC.L bindSpan binds''
+        let bindsKey = mkAnnKey binds'
+        when (GHC.getLoc binds == GHC.noSrcSpan) $
+           addSimpleAnnT binds' (DP (1,4)) []
+        modifyAnnsT (captureOrderAnnKey bindsKey newBinds)
+#endif
         -- Need to throw in a fresh where clause if the binds were empty,
         -- in the annotations.
 #if __GLASGOW_HASKELL__ <= 710
@@ -698,20 +712,17 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
                       ann1 = ann { annsDP = annsDP ann ++ [(G GHC.AnnWhere,DP (1,2))]
                                  }
             modifyAnnsT addWhere
+#if __GLASGOW_HASKELL__ <= 710
             modifyAnnsT (setPrecedingLines (ghead "LMatch.replaceDecls" newBinds) 1 4)
+#else
+            modifyAnnsT (setPrecedingLines (ghead "LMatch.replaceDecls" newBinds) 0 0)
+#endif
 
             -- only move the comment if the original where clause was empty.
             toMove <- balanceTrailingComments m m
             insertCommentBefore (mkAnnKey m) toMove (matchApiAnn GHC.AnnWhere)
           _ -> return ()
 
-        modifyAnnsT (captureOrderAnnKey (mkAnnKey m) newBinds)
-#if __GLASGOW_HASKELL__ <= 710
-        binds' <- replaceDeclsValbinds binds newBinds
-#else
-        binds'' <- replaceDeclsValbinds (GHC.unLoc binds) newBinds
-        let binds' = GHC.L (GHC.getLoc binds) binds''
-#endif
         -- logDataWithAnnsTr "Match.replaceDecls:binds'" binds'
         return (GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds')))
 
@@ -1074,7 +1085,7 @@ modifyValD p ast f = do
   where
     doModLocal :: Match -> StateT (Maybe t) m Match
     doModLocal  (match@(GHC.L ss _) :: Match) = do
-         let
+         -- let
          if ss == p
            then do
              ds <- lift $ liftT $ hsDecls match

@@ -97,11 +97,7 @@ changeLocalDecls2 ans (GHC.L l p) = do
   Right (declAnns, d@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   Right (sigAnns, s@(GHC.L ls (GHC.SigD sig)))   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
   let declAnns' = setPrecedingLines (GHC.L ld decl) 1 0 declAnns
-  -- let  sigAnns' = setPrecedingLines (GHC.L ls  sig) 1 4 sigAnns
   let  sigAnns' = setPrecedingLines (GHC.L ls  sig) 0 0 sigAnns
-  -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
-  -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
-  -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
   let (p',(ans',_),_w) = runTransform ans doAddLocal
       doAddLocal = SYB.everywhereM (SYB.mkM replaceLocalBinds) p
       replaceLocalBinds :: GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)
@@ -136,8 +132,6 @@ changeLocalDecls2 ans (GHC.L l p) = do
 #if __GLASGOW_HASKELL__ <= 710
         return (GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs binds)))
 #else
-        -- bindSpan <- uniqueSrcSpanT
-        -- return (GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.L bindSpan binds))))
         return (GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.L newSpan binds))))
 #endif
       replaceLocalBinds x = return x
@@ -152,11 +146,7 @@ changeLocalDecls ans (GHC.L l p) = do
   Right (declAnns, d@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   Right (sigAnns, s@(GHC.L ls (GHC.SigD sig)))   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
   let declAnns' = setPrecedingLines (GHC.L ld decl) 1 0 declAnns
-  -- let  sigAnns' = setPrecedingLines (GHC.L ls  sig) 1 4 sigAnns
   let  sigAnns' = setPrecedingLines (GHC.L ls  sig) 0 0 sigAnns
-  -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
-  -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
-  -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
   let (p',(ans',_),_w) = runTransform ans doAddLocal
       doAddLocal = SYB.everywhereM (SYB.mkM replaceLocalBinds) p
       replaceLocalBinds :: GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)
