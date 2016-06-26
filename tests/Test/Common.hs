@@ -182,7 +182,7 @@ runRoundTrip f !anns !parsedOrig cs = do
   let !relAnns = relativiseApiAnnsWithComments cs parsedOrig anns
   (annsMod, pmod) <- f relAnns parsedOrig
   let !printed = exactPrint pmod annsMod
-  return (printed,  relAnns, pmod)
+  return (printed, annsMod, pmod)
 
 -- ---------------------------------------------------------------------`
 

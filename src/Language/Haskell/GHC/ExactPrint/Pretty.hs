@@ -285,7 +285,7 @@ entryDpFor ctx a =
   where
     lineDefault = if inAcs (Set.singleton AdvanceLine) ctx
                     then 1 else 0
-    def :: Typeable a => a -> DeltaPos
+    def :: a -> DeltaPos
     def _ = DP (lineDefault,0)
 
     inCase = inAcs (Set.singleton CaseAlt) ctx

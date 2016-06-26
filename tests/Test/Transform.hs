@@ -97,7 +97,8 @@ changeLocalDecls2 ans (GHC.L l p) = do
   Right (declAnns, d@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   Right (sigAnns, s@(GHC.L ls (GHC.SigD sig)))   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
   let declAnns' = setPrecedingLines (GHC.L ld decl) 1 0 declAnns
-  let  sigAnns' = setPrecedingLines (GHC.L ls  sig) 1 4 sigAnns
+  -- let  sigAnns' = setPrecedingLines (GHC.L ls  sig) 1 4 sigAnns
+  let  sigAnns' = setPrecedingLines (GHC.L ls  sig) 0 0 sigAnns
   -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
   -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
   -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
@@ -108,7 +109,7 @@ changeLocalDecls2 ans (GHC.L l p) = do
 #if __GLASGOW_HASKELL__ <= 710
       replaceLocalBinds m@(GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.EmptyLocalBinds)))) = do
 #else
-      replaceLocalBinds m@(GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.L _ GHC.EmptyLocalBinds)))) = do
+      replaceLocalBinds m@(GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs b@(GHC.L _ GHC.EmptyLocalBinds)))) = do
 #endif
         newSpan <- uniqueSrcSpanT
         let
@@ -131,11 +132,13 @@ changeLocalDecls2 ans (GHC.L l p) = do
         modifyAnnsT (captureOrderAnnKey newAnnKey decls)
         let binds = (GHC.HsValBinds (GHC.ValBindsIn (GHC.listToBag $ [GHC.L ld decl])
                                     [GHC.L ls sig]))
+        setPrecedingLinesT (GHC.L newSpan binds) 1 4
 #if __GLASGOW_HASKELL__ <= 710
         return (GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs binds)))
 #else
-        bindSpan <- uniqueSrcSpanT
-        return (GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.L bindSpan binds))))
+        -- bindSpan <- uniqueSrcSpanT
+        -- return (GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.L bindSpan binds))))
+        return (GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.L newSpan binds))))
 #endif
       replaceLocalBinds x = return x
   -- putStrLn $ "log:" ++ intercalate "\n" w
@@ -149,7 +152,8 @@ changeLocalDecls ans (GHC.L l p) = do
   Right (declAnns, d@(GHC.L ld (GHC.ValD decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
   Right (sigAnns, s@(GHC.L ls (GHC.SigD sig)))   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
   let declAnns' = setPrecedingLines (GHC.L ld decl) 1 0 declAnns
-  let  sigAnns' = setPrecedingLines (GHC.L ls  sig) 1 4 sigAnns
+  -- let  sigAnns' = setPrecedingLines (GHC.L ls  sig) 1 4 sigAnns
+  let  sigAnns' = setPrecedingLines (GHC.L ls  sig) 0 0 sigAnns
   -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
   -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
   -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
@@ -160,7 +164,7 @@ changeLocalDecls ans (GHC.L l p) = do
 #if __GLASGOW_HASKELL__ <= 710
       replaceLocalBinds m@(GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.HsValBinds (GHC.ValBindsIn binds sigs))))) = do
 #else
-      replaceLocalBinds m@(GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.L lb (GHC.HsValBinds (GHC.ValBindsIn binds sigs)))))) = do
+      replaceLocalBinds m@(GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs b@(GHC.L lb (GHC.HsValBinds (GHC.ValBindsIn binds sigs)))))) = do
 #endif
         a1 <- getAnnsT
         a' <- case sigs of
@@ -172,7 +176,11 @@ changeLocalDecls ans (GHC.L l p) = do
         let oldDecls = GHC.sortLocated $ map wrapDecl (GHC.bagToList binds) ++ map wrapSig sigs
         let decls = s:d:oldDecls
         -- logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)
+#if __GLASGOW_HASKELL__ <= 710
         modifyAnnsT (captureOrder m decls)
+#else
+        modifyAnnsT (captureOrder b decls)
+#endif
         let binds' = (GHC.HsValBinds
                           (GHC.ValBindsIn (GHC.listToBag $ (GHC.L ld decl):GHC.bagToList binds)
                                           (GHC.L ls sig:sigs)))

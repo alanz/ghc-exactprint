@@ -251,11 +251,11 @@ markLocatedPushContext ctxt ast = do
 -- |When adding missing annotations, do not put a preceding space in front of a list
 markListNoPrecedingSpace :: Annotate ast => [GHC.Located ast] -> Annotated ()
 markListNoPrecedingSpace ls =
-    case ls of
-      [] -> return ()
-      (l:ls') -> do
-        setContext (Set.singleton NoPrecedingSpace) $ markLocated l
-        mapM_ markLocated ls'
+  case ls of
+    [] -> return ()
+    (l:ls') -> do
+      setContext (Set.singleton NoPrecedingSpace) $ markLocated l
+      mapM_ markLocated ls'
 
 -- ---------------------------------------------------------------------
 
@@ -1261,11 +1261,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.TypeSig lns st)  = do
 #endif
     -- mapM_ markLocated lns
-    case lns of
-      [] -> return ()
-      (ln:lns') ->do
-        setContext (Set.singleton NoPrecedingSpace) $ markLocated ln
-        mapM_ markLocated lns'
+    markListNoPrecedingSpace lns
+    -- case lns of
+    --   [] -> return ()
+    --   (ln:lns') ->do
+    --     setContext (Set.singleton NoPrecedingSpace) $ markLocated ln
+    --     mapM_ markLocated lns'
     mark GHC.AnnDcolon
 #if __GLASGOW_HASKELL__ <= 710
     markLocated typ

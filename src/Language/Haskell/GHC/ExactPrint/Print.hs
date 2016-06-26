@@ -31,7 +31,7 @@ import Language.Haskell.GHC.ExactPrint.Annotate
   (AnnotationF(..), Annotated, Annotate(..), annotate)
 import Language.Haskell.GHC.ExactPrint.Lookup
 
-import Control.Exception
+-- import Control.Exception
 import Control.Monad.Identity
 import Control.Monad.RWS
 import Control.Monad.Trans.Free

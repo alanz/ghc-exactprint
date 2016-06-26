@@ -81,7 +81,7 @@ import qualified Outputable     as GHC
 import qualified RdrName        as GHC
 import qualified Var            as GHC
 
-import qualified OccName(occNameString,isSymOcc)
+import qualified OccName(occNameString)
 
 import Control.Arrow
 
