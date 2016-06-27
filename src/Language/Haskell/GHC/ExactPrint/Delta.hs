@@ -388,7 +388,7 @@ setPriorEnd pe =
 setPriorEndAST :: GHC.SrcSpan -> Delta ()
 setPriorEndAST pe = do
   setLayoutStart (snd (ss2pos pe))
-  modify (\s -> s { priorEndPosition    = (ss2posEnd pe) } )
+  modify (\s -> s { priorEndPosition    = ss2posEnd pe } )
 
 setLayoutStart :: Int -> Delta ()
 setLayoutStart p = do

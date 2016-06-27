@@ -30,7 +30,7 @@ module Language.Haskell.GHC.ExactPrint.Annotate
        , Annotate(..)
        ) where
 
-import Data.Maybe ( fromMaybe )
+-- import Data.Maybe ( fromMaybe )
 #if __GLASGOW_HASKELL__ <= 710
 import Data.Ord ( comparing )
 import Data.List ( sortBy )
@@ -1192,16 +1192,18 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
         case mln of
           -- Nothing -> mark GHC.AnnFunId
-          Nothing -> return ()
-          Just (n,_) -> setContext (Set.singleton NoPrecedingSpace) $ markLocated n
-        -- mapM_ markLocated pats
-        markListNoPrecedingSpace pats
+          Nothing -> markListNoPrecedingSpace pats
+          Just (n,_) -> do
+            setContext (Set.singleton NoPrecedingSpace) $ markLocated n
+            mapM_ markLocated pats
+        -- markListNoPrecedingSpace pats
 #else
         case mln of
           -- GHC.NonFunBindMatch  -> mark GHC.AnnFunId
-          GHC.NonFunBindMatch  -> return ()
-          GHC.FunBindMatch n _ -> markLocated n
-        mapM_ markLocated pats
+          GHC.NonFunBindMatch  -> markListNoPrecedingSpace pats
+          GHC.FunBindMatch n _ -> do
+            setContext (Set.singleton NoPrecedingSpace) $ markLocated n
+            mapM_ markLocated pats
 #endif
 
     -- TODO: The AnnEqual annotation actually belongs in the first GRHS value

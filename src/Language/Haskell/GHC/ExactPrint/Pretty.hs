@@ -41,7 +41,7 @@ import qualified SrcLoc        as GHC
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
--- import Debug.Trace
+import Debug.Trace
 
 {-# ANN module "HLint: ignore Eta reduce" #-}
 
@@ -202,6 +202,7 @@ addPrettyAnnotation ann = do
                        else tellKd (G ann,DP (0,1))
     GHC.AnnCloseC -> tellKd (G ann,DP (0,0))
     GHC.AnnDcolon -> tellKd (G ann,DP (0,1))
+    GHC.AnnEqual  -> tellKd (G ann,DP (0,1))
     GHC.AnnOf     -> tellKd (G ann,DP (0,1))
     GHC.AnnOpenC  -> tellKd (G ann,DP (0,0))
     GHC.AnnRarrow -> tellKd (G ann,DP (0,1))
@@ -256,7 +257,7 @@ withAST lss@(GHC.L ss t) action = do
     ctx <- asks prContext
     let spanStart = ss2pos ss
         -- edp = DP (0,0)
-        edp = entryDpFor ctx t
+    edp <- entryDpFor ctx t
 
     let cs = []
     (res, w) <- censor maskWriter (listen action)
@@ -276,27 +277,45 @@ withAST lss@(GHC.L ss t) action = do
 
 -- ---------------------------------------------------------------------
 
-entryDpFor :: Typeable a => AstContextSet -> a -> DeltaPos
-entryDpFor ctx a =
+entryDpFor :: Typeable a => AstContextSet -> a -> Pretty DeltaPos
+entryDpFor ctx a = do
   (def
-  `extQ` funBind
-  `extQ` match
-  ) a
+    `extQ` funBind
+    `extQ` match
+    ) a
   where
     lineDefault = if inAcs (Set.singleton AdvanceLine) ctx
                     then 1 else 0
-    def :: Typeable a => a -> DeltaPos
-    def _ = DP (lineDefault,0)
+
+    def :: Typeable a => a -> Pretty DeltaPos
+    def _ = return $ DP (lineDefault,0)
 
     inCase = inAcs (Set.singleton CaseAlt) ctx
 
-    funBind :: GHC.HsBind GHC.RdrName -> DeltaPos
-    funBind GHC.FunBind{} = DP (2,0)
-    funBind GHC.PatBind{} = DP (2,0)
-    funBind _ = DP (lineDefault,0)
+    funBind :: GHC.HsBind GHC.RdrName -> Pretty DeltaPos
+    funBind GHC.FunBind{} = return $ DP (2,0)
+    funBind GHC.PatBind{} = return $ DP (2,0)
+    funBind _ = return $ DP (lineDefault,0)
 
-    match :: GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> DeltaPos
-    match _ = if inCase then DP (1,2) else DP (0,0)
+    match :: GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> Pretty DeltaPos
+    match _ = do
+      -- if inCase then DP (1,2) else DP (0,0)
+      fromLayout (DP (1,0)) (DP (1,12))
+
+-- ---------------------------------------------------------------------
+
+-- |Like fromMaybe, in that if no layout flag is set return the first value,
+-- else return the second and reset the layout flag.
+fromLayout :: a -> a -> Pretty a
+fromLayout def lay = do
+  PrettyState{apMarkLayout} <- get
+  if apMarkLayout
+    then do
+      -- error "foo"
+      modify (\s -> s { apMarkLayout = False })
+      return lay
+    else return def
+
 
 -- ---------------------------------------------------------------------
 

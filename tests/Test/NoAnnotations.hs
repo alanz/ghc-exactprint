@@ -109,7 +109,8 @@ runPrettyRoundTrip :: FilePath -> GHC.ApiAnns -> GHC.ParsedSource
                    -> IO (Either (GHC.SrcSpan, String)(Anns, GHC.ParsedSource))
 runPrettyRoundTrip origFile !anns !parsedOrig cs = do
   let !newAnns = addAnnotationsForPretty cs parsedOrig mempty
-  putStrLn $ "newAnns:" ++ showGhc newAnns
+  -- putStrLn $ "newAnns:" ++ showGhc newAnns
+  putStrLn $ "newAnns:" ++ (showAnnData newAnns 0 parsedOrig)
   let !printed = exactPrint parsedOrig newAnns
   putStrLn $ "printed:[" ++ printed ++ "]"
   parseString origFile printed newAnns

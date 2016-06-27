@@ -64,7 +64,7 @@ import Control.Monad.State
 import qualified Data.ByteString as B
 import Data.Data (Data, toConstr, showConstr, cast)
 import Data.Generics (extQ, ext1Q, ext2Q, gmapQ)
-import Data.List (intercalate, sortBy, elemIndex)
+-- import Data.List (intercalate, sortBy, elemIndex)
 import Data.Ord (comparing)
 
 import Language.Haskell.GHC.ExactPrint.Types
@@ -81,7 +81,7 @@ import qualified Outputable     as GHC
 import qualified RdrName        as GHC
 import qualified Var            as GHC
 
-import qualified OccName(occNameString,isSymOcc)
+import qualified OccName(occNameString)
 
 import Control.Arrow
 
@@ -385,9 +385,7 @@ showAnnData anns n =
                               ++ intercalate "," (map (showAnnData anns (n+1)) l) ++ "]"
 
         name       = ("{Name: "++) . (++"}") . showSDocDebug_ . GHC.ppr :: GHC.Name -> String
-        -- occName    = ("{OccName: "++) . (++"}") .  OccName.occNameString
-        occName :: GHC.OccName -> String
-        occName n  = ("{OccName: "++ (OccName.occNameString n ++ ":" ++ (show (OccName.isSymOcc n))) ++"}")
+        occName    = ("{OccName: "++) . (++"}") .  OccName.occNameString
         moduleName = ("{ModuleName: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.ModuleName -> String
 
         -- srcSpan    = ("{"++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.SrcSpan -> String
