@@ -65,10 +65,11 @@ import Debug.Trace
 {-# ANN module "HLint: ignore Eta reduce" #-}
 -- ---------------------------------------------------------------------
 
--- |
--- ['MarkPrim']
---    The main constructor. Marks that a specific AnnKeywordId could
---    appear with an optional String which is used when printing.
+-- | ['MarkPrim'] The main constructor. Marks that a specific AnnKeywordId could
+-- appear with an optional String which is used when printing.
+-- ['MarkPPOptional'] Used to flag elements, such as optional braces, that are
+--   not used in the pretty printer. This functions identically to 'MarkPrim'
+--   for the other interpreters.
 -- ['MarkEOF']
 --    Special constructor which marks the end of file marker.
 -- ['MarkExternal'] TODO
@@ -106,6 +107,7 @@ import Debug.Trace
 -- processing files with such fragments is still possible.
 data AnnotationF next where
   MarkPrim       :: GHC.AnnKeywordId -> Maybe String                     -> next -> AnnotationF next
+  MarkPPOptional :: GHC.AnnKeywordId -> Maybe String                     -> next -> AnnotationF next
   MarkEOF        ::                                                         next -> AnnotationF next
   MarkExternal   :: GHC.SrcSpan -> GHC.AnnKeywordId -> String            -> next -> AnnotationF next
   MarkOutside    :: GHC.AnnKeywordId -> KeywordId                        -> next -> AnnotationF next
@@ -143,6 +145,7 @@ type Annotated = FreeT AnnotationF Identity
 
 makeFreeCon  'MarkEOF
 makeFreeCon  'MarkPrim
+makeFreeCon  'MarkPPOptional
 makeFreeCon  'MarkOutside
 makeFreeCon  'MarkInside
 makeFreeCon  'MarkExternal
@@ -206,6 +209,9 @@ withAST lss action =
 
 mark :: GHC.AnnKeywordId -> Annotated ()
 mark kwid = markPrim kwid Nothing
+
+markOptional :: GHC.AnnKeywordId -> Annotated ()
+markOptional kwid = markPPOptional kwid Nothing
 
 markWithString :: GHC.AnnKeywordId -> String -> Annotated ()
 markWithString kwid s = markPrim kwid (Just s)
@@ -322,13 +328,13 @@ instance Annotate (GHC.HsModule GHC.RdrName) where
 
         mark GHC.AnnWhere
 
-    mark GHC.AnnOpenC -- Possible '{'
+    markOptional GHC.AnnOpenC -- Possible '{'
     markMany GHC.AnnSemi -- possible leading semis
     mapM_ markLocated imps
 
     mapM_ markLocated decs
 
-    mark GHC.AnnCloseC -- Possible '}'
+    markOptional GHC.AnnCloseC -- Possible '}'
 
     markEOF
 
@@ -1217,10 +1223,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       GHC.EmptyLocalBinds -> return ()
       _ -> do
         mark GHC.AnnWhere
-        mark GHC.AnnOpenC -- '{'
+        markOptional GHC.AnnOpenC -- '{'
         markInside GHC.AnnSemi
         markLocalBindsWithLayout lb
-        mark GHC.AnnCloseC -- '}'
+        markOptional GHC.AnnCloseC -- '}'
     markTrailingSemi
 
 -- ---------------------------------------------------------------------
@@ -1850,7 +1856,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 
   markAST _ (GHC.ConPatIn n dets) = do
     -- markHsConPatDetails n dets
-    trace ("ConPatIn") markHsConPatDetails n dets
+    markHsConPatDetails n dets
 
   markAST _ (GHC.ConPatOut {}) =
     traceM "warning: ConPatOut Introduced after renaming"
@@ -1938,7 +1944,7 @@ markHsConPatDetails :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName n
 markHsConPatDetails ln dets = do
   case dets of
     GHC.PrefixCon args -> do
-      trace "PrefixCon" markLocated ln
+      markLocated ln
       mapM_ markLocated args
     GHC.RecCon (GHC.HsRecFields fs dd) -> do
       markLocated ln
@@ -2042,10 +2048,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
 #endif
     -- return () `debug` ("markP.LetStmt entered")
     mark GHC.AnnLet
-    mark GHC.AnnOpenC -- '{'
+    markOptional GHC.AnnOpenC -- '{'
     markInside GHC.AnnSemi
     markLocalBindsWithLayout lb
-    mark GHC.AnnCloseC -- '}'
+    markOptional GHC.AnnCloseC -- '}'
     -- return () `debug` ("markP.LetStmt done")
     inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
     markTrailingSemi
@@ -2089,10 +2095,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
   markAST _ (GHC.RecStmt stmts _ _ _ _ _ _ _ _ _) = do
 #endif
     mark GHC.AnnRec
-    mark GHC.AnnOpenC
+    markOptional GHC.AnnOpenC
     markInside GHC.AnnSemi
     mapM_ markLocated stmts
-    mark GHC.AnnCloseC
+    markOptional GHC.AnnCloseC
     inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
     markTrailingSemi
 
@@ -2179,10 +2185,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST l (GHC.HsLamCase _ match) = do
     mark GHC.AnnLam
     mark GHC.AnnCase
-    mark GHC.AnnOpenC
+    markOptional GHC.AnnOpenC
     setContext (Set.singleton CaseAlt) $ do
       markMatchGroup l match
-    mark GHC.AnnCloseC
+    markOptional GHC.AnnCloseC
 
   markAST _ (GHC.HsApp e1 e2) = do
     markLocated e1
@@ -2224,10 +2230,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnCase
     markLocated e1
     mark GHC.AnnOf
-    mark GHC.AnnOpenC
+    markOptional GHC.AnnOpenC
     markInside GHC.AnnSemi
     setContext (Set.singleton CaseAlt) $ markMatchGroup l matches
-    mark GHC.AnnCloseC
+    markOptional GHC.AnnCloseC
 
   -- We set the layout for HsIf even though it need not obey layout rules as
   -- when moving these expressions it's useful that they maintain "internal
@@ -2245,10 +2251,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   markAST _ (GHC.HsMultiIf _ rhs) = do
     mark GHC.AnnIf
-    mark GHC.AnnOpenC
+    markOptional GHC.AnnOpenC
     setContext (Set.singleton CaseAlt) $ do
       mapM_ markLocated rhs
-    mark GHC.AnnCloseC
+    markOptional GHC.AnnCloseC
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsLet binds e) = do
@@ -2257,10 +2263,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #endif
     setLayoutFlag (do -- Make sure the 'in' gets indented too
       mark GHC.AnnLet
-      mark GHC.AnnOpenC
+      markOptional GHC.AnnOpenC
       markInside GHC.AnnSemi
       markLocalBindsWithLayout binds
-      mark GHC.AnnCloseC
+      markOptional GHC.AnnCloseC
       mark GHC.AnnIn
       markLocated e)
 
@@ -2281,7 +2287,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
     markWithString GHC.AnnOpen ostr
     mark GHC.AnnOpenS
-    mark GHC.AnnOpenC
+    markOptional GHC.AnnOpenC
     markInside GHC.AnnSemi
     if isListComp cts
       then setContext (Set.singleton ListComp) $ do
@@ -2291,7 +2297,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       else do
         markListWithLayout es
     mark GHC.AnnCloseS
-    mark GHC.AnnCloseC
+    markOptional GHC.AnnCloseC
     markWithString GHC.AnnClose cstr
 
   markAST _ (GHC.ExplicitList _ _ es) = do
@@ -2310,10 +2316,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.RecordCon n _ _ (GHC.HsRecFields fs _)) = do
 #endif
     markLocated n
-    mark GHC.AnnOpenC
+    markOptional GHC.AnnOpenC
     mapM_ markLocated fs
     mark GHC.AnnDotdot
-    mark GHC.AnnCloseC
+    markOptional GHC.AnnCloseC
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.RecordUpd e (GHC.HsRecFields fs _) _cons _ _) = do
@@ -2321,10 +2327,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.RecordUpd e fs _cons _ _ _) = do
 #endif
     markLocated e
-    mark GHC.AnnOpenC
+    markOptional GHC.AnnOpenC
     mapM_ markLocated fs
     mark GHC.AnnDotdot
-    mark GHC.AnnCloseC
+    markOptional GHC.AnnCloseC
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.ExprWithTySig e typ _) = do
@@ -2424,9 +2430,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLocatedFromKw GHC.AnnName v
   markAST _ (GHC.HsBracket (GHC.DecBrL ds)) = do
     markWithString GHC.AnnOpen "[d|"
-    mark GHC.AnnOpenC
+    markOptional GHC.AnnOpenC
     mapM_ markLocated ds
-    mark GHC.AnnCloseC
+    markOptional GHC.AnnCloseC
     markWithString GHC.AnnClose "|]"
   -- Introduced after the renamer
   markAST _ (GHC.HsBracket (GHC.DecBrG _)) =
@@ -2702,10 +2708,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnCase
     markLocated e1
     mark GHC.AnnOf
-    mark GHC.AnnOpenC
+    markOptional GHC.AnnOpenC
     setContext (Set.singleton CaseAlt) $ do
       markMatchGroup l matches
-    mark GHC.AnnCloseC
+    markOptional GHC.AnnCloseC
 
   markAST _ (GHC.HsCmdIf _ e1 e2 e3) = do
     mark GHC.AnnIf
@@ -2723,9 +2729,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsCmdLet (GHC.L _ binds) e) = do
 #endif
     mark GHC.AnnLet
-    mark GHC.AnnOpenC
+    markOptional GHC.AnnOpenC
     markLocalBindsWithLayout binds
-    mark GHC.AnnCloseC
+    markOptional GHC.AnnCloseC
     mark GHC.AnnIn
     markLocated e
 
@@ -2735,9 +2741,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsCmdDo (GHC.L _ es) _) = do
 #endif
     mark GHC.AnnDo
-    mark GHC.AnnOpenC
+    markOptional GHC.AnnOpenC
     markListWithLayout es
-    mark GHC.AnnCloseC
+    markOptional GHC.AnnCloseC
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.HsCmdCast {}) =
@@ -2804,9 +2810,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markMaybe mk
     mark GHC.AnnEqual
     mark GHC.AnnWhere
-    mark GHC.AnnOpenC
+    markOptional GHC.AnnOpenC
     mapM_ markLocated cons
-    mark GHC.AnnCloseC
+    markOptional GHC.AnnCloseC
     markMaybe mderivs
     markTrailingSemi
 

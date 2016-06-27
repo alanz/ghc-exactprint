@@ -154,6 +154,8 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
       markPrim (G kwid) mstr >> next
       -- let annString = fromMaybe (keywordToString kwid) mstr in
       --   printStringAtMaybeAnn (G kwid) annString >> next
+    go (MarkPPOptional kwid mstr next) =
+      markPrim (G kwid) mstr >> next
     go (MarkOutside _ kwid next) =
       -- markPrim kwid Nothing >> next
       -- let annString = keywordToString kwid in

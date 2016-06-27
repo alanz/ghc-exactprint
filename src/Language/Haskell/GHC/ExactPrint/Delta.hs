@@ -243,6 +243,7 @@ deltaInterpret = iterTM go
     go :: AnnotationF (Delta a) -> Delta a
     go (MarkEOF next)                   = addEofAnnotation >> next
     go (MarkPrim kwid _ next)           = addDeltaAnnotation kwid >> next
+    go (MarkPPOptional kwid _ next)     = addDeltaAnnotation kwid >> next
     go (MarkOutside akwid kwid next)    = addDeltaAnnotationsOutside akwid kwid >> next
     go (MarkInside akwid next)          = addDeltaAnnotationsInside akwid >> next
     go (MarkMany akwid next)            = addDeltaAnnotations akwid >> next

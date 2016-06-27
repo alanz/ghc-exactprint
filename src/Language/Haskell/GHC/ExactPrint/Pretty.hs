@@ -2,6 +2,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RecordWildCards #-} -- ++AZ++ TODO: get rid of this abomination
 
 -----------------------------------------------------------------------------
 -- |
@@ -26,10 +27,10 @@ import Control.Exception
 import Control.Monad.Identity
 import Control.Monad.RWS
 import Control.Monad.Trans.Free
--- import Data.Data (Data)
 import Data.Generics
--- import Data.List
--- import Data.Ord
+import Data.List (sortBy, elemIndex)
+import Data.Maybe (fromMaybe)
+import Data.Ord (comparing)
 
 #if __GLASGOW_HASKELL__ <= 710
 -- import Language.Haskell.GHC.ExactPrint.Lookup
@@ -162,6 +163,7 @@ prettyInterpret = iterTM go
   where
     go :: AnnotationF (Pretty a) -> Pretty a
     go (MarkPrim kwid _ next)           = addPrettyAnnotation kwid >> next
+    go (MarkPPOptional _kwid _ next)    = next
     go (MarkEOF next)                   = addEofAnnotation >> next
     go (MarkExternal ss akwid _ next)   = addPrettyAnnotation akwid >> next
     go (MarkOutside akwid kwid next)    = addPrettyAnnotationsOutside akwid kwid >> next
@@ -203,6 +205,7 @@ addPrettyAnnotation ann = do
     GHC.AnnCloseC -> tellKd (G ann,DP (0,0))
     GHC.AnnDcolon -> tellKd (G ann,DP (0,1))
     GHC.AnnEqual  -> tellKd (G ann,DP (0,1))
+    GHC.AnnIn     -> tellKd (G ann,DP (1,0))
     GHC.AnnOf     -> tellKd (G ann,DP (0,1))
     GHC.AnnOpenC  -> tellKd (G ann,DP (0,0))
     GHC.AnnRarrow -> tellKd (G ann,DP (0,1))
@@ -338,7 +341,11 @@ countAnnsPretty ann = return 0
 -- ---------------------------------------------------------------------
 
 withSortKey :: [(GHC.SrcSpan, Annotated b)] -> Pretty ()
-withSortKey kws = return ()
+withSortKey kws =
+  let order = sortBy (comparing fst) kws
+  in do
+    tellSortKey (map fst order)
+    mapM_ (prettyInterpret . snd) order
 
 -- ---------------------------------------------------------------------
 
@@ -403,3 +410,6 @@ tellFinalAnn (k, v) =
 
 tellKd :: (KeywordId, DeltaPos) -> Pretty ()
 tellKd kd = tell (mempty { annKds = [kd] })
+
+tellSortKey :: [GHC.SrcSpan] -> Pretty ()
+tellSortKey xs = tell (mempty { sortKeys = Just xs } )
