@@ -236,6 +236,7 @@ data AstContext = FunRhs
                 | InIE
                 | AdvanceLine
                 | ListComp
+                | Intercalate -- This item may have a list separator following
                 deriving (Eq, Ord, Show)
 
 {-

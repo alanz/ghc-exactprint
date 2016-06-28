@@ -202,7 +202,7 @@ withAST lss action =
     prog = do
       action
       -- Automatically add any trailing comma or semi
-      markOutside GHC.AnnComma (G GHC.AnnComma)
+      -- markOutside GHC.AnnComma (G GHC.AnnComma)
 
 -- ---------------------------------------------------------------------
 -- Additional smart constructors
@@ -254,13 +254,31 @@ markLocatedPushContext ctxt ast = do
 -- ---------------------------------------------------------------------
 
 -- |When adding missing annotations, do not put a preceding space in front of a list
-markListNoPrecedingSpace :: Annotate ast => [GHC.Located ast] -> Annotated ()
-markListNoPrecedingSpace ls =
+markListNoPrecedingSpace :: Annotate ast => Bool -> [GHC.Located ast] -> Annotated ()
+markListNoPrecedingSpace intercal ls =
     case ls of
       [] -> return ()
       (l:ls') -> do
-        setContext (Set.singleton NoPrecedingSpace) $ markLocated l
-        mapM_ markLocated ls'
+        if intercal
+        then do
+          setContext (Set.fromList [NoPrecedingSpace,Intercalate]) $ markLocated l
+          markListIntercalate ls'
+        else do
+          setContext (Set.singleton NoPrecedingSpace) $ markLocated l
+          mapM_ markLocated ls'
+
+-- ---------------------------------------------------------------------
+
+
+-- |Mark a list, with the given keyword as a list item separator
+markListIntercalate :: Annotate ast => [GHC.Located ast] -> Annotated ()
+markListIntercalate ls = go ls
+  where
+    go []  = return ()
+    go [x] = markLocated x
+    go (x:xs) = do
+      setContext (Set.singleton Intercalate) $ markLocated x
+      go xs
 
 -- ---------------------------------------------------------------------
 
@@ -344,14 +362,15 @@ instance Annotate GHC.WarningTxt where
   markAST _ (GHC.WarningTxt (GHC.L ls txt) lss) = do
     markExternal ls GHC.AnnOpen txt
     mark GHC.AnnOpenS
-    mapM_ markLocated lss
+    -- mapM_ markLocated lss
+    markListIntercalate lss
     mark GHC.AnnCloseS
     markWithString GHC.AnnClose "#-}"
 
   markAST _ (GHC.DeprecatedTxt (GHC.L ls txt) lss) = do
     markExternal ls GHC.AnnOpen txt
     mark GHC.AnnOpenS
-    mapM_ markLocated lss
+    markListIntercalate lss
     mark GHC.AnnCloseS
     markWithString GHC.AnnClose "#-}"
 
@@ -366,7 +385,8 @@ instance Annotate GHC.StringLiteral where
 
 instance Annotate (GHC.SourceText,GHC.FastString) where
   -- markAST l (_,fs) = markAST l fs
-  markAST l (src,_fs) = markExternal l GHC.AnnVal src
+  markAST l (src,_fs) = do
+    markExternal l GHC.AnnVal src
 
 -- ---------------------------------------------------------------------
 
@@ -375,7 +395,7 @@ instance (GHC.DataId name,Annotate name)
    markAST _ ls = do
      mark GHC.AnnHiding -- in an import decl
      mark GHC.AnnOpenP -- '('
-     mapM_ markLocated ls
+     markListIntercalate ls
      mark GHC.AnnCloseP -- ')'
 
 instance (GHC.DataId name,Annotate name)
@@ -456,6 +476,7 @@ instance (GHC.DataId name,Annotate name)
         (GHC.IEDoc _)     -> return ()
 
         (GHC.IEDocNamed _)    -> return ()
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 -- ---------------------------------------------------------------------
 {-
@@ -581,6 +602,7 @@ instance Annotate GHC.RdrName where
             markWithString GHC.AnnVal str
             -- markExternal l GHC.AnnVal str
             when isSym $ mark GHC.AnnCloseP -- ')'
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 -- ---------------------------------------------------------------------
 
@@ -848,17 +870,19 @@ instance Annotate name => Annotate (GHC.WarnDecls name) where
 instance (Annotate name)
    => Annotate (GHC.WarnDecl name) where
    markAST _ (GHC.Warning lns txt) = do
-     mapM_ markLocated lns
+     markListIntercalate lns
      mark GHC.AnnOpenS -- "["
      case txt of
-       GHC.WarningTxt    _src ls -> mapM_ markLocated ls
-       GHC.DeprecatedTxt _src ls -> mapM_ markLocated ls
+       GHC.WarningTxt    _src ls -> markListIntercalate ls
+       GHC.DeprecatedTxt _src ls -> markListIntercalate ls
      mark GHC.AnnCloseS -- "]"
 
 instance Annotate GHC.FastString where
   -- TODO: https://ghc.haskell.org/trac/ghc/ticket/10313 applies.
-  markAST l fs = markExternal l GHC.AnnVal (show (GHC.unpackFS fs))
-  -- markAST l fs = markExternal l GHC.AnnVal ('"':(GHC.unpackFS fs++"\""))
+  markAST l fs = do
+    markExternal l GHC.AnnVal (show (GHC.unpackFS fs))
+    -- markExternal l GHC.AnnVal ('"':(GHC.unpackFS fs++"\""))
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 -- ---------------------------------------------------------------------
 
@@ -1198,7 +1222,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
         case mln of
           -- Nothing -> mark GHC.AnnFunId
-          Nothing -> markListNoPrecedingSpace pats
+          Nothing -> markListNoPrecedingSpace False pats
           Just (n,_) -> do
             setContext (Set.singleton NoPrecedingSpace) $ markLocated n
             mapM_ markLocated pats
@@ -1206,7 +1230,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #else
         case mln of
           -- GHC.NonFunBindMatch  -> mark GHC.AnnFunId
-          GHC.NonFunBindMatch  -> markListNoPrecedingSpace pats
+          GHC.NonFunBindMatch  -> markListNoPrecedingSpace False pats
           GHC.FunBindMatch n _ -> do
             setContext (Set.singleton NoPrecedingSpace) $ markLocated n
             mapM_ markLocated pats
@@ -1260,11 +1284,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.TypeSig lns st)  = do
 #endif
     -- mapM_ markLocated lns
-    case lns of
-      [] -> return ()
-      (ln:lns') ->do
-        setContext (Set.singleton NoPrecedingSpace) $ markLocated ln
-        mapM_ markLocated lns'
+    -- case lns of
+    --   [] -> return ()
+    --   (ln:lns') ->do
+    --     setContext (Set.singleton NoPrecedingSpace) $ markLocated ln
+    --     mapM_ markLocated lns'
+    markListNoPrecedingSpace True lns
     mark GHC.AnnDcolon
 #if __GLASGOW_HASKELL__ <= 710
     markLocated typ
@@ -1465,241 +1490,247 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
    => Annotate (GHC.HsType name) where
+  markAST l ty = do
+    markType l ty
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+   where
 
+    -- markType :: GHC.SrcSpan -> ast -> Annotated ()
 #if __GLASGOW_HASKELL__ <= 710
-  markAST _ (GHC.HsForAllTy _f mwc (GHC.HsQTvs _kvs tvs) ctx@(GHC.L lc ctxs) typ) = do
-    mark GHC.AnnOpenP -- "("
-    when (not $ null tvs) $ do
+    markType _ (GHC.HsForAllTy _f mwc (GHC.HsQTvs _kvs tvs) ctx@(GHC.L lc ctxs) typ) = do
+      mark GHC.AnnOpenP -- "("
+      when (not $ null tvs) $ do
+        mark GHC.AnnForall
+        mapM_ markLocated tvs
+        mark GHC.AnnDot
+
+      case mwc of
+        Nothing -> if lc /= GHC.noSrcSpan then markLocated ctx else return ()
+        Just lwc -> do
+         let sorted = lexicalSortLocated (GHC.L lwc GHC.HsWildcardTy:ctxs)
+         markLocated (GHC.L lc sorted)
+         mark GHC.AnnDarrow
+
+      -- mark GHC.AnnDarrow
+      markLocated typ
+      mark GHC.AnnCloseP -- ")"
+#else
+    markType _ (GHC.HsForAllTy tvs typ) = do
+      mark GHC.AnnOpenP -- "("
       mark GHC.AnnForall
       mapM_ markLocated tvs
       mark GHC.AnnDot
+      markLocated typ
+      mark GHC.AnnCloseP -- ")"
 
-    case mwc of
-      Nothing -> if lc /= GHC.noSrcSpan then markLocated ctx else return ()
-      Just lwc -> do
-       let sorted = lexicalSortLocated (GHC.L lwc GHC.HsWildcardTy:ctxs)
-       markLocated (GHC.L lc sorted)
-       mark GHC.AnnDarrow
+  {-
+    = HsForAllTy   -- See Note [HsType binders]
+        { hst_bndrs :: [LHsTyVarBndr name]   -- Explicit, user-supplied 'forall a b c'
+        , hst_body  :: LHsType name          -- body type
+        }
 
-    -- mark GHC.AnnDarrow
-    markLocated typ
-    mark GHC.AnnCloseP -- ")"
-#else
-  markAST _ (GHC.HsForAllTy tvs typ) = do
-    mark GHC.AnnOpenP -- "("
-    mark GHC.AnnForall
-    mapM_ markLocated tvs
-    mark GHC.AnnDot
-    markLocated typ
-    mark GHC.AnnCloseP -- ")"
-
-{-
-  = HsForAllTy   -- See Note [HsType binders]
-      { hst_bndrs :: [LHsTyVarBndr name]   -- Explicit, user-supplied 'forall a b c'
-      , hst_body  :: LHsType name          -- body type
-      }
-
--}
+  -}
 #endif
 
 #if __GLASGOW_HASKELL__ <= 710
 #else
-  markAST l (GHC.HsQualTy cxt ty) = do
-    inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
-    markLocated cxt
-    mark GHC.AnnDarrow
-    markLocated ty
-{-
-  | HsQualTy   -- See Note [HsType binders]
-      { hst_ctxt :: LHsContext name       -- Context C => blah
-      , hst_body :: LHsType name }
--}
+    markType l (GHC.HsQualTy cxt ty) = do
+      inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
+      markLocated cxt
+      mark GHC.AnnDarrow
+      markLocated ty
+  {-
+    | HsQualTy   -- See Note [HsType binders]
+        { hst_ctxt :: LHsContext name       -- Context C => blah
+        , hst_body :: LHsType name }
+  -}
 #endif
 
-  markAST l (GHC.HsTyVar name) = do
-    inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
-    n <- countAnns  GHC.AnnSimpleQuote
-    case n of
-      1 -> do
-          mark GHC.AnnSimpleQuote
-          mark GHC.AnnOpenC
+    markType l (GHC.HsTyVar name) = do
+      inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
+      n <- countAnns  GHC.AnnSimpleQuote
+      case n of
+        1 -> do
+            mark GHC.AnnSimpleQuote
+            mark GHC.AnnOpenC
 #if __GLASGOW_HASKELL__ <= 710
-          markLocatedFromKw GHC.AnnName name
-      _ -> markAST l name
+            markLocatedFromKw GHC.AnnName name
+        _ -> markAST l name
 #else
-          markLocatedFromKw GHC.AnnName (GHC.unLoc name)
-      _ -> markLocated name
+            markLocatedFromKw GHC.AnnName (GHC.unLoc name)
+        _ -> markLocated name
 #endif
 
 #if __GLASGOW_HASKELL__ > 710
-  markAST _ (GHC.HsAppsTy ts) = do
-    mapM_ markLocated ts
+    markType _ (GHC.HsAppsTy ts) = do
+      mapM_ markLocated ts
 #endif
 
-  markAST _ (GHC.HsAppTy t1 t2) = do
-    inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
-    markLocated t1
-    markLocated t2
+    markType _ (GHC.HsAppTy t1 t2) = do
+      inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
+      markLocated t1
+      markLocated t2
 
-  markAST _ (GHC.HsFunTy t1 t2) = do
-    inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
-    markLocated t1
-    mark GHC.AnnRarrow
-    markLocated t2
+    markType _ (GHC.HsFunTy t1 t2) = do
+      inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
+      markLocated t1
+      mark GHC.AnnRarrow
+      markLocated t2
 
-  markAST _ (GHC.HsListTy t) = do
-    inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
-    mark GHC.AnnOpenS -- '['
-    markLocated t
-    mark GHC.AnnCloseS -- ']'
+    markType _ (GHC.HsListTy t) = do
+      inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
+      mark GHC.AnnOpenS -- '['
+      markLocated t
+      mark GHC.AnnCloseS -- ']'
 
-  markAST _ (GHC.HsPArrTy t) = do
-    markWithString GHC.AnnOpen "[:" -- '[:'
-    markLocated t
-    markWithString GHC.AnnClose ":]" -- ':]'
+    markType _ (GHC.HsPArrTy t) = do
+      markWithString GHC.AnnOpen "[:" -- '[:'
+      markLocated t
+      markWithString GHC.AnnClose ":]" -- ':]'
 
-  markAST _ (GHC.HsTupleTy _tt ts) = do
-    mark GHC.AnnDcolon -- for HsKind, alias for HsType
-    markWithString GHC.AnnOpen "(#" -- '(#'
-    mark GHC.AnnOpenP  -- '('
-    mapM_ markLocated ts
-    mark GHC.AnnCloseP -- ')'
-    markWithString GHC.AnnClose "#)" --  '#)'
+    markType _ (GHC.HsTupleTy _tt ts) = do
+      mark GHC.AnnDcolon -- for HsKind, alias for HsType
+      markWithString GHC.AnnOpen "(#" -- '(#'
+      mark GHC.AnnOpenP  -- '('
+      markListIntercalate ts
+      mark GHC.AnnCloseP -- ')'
+      markWithString GHC.AnnClose "#)" --  '#)'
 
 #if __GLASGOW_HASKELL__ <= 710
-  markAST _ (GHC.HsOpTy t1 (_,lo) t2) = do
+    markType _ (GHC.HsOpTy t1 (_,lo) t2) = do
 #else
-  markAST _ (GHC.HsOpTy t1 lo t2) = do
-  -- HsOpTy              (LHsType name) (Located name) (LHsType name)
+    markType _ (GHC.HsOpTy t1 lo t2) = do
+    -- HsOpTy              (LHsType name) (Located name) (LHsType name)
 #endif
-    markLocated t1
-    mark GHC.AnnSimpleQuote
-    markLocated lo
-    markLocated t2
+      markLocated t1
+      mark GHC.AnnSimpleQuote
+      markLocated lo
+      markLocated t2
 
-  markAST _ (GHC.HsParTy t) = do
-    mark GHC.AnnDcolon -- for HsKind, alias for HsType
-    mark GHC.AnnOpenP  -- '('
-    markLocated t
-    mark GHC.AnnCloseP -- ')'
---    mark GHC.AnnDarrow -- May appear after context in a ConDecl
+    markType _ (GHC.HsParTy t) = do
+      mark GHC.AnnDcolon -- for HsKind, alias for HsType
+      mark GHC.AnnOpenP  -- '('
+      markLocated t
+      mark GHC.AnnCloseP -- ')'
+  --    mark GHC.AnnDarrow -- May appear after context in a ConDecl
 
-  markAST _ (GHC.HsIParamTy (GHC.HsIPName n) t) = do
-    markWithString GHC.AnnVal ("?" ++ (GHC.unpackFS n))
-    mark GHC.AnnDcolon
-    markLocated t
+    markType _ (GHC.HsIParamTy (GHC.HsIPName n) t) = do
+      markWithString GHC.AnnVal ("?" ++ (GHC.unpackFS n))
+      mark GHC.AnnDcolon
+      markLocated t
 
-  markAST _ (GHC.HsEqTy t1 t2) = do
-    markLocated t1
-    mark GHC.AnnTilde
-    markLocated t2
+    markType _ (GHC.HsEqTy t1 t2) = do
+      markLocated t1
+      mark GHC.AnnTilde
+      markLocated t2
 
-  markAST _ (GHC.HsKindSig t k) = do
-    mark GHC.AnnOpenP  -- '('
-    markLocated t
-    mark GHC.AnnDcolon -- '::'
-    markLocated k
-    mark GHC.AnnCloseP -- ')'
+    markType _ (GHC.HsKindSig t k) = do
+      mark GHC.AnnOpenP  -- '('
+      markLocated t
+      mark GHC.AnnDcolon -- '::'
+      markLocated k
+      mark GHC.AnnCloseP -- ')'
 
-  markAST l (GHC.HsSpliceTy s _) = do
-    mark GHC.AnnOpenPE
-    markAST l s
-    mark GHC.AnnCloseP
+    markType l (GHC.HsSpliceTy s _) = do
+      mark GHC.AnnOpenPE
+      markAST l s
+      mark GHC.AnnCloseP
 
-  markAST _ (GHC.HsDocTy t ds) = do
-    markLocated t
-    markLocated ds
+    markType _ (GHC.HsDocTy t ds) = do
+      markLocated t
+      markLocated ds
 
 #if __GLASGOW_HASKELL__ <= 710
-  markAST _ (GHC.HsBangTy b t) = do
-    case b of
-      (GHC.HsSrcBang ms (Just True) _) -> do
-        markWithString GHC.AnnOpen  (maybe "{-# UNPACK" id ms)
-        markWithString GHC.AnnClose "#-}"
-      (GHC.HsSrcBang ms (Just False) _) -> do
-        markWithString GHC.AnnOpen  (maybe "{-# NOUNPACK" id ms)
-        markWithString GHC.AnnClose "#-}"
-      _ -> return ()
-    mark GHC.AnnBang
-    markLocated t
+    markType _ (GHC.HsBangTy b t) = do
+      case b of
+        (GHC.HsSrcBang ms (Just True) _) -> do
+          markWithString GHC.AnnOpen  (maybe "{-# UNPACK" id ms)
+          markWithString GHC.AnnClose "#-}"
+        (GHC.HsSrcBang ms (Just False) _) -> do
+          markWithString GHC.AnnOpen  (maybe "{-# NOUNPACK" id ms)
+          markWithString GHC.AnnClose "#-}"
+        _ -> return ()
+      mark GHC.AnnBang
+      markLocated t
 #else
-  markAST _ (GHC.HsBangTy (GHC.HsSrcBang mt _up _str) t) = do
-    case mt of
-      Nothing -> return ()
-      Just src -> do
-        markWithString GHC.AnnOpen src
-        markWithString GHC.AnnClose "#-}"
-    mark GHC.AnnBang
-    mark GHC.AnnTilde
-    markLocated t
-{-
-  | HsBangTy    HsSrcBang (LHsType name)   -- Bang-style type annotations
-data HsSrcBang =
-  HsSrcBang (Maybe SourceText) -- Note [Pragma source text] in BasicTypes
-            SrcUnpackedness
-            SrcStrictness
-data SrcStrictness = SrcLazy -- ^ Lazy, ie '~'
-                   | SrcStrict -- ^ Strict, ie '!'
-                   | NoSrcStrict -- ^ no strictness annotation
+    markType _ (GHC.HsBangTy (GHC.HsSrcBang mt _up _str) t) = do
+      case mt of
+        Nothing -> return ()
+        Just src -> do
+          markWithString GHC.AnnOpen src
+          markWithString GHC.AnnClose "#-}"
+      mark GHC.AnnBang
+      mark GHC.AnnTilde
+      markLocated t
+  {-
+    | HsBangTy    HsSrcBang (LHsType name)   -- Bang-style type annotations
+  data HsSrcBang =
+    HsSrcBang (Maybe SourceText) -- Note [Pragma source text] in BasicTypes
+              SrcUnpackedness
+              SrcStrictness
+  data SrcStrictness = SrcLazy -- ^ Lazy, ie '~'
+                     | SrcStrict -- ^ Strict, ie '!'
+                     | NoSrcStrict -- ^ no strictness annotation
 
-data SrcUnpackedness = SrcUnpack -- ^ {-# UNPACK #-} specified
-                     | SrcNoUnpack -- ^ {-# NOUNPACK #-} specified
-                     | NoSrcUnpack -- ^ no unpack pragma
+  data SrcUnpackedness = SrcUnpack -- ^ {-# UNPACK #-} specified
+                       | SrcNoUnpack -- ^ {-# NOUNPACK #-} specified
+                       | NoSrcUnpack -- ^ no unpack pragma
 
--}
+  -}
 #endif
 
-  -- HsRecTy [LConDeclField name]
-  markAST _ (GHC.HsRecTy cons) = do
-    mark GHC.AnnOpenC  -- '{'
-    mapM_ markLocated cons
-    mark GHC.AnnCloseC -- '}'
+    -- HsRecTy [LConDeclField name]
+    markType _ (GHC.HsRecTy cons) = do
+      mark GHC.AnnOpenC  -- '{'
+      -- mapM_ markLocated cons
+      markListIntercalate cons
+      mark GHC.AnnCloseC -- '}'
 
-  -- HsCoreTy Type
-  markAST _ (GHC.HsCoreTy _t) =
-    traceM "warning: HsCoreTy Introduced after renaming"
+    -- HsCoreTy Type
+    markType _ (GHC.HsCoreTy _t) =
+      traceM "warning: HsCoreTy Introduced after renaming"
 
-  markAST _ (GHC.HsExplicitListTy _ ts) = do
-    mark GHC.AnnSimpleQuote
-    mark GHC.AnnOpenS  -- "["
-    mapM_ markLocated ts
-    mark GHC.AnnCloseS -- ']'
+    markType _ (GHC.HsExplicitListTy _ ts) = do
+      mark GHC.AnnSimpleQuote
+      mark GHC.AnnOpenS  -- "["
+      markListIntercalate ts
+      mark GHC.AnnCloseS -- ']'
 
-  markAST _ (GHC.HsExplicitTupleTy _ ts) = do
-    mark GHC.AnnSimpleQuote
-    mark GHC.AnnOpenP
-    mapM_ markLocated ts
-    mark GHC.AnnCloseP
+    markType _ (GHC.HsExplicitTupleTy _ ts) = do
+      mark GHC.AnnSimpleQuote
+      mark GHC.AnnOpenP
+      mapM_ markLocated ts
+      mark GHC.AnnCloseP
 
-  -- HsTyLit HsTyLit
-  markAST l (GHC.HsTyLit lit) = do
-    case lit of
-      (GHC.HsNumTy s _) ->
-        markExternal l GHC.AnnVal s
-      (GHC.HsStrTy s _) ->
-        markExternal l GHC.AnnVal s
+    -- HsTyLit HsTyLit
+    markType l (GHC.HsTyLit lit) = do
+      case lit of
+        (GHC.HsNumTy s _) ->
+          markExternal l GHC.AnnVal s
+        (GHC.HsStrTy s _) ->
+          markExternal l GHC.AnnVal s
 
-  -- HsWrapTy HsTyAnnotated (HsType name)
+    -- HsWrapTy HsTyAnnotated (HsType name)
 #if __GLASGOW_HASKELL__ <= 710
-  markAST _ (GHC.HsWrapTy _ _) =
-    traceM "warning: HsWrapTyy Introduced after renaming"
+    markType _ (GHC.HsWrapTy _ _) =
+      traceM "warning: HsWrapTyy Introduced after renaming"
 #endif
 
 #if __GLASGOW_HASKELL__ <= 710
-  markAST l (GHC.HsWildcardTy) = do
-    markExternal l GHC.AnnVal "_"
-  markAST l (GHC.HsNamedWildcardTy n) = do
-    markExternal l GHC.AnnVal  (showGhc n)
+    markType l (GHC.HsWildcardTy) = do
+      markExternal l GHC.AnnVal "_"
+    markType l (GHC.HsNamedWildcardTy n) = do
+      markExternal l GHC.AnnVal  (showGhc n)
 #else
-  markAST l (GHC.HsWildCardTy (GHC.AnonWildCard _)) = do
-    markExternal l GHC.AnnVal "_"
-  -- markAST l (GHC.HsWildCardTy (GHC.NamedWildCard n)) = do
-  --   markExternal l GHC.AnnVal  (showGhc n)
+    markType l (GHC.HsWildCardTy (GHC.AnonWildCard _)) = do
+      markExternal l GHC.AnnVal "_"
+    -- markType l (GHC.HsWildCardTy (GHC.NamedWildCard n)) = do
+    --   markExternal l GHC.AnnVal  (showGhc n)
 #endif
 
 #if __GLASGOW_HASKELL__ <= 710
-  markAST l (GHC.HsQuasiQuoteTy n) = do
-    markAST l n
+    markType l (GHC.HsQuasiQuoteTy n) = do
+      markAST l n
 #endif
 
 -- ---------------------------------------------------------------------
@@ -1789,6 +1820,7 @@ data ConDeclField name  -- Record fields have Haddoc docs on them
     mark GHC.AnnDcolon
     markLocated ty
     markMaybe mdoc
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 -- ---------------------------------------------------------------------
 
@@ -1807,116 +1839,120 @@ instance Annotate GHC.HsDocString where
 -- ---------------------------------------------------------------------
 instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName name)
   => Annotate (GHC.Pat name) where
-  markAST l (GHC.WildPat _) = markExternal l GHC.AnnVal "_"
-  markAST l (GHC.VarPat n)  = do
-    -- The parser inserts a placeholder value for a record pun rhs. This must be
-    -- filtered out until https://ghc.haskell.org/trac/ghc/ticket/12224 is
-    -- resolved, particularly for pretty printing where annotations are added.
-    let pun_RDR = "pun-right-hand-side"
-    when (showGhc n /= pun_RDR) $
+  markAST l ty = do
+    markPat l ty
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+    where
+      markPat l (GHC.WildPat _) = markExternal l GHC.AnnVal "_"
+      markPat l (GHC.VarPat n)  = do
+        -- The parser inserts a placeholder value for a record pun rhs. This must be
+        -- filtered out until https://ghc.haskell.org/trac/ghc/ticket/12224 is
+        -- resolved, particularly for pretty printing where annotations are added.
+        let pun_RDR = "pun-right-hand-side"
+        when (showGhc n /= pun_RDR) $
 #if __GLASGOW_HASKELL__ <= 710
-      markAST l n
+          markAST l n
 #else
-      markLocated n
+          markLocated n
 #endif
-  markAST _ (GHC.LazyPat p) = do
-    mark GHC.AnnTilde
-    markLocated p
+      markPat _ (GHC.LazyPat p) = do
+        mark GHC.AnnTilde
+        markLocated p
 
-  markAST _ (GHC.AsPat ln p) = do
-    markLocated ln
-    mark GHC.AnnAt
-    markLocated p
+      markPat _ (GHC.AsPat ln p) = do
+        markLocated ln
+        mark GHC.AnnAt
+        markLocated p
 
-  markAST _ (GHC.ParPat p) = do
-    mark GHC.AnnOpenP
-    markLocated p
-    mark GHC.AnnCloseP
+      markPat _ (GHC.ParPat p) = do
+        mark GHC.AnnOpenP
+        markLocated p
+        mark GHC.AnnCloseP
 
-  markAST _ (GHC.BangPat p) = do
-    mark GHC.AnnBang
-    markLocated p
+      markPat _ (GHC.BangPat p) = do
+        mark GHC.AnnBang
+        markLocated p
 
-  markAST _ (GHC.ListPat ps _ _) = do
-    mark GHC.AnnOpenS
-    mapM_ markLocated ps
-    mark GHC.AnnCloseS
+      markPat _ (GHC.ListPat ps _ _) = do
+        mark GHC.AnnOpenS
+        mapM_ markLocated ps
+        mark GHC.AnnCloseS
 
-  markAST _ (GHC.TuplePat pats b _) = do
-    if b == GHC.Boxed then mark GHC.AnnOpenP
-                      else markWithString GHC.AnnOpen "(#"
-    mapM_ markLocated pats
-    if b == GHC.Boxed then mark GHC.AnnCloseP
-                      else markWithString GHC.AnnClose "#)"
+      markPat _ (GHC.TuplePat pats b _) = do
+        if b == GHC.Boxed then mark GHC.AnnOpenP
+                          else markWithString GHC.AnnOpen "(#"
+        markListIntercalate pats
+        if b == GHC.Boxed then mark GHC.AnnCloseP
+                          else markWithString GHC.AnnClose "#)"
 
-  markAST _ (GHC.PArrPat ps _) = do
-    markWithString GHC.AnnOpen "[:"
-    mapM_ markLocated ps
-    markWithString GHC.AnnClose ":]"
+      markPat _ (GHC.PArrPat ps _) = do
+        markWithString GHC.AnnOpen "[:"
+        mapM_ markLocated ps
+        markWithString GHC.AnnClose ":]"
 
-  markAST _ (GHC.ConPatIn n dets) = do
-    -- markHsConPatDetails n dets
-    markHsConPatDetails n dets
+      markPat _ (GHC.ConPatIn n dets) = do
+        -- markHsConPatDetails n dets
+        markHsConPatDetails n dets
 
-  markAST _ (GHC.ConPatOut {}) =
-    traceM "warning: ConPatOut Introduced after renaming"
+      markPat _ (GHC.ConPatOut {}) =
+        traceM "warning: ConPatOut Introduced after renaming"
 
-  -- ViewPat (LHsExpr id) (LPat id) (PostTc id Type)
-  markAST _ (GHC.ViewPat e pat _) = do
-    markLocated e
-    mark GHC.AnnRarrow
-    markLocated pat
+      -- ViewPat (LHsExpr id) (LPat id) (PostTc id Type)
+      markPat _ (GHC.ViewPat e pat _) = do
+        markLocated e
+        mark GHC.AnnRarrow
+        markLocated pat
 
-  -- SplicePat (HsSplice id)
-  markAST l (GHC.SplicePat s) = do
-    mark GHC.AnnOpenPE
-    markAST l s
-    mark GHC.AnnCloseP
+      -- SplicePat (HsSplice id)
+      markPat l (GHC.SplicePat s) = do
+        mark GHC.AnnOpenPE
+        markAST l s
+        mark GHC.AnnCloseP
 
-  -- LitPat HsLit
-  markAST l (GHC.LitPat lp) = markExternal l GHC.AnnVal (hsLit2String lp)
+      -- LitPat HsLit
+      markPat l (GHC.LitPat lp) = markExternal l GHC.AnnVal (hsLit2String lp)
 
-  -- NPat (HsOverLit id) (Maybe (SyntaxExpr id)) (SyntaxExpr id)
+      -- NPat (HsOverLit id) (Maybe (SyntaxExpr id)) (SyntaxExpr id)
 #if __GLASGOW_HASKELL__ <= 710
-  markAST _ (GHC.NPat ol _ _) = do
+      markPat _ (GHC.NPat ol _ _) = do
 #else
-  markAST _ (GHC.NPat ol _ _ _) = do
+      markPat _ (GHC.NPat ol _ _ _) = do
 #endif
-    mark GHC.AnnMinus
-    markLocated ol
+        mark GHC.AnnMinus
+        markLocated ol
 
-  -- NPlusKPat (Located id) (HsOverLit id) (SyntaxExpr id) (SyntaxExpr id)
+      -- NPlusKPat (Located id) (HsOverLit id) (SyntaxExpr id) (SyntaxExpr id)
 #if __GLASGOW_HASKELL__ <= 710
-  markAST _ (GHC.NPlusKPat ln ol _ _) = do
+      markPat _ (GHC.NPlusKPat ln ol _ _) = do
 #else
-  markAST _ (GHC.NPlusKPat ln ol _ _ _ _) = do
+      markPat _ (GHC.NPlusKPat ln ol _ _ _ _) = do
 #endif
-    markLocated ln
-    markWithString GHC.AnnVal "+"  -- "+"
-    markLocated ol
+        markLocated ln
+        markWithString GHC.AnnVal "+"  -- "+"
+        markLocated ol
 
 
 #if __GLASGOW_HASKELL__ <= 710
-  markAST _ (GHC.SigPatIn pat (GHC.HsWB ty _ _ _)) = do
-    markLocated pat
-    mark GHC.AnnDcolon
-    markLocated ty
+      markPat _ (GHC.SigPatIn pat (GHC.HsWB ty _ _ _)) = do
+        markLocated pat
+        mark GHC.AnnDcolon
+        markLocated ty
 #else
-  markAST _ (GHC.SigPatIn pat ty) = do
-    markLocated pat
-    mark GHC.AnnDcolon
-    markLHsSigWcType ty
+      markPat _ (GHC.SigPatIn pat ty) = do
+        markLocated pat
+        mark GHC.AnnDcolon
+        markLHsSigWcType ty
 #endif
 
-  markAST _ (GHC.SigPatOut {}) =
-    traceM "warning: SigPatOut introduced after renaming"
+      markPat _ (GHC.SigPatOut {}) =
+        traceM "warning: SigPatOut introduced after renaming"
 
-  -- CoPat HsAnnotated (Pat id) Type
-  markAST _ (GHC.CoPat {}) =
-    traceM "warning: CoPat introduced after renaming"
+      -- CoPat HsAnnotated (Pat id) Type
+      markPat _ (GHC.CoPat {}) =
+        traceM "warning: CoPat introduced after renaming"
 
 #if __GLASGOW_HASKELL__ <= 710
-  markAST l (GHC.QuasiQuotePat p) = markAST l p
+      markPat l (GHC.QuasiQuotePat p) = markAST l p
 #endif
 
 -- ---------------------------------------------------------------------
@@ -1949,7 +1985,7 @@ markHsConPatDetails ln dets = do
     GHC.RecCon (GHC.HsRecFields fs dd) -> do
       markLocated ln
       mark GHC.AnnOpenC -- '{'
-      mapM_ markLocated fs
+      markListIntercalate fs
       when (isJust dd) $ mark GHC.AnnDotdot
       mark GHC.AnnCloseC -- '}'
     GHC.InfixCon a1 a2 -> do
@@ -1977,7 +2013,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
    => Annotate [GHC.LConDeclField name] where
   markAST _ fs = do
        mark GHC.AnnOpenC -- '{'
-       mapM_ markLocated fs
+       -- mapM_ markLocated fs
+       markListIntercalate fs
        mark GHC.AnnDotdot
        mark GHC.AnnCloseC -- '}'
        mark GHC.AnnRarrow
@@ -2153,444 +2190,449 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsExpr name) where
+  markAST l expr = do
+    markExpr l expr
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+   where
 #if __GLASGOW_HASKELL__ <= 710
-  markAST l (GHC.HsVar n)           = markAST l n
+      markExpr l (GHC.HsVar n)           = markAST l n
 #else
-  markAST l (GHC.HsVar n)           = markLocated n
+      markExpr l (GHC.HsVar n)           = markLocated n
 #endif
 
 #if __GLASGOW_HASKELL__ <= 710
 #else
-  markAST l (GHC.HsRecFld f) = markAST l f
+      markExpr l (GHC.HsRecFld f) = markAST l f
 
-  markAST l (GHC.HsOverLabel fs) 
-    = markExternal l GHC.AnnVal ("#" ++ GHC.unpackFS fs)
+      markExpr l (GHC.HsOverLabel fs) 
+        = markExternal l GHC.AnnVal ("#" ++ GHC.unpackFS fs)
 #endif
 
-  markAST l (GHC.HsIPVar (GHC.HsIPName v))         =
-    markExternal l GHC.AnnVal ("?" ++ GHC.unpackFS v)
-  markAST l (GHC.HsOverLit ov)     = markAST l ov
-  markAST l (GHC.HsLit lit)        = markAST l lit
+      markExpr l (GHC.HsIPVar (GHC.HsIPName v))         =
+        markExternal l GHC.AnnVal ("?" ++ GHC.unpackFS v)
+      markExpr l (GHC.HsOverLit ov)     = markAST l ov
+      markExpr l (GHC.HsLit lit)        = markAST l lit
 
-  markAST _ (GHC.HsLam match) = do
-    -- mark GHC.AnnLam
-    setContext (Set.singleton LambdaExpr) $ do
-    -- TODO: Change this, HsLam binds do not need obey layout rules.
+      markExpr _ (GHC.HsLam match) = do
+        -- mark GHC.AnnLam
+        setContext (Set.singleton LambdaExpr) $ do
+        -- TODO: Change this, HsLam binds do not need obey layout rules.
 #if __GLASGOW_HASKELL__ <= 710
-      mapM_ markLocated (GHC.mg_alts match)
+          mapM_ markLocated (GHC.mg_alts match)
 #else
-      mapM_ markLocated (GHC.unLoc $ GHC.mg_alts match)
+          mapM_ markLocated (GHC.unLoc $ GHC.mg_alts match)
 #endif
 
-  markAST l (GHC.HsLamCase _ match) = do
-    mark GHC.AnnLam
-    mark GHC.AnnCase
-    markOptional GHC.AnnOpenC
-    setContext (Set.singleton CaseAlt) $ do
-      markMatchGroup l match
-    markOptional GHC.AnnCloseC
+      markExpr l (GHC.HsLamCase _ match) = do
+        mark GHC.AnnLam
+        mark GHC.AnnCase
+        markOptional GHC.AnnOpenC
+        setContext (Set.singleton CaseAlt) $ do
+          markMatchGroup l match
+        markOptional GHC.AnnCloseC
 
-  markAST _ (GHC.HsApp e1 e2) = do
-    markLocated e1
-    markLocated e2
+      markExpr _ (GHC.HsApp e1 e2) = do
+        markLocated e1
+        markLocated e2
 
-  markAST _ (GHC.OpApp e1 e2 _ e3) = do
-    markLocated e1
-    markLocated e2
-    markLocated e3
+      markExpr _ (GHC.OpApp e1 e2 _ e3) = do
+        markLocated e1
+        markLocated e2
+        markLocated e3
 
-  markAST _ (GHC.NegApp e _) = do
-    mark GHC.AnnMinus
-    markLocated e
+      markExpr _ (GHC.NegApp e _) = do
+        mark GHC.AnnMinus
+        markLocated e
 
-  markAST _ (GHC.HsPar e) = do
-    mark GHC.AnnOpenP -- '('
-    markLocated e
-    mark GHC.AnnCloseP -- ')'
+      markExpr _ (GHC.HsPar e) = do
+        mark GHC.AnnOpenP -- '('
+        markLocated e
+        mark GHC.AnnCloseP -- ')'
 
-  markAST _ (GHC.SectionL e1 e2) = do
-    markLocated e1
-    markLocated e2
+      markExpr _ (GHC.SectionL e1 e2) = do
+        markLocated e1
+        markLocated e2
 
-  markAST _ (GHC.SectionR e1 e2) = do
-    markLocated e1
-    markLocated e2
+      markExpr _ (GHC.SectionR e1 e2) = do
+        markLocated e1
+        markLocated e2
 
-  markAST _ (GHC.ExplicitTuple args b) = do
-    if b == GHC.Boxed then mark GHC.AnnOpenP
-                      else markWithString GHC.AnnOpen "(#"
+      markExpr _ (GHC.ExplicitTuple args b) = do
+        if b == GHC.Boxed then mark GHC.AnnOpenP
+                          else markWithString GHC.AnnOpen "(#"
 
-    mapM_ markLocated args
+        mapM_ markLocated args
 
-    if b == GHC.Boxed then mark GHC.AnnCloseP
-                      else markWithString GHC.AnnClose "#)"
+        if b == GHC.Boxed then mark GHC.AnnCloseP
+                          else markWithString GHC.AnnClose "#)"
 
 
-  markAST l (GHC.HsCase e1 matches) = setRigidFlag $ do
-    mark GHC.AnnCase
-    markLocated e1
-    mark GHC.AnnOf
-    markOptional GHC.AnnOpenC
-    markInside GHC.AnnSemi
-    setContext (Set.singleton CaseAlt) $ markMatchGroup l matches
-    markOptional GHC.AnnCloseC
+      markExpr l (GHC.HsCase e1 matches) = setRigidFlag $ do
+        mark GHC.AnnCase
+        markLocated e1
+        mark GHC.AnnOf
+        markOptional GHC.AnnOpenC
+        markInside GHC.AnnSemi
+        setContext (Set.singleton CaseAlt) $ markMatchGroup l matches
+        markOptional GHC.AnnCloseC
 
-  -- We set the layout for HsIf even though it need not obey layout rules as
-  -- when moving these expressions it's useful that they maintain "internal
-  -- integrity", that is to say the subparts remain indented relative to each
-  -- other.
-  markAST _ (GHC.HsIf _ e1 e2 e3) = setRigidFlag $ do
-    mark GHC.AnnIf
-    markLocated e1
-    markOffset GHC.AnnSemi 0
-    mark GHC.AnnThen
-    markLocated e2
-    markOffset GHC.AnnSemi 1
-    mark GHC.AnnElse
-    markLocated e3
+      -- We set the layout for HsIf even though it need not obey layout rules as
+      -- when moving these expressions it's useful that they maintain "internal
+      -- integrity", that is to say the subparts remain indented relative to each
+      -- other.
+      markExpr _ (GHC.HsIf _ e1 e2 e3) = setRigidFlag $ do
+        mark GHC.AnnIf
+        markLocated e1
+        markOffset GHC.AnnSemi 0
+        mark GHC.AnnThen
+        markLocated e2
+        markOffset GHC.AnnSemi 1
+        mark GHC.AnnElse
+        markLocated e3
 
-  markAST _ (GHC.HsMultiIf _ rhs) = do
-    mark GHC.AnnIf
-    markOptional GHC.AnnOpenC
-    setContext (Set.singleton CaseAlt) $ do
-      mapM_ markLocated rhs
-    markOptional GHC.AnnCloseC
-
-#if __GLASGOW_HASKELL__ <= 710
-  markAST _ (GHC.HsLet binds e) = do
-#else
-  markAST _ (GHC.HsLet (GHC.L _ binds) e) = do
-#endif
-    setLayoutFlag (do -- Make sure the 'in' gets indented too
-      mark GHC.AnnLet
-      markOptional GHC.AnnOpenC
-      markInside GHC.AnnSemi
-      markLocalBindsWithLayout binds
-      markOptional GHC.AnnCloseC
-      mark GHC.AnnIn
-      markLocated e)
+      markExpr _ (GHC.HsMultiIf _ rhs) = do
+        mark GHC.AnnIf
+        markOptional GHC.AnnOpenC
+        setContext (Set.singleton CaseAlt) $ do
+          mapM_ markLocated rhs
+        markOptional GHC.AnnCloseC
 
 #if __GLASGOW_HASKELL__ <= 710
-  markAST _ (GHC.HsDo cts es _) = do
+      markExpr _ (GHC.HsLet binds e) = do
 #else
-  markAST _ (GHC.HsDo cts (GHC.L _ es) _) = do
+      markExpr _ (GHC.HsLet (GHC.L _ binds) e) = do
 #endif
-    case cts of
-      GHC.MDoExpr -> mark GHC.AnnMdo
-      _           -> mark GHC.AnnDo
-    let (ostr,cstr,_isComp) =
-          if isListComp cts
-            then case cts of
-                   GHC.PArrComp -> ("[:",":]",True)
-                   _            -> ("[",  "]",True)
-            else ("{","}",False)
-
-    markWithString GHC.AnnOpen ostr
-    mark GHC.AnnOpenS
-    markOptional GHC.AnnOpenC
-    markInside GHC.AnnSemi
-    if isListComp cts
-      then setContext (Set.singleton ListComp) $ do
-        markLocated (last es)
-        mark GHC.AnnVbar
-        mapM_ markLocated (init es)
-      else do
-        markListWithLayout es
-    mark GHC.AnnCloseS
-    markOptional GHC.AnnCloseC
-    markWithString GHC.AnnClose cstr
-
-  markAST _ (GHC.ExplicitList _ _ es) = do
-    mark GHC.AnnOpenS
-    mapM_ markLocated es
-    mark GHC.AnnCloseS
-
-  markAST _ (GHC.ExplicitPArr _ es)   = do
-    markWithString GHC.AnnOpen "[:"
-    mapM_ markLocated es
-    markWithString GHC.AnnClose ":]"
+        setLayoutFlag (do -- Make sure the 'in' gets indented too
+          mark GHC.AnnLet
+          markOptional GHC.AnnOpenC
+          markInside GHC.AnnSemi
+          markLocalBindsWithLayout binds
+          markOptional GHC.AnnCloseC
+          mark GHC.AnnIn
+          markLocated e)
 
 #if __GLASGOW_HASKELL__ <= 710
-  markAST _ (GHC.RecordCon n _ (GHC.HsRecFields fs _)) = do
+      markExpr _ (GHC.HsDo cts es _) = do
 #else
-  markAST _ (GHC.RecordCon n _ _ (GHC.HsRecFields fs _)) = do
+      markExpr _ (GHC.HsDo cts (GHC.L _ es) _) = do
 #endif
-    markLocated n
-    markOptional GHC.AnnOpenC
-    mapM_ markLocated fs
-    mark GHC.AnnDotdot
-    markOptional GHC.AnnCloseC
+        case cts of
+          GHC.MDoExpr -> mark GHC.AnnMdo
+          _           -> mark GHC.AnnDo
+        let (ostr,cstr,_isComp) =
+              if isListComp cts
+                then case cts of
+                       GHC.PArrComp -> ("[:",":]",True)
+                       _            -> ("[",  "]",True)
+                else ("{","}",False)
+
+        markWithString GHC.AnnOpen ostr
+        mark GHC.AnnOpenS
+        markOptional GHC.AnnOpenC
+        markInside GHC.AnnSemi
+        if isListComp cts
+          then setContext (Set.singleton ListComp) $ do
+            markLocated (last es)
+            mark GHC.AnnVbar
+            mapM_ markLocated (init es)
+          else do
+            markListWithLayout es
+        mark GHC.AnnCloseS
+        markOptional GHC.AnnCloseC
+        markWithString GHC.AnnClose cstr
+
+      markExpr _ (GHC.ExplicitList _ _ es) = do
+        mark GHC.AnnOpenS
+        markListIntercalate es
+        mark GHC.AnnCloseS
+
+      markExpr _ (GHC.ExplicitPArr _ es)   = do
+        markWithString GHC.AnnOpen "[:"
+        mapM_ markLocated es
+        markWithString GHC.AnnClose ":]"
 
 #if __GLASGOW_HASKELL__ <= 710
-  markAST _ (GHC.RecordUpd e (GHC.HsRecFields fs _) _cons _ _) = do
+      markExpr _ (GHC.RecordCon n _ (GHC.HsRecFields fs _)) = do
 #else
-  markAST _ (GHC.RecordUpd e fs _cons _ _ _) = do
+      markExpr _ (GHC.RecordCon n _ _ (GHC.HsRecFields fs _)) = do
 #endif
-    markLocated e
-    markOptional GHC.AnnOpenC
-    mapM_ markLocated fs
-    mark GHC.AnnDotdot
-    markOptional GHC.AnnCloseC
+        markLocated n
+        markOptional GHC.AnnOpenC
+        -- mapM_ markLocated fs
+        markListIntercalate fs
+        mark GHC.AnnDotdot
+        markOptional GHC.AnnCloseC
 
 #if __GLASGOW_HASKELL__ <= 710
-  markAST _ (GHC.ExprWithTySig e typ _) = do
+      markExpr _ (GHC.RecordUpd e (GHC.HsRecFields fs _) _cons _ _) = do
 #else
-  markAST _ (GHC.ExprWithTySig e typ) = do
+      markExpr _ (GHC.RecordUpd e fs _cons _ _ _) = do
 #endif
-    markLocated e
-    mark GHC.AnnDcolon
+        markLocated e
+        markOptional GHC.AnnOpenC
+        markListIntercalate fs
+        mark GHC.AnnDotdot
+        markOptional GHC.AnnCloseC
+
 #if __GLASGOW_HASKELL__ <= 710
-    markLocated typ
+      markExpr _ (GHC.ExprWithTySig e typ _) = do
 #else
-    markLHsSigWcType typ
+      markExpr _ (GHC.ExprWithTySig e typ) = do
+#endif
+        markLocated e
+        mark GHC.AnnDcolon
+#if __GLASGOW_HASKELL__ <= 710
+        markLocated typ
+#else
+        markLHsSigWcType typ
 #endif
 
-  markAST _ (GHC.ExprWithTySigOut e typ) = do
-    markLocated e
-    mark GHC.AnnDcolon
+      markExpr _ (GHC.ExprWithTySigOut e typ) = do
+        markLocated e
+        mark GHC.AnnDcolon
 #if __GLASGOW_HASKELL__ <= 710
-    markLocated typ
+        markLocated typ
 #else
-    markLHsSigWcType typ
+        markLHsSigWcType typ
 #endif
 
-  markAST _ (GHC.ArithSeq _ _ seqInfo) = do
-    mark GHC.AnnOpenS -- '['
-    case seqInfo of
-        GHC.From e -> do
-          markLocated e
-          mark GHC.AnnDotdot
-        GHC.FromTo e1 e2 -> do
-          markLocated e1
-          mark GHC.AnnDotdot
-          markLocated e2
-        GHC.FromThen e1 e2 -> do
-          markLocated e1
-          mark GHC.AnnComma
-          markLocated e2
-          mark GHC.AnnDotdot
-        GHC.FromThenTo e1 e2 e3 -> do
-          markLocated e1
-          mark GHC.AnnComma
-          markLocated e2
-          mark GHC.AnnDotdot
-          markLocated e3
-    mark GHC.AnnCloseS -- ']'
+      markExpr _ (GHC.ArithSeq _ _ seqInfo) = do
+        mark GHC.AnnOpenS -- '['
+        case seqInfo of
+            GHC.From e -> do
+              markLocated e
+              mark GHC.AnnDotdot
+            GHC.FromTo e1 e2 -> do
+              markLocated e1
+              mark GHC.AnnDotdot
+              markLocated e2
+            GHC.FromThen e1 e2 -> do
+              markLocated e1
+              mark GHC.AnnComma
+              markLocated e2
+              mark GHC.AnnDotdot
+            GHC.FromThenTo e1 e2 e3 -> do
+              markLocated e1
+              mark GHC.AnnComma
+              markLocated e2
+              mark GHC.AnnDotdot
+              markLocated e3
+        mark GHC.AnnCloseS -- ']'
 
-  markAST _ (GHC.PArrSeq _ seqInfo) = do
-    markWithString GHC.AnnOpen "[:" -- '[:'
-    case seqInfo of
-        GHC.From e -> do
-          markLocated e
-          mark GHC.AnnDotdot
-        GHC.FromTo e1 e2 -> do
-          markLocated e1
-          mark GHC.AnnDotdot
-          markLocated e2
-        GHC.FromThen e1 e2 -> do
-          markLocated e1
-          mark GHC.AnnComma
-          markLocated e2
-          mark GHC.AnnDotdot
-        GHC.FromThenTo e1 e2 e3 -> do
-          markLocated e1
-          mark GHC.AnnComma
-          markLocated e2
-          mark GHC.AnnDotdot
-          markLocated e3
-    markWithString GHC.AnnClose ":]" -- ':]'
+      markExpr _ (GHC.PArrSeq _ seqInfo) = do
+        markWithString GHC.AnnOpen "[:" -- '[:'
+        case seqInfo of
+            GHC.From e -> do
+              markLocated e
+              mark GHC.AnnDotdot
+            GHC.FromTo e1 e2 -> do
+              markLocated e1
+              mark GHC.AnnDotdot
+              markLocated e2
+            GHC.FromThen e1 e2 -> do
+              markLocated e1
+              mark GHC.AnnComma
+              markLocated e2
+              mark GHC.AnnDotdot
+            GHC.FromThenTo e1 e2 e3 -> do
+              markLocated e1
+              mark GHC.AnnComma
+              markLocated e2
+              mark GHC.AnnDotdot
+              markLocated e3
+        markWithString GHC.AnnClose ":]" -- ':]'
 
-  markAST _ (GHC.HsSCC src csFStr e) = do
-    markWithString GHC.AnnOpen src -- "{-# SCC"
+      markExpr _ (GHC.HsSCC src csFStr e) = do
+        markWithString GHC.AnnOpen src -- "{-# SCC"
 #if __GLASGOW_HASKELL__ <= 710
-    markWithString GHC.AnnVal (GHC.unpackFS csFStr)
-    markWithString GHC.AnnValStr ("\"" ++ GHC.unpackFS csFStr ++ "\"")
+        markWithString GHC.AnnVal (GHC.unpackFS csFStr)
+        markWithString GHC.AnnValStr ("\"" ++ GHC.unpackFS csFStr ++ "\"")
 #else
-    markWithString GHC.AnnVal (GHC.sl_st csFStr)
-    markWithString GHC.AnnValStr (GHC.sl_st csFStr)
+        markWithString GHC.AnnVal (GHC.sl_st csFStr)
+        markWithString GHC.AnnValStr (GHC.sl_st csFStr)
 #endif
-    markWithString GHC.AnnClose "#-}"
-    markLocated e
+        markWithString GHC.AnnClose "#-}"
+        markLocated e
 
-  markAST _ (GHC.HsCoreAnn src csFStr e) = do
-    markWithString GHC.AnnOpen src -- "{-# CORE"
+      markExpr _ (GHC.HsCoreAnn src csFStr e) = do
+        markWithString GHC.AnnOpen src -- "{-# CORE"
 #if __GLASGOW_HASKELL__ <= 710
-    markWithString GHC.AnnVal ("\"" ++ GHC.unpackFS csFStr ++ "\"")
+        markWithString GHC.AnnVal ("\"" ++ GHC.unpackFS csFStr ++ "\"")
 #else
-    markWithString GHC.AnnVal (GHC.sl_st csFStr)
+        markWithString GHC.AnnVal (GHC.sl_st csFStr)
 #endif
-    markWithString GHC.AnnClose "#-}"
-    markLocated e
-  -- TODO: make monomorphic
-  markAST _ (GHC.HsBracket (GHC.VarBr True v)) = do
-    mark GHC.AnnSimpleQuote
-    markLocatedFromKw GHC.AnnName v
-  markAST _ (GHC.HsBracket (GHC.VarBr False v)) = do
-    mark GHC.AnnThTyQuote
-    markLocatedFromKw GHC.AnnName v
-  markAST _ (GHC.HsBracket (GHC.DecBrL ds)) = do
-    markWithString GHC.AnnOpen "[d|"
-    markOptional GHC.AnnOpenC
-    mapM_ markLocated ds
-    markOptional GHC.AnnCloseC
-    markWithString GHC.AnnClose "|]"
-  -- Introduced after the renamer
-  markAST _ (GHC.HsBracket (GHC.DecBrG _)) =
-    traceM "warning: DecBrG introduced after renamer"
-  markAST _ (GHC.HsBracket (GHC.ExpBr e)) = do
+        markWithString GHC.AnnClose "#-}"
+        markLocated e
+      -- TODO: make monomorphic
+      markExpr _ (GHC.HsBracket (GHC.VarBr True v)) = do
+        mark GHC.AnnSimpleQuote
+        markLocatedFromKw GHC.AnnName v
+      markExpr _ (GHC.HsBracket (GHC.VarBr False v)) = do
+        mark GHC.AnnThTyQuote
+        markLocatedFromKw GHC.AnnName v
+      markExpr _ (GHC.HsBracket (GHC.DecBrL ds)) = do
+        markWithString GHC.AnnOpen "[d|"
+        markOptional GHC.AnnOpenC
+        mapM_ markLocated ds
+        markOptional GHC.AnnCloseC
+        markWithString GHC.AnnClose "|]"
+      -- Introduced after the renamer
+      markExpr _ (GHC.HsBracket (GHC.DecBrG _)) =
+        traceM "warning: DecBrG introduced after renamer"
+      markExpr _ (GHC.HsBracket (GHC.ExpBr e)) = do
 #if __GLASGOW_HASKELL__ <= 710
-    -- This exists like this as the lexer collapses [e| and [| into the
-    -- same construtor
-    workOutString GHC.AnnOpen
-      (\ss -> if spanLength ss == 2
-                then "[|"
-                else "[e|")
+        -- This exists like this as the lexer collapses [e| and [| into the
+        -- same construtor
+        workOutString GHC.AnnOpen
+          (\ss -> if spanLength ss == 2
+                    then "[|"
+                    else "[e|")
 #else
-    markWithString GHC.AnnOpen "[|"
-    mark GHC.AnnOpenE  -- "[e|"
+        markWithString GHC.AnnOpen "[|"
+        mark GHC.AnnOpenE  -- "[e|"
 #endif
-    markLocated e
-    markWithString GHC.AnnClose "|]"
-  markAST _ (GHC.HsBracket (GHC.TExpBr e)) = do
+        markLocated e
+        markWithString GHC.AnnClose "|]"
+      markExpr _ (GHC.HsBracket (GHC.TExpBr e)) = do
 #if __GLASGOW_HASKELL__ <= 710
-    -- This exists like this as the lexer collapses [e|| and [|| into the
-    -- same construtor
-    workOutString GHC.AnnOpen
-      (\ss -> if spanLength ss == 3
-                then "[||"
-                else "[e||")
+        -- This exists like this as the lexer collapses [e|| and [|| into the
+        -- same construtor
+        workOutString GHC.AnnOpen
+          (\ss -> if spanLength ss == 3
+                    then "[||"
+                    else "[e||")
 #else
-    markWithString GHC.AnnOpen  "[||"
-    markWithString GHC.AnnOpenE "[e||"
+        markWithString GHC.AnnOpen  "[||"
+        markWithString GHC.AnnOpenE "[e||"
 #endif
-    markLocated e
-    markWithString GHC.AnnClose "||]"
-  markAST _ (GHC.HsBracket (GHC.TypBr e)) = do
-    markWithString GHC.AnnOpen "[t|"
-    markLocated e
-    markWithString GHC.AnnClose "|]"
-  markAST _ (GHC.HsBracket (GHC.PatBr e)) = do
-    markWithString GHC.AnnOpen  "[p|"
-    markLocated e
-    markWithString GHC.AnnClose "|]"
+        markLocated e
+        markWithString GHC.AnnClose "||]"
+      markExpr _ (GHC.HsBracket (GHC.TypBr e)) = do
+        markWithString GHC.AnnOpen "[t|"
+        markLocated e
+        markWithString GHC.AnnClose "|]"
+      markExpr _ (GHC.HsBracket (GHC.PatBr e)) = do
+        markWithString GHC.AnnOpen  "[p|"
+        markLocated e
+        markWithString GHC.AnnClose "|]"
 
-  markAST _ (GHC.HsRnBracketOut _ _) =
-    traceM "warning: HsRnBracketOut introduced after renamer"
-  markAST _ (GHC.HsTcBracketOut _ _) =
-    traceM "warning: HsTcBracketOut introduced after renamer"
+      markExpr _ (GHC.HsRnBracketOut _ _) =
+        traceM "warning: HsRnBracketOut introduced after renamer"
+      markExpr _ (GHC.HsTcBracketOut _ _) =
+        traceM "warning: HsTcBracketOut introduced after renamer"
 
 #if __GLASGOW_HASKELL__ > 710
-  markAST l (GHC.HsSpliceE e) = do
-    mark GHC.AnnOpenPE
-    markAST l e
-    mark GHC.AnnCloseP
+      markExpr l (GHC.HsSpliceE e) = do
+        mark GHC.AnnOpenPE
+        markExpr l e
+        mark GHC.AnnCloseP
 #else
-  markAST l (GHC.HsSpliceE _ e) = do
-    mark GHC.AnnOpenPE
-    markAST l e
-    mark GHC.AnnCloseP
+      markExpr l (GHC.HsSpliceE _ e) = do
+        mark GHC.AnnOpenPE
+        markAST l e
+        mark GHC.AnnCloseP
 
-  markAST l (GHC.HsQuasiQuoteE e) = do
-    markAST l e
+      markExpr l (GHC.HsQuasiQuoteE e) = do
+        markAST l e
 #endif
 
-  markAST _ (GHC.HsProc p c) = do
-    mark GHC.AnnProc
-    markLocated p
-    mark GHC.AnnRarrow
-    markLocated c
+      markExpr _ (GHC.HsProc p c) = do
+        mark GHC.AnnProc
+        markLocated p
+        mark GHC.AnnRarrow
+        markLocated c
 
-  markAST _ (GHC.HsStatic e) = do
-    mark GHC.AnnStatic
-    markLocated e
+      markExpr _ (GHC.HsStatic e) = do
+        mark GHC.AnnStatic
+        markLocated e
 
-  markAST _ (GHC.HsArrApp e1 e2 _ _ isRightToLeft) = do
-        -- isRightToLeft True  => right-to-left (f -< arg)
-        --               False => left-to-right (arg >- f)
-    if isRightToLeft
-      then markLocated e1
-      else markLocated e2
-    -- only one of the next 4 will be present
-    mark GHC.Annlarrowtail
-    mark GHC.Annrarrowtail
-    mark GHC.AnnLarrowtail
-    mark GHC.AnnRarrowtail
+      markExpr _ (GHC.HsArrApp e1 e2 _ _ isRightToLeft) = do
+            -- isRightToLeft True  => right-to-left (f -< arg)
+            --               False => left-to-right (arg >- f)
+        if isRightToLeft
+          then markLocated e1
+          else markLocated e2
+        -- only one of the next 4 will be present
+        mark GHC.Annlarrowtail
+        mark GHC.Annrarrowtail
+        mark GHC.AnnLarrowtail
+        mark GHC.AnnRarrowtail
 
-    if isRightToLeft
-      then markLocated e2
-      else markLocated e1
+        if isRightToLeft
+          then markLocated e2
+          else markLocated e1
 
-  markAST _ (GHC.HsArrForm e _ cs) = do
-    markWithString GHC.AnnOpen "(|"
-    markLocated e
-    mapM_ markLocated cs
-    markWithString GHC.AnnClose "|)"
+      markExpr _ (GHC.HsArrForm e _ cs) = do
+        markWithString GHC.AnnOpen "(|"
+        markLocated e
+        mapM_ markLocated cs
+        markWithString GHC.AnnClose "|)"
 
-  markAST _ (GHC.HsTick _ _) = return ()
-  markAST _ (GHC.HsBinTick _ _ _) = return ()
+      markExpr _ (GHC.HsTick _ _) = return ()
+      markExpr _ (GHC.HsBinTick _ _ _) = return ()
 
 #if __GLASGOW_HASKELL__ <= 710
-  markAST _ (GHC.HsTickPragma src (str,(v1,v2),(v3,v4)) e) = do
-    -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
-    markWithString       GHC.AnnOpen  src
-    markOffsetWithString GHC.AnnVal 0 (show (GHC.unpackFS str)) -- STRING
-    markOffsetWithString GHC.AnnVal 1 (show v1) -- INTEGER
-    markOffset GHC.AnnColon 0 -- ':'
-    markOffsetWithString GHC.AnnVal 2 (show v2) -- INTEGER
-    mark   GHC.AnnMinus   -- '-'
-    markOffsetWithString GHC.AnnVal 3 (show v3) -- INTEGER
-    markOffset GHC.AnnColon 1 -- ':'
-    markOffsetWithString GHC.AnnVal 4 (show v4) -- INTEGER
-    markWithString   GHC.AnnClose  "#-}"
-    markLocated e
+      markExpr _ (GHC.HsTickPragma src (str,(v1,v2),(v3,v4)) e) = do
+        -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
+        markWithString       GHC.AnnOpen  src
+        markOffsetWithString GHC.AnnVal 0 (show (GHC.unpackFS str)) -- STRING
+        markOffsetWithString GHC.AnnVal 1 (show v1) -- INTEGER
+        markOffset GHC.AnnColon 0 -- ':'
+        markOffsetWithString GHC.AnnVal 2 (show v2) -- INTEGER
+        mark   GHC.AnnMinus   -- '-'
+        markOffsetWithString GHC.AnnVal 3 (show v3) -- INTEGER
+        markOffset GHC.AnnColon 1 -- ':'
+        markOffsetWithString GHC.AnnVal 4 (show v4) -- INTEGER
+        markWithString   GHC.AnnClose  "#-}"
+        markLocated e
 #else
-  markAST _ (GHC.HsTickPragma src (str,_,_) ((v1,v2),(v3,v4)) e) = do
-    -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
-    markWithString       GHC.AnnOpen  src
-    markOffsetWithString GHC.AnnVal 0 (GHC.sl_st str) -- STRING
-    markOffsetWithString GHC.AnnVal 1 v1 -- INTEGER
-    markOffset GHC.AnnColon 0 -- ':'
-    markOffsetWithString GHC.AnnVal 2 v2 -- INTEGER
-    mark   GHC.AnnMinus   -- '-'
-    markOffsetWithString GHC.AnnVal 3 v3 -- INTEGER
-    markOffset GHC.AnnColon 1 -- ':'
-    markOffsetWithString GHC.AnnVal 4 v4 -- INTEGER
-    markWithString   GHC.AnnClose  "#-}"
-    markLocated e
+      markExpr _ (GHC.HsTickPragma src (str,_,_) ((v1,v2),(v3,v4)) e) = do
+        -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
+        markWithString       GHC.AnnOpen  src
+        markOffsetWithString GHC.AnnVal 0 (GHC.sl_st str) -- STRING
+        markOffsetWithString GHC.AnnVal 1 v1 -- INTEGER
+        markOffset GHC.AnnColon 0 -- ':'
+        markOffsetWithString GHC.AnnVal 2 v2 -- INTEGER
+        mark   GHC.AnnMinus   -- '-'
+        markOffsetWithString GHC.AnnVal 3 v3 -- INTEGER
+        markOffset GHC.AnnColon 1 -- ':'
+        markOffsetWithString GHC.AnnVal 4 v4 -- INTEGER
+        markWithString   GHC.AnnClose  "#-}"
+        markLocated e
 #endif
 
-  markAST l (GHC.EWildPat) = do
-    markExternal l GHC.AnnVal "_"
+      markExpr l (GHC.EWildPat) = do
+        markExternal l GHC.AnnVal "_"
 
-  markAST _ (GHC.EAsPat ln e) = do
-    markLocated ln
-    mark GHC.AnnAt
-    markLocated e
+      markExpr _ (GHC.EAsPat ln e) = do
+        markLocated ln
+        mark GHC.AnnAt
+        markLocated e
 
-  markAST _ (GHC.EViewPat e1 e2) = do
-    markLocated e1
-    mark GHC.AnnRarrow
-    markLocated e2
+      markExpr _ (GHC.EViewPat e1 e2) = do
+        markLocated e1
+        mark GHC.AnnRarrow
+        markLocated e2
 
-  markAST _ (GHC.ELazyPat e) = do
-    mark GHC.AnnTilde
-    markLocated e
+      markExpr _ (GHC.ELazyPat e) = do
+        mark GHC.AnnTilde
+        markLocated e
 
 #if __GLASGOW_HASKELL__ <= 710
-  markAST _ (GHC.HsType ty) = markLocated ty
+      markExpr _ (GHC.HsType ty) = markLocated ty
 #else
-  markAST _ (GHC.HsAppType e ty) = do
-    markLocated e
-    mark GHC.AnnAt
-    markLHsWcType ty
-  markAST _ (GHC.HsAppTypeOut _ _) =
-    traceM "warning: HsAppTypeOut introduced after renaming"
+      markExpr _ (GHC.HsAppType e ty) = do
+        markLocated e
+        mark GHC.AnnAt
+        markLHsWcType ty
+      markExpr _ (GHC.HsAppTypeOut _ _) =
+        traceM "warning: HsAppTypeOut introduced after renaming"
 #endif
 
-  markAST _ (GHC.HsWrap _ _) =
-    traceM "warning: HsWrap introduced after renaming"
-  markAST _ (GHC.HsUnboundVar _) =
-    traceM "warning: HsUnboundVar introduced after renaming"
+      markExpr _ (GHC.HsWrap _ _) =
+        traceM "warning: HsWrap introduced after renaming"
+      markExpr _ (GHC.HsUnboundVar _) =
+        traceM "warning: HsUnboundVar introduced after renaming"
 
 
 -- ---------------------------------------------------------------------
@@ -2620,6 +2662,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLocated lbl
     when (punFlag == False) $ mark GHC.AnnEqual
     markLocated expr
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 {-
 type HsRecUpdField id     = HsRecField' (AmbiguousFieldOcc id) (LHsExpr id)
 
@@ -2653,6 +2696,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   => Annotate (GHC.HsTupArg name) where
   markAST _ (GHC.Present e) = do
     markLocated e
+    mark GHC.AnnComma
 
   markAST _ (GHC.Missing _) = do
     mark GHC.AnnComma
@@ -2998,7 +3042,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnDeriving
 #endif
     markMany GHC.AnnOpenP -- may be nested parens around context
-    mapM_ markLocated ts
+    -- mapM_ markLocated ts
+    markListIntercalate ts
     markMany GHC.AnnCloseP -- may be nested parens around context
     markOutside GHC.AnnDarrow (G GHC.AnnDarrow)
 
@@ -3020,7 +3065,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
         mark GHC.AnnDarrow
         case dets of
           GHC.InfixCon _ _ -> return ()
-          _ -> mapM_ markLocated lns
+          _ -> markListIntercalate lns
 
         markHsConDeclDetails lns dets
 
@@ -3028,7 +3073,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
         -- only print names if not infix
         case dets of
           GHC.InfixCon _ _ -> return ()
-          _ -> mapM_ markLocated lns
+          _ -> markListIntercalate lns
 
         if depc_syntax
           then ( do
@@ -3146,6 +3191,7 @@ instance (Annotate name, GHC.DataId name, GHC.OutputableBndr name,GHC.HasOccName
     -- mark GHC.AnnEqual
     when (punFlag == False) $ mark GHC.AnnEqual
     markLocated e
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 
 instance (Annotate name, GHC.DataId name, GHC.OutputableBndr name,GHC.HasOccName name)
@@ -3154,6 +3200,7 @@ instance (Annotate name, GHC.DataId name, GHC.OutputableBndr name,GHC.HasOccName
     markLocated n
     mark GHC.AnnEqual
     markLocated e
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 -- ---------------------------------------------------------------------
 
