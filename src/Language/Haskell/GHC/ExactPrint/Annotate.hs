@@ -272,14 +272,24 @@ markListNoPrecedingSpace intercal ls =
 
 -- |Mark a list, with the given keyword as a list item separator
 markListIntercalate :: Annotate ast => [GHC.Located ast] -> Annotated ()
-markListIntercalate ls = go ls
+markListIntercalate ls = markListIntercalateWithFun markLocated ls
+-- markListIntercalate ls = go ls
+--   where
+--     go []  = return ()
+--     go [x] = markLocated x
+--     go (x:xs) = do
+--       setContext (Set.singleton Intercalate) $ markLocated x
+--       go xs
+
+
+markListIntercalateWithFun :: (t -> Annotated ()) -> [t] -> Annotated ()
+markListIntercalateWithFun f ls = go ls
   where
     go []  = return ()
-    go [x] = markLocated x
+    go [x] = f x
     go (x:xs) = do
-      setContext (Set.singleton Intercalate) $ markLocated x
+      setContext (Set.singleton Intercalate) $ f x
       go xs
-
 -- ---------------------------------------------------------------------
 
 markListWithLayout :: Annotate ast => [GHC.Located ast] -> Annotated ()
@@ -342,7 +352,7 @@ instance Annotate (GHC.HsModule GHC.RdrName) where
 
         case mexp of
           Nothing   -> return ()
-          Just expr -> markLocated expr
+          Just exps -> markLocated exps
 
         mark GHC.AnnWhere
 
@@ -378,7 +388,9 @@ instance Annotate GHC.WarningTxt where
 #if __GLASGOW_HASKELL__ <= 710
 #else
 instance Annotate GHC.StringLiteral where
-  markAST l (GHC.StringLiteral src _) = markExternal l GHC.AnnVal src
+  markAST l (GHC.StringLiteral src _) = do
+    markExternal l GHC.AnnVal src
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 #endif
 
 -- ---------------------------------------------------------------------
@@ -457,7 +469,8 @@ instance (GHC.DataId name,Annotate name)
               case drop n ns of
                 [] -> return ()
                 ns' -> do
-                  markOffset GHC.AnnComma 0
+                  -- markOffset GHC.AnnComma 0
+                  mark GHC.AnnComma
                   setContext (Set.singleton InIE) $ mapM_ markLocated ns'
 #endif
           mark GHC.AnnCloseP
@@ -841,6 +854,7 @@ markLHsSigWcType (GHC.HsIB _ (GHC.HsWC _ mwc ty)) = do
        applyListAnnotations ([(lwc,markExternal lwc GHC.AnnVal "_")]
                           ++ prepareListAnnotation [ty]
                             )
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 #endif
 -- ---------------------------------------------------------------------
 
@@ -1131,7 +1145,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       GHC.RecordPatSyn fs -> do
         markLocated ln
         mark GHC.AnnOpenC  -- '{'
-        mapM_ (markLocated . GHC.recordPatSynSelectorId) fs
+        -- mapM_ (markLocated . GHC.recordPatSynSelectorId) fs
+        markListIntercalateWithFun (markLocated . GHC.recordPatSynSelectorId) fs
         mark GHC.AnnCloseC -- '}'
 #endif
     mark GHC.AnnEqual
@@ -1332,7 +1347,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.ClassOpSig _ ns (GHC.HsIB _ typ)) = do
 #endif
     mark GHC.AnnDefault
-    mapM_ markLocated ns
+    markListIntercalate ns
     mark GHC.AnnDcolon
     markLocated typ
     markTrailingSemi
@@ -1386,9 +1401,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLocated ln
     mark GHC.AnnDcolon -- '::'
 #if __GLASGOW_HASKELL__ <= 710
-    mapM_ markLocated typs
+    markListIntercalate typs
 #else
-    mapM_ markLHsSigType typs
+    markListIntercalateWithFun markLHsSigType typs
 #endif
     markWithString GHC.AnnClose "#-}" -- '#-}'
     markTrailingSemi
@@ -1433,7 +1448,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST l ls = do
     mark GHC.AnnDeriving
     markMany GHC.AnnOpenP
-    mapM_ markLHsSigType ls
+    -- mapM_ markLHsSigType ls
+    markListIntercalateWithFun markLHsSigType ls
     markMany GHC.AnnCloseP
 #endif
 
@@ -1459,15 +1475,18 @@ instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) wh
   markAST _ (GHC.Var x)  = do
     markLocated x
     mark GHC.AnnVbar -- '|'
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
   markAST l (GHC.Or ls)  = mapM_ markLocated ls
   markAST l (GHC.And ls) = do
-    mapM_ markLocated ls
+    markListIntercalate ls
     mark GHC.AnnVbar -- '|'
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
   markAST _ (GHC.Parens x)  = do
     mark GHC.AnnOpenP -- '('
     markLocated x
     mark GHC.AnnCloseP -- ')'
     mark GHC.AnnVbar -- '|'
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 #endif
 
 -- ---------------------------------------------------------------------
@@ -2536,7 +2555,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ > 710
       markExpr l (GHC.HsSpliceE e) = do
         mark GHC.AnnOpenPE
-        markExpr l e
+        markAST l e
         mark GHC.AnnCloseP
 #else
       markExpr l (GHC.HsSpliceE _ e) = do
@@ -2887,7 +2906,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markTyClass ln tyVars
 
     mark GHC.AnnVbar
-    mapM_ markLocated fds
+    markListIntercalate fds
     mark GHC.AnnWhere
     mark GHC.AnnOpenC -- '{'
     markInside GHC.AnnSemi
@@ -3155,7 +3174,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
     mark GHC.AnnVbar
     markTrailingSemi
   markAST _ (GHC.ConDeclGADT lns (GHC.HsIB _ typ) _) = do
-    mapM_ markLocated lns
+    markListIntercalate lns
     mark GHC.AnnDcolon
     markLocated typ
     markTrailingSemi
@@ -3216,6 +3235,15 @@ instance (Annotate name, GHC.DataId name, GHC.OutputableBndr name,GHC.HasOccName
 
 -- ---------------------------------------------------------------------
 
+-- instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName name)
+--   => Annotate [GHC.Located (GHC.FunDep (GHC.Located name))] where
+--   -- markAST _ ls = markListIntercalate ls
+--   markAST _ ls = error "foo"
+
+-- -- -- [Located (FunDep (Located name))]
+
+-- ---------------------------------------------------------------------
+
 instance (GHC.DataId name,Annotate name)
     => Annotate (GHC.FunDep (GHC.Located name)) where
 
@@ -3223,6 +3251,7 @@ instance (GHC.DataId name,Annotate name)
     mapM_ markLocated ls
     mark GHC.AnnRarrow
     mapM_ markLocated rs
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 -- ---------------------------------------------------------------------
 

@@ -230,7 +230,7 @@ addPrettyAnnotations ann = return ()
 -- ---------------------------------------------------------------------
 
 addPrettyAnnotationLs :: GHC.AnnKeywordId -> Int -> Pretty ()
-addPrettyAnnotationLs ann off = return ()
+addPrettyAnnotationLs ann _off = addPrettyAnnotation ann
 
 -- ---------------------------------------------------------------------
 
@@ -290,7 +290,7 @@ entryDpFor ctx a = do
     lineDefault = if inAcs (Set.singleton AdvanceLine) ctx
                     then 1 else 0
 
-    def :: Typeable a => a -> Pretty DeltaPos
+    def :: a -> Pretty DeltaPos
     def _ = return $ DP (lineDefault,0)
 
     inCase = inAcs (Set.singleton CaseAlt) ctx
