@@ -135,7 +135,7 @@ emptyAnns = Map.empty
 -- a as the key, to store the standard annotation.
 -- These are used to maintain context in the AP and EP monads
 data AnnKey   = AnnKey GHC.SrcSpan AnnConName
-                  deriving (Eq, Ord)
+                  deriving (Eq, Ord, Data)
 
 -- More compact Show instance
 instance Show AnnKey where
@@ -153,7 +153,7 @@ mkAnnKey ld =
 
 -- Holds the name of a constructor
 data AnnConName = CN { unConName :: String }
-                 deriving (Eq,Ord)
+                 deriving (Eq, Ord, Data)
 
 -- More compact show instance
 instance Show AnnConName where
