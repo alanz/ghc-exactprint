@@ -237,6 +237,7 @@ data AstContext = FunRhs
                 | AdvanceLine
                 | ListComp
                 | Intercalate -- This item may have a list separator following
+                | InOp -- RdrName may be used as an operator, backticks or parens may apply
                 deriving (Eq, Ord, Show)
 
 {-

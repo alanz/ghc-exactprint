@@ -315,6 +315,10 @@ markMaybe (Just ast) = markLocated ast
 prepareListAnnotation :: Annotate a => [GHC.Located a] -> [(GHC.SrcSpan,Annotated ())]
 prepareListAnnotation ls = map (\b -> (GHC.getLoc b,markLocated b)) ls
 
+prepareListAnnotationWithContext :: Annotate a => Set.Set AstContext
+                                 -> [GHC.Located a] -> [(GHC.SrcSpan,Annotated ())]
+prepareListAnnotationWithContext ctx ls = map (\b -> (GHC.getLoc b,setContext ctx (markLocated b))) ls
+
 applyListAnnotations :: [(GHC.SrcSpan, Annotated ())] -> Annotated ()
 applyListAnnotations ls = withSortKey ls
 
@@ -534,13 +538,15 @@ instance Annotate GHC.RdrName where
         when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.fromList [InIE]) $ mark GHC.AnnType
         -- when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ mark GHC.AnnType
         when isSym $ mark GHC.AnnOpenP -- '('
-        markOffset GHC.AnnBackquote 0
+        -- markOffset GHC.AnnBackquote 0
+        when (not isSym) $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 0
         cnt  <- countAnns GHC.AnnVal
         case cnt of
           0 -> markExternal l GHC.AnnVal str'
           1 -> markWithString GHC.AnnVal str'
           _ -> traceM $ "Printing RdrName, more than 1 AnnVal:" ++ showGhc (l,n)
-        markOffset GHC.AnnBackquote 1
+        -- markOffset GHC.AnnBackquote 1
+        when (not isSym) $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 1
         when isSym $ mark GHC.AnnCloseP -- ')'
 
     case n of
@@ -1219,7 +1225,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         case mln of
 #if __GLASGOW_HASKELL__ <= 710
           Nothing -> return ()
-          Just (n,_) -> markLocated n
+          Just (n,_) -> setContext (Set.singleton InOp) $ markLocated n
 #else
           GHC.NonFunBindMatch -> return ()
           GHC.FunBindMatch n _ -> markLocated n
@@ -1365,7 +1371,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #else
     markWithString GHC.AnnVal src
 #endif
-    markListIntercalate lns
+    setContext (Set.singleton InOp) $ markListIntercalate lns
     markTrailingSemi
 
   -- InlineSig (Located name) InlinePragma
@@ -1619,7 +1625,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #endif
       markLocated t1
       mark GHC.AnnSimpleQuote
-      markLocated lo
+      setContext (Set.singleton InOp) $ markLocated lo
       markLocated t2
 
     markType _ (GHC.HsParTy t) = do
@@ -2215,6 +2221,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   => Annotate (GHC.HsExpr name) where
   markAST loc expr = do
     markExpr loc expr
+    -- TODO: If the AnnComma is not needed, revert to markAST
     -- inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
     case expr of
       GHC.HsVar _ -> return ()
@@ -2263,7 +2270,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
       markExpr _ (GHC.OpApp e1 e2 _ e3) = do
         markLocated e1
-        markLocated e2
+        setContext (Set.singleton InOp) $ markLocated e2
         markLocated e3
 
       markExpr _ (GHC.NegApp e _) = do
@@ -2277,10 +2284,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
       markExpr _ (GHC.SectionL e1 e2) = do
         markLocated e1
-        markLocated e2
+        setContext (Set.singleton InOp) $ markLocated e2
 
       markExpr _ (GHC.SectionR e1 e2) = do
-        markLocated e1
+        setContext (Set.singleton InOp) $ markLocated e1
         markLocated e2
 
       markExpr _ (GHC.ExplicitTuple args b) = do
@@ -2724,8 +2731,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsTupArg name) where
   markAST _ (GHC.Present expr@(GHC.L l e)) = do
-    -- markAST l e
-    markLocated expr
+    markAST l e
+    -- markLocated expr
     -- mark GHC.AnnComma
     -- inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
@@ -2760,7 +2767,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsCmdArrForm e _mf cs) = do
     markWithString GHC.AnnOpen "(|"
     -- This may be an infix operation
-    applyListAnnotations (prepareListAnnotation [e]
+    applyListAnnotations (prepareListAnnotationWithContext (Set.singleton InOp) [e]
                          ++ prepareListAnnotation cs)
     -- markLocated e
     -- mapM_ markLocated cs
@@ -2862,7 +2869,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnType
     -- ln may be used infix, in which case rearrange the order. It may be
     -- simplest to just sort ln:tyvars
-    applyListAnnotations (prepareListAnnotation [ln]
+    applyListAnnotations (prepareListAnnotationWithContext (Set.singleton InOp) [ln]
                          ++ prepareListAnnotation tyvars)
     -- markMany GHC.AnnCloseP
     mark GHC.AnnEqual
