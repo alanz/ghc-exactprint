@@ -251,7 +251,7 @@ withAST lss@(GHC.L ss t) action = do
   -- Calculate offset required to get to the start of the SrcSPan
   off <- gets apLayoutStart
   withSrcSpanPretty lss $ do
-    return () `debug` ("Pretty.withAST:enter:(ss)=" ++ showGhc (ss))
+    return () `debug` ("Pretty.withAST:enter:(ss)=" ++ showGhc (ss,showConstr (toConstr t)))
 
     let maskWriter s = s { annKds = []
                          , sortKeys = Nothing

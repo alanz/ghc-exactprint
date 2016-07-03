@@ -273,14 +273,6 @@ markListNoPrecedingSpace intercal ls =
 -- |Mark a list, with the given keyword as a list item separator
 markListIntercalate :: Annotate ast => [GHC.Located ast] -> Annotated ()
 markListIntercalate ls = markListIntercalateWithFun markLocated ls
--- markListIntercalate ls = go ls
---   where
---     go []  = return ()
---     go [x] = markLocated x
---     go (x:xs) = do
---       setContext (Set.singleton Intercalate) $ markLocated x
---       go xs
-
 
 markListIntercalateWithFun :: (t -> Annotated ()) -> [t] -> Annotated ()
 markListIntercalateWithFun f ls = go ls
@@ -290,6 +282,7 @@ markListIntercalateWithFun f ls = go ls
     go (x:xs) = do
       setContext (Set.singleton Intercalate) $ f x
       go xs
+
 -- ---------------------------------------------------------------------
 
 markListWithLayout :: Annotate ast => [GHC.Located ast] -> Annotated ()
@@ -565,7 +558,7 @@ instance Annotate GHC.RdrName where
                           mark GHC.AnnCloseP -- ')'
                         else markExternal l GHC.AnnVal str
 #endif
-      GHC.Exact n  -> do
+      GHC.Exact n'  -> do
        case str of
          -- Special handling for Exact RdrNames, which are built-in Names
          "[]" -> do
@@ -600,9 +593,9 @@ instance Annotate GHC.RdrName where
            -- mark GHC.AnnCloseP -- ')'
          ('(':',':_) -> do
            mark GHC.AnnOpenP
-           let n = length $ filter (==',') str
+           let cnt = length $ filter (==',') str
            -- markExternal l GHC.AnnVal str
-           replicateM_ n (mark GHC.AnnCommaTuple)
+           replicateM_ cnt (mark GHC.AnnCommaTuple)
            mark GHC.AnnCloseP -- ')'
 #if __GLASGOW_HASKELL__ <= 710
          "~" -> do
@@ -612,12 +605,13 @@ instance Annotate GHC.RdrName where
 #endif
          -- _ -> doNormalRdrName
          _ -> do
-            let isSym = GHC.isSymOcc $ GHC.getOccName n
-            when isSym $ mark GHC.AnnOpenP -- '('
+            let isSym' = GHC.isSymOcc $ GHC.getOccName n'
+            when isSym' $ mark GHC.AnnOpenP -- '('
             markWithString GHC.AnnVal str
             -- markExternal l GHC.AnnVal str
             when isSym $ mark GHC.AnnCloseP -- ')'
-    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+    -- inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma `debug` ("AnnComma in RdrName")
 
 -- ---------------------------------------------------------------------
 
@@ -1511,8 +1505,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
    => Annotate (GHC.HsType name) where
-  markAST l ty = do
-    markType l ty
+  markAST loc ty = do
+    markType loc ty
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
    where
 
@@ -1860,9 +1854,10 @@ instance Annotate GHC.HsDocString where
 -- ---------------------------------------------------------------------
 instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName name)
   => Annotate (GHC.Pat name) where
-  markAST l ty = do
-    markPat l ty
-    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+  markAST loc typ = do
+    markPat loc typ
+    -- inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma `debug` ("AnnComma in Pat")
     where
       markPat l (GHC.WildPat _) = markExternal l GHC.AnnVal "_"
       markPat l (GHC.VarPat n)  = do
@@ -2218,9 +2213,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsExpr name) where
-  markAST l expr = do
-    markExpr l expr
-    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+  markAST loc expr = do
+    markExpr loc expr
+    -- inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+    case expr of
+      GHC.HsVar _ -> return ()
+      _ -> inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma `debug` ("AnnComma in Expr")
    where
 #if __GLASGOW_HASKELL__ <= 710
       markExpr l (GHC.HsVar n)           = markAST l n
@@ -2289,7 +2287,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         if b == GHC.Boxed then mark GHC.AnnOpenP
                           else markWithString GHC.AnnOpen "(#"
 
-        mapM_ markLocated args
+        markListIntercalate args
 
         if b == GHC.Boxed then mark GHC.AnnCloseP
                           else markWithString GHC.AnnClose "#)"
@@ -2725,12 +2723,15 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsTupArg name) where
-  markAST _ (GHC.Present e) = do
-    markLocated e
-    mark GHC.AnnComma
+  markAST _ (GHC.Present expr@(GHC.L l e)) = do
+    -- markAST l e
+    markLocated expr
+    -- mark GHC.AnnComma
+    -- inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
   markAST _ (GHC.Missing _) = do
-    mark GHC.AnnComma
+    -- mark GHC.AnnComma
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 -- ---------------------------------------------------------------------
 

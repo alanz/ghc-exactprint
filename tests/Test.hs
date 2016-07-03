@@ -159,20 +159,21 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkPrettyRoundtrip "ghc710" "Simple.hs"
       -- mkPrettyRoundtrip "ghc710" "ShiftingLambda.hs"
     -- , mkPrettyRoundtrip "ghc710" "Case.hs"
+    -- , mkParserTest "ghc710" "Process1.hs"
     -- , mkParserTest      "ghc710" "ModuleOnly.hs"
     -- , mkParserTest      "ghc710" "Simple.hs"
     -- , mkParserTest      "ghc710" "ShiftingLambda.hs"
-    , mkParserTest      "ghc710" "Case.hs"
+    -- , mkParserTest      "ghc710" "Case.hs"
     -- , mkParserTest      "ghc710" "LambdaCase.hs"
     -- , mkParserTest      "ghc710" "MultiWayIf.hs"
     -- , mkParserTest      "ghc710" "ProcNotation.hs"
     -- , mkParserTest      "ghc710" "UnicodeSyntax.hs"
 
-    , mkParserTest      "ghc710" "RdrNames.hs"
-    , mkParserTest      "ghc8" "records-mixing-fields.hs"
-    , mkParserTest      "ghc8" "records-no-uni-update.hs"
-    , mkParserTest      "ghc8" "records-poly.hs"
-    , mkParserTest      "ghc8" "records-run.hs"
+    -- , mkParserTest      "ghc710" "RdrNames.hs"
+    -- , mkParserTest      "ghc8" "records-mixing-fields.hs"
+    -- , mkParserTest      "ghc8" "records-no-uni-update.hs"
+    -- , mkParserTest      "ghc8" "records-poly.hs"
+    -- , mkParserTest      "ghc8" "records-run.hs"
     ]
 
 testsTT :: Test
