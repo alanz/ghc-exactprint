@@ -294,16 +294,23 @@ entryDpFor ctx a = do
     def _ = return $ DP (lineDefault,0)
 
     inCase = inAcs (Set.singleton CaseAlt) ctx
+    -- listStart = inAcs (Set.singleton ListStart) ctx
+    listStart = trace ("listStart:ctx=" ++ show ctx) $ inAcs (Set.singleton ListStart) ctx
 
     funBind :: GHC.HsBind GHC.RdrName -> Pretty DeltaPos
-    funBind GHC.FunBind{} = return $ DP (2,0)
+    funBind GHC.FunBind{} =
+      if listStart
+        then return $ DP (1,2)
+        else return $ DP (2,0)
     funBind GHC.PatBind{} = return $ DP (2,0)
     funBind _ = return $ DP (lineDefault,0)
 
     match :: GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> Pretty DeltaPos
     match _ = do
       -- if inCase then DP (1,2) else DP (0,0)
-      fromLayout (DP (1,0)) (DP (1,12))
+      if listStart
+        then return (DP (0,0))
+        else fromLayout (DP (1,0)) (DP (1,12))
 
 -- ---------------------------------------------------------------------
 

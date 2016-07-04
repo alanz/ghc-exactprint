@@ -285,6 +285,17 @@ markListIntercalateWithFun f ls = go ls
 
 -- ---------------------------------------------------------------------
 
+markListInitialContext :: Annotate ast => Set.Set AstContext -> [GHC.Located ast] -> Annotated ()
+markListInitialContext ctx ls =
+  case ls of
+    [] -> return ()
+    [x] -> setContext ctx $ markLocated x
+    (x:xs) -> do
+      setContext ctx $ markLocated x
+      mapM_ markLocated xs
+
+-- ---------------------------------------------------------------------
+
 markListWithLayout :: Annotate ast => [GHC.Located ast] -> Annotated ()
 markListWithLayout ls =
   setLayoutFlag (mapM_ markLocated ls)
@@ -1111,7 +1122,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #else
   markAST _ (GHC.FunBind (GHC.L _ln _n) (GHC.MG (GHC.L _ matches) _ _ _) _ _ _) = do
 #endif
-    mapM_ markLocated matches
+    -- mapM_ markLocated matches
+    markListInitialContext (Set.singleton ListStart) matches
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
@@ -1135,13 +1147,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     case args of
       GHC.InfixPatSyn la lb -> do
         markLocated la
-        markLocated ln
+        setContext (Set.singleton InOp) $ markLocated ln
         markLocated lb
       GHC.PrefixPatSyn ns -> do
         markLocated ln
         mapM_ markLocated ns
-#if __GLASGOW_HASKELL__ <= 710
-#else
+#if __GLASGOW_HASKELL__ > 710
       GHC.RecordPatSyn fs -> do
         markLocated ln
         mark GHC.AnnOpenC  -- '{'
@@ -1228,7 +1239,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
           Just (n,_) -> setContext (Set.singleton InOp) $ markLocated n
 #else
           GHC.NonFunBindMatch -> return ()
-          GHC.FunBindMatch n _ -> markLocated n
+          GHC.FunBindMatch n _ -> setContext (Set.singleton InOp) $ markLocated n
 #endif
         markLocated b
         mark GHC.AnnCloseP
@@ -1761,10 +1772,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   => Annotate (GHC.HsAppType name) where
   markAST _ (GHC.HsAppInfix t)  = do
     mark GHC.AnnSimpleQuote
-    markLocated t
+    setContext (Set.singleton InOp) $ markLocated t
   markAST _ (GHC.HsAppPrefix t) = do
     mark GHC.AnnTilde
-    markLocated t
+    setContext (Set.singleton InOp) $ markLocated t
 #endif
 -- ---------------------------------------------------------------------
 
@@ -2222,10 +2233,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST loc expr = do
     markExpr loc expr
     -- TODO: If the AnnComma is not needed, revert to markAST
-    -- inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+#if __GLASGOW_HASKELL__ <= 710
     case expr of
       GHC.HsVar _ -> return ()
       _ -> inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma `debug` ("AnnComma in Expr")
+#else
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+#endif
    where
 #if __GLASGOW_HASKELL__ <= 710
       markExpr l (GHC.HsVar n)           = markAST l n

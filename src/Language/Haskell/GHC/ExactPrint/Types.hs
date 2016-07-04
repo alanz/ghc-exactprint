@@ -238,6 +238,7 @@ data AstContext = FunRhs
                 | ListComp
                 | Intercalate -- This item may have a list separator following
                 | InOp -- RdrName may be used as an operator, backticks or parens may apply
+                | ListStart -- Identifies first element of a list in layout, so its indentation can me managed differently
                 deriving (Eq, Ord, Show)
 
 {-
