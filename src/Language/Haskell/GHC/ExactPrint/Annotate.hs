@@ -119,7 +119,7 @@ data AnnotationF next where
   CountAnns      :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
   WithSortKey    :: [(GHC.SrcSpan, Annotated ())]                        -> next -> AnnotationF next
 
-  SetLayoutFlag  ::  Rigidity -> Annotated ()                           -> next -> AnnotationF next
+  SetLayoutFlag  ::  Rigidity -> Annotated ()                            -> next -> AnnotationF next
 
   -- Required to work around deficiencies in the GHC AST
   StoreOriginalSrcSpan :: AnnKey                        -> (AnnKey -> next) -> AnnotationF next
@@ -261,7 +261,9 @@ markListNoPrecedingSpace intercal ls =
       (l:ls') -> do
         if intercal
         then do
-          setContext (Set.fromList [NoPrecedingSpace,Intercalate]) $ markLocated l
+          if null ls'
+            then setContext (Set.fromList [NoPrecedingSpace            ]) $ markLocated l
+            else setContext (Set.fromList [NoPrecedingSpace,Intercalate]) $ markLocated l
           markListIntercalate ls'
         else do
           setContext (Set.singleton NoPrecedingSpace) $ markLocated l
@@ -287,12 +289,25 @@ markListIntercalateWithFun f ls = go ls
 
 markListInitialContext :: Annotate ast => Set.Set AstContext -> [GHC.Located ast] -> Annotated ()
 markListInitialContext ctx ls =
+  markListWithContexts ctx Set.empty ls
+  -- case ls of
+  --   [] -> return ()
+  --   [x] -> setContext ctx $ markLocated x
+  --   (x:xs) -> do
+  --     setContext ctx $ markLocated x
+  --     mapM_ markLocated xs
+
+markListWithContexts :: Annotate ast => Set.Set AstContext -> Set.Set AstContext -> [GHC.Located ast] -> Annotated ()
+markListWithContexts ctxInitial ctxRest ls =
   case ls of
     [] -> return ()
-    [x] -> setContext ctx $ markLocated x
+    -- [x] -> setContext ctxInitial $ markLocated x
+    [x] -> setContextLevel ctxInitial 2 $ markLocated x
     (x:xs) -> do
-      setContext ctx $ markLocated x
-      mapM_ markLocated xs
+      -- setContext ctxInitial $ markLocated x
+      -- setContext ctxRest    $ mapM_ markLocated xs
+      setContextLevel ctxInitial 2 $ markLocated x
+      setContextLevel ctxRest    2 $ mapM_ markLocated xs
 
 -- ---------------------------------------------------------------------
 
@@ -368,7 +383,8 @@ instance Annotate (GHC.HsModule GHC.RdrName) where
     markMany GHC.AnnSemi -- possible leading semis
     mapM_ markLocated imps
 
-    mapM_ markLocated decs
+    -- mapM_ markLocated decs
+    setContext (Set.singleton TopLevel) $ mapM_ markLocated decs
 
     markOptional GHC.AnnCloseC -- Possible '}'
 
@@ -1530,7 +1546,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     -- markType :: GHC.SrcSpan -> ast -> Annotated ()
 #if __GLASGOW_HASKELL__ <= 710
     markType _ (GHC.HsForAllTy _f mwc (GHC.HsQTvs _kvs tvs) ctx@(GHC.L lc ctxs) typ) = do
-      mark GHC.AnnOpenP -- "("
+      -- mark GHC.AnnOpenP -- "("
       when (not $ null tvs) $ do
         mark GHC.AnnForall
         mapM_ markLocated tvs
@@ -1545,7 +1561,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
       -- mark GHC.AnnDarrow
       markLocated typ
-      mark GHC.AnnCloseP -- ")"
+      -- mark GHC.AnnCloseP -- ")"
 #else
     markType _ (GHC.HsForAllTy tvs typ) = do
       mark GHC.AnnOpenP -- "("
@@ -1640,7 +1656,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       markLocated t2
 
     markType _ (GHC.HsParTy t) = do
-      mark GHC.AnnDcolon -- for HsKind, alias for HsType
+      -- mark GHC.AnnDcolon -- for HsKind, alias for HsType
+      inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
       mark GHC.AnnOpenP  -- '('
       markLocated t
       mark GHC.AnnCloseP -- ')'
@@ -2373,21 +2390,25 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
                        _            -> ("[",  "]")
                 else ("{","}")
 
-        markWithString GHC.AnnOpen ostr
-        mark GHC.AnnOpenS
+        -- markWithString GHC.AnnOpen ostr
+        markPPOptional GHC.AnnOpen (Just ostr)
+        markOptional GHC.AnnOpenS
         markOptional GHC.AnnOpenC
         markInside GHC.AnnSemi
         if isListComp cts
           then setContext (Set.singleton ListComp) $ do
             markLocated (last es)
             mark GHC.AnnVbar
-            -- markListWithLayout (init es)
             setLayoutFlag (markListIntercalate (init es))
           else do
-            markListWithLayout es
-        mark GHC.AnnCloseS
+           -- setLayoutFlag $  markListInitialContext (Set.singleton ListStart) es
+           -- setLayoutFlag $  markListWithContexts (Set.singleton ListStart) (Set.singleton ListItem) es
+           setLayoutFlag $ setContext (Set.singleton NoPrecedingSpace)
+                         $ markListWithContexts (Set.singleton ListStart) (Set.singleton ListItem) es
+        markOptional GHC.AnnCloseS
         markOptional GHC.AnnCloseC
-        markWithString GHC.AnnClose cstr
+        -- markWithString GHC.AnnClose cstr
+        markPPOptional GHC.AnnClose (Just cstr)
 
       markExpr _ (GHC.ExplicitList _ _ es) = do
         mark GHC.AnnOpenS
@@ -2744,14 +2765,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsTupArg name) where
-  markAST _ (GHC.Present expr@(GHC.L l e)) = do
+  markAST _ (GHC.Present (GHC.L l e)) = do
     markAST l e
-    -- markLocated expr
-    -- mark GHC.AnnComma
-    -- inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
   markAST _ (GHC.Missing _) = do
-    -- mark GHC.AnnComma
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 -- ---------------------------------------------------------------------

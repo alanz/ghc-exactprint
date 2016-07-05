@@ -28,8 +28,8 @@ import Control.Monad.Identity
 import Control.Monad.RWS
 import Control.Monad.Trans.Free
 import Data.Generics
-import Data.List (sortBy, elemIndex)
-import Data.Maybe (fromMaybe)
+import Data.List
+import Data.Maybe
 import Data.Ord (comparing)
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -109,11 +109,10 @@ data PrettyState = PrettyState
          -- | Ordered list of comments still to be allocated
        , apComments :: ![Comment]
 
-         -- | The original GHC Pretty Annotations
-       , apAnns :: !GHC.ApiAnns
-
        , apMarkLayout :: Bool
        , apLayoutStart :: LayoutStartCol
+
+       , apNoPrecedingSpace :: Bool
 
        }
 
@@ -141,10 +140,9 @@ defaultPrettyState injectedComments priorEnd ans =
     PrettyState
       { priorEndPosition    = priorEnd
       , apComments = cs ++ injectedComments
-      -- , apAnns     = ga
-      , apAnns     = mempty
       , apLayoutStart = 1
       , apMarkLayout = False
+      , apNoPrecedingSpace = False
       }
   where
     cs :: [Comment]
@@ -198,34 +196,36 @@ addEofAnnotation = tellKd (G GHC.AnnEofPos, DP (1,0))
 addPrettyAnnotation :: GHC.AnnKeywordId -> Pretty ()
 addPrettyAnnotation ann = do
   cur <- asks prContext
-  case ann of
-    GHC.AnnVal    -> if inAcs (Set.fromList [NoPrecedingSpace]) cur
-                       then tellKd (G ann,DP (0,0))
-                       else tellKd (G ann,DP (0,1))
-    GHC.AnnCloseC -> tellKd (G ann,DP (0,0))
-    GHC.AnnDcolon -> tellKd (G ann,DP (0,1))
-    GHC.AnnEqual  -> tellKd (G ann,DP (0,1))
-    GHC.AnnIn     -> tellKd (G ann,DP (1,0))
-    GHC.AnnOf     -> tellKd (G ann,DP (0,1))
-    GHC.AnnOpenC  -> tellKd (G ann,DP (0,0))
-    GHC.AnnRarrow -> tellKd (G ann,DP (0,1))
-    GHC.AnnWhere  -> tellKd (G ann,DP (0,1))
-    _ ->             tellKd (G ann,DP (0,0))
+  let
+    dp = case ann of
+           GHC.AnnVal    -> if inAcs (Set.fromList [NoPrecedingSpace]) cur
+                              then tellKd (G ann,DP (0,0))
+                              else tellKd (G ann,DP (0,1))
+           GHC.AnnCloseC -> tellKd (G ann,DP (0,0))
+           GHC.AnnDcolon -> tellKd (G ann,DP (0,1))
+           GHC.AnnEqual  -> tellKd (G ann,DP (0,1))
+           GHC.AnnIn     -> tellKd (G ann,DP (1,0))
+           GHC.AnnOf     -> tellKd (G ann,DP (0,1))
+           GHC.AnnOpenC  -> tellKd (G ann,DP (0,0))
+           GHC.AnnRarrow -> tellKd (G ann,DP (0,1))
+           GHC.AnnWhere  -> tellKd (G ann,DP (0,1))
+           _ ->             tellKd (G ann,DP (0,0))
+  fromNoPrecedingSpace (tellKd (G ann,DP (0,0))) dp
 
 -- ---------------------------------------------------------------------
 
 addPrettyAnnotationsOutside :: GHC.AnnKeywordId -> KeywordId -> Pretty ()
-addPrettyAnnotationsOutside akwid kwid = return ()
+addPrettyAnnotationsOutside _akwid _kwid = return ()
 
 -- ---------------------------------------------------------------------
 
 addPrettyAnnotationsInside :: GHC.AnnKeywordId -> Pretty ()
-addPrettyAnnotationsInside ann = return ()
+addPrettyAnnotationsInside _ann = return ()
 
 -- ---------------------------------------------------------------------
 
 addPrettyAnnotations :: GHC.AnnKeywordId -> Pretty ()
-addPrettyAnnotations ann = return ()
+addPrettyAnnotations _ann = return ()
 
 -- ---------------------------------------------------------------------
 
@@ -249,21 +249,25 @@ withAST :: Data a
         -> Pretty b -> Pretty b
 withAST lss@(GHC.L ss t) action = do
   -- Calculate offset required to get to the start of the SrcSPan
-  off <- gets apLayoutStart
+  -- off <- gets apLayoutStart
   withSrcSpanPretty lss $ do
     return () `debug` ("Pretty.withAST:enter:(ss)=" ++ showGhc (ss,showConstr (toConstr t)))
 
-    let maskWriter s = s { annKds = []
-                         , sortKeys = Nothing
+    let maskWriter s = s { annKds         = []
+                         , sortKeys       = Nothing
                          , dwCapturedSpan = mempty
                          }
     ctx <- asks prContext
-    let spanStart = ss2pos ss
+    -- let spanStart = ss2pos ss
         -- edp = DP (0,0)
-    edp <- entryDpFor ctx t
+    noPrec <- gets apNoPrecedingSpace
+    edp <- trace ("Pretty.withAST:enter:(ss)=" ++ showGhc (ss,showConstr (toConstr t),noPrec,ctx)) $ entryDpFor ctx t
+    -- edp <- entryDpFor ctx t
 
     let cs = []
-    (res, w) <- censor maskWriter (listen action)
+    (res, w) <- if inAcs (Set.singleton ListItem) ctx
+      then censor maskWriter (listen (setNoPrecedingSpace action))
+      else censor maskWriter (listen action)
 
     let kds = annKds w
         an = Ann
@@ -282,32 +286,45 @@ withAST lss@(GHC.L ss t) action = do
 
 entryDpFor :: Typeable a => AstContextSet -> a -> Pretty DeltaPos
 entryDpFor ctx a = do
-  (def
-    `extQ` funBind
-    `extQ` match
-    ) a
+  -- if listStart
+  --   then return (DP (1,2))
+  --   else if inList
+  --     then return (DP (1,0))
+  --     else do
+      (def
+        `extQ` funBind
+        `extQ` match
+        ) a
   where
     lineDefault = if inAcs (Set.singleton AdvanceLine) ctx
                     then 1 else 0
 
     def :: a -> Pretty DeltaPos
-    def _ = return $ DP (lineDefault,0)
+    -- def _ = return $ DP (lineDefault,0)
+    def _ =
+     if listStart
+       then return (DP (1,2))
+       else if inList
+         then return (DP (1,0))
+         else return $ DP (lineDefault,0)
 
     inCase = inAcs (Set.singleton CaseAlt) ctx
     -- listStart = inAcs (Set.singleton ListStart) ctx
     listStart = trace ("listStart:ctx=" ++ show ctx) $ inAcs (Set.singleton ListStart) ctx
+                                                     && not (inAcs (Set.singleton TopLevel) ctx)
+    inList = inAcs (Set.singleton ListItem) ctx
+            -- && not (inAcs (Set.singleton TopLevel) ctx)
 
     funBind :: GHC.HsBind GHC.RdrName -> Pretty DeltaPos
     funBind GHC.FunBind{} =
       if listStart
         then return $ DP (1,2)
-        else return $ DP (2,0)
+        else fromLayout (DP (2,0)) (DP (1,2))
     funBind GHC.PatBind{} = return $ DP (2,0)
     funBind _ = return $ DP (lineDefault,0)
 
     match :: GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> Pretty DeltaPos
     match _ = do
-      -- if inCase then DP (1,2) else DP (0,0)
       if listStart
         then return (DP (0,0))
         else fromLayout (DP (1,0)) (DP (1,12))
@@ -321,10 +338,20 @@ fromLayout def lay = do
   PrettyState{apMarkLayout} <- get
   if apMarkLayout
     then do
-      -- error "foo"
-      modify (\s -> s { apMarkLayout = False })
+      modify (\s -> s { apMarkLayout = False
+                      })
       return lay
     else return def
+
+fromNoPrecedingSpace :: Pretty a -> Pretty a -> Pretty a
+fromNoPrecedingSpace def lay = do
+  PrettyState{apNoPrecedingSpace} <- get
+  if apNoPrecedingSpace
+    then do
+      modify (\s -> s { apNoPrecedingSpace = False
+                      })
+      trace ("fromNoPrecedingSpace:def") def
+    else trace ("fromNoPrecedingSpace:lay") lay
 
 
 -- ---------------------------------------------------------------------
@@ -377,10 +404,31 @@ setLayoutFlag :: Pretty () -> Pretty ()
 setLayoutFlag action = do
   oldLay <- gets apLayoutStart
   modify (\s -> s { apMarkLayout = True } )
-  let reset = do
-                modify (\s -> s { apMarkLayout = False
-                                , apLayoutStart = oldLay })
+  let reset = modify (\s -> s { apMarkLayout = False
+                              , apLayoutStart = oldLay })
   action <* reset
+
+-- ---------------------------------------------------------------------
+
+setNoPrecedingSpace :: Pretty a -> Pretty a
+setNoPrecedingSpace action = do
+  oldVal <- gets apNoPrecedingSpace
+  modify (\s -> s { apNoPrecedingSpace = True } )
+  let reset = modify (\s -> s { apNoPrecedingSpace = oldVal })
+  action <* reset
+
+withNoPrecedingSpace :: Pretty () -> Pretty ()
+withNoPrecedingSpace action = do
+  oldVal <- gets apNoPrecedingSpace
+  inLayout <- gets apMarkLayout
+  if inLayout
+    then do
+      modify (\s -> s { apNoPrecedingSpace = True } )
+      let reset = modify (\s -> s { apNoPrecedingSpace = oldVal
+                                  , apMarkLayout = False
+                                  })
+      action <* reset
+    else action
 
 -- ---------------------------------------------------------------------
 
