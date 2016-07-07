@@ -44,6 +44,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
 
   -- * AST Context management
   , setAcs, setAcsWithLevel
+  , unsetAcs
   , inAcs
   , pushAcs
 
@@ -343,6 +344,11 @@ setAcsWithLevel ctxt level (ACS a) = ACS a'
   where
     upd s (k,v) = Map.insert k v s
     a' = foldl' upd a $ zip (Set.toList ctxt) (repeat level)
+
+-- ---------------------------------------------------------------------
+-- | Remove the provided context element from the existing set
+unsetAcs :: AstContext -> AstContextSet -> AstContextSet
+unsetAcs ctxt (ACS a) = ACS $ Map.delete ctxt a
 
 -- ---------------------------------------------------------------------
 

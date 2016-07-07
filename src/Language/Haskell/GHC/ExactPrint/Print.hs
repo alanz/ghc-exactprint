@@ -191,6 +191,7 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
     -- go (NotInContext _ action next)      = printInterpret action >> next
 
     go (SetContextLevel ctxt lvl       action next) = setContextPrint ctxt lvl (printInterpret action) >> next
+    go (UnsetContext   _ctxt           action next) = printInterpret action >> next
     go (IfInContext  ctxt ifAction elseAction next) = ifInContextPrint ctxt ifAction elseAction >> next
     go (NotInContext ctxt              action next) = notInContextPrint ctxt action >> next
 

@@ -183,6 +183,7 @@ prettyInterpret = iterTM go
     go (AnnotationsToComments kws next) = annotationsToCommentsPretty kws >> next
 
     go (SetContextLevel ctxt lvl action next)  = setContextPretty ctxt lvl (prettyInterpret action) >> next
+    go (UnsetContext    ctxt     action next)  = unsetContextPretty ctxt (prettyInterpret action) >> next
     go (IfInContext  ctxt ifAction elseAction next) = ifInContextPretty ctxt ifAction elseAction >> next
     go (NotInContext ctxt action next)  = notInContextPretty ctxt action >> next
 
@@ -286,14 +287,10 @@ withAST lss@(GHC.L ss t) action = do
 
 entryDpFor :: Typeable a => AstContextSet -> a -> Pretty DeltaPos
 entryDpFor ctx a = do
-  -- if listStart
-  --   then return (DP (1,2))
-  --   else if inList
-  --     then return (DP (1,0))
-  --     else do
       (def
         `extQ` funBind
         `extQ` match
+        `extQ` grhs
         ) a
   where
     lineDefault = if inAcs (Set.singleton AdvanceLine) ctx
@@ -314,6 +311,7 @@ entryDpFor ctx a = do
                                                      && not (inAcs (Set.singleton TopLevel) ctx)
     inList = inAcs (Set.singleton ListItem) ctx
             -- && not (inAcs (Set.singleton TopLevel) ctx)
+    inLambda = inAcs (Set.singleton LambdaExpr) ctx
 
     funBind :: GHC.HsBind GHC.RdrName -> Pretty DeltaPos
     funBind GHC.FunBind{} =
@@ -325,9 +323,18 @@ entryDpFor ctx a = do
 
     match :: GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> Pretty DeltaPos
     match _ = do
+      let
+        defVal = if inLambda then DP (0,1) else DP (1,0)
       if listStart
         then return (DP (0,0))
-        else fromLayout (DP (1,0)) (DP (1,12))
+        else fromLayout defVal (DP (1,12))
+
+    grhs :: GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> Pretty DeltaPos
+    grhs _ = do
+      fromLayout (DP (1,2)) (DP (1,2))
+      -- if listStart
+      --   then return (DP (0,0))
+      --   else fromLayout (DP (1,0)) (DP (1,12))
 
 -- ---------------------------------------------------------------------
 
@@ -435,6 +442,11 @@ withNoPrecedingSpace action = do
 setContextPretty :: Set.Set AstContext -> Int -> Pretty () -> Pretty ()
 setContextPretty ctxt lvl =
   local (\s -> s { prContext = setAcsWithLevel ctxt lvl (prContext s) } )
+
+unsetContextPretty :: AstContext -> Pretty () -> Pretty ()
+unsetContextPretty ctxt =
+  local (\s -> s { prContext = unsetAcs ctxt (prContext s) } )
+
 
 ifInContextPretty :: Set.Set AstContext -> Annotated () -> Annotated () -> Pretty ()
 ifInContextPretty ctxt ifAction elseAction = do

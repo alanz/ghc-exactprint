@@ -132,6 +132,7 @@ data AnnotationF next where
   -- AZ experimenting with pretty printing
   -- Set the context for child element
   SetContextLevel :: Set.Set AstContext -> Int -> Annotated () -> next -> AnnotationF next
+  UnsetContext    ::         AstContext        -> Annotated () -> next -> AnnotationF next
   -- Query the context while in a child element
   IfInContext  :: Set.Set AstContext -> Annotated () -> Annotated () -> next -> AnnotationF next
   NotInContext :: Set.Set AstContext -> Annotated ()                 -> next -> AnnotationF next
@@ -160,13 +161,13 @@ makeFreeCon  'StoreString
 makeFreeCon  'AnnotationsToComments
 makeFreeCon  'WithSortKey
 makeFreeCon  'SetContextLevel
+makeFreeCon  'UnsetContext
 makeFreeCon  'IfInContext
 makeFreeCon  'NotInContext
 
 -- ---------------------------------------------------------------------
 
 setContext :: Set.Set AstContext -> Annotated () -> Annotated ()
--- setContext ctxt = liftF (SetContextLevel ctxt 3 ())
 setContext ctxt action = liftF (SetContextLevel ctxt 3 action ())
 
 setLayoutFlag :: Annotated () -> Annotated ()
@@ -277,12 +278,16 @@ markListIntercalate :: Annotate ast => [GHC.Located ast] -> Annotated ()
 markListIntercalate ls = markListIntercalateWithFun markLocated ls
 
 markListIntercalateWithFun :: (t -> Annotated ()) -> [t] -> Annotated ()
-markListIntercalateWithFun f ls = go ls
+markListIntercalateWithFun f ls = markListIntercalateWithFunLevel f 3 ls
+
+markListIntercalateWithFunLevel :: (t -> Annotated ()) -> Int -> [t] -> Annotated ()
+markListIntercalateWithFunLevel f level ls = go ls
   where
     go []  = return ()
     go [x] = f x
     go (x:xs) = do
-      setContext (Set.singleton Intercalate) $ f x
+      -- setContext (Set.singleton Intercalate) $ f x
+      setContextLevel (Set.singleton Intercalate) level $ f x
       go xs
 
 -- ---------------------------------------------------------------------
@@ -409,8 +414,7 @@ instance Annotate GHC.WarningTxt where
     markWithString GHC.AnnClose "#-}"
 
 -- ---------------------------------------------------------------------
-#if __GLASGOW_HASKELL__ <= 710
-#else
+#if __GLASGOW_HASKELL__ > 710
 instance Annotate GHC.StringLiteral where
   markAST l (GHC.StringLiteral src _) = do
     markExternal l GHC.AnnVal src
@@ -577,7 +581,9 @@ instance Annotate GHC.RdrName where
         when isSym $ mark GHC.AnnCloseP -- ')'
 
     case n of
-      GHC.Unqual _ -> doNormalRdrName
+      GHC.Unqual o -> case str of
+         "$"  -> markExternal l GHC.AnnVal str
+         _    -> doNormalRdrName
       GHC.Qual _ _ -> doNormalRdrName
 #if __GLASGOW_HASKELL__ <= 710
       GHC.Orig _ _ -> markExternal l GHC.AnnVal str
@@ -616,9 +622,7 @@ instance Annotate GHC.RdrName where
            mark GHC.AnnTildehsh
            mark GHC.AnnCloseP
          "*"  -> do
-           -- mark GHC.AnnOpenP  -- '('
            markExternal l GHC.AnnVal str
-           -- mark GHC.AnnCloseP -- ')'
          ":"  -> do
            doNormalRdrName
            -- mark GHC.AnnOpenP -- '('
@@ -1285,7 +1289,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       (GHC.L _ (GHC.GRHS [] _):_) -> when (isFunBind mln) $ mark GHC.AnnEqual -- empty guards
       _ -> return ()
     inContext (Set.fromList [LambdaExpr]) $ mark GHC.AnnRarrow -- For HsLam
-    markListIntercalate grhs
+    -- markListIntercalate grhs
+    mapM_ markLocated grhs
 
     case lb of
       GHC.EmptyLocalBinds -> return ()
@@ -1307,7 +1312,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,
       [] -> return ()
       (_:_) -> do
         mark GHC.AnnVbar
-        markListIntercalate guards
+        -- markListIntercalate guards
+        mapM_ markLocated guards
         mark GHC.AnnEqual
 
     -- cntL <- countAnns GHC.AnnLam
@@ -1901,7 +1907,8 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
         let pun_RDR = "pun-right-hand-side"
         when (showGhc n /= pun_RDR) $
 #if __GLASGOW_HASKELL__ <= 710
-          markAST l n
+          -- markAST l n
+          unsetContext Intercalate $ markAST l n
 #else
           markLocated n
 #endif
@@ -1931,7 +1938,8 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
       markPat _ (GHC.TuplePat pats b _) = do
         if b == GHC.Boxed then mark GHC.AnnOpenP
                           else markWithString GHC.AnnOpen "(#"
-        markListIntercalate pats
+        -- markListIntercalate pats
+        markListIntercalateWithFunLevel markLocated 2 pats
         if b == GHC.Boxed then mark GHC.AnnCloseP
                           else markWithString GHC.AnnClose "#)"
 
@@ -2035,7 +2043,8 @@ markHsConPatDetails ln dets = do
     GHC.RecCon (GHC.HsRecFields fs dd) -> do
       markLocated ln
       mark GHC.AnnOpenC -- '{'
-      markListIntercalate fs
+      -- markListIntercalate fs
+      markListIntercalateWithFunLevel markLocated 2 fs
       when (isJust dd) $ mark GHC.AnnDotdot
       mark GHC.AnnCloseC -- '}'
     GHC.InfixCon a1 a2 -> do
@@ -2440,10 +2449,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       markExpr _ (GHC.RecordUpd e fs _cons _ _ _) = do
 #endif
         markLocated e
-        markOptional GHC.AnnOpenC
+        mark GHC.AnnOpenC
         markListIntercalate fs
-        mark GHC.AnnDotdot
-        markOptional GHC.AnnCloseC
+        markOptional GHC.AnnDotdot
+        mark GHC.AnnCloseC
 
 #if __GLASGOW_HASKELL__ <= 710
       markExpr _ (GHC.ExprWithTySig e typ _) = do
@@ -2731,8 +2740,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   => Annotate (GHC.HsRecUpdField name) where
   markAST _ (GHC.HsRecField lbl expr punFlag) = do
     markLocated lbl
-    when (punFlag == False) $ mark GHC.AnnEqual
-    markLocated expr
+    -- when (punFlag == False) $ mark GHC.AnnEqual
+    -- markLocated expr
+    when (punFlag == False) $ do
+      mark GHC.AnnEqual
+      markLocated expr
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 {-
 type HsRecUpdField id     = HsRecField' (AmbiguousFieldOcc id) (LHsExpr id)
