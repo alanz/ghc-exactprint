@@ -1312,8 +1312,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,
       [] -> return ()
       (_:_) -> do
         mark GHC.AnnVbar
-        -- markListIntercalate guards
-        mapM_ markLocated guards
+        markListIntercalate guards
+        -- mapM_ markLocated guards
         mark GHC.AnnEqual
 
     -- cntL <- countAnns GHC.AnnLam
