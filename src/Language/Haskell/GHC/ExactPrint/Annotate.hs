@@ -568,7 +568,8 @@ instance Annotate GHC.RdrName where
                         _ -> str
         when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.fromList [InIE]) $ mark GHC.AnnType
         -- when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ mark GHC.AnnType
-        when isSym $ mark GHC.AnnOpenP -- '('
+        when isSym $ if str == "$" then markOptional GHC.AnnOpenP -- '('
+                                   else mark GHC.AnnOpenP
         -- markOffset GHC.AnnBackquote 0
         when (not isSym) $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 0
         cnt  <- countAnns GHC.AnnVal
@@ -578,12 +579,17 @@ instance Annotate GHC.RdrName where
           _ -> traceM $ "Printing RdrName, more than 1 AnnVal:" ++ showGhc (l,n)
         -- markOffset GHC.AnnBackquote 1
         when (not isSym) $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 1
-        when isSym $ mark GHC.AnnCloseP -- ')'
+        when isSym $ if str == "$" then markOptional GHC.AnnCloseP -- ')'
+                                   else mark GHC.AnnCloseP
 
     case n of
-      GHC.Unqual o -> case str of
-         "$"  -> markExternal l GHC.AnnVal str
-         _    -> doNormalRdrName
+      -- GHC.Unqual o -> case str of
+      --    "$"  -> do
+      --      markOptional GHC.AnnOpenP
+      --      markExternal l GHC.AnnVal str
+      --      markOptional GHC.AnnCloseP
+      --    _    -> doNormalRdrName
+      GHC.Unqual _ -> doNormalRdrName
       GHC.Qual _ _ -> doNormalRdrName
 #if __GLASGOW_HASKELL__ <= 710
       GHC.Orig _ _ -> markExternal l GHC.AnnVal str
@@ -872,8 +878,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnCloseP -- ")"
 #endif
 -- ---------------------------------------------------------------------
-#if __GLASGOW_HASKELL__ <= 710
-#else
+#if __GLASGOW_HASKELL__ > 710
 markLHsSigWcType :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
                  => GHC.LHsSigWcType name -> Annotated ()
 markLHsSigWcType (GHC.HsIB _ (GHC.HsWC _ mwc ty)) = do
@@ -1797,7 +1802,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnSimpleQuote
     setContext (Set.singleton InOp) $ markLocated t
   markAST _ (GHC.HsAppPrefix t) = do
-    mark GHC.AnnTilde
+    markOptional GHC.AnnTilde
     setContext (Set.singleton InOp) $ markLocated t
 #endif
 -- ---------------------------------------------------------------------
