@@ -52,6 +52,10 @@ import qualified Data.Map as Map
 data Comment = Comment
     {
       commentContents   :: !String -- ^ The contents of the comment including separators
+
+    -- AZ:TODO: commentIdentifier is a misnomer, should be commentSrcSpan, it is
+    -- the thing we use to decide where in the output stream the comment should
+    -- go.
     , commentIdentifier :: !GHC.SrcSpan -- ^ Needed to uniquely identify two comments with the same contents
     , commentOrigin     :: !(Maybe GHC.AnnKeywordId) -- ^ We sometimes turn syntax into comments in order to process them properly.
     }

@@ -29,7 +29,7 @@ import Control.Monad.RWS
 import Control.Monad.Trans.Free
 import Data.Generics
 import Data.List
-import Data.Maybe
+-- import Data.Maybe
 import Data.Ord (comparing)
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -54,7 +54,8 @@ addAnnotationsForPretty :: (Annotate a) => [Comment] -> GHC.Located a -> Anns ->
 addAnnotationsForPretty cs ast ans
   = runPrettyWithComments opts cs (annotate ast) ans (0,0)
   where
-    opts = prettyOptions NormalLayout
+    -- opts = prettyOptions NormalLayout
+    opts = trace ("addAnnotationsForPretty:cs=" ++ show cs) $ prettyOptions NormalLayout
 
 -- ---------------------------------------------------------------------
 --

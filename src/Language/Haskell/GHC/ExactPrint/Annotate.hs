@@ -1794,8 +1794,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #endif
 
 -- ---------------------------------------------------------------------
-#if __GLASGOW_HASKELL__ <= 710
-#else
+#if __GLASGOW_HASKELL__ > 710
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsAppType name) where
   markAST _ (GHC.HsAppInfix t)  = do
@@ -1803,7 +1802,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     setContext (Set.singleton InOp) $ markLocated t
   markAST _ (GHC.HsAppPrefix t) = do
     markOptional GHC.AnnTilde
-    setContext (Set.singleton InOp) $ markLocated t
+    -- setContext (Set.singleton InOp) $ markLocated t
+    markLocated t
 #endif
 -- ---------------------------------------------------------------------
 

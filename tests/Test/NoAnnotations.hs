@@ -34,7 +34,7 @@ import qualified NameSet       as GHC
 import qualified Outputable    as GHC
 -- import qualified Parser        as GHC
 -- import qualified RdrName       as GHC
--- import qualified SrcLoc        as GHC
+import qualified SrcLoc        as GHC
 -- import qualified StringBuffer  as GHC
 import qualified Var           as GHC
 
@@ -48,7 +48,7 @@ import System.Directory
 import System.FilePath
 -- import System.FilePath.Posix
 -- import System.IO
--- import qualified Data.Map as Map
+import qualified Data.Map as Map
 -- import Data.List
 -- import Data.Maybe
 
@@ -82,7 +82,7 @@ prettyRoundtripTest origFile = do
       res <- parseModuleApiAnnsWithCpp defaultCppOptions origFile
       case res of
         Left (ss, m) -> return . Left $ ParseFailure ss m
-        Right (apianns, injectedComments, dflags, parsed)  -> do
+        Right (apianns, injectedComments, _dflags, parsed)  -> do
           res2 <- GHC.liftIO (runPrettyRoundTrip origFile apianns parsed injectedComments)
           case res2 of
             Left (ss, m) -> return . Left $ ParseFailure ss m
@@ -108,7 +108,11 @@ runPrettyRoundTrip :: FilePath -> GHC.ApiAnns -> GHC.ParsedSource
                    -> [Comment]
                    -> IO (Either (GHC.SrcSpan, String)(Anns, GHC.ParsedSource))
 runPrettyRoundTrip origFile !anns !parsedOrig cs = do
-  let !newAnns = addAnnotationsForPretty cs parsedOrig mempty
+  -- let comments = extractComments anns ++ cs
+  let comments = case Map.lookup GHC.noSrcSpan (snd anns) of
+        Nothing -> []
+        Just cl -> map tokComment $ GHC.sortLocated cl
+  let !newAnns = addAnnotationsForPretty comments parsedOrig mempty
   -- putStrLn $ "newAnns:" ++ showGhc newAnns
   putStrLn $ "newAnns:" ++ (showAnnData newAnns 0 parsedOrig)
   let !printed = exactPrint parsedOrig newAnns

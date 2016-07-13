@@ -20,6 +20,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , mkKWComment
   , dpFromString
   , comment2dp
+  , extractComments
 
     -- * GHC Functions
   , srcSpanStartLine
@@ -71,15 +72,15 @@ import Data.Ord (comparing)
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Lookup
 
-
-import qualified GHC
 import qualified Bag            as GHC
 import qualified DynFlags       as GHC
 import qualified FastString     as GHC
+import qualified GHC
 import qualified Name           as GHC
 import qualified NameSet        as GHC
 import qualified Outputable     as GHC
 import qualified RdrName        as GHC
+import qualified SrcLoc        as GHC
 import qualified Var            as GHC
 
 import qualified OccName(occNameString)
@@ -272,6 +273,11 @@ mkKWComment kw ss = Comment (keywordToString $ G kw) ss (Just kw)
 
 comment2dp :: (Comment,  DeltaPos) -> (KeywordId, DeltaPos)
 comment2dp = first AnnComment
+
+extractComments :: GHC.ApiAnns -> [Comment]
+extractComments (_,cm)
+  -- cm has type :: Map SrcSpan [Located AnnotationComment]
+  = map tokComment . GHC.sortLocated . concat $ Map.elems cm
 
 getAnnotationEP :: (Data a) =>  GHC.Located a  -> Anns -> Maybe Annotation
 getAnnotationEP  la as =

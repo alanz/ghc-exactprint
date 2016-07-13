@@ -77,7 +77,6 @@ import Language.Haskell.GHC.ExactPrint.Annotate (AnnotationF(..), Annotated
                                                 , annotate, Annotate(..))
 
 import qualified GHC
-import qualified SrcLoc        as GHC
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -206,11 +205,7 @@ defaultDeltaState injectedComments priorEnd ga =
       }
   where
     cs :: [Comment]
-    cs = flattenedComments ga
-
-    flattenedComments :: GHC.ApiAnns -> [Comment]
-    flattenedComments (_,cm) =
-      map tokComment . GHC.sortLocated . concat $ Map.elems cm
+    cs = extractComments ga
 
 
 -- Writer helpers
@@ -642,7 +637,7 @@ makeDeltaComment c = do
   let p = ss2delta pe pa
   p' <- adjustDeltaForOffsetM p
   setPriorEnd (ss2posEnd pa)
-  return $ (c, p')
+  return (c, p')
 
 addDeltaComment :: Comment -> DeltaPos -> Delta ()
 addDeltaComment d p = do
