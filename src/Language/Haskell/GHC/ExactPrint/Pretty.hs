@@ -197,12 +197,12 @@ addEofAnnotation = tellKd (G GHC.AnnEofPos, DP (1,0))
 
 addPrettyAnnotation :: GHC.AnnKeywordId -> Pretty ()
 addPrettyAnnotation ann = do
-  cur <- asks prContext
+  noPrec <- gets apNoPrecedingSpace
+  ctx <- asks prContext
+  cur <- trace ("Pretty.addPrettyAnnotation:=" ++ showGhc (ann,noPrec,ctx)) $ asks prContext
+  -- cur <- asks prContext
   let
     dp = case ann of
-           GHC.AnnVal    -> if inAcs (Set.fromList [NoPrecedingSpace]) cur
-                              then tellKd (G ann,DP (0,0))
-                              else tellKd (G ann,DP (0,1))
            GHC.AnnCloseC -> tellKd (G ann,DP (0,0))
            GHC.AnnDcolon -> tellKd (G ann,DP (0,1))
            GHC.AnnEqual  -> tellKd (G ann,DP (0,1))
@@ -210,6 +210,7 @@ addPrettyAnnotation ann = do
            GHC.AnnOf     -> tellKd (G ann,DP (0,1))
            GHC.AnnOpenC  -> tellKd (G ann,DP (0,0))
            GHC.AnnRarrow -> tellKd (G ann,DP (0,1))
+           GHC.AnnVal    -> tellKd (G ann,DP (0,1))
            GHC.AnnWhere  -> tellKd (G ann,DP (0,1))
            _ ->             tellKd (G ann,DP (0,0))
   fromNoPrecedingSpace (tellKd (G ann,DP (0,0))) dp
@@ -304,7 +305,7 @@ entryDpFor ctx a = do
        then return (DP (1,2))
        else if inList
          then return (DP (1,0))
-         else return $ DP (lineDefault,0)
+         else return (DP (lineDefault,0))
 
     inCase = inAcs (Set.singleton CaseAlt) ctx
     -- listStart = inAcs (Set.singleton ListStart) ctx
