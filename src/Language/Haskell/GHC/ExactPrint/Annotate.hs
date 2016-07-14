@@ -318,7 +318,10 @@ markListWithContexts ctxInitial ctxRest ls =
 
 markListWithLayout :: Annotate ast => [GHC.Located ast] -> Annotated ()
 markListWithLayout ls =
-  setLayoutFlag (mapM_ markLocated ls)
+  -- setLayoutFlag (mapM_ markLocated ls)
+  -- TODO: Turn the next 2 lines into a function
+  setLayoutFlag $ setContext (Set.singleton NoPrecedingSpace)
+                $ markListWithContexts (Set.singleton ListStart) (Set.singleton ListItem) ls
 
 markLocalBindsWithLayout :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => GHC.HsLocalBinds name -> Annotated ()
