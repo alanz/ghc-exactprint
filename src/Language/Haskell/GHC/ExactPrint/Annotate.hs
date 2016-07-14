@@ -569,7 +569,8 @@ instance Annotate GHC.RdrName where
         when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.fromList [InIE]) $ mark GHC.AnnType
         -- when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ mark GHC.AnnType
         when isSym $ if str == "$" then markOptional GHC.AnnOpenP -- '('
-                                   else mark GHC.AnnOpenP
+                                   else markOptional GHC.AnnOpenP
+                                   -- else mark GHC.AnnOpenP
         -- markOffset GHC.AnnBackquote 0
         when (not isSym) $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 0
         cnt  <- countAnns GHC.AnnVal
@@ -580,7 +581,8 @@ instance Annotate GHC.RdrName where
         -- markOffset GHC.AnnBackquote 1
         when (not isSym) $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 1
         when isSym $ if str == "$" then markOptional GHC.AnnCloseP -- ')'
-                                   else mark GHC.AnnCloseP
+                                   else markOptional GHC.AnnCloseP
+                                   -- else mark GHC.AnnCloseP
 
     case n of
       -- GHC.Unqual o -> case str of

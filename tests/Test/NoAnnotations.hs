@@ -18,7 +18,7 @@ import Language.Haskell.GHC.ExactPrint
 -- import Language.Haskell.GHC.ExactPrint.Annotate
 import Language.Haskell.GHC.ExactPrint.Parsers
 import Language.Haskell.GHC.ExactPrint.Pretty
--- import Language.Haskell.GHC.ExactPrint.Types
+import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
 import qualified ApiAnnotation as GHC
@@ -49,7 +49,7 @@ import System.FilePath
 -- import System.FilePath.Posix
 -- import System.IO
 import qualified Data.Map as Map
--- import Data.List
+import Data.List
 -- import Data.Maybe
 
 import Test.Common
@@ -96,8 +96,10 @@ prettyRoundtripTest origFile = do
                 cppStatus = Nothing
                 inconsistent = Nothing
                 !annsOrig = relativiseApiAnnsWithComments injectedComments parsed apianns
-                debugTxt = intercalate sep [debugTxt'
-                                           ,showAnnData annsOrig 0 parsed
+                debugTxt = intercalate sep [ debugTxt'
+                                           , originalStructure
+                                           , roundtripStructure
+                                           , showAnnData annsOrig 0 parsed
                                            ]
                 sep = "\n=====================================\n"
               return $ Right Report {debugTxt,status,cppStatus,inconsistent}
@@ -115,7 +117,10 @@ runPrettyRoundTrip origFile !anns !parsedOrig cs = do
   let !newAnns = addAnnotationsForPretty comments parsedOrig mempty
   -- putStrLn $ "newAnns:" ++ showGhc newAnns
   putStrLn $ "newAnns:" ++ (showAnnData newAnns 0 parsedOrig)
-  let !printed = exactPrint parsedOrig newAnns
+  let pragmas = filter (\(Comment c _ _) -> isPrefixOf "{-#" c ) comments
+  putStrLn $ "pragmas:[" ++ show pragmas ++ "]"
+  let pragmaStr = intercalate "\n" $ map commentContents pragmas
+  let !printed = pragmaStr ++ "\n" ++ exactPrint parsedOrig newAnns
   putStrLn $ "printed:[" ++ printed ++ "]"
   parseString origFile printed newAnns
 
