@@ -99,7 +99,8 @@ mkTests = do
   prettyRoundTripTests <- findPrettyTests
   return $ TestList [
                       internalTests, roundTripTests, transformTests, failingTests, noAnnotationTests
-                    , prettyRoundTripTests ]
+                    -- , prettyRoundTripTests
+                    ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
 -- future GHC

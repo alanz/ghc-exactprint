@@ -198,8 +198,8 @@ addPrettyAnnotation :: GHC.AnnKeywordId -> Pretty ()
 addPrettyAnnotation ann = do
   noPrec <- gets apNoPrecedingSpace
   ctx <- asks prContext
-  -- cur <- trace ("Pretty.addPrettyAnnotation:=" ++ showGhc (ann,noPrec,ctx)) $ asks prContext
-  cur <- asks prContext
+  cur <- trace ("Pretty.addPrettyAnnotation:=" ++ showGhc (ann,noPrec,ctx)) $ asks prContext
+  -- cur <- asks prContext
   let
     dp = case ann of
            GHC.AnnCloseC -> tellKd (G ann,DP (0,0))
@@ -211,6 +211,8 @@ addPrettyAnnotation ann = do
            GHC.AnnRarrow -> tellKd (G ann,DP (0,1))
            GHC.AnnVal    -> tellKd (G ann,DP (0,1))
            GHC.AnnWhere  -> tellKd (G ann,DP (0,1))
+           GHC.AnnQualified -> tellKd (G ann,DP (0,1))
+           GHC.AnnHiding -> tellKd (G ann,DP (0,1))
            _ ->             tellKd (G ann,DP (0,0))
   fromNoPrecedingSpace (tellKd (G ann,DP (0,0))) dp
 
@@ -369,13 +371,13 @@ fromNoPrecedingSpace def lay = do
     then do
       modify (\s -> s { apNoPrecedingSpace = False
                       })
-      -- trace ("fromNoPrecedingSpace:def") def
-      def
+      trace ("fromNoPrecedingSpace:def") def
+      -- def
     else
       if (inAcs (Set.singleton TopLevel) ctx)
-        then def else lay
-        -- then trace ("fromNoPrecedingSpace:tl:def") def
-        -- else trace ("fromNoPrecedingSpace:lay") lay
+        -- then def else lay
+        then trace ("fromNoPrecedingSpace:tl:def") def
+        else trace ("fromNoPrecedingSpace:lay") lay
 
 
 -- ---------------------------------------------------------------------

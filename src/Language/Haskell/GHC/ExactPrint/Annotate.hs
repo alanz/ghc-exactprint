@@ -389,10 +389,10 @@ instance Annotate (GHC.HsModule GHC.RdrName) where
     markOptional GHC.AnnOpenC -- Possible '{'
     markMany GHC.AnnSemi -- possible leading semis
     -- mapM_ markLocated imps
-    setContext (Set.singleton TopLevel) $ markListWithLayout imps
+    setContextLevel (Set.singleton TopLevel) 2 $ markListWithLayout imps
 
     -- mapM_ markLocated decs
-    setContext (Set.singleton TopLevel) $ markListWithLayout decs
+    setContextLevel (Set.singleton TopLevel) 2 $ markListWithLayout decs
 
     markOptional GHC.AnnCloseC -- Possible '}'
 
@@ -436,7 +436,7 @@ instance Annotate (GHC.SourceText,GHC.FastString) where
 instance (GHC.DataId name,Annotate name)
   => Annotate [GHC.LIE name] where
    markAST _ ls = do
-     mark GHC.AnnHiding -- in an import decl
+     inContext (Set.singleton HasHiding) $ mark GHC.AnnHiding -- in an import decl
      mark GHC.AnnOpenP -- '('
      -- markListIntercalate ls
      setContext (Set.singleton Intercalate) $ mapM_ markLocated ls
@@ -672,7 +672,7 @@ instance Annotate GHC.Name where
 
 instance (GHC.DataId name,Annotate name)
   => Annotate (GHC.ImportDecl name) where
- markAST _ imp@(GHC.ImportDecl msrc modname mpkg src safeflag _qual _impl _as hiding) = do
+ markAST _ imp@(GHC.ImportDecl msrc modname mpkg src safeflag qualFlag _impl _as hiding) = do
 
    -- 'import' maybe_src maybe_safe optqualified maybe_pkg modid maybeas maybeimpspec
    mark GHC.AnnImport
@@ -681,7 +681,7 @@ instance (GHC.DataId name,Annotate name)
    when src (markWithString GHC.AnnOpen (fromMaybe "{-# SOURCE" msrc)
              >> markWithString GHC.AnnClose "#-}")
    when safeflag (mark GHC.AnnSafe)
-   mark GHC.AnnQualified
+   when qualFlag (unsetContext TopLevel $ mark GHC.AnnQualified)
    case mpkg of
     Nothing -> return ()
 #if __GLASGOW_HASKELL__ <= 710
@@ -700,9 +700,10 @@ instance (GHC.DataId name,Annotate name)
 
    case hiding of
      Nothing -> return ()
-     Just (_isHiding,lie) -> do
-       mark GHC.AnnHiding
-       markLocated lie
+     Just (isHiding,lie) -> do
+       -- when isHiding $ unsetContext TopLevel $ mark GHC.AnnHiding
+       when isHiding $ setContext (Set.singleton HasHiding) $
+         markLocated lie
    markTrailingSemi
 
 -- ---------------------------------------------------------------------
