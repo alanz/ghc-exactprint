@@ -319,7 +319,7 @@ markListWithContexts ctxInitial ctxRest ls =
 markListWithLayout :: Annotate ast => [GHC.Located ast] -> Annotated ()
 markListWithLayout ls =
   -- setLayoutFlag (mapM_ markLocated ls)
-  -- TODO: Turn the next 2 lines into a function
+  -- TODO:AZ: Turn the next 2 lines into a function
   setLayoutFlag $ setContext (Set.singleton NoPrecedingSpace)
                 $ markListWithContexts (Set.singleton ListStart) (Set.singleton ListItem) ls
 
@@ -1153,7 +1153,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.FunBind (GHC.L _ln _n) (GHC.MG (GHC.L _ matches) _ _ _) _ _ _) = do
 #endif
     -- mapM_ markLocated matches
-    markListInitialContext (Set.singleton ListStart) matches
+    -- markListInitialContext (Set.singleton ListStart) matches
+    setContext (Set.singleton NoPrecedingSpace)
+      $ markListWithContexts (Set.singleton ListStart) (Set.singleton ListItem) matches
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks) = do

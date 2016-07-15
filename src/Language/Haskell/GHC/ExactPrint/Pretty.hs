@@ -268,7 +268,8 @@ withAST lss@(GHC.L ss t) action = do
     -- edp <- entryDpFor ctx t
 
     let cs = []
-    (res, w) <- if inAcs (Set.singleton ListItem) ctx
+    -- (res, w) <- if inAcs (Set.singleton ListItem) ctx
+    (res, w) <- if inAcs (Set.fromList [ListItem,TopLevel]) ctx
       then censor maskWriter (listen (setNoPrecedingSpace action))
       else censor maskWriter (listen action)
 
@@ -355,12 +356,17 @@ fromLayout def lay = do
 fromNoPrecedingSpace :: Pretty a -> Pretty a -> Pretty a
 fromNoPrecedingSpace def lay = do
   PrettyState{apNoPrecedingSpace} <- get
+  ctx <- asks prContext
   if apNoPrecedingSpace
     then do
       modify (\s -> s { apNoPrecedingSpace = False
                       })
       trace ("fromNoPrecedingSpace:def") def
-    else trace ("fromNoPrecedingSpace:lay") lay
+    -- else trace ("fromNoPrecedingSpace:lay") lay
+    else
+      if (inAcs (Set.singleton TopLevel) ctx)
+        then trace ("fromNoPrecedingSpace:tl:def") def
+        else trace ("fromNoPrecedingSpace:lay") lay
 
 
 -- ---------------------------------------------------------------------
