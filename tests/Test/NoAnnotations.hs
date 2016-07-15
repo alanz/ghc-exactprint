@@ -116,24 +116,25 @@ runPrettyRoundTrip origFile !anns !parsedOrig cs = do
         Just cl -> map tokComment $ GHC.sortLocated cl
   let !newAnns = addAnnotationsForPretty comments parsedOrig mempty
   -- putStrLn $ "newAnns:" ++ showGhc newAnns
-  putStrLn $ "newAnns:" ++ (showAnnData newAnns 0 parsedOrig)
+  -- putStrLn $ "newAnns:" ++ (showAnnData newAnns 0 parsedOrig)
   let pragmas = filter (\(Comment c _ _) -> isPrefixOf "{-#" c ) comments
-  putStrLn $ "pragmas:[" ++ show pragmas ++ "]"
+  -- putStrLn $ "pragmas:[" ++ show pragmas ++ "]"
   let pragmaStr = intercalate "\n" $ map commentContents pragmas
   let !printed = pragmaStr ++ "\n" ++ exactPrint parsedOrig newAnns
-  putStrLn $ "printed:[" ++ printed ++ "]"
-  parseString origFile printed newAnns
+  -- putStrLn $ "printed:[" ++ printed ++ "]"
+  parseString origFile printed newAnns parsedOrig
 
 
-parseString :: FilePath -> String -> Anns
+parseString :: FilePath -> String -> Anns -> GHC.ParsedSource
             -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource))
-parseString origFile src newAnns = do
+parseString origFile src newAnns origParsed = do
   tmpDir <- getTemporaryDirectory
   let workDir = tmpDir </> "ghc-exactprint" </> "noannotations"
   putStrLn $ "workDir=" ++ workDir
   createDirectoryIfMissing True workDir
   let fileName = workDir </> takeFileName origFile
-  writeFile (workDir </> takeFileName origFile <.> ".anns") (showGhc newAnns)
+  writeFile (workDir </> takeFileName origFile <.> ".anns")
+      (showAnnData  newAnns 0 origParsed)
   writeFile fileName src
   parseModule fileName
 

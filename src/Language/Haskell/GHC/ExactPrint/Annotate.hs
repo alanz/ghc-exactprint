@@ -319,7 +319,6 @@ markListWithContexts ctxInitial ctxRest ls =
 markListWithLayout :: Annotate ast => [GHC.Located ast] -> Annotated ()
 markListWithLayout ls =
   -- setLayoutFlag (mapM_ markLocated ls)
-  -- TODO:AZ: Turn the next 2 lines into a function
   setLayoutFlag $ setContext (Set.singleton NoPrecedingSpace)
                 $ markListWithContexts (Set.singleton ListStart) (Set.singleton ListItem) ls
 
@@ -389,10 +388,11 @@ instance Annotate (GHC.HsModule GHC.RdrName) where
 
     markOptional GHC.AnnOpenC -- Possible '{'
     markMany GHC.AnnSemi -- possible leading semis
-    mapM_ markLocated imps
+    -- mapM_ markLocated imps
+    setContext (Set.singleton TopLevel) $ markListWithLayout imps
 
     -- mapM_ markLocated decs
-    setContext (Set.singleton TopLevel) $ mapM_ markLocated decs
+    setContext (Set.singleton TopLevel) $ markListWithLayout decs
 
     markOptional GHC.AnnCloseC -- Possible '}'
 
@@ -1154,8 +1154,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #endif
     -- mapM_ markLocated matches
     -- markListInitialContext (Set.singleton ListStart) matches
-    setContext (Set.singleton NoPrecedingSpace)
-      $ markListWithContexts (Set.singleton ListStart) (Set.singleton ListItem) matches
+    markListWithLayout matches
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
@@ -2424,8 +2423,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
           else do
            -- setLayoutFlag $  markListInitialContext (Set.singleton ListStart) es
            -- setLayoutFlag $  markListWithContexts (Set.singleton ListStart) (Set.singleton ListItem) es
-           setLayoutFlag $ setContext (Set.singleton NoPrecedingSpace)
-                         $ markListWithContexts (Set.singleton ListStart) (Set.singleton ListItem) es
+           -- setLayoutFlag $ setContext (Set.singleton NoPrecedingSpace)
+           --               $ markListWithContexts (Set.singleton ListStart) (Set.singleton ListItem) es
+           markListWithLayout es
         markOptional GHC.AnnCloseS
         markOptional GHC.AnnCloseC
         -- markWithString GHC.AnnClose cstr

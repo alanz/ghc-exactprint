@@ -68,7 +68,18 @@ transform = hSilence [stderr] $ do
 -- ---------------------------------------------------------------------
 
 findTests :: IO Test
-findTests = testList "Round-trip tests" <$> mapM findTestsDir testDirs
+findTests = testList "Round-trip tests" <$> mapM (findTestsDir mkParserTest) testDirs
+
+findPrettyTests :: IO Test
+findPrettyTests = testList "Default Annotations round-trip tests" <$> mapM (findTestsDir mkPrettyRoundtrip) testDirs
+
+findTestsDir :: (FilePath -> FilePath -> Test) -> FilePath -> IO Test
+findTestsDir mkTestFn dir = do
+  let fp = testPrefix </> dir
+  fs <- getDirectoryContents fp
+  let testFiles = sort $ filter (".hs" `isSuffixOf`) fs
+  -- return $ testList dir (map (mkTestFn dir) testFiles)
+  return $ testList dir (map (\fn -> TestLabel fn (mkTestFn dir fn)) testFiles)
 
 listTests :: IO ()
 listTests = do
@@ -81,18 +92,14 @@ listTests = do
   files <- mapM ftd testDirs
   putStrLn $ "round trip tests:" ++ show (zip testDirs files)
 
-findTestsDir :: FilePath -> IO Test
-findTestsDir dir = do
-  let fp = testPrefix </> dir
-  fs <- getDirectoryContents fp
-  let testFiles = sort $ filter (".hs" `isSuffixOf`) fs
-  return $ testList dir (map (mkParserTest dir) testFiles)
-
 mkTests :: IO Test
 mkTests = do
   -- listTests
   roundTripTests <- findTests
-  return $ TestList [internalTests, roundTripTests, transformTests, failingTests, noAnnotationTests ]
+  prettyRoundTripTests <- findPrettyTests
+  return $ TestList [
+                      internalTests, roundTripTests, transformTests, failingTests, noAnnotationTests
+                    , prettyRoundTripTests ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
 -- future GHC
@@ -154,12 +161,14 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest "failing" "UnicodeRules.hs"
     -- , mkParserTest "failing" "UnicodeSyntax.hs"
 
-      mkPrettyRoundtrip "ghc710" "Process1.hs"
-    , mkPrettyRoundtrip "ghc710" "ModuleOnly.hs"
-    , mkPrettyRoundtrip "ghc710" "Simple.hs"
-    , mkPrettyRoundtrip "ghc710" "ShiftingLambda.hs"
-    , mkPrettyRoundtrip "ghc710" "Case.hs"
+      mkPrettyRoundtrip "ghc710" "Zipper.hs"
+    -- , mkPrettyRoundtrip "ghc710" "Process1.hs"
+    -- , mkPrettyRoundtrip "ghc710" "ModuleOnly.hs"
+      -- mkPrettyRoundtrip "ghc710" "Simple.hs"
+    -- , mkPrettyRoundtrip "ghc710" "ShiftingLambda.hs"
+    -- , mkPrettyRoundtrip "ghc710" "Case.hs"
     -- , mkParserTest "ghc710" "Process1.hs"
+    -- , mkParserTest      "ghc710" "Zipper.hs"
     -- , mkParserTest      "ghc710" "ModuleOnly.hs"
     -- , mkParserTest      "ghc710" "Simple.hs"
     -- , mkParserTest      "ghc710" "ShiftingLambda.hs"

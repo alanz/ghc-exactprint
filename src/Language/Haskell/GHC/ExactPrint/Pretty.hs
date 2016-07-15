@@ -54,8 +54,7 @@ addAnnotationsForPretty :: (Annotate a) => [Comment] -> GHC.Located a -> Anns ->
 addAnnotationsForPretty cs ast ans
   = runPrettyWithComments opts cs (annotate ast) ans (0,0)
   where
-    -- opts = prettyOptions NormalLayout
-    opts = trace ("addAnnotationsForPretty:cs=" ++ show cs) $ prettyOptions NormalLayout
+    opts = prettyOptions NormalLayout
 
 -- ---------------------------------------------------------------------
 --
@@ -199,8 +198,8 @@ addPrettyAnnotation :: GHC.AnnKeywordId -> Pretty ()
 addPrettyAnnotation ann = do
   noPrec <- gets apNoPrecedingSpace
   ctx <- asks prContext
-  cur <- trace ("Pretty.addPrettyAnnotation:=" ++ showGhc (ann,noPrec,ctx)) $ asks prContext
-  -- cur <- asks prContext
+  -- cur <- trace ("Pretty.addPrettyAnnotation:=" ++ showGhc (ann,noPrec,ctx)) $ asks prContext
+  cur <- asks prContext
   let
     dp = case ann of
            GHC.AnnCloseC -> tellKd (G ann,DP (0,0))
@@ -270,8 +269,12 @@ withAST lss@(GHC.L ss t) action = do
     let cs = []
     -- (res, w) <- if inAcs (Set.singleton ListItem) ctx
     (res, w) <- if inAcs (Set.fromList [ListItem,TopLevel]) ctx
-      then censor maskWriter (listen (setNoPrecedingSpace action))
-      else censor maskWriter (listen action)
+      then
+           trace ("Pretty.withAST:setNoPrecedingSpace") $
+             censor maskWriter (listen (setNoPrecedingSpace action))
+      else
+           -- trace ("Pretty.withAST:setNoPrecedingSpace") $
+            censor maskWriter (listen action)
 
     let kds = annKds w
         an = Ann
@@ -291,8 +294,8 @@ withAST lss@(GHC.L ss t) action = do
 entryDpFor :: Typeable a => AstContextSet -> a -> Pretty DeltaPos
 entryDpFor ctx a = do
       (def
-        `extQ` funBind
-        `extQ` match
+        -- `extQ` funBind
+        -- `extQ` match
         `extQ` grhs
         ) a
   where
@@ -302,16 +305,21 @@ entryDpFor ctx a = do
     def :: a -> Pretty DeltaPos
     -- def _ = return $ DP (lineDefault,0)
     def _ =
-     if listStart
-       then return (DP (1,2))
-       else if inList
-         then return (DP (1,0))
-         else return (DP (lineDefault,0))
+      trace ("entryDpFor:(topLevel,listStart,inList)=" ++ show (topLevel,listStart,inList)) $
+        if listStart
+          then return (DP (1,2))
+          else if inList
+            then if topLevel then return (DP (2,0)) else return (DP (1,0))
+            else if topLevel then return (DP (2,0)) else return (DP (lineDefault,0))
+            -- else return (DP (lineDefault,0))
+            -- else fromLayout (DP (2,0)) (DP (lineDefault,0))
 
+    topLevel = inAcs (Set.singleton TopLevel) ctx
     inCase = inAcs (Set.singleton CaseAlt) ctx
-    -- listStart = inAcs (Set.singleton ListStart) ctx
-    listStart = trace ("listStart:ctx=" ++ show ctx) $ inAcs (Set.singleton ListStart) ctx
-                                                     && not (inAcs (Set.singleton TopLevel) ctx)
+    -- listStart = trace ("listStart:ctx=" ++ show ctx) $ inAcs (Set.singleton ListStart) ctx
+    --                                                  && not (inAcs (Set.singleton TopLevel) ctx)
+    listStart = inAcs (Set.singleton ListStart) ctx
+              && not (inAcs (Set.singleton TopLevel) ctx)
     inList = inAcs (Set.singleton ListItem) ctx
             -- && not (inAcs (Set.singleton TopLevel) ctx)
     inLambda = inAcs (Set.singleton LambdaExpr) ctx
@@ -330,7 +338,7 @@ entryDpFor ctx a = do
         defVal = if inLambda then DP (0,1) else DP (1,0)
       if listStart
         then return (DP (0,0))
-        else fromLayout defVal (DP (1,12))
+        else fromLayout defVal (DP (1,2))
 
     grhs :: GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> Pretty DeltaPos
     grhs _ = do
@@ -361,12 +369,13 @@ fromNoPrecedingSpace def lay = do
     then do
       modify (\s -> s { apNoPrecedingSpace = False
                       })
-      trace ("fromNoPrecedingSpace:def") def
-    -- else trace ("fromNoPrecedingSpace:lay") lay
+      -- trace ("fromNoPrecedingSpace:def") def
+      def
     else
       if (inAcs (Set.singleton TopLevel) ctx)
-        then trace ("fromNoPrecedingSpace:tl:def") def
-        else trace ("fromNoPrecedingSpace:lay") lay
+        then def else lay
+        -- then trace ("fromNoPrecedingSpace:tl:def") def
+        -- else trace ("fromNoPrecedingSpace:lay") lay
 
 
 -- ---------------------------------------------------------------------
