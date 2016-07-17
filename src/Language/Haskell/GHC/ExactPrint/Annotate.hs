@@ -702,8 +702,10 @@ instance (GHC.DataId name,Annotate name)
      Nothing -> return ()
      Just (isHiding,lie) -> do
        -- when isHiding $ unsetContext TopLevel $ mark GHC.AnnHiding
-       when isHiding $ setContext (Set.singleton HasHiding) $
-         markLocated lie
+       if isHiding
+         then setContext (Set.singleton HasHiding) $
+                markLocated lie
+         else markLocated lie
    markTrailingSemi
 
 -- ---------------------------------------------------------------------
