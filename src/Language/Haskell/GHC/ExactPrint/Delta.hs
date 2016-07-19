@@ -529,9 +529,7 @@ withAST lss@(GHC.L ss _) action = do
 resetAnns :: Delta a -> Delta a
 resetAnns action = do
   ans <- gets apAnns
-  -- action <* modify (\s -> s { apAnns = ans })
-  modify (\s -> s { apAnns = ans })
-  action
+  action <* modify (\s -> s { apAnns = ans })
 
 
 -- ---------------------------------------------------------------------
