@@ -317,6 +317,27 @@ markListWithContexts ctxInitial ctxRest ls =
 
 -- ---------------------------------------------------------------------
 
+-- Context for only if just one, else first item, middle ones, and last one
+markListWithContexts' :: Annotate ast
+                      => Set.Set AstContext -> Set.Set AstContext
+                      -> Set.Set AstContext -> Set.Set AstContext
+                      -> [GHC.Located ast] -> Annotated ()
+markListWithContexts' ctxOnly ctxInitial ctxMiddle ctxLast ls =
+  case ls of
+    [] -> return ()
+    [x] -> setContextLevel ctxOnly 2 $ markLocated x
+    (x:xs) -> do
+      setContextLevel ctxInitial 2 $ markLocated x
+      go xs
+  where
+    go []  = return ()
+    go [x] = setContextLevel ctxLast 2 $ markLocated x
+    go (x:xs) = do
+      setContextLevel ctxMiddle 2 $ markLocated x
+      go xs
+
+-- ---------------------------------------------------------------------
+
 markListWithLayout :: Annotate ast => [GHC.Located ast] -> Annotated ()
 markListWithLayout ls =
   -- setLayoutFlag (mapM_ markLocated ls)
@@ -2152,7 +2173,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     markLocated pat
     mark GHC.AnnLarrow
     markLocated body
-    -- inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+    -- inContext (Set.fromList [ListComp]) $ mark GHC.AnnComma
     mark GHC.AnnComma
     inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
     markTrailingSemi
@@ -2965,14 +2986,23 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       then markOptional GHC.AnnDarrow
       else mark GHC.AnnDarrow
     markTyClass ln tyVars
-    when (isGadt cons) $ mark GHC.AnnDcolon
-    -- mark GHC.AnnDcolon
-    markMaybe mk
-    mark GHC.AnnEqual
-    when (isGadt cons) $ mark GHC.AnnWhere
+    case mk of
+      Nothing -> return ()
+      Just k -> do
+        mark GHC.AnnDcolon
+        markLocated k
+    if (isGadt cons)
+      then mark GHC.AnnWhere
+      else mark GHC.AnnEqual
     markOptional GHC.AnnOpenC
     -- mapM_ markLocated cons
-    markListWithLayout cons
+    -- markListWithLayout cons
+    setLayoutFlag $ setContext (Set.singleton NoPrecedingSpace)
+                  $ markListWithContexts' (Set.fromList [ListStart])
+                                          (Set.fromList [ListStart,Intercalate])
+                                          (Set.fromList [ListItem,Intercalate])
+                                          (Set.singleton ListItem)
+                                           cons
     markOptional GHC.AnnCloseC
     markMaybe mderivs
     markTrailingSemi
@@ -3144,7 +3174,8 @@ markDataDefn _ (GHC.HsDataDefn _ ctx typ mk cons mderivs) = do
 #if __GLASGOW_HASKELL__ <= 710
   markMaybe mk
 #endif
-  mapM_ markLocated cons
+  -- mapM_ markLocated cons
+  markListIntercalate cons
   case mderivs of
     Nothing -> return ()
     Just d -> markLocated d
@@ -3175,12 +3206,14 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
     case res of
       GHC.ResTyH98 -> do
 
-        mark GHC.AnnForall
-        mapM_ markLocated bndrs
-        mark GHC.AnnDot
+        when (not $ null bndrs) $ do
+          mark GHC.AnnForall
+          mapM_ markLocated bndrs
+          mark GHC.AnnDot
 
         markLocated ctx
-        mark GHC.AnnDarrow
+        -- mark GHC.AnnDarrow
+        when (not $ null $ GHC.unLoc ctx) $ mark GHC.AnnDarrow
         case dets of
           GHC.InfixCon _ _ -> return ()
           _ -> markListIntercalate lns
@@ -3205,7 +3238,8 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
             markLocated (GHC.L ls (ResTyGADTHook bndrs))
             markMany GHC.AnnOpenP
             markLocated ctx
-            mark GHC.AnnDarrow
+            -- mark GHC.AnnDarrow
+            when (not $ null $ GHC.unLoc ctx) $ mark GHC.AnnDarrow
             markHsConDeclDetails lns dets )
 
         markLocated ty
@@ -3213,7 +3247,9 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
         markMany GHC.AnnCloseP
 
 
-    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnVbar
+    case res of
+      GHC.ResTyH98 -> inContext (Set.fromList [Intercalate]) $ mark GHC.AnnVbar
+      _  -> return ()
     markTrailingSemi
 #else
   markAST _ (GHC.ConDeclH98 ln mqtvs ctx
@@ -3296,9 +3332,10 @@ instance Annotate WildCardAnon where
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (ResTyGADTHook name) where
   markAST _ (ResTyGADTHook bndrs) = do
-    mark GHC.AnnForall
-    mapM_ markLocated bndrs
-    mark GHC.AnnDot
+    when (not $ null bndrs) $ do
+      mark GHC.AnnForall
+      mapM_ markLocated bndrs
+      mark GHC.AnnDot
 
 -- ---------------------------------------------------------------------
 
