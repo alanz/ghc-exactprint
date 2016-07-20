@@ -2961,14 +2961,18 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       else mark GHC.AnnNewtype
     markMaybe mctyp
     markLocated ctx
-    mark GHC.AnnDarrow
+    if null (GHC.unLoc ctx)
+      then markOptional GHC.AnnDarrow
+      else mark GHC.AnnDarrow
     markTyClass ln tyVars
-    mark GHC.AnnDcolon
+    when (isGadt cons) $ mark GHC.AnnDcolon
+    -- mark GHC.AnnDcolon
     markMaybe mk
     mark GHC.AnnEqual
-    mark GHC.AnnWhere
+    when (isGadt cons) $ mark GHC.AnnWhere
     markOptional GHC.AnnOpenC
-    mapM_ markLocated cons
+    -- mapM_ markLocated cons
+    markListWithLayout cons
     markOptional GHC.AnnCloseC
     markMaybe mderivs
     markTrailingSemi
@@ -3209,7 +3213,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
         markMany GHC.AnnCloseP
 
 
-    mark GHC.AnnVbar
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnVbar
     markTrailingSemi
 #else
   markAST _ (GHC.ConDeclH98 ln mqtvs ctx

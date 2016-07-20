@@ -31,6 +31,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , isSymbolRdrName
   , tokComment
   , isListComp
+  , isGadt
 
 
   -- * Manipulating Annotations
@@ -248,6 +249,13 @@ isListComp cts = case cts of
           GHC.PatGuard {}      -> False
           GHC.ParStmtCtxt {}   -> False
           GHC.TransStmtCtxt {} -> False
+
+-- ---------------------------------------------------------------------
+
+isGadt :: [GHC.LConDecl name] -> Bool
+isGadt [] = False
+isGadt ((GHC.L _ (GHC.ConDecl{GHC.con_res=GHC.ResTyGADT _ _})):_) = True
+isGadt _ = False
 
 -- ---------------------------------------------------------------------
 
