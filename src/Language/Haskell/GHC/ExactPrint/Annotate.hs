@@ -279,6 +279,7 @@ markListIntercalate ls = markListIntercalateWithFun markLocated ls
 
 markListIntercalateWithFun :: (t -> Annotated ()) -> [t] -> Annotated ()
 markListIntercalateWithFun f ls = markListIntercalateWithFunLevel f 3 ls
+-- markListIntercalateWithFun f ls = markListIntercalateWithFunLevel f 2 ls
 
 markListIntercalateWithFunLevel :: (t -> Annotated ()) -> Int -> [t] -> Annotated ()
 markListIntercalateWithFunLevel f level ls = go ls
@@ -445,7 +446,8 @@ instance (GHC.DataId name,Annotate name)
      inContext (Set.singleton HasHiding) $ mark GHC.AnnHiding -- in an import decl
      mark GHC.AnnOpenP -- '('
      -- markListIntercalate ls
-     setContext (Set.singleton Intercalate) $ mapM_ markLocated ls
+     -- setContext (Set.singleton Intercalate) $ mapM_ markLocated ls
+     markListIntercalateWithFunLevel markLocated 2 ls
      mark GHC.AnnCloseP -- ')'
 
 instance (GHC.DataId name,Annotate name)
@@ -454,8 +456,8 @@ instance (GHC.DataId name,Annotate name)
 
     case ie of
         (GHC.IEVar ln) -> do
-          mark GHC.AnnPattern
-          mark GHC.AnnType
+          markOptional GHC.AnnPattern
+          markOptional GHC.AnnType
           setContext (Set.singleton InIE) $ markLocated ln
 
         (GHC.IEThingAbs ln@(GHC.L _ n)) -> do
@@ -575,11 +577,12 @@ instance Annotate GHC.RdrName where
               -- TODO: unicode support?
                         "forall" -> if spanLength l == 1 then "∀" else str
                         _ -> str
-        when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.fromList [InIE]) $ mark GHC.AnnType
-        -- when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ mark GHC.AnnType
-        when isSym $ if str == "$" then markOptional GHC.AnnOpenP -- '('
-                                   else markOptional GHC.AnnOpenP
-                                   -- else mark GHC.AnnOpenP
+        when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
+        -- when isSym $ if str == "$" then markOptional GHC.AnnOpenP -- '('
+        --                            else markOptional GHC.AnnOpenP
+        when isSym $ ifInContext (Set.singleton InIE)
+                                   (mark         GHC.AnnOpenP) -- '('
+                                   (markOptional GHC.AnnOpenP)
         -- markOffset GHC.AnnBackquote 0
         when (not isSym) $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 0
         cnt  <- countAnns GHC.AnnVal
@@ -589,8 +592,11 @@ instance Annotate GHC.RdrName where
           _ -> traceM $ "Printing RdrName, more than 1 AnnVal:" ++ showGhc (l,n)
         -- markOffset GHC.AnnBackquote 1
         when (not isSym) $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 1
-        when isSym $ if str == "$" then markOptional GHC.AnnCloseP -- ')'
-                                   else markOptional GHC.AnnCloseP
+        -- when isSym $ if str == "$" then markOptional GHC.AnnCloseP -- ')'
+        --                            else markOptional GHC.AnnCloseP
+        when isSym $ ifInContext (Set.singleton InIE)
+                                   (mark         GHC.AnnCloseP)
+                                   (markOptional GHC.AnnCloseP)
                                    -- else mark GHC.AnnCloseP
 
     case n of
