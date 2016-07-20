@@ -702,7 +702,8 @@ addHiding1 ans (GHC.L l p) = do
           imp1' = imp1 { GHC.ideclHiding = Just (True,impHiding)}
           p' = p { GHC.hsmodImports = [GHC.L li imp1',imp2]}
         addSimpleAnnT impHiding (DP (0,1)) [((G GHC.AnnHiding),DP (0,0)),((G GHC.AnnOpenP),DP (0,1)),((G GHC.AnnCloseP),DP (0,0))]
-        addSimpleAnnT n1        (DP (0,0)) [((G GHC.AnnVal),DP (0,0)),((G GHC.AnnComma),DP (0,0))]
+        addSimpleAnnT n1        (DP (0,0)) [((G GHC.AnnVal),DP (0,0))]
+        addSimpleAnnT v1        (DP (0,0)) [((G GHC.AnnComma),DP (0,0))]
         addSimpleAnnT n2        (DP (0,0)) [((G GHC.AnnVal),DP (0,0))]
         return (GHC.L l p')
 
@@ -719,16 +720,16 @@ addHiding2 ans (GHC.L l p) = do
         let
           [GHC.L li imp1] = GHC.hsmodImports p
           Just (_,GHC.L lh ns) = GHC.ideclHiding imp1
-          (GHC.L _ (GHC.IEVar ln)) = last ns
           n1 = GHC.L l1 (GHC.mkVarUnqual (GHC.mkFastString "n1"))
           n2 = GHC.L l2 (GHC.mkVarUnqual (GHC.mkFastString "n2"))
           v1 = GHC.L l1 (GHC.IEVar n1)
           v2 = GHC.L l2 (GHC.IEVar n2)
           imp1' = imp1 { GHC.ideclHiding = Just (True,GHC.L lh (ns ++ [v1,v2]))}
           p' = p { GHC.hsmodImports = [GHC.L li imp1']}
-        addSimpleAnnT n1        (DP (0,0)) [((G GHC.AnnVal),DP (0,0)),((G GHC.AnnComma),DP (0,0))]
+        addSimpleAnnT n1        (DP (0,0)) [((G GHC.AnnVal),DP (0,0))]
+        addSimpleAnnT v1        (DP (0,0)) [((G GHC.AnnComma),DP (0,0))]
         addSimpleAnnT n2        (DP (0,0)) [((G GHC.AnnVal),DP (0,0))]
-        addTrailingCommaT ln
+        addTrailingCommaT (last ns)
         return (GHC.L l p')
 
   let (lp',(ans',_),_w) = runTransform ans doTransform

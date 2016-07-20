@@ -445,9 +445,8 @@ instance (GHC.DataId name,Annotate name)
    markAST _ ls = do
      inContext (Set.singleton HasHiding) $ mark GHC.AnnHiding -- in an import decl
      mark GHC.AnnOpenP -- '('
-     -- markListIntercalate ls
-     -- setContext (Set.singleton Intercalate) $ mapM_ markLocated ls
-     markListIntercalateWithFunLevel markLocated 2 ls
+     -- Can't use markListIntercalate, there can be trailing commas
+     setContextLevel (Set.singleton Intercalate) 2 $ mapM_ markLocated ls
      mark GHC.AnnCloseP -- ')'
 
 instance (GHC.DataId name,Annotate name)
@@ -577,7 +576,10 @@ instance Annotate GHC.RdrName where
               -- TODO: unicode support?
                         "forall" -> if spanLength l == 1 then "∀" else str
                         _ -> str
-        when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
+        -- AZ: comment out for now, until a test fails that needs it
+        -- when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
+        markOptional GHC.AnnType
+
         -- when isSym $ if str == "$" then markOptional GHC.AnnOpenP -- '('
         --                            else markOptional GHC.AnnOpenP
         when isSym $ ifInContext (Set.singleton InIE)
@@ -2949,13 +2951,14 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.DataDecl ln (GHC.HsQTvs _ns tyVars)
-                (GHC.HsDataDefn _ ctx mctyp mk cons mderivs) _) = do
+                (GHC.HsDataDefn nd ctx mctyp mk cons mderivs) _) = do
 #else
   markAST _ (GHC.DataDecl ln (GHC.HsQTvs _ns tyVars _)
-                (GHC.HsDataDefn _ ctx mctyp mk cons mderivs) _ _) = do
+                (GHC.HsDataDefn nd ctx mctyp mk cons mderivs) _ _) = do
 #endif
-    mark GHC.AnnData
-    mark GHC.AnnNewtype
+    if nd == GHC.DataType
+      then mark GHC.AnnData
+      else mark GHC.AnnNewtype
     markMaybe mctyp
     markLocated ctx
     mark GHC.AnnDarrow
@@ -3149,13 +3152,14 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
      => Annotate [GHC.LHsType name] where
   markAST _ ts = do
 #if __GLASGOW_HASKELL__ <= 710
-    mark GHC.AnnDeriving
+    markOptional GHC.AnnDeriving
 #endif
     markMany GHC.AnnOpenP -- may be nested parens around context
     -- mapM_ markLocated ts
     markListIntercalate ts
     markMany GHC.AnnCloseP -- may be nested parens around context
-    markOutside GHC.AnnDarrow (G GHC.AnnDarrow)
+    -- markOutside GHC.AnnDarrow (G GHC.AnnDarrow)
+    markOptional GHC.AnnDarrow
 
 -- ---------------------------------------------------------------------
 
