@@ -246,6 +246,7 @@ data AstContext = FunRhs
                 | ListStart -- Identifies first element of a list in layout, so its indentation can me managed differently
                 | ListItem -- Identifies subsequent elements of a list in layout
                 | TopLevel -- top level declaration
+                | InConDecl
                 deriving (Eq, Ord, Show)
 
 {-

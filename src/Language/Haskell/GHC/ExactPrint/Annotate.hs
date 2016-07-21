@@ -1191,10 +1191,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #else
   markAST _ (GHC.FunBind (GHC.L _ln _n) (GHC.MG (GHC.L _ matches) _ _ _) _ _ _) = do
 #endif
-    -- mapM_ markLocated matches
-    -- markListInitialContext (Set.singleton ListStart) matches
-    -- markListWithLayout matches
-    markList matches
+    -- markList matches
+    ifInContext (Set.singleton TopLevel)
+      (setContextLevel (Set.singleton TopLevel) 2 $ markList matches)
+      (markList matches)
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
@@ -1616,7 +1616,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
          markLocated (GHC.L lc sorted)
          mark GHC.AnnDarrow
 
-      -- mark GHC.AnnDarrow
       markLocated typ
       -- mark GHC.AnnCloseP -- ")"
 #else
@@ -2174,8 +2173,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     markLocated pat
     mark GHC.AnnLarrow
     markLocated body
-    -- inContext (Set.fromList [ListComp]) $ mark GHC.AnnComma
-    mark GHC.AnnComma
+    inContext (Set.fromList [ListComp]) $ mark GHC.AnnComma
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+    -- mark GHC.AnnComma
     inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
     markTrailingSemi
 
@@ -2239,8 +2239,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
         mark GHC.AnnUsing
         markLocated using
     inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
-    -- inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
-    mark GHC.AnnComma
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+    -- inContext (Set.fromList [ListComp]) $ mark GHC.AnnComma
+    -- mark GHC.AnnComma
     markTrailingSemi
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -2964,8 +2965,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnType
     -- ln may be used infix, in which case rearrange the order. It may be
     -- simplest to just sort ln:tyvars
-    applyListAnnotations (prepareListAnnotationWithContext (Set.singleton InOp) [ln]
-                         ++ prepareListAnnotation tyvars)
+    if (null tyvars || GHC.getLoc ln < GHC.getLoc (head tyvars) ) -- prefix
+      then
+        applyListAnnotations (prepareListAnnotation [ln]
+                             ++ prepareListAnnotation tyvars)
+      else
+        applyListAnnotations (prepareListAnnotationWithContext (Set.singleton InOp) [ln]
+                             ++ prepareListAnnotation tyvars)
     -- markMany GHC.AnnCloseP
     mark GHC.AnnEqual
     markLocated typ
@@ -3191,11 +3197,16 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markOptional GHC.AnnDeriving
 #endif
     markMany GHC.AnnOpenP -- may be nested parens around context
-    -- mapM_ markLocated ts
     markListIntercalate ts
     markMany GHC.AnnCloseP -- may be nested parens around context
-    -- markOutside GHC.AnnDarrow (G GHC.AnnDarrow)
-    markOptional GHC.AnnDarrow
+    -- if null ts
+    --   then markOptional GHC.AnnDarrow
+    --   else mark         GHC.AnnDarrow
+    ifInContext (Set.singleton InConDecl)
+      (return ())
+      (if null ts
+        then markOptional GHC.AnnDarrow
+        else mark         GHC.AnnDarrow)
 
 -- ---------------------------------------------------------------------
 
@@ -3212,8 +3223,8 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
           mapM_ markLocated bndrs
           mark GHC.AnnDot
 
-        markLocated ctx
-        -- mark GHC.AnnDarrow
+        -- markLocated ctx
+        setContext (Set.singleton InConDecl) $ markLocated ctx
         when (not $ null $ GHC.unLoc ctx) $ mark GHC.AnnDarrow
         case dets of
           GHC.InfixCon _ _ -> return ()
@@ -3239,8 +3250,6 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
             markLocated (GHC.L ls (ResTyGADTHook bndrs))
             markMany GHC.AnnOpenP
             markLocated ctx
-            -- mark GHC.AnnDarrow
-            when (not $ null $ GHC.unLoc ctx) $ mark GHC.AnnDarrow
             markHsConDeclDetails lns dets )
 
         markLocated ty

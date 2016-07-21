@@ -162,7 +162,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest "failing" "UnicodeRules.hs"
     -- , mkParserTest "failing" "UnicodeSyntax.hs"
 
-      mkPrettyRoundtrip "ghc710" "Zipper.hs"
+      -- mkPrettyRoundtrip "ghc710" "Zipper.hs"
     -- , mkPrettyRoundtrip "ghc710" "Process1.hs"
     -- , mkPrettyRoundtrip "ghc710" "ModuleOnly.hs"
       -- mkPrettyRoundtrip "ghc710" "Simple.hs"
@@ -170,7 +170,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkPrettyRoundtrip "ghc710" "Case.hs"
     -- , mkParserTest "ghc710" "Process1.hs"
       -- mkParserTest      "ghc710" "Zipper.hs"
-      -- mkParserTest      "ghc710" "LayoutLet.hs"
+      mkParserTest      "ghc710" "GADTContext.hs"
     -- , mkParserTest      "ghc710" "ModuleOnly.hs"
     -- , mkParserTest      "ghc710" "Simple.hs"
     -- , mkParserTest      "ghc710" "ShiftingLambda.hs"
@@ -179,6 +179,8 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest      "ghc710" "MultiWayIf.hs"
     -- , mkParserTest      "ghc710" "ProcNotation.hs"
     -- , mkParserTest      "ghc710" "UnicodeSyntax.hs"
+    -- , mkParserTest      "ghc710" "ListComprehensions.hs"
+    -- , mkParserTest      "ghc710" "PatternGuards.hs"
 
     -- , mkParserTest      "ghc710" "RdrNames.hs"
     -- , mkParserTest      "ghc8" "records-mixing-fields.hs"

@@ -265,10 +265,11 @@ withAST lss@(GHC.L ss t) action = do
     -- let spanStart = ss2pos ss
         -- edp = DP (0,0)
     noPrec <- gets apNoPrecedingSpace
-    edp <- trace ("Pretty.withAST:enter:(ss)=" ++ showGhc (ss,showConstr (toConstr t),noPrec,ctx)) $ entryDpFor ctx t
-    -- edp <- entryDpFor ctx t
+    -- edp <- trace ("Pretty.withAST:enter:(ss,constr,noPrec,ctx)=" ++ showGhc (ss,showConstr (toConstr t),noPrec,ctx)) $ entryDpFor ctx t
+    edp <- entryDpFor ctx t
 
-    let cs = []
+    -- let cs = []
+    let cs = trace ("Pretty.withAST:enter:(ss,constr,noPrec,ctx,edp)=" ++ showGhc (ss,showConstr (toConstr t),noPrec,ctx,edp)) []
     -- (res, w) <- if inAcs (Set.singleton ListItem) ctx
     (res, w) <- if inAcs (Set.fromList [ListItem,TopLevel]) ctx
       then
