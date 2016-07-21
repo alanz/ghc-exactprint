@@ -521,7 +521,8 @@ instance (GHC.DataId name,Annotate name)
           -- setContext (Set.singleton InIE) $ markListIntercalate ns
 #else
           case wc of
-            GHC.NoIEWildcard -> setContext (Set.singleton InIE) $ mapM_ markLocated ns
+            -- GHC.NoIEWildcard -> setContext (Set.singleton InIE) $ mapM_ markLocated ns
+            GHC.NoIEWildcard -> setContext (Set.fromList [InIE,Intercalate]) $ mapM_ markLocated ns
             GHC.IEWildcard n -> do
               setContext (Set.fromList [InIE,Intercalate]) $ mapM_ markLocated (take n ns)
               mark GHC.AnnDotdot
