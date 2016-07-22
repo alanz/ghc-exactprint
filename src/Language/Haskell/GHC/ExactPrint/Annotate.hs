@@ -106,20 +106,21 @@ import Debug.Trace
 -- means it is impossible to edit such a fragment but means that
 -- processing files with such fragments is still possible.
 data AnnotationF next where
-  MarkPrim       :: GHC.AnnKeywordId -> Maybe String                     -> next -> AnnotationF next
-  MarkPPOptional :: GHC.AnnKeywordId -> Maybe String                     -> next -> AnnotationF next
-  MarkEOF        ::                                                         next -> AnnotationF next
-  MarkExternal   :: GHC.SrcSpan -> GHC.AnnKeywordId -> String            -> next -> AnnotationF next
-  MarkOutside    :: GHC.AnnKeywordId -> KeywordId                        -> next -> AnnotationF next
-  MarkInside     :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
-  MarkMany       :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
-  MarkOffsetPrim :: GHC.AnnKeywordId -> Int -> Maybe String              -> next -> AnnotationF next
-  WithAST        :: Data a => GHC.Located a
-                           -> Annotated b                                -> next -> AnnotationF next
-  CountAnns      :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
-  WithSortKey    :: [(GHC.SrcSpan, Annotated ())]                        -> next -> AnnotationF next
+  MarkPrim         :: GHC.AnnKeywordId -> Maybe String                     -> next -> AnnotationF next
+  MarkPPOptional   :: GHC.AnnKeywordId -> Maybe String                     -> next -> AnnotationF next
+  MarkEOF          ::                                                         next -> AnnotationF next
+  MarkExternal     :: GHC.SrcSpan -> GHC.AnnKeywordId -> String            -> next -> AnnotationF next
+  MarkOutside      :: GHC.AnnKeywordId -> KeywordId                        -> next -> AnnotationF next
+  MarkInside       :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
+  MarkMany         :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
+  MarkManyOptional :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
+  MarkOffsetPrim   :: GHC.AnnKeywordId -> Int -> Maybe String              -> next -> AnnotationF next
+  WithAST          :: Data a => GHC.Located a
+                             -> Annotated b                                -> next -> AnnotationF next
+  CountAnns        :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
+  WithSortKey      :: [(GHC.SrcSpan, Annotated ())]                        -> next -> AnnotationF next
 
-  SetLayoutFlag  ::  Rigidity -> Annotated ()                            -> next -> AnnotationF next
+  SetLayoutFlag    ::  Rigidity -> Annotated ()                            -> next -> AnnotationF next
 
   -- Required to work around deficiencies in the GHC AST
   StoreOriginalSrcSpan :: AnnKey                        -> (AnnKey -> next) -> AnnotationF next
@@ -151,6 +152,7 @@ makeFreeCon  'MarkOutside
 makeFreeCon  'MarkInside
 makeFreeCon  'MarkExternal
 makeFreeCon  'MarkMany
+makeFreeCon  'MarkManyOptional
 makeFreeCon  'MarkOffsetPrim
 makeFreeCon  'CountAnns
 makeFreeCon  'StoreOriginalSrcSpan
@@ -324,15 +326,16 @@ markListWithContexts' :: Annotate ast
 markListWithContexts' ctxOnly ctxInitial ctxMiddle ctxLast ls =
   case ls of
     [] -> return ()
-    [x] -> setContextLevel ctxOnly 2 $ markLocated x
+    [x] -> setContextLevel ctxOnly level $ markLocated x
     (x:xs) -> do
-      setContextLevel ctxInitial 2 $ markLocated x
+      setContextLevel ctxInitial level $ markLocated x
       go xs
   where
+    level = 2
     go []  = return ()
-    go [x] = setContextLevel ctxLast 2 $ markLocated x
+    go [x] = setContextLevel ctxLast level $ markLocated x
     go (x:xs) = do
-      setContextLevel ctxMiddle 2 $ markLocated x
+      setContextLevel ctxMiddle level $ markLocated x
       go xs
 
 -- ---------------------------------------------------------------------
@@ -414,8 +417,7 @@ instance Annotate (GHC.HsModule GHC.RdrName) where
         mark GHC.AnnWhere
 
     markOptional GHC.AnnOpenC -- Possible '{'
-    markMany GHC.AnnSemi -- possible leading semis
-    -- mapM_ markLocated imps
+    markManyOptional GHC.AnnSemi -- possible leading semis
     setContextLevel (Set.singleton TopLevel) 2 $ markListWithLayout imps
 
     -- mapM_ markLocated decs
@@ -1920,11 +1922,12 @@ data ConDeclField name  -- Record fields have Haddoc docs on them
                    cd_fld_doc  :: Maybe LHsDocString }
 
 -}
-    -- mapM_ markLocated ns
-    markListIntercalate ns
-    mark GHC.AnnDcolon
-    markLocated ty
-    markMaybe mdoc
+    -- markListIntercalate ns
+    unsetContext Intercalate $ do
+      markListIntercalate ns
+      mark GHC.AnnDcolon
+      markLocated ty
+      markMaybe mdoc
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 -- ---------------------------------------------------------------------
@@ -2124,9 +2127,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
        markOptional GHC.AnnOpenC -- '{'
        -- mapM_ markLocated fs
        markListIntercalate fs
-       mark GHC.AnnDotdot
+       markOptional GHC.AnnDotdot
        markOptional GHC.AnnCloseC -- '}'
-       mark GHC.AnnRarrow
+       markOptional GHC.AnnRarrow
 
 -- ---------------------------------------------------------------------
 
@@ -3011,7 +3014,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
                                           (Set.singleton ListItem)
                                            cons
     markOptional GHC.AnnCloseC
-    markMaybe mderivs
+    setContext (Set.fromList [Deriving,InConDecl]) $ markMaybe mderivs
     markTrailingSemi
 
   -- -----------------------------------
@@ -3189,7 +3192,7 @@ markDataDefn _ (GHC.HsDataDefn _ ctx typ mk cons mderivs) = do
   markListIntercalate cons
   case mderivs of
     Nothing -> return ()
-    Just d -> markLocated d
+    Just d -> setContext (Set.singleton Deriving) $ markLocated d
 
 -- ---------------------------------------------------------------------
 
@@ -3198,11 +3201,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
      => Annotate [GHC.LHsType name] where
   markAST _ ts = do
 #if __GLASGOW_HASKELL__ <= 710
-    markOptional GHC.AnnDeriving
+    inContext (Set.singleton Deriving) $ mark GHC.AnnDeriving
 #endif
-    markMany GHC.AnnOpenP -- may be nested parens around context
-    markListIntercalate ts
-    markMany GHC.AnnCloseP -- may be nested parens around context
+    inContext (Set.singleton Deriving) $ markMany GHC.AnnOpenP -- may be nested parens around context
+    unsetContext Intercalate $ markListIntercalateWithFunLevel markLocated 2 ts
+    inContext (Set.singleton Deriving) $ markMany GHC.AnnCloseP -- may be nested parens around context
     -- if null ts
     --   then markOptional GHC.AnnDarrow
     --   else mark         GHC.AnnDarrow

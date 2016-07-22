@@ -242,6 +242,7 @@ deltaInterpret = iterTM go
     go (MarkOutside akwid kwid next)    = addDeltaAnnotationsOutside akwid kwid >> next
     go (MarkInside akwid next)          = addDeltaAnnotationsInside akwid >> next
     go (MarkMany akwid next)            = addDeltaAnnotations akwid >> next
+    go (MarkManyOptional akwid next)    = addDeltaAnnotations akwid >> next
     go (MarkOffsetPrim akwid n _ next)  = addDeltaAnnotationLs akwid n >> next
     go (WithAST lss prog next)          = withAST lss (deltaInterpret prog) >> next
     go (CountAnns kwid next)            = countAnnsDelta kwid >>= next

@@ -165,6 +165,8 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
       allAnns akwid >> next
     go (MarkMany akwid next) =
       allAnns akwid >> next
+    go (MarkManyOptional akwid next) =
+      allAnns akwid >> next
     go (MarkOffsetPrim kwid _ mstr next) =
       printStringAtMaybeAnn (G kwid) mstr >> next
     go (WithAST lss action next) =

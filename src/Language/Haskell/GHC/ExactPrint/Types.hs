@@ -247,6 +247,7 @@ data AstContext = FunRhs
                 | ListItem -- Identifies subsequent elements of a list in layout
                 | TopLevel -- top level declaration
                 | InConDecl
+                | Deriving
                 deriving (Eq, Ord, Show)
 
 {-

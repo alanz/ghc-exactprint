@@ -166,7 +166,8 @@ prettyInterpret = iterTM go
     go (MarkExternal ss akwid _ next)   = addPrettyAnnotation akwid >> next
     go (MarkOutside akwid kwid next)    = addPrettyAnnotationsOutside akwid kwid >> next
     go (MarkInside akwid next)          = addPrettyAnnotationsInside akwid >> next
-    go (MarkMany akwid next)            = addPrettyAnnotations akwid >> next
+    go (MarkMany akwid next)            = addPrettyAnnotation akwid >> next
+    go (MarkManyOptional _akwid next)   = next
     go (MarkOffsetPrim akwid n _ next)  = addPrettyAnnotationLs akwid n >> next
     go (WithAST lss prog next)          = withAST lss (prettyInterpret prog) >> next
     go (CountAnns kwid next)            = countAnnsPretty kwid >>= next
@@ -202,19 +203,20 @@ addPrettyAnnotation ann = do
   -- cur <- asks prContext
   let
     dp = case ann of
-           GHC.AnnAs     -> tellKd (G ann,DP (0,1))
-           GHC.AnnCloseC -> tellKd (G ann,DP (0,0))
-           GHC.AnnDcolon -> tellKd (G ann,DP (0,1))
-           GHC.AnnEqual  -> tellKd (G ann,DP (0,1))
-           GHC.AnnHiding -> tellKd (G ann,DP (0,1))
-           GHC.AnnIn     -> tellKd (G ann,DP (1,0))
-           GHC.AnnOf     -> tellKd (G ann,DP (0,1))
-           GHC.AnnOpenC  -> tellKd (G ann,DP (0,0))
+           GHC.AnnAs       -> tellKd (G ann,DP (0,1))
+           GHC.AnnCloseC   -> tellKd (G ann,DP (0,0))
+           GHC.AnnDcolon   -> tellKd (G ann,DP (0,1))
+           GHC.AnnDeriving -> tellKd (G ann,DP (0,1))
+           GHC.AnnEqual    -> tellKd (G ann,DP (0,1))
+           GHC.AnnHiding   -> tellKd (G ann,DP (0,1))
+           GHC.AnnIn       -> tellKd (G ann,DP (1,0))
+           GHC.AnnOf       -> tellKd (G ann,DP (0,1))
+           GHC.AnnOpenC    -> tellKd (G ann,DP (0,0))
            GHC.AnnQualified -> tellKd (G ann,DP (0,1))
-           GHC.AnnRarrow -> tellKd (G ann,DP (0,1))
-           GHC.AnnVal    -> tellKd (G ann,DP (0,1))
-           GHC.AnnWhere  -> tellKd (G ann,DP (0,1))
-           _ ->             tellKd (G ann,DP (0,0))
+           GHC.AnnRarrow   -> tellKd (G ann,DP (0,1))
+           GHC.AnnVal      -> tellKd (G ann,DP (0,1))
+           GHC.AnnWhere    -> tellKd (G ann,DP (0,1))
+           _ ->               tellKd (G ann,DP (0,0))
   fromNoPrecedingSpace (tellKd (G ann,DP (0,0))) dp
 
 -- ---------------------------------------------------------------------
