@@ -287,7 +287,6 @@ markListIntercalateWithFunLevel f level ls = go ls
     go []  = return ()
     go [x] = f x
     go (x:xs) = do
-      -- setContext (Set.singleton Intercalate) $ f x
       setContextLevel (Set.singleton Intercalate) level $ f x
       go xs
 
@@ -1131,7 +1130,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markMaybe mov
     markLocated poly
     mark GHC.AnnWhere
-    mark GHC.AnnOpenC -- '{'
+    markOptional GHC.AnnOpenC -- '{'
     markInside GHC.AnnSemi
 
     applyListAnnotations (prepareListAnnotation (GHC.bagToList binds)
@@ -1140,7 +1139,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
                        ++ prepareListAnnotation datafams
                          )
 
-    mark GHC.AnnCloseC -- '}'
+    markOptional GHC.AnnCloseC -- '}'
     markTrailingSemi
 
 -- ---------------------------------------------------------------------
@@ -1921,7 +1920,8 @@ data ConDeclField name  -- Record fields have Haddoc docs on them
                    cd_fld_doc  :: Maybe LHsDocString }
 
 -}
-    mapM_ markLocated ns
+    -- mapM_ markLocated ns
+    markListIntercalate ns
     mark GHC.AnnDcolon
     markLocated ty
     markMaybe mdoc
@@ -2121,11 +2121,11 @@ markHsConDeclDetails lns dets = do
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
    => Annotate [GHC.LConDeclField name] where
   markAST _ fs = do
-       mark GHC.AnnOpenC -- '{'
+       markOptional GHC.AnnOpenC -- '{'
        -- mapM_ markLocated fs
        markListIntercalate fs
        mark GHC.AnnDotdot
-       mark GHC.AnnCloseC -- '}'
+       markOptional GHC.AnnCloseC -- '}'
        mark GHC.AnnRarrow
 
 -- ---------------------------------------------------------------------
@@ -3028,18 +3028,22 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
     markTyClass ln tyVars
 
-    mark GHC.AnnVbar
-    markListIntercalate fds
+    when (not $ null fds) $ do
+      mark GHC.AnnVbar
+      markListIntercalate fds
     mark GHC.AnnWhere
-    mark GHC.AnnOpenC -- '{'
+    markOptional GHC.AnnOpenC -- '{'
     markInside GHC.AnnSemi
+    -- AZ:TODO: we end up with both the tyVars and the following body of the
+    -- class defn in annSortKey for the class. This could cause problems when
+    -- changing things.
     applyListAnnotations (prepareListAnnotation sigs
                        ++ prepareListAnnotation (GHC.bagToList meths)
                        ++ prepareListAnnotation ats
                        ++ prepareListAnnotation atdefs
                        ++ prepareListAnnotation docs
                          )
-    mark GHC.AnnCloseC -- '}'
+    markOptional GHC.AnnCloseC -- '}'
     markTrailingSemi
 
 -- ---------------------------------------------------------------------

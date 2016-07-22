@@ -202,6 +202,7 @@ addPrettyAnnotation ann = do
   -- cur <- asks prContext
   let
     dp = case ann of
+           GHC.AnnAs     -> tellKd (G ann,DP (0,1))
            GHC.AnnCloseC -> tellKd (G ann,DP (0,0))
            GHC.AnnDcolon -> tellKd (G ann,DP (0,1))
            GHC.AnnEqual  -> tellKd (G ann,DP (0,1))
