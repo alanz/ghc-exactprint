@@ -1704,7 +1704,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 #if __GLASGOW_HASKELL__ <= 710
     markAST l n
 #else
-    markLocated n
+    markAST l (GHC.unLoc n)
 #endif
   markAST _ (GHC.LazyPat p) = do
     mark GHC.AnnTilde
@@ -2041,7 +2041,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
   markAST l (GHC.HsVar n)           = markAST l n
 #else
-  markAST l (GHC.HsVar n)           = markLocated n
+  markAST l (GHC.HsVar n)           = markAST l (GHC.unLoc n)
 #endif
 
 #if __GLASGOW_HASKELL__ <= 710
