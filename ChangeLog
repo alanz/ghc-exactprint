@@ -1,3 +1,7 @@
+2016-07-24 v0.5.2
+	* Move annotations from the `RdrName` to `HsVar` and `PatVar` for
+	consistency.
+
 2016-06-03 v0.5.1.1
 	* Fix haddocks for GHC 8.0 (@phadej)
 	* Add test files for ghc710-only to dist tarball (#41)
