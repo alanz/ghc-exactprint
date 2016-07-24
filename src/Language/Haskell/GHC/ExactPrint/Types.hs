@@ -248,6 +248,7 @@ data AstContext = FunRhs
                 | TopLevel -- top level declaration
                 | InConDecl
                 | Deriving
+                | Parens
                 deriving (Eq, Ord, Show)
 
 {-

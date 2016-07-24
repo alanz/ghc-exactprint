@@ -99,7 +99,7 @@ mkTests = do
   prettyRoundTripTests <- findPrettyTests
   return $ TestList [
                       internalTests, roundTripTests, transformTests, failingTests, noAnnotationTests
-                    , prettyRoundTripTests
+                    -- , prettyRoundTripTests
                     ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -172,6 +172,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest "ghc710" "Process1.hs"
       -- mkParserTest      "ghc710" "Utils2.hs"
       , mkParserTest      "ghc710" "Undefined7.hs"
+      , mkParserTest      "ghc710" "DataDecl.hs"
       -- mkParserTest      "ghc710" "GADTContext.hs"
     -- , mkParserTest      "ghc710" "ModuleOnly.hs"
     -- , mkParserTest      "ghc710" "Simple.hs"
