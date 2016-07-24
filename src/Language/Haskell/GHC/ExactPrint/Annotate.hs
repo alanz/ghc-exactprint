@@ -1679,7 +1679,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #else
     markType l (GHC.HsQualTy cxt ty) = do
       inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
-      markLocated cxt
+      setContext (Set.singleton Parens) $ markLocated cxt
       mark GHC.AnnDarrow
       markLocated ty
   {-
@@ -3340,7 +3340,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
         mapM_ markLocated bndrs
         mark GHC.AnnDot
 
-    markMaybe ctx
+    setContext (Set.singleton Parens) $ markMaybe ctx
     mark GHC.AnnDarrow
     case dets of
       GHC.InfixCon _ _ -> return ()
