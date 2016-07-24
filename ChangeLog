@@ -1,3 +1,6 @@
+2016-07-24 v0.5.2.1
+	* Remove additional files from release tarball
+
 2016-07-24 v0.5.2
 	* Move annotations from the `RdrName` to `HsVar` and `PatVar` for
 	consistency.
