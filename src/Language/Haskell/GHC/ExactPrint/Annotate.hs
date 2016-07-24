@@ -2048,7 +2048,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #else
   markAST l (GHC.HsRecFld f) = markAST l f
 
-  markAST l (GHC.HsOverLabel fs) 
+  markAST l (GHC.HsOverLabel fs)
     = markExternal l GHC.AnnVal ("#" ++ GHC.unpackFS fs)
 #endif
 
