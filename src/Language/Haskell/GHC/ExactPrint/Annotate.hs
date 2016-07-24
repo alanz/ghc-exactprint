@@ -28,6 +28,7 @@ module Language.Haskell.GHC.ExactPrint.Annotate
        , AnnotationF(..)
        , Annotated
        , Annotate(..)
+       , withSortKeyContextsHelper
        ) where
 
 -- import Data.Maybe ( fromMaybe )
@@ -137,6 +138,7 @@ data AnnotationF next where
   -- Query the context while in a child element
   IfInContext  :: Set.Set AstContext -> Annotated () -> Annotated () -> next -> AnnotationF next
   NotInContext :: Set.Set AstContext -> Annotated ()                 -> next -> AnnotationF next
+  WithSortKeyContexts :: ListContexts -> [(GHC.SrcSpan, Annotated ())] -> next -> AnnotationF next
 
 deriving instance Functor (AnnotationF)
 
@@ -166,6 +168,7 @@ makeFreeCon  'SetContextLevel
 makeFreeCon  'UnsetContext
 makeFreeCon  'IfInContext
 makeFreeCon  'NotInContext
+makeFreeCon  'WithSortKeyContexts
 
 -- ---------------------------------------------------------------------
 
@@ -320,10 +323,9 @@ markListWithContexts ctxInitial ctxRest ls =
 
 -- Context for only if just one, else first item, middle ones, and last one
 markListWithContexts' :: Annotate ast
-                      => Set.Set AstContext -> Set.Set AstContext
-                      -> Set.Set AstContext -> Set.Set AstContext
+                      => ListContexts
                       -> [GHC.Located ast] -> Annotated ()
-markListWithContexts' ctxOnly ctxInitial ctxMiddle ctxLast ls =
+markListWithContexts' (LC ctxOnly ctxInitial ctxMiddle ctxLast) ls =
   case ls of
     [] -> return ()
     [x] -> setContextLevel ctxOnly level $ markLocated x
@@ -336,6 +338,30 @@ markListWithContexts' ctxOnly ctxInitial ctxMiddle ctxLast ls =
     go [x] = setContextLevel ctxLast level $ markLocated x
     go (x:xs) = do
       setContextLevel ctxMiddle level $ markLocated x
+      go xs
+
+
+-- ---------------------------------------------------------------------
+
+
+-- Expects the kws to be ordered already
+withSortKeyContextsHelper :: (Monad m) => (Annotated () -> m ()) -> ListContexts -> [(GHC.SrcSpan, Annotated ())] -> m ()
+withSortKeyContextsHelper interpret (LC ctxOnly ctxInitial ctxMiddle ctxLast) kws = do
+  -- tellSortKey (map fst order)
+  -- mapM_ (deltaInterpret . snd) order
+  case kws of
+    [] -> return ()
+    [x] -> interpret (setContextLevel ctxOnly level $ snd x)
+    (x:xs) -> do
+      interpret (setContextLevel ctxInitial level $ snd x)
+      go xs
+  where
+    -- order = sortBy (comparing fst) kws
+    level = 2
+    go []  = return ()
+    go [x] = interpret (setContextLevel ctxLast level $ snd x)
+    go (x:xs) = do
+      interpret (setContextLevel ctxMiddle level $ snd x)
       go xs
 
 -- ---------------------------------------------------------------------
@@ -389,6 +415,16 @@ applyListAnnotations ls = withSortKey ls
 lexicalSortLocated :: [GHC.Located a] -> [GHC.Located a]
 lexicalSortLocated = sortBy (comparing GHC.getLoc)
 #endif
+
+applyListAnnotationsLayout :: [(GHC.SrcSpan, Annotated ())] -> Annotated ()
+applyListAnnotationsLayout ls = setLayoutFlag $ setContext (Set.singleton NoPrecedingSpace)
+                                              $ withSortKeyContexts listConstexts ls
+
+listConstexts :: ListContexts
+listConstexts = (LC (Set.fromList [ListStart])
+                   (Set.fromList [ListStart,Intercalate])
+                   (Set.fromList [ListItem,Intercalate])
+                   (Set.singleton ListItem))
 
 -- ---------------------------------------------------------------------
 
@@ -1135,12 +1171,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markOptional GHC.AnnOpenC -- '{'
     markInside GHC.AnnSemi
 
-    setLayoutFlag $
-      applyListAnnotations (prepareListAnnotation (GHC.bagToList binds)
-                         ++ prepareListAnnotation sigs
-                         ++ prepareListAnnotation tyfams
-                         ++ prepareListAnnotation datafams
-                           )
+    applyListAnnotationsLayout (prepareListAnnotation (GHC.bagToList binds)
+                             ++ prepareListAnnotation sigs
+                             ++ prepareListAnnotation tyfams
+                             ++ prepareListAnnotation datafams
+                               )
 
     markOptional GHC.AnnCloseC -- '}'
     markTrailingSemi
@@ -3013,11 +3048,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     -- mapM_ markLocated cons
     -- markListWithLayout cons
     setLayoutFlag $ setContext (Set.singleton NoPrecedingSpace)
-                  $ markListWithContexts' (Set.fromList [ListStart])
-                                          (Set.fromList [ListStart,Intercalate])
-                                          (Set.fromList [ListItem,Intercalate])
-                                          (Set.singleton ListItem)
-                                           cons
+                  $ markListWithContexts' listConstexts cons
     markOptional GHC.AnnCloseC
     setContext (Set.fromList [Deriving,InConDecl]) $ markMaybe mderivs
     markTrailingSemi

@@ -171,7 +171,8 @@ prettyInterpret = iterTM go
     go (MarkOffsetPrim akwid n _ next)  = addPrettyAnnotationLs akwid n >> next
     go (WithAST lss prog next)          = withAST lss (prettyInterpret prog) >> next
     go (CountAnns kwid next)            = countAnnsPretty kwid >>= next
-    go (WithSortKey kws next)           = withSortKey kws >> next
+    go (WithSortKey             kws next) = withSortKey             kws >> next
+    go (WithSortKeyContexts ctx kws next) = withSortKeyContexts ctx kws >> next
     go (SetLayoutFlag r action next)    = do
       rigidity <- asks drRigidity
       (if r <= rigidity then setLayoutFlag else id) (prettyInterpret action)
@@ -410,6 +411,14 @@ withSortKey kws =
   in do
     tellSortKey (map fst order)
     mapM_ (prettyInterpret . snd) order
+
+withSortKeyContexts :: ListContexts -> [(GHC.SrcSpan, Annotated ())] -> Pretty ()
+withSortKeyContexts ctxts kws =
+  let order = sortBy (comparing fst) kws
+  in do
+    tellSortKey (map fst order)
+    -- mapM_ (prettyInterpret . snd) order
+    withSortKeyContextsHelper prettyInterpret ctxts order
 
 -- ---------------------------------------------------------------------
 

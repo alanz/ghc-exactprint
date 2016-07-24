@@ -27,6 +27,7 @@ module Language.Haskell.GHC.ExactPrint.Types
 
   , Rigidity(..)
   , AstContext(..),AstContextSet(..),defaultACS
+  , ListContexts(..)
 
   -- * Internal Types
   , LayoutStartCol(..)
@@ -42,7 +43,7 @@ import qualified GHC
 import qualified Outputable    as GHC
 
 import qualified Data.Map as Map
--- import qualified Data.Set as Set
+import qualified Data.Set as Set
 
 -- ---------------------------------------------------------------------
 
@@ -271,6 +272,9 @@ data HsMatchContext id  -- Context of a Match
   | ThPatQuote                  -- A Template Haskell pattern quotation [p| (a,b) |]
   | PatSyn                      -- A pattern synonym declaration
 -}
+
+data ListContexts = LC { lcOnly,lcInitial,lcMiddle,lcLast :: !(Set.Set AstContext) }
+  deriving (Eq,Show)
 
 -- ---------------------------------------------------------------------
 

@@ -1001,7 +1001,7 @@ orderedDecls parent decls = do
         return decls
       Just keys -> do
         let ds = map (\s -> (GHC.getLoc s,s)) decls
-            ordered = orderByKey ds keys
+            ordered = map snd $ orderByKey ds keys
         return ordered
 
 -- ---------------------------------------------------------------------

@@ -225,13 +225,13 @@ isPointSrcSpan ss = spanLength ss == 0
 
 -- |Given a list of items and a list of keys, returns a list of items
 -- ordered by their position in the list of keys.
-orderByKey :: [(GHC.SrcSpan,a)] -> [GHC.SrcSpan] -> [a]
+orderByKey :: [(GHC.SrcSpan,a)] -> [GHC.SrcSpan] -> [(GHC.SrcSpan,a)]
 orderByKey keys order
     -- AZ:TODO: if performance becomes a problem, consider a Map of the order
     -- SrcSpan to an index, and do a lookup instead of elemIndex.
 
     -- Items not in the ordering are placed to the start
- = map snd (sortBy (comparing (flip elemIndex order . fst)) keys)
+ = sortBy (comparing (flip elemIndex order . fst)) keys
 
 -- ---------------------------------------------------------------------
 

@@ -73,8 +73,7 @@ import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Lookup
 #endif
 import Language.Haskell.GHC.ExactPrint.Types
-import Language.Haskell.GHC.ExactPrint.Annotate (AnnotationF(..), Annotated
-                                                , annotate, Annotate(..))
+import Language.Haskell.GHC.ExactPrint.Annotate
 
 import qualified GHC
 
@@ -257,7 +256,8 @@ deltaInterpret = iterTM go
     go (StoreString s ss next)           = storeString s ss >> next
 #endif
     go (AnnotationsToComments kws next)  = annotationsToCommentsDelta kws >> next
-    go (WithSortKey kws next)            = withSortKey kws >> next
+    go (WithSortKey             kws next) = withSortKey kws >> next
+    go (WithSortKeyContexts ctx kws next) = withSortKeyContexts ctx kws >> next
 
     go (SetContextLevel ctxt lvl action next) = setContextDelta ctxt lvl (deltaInterpret action) >> next
     go (UnsetContext   _ctxt action next) = deltaInterpret action >> next
@@ -270,6 +270,15 @@ withSortKey kws =
   in do
     tellSortKey (map fst order)
     mapM_ (deltaInterpret . snd) order
+
+
+withSortKeyContexts :: ListContexts -> [(GHC.SrcSpan, Annotated ())] -> Delta ()
+withSortKeyContexts ctxts kws = do
+  tellSortKey (map fst order)
+  -- mapM_ (deltaInterpret . snd) order
+  withSortKeyContextsHelper deltaInterpret ctxts order
+  where
+    order = sortBy (comparing fst) kws
 
 
 setLayoutFlag :: Delta () -> Delta ()

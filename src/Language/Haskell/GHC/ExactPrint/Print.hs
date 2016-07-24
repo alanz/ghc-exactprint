@@ -28,7 +28,6 @@ module Language.Haskell.GHC.ExactPrint.Print
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Annotate
-  (AnnotationF(..), Annotated, Annotate(..), annotate)
 import Language.Haskell.GHC.ExactPrint.Lookup
 
 -- import Control.Exception
@@ -186,7 +185,8 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
       printStoredString >> next
 #endif
     go (AnnotationsToComments _ next) = next
-    go (WithSortKey ks next) = withSortKey ks >> next
+    go (WithSortKey             ks next) = withSortKey             ks >> next
+    go (WithSortKeyContexts ctx ks next) = withSortKeyContexts ctx ks >> next
 
     -- go (SetContextLevel _ _ action next) = printInterpret action >> next
     -- go (IfInContext _ ifAction elseAction next) = printInterpret ifAction >> next
@@ -224,14 +224,28 @@ withSortKey :: (Monad m, Monoid w) => [(GHC.SrcSpan, Annotated ())] -> EP w m ()
 withSortKey xs = do
   Ann{..} <- asks epAnn
   let ordered = case annSortKey of
-                  Nothing   -> map snd xs
+                  Nothing   -> xs
                   Just keys -> orderByKey xs keys
                                 `debug` ("withSortKey:" ++
                                          showGhc (map fst (sortBy (comparing (flip elemIndex keys . fst)) xs),
                                                  map fst xs,
                                                  keys)
                                          )
-  mapM_ printInterpret ordered
+  mapM_ (printInterpret . snd) ordered
+
+withSortKeyContexts :: (Monad m, Monoid w) => ListContexts -> [(GHC.SrcSpan, Annotated ())] -> EP w m ()
+withSortKeyContexts ctxts xs = do
+  Ann{..} <- asks epAnn
+  let ordered = case annSortKey of
+                  Nothing   -> xs
+                  Just keys -> orderByKey xs keys
+                                `debug` ("withSortKey:" ++
+                                         showGhc (map fst (sortBy (comparing (flip elemIndex keys . fst)) xs),
+                                                 map fst xs,
+                                                 keys)
+                                         )
+  -- mapM_ printInterpret ordered
+  withSortKeyContextsHelper printInterpret ctxts ordered
 
 -- ---------------------------------------------------------------------
 
