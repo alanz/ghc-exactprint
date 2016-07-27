@@ -196,6 +196,7 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
     go (UnsetContext   _ctxt           action next) = printInterpret action >> next
     go (IfInContext  ctxt ifAction elseAction next) = ifInContextPrint ctxt ifAction elseAction >> next
     go (NotInContext ctxt              action next) = notInContextPrint ctxt action >> next
+    go (BumpContext                    action next) = bumpContextPrint (printInterpret action) >> next
 
 -------------------------------------------------------------------------
 
@@ -266,6 +267,10 @@ notInContextPrint ctxt action = do
   cur <- asks epContext
   let notInContext = not $ inAcs ctxt cur
   when notInContext (printInterpret action)
+
+bumpContextPrint :: (Monad m, Monoid w) => EP w m () -> EP w m ()
+bumpContextPrint =
+  local (\s -> s { epContext = bumpAcs (epContext s) } )
 
 -- ---------------------------------------------------------------------
 

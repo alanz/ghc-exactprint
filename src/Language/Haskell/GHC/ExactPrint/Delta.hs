@@ -263,6 +263,7 @@ deltaInterpret = iterTM go
     go (UnsetContext   _ctxt action next) = deltaInterpret action >> next
     go (IfInContext    ctxt ifAction elseAction next) = ifInContextDelta ctxt ifAction elseAction >> next
     go (NotInContext ctxt action next)        = notInContextDelta ctxt action >> next
+    go (BumpContext action next)              = bumpContextDelta (deltaInterpret action) >> next
 
 withSortKey :: [(GHC.SrcSpan, Annotated b)] -> Delta ()
 withSortKey kws =
@@ -309,6 +310,10 @@ notInContextDelta ctxt action = do
   cur <- asks drContext
   let notInContext = not $ inAcs ctxt cur
   when notInContext (deltaInterpret action)
+
+bumpContextDelta :: Delta () -> Delta ()
+bumpContextDelta =
+  local (\s -> s { drContext = bumpAcs (drContext s) } )
 
 -- ---------------------------------------------------------------------
 

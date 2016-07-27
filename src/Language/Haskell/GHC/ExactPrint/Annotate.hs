@@ -136,8 +136,9 @@ data AnnotationF next where
   SetContextLevel :: Set.Set AstContext -> Int -> Annotated () -> next -> AnnotationF next
   UnsetContext    ::         AstContext        -> Annotated () -> next -> AnnotationF next
   -- Query the context while in a child element
-  IfInContext  :: Set.Set AstContext -> Annotated () -> Annotated () -> next -> AnnotationF next
-  NotInContext :: Set.Set AstContext -> Annotated ()                 -> next -> AnnotationF next
+  IfInContext  :: Set.Set AstContext -> Annotated () -> Annotated ()   -> next -> AnnotationF next
+  NotInContext :: Set.Set AstContext -> Annotated ()                   -> next -> AnnotationF next
+  BumpContext  :: Annotated ()                                         -> next -> AnnotationF next
   WithSortKeyContexts :: ListContexts -> [(GHC.SrcSpan, Annotated ())] -> next -> AnnotationF next
 
 deriving instance Functor (AnnotationF)
@@ -168,6 +169,7 @@ makeFreeCon  'SetContextLevel
 makeFreeCon  'UnsetContext
 makeFreeCon  'IfInContext
 makeFreeCon  'NotInContext
+makeFreeCon  'BumpContext
 makeFreeCon  'WithSortKeyContexts
 
 -- ---------------------------------------------------------------------
@@ -250,12 +252,14 @@ withLocated a@(GHC.L l ast) action =
 
 -- ---------------------------------------------------------------------
 
+{-
 markLocatedPushContext :: (Annotate ast) => Set.Set AstContext -> GHC.Located ast -> Annotated ()
 markLocatedPushContext ctxt ast = do
   -- TODO:AZ: make this an if statement
   inContext ctxt $ do setContext ctxt (markLocated ast)
 
   notInContext ctxt $ do markLocated ast
+-}
 
 -- ---------------------------------------------------------------------
 
@@ -1228,10 +1232,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #else
   markAST _ (GHC.FunBind _ (GHC.MG (GHC.L _ matches) _ _ _) _ _ _) = do
 #endif
-    -- markList matches
-    ifInContext (Set.singleton TopLevel)
-      (setContextLevel (Set.singleton TopLevel) 2 $ markList matches)
-      (markList matches)
+    -- Note: from a layout perspective a FunBind should not exist, so the
+    -- current context is passed through unchanged to the matches.
+    -- TODO: perhaps bring the edp from the first match up to the annotation for
+    -- the FunBind.
+    bumpContext $ mapM_ markLocated matches
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks) = do

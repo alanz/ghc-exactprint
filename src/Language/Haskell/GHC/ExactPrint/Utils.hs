@@ -49,6 +49,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , unsetAcs
   , inAcs
   , pushAcs
+  , bumpAcs
 
   -- * For tests
   , debug
@@ -381,6 +382,13 @@ pushAcs (ACS a) = ACS $ Map.mapMaybe f a
     f n
       | n <= 1    = Nothing
       | otherwise = Just (n - 1)
+
+-- |Sometimes we have to pass the context down unchanged. Bump each count up by
+-- one so that it is unchanged after a @pushAcs@ call.
+bumpAcs :: AstContextSet -> AstContextSet
+bumpAcs (ACS a) = ACS $ Map.mapMaybe f a
+  where
+    f n = Just (n + 1)
 
 -- ---------------------------------------------------------------------
 
