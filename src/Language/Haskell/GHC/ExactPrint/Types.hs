@@ -250,6 +250,11 @@ data AstContext = FunRhs
                 | NoDarrow
                 | Deriving
                 | Parens
+                -- Next four used to identify current list context
+                | CtxOnly
+                | CtxFirst
+                | CtxMiddle
+                | CtxLast
                 deriving (Eq, Ord, Show)
 
 {-

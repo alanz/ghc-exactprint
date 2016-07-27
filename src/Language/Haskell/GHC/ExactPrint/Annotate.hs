@@ -304,22 +304,13 @@ markListIntercalateWithFunLevel f level ls = go ls
 markListInitialContext :: Annotate ast => Set.Set AstContext -> [GHC.Located ast] -> Annotated ()
 markListInitialContext ctx ls =
   markListWithContexts ctx Set.empty ls
-  -- case ls of
-  --   [] -> return ()
-  --   [x] -> setContext ctx $ markLocated x
-  --   (x:xs) -> do
-  --     setContext ctx $ markLocated x
-  --     mapM_ markLocated xs
 
 markListWithContexts :: Annotate ast => Set.Set AstContext -> Set.Set AstContext -> [GHC.Located ast] -> Annotated ()
 markListWithContexts ctxInitial ctxRest ls =
   case ls of
     [] -> return ()
-    -- [x] -> setContext ctxInitial $ markLocated x
     [x] -> setContextLevel ctxInitial 2 $ markLocated x
     (x:xs) -> do
-      -- setContext ctxInitial $ markLocated x
-      -- setContext ctxRest    $ mapM_ markLocated xs
       setContextLevel ctxInitial 2 $ markLocated x
       setContextLevel ctxRest    2 $ mapM_ markLocated xs
 
@@ -385,7 +376,7 @@ markList ls =
 markLocalBindsWithLayout :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => GHC.HsLocalBinds name -> Annotated ()
 markLocalBindsWithLayout binds =
-  setLayoutFlag (markHsLocalBinds binds)
+  markHsLocalBinds binds
 
 -- ---------------------------------------------------------------------
 
@@ -422,13 +413,13 @@ lexicalSortLocated = sortBy (comparing GHC.getLoc)
 
 applyListAnnotationsLayout :: [(GHC.SrcSpan, Annotated ())] -> Annotated ()
 applyListAnnotationsLayout ls = setLayoutFlag $ setContext (Set.singleton NoPrecedingSpace)
-                                              $ withSortKeyContexts listConstexts ls
+                                              $ withSortKeyContexts listContexts ls
 
-listConstexts :: ListContexts
-listConstexts = (LC (Set.fromList [ListStart])
-                   (Set.fromList [ListStart,Intercalate])
-                   (Set.fromList [ListItem,Intercalate])
-                   (Set.singleton ListItem))
+listContexts :: ListContexts
+listContexts = (LC (Set.fromList [CtxOnly,ListStart])
+                   (Set.fromList [CtxFirst,ListStart,Intercalate])
+                   (Set.fromList [CtxMiddle,ListItem,Intercalate])
+                   (Set.fromList [CtxLast,ListItem]))
 
 -- ---------------------------------------------------------------------
 
@@ -1236,7 +1227,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     -- current context is passed through unchanged to the matches.
     -- TODO: perhaps bring the edp from the first match up to the annotation for
     -- the FunBind.
-    bumpContext $ mapM_ markLocated matches
+    -- bumpContext $ mapM_ markLocated matches
+    ifInContext (Set.fromList [CtxOnly,CtxFirst])
+      (markListWithContexts' listContexts matches)
+      (markListWithContexts (lcMiddle listContexts) (lcLast listContexts) matches)
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
@@ -3067,7 +3061,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     -- mapM_ markLocated cons
     -- markListWithLayout cons
     setLayoutFlag $ setContext (Set.singleton NoPrecedingSpace)
-                  $ markListWithContexts' listConstexts cons
+                  $ markListWithContexts' listContexts cons
     markOptional GHC.AnnCloseC
     setContext (Set.fromList [Deriving,NoDarrow]) $ markMaybe mderivs
     markTrailingSemi

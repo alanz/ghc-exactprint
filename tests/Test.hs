@@ -183,7 +183,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest      "ghc710" "ProcNotation.hs"
     -- , mkParserTest      "ghc710" "UnicodeSyntax.hs"
 
-    , mkParserTest      "ghc710" "ListComprehensions.hs"
+    -- , mkParserTest      "ghc710" "ListComprehensions.hs"
     -- , mkParserTest      "ghc710" "MonadComprehensions.hs"
     -- , mkParserTest      "ghc710" "PArr.hs"
     -- , mkParserTest      "ghc710" "Vect.hs"
