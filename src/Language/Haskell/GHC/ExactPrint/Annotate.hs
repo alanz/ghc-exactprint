@@ -913,14 +913,21 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 markActivation :: GHC.Activation -> Annotated ()
 markActivation act = do
-  mark GHC.AnnOpenS --  '['
-  mark GHC.AnnTilde -- ~
 #if __GLASGOW_HASKELL__ <= 710
   case act of
     GHC.ActiveBefore n -> do
+      mark GHC.AnnOpenS --  '['
+      mark GHC.AnnTilde -- ~
       markWithString GHC.AnnVal (show n)
+      mark GHC.AnnCloseS -- ']'
     GHC.ActiveAfter n -> do
+      mark GHC.AnnOpenS --  '['
       markWithString GHC.AnnVal (show n)
+      mark GHC.AnnCloseS -- ']'
+    GHC.NeverActive -> do
+      mark GHC.AnnOpenS --  '['
+      mark GHC.AnnTilde -- ~
+      mark GHC.AnnCloseS -- ']'
     _ -> return ()
 #else
   case act of
@@ -931,7 +938,6 @@ markActivation act = do
       markWithString GHC.AnnVal src
     _ -> return ()
 #endif
-  mark GHC.AnnCloseS -- ']'
 
 -- ---------------------------------------------------------------------
 
@@ -1182,7 +1188,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   markAST _ (GHC.TyFamInstDecl eqn _) = do
     mark GHC.AnnType
-    mark GHC.AnnInstance
+    markOptional GHC.AnnInstance -- Note: this keyword is optional
     markLocated eqn
     markTrailingSemi
 
@@ -3089,8 +3095,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     -- AZ:TODO: we end up with both the tyVars and the following body of the
     -- class defn in annSortKey for the class. This could cause problems when
     -- changing things.
-    setLayoutFlag $
-      applyListAnnotations (prepareListAnnotation sigs
+    -- setLayoutFlag $
+    applyListAnnotationsLayout
+                           (prepareListAnnotation sigs
                          ++ prepareListAnnotation (GHC.bagToList meths)
                          ++ prepareListAnnotation ats
                          ++ prepareListAnnotation atdefs
@@ -3128,33 +3135,47 @@ data FamilyDecl name = FamilyDecl
   }
 -}
 #endif
-    mark GHC.AnnType
-    mark GHC.AnnData
+    case info of
+      GHC.DataFamily -> mark GHC.AnnData
+      _              -> mark GHC.AnnType
+
     mark GHC.AnnFamily
-    mark GHC.AnnOpenP
+    markOptional GHC.AnnOpenP
     applyListAnnotations (prepareListAnnotation [ln]
                          ++ prepareListAnnotation tyvars)
-    mark GHC.AnnCloseP
-    mark GHC.AnnDcolon
+    markOptional GHC.AnnCloseP
 #if __GLASGOW_HASKELL__ <= 710
-    markMaybe mkind
+    case mkind of
+      Nothing -> return ()
+      Just k -> do
+        mark GHC.AnnDcolon
+        markLocated k
 #else
     mark GHC.AnnEqual
     markLocated rsig
     mark GHC.AnnVbar
     markMaybe minj
 #endif
-    mark GHC.AnnWhere
-    mark GHC.AnnOpenC -- {
-    mark GHC.AnnDotdot
     case info of
 #if __GLASGOW_HASKELL__ > 710
-      GHC.ClosedTypeFamily (Just eqns) -> mapM_ markLocated eqns
+      GHC.ClosedTypeFamily (Just eqns) -> do
+        mark GHC.AnnWhere
+        mark GHC.AnnOpenC -- {
+        mapM_ markLocated eqns
+        mark GHC.AnnCloseC -- }
+      GHC.ClosedTypeFamily Nothing -> do
+        mark GHC.AnnWhere
+        mark GHC.AnnOpenC -- {
+        mark GHC.AnnDotdot
+        mark GHC.AnnCloseC -- }
 #else
-      GHC.ClosedTypeFamily eqns -> mapM_ markLocated eqns
+      GHC.ClosedTypeFamily eqns -> do
+        mark GHC.AnnWhere
+        mark GHC.AnnOpenC -- {
+        mapM_ markLocated eqns
+        mark GHC.AnnCloseC -- }
 #endif
       _ -> return ()
-    mark GHC.AnnCloseC -- }
     markTrailingSemi
 
 -- ---------------------------------------------------------------------

@@ -210,6 +210,7 @@ addPrettyAnnotation ann = do
            GHC.AnnDcolon    -> tellKd (G ann,DP (0,1))
            GHC.AnnDeriving  -> tellKd (G ann,DP (0,1))
            GHC.AnnEqual     -> tellKd (G ann,DP (0,1))
+           GHC.AnnFamily    -> tellKd (G ann,DP (0,1))
            GHC.AnnHiding    -> tellKd (G ann,DP (0,1))
            GHC.AnnIn        -> tellKd (G ann,DP (1,0))
            GHC.AnnInstance  -> tellKd (G ann,DP (0,1))
