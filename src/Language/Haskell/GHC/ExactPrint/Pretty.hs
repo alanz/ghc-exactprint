@@ -213,6 +213,7 @@ addPrettyAnnotation ann = do
            GHC.AnnHiding    -> tellKd (G ann,DP (0,1))
            GHC.AnnIn        -> tellKd (G ann,DP (1,0))
            GHC.AnnInstance  -> tellKd (G ann,DP (0,1))
+           GHC.AnnMinus     -> tellKd (G ann,DP (0,1)) -- need to separate from preceding operator
            GHC.AnnOf        -> tellKd (G ann,DP (0,1))
            GHC.AnnOpenC     -> tellKd (G ann,DP (0,0))
            GHC.AnnQualified -> tellKd (G ann,DP (0,1))
