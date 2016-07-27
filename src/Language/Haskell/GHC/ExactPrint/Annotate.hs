@@ -1736,13 +1736,15 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       markLocated t
       markWithString GHC.AnnClose ":]" -- ':]'
 
-    markType _ (GHC.HsTupleTy _tt ts) = do
-      mark GHC.AnnDcolon -- for HsKind, alias for HsType
-      markWithString GHC.AnnOpen "(#" -- '(#'
-      mark GHC.AnnOpenP  -- '('
+    markType _ (GHC.HsTupleTy tt ts) = do
+      inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
+      case tt  of
+        GHC.HsBoxedOrConstraintTuple -> mark GHC.AnnOpenP  -- '('
+        _                            -> markWithString GHC.AnnOpen "(#" -- '(#'
       markListIntercalate ts
-      mark GHC.AnnCloseP -- ')'
-      markWithString GHC.AnnClose "#)" --  '#)'
+      case tt  of
+        GHC.HsBoxedOrConstraintTuple -> mark GHC.AnnCloseP  -- ')'
+        _                            -> markWithString GHC.AnnClose "#)" -- '#)'
 
 #if __GLASGOW_HASKELL__ <= 710
     markType _ (GHC.HsOpTy t1 (_,lo) t2) = do
@@ -2321,9 +2323,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 markHsLocalBinds :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
                      => (GHC.HsLocalBinds name) -> Annotated ()
 markHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) =
-    applyListAnnotations (prepareListAnnotation (GHC.bagToList binds)
-                       ++ prepareListAnnotation sigs
-                         )
+    applyListAnnotationsLayout
+       (prepareListAnnotation (GHC.bagToList binds)
+     ++ prepareListAnnotation sigs
+       )
 markHsLocalBinds (GHC.HsValBinds (GHC.ValBindsOut {}))
    = traceM "warning: ValBindsOut introduced after renaming"
 
@@ -2376,7 +2379,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #else
       markExpr l (GHC.HsRecFld f) = markAST l f
 
-      markExpr l (GHC.HsOverLabel fs) 
+      markExpr l (GHC.HsOverLabel fs)
         = markExternal l GHC.AnnVal ("#" ++ GHC.unpackFS fs)
 #endif
 
@@ -2535,13 +2538,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       markExpr _ (GHC.RecordCon n _ _ (GHC.HsRecFields fs dd)) = do
 #endif
         markLocated n
-        markOptional GHC.AnnOpenC
+        mark GHC.AnnOpenC
         case dd of
           Nothing -> markListIntercalate fs
           Just _ -> do
             setContext (Set.singleton Intercalate) $ mapM_ markLocated fs
             mark GHC.AnnDotdot
-        markOptional GHC.AnnCloseC
+        mark GHC.AnnCloseC
 
 #if __GLASGOW_HASKELL__ <= 710
       markExpr _ (GHC.RecordUpd e (GHC.HsRecFields fs _) _cons _ _) = do
@@ -2839,12 +2842,12 @@ instance Annotate GHC.HsLit where
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsRecUpdField name) where
   markAST _ (GHC.HsRecField lbl expr punFlag) = do
-    markLocated lbl
+    unsetContext Intercalate $ markLocated lbl
     -- when (punFlag == False) $ mark GHC.AnnEqual
     -- markLocated expr
     when (punFlag == False) $ do
       mark GHC.AnnEqual
-      markLocated expr
+      unsetContext Intercalate $ markLocated expr
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 {-
 type HsRecUpdField id     = HsRecField' (AmbiguousFieldOcc id) (LHsExpr id)
@@ -3401,19 +3404,23 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 instance (Annotate name, GHC.DataId name, GHC.OutputableBndr name,GHC.HasOccName name)
   => Annotate (GHC.HsRecField name (GHC.LPat name)) where
   markAST _ (GHC.HsRecField n e punFlag) = do
-    markLocated n
+    -- markLocated n
+    unsetContext Intercalate $ markLocated n
     -- mark GHC.AnnEqual
     when (punFlag == False) $ mark GHC.AnnEqual
-    markLocated e
+    -- markLocated e
+    unsetContext Intercalate $ markLocated e
+    -- mark GHC.AnnEqual
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 
 instance (Annotate name, GHC.DataId name, GHC.OutputableBndr name,GHC.HasOccName name)
   => Annotate (GHC.HsRecField name (GHC.LHsExpr name)) where
   markAST _ (GHC.HsRecField n e _) = do
-    markLocated n
+    -- markLocated n
+    unsetContext Intercalate $ markLocated n
     mark GHC.AnnEqual
-    markLocated e
+    unsetContext Intercalate $ markLocated e
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 -- ---------------------------------------------------------------------
