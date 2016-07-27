@@ -1653,7 +1653,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
       case mwc of
         Nothing -> if lc /= GHC.noSrcSpan
-          then setContext (Set.singleton Parens) $ markLocated ctx
+          -- then setContext (Set.singleton Parens) $ markLocated ctx
+          then markLocated ctx
           else return ()
         Just lwc -> do
          let sorted = lexicalSortLocated (GHC.L lwc GHC.HsWildcardTy:ctxs)
@@ -3058,7 +3059,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     setLayoutFlag $ setContext (Set.singleton NoPrecedingSpace)
                   $ markListWithContexts' listConstexts cons
     markOptional GHC.AnnCloseC
-    setContext (Set.fromList [Deriving,InConDecl]) $ markMaybe mderivs
+    setContext (Set.fromList [Deriving,NoDarrow]) $ markMaybe mderivs
     markTrailingSemi
 
   -- -----------------------------------
@@ -3099,10 +3100,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 markTyClass :: (Annotate a, Annotate ast)
                 => GHC.Located a -> [GHC.Located ast] -> Annotated ()
 markTyClass ln tyVars = do
-    markMany GHC.AnnOpenP
+    markManyOptional GHC.AnnOpenP
     applyListAnnotations (prepareListAnnotation [ln]
                       ++ prepareListAnnotation (take 2 tyVars))
-    markMany GHC.AnnCloseP
+    markManyOptional GHC.AnnCloseP
     mapM_ markLocated (drop 2 tyVars)
 
 -- ---------------------------------------------------------------------
@@ -3248,13 +3249,23 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
     inContext (Set.singleton Deriving) $ mark GHC.AnnDeriving
 #endif
-    inContext (Set.fromList [Deriving,Parens]) $ markMany GHC.AnnOpenP -- may be nested parens around context
+    -- ifInContext (Set.singleton NoDarrow)
+    --   (markManyOptional GHC.AnnOpenP)
+    --   (inContext (Set.fromList [Deriving,Parens]) $ markMany GHC.AnnOpenP) -- may be nested parens around context
+    ifInContext (Set.fromList [Deriving,Parens])
+      (markMany         GHC.AnnOpenP) -- may be nested parens around context
+      (markManyOptional GHC.AnnOpenP)
+
     unsetContext Intercalate $ markListIntercalateWithFunLevel markLocated 2 ts
-    inContext (Set.fromList [Deriving,Parens]) $ markMany GHC.AnnCloseP -- may be nested parens around context
-    -- if null ts
-    --   then markOptional GHC.AnnDarrow
-    --   else mark         GHC.AnnDarrow
-    ifInContext (Set.singleton InConDecl)
+
+    -- ifInContext (Set.singleton NoDarrow)
+    --   (markManyOptional GHC.AnnCloseP)
+    --   (inContext (Set.fromList [Deriving,Parens]) $ markMany GHC.AnnCloseP) -- may be nested parens around context
+    ifInContext (Set.fromList [Deriving,Parens])
+      (markMany         GHC.AnnCloseP) -- may be nested parens around context
+      (markManyOptional GHC.AnnCloseP)
+
+    ifInContext (Set.singleton NoDarrow)
       (return ())
       (if null ts
         then markOptional GHC.AnnDarrow
@@ -3276,7 +3287,8 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
           mark GHC.AnnDot
 
         unless (null $ GHC.unLoc ctx) $ do
-          setContext (Set.fromList [InConDecl,Parens]) $ markLocated ctx
+          -- setContext (Set.fromList [NoDarrow,Parens]) $ markLocated ctx
+          setContext (Set.fromList [NoDarrow]) $ markLocated ctx
           mark GHC.AnnDarrow
         case dets of
           GHC.InfixCon _ _ -> return ()
@@ -3300,13 +3312,17 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
           else ( do
             mark GHC.AnnDcolon
             markLocated (GHC.L ls (ResTyGADTHook bndrs))
-            markMany GHC.AnnOpenP
-            setContext (Set.singleton Parens) $ markLocated ctx
+            markManyOptional GHC.AnnOpenP
+            unless (null $ GHC.unLoc ctx) $ do
+              markLocated ctx
+              -- setContext (Set.singleton Parens) $ markLocated ctx
+              -- setContext (Set.fromList [NoDarrow,Parens]) $ markLocated ctx
+              -- mark GHC.AnnDarrow
             markHsConDeclDetails lns dets )
 
         markLocated ty
 
-        markMany GHC.AnnCloseP
+        markManyOptional GHC.AnnCloseP
 
 
     case res of

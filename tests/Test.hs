@@ -171,7 +171,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkPrettyRoundtrip "ghc710" "Case.hs"
     -- , mkParserTest "ghc710" "Process1.hs"
       -- mkParserTest      "ghc710" "Utils2.hs"
-    , mkParserTest      "ghc710" "Zipper.hs"
+    -- , mkParserTest      "ghc710" "Zipper.hs"
       -- , mkParserTest      "ghc710" "DataDecl.hs"
       -- mkParserTest      "ghc710" "GADTContext.hs"
     -- , mkParserTest      "ghc710" "ModuleOnly.hs"
