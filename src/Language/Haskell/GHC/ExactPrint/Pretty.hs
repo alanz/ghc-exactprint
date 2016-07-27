@@ -205,20 +205,21 @@ addPrettyAnnotation ann = do
   -- cur <- asks prContext
   let
     dp = case ann of
-           GHC.AnnAs       -> tellKd (G ann,DP (0,1))
-           GHC.AnnCloseC   -> tellKd (G ann,DP (0,0))
-           GHC.AnnDcolon   -> tellKd (G ann,DP (0,1))
-           GHC.AnnDeriving -> tellKd (G ann,DP (0,1))
-           GHC.AnnEqual    -> tellKd (G ann,DP (0,1))
-           GHC.AnnHiding   -> tellKd (G ann,DP (0,1))
-           GHC.AnnIn       -> tellKd (G ann,DP (1,0))
-           GHC.AnnOf       -> tellKd (G ann,DP (0,1))
-           GHC.AnnOpenC    -> tellKd (G ann,DP (0,0))
+           GHC.AnnAs        -> tellKd (G ann,DP (0,1))
+           GHC.AnnCloseC    -> tellKd (G ann,DP (0,0))
+           GHC.AnnDcolon    -> tellKd (G ann,DP (0,1))
+           GHC.AnnDeriving  -> tellKd (G ann,DP (0,1))
+           GHC.AnnEqual     -> tellKd (G ann,DP (0,1))
+           GHC.AnnHiding    -> tellKd (G ann,DP (0,1))
+           GHC.AnnIn        -> tellKd (G ann,DP (1,0))
+           GHC.AnnInstance  -> tellKd (G ann,DP (0,1))
+           GHC.AnnOf        -> tellKd (G ann,DP (0,1))
+           GHC.AnnOpenC     -> tellKd (G ann,DP (0,0))
            GHC.AnnQualified -> tellKd (G ann,DP (0,1))
-           GHC.AnnRarrow   -> tellKd (G ann,DP (0,1))
-           GHC.AnnVal      -> tellKd (G ann,DP (0,1))
-           GHC.AnnWhere    -> tellKd (G ann,DP (0,1))
-           _ ->               tellKd (G ann,DP (0,0))
+           GHC.AnnRarrow    -> tellKd (G ann,DP (0,1))
+           GHC.AnnVal       -> tellKd (G ann,DP (0,1))
+           GHC.AnnWhere     -> tellKd (G ann,DP (0,1))
+           _ ->                tellKd (G ann,DP (0,0))
   fromNoPrecedingSpace (tellKd (G ann,DP (0,0))) dp
 
 -- ---------------------------------------------------------------------
