@@ -248,9 +248,11 @@ data AstContext = FunRhs
                 | ListItem -- Identifies subsequent elements of a list in layout
                 | TopLevel -- top level declaration
                 | NoDarrow
+                | AddVbar
                 | Deriving
                 | Parens
                 | ExplicitNeverActive
+                | InParStmtBlock
                 -- Next four used to identify current list context
                 | CtxOnly
                 | CtxFirst

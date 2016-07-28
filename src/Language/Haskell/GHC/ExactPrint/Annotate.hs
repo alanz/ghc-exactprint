@@ -291,12 +291,22 @@ markListIntercalateWithFun f ls = markListIntercalateWithFunLevel f 3 ls
 -- markListIntercalateWithFun f ls = markListIntercalateWithFunLevel f 2 ls
 
 markListIntercalateWithFunLevel :: (t -> Annotated ()) -> Int -> [t] -> Annotated ()
-markListIntercalateWithFunLevel f level ls = go ls
+markListIntercalateWithFunLevel f level ls = markListIntercalateWithFunLevelCtx f level Intercalate ls
+-- markListIntercalateWithFunLevel f level ls = go ls
+--   where
+--     go []  = return ()
+--     go [x] = f x
+--     go (x:xs) = do
+--       setContextLevel (Set.singleton Intercalate) level $ f x
+--       go xs
+
+markListIntercalateWithFunLevelCtx :: (t -> Annotated ()) -> Int -> AstContext -> [t] -> Annotated ()
+markListIntercalateWithFunLevelCtx f level ctx ls = go ls
   where
     go []  = return ()
     go [x] = f x
     go (x:xs) = do
-      setContextLevel (Set.singleton Intercalate) level $ f x
+      setContextLevel (Set.singleton ctx) level $ f x
       go xs
 
 -- ---------------------------------------------------------------------
@@ -335,6 +345,25 @@ markListWithContexts' (LC ctxOnly ctxInitial ctxMiddle ctxLast) ls =
       setContextLevel ctxMiddle level $ markLocated x
       go xs
 
+
+markListWithContextsFunction ::
+                         ListContexts
+                      -> (t -> Annotated ())
+                      -> [t] -> Annotated ()
+markListWithContextsFunction (LC ctxOnly ctxInitial ctxMiddle ctxLast) f ls =
+  case ls of
+    [] -> return ()
+    [x] -> setContextLevel ctxOnly level $ f x
+    (x:xs) -> do
+      setContextLevel ctxInitial level $ f x
+      go xs
+  where
+    level = 2
+    go []  = return ()
+    go [x] = setContextLevel ctxLast level $ f x
+    go (x:xs) = do
+      setContextLevel ctxMiddle level $ f x
+      go xs
 
 -- ---------------------------------------------------------------------
 
@@ -856,8 +885,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markWithString GHC.AnnOpen src -- "{-# VECTORISE" or "{-# VECTORISE SCALAR"
     mark GHC.AnnType
     markLocated ln
-    mark GHC.AnnEqual
-    markMaybe mln
+    case mln of
+      Nothing -> return ()
+      Just ln -> do
+        mark GHC.AnnEqual
+        markLocated ln
     markWithString GHC.AnnClose "#-}" -- "#-}"
 
   markAST _ (GHC.HsVectTypeOut {}) =
@@ -2217,13 +2249,18 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
 #else
   markAST _ (GHC.BindStmt pat body _ _ _) = do
 #endif
-    markLocated pat
+    unsetContext Intercalate $ markLocated pat
     mark GHC.AnnLarrow
-    markLocated body
+    -- markLocated body
+    unsetContext Intercalate $ markLocated body
 
-    inContext (Set.fromList [ListComp]) $ mark GHC.AnnComma
+    inContext (Set.singleton AddVbar) $ mark GHC.AnnVbar
+    -- ifInContext (Set.singleton AddVbar)
+    --   (return ())
+    --   (inContext (Set.singleton InParStmtBlock) $ mark GHC.AnnVbar)
+    -- inContext (Set.singleton InParStmtBlock) $
+    --   inContext (Set.fromList [Intercalate]) $ mark GHC.AnnVbar
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
-    inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
     markTrailingSemi
 
 #if __GLASGOW_HASKELL__ > 710
@@ -2249,7 +2286,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     markLocalBindsWithLayout lb
     markOptional GHC.AnnCloseC -- '}'
     -- return () `debug` ("markP.LetStmt done")
-    inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
+    inContext (Set.fromList [ListComp,AddVbar]) $ mark GHC.AnnVbar -- possible in list comprehension
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
     markTrailingSemi
 
@@ -2258,10 +2295,34 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
 #else
   markAST l (GHC.ParStmt pbs _ _ _) = do
 #endif
+    -- Within a given parallel list comprehension,one of the sections to be done
+    -- in parallel. It is a normal list comprehension, so has a list of
+    -- ParStmtBlock, one for each part of the sub- list comprehension
+
     -- mapM_ (markAST l) pbs
-    setContext (Set.singleton ListComp) $ mapM_ (markAST l) pbs
-    inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
-    -- mark GHC.AnnVbar -- possible in list comprehension
+    -- setContext (Set.fromList [ListComp,InParStmtBlock]) $ markListIntercalateWithFunLevel (markAST l) 2 pbs
+    -- setContext (Set.fromList [ListComp]) $ markListIntercalateWithFunLevel (markAST l) 2 pbs
+
+    ifInContext (Set.singleton Intercalate)
+      (
+
+      unsetContext Intercalate $
+        markListWithContextsFunction
+          (LC (Set.empty)
+              (Set.fromList [AddVbar])
+              (Set.fromList [AddVbar])
+              (Set.singleton Intercalate)
+          ) (markAST l) pbs
+         )
+      (
+      unsetContext Intercalate $
+        markListWithContextsFunction
+          (LC (Set.empty)
+              (Set.fromList [AddVbar])
+              (Set.fromList [AddVbar])
+              (Set.empty)
+          ) (markAST l) pbs
+       )
     markTrailingSemi
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -2308,10 +2369,36 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
 
 -- ---------------------------------------------------------------------
 
+-- Note: We never have a located ParStmtBlock, so have nothing to hang the
+-- annotation on. This means there is no pushing of context from the parent ParStmt.
 instance  (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   =>  Annotate (GHC.ParStmtBlock name name) where
-  markAST _ (GHC.ParStmtBlock stmts _ns _) =
-    mapM_ markLocated stmts
+  markAST _ (GHC.ParStmtBlock stmts _ns _) = do
+    -- mapM_ markLocated stmts
+    -- setContext (Set.singleton InParStmtBlock) $ mapM_ markLocated stmts
+    -- setContext (Set.singleton InParStmtBlock) $ markListIntercalate stmts
+    markListIntercalate stmts
+    -- markListIntercalateWithFunLevelCtx markLocated 2 AddVbar stmts
+    -- ifInContext (Set.singleton Intercalate)
+    --   (
+
+    --   unsetContext Intercalate $
+    --     markListWithContexts'
+    --       (LC (Set.empty)
+    --           (Set.fromList [Intercalate,AddVbar])
+    --           (Set.fromList [Intercalate,AddVbar])
+    --           (Set.empty)
+    --       ) stmts
+    --      )
+    --   (
+    --   unsetContext Intercalate $
+    --     markListWithContexts'
+    --       (LC (Set.empty)
+    --           (Set.fromList [Intercalate,AddVbar])
+    --           (Set.fromList [Intercalate,AddVbar])
+    --           (Set.singleton AddVbar)
+    --       ) stmts
+    --    )
 
 -- ---------------------------------------------------------------------
 
@@ -2360,6 +2447,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   => Annotate (GHC.HsExpr name) where
   markAST loc expr = do
     markExpr loc expr
+    inContext (Set.singleton AddVbar) $ mark GHC.AnnVbar
     -- TODO: If the AnnComma is not needed, revert to markAST
 #if __GLASGOW_HASKELL__ <= 710
     -- case expr of
@@ -2491,6 +2579,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
           mark GHC.AnnIn
           markLocated e)
 
+      -- -------------------------------
+
 #if __GLASGOW_HASKELL__ <= 710
       markExpr _ (GHC.HsDo cts es _) = do
 #else
@@ -2498,6 +2588,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #endif
         case cts of
           GHC.MDoExpr -> mark GHC.AnnMdo
+          GHC.PArrComp -> return ()
           _           -> mark GHC.AnnDo
         let (ostr,cstr) =
               if isListComp cts
@@ -2514,18 +2605,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markInside GHC.AnnSemi
         if isListComp cts
           then do
-          -- then setContextLevel (Set.singleton ListComp) 2 $ do
-          -- then setContextLevel (Set.singleton ListComp) 3 $ do
             markLocated (last es)
             mark GHC.AnnVbar
             setLayoutFlag (markListIntercalate (init es))
-            -- setLayoutFlag (markListIntercalateWithFunLevel markLocated 2 (init es))
-            -- markListWithLayout (init es)
           else do
-           -- setLayoutFlag $  markListInitialContext (Set.singleton ListStart) es
-           -- setLayoutFlag $  markListWithContexts (Set.singleton ListStart) (Set.singleton ListItem) es
-           -- setLayoutFlag $ setContext (Set.singleton NoPrecedingSpace)
-           --               $ markListWithContexts (Set.singleton ListStart) (Set.singleton ListItem) es
            markListWithLayout es
         markOptional GHC.AnnCloseS
         markOptional GHC.AnnCloseC
@@ -2533,9 +2616,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         -- markPPOptional GHC.AnnClose (Just cstr)
         when (isListComp cts) $ markWithString GHC.AnnClose cstr
 
+      -- -------------------------------
+
       markExpr _ (GHC.ExplicitList _ _ es) = do
         mark GHC.AnnOpenS
-        markListIntercalate es
+        -- markListIntercalate es
+        markListIntercalateWithFunLevel markLocated 2 es
         mark GHC.AnnCloseS
 
       markExpr _ (GHC.ExplicitPArr _ es)   = do

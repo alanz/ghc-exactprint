@@ -99,7 +99,7 @@ mkTests = do
   prettyRoundTripTests <- findPrettyTests
   return $ TestList [
                       internalTests, roundTripTests, transformTests, failingTests, noAnnotationTests
-                    , prettyRoundTripTests
+                    -- , prettyRoundTripTests
                     ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -162,7 +162,8 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest "failing" "UnicodeRules.hs"
     -- , mkParserTest "failing" "UnicodeSyntax.hs"
 
-      mkPrettyRoundtrip "ghc710" "Roles.hs"
+      -- mkPrettyRoundtrip "ghc710" "Vect.hs"
+      mkPrettyRoundtrip "ghc710" "ListComprehensions.hs"
       -- mkPrettyRoundtrip "ghc710" "Undefined3.hs"
     -- , mkPrettyRoundtrip "ghc710" "Process1.hs"
     -- , mkPrettyRoundtrip "ghc710" "ModuleOnly.hs"
@@ -171,10 +172,10 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkPrettyRoundtrip "ghc710" "Case.hs"
     -- , mkParserTest "ghc710" "TypeFamilies2.hs"
     -- , mkParserTest      "ghc710" "Undefined2.hs"
-    -- , mkParserTest      "ghc710" "Zipper.hs"
+    -- , mkParserTest      "ghc710" "Vect.hs"
       -- , mkParserTest      "ghc710" "DataDecl.hs"
       -- mkParserTest      "ghc710" "GADTContext.hs"
-    -- , mkParserTest      "ghc710" "ModuleOnly.hs"
+    -- , mkParserTest      "ghc710" "ListComprehensions.hs"
     -- , mkParserTest      "ghc710" "Simple.hs"
     -- , mkParserTest      "ghc710" "ShiftingLambda.hs"
     -- , mkParserTest      "ghc710" "Case.hs"

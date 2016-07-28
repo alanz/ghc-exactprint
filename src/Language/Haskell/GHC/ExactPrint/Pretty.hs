@@ -221,6 +221,7 @@ addPrettyAnnotation ann = do
            GHC.AnnSimpleQuote -> tellKd (G ann,DP (0,1))
            GHC.AnnRarrow    -> tellKd (G ann,DP (0,1))
            GHC.AnnRole      -> tellKd (G ann,DP (0,1))
+           GHC.AnnType      -> tellKd (G ann,DP (0,1))
            GHC.AnnVal       -> tellKd (G ann,DP (0,1))
            GHC.AnnWhere     -> tellKd (G ann,DP (0,1))
            _ ->                tellKd (G ann,DP (0,0))
