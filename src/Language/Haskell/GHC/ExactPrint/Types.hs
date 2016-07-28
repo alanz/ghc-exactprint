@@ -238,7 +238,7 @@ data AstContext = FunRhs
                 | NoPrecedingSpace
                 -- TODO: all GHC 7.10.3 tests pass with TypeAsKind not set. Can we get rid of it
                 | TypeAsKind -- For GHC < 8.0
-                | InIE
+                | InIE -- TODO: rename this, it is used in OpApp too
                 | HasHiding
                 | AdvanceLine
                 | ListComp
@@ -250,6 +250,7 @@ data AstContext = FunRhs
                 | NoDarrow
                 | Deriving
                 | Parens
+                | ExplicitNeverActive
                 -- Next four used to identify current list context
                 | CtxOnly
                 | CtxFirst

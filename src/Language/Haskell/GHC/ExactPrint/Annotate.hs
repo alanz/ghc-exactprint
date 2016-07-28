@@ -634,22 +634,16 @@ instance Annotate GHC.RdrName where
         -- when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
         markOptional GHC.AnnType
 
-        -- when isSym $ if str == "$" then markOptional GHC.AnnOpenP -- '('
-        --                            else markOptional GHC.AnnOpenP
         when isSym $ ifInContext (Set.singleton InIE)
                                    (mark         GHC.AnnOpenP) -- '('
                                    (markOptional GHC.AnnOpenP)
-        -- markOffset GHC.AnnBackquote 0
         when (not isSym) $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 0
         cnt  <- countAnns GHC.AnnVal
         case cnt of
           0 -> markExternal l GHC.AnnVal str'
           1 -> markWithString GHC.AnnVal str'
           _ -> traceM $ "Printing RdrName, more than 1 AnnVal:" ++ showGhc (l,n)
-        -- markOffset GHC.AnnBackquote 1
         when (not isSym) $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 1
-        -- when isSym $ if str == "$" then markOptional GHC.AnnCloseP -- ')'
-        --                            else markOptional GHC.AnnCloseP
         when isSym $ ifInContext (Set.singleton InIE)
                                    (mark         GHC.AnnCloseP)
                                    (markOptional GHC.AnnCloseP)
@@ -898,7 +892,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
    => Annotate (GHC.RuleDecl name) where
   markAST _ (GHC.HsRule ln act bndrs lhs _ rhs _) = do
     markLocated ln
-    markActivation act
+    setContext (Set.singleton ExplicitNeverActive) $ markActivation act
 
     mark GHC.AnnForall
     mapM_ markLocated bndrs
@@ -925,9 +919,11 @@ markActivation act = do
       markWithString GHC.AnnVal (show n)
       mark GHC.AnnCloseS -- ']'
     GHC.NeverActive -> do
-      mark GHC.AnnOpenS --  '['
-      mark GHC.AnnTilde -- ~
-      mark GHC.AnnCloseS -- ']'
+      inContext (Set.singleton ExplicitNeverActive) $ do
+        mark GHC.AnnOpenS --  '['
+        mark GHC.AnnTilde -- ~
+        mark GHC.AnnCloseS -- ']'
+      return ()
     _ -> return ()
 #else
   case act of
@@ -1188,7 +1184,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   markAST _ (GHC.TyFamInstDecl eqn _) = do
     mark GHC.AnnType
-    markOptional GHC.AnnInstance -- Note: this keyword is optional
+    -- markOptional GHC.AnnInstance -- Note: this keyword is optional
+    mark GHC.AnnInstance -- Note: this keyword is optional
     markLocated eqn
     markTrailingSemi
 
@@ -1742,7 +1739,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       case tt  of
         GHC.HsBoxedOrConstraintTuple -> mark GHC.AnnOpenP  -- '('
         _                            -> markWithString GHC.AnnOpen "(#" -- '(#'
-      markListIntercalate ts
+      -- markListIntercalate ts
+      markListIntercalateWithFunLevel markLocated 2 ts
       case tt  of
         GHC.HsBoxedOrConstraintTuple -> mark GHC.AnnCloseP  -- ')'
         _                            -> markWithString GHC.AnnClose "#)" -- '#)'
@@ -2415,8 +2413,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markLocated e2
 
       markExpr _ (GHC.OpApp e1 e2 _ e3) = do
+        -- setContext (Set.singleton InIE) $ markLocated e1
         markLocated e1
         setContext (Set.singleton InOp) $ markLocated e2
+        -- setContext (Set.singleton InIE) $ markLocated e3
         markLocated e3
 
       markExpr _ (GHC.NegApp e _) = do
@@ -3141,7 +3141,7 @@ data FamilyDecl name = FamilyDecl
 
     mark GHC.AnnFamily
     markOptional GHC.AnnOpenP
-    applyListAnnotations (prepareListAnnotation [ln]
+    applyListAnnotations (prepareListAnnotationWithContext (Set.singleton InIE) [ln]
                          ++ prepareListAnnotation tyvars)
     markOptional GHC.AnnCloseP
 #if __GLASGOW_HASKELL__ <= 710
@@ -3161,7 +3161,8 @@ data FamilyDecl name = FamilyDecl
       GHC.ClosedTypeFamily (Just eqns) -> do
         mark GHC.AnnWhere
         mark GHC.AnnOpenC -- {
-        mapM_ markLocated eqns
+        -- mapM_ markLocated eqns
+        markListWithLayout eqns
         mark GHC.AnnCloseC -- }
       GHC.ClosedTypeFamily Nothing -> do
         mark GHC.AnnWhere
@@ -3171,9 +3172,10 @@ data FamilyDecl name = FamilyDecl
 #else
       GHC.ClosedTypeFamily eqns -> do
         mark GHC.AnnWhere
-        mark GHC.AnnOpenC -- {
-        mapM_ markLocated eqns
-        mark GHC.AnnCloseC -- }
+        markOptional GHC.AnnOpenC -- {
+        -- mapM_ markLocated eqns
+        markListWithLayout eqns
+        markOptional GHC.AnnCloseC -- }
 #endif
       _ -> return ()
     markTrailingSemi
@@ -3211,10 +3213,10 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 #else
   markAST _ (GHC.TyFamEqn ln (GHC.HsIB _ pats) typ) = do
 #endif
-    mark GHC.AnnOpenP
+    markOptional GHC.AnnOpenP
     applyListAnnotations (prepareListAnnotation [ln]
                          ++ prepareListAnnotation pats)
-    mark GHC.AnnCloseP
+    markOptional GHC.AnnCloseP
     mark GHC.AnnEqual
     markLocated typ
 
@@ -3274,21 +3276,23 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
     inContext (Set.singleton Deriving) $ mark GHC.AnnDeriving
 #endif
-    -- ifInContext (Set.singleton NoDarrow)
+    -- ifInContext (Set.fromList [Deriving,Parens])
+    --   (markMany         GHC.AnnOpenP) -- may be nested parens around context
     --   (markManyOptional GHC.AnnOpenP)
-    --   (inContext (Set.fromList [Deriving,Parens]) $ markMany GHC.AnnOpenP) -- may be nested parens around context
-    ifInContext (Set.fromList [Deriving,Parens])
-      (markMany         GHC.AnnOpenP) -- may be nested parens around context
-      (markManyOptional GHC.AnnOpenP)
+    case ts of
+      []  -> markManyOptional GHC.AnnOpenP
+      [x] -> markManyOptional GHC.AnnOpenP
+      _   -> markMany         GHC.AnnOpenP
 
     unsetContext Intercalate $ markListIntercalateWithFunLevel markLocated 2 ts
 
-    -- ifInContext (Set.singleton NoDarrow)
+    -- ifInContext (Set.fromList [Deriving,Parens])
+    --   (markMany         GHC.AnnCloseP) -- may be nested parens around context
     --   (markManyOptional GHC.AnnCloseP)
-    --   (inContext (Set.fromList [Deriving,Parens]) $ markMany GHC.AnnCloseP) -- may be nested parens around context
-    ifInContext (Set.fromList [Deriving,Parens])
-      (markMany         GHC.AnnCloseP) -- may be nested parens around context
-      (markManyOptional GHC.AnnCloseP)
+    case ts of
+      []  -> markManyOptional GHC.AnnCloseP
+      [x] -> markManyOptional GHC.AnnCloseP
+      _   -> markMany         GHC.AnnCloseP
 
     ifInContext (Set.singleton NoDarrow)
       (return ())
