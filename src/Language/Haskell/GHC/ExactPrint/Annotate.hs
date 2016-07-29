@@ -710,7 +710,9 @@ instance Annotate GHC.RdrName where
            mark GHC.AnnCloseP -- ')'
          ('(':'#':_) -> do
            markWithString GHC.AnnOpen  "(#" -- '(#'
-           markMany GHC.AnnCommaTuple
+           -- markMany GHC.AnnCommaTuple
+           let cnt = length $ filter (==',') str
+           replicateM_ cnt (mark GHC.AnnCommaTuple)
            markWithString GHC.AnnClose  "#)"-- '#)'
          "[::]" -> do
            markWithString GHC.AnnOpen  "[:" -- '[:'

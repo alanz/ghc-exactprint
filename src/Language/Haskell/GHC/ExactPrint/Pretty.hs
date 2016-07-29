@@ -207,6 +207,8 @@ addPrettyAnnotation ann = do
     dp = case ann of
            GHC.AnnAs        -> tellKd (G ann,DP (0,1))
            GHC.AnnBy        -> tellKd (G ann,DP (0,1))
+           GHC.AnnClass     -> tellKd (G ann,DP (0,1))
+           GHC.AnnClose     -> tellKd (G ann,DP (0,1))
            GHC.AnnCloseC    -> tellKd (G ann,DP (0,0))
            GHC.AnnDcolon    -> tellKd (G ann,DP (0,1))
            GHC.AnnDeriving  -> tellKd (G ann,DP (0,1))
@@ -438,7 +440,18 @@ storeOriginalSrcSpanPretty key = return key
 -- ---------------------------------------------------------------------
 
 getSrcSpanForKw :: GHC.AnnKeywordId -> Pretty GHC.SrcSpan
-getSrcSpanForKw kw = assert False undefined
+getSrcSpanForKw kw = return GHC.noSrcSpan
+
+{-
+-- | This function exists to overcome a shortcoming in the GHC AST for 7.10.1
+getSrcSpanForKw :: GHC.AnnKeywordId -> Delta GHC.SrcSpan
+getSrcSpanForKw kw = do
+    ga <- gets apAnns
+    ss <- getSrcSpan
+    case GHC.getAnnotation ga ss kw of
+      []     -> return GHC.noSrcSpan
+      (sp:_) -> return sp
+-}
 
 -- ---------------------------------------------------------------------
 
