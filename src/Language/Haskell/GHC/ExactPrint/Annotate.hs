@@ -2254,13 +2254,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     -- markLocated body
     unsetContext Intercalate $ markLocated body
 
-    inContext (Set.singleton AddVbar) $ mark GHC.AnnVbar
-    -- ifInContext (Set.singleton AddVbar)
-    --   (return ())
-    --   (inContext (Set.singleton InParStmtBlock) $ mark GHC.AnnVbar)
-    -- inContext (Set.singleton InParStmtBlock) $
-    --   inContext (Set.fromList [Intercalate]) $ mark GHC.AnnVbar
-    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+    ifInContext (Set.singleton Intercalate)
+      (mark GHC.AnnComma)
+      (inContext (Set.singleton AddVbar)     $ mark GHC.AnnVbar)
+    -- inContext (Set.singleton AddVbar)     $ mark GHC.AnnVbar
+    -- inContext (Set.singleton Intercalate) $ mark GHC.AnnComma
     markTrailingSemi
 
 #if __GLASGOW_HASKELL__ > 710
@@ -2270,8 +2268,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
 
   markAST _ (GHC.BodyStmt body _ _ _) = do
     markLocated body
-    -- mark GHC.AnnVbar -- possible in list comprehension
-    inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
+    -- inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
+    inContext (Set.singleton AddVbar)     $ mark GHC.AnnVbar
+    inContext (Set.singleton Intercalate) $ mark GHC.AnnComma
     markTrailingSemi
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -2286,8 +2285,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     markLocalBindsWithLayout lb
     markOptional GHC.AnnCloseC -- '}'
     -- return () `debug` ("markP.LetStmt done")
-    inContext (Set.fromList [ListComp,AddVbar]) $ mark GHC.AnnVbar -- possible in list comprehension
-    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+    ifInContext (Set.singleton Intercalate)
+      (mark GHC.AnnComma)
+      (inContext (Set.singleton AddVbar)     $ mark GHC.AnnVbar)
+    -- inContext (Set.singleton AddVbar)     $ mark GHC.AnnVbar
+    -- inContext (Set.singleton Intercalate) $ mark GHC.AnnComma
     markTrailingSemi
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -2300,27 +2302,25 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     -- ParStmtBlock, one for each part of the sub- list comprehension
 
     -- mapM_ (markAST l) pbs
-    -- setContext (Set.fromList [ListComp,InParStmtBlock]) $ markListIntercalateWithFunLevel (markAST l) 2 pbs
-    -- setContext (Set.fromList [ListComp]) $ markListIntercalateWithFunLevel (markAST l) 2 pbs
 
     ifInContext (Set.singleton Intercalate)
       (
 
       unsetContext Intercalate $
         markListWithContextsFunction
-          (LC (Set.empty)
-              (Set.fromList [AddVbar])
-              (Set.fromList [AddVbar])
-              (Set.singleton Intercalate)
+          (LC (Set.singleton Intercalate)  -- only
+              (Set.empty) -- first
+              (Set.empty) -- middle
+              (Set.singleton Intercalate) -- last
           ) (markAST l) pbs
          )
       (
       unsetContext Intercalate $
         markListWithContextsFunction
-          (LC (Set.empty)
-              (Set.fromList [AddVbar])
-              (Set.fromList [AddVbar])
-              (Set.empty)
+          (LC (Set.empty) -- only
+              (Set.fromList [AddVbar]) -- first
+              (Set.fromList [AddVbar]) -- middle
+              (Set.empty)              -- last
           ) (markAST l) pbs
        )
     markTrailingSemi
@@ -2336,9 +2336,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     case form of
       GHC.ThenForm -> do
         mark GHC.AnnThen
-        markLocated using
+        unsetContext Intercalate $ markLocated using
         case by of
-          Just b -> mark GHC.AnnBy >> markLocated b
+          Just b -> do
+            mark GHC.AnnBy
+            unsetContext Intercalate $ markLocated b
           Nothing -> return ()
       GHC.GroupForm -> do
         mark GHC.AnnThen
@@ -2348,8 +2350,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
           Nothing -> return ()
         mark GHC.AnnUsing
         markLocated using
-    inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
-    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+    -- inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
+    -- inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+    inContext (Set.singleton AddVbar)     $ mark GHC.AnnVbar
+    inContext (Set.singleton Intercalate) $ mark GHC.AnnComma
     -- inContext (Set.fromList [ListComp]) $ mark GHC.AnnComma
     -- mark GHC.AnnComma
     markTrailingSemi
@@ -2364,7 +2368,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     markInside GHC.AnnSemi
     mapM_ markLocated stmts
     markOptional GHC.AnnCloseC
-    inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
+    -- inContext (Set.fromList [ListComp]) $ mark GHC.AnnVbar -- possible in list comprehension
+    inContext (Set.singleton AddVbar)     $ mark GHC.AnnVbar
+    inContext (Set.singleton Intercalate) $ mark GHC.AnnComma
     markTrailingSemi
 
 -- ---------------------------------------------------------------------
@@ -2374,31 +2380,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
 instance  (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   =>  Annotate (GHC.ParStmtBlock name name) where
   markAST _ (GHC.ParStmtBlock stmts _ns _) = do
-    -- mapM_ markLocated stmts
-    -- setContext (Set.singleton InParStmtBlock) $ mapM_ markLocated stmts
-    -- setContext (Set.singleton InParStmtBlock) $ markListIntercalate stmts
     markListIntercalate stmts
-    -- markListIntercalateWithFunLevelCtx markLocated 2 AddVbar stmts
-    -- ifInContext (Set.singleton Intercalate)
-    --   (
-
-    --   unsetContext Intercalate $
-    --     markListWithContexts'
-    --       (LC (Set.empty)
-    --           (Set.fromList [Intercalate,AddVbar])
-    --           (Set.fromList [Intercalate,AddVbar])
-    --           (Set.empty)
-    --       ) stmts
-    --      )
-    --   (
-    --   unsetContext Intercalate $
-    --     markListWithContexts'
-    --       (LC (Set.empty)
-    --           (Set.fromList [Intercalate,AddVbar])
-    --           (Set.fromList [Intercalate,AddVbar])
-    --           (Set.singleton AddVbar)
-    --       ) stmts
-    --    )
 
 -- ---------------------------------------------------------------------
 
@@ -2587,9 +2569,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       markExpr _ (GHC.HsDo cts (GHC.L _ es) _) = do
 #endif
         case cts of
+          GHC.DoExpr  -> mark GHC.AnnDo
           GHC.MDoExpr -> mark GHC.AnnMdo
-          GHC.PArrComp -> return ()
-          _           -> mark GHC.AnnDo
+          _           -> return ()
         let (ostr,cstr) =
               if isListComp cts
                 then case cts of

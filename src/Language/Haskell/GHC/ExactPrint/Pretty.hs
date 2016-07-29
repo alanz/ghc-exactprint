@@ -206,11 +206,13 @@ addPrettyAnnotation ann = do
   let
     dp = case ann of
            GHC.AnnAs        -> tellKd (G ann,DP (0,1))
+           GHC.AnnBy        -> tellKd (G ann,DP (0,1))
            GHC.AnnCloseC    -> tellKd (G ann,DP (0,0))
            GHC.AnnDcolon    -> tellKd (G ann,DP (0,1))
            GHC.AnnDeriving  -> tellKd (G ann,DP (0,1))
            GHC.AnnEqual     -> tellKd (G ann,DP (0,1))
            GHC.AnnFamily    -> tellKd (G ann,DP (0,1))
+           GHC.AnnGroup     -> tellKd (G ann,DP (0,1))
            GHC.AnnHiding    -> tellKd (G ann,DP (0,1))
            GHC.AnnIn        -> tellKd (G ann,DP (1,0))
            GHC.AnnInstance  -> tellKd (G ann,DP (0,1))
@@ -222,6 +224,7 @@ addPrettyAnnotation ann = do
            GHC.AnnRarrow    -> tellKd (G ann,DP (0,1))
            GHC.AnnRole      -> tellKd (G ann,DP (0,1))
            GHC.AnnType      -> tellKd (G ann,DP (0,1))
+           GHC.AnnUsing     -> tellKd (G ann,DP (0,1))
            GHC.AnnVal       -> tellKd (G ann,DP (0,1))
            GHC.AnnWhere     -> tellKd (G ann,DP (0,1))
            _ ->                tellKd (G ann,DP (0,0))
