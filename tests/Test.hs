@@ -162,7 +162,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest "failing" "UnicodeRules.hs"
     -- , mkParserTest "failing" "UnicodeSyntax.hs"
 
-      mkPrettyRoundtrip "ghc710" "Vect.hs"
+      mkPrettyRoundtrip "ghc710-only" "DataDecl.hs"
       -- mkPrettyRoundtrip "ghc710" "Splice.hs"
       -- mkPrettyRoundtrip "ghc710" "Undefined3.hs"
     -- , mkPrettyRoundtrip "ghc710" "Process1.hs"

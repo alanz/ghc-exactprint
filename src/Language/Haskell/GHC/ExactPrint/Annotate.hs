@@ -3123,7 +3123,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       then markOptional GHC.AnnDarrow
       else do
         setContext (Set.singleton Parens) $ markLocated ctx
-        mark GHC.AnnDarrow
+        -- when (isNothing mctyp) $ mark GHC.AnnDarrow
     markTyClass ln tyVars
     case mk of
       Nothing -> return ()
@@ -3404,7 +3404,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
           then ( do
             markHsConDeclDetails lns dets
             mark GHC.AnnDcolon
-            markMany GHC.AnnOpenP
+            markManyOptional GHC.AnnOpenP
             )
 
           else ( do
