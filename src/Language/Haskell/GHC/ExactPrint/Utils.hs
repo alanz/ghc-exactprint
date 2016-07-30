@@ -32,6 +32,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , tokComment
   , isListComp
   , isGadt
+  , isExactName
 
 
   -- * Manipulating Annotations
@@ -67,7 +68,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
 import Control.Monad.State
 import qualified Data.ByteString as B
 import Data.Data (Data, toConstr, showConstr, cast)
-import Data.Generics (extQ, ext1Q, ext2Q, gmapQ)
+import Data.Generics
 -- import Data.List (intercalate, sortBy, elemIndex)
 import Data.Ord (comparing)
 
@@ -261,6 +262,12 @@ isGadt ((GHC.L _ (GHC.ConDecl{GHC.con_res=GHC.ResTyGADT _ _})):_) = True
 isGadt ((GHC.L _ (GHC.ConDeclGADT{})):_) = True
 #endif
 isGadt _ = False
+
+-- ---------------------------------------------------------------------
+
+-- Is a RdrName of type Exact? SYB query, so can be extended to other types too
+isExactName :: (Data name) => name -> Bool
+isExactName = False `mkQ` GHC.isExact
 
 -- ---------------------------------------------------------------------
 

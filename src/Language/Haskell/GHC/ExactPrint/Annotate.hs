@@ -1743,11 +1743,28 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
     markType l (GHC.HsTyVar name) = do
       inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
+{- -}
+#if __GLASGOW_HASKELL__ <= 710
+      if GHC.isDataOcc $ GHC.occName name
+        then do
+            mark GHC.AnnSimpleQuote
+            markLocatedFromKw GHC.AnnName name
+        else unsetContext Intercalate  $ markAST l name
+#else
+      -- TODO: Should the isExactName test move into the RdrName Annotate instanced?
+      if (GHC.isDataOcc $ GHC.occName $ GHC.unLoc name) && (not $ isExactName $ GHC.unLoc name)
+        then do
+            mark GHC.AnnSimpleQuote
+            markLocatedFromKw GHC.AnnName (GHC.unLoc name)
+        else markLocated name
+#endif
+{- -}
+{-
       n <- countAnns  GHC.AnnSimpleQuote
       case n of
         1 -> do
             mark GHC.AnnSimpleQuote
-            mark GHC.AnnOpenC
+            -- mark GHC.AnnOpenC
 #if __GLASGOW_HASKELL__ <= 710
             markLocatedFromKw GHC.AnnName name
         _ -> unsetContext Intercalate  $ markAST l name
@@ -1755,6 +1772,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
             markLocatedFromKw GHC.AnnName (GHC.unLoc name)
         _ -> markLocated name
 #endif
+ -}
 
 #if __GLASGOW_HASKELL__ > 710
     markType _ (GHC.HsAppsTy ts) = do

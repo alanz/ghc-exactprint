@@ -99,7 +99,7 @@ mkTests = do
   prettyRoundTripTests <- findPrettyTests
   return $ TestList [
                       internalTests, roundTripTests, transformTests, failingTests, noAnnotationTests
-                    , prettyRoundTripTests
+                    -- , prettyRoundTripTests
                     ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -162,7 +162,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest "failing" "UnicodeRules.hs"
     -- , mkParserTest "failing" "UnicodeSyntax.hs"
 
-      mkPrettyRoundtrip "ghc710-only" "TypeFamilies.hs"
+      -- mkPrettyRoundtrip "ghc710-only" "TypeFamilies.hs"
       -- mkPrettyRoundtrip "ghc710" "Splice.hs"
       -- mkPrettyRoundtrip "ghc710" "Undefined3.hs"
     -- , mkPrettyRoundtrip "ghc710" "Process1.hs"
@@ -184,7 +184,9 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest      "ghc710" "ProcNotation.hs"
     -- , mkParserTest      "ghc710" "UnicodeSyntax.hs"
 
-      -- mkParserTest      "ghc710" "Rules.hs"
+      mkParserTest      "ghc8" "T10188.hs"
+    , mkParserTest      "ghc8" "T10689a.hs"
+    , mkParserTest      "ghc8" "determ004.hs"
     -- , mkParserTest      "ghc710" "AssociatedType.hs"
     -- , mkParserTest      "ghc710" "DataFamilies.hs"
     -- , mkParserTest      "ghc710" "Dead1.hs"
