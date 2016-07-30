@@ -410,8 +410,8 @@ markLocalBindsWithLayout binds =
 -- ---------------------------------------------------------------------
 
 -- |This function is used to get around shortcomings in the GHC AST for 7.10.1
-markLocatedFromKw :: (Annotate ast) => GHC.AnnKeywordId -> ast -> Annotated ()
-markLocatedFromKw kw a = do
+markLocatedFromKw :: (Annotate ast) => GHC.AnnKeywordId -> GHC.Located ast -> Annotated ()
+markLocatedFromKw kw (GHC.L _ a) = do
   ss <- getSrcSpanForKw kw
   AnnKey ss' _ <- storeOriginalSrcSpan (mkAnnKey (GHC.L ss a))
   markLocated (GHC.L ss' a)
@@ -560,7 +560,7 @@ instance (GHC.DataId name,Annotate name)
           if cnt == 1
             then do
               mark GHC.AnnType
-              markLocatedFromKw GHC.AnnVal n
+              markLocatedFromKw GHC.AnnVal ln
             else setContext (Set.singleton InIE) $ markLocated ln
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -1390,7 +1390,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #endif
     case (get_infix mln,pats) of
       (True, a:b:xs) -> do
-        mark GHC.AnnOpenP
+        markOptional GHC.AnnOpenP
         markLocated a
         case mln of
 #if __GLASGOW_HASKELL__ <= 710
@@ -1401,7 +1401,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
           GHC.FunBindMatch n _ -> setContext (Set.singleton InOp) $ markLocated n
 #endif
         markLocated b
-        mark GHC.AnnCloseP
+        markOptional GHC.AnnCloseP
         mapM_ markLocated xs
       _ -> do
         annotationsToComments [GHC.AnnOpenP,GHC.AnnCloseP]
@@ -1743,36 +1743,20 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
     markType l (GHC.HsTyVar name) = do
       inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
-{- -}
 #if __GLASGOW_HASKELL__ <= 710
       if GHC.isDataOcc $ GHC.occName name
         then do
             mark GHC.AnnSimpleQuote
-            markLocatedFromKw GHC.AnnName name
+            markLocatedFromKw GHC.AnnName (GHC.L l name)
         else unsetContext Intercalate  $ markAST l name
 #else
       -- TODO: Should the isExactName test move into the RdrName Annotate instanced?
       if (GHC.isDataOcc $ GHC.occName $ GHC.unLoc name) && (not $ isExactName $ GHC.unLoc name)
         then do
             mark GHC.AnnSimpleQuote
-            markLocatedFromKw GHC.AnnName (GHC.unLoc name)
+            markLocatedFromKw GHC.AnnName name
         else markLocated name
 #endif
-{- -}
-{-
-      n <- countAnns  GHC.AnnSimpleQuote
-      case n of
-        1 -> do
-            mark GHC.AnnSimpleQuote
-            -- mark GHC.AnnOpenC
-#if __GLASGOW_HASKELL__ <= 710
-            markLocatedFromKw GHC.AnnName name
-        _ -> unsetContext Intercalate  $ markAST l name
-#else
-            markLocatedFromKw GHC.AnnName (GHC.unLoc name)
-        _ -> markLocated name
-#endif
- -}
 
 #if __GLASGOW_HASKELL__ > 710
     markType _ (GHC.HsAppsTy ts) = do
@@ -2761,12 +2745,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markWithString GHC.AnnClose "#-}"
         markLocated e
       -- TODO: make monomorphic
-      markExpr _ (GHC.HsBracket (GHC.VarBr True v)) = do
+      markExpr l (GHC.HsBracket (GHC.VarBr True v)) = do
         mark GHC.AnnSimpleQuote
-        markLocatedFromKw GHC.AnnName v
-      markExpr _ (GHC.HsBracket (GHC.VarBr False v)) = do
+        markLocatedFromKw GHC.AnnName (GHC.L l v)
+      markExpr l (GHC.HsBracket (GHC.VarBr False v)) = do
         mark GHC.AnnThTyQuote
-        markLocatedFromKw GHC.AnnName v
+        markLocatedFromKw GHC.AnnName (GHC.L l v)
       markExpr _ (GHC.HsBracket (GHC.DecBrL ds)) = do
         markWithString GHC.AnnOpen "[d|"
         markOptional GHC.AnnOpenC
