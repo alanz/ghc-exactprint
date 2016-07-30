@@ -162,7 +162,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest "failing" "UnicodeRules.hs"
     -- , mkParserTest "failing" "UnicodeSyntax.hs"
 
-      mkPrettyRoundtrip "ghc710-only" "DataDecl.hs"
+      -- mkPrettyRoundtrip "ghc710-only" "TypeFamilies.hs"
       -- mkPrettyRoundtrip "ghc710" "Splice.hs"
       -- mkPrettyRoundtrip "ghc710" "Undefined3.hs"
     -- , mkPrettyRoundtrip "ghc710" "Process1.hs"
@@ -184,10 +184,11 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest      "ghc710" "ProcNotation.hs"
     -- , mkParserTest      "ghc710" "UnicodeSyntax.hs"
 
-    --   mkParserTest      "ghc710" "Rules.hs"
+      mkParserTest      "ghc710" "Rules.hs"
+    -- , mkParserTest      "ghc710" "AssociatedType.hs"
+    -- , mkParserTest      "ghc710" "DataFamilies.hs"
+    -- , mkParserTest      "ghc710" "Dead1.hs"
     -- , mkParserTest      "ghc710" "Sigs.hs"
-    -- , mkParserTest      "ghc710" "PArr.hs"
-    -- , mkParserTest      "ghc710" "Vect.hs"
 
     -- , mkParserTest      "ghc710" "RdrNames.hs"
     -- , mkParserTest      "ghc8" "records-mixing-fields.hs"

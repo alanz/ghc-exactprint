@@ -957,15 +957,23 @@ markActivation act = do
         mark GHC.AnnOpenS --  '['
         mark GHC.AnnTilde -- ~
         mark GHC.AnnCloseS -- ']'
-      return ()
     _ -> return ()
 #else
   case act of
     GHC.ActiveBefore src _ -> do
+      mark GHC.AnnOpenS --  '['
       mark GHC.AnnTilde -- ~
       markWithString GHC.AnnVal src
+      mark GHC.AnnCloseS -- ']'
     GHC.ActiveAfter src _ -> do
+      mark GHC.AnnOpenS --  '['
       markWithString GHC.AnnVal src
+      mark GHC.AnnCloseS -- ']'
+    GHC.NeverActive -> do
+      inContext (Set.singleton ExplicitNeverActive) $ do
+        mark GHC.AnnOpenS --  '['
+        mark GHC.AnnTilde -- ~
+        mark GHC.AnnCloseS -- ']'
     _ -> return ()
 #endif
 
@@ -1218,8 +1226,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   markAST _ (GHC.TyFamInstDecl eqn _) = do
     mark GHC.AnnType
-    -- markOptional GHC.AnnInstance -- Note: this keyword is optional
+#if __GLASGOW_HASKELL__ <= 710
+    markOptional GHC.AnnInstance -- Note: this keyword is optional
+#else
     mark GHC.AnnInstance -- Note: this keyword is optional
+#endif
     markLocated eqn
     markTrailingSemi
 
@@ -3211,6 +3222,7 @@ data FamilyDecl name = FamilyDecl
 
     mark GHC.AnnFamily
     markOptional GHC.AnnOpenP
+    -- ++AZ++TODO: carry on here: if it is a symbol, then needs parens if prefix, not if infix
     applyListAnnotations (prepareListAnnotationWithContext (Set.singleton InIE) [ln]
                          ++ prepareListAnnotation tyvars)
     markOptional GHC.AnnCloseP
@@ -3222,7 +3234,11 @@ data FamilyDecl name = FamilyDecl
         markLocated k
 #else
     mark GHC.AnnEqual
-    markLocated rsig
+    case GHC.unLoc rsig of
+      GHC.NoSig -> return ()
+      _ -> do
+        mark GHC.AnnDcolon
+        markLocated rsig
     mark GHC.AnnVbar
     markMaybe minj
 #endif
