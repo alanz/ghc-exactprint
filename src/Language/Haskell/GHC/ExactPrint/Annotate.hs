@@ -124,8 +124,8 @@ data AnnotationF next where
   SetLayoutFlag    ::  Rigidity -> Annotated ()                            -> next -> AnnotationF next
 
   -- Required to work around deficiencies in the GHC AST
-  StoreOriginalSrcSpan :: AnnKey                        -> (AnnKey -> next) -> AnnotationF next
-  GetSrcSpanForKw :: GHC.AnnKeywordId                   -> (GHC.SrcSpan -> next) -> AnnotationF next
+  StoreOriginalSrcSpan :: GHC.SrcSpan -> AnnKey         -> (AnnKey -> next) -> AnnotationF next
+  GetSrcSpanForKw :: GHC.SrcSpan -> GHC.AnnKeywordId -> (GHC.SrcSpan -> next) -> AnnotationF next
 #if __GLASGOW_HASKELL__ <= 710
   StoreString :: String -> GHC.SrcSpan                  -> next -> AnnotationF next
 #endif
@@ -194,9 +194,9 @@ inContext ctxt action = liftF (IfInContext ctxt action (return ()) ())
 -- ---------------------------------------------------------------------
 
 #if __GLASGOW_HASKELL__ <= 710
-workOutString :: GHC.AnnKeywordId -> (GHC.SrcSpan -> String) -> Annotated ()
-workOutString kw f = do
-  ss <- getSrcSpanForKw kw
+workOutString :: GHC.SrcSpan -> GHC.AnnKeywordId -> (GHC.SrcSpan -> String) -> Annotated ()
+workOutString l kw f = do
+  ss <- getSrcSpanForKw l kw
   storeString (f ss) ss
 #endif
 
@@ -411,9 +411,10 @@ markLocalBindsWithLayout binds =
 
 -- |This function is used to get around shortcomings in the GHC AST for 7.10.1
 markLocatedFromKw :: (Annotate ast) => GHC.AnnKeywordId -> GHC.Located ast -> Annotated ()
-markLocatedFromKw kw (GHC.L _ a) = do
-  ss <- getSrcSpanForKw kw
-  AnnKey ss' _ <- storeOriginalSrcSpan (mkAnnKey (GHC.L ss a))
+markLocatedFromKw kw (GHC.L l a) = do
+  -- Note: l is needed so that the pretty printer can make something up
+  ss <- getSrcSpanForKw l kw
+  AnnKey ss' _ <- storeOriginalSrcSpan l (mkAnnKey (GHC.L ss a))
   markLocated (GHC.L ss' a)
 
 -- ---------------------------------------------------------------------
@@ -2760,11 +2761,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       -- Introduced after the renamer
       markExpr _ (GHC.HsBracket (GHC.DecBrG _)) =
         traceM "warning: DecBrG introduced after renamer"
-      markExpr _ (GHC.HsBracket (GHC.ExpBr e)) = do
+      markExpr l (GHC.HsBracket (GHC.ExpBr e)) = do
 #if __GLASGOW_HASKELL__ <= 710
         -- This exists like this as the lexer collapses [e| and [| into the
         -- same construtor
-        workOutString GHC.AnnOpen
+        workOutString l GHC.AnnOpen
           (\ss -> if spanLength ss == 2
                     then "[|"
                     else "[e|")
@@ -2774,11 +2775,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #endif
         markLocated e
         markWithString GHC.AnnClose "|]"
-      markExpr _ (GHC.HsBracket (GHC.TExpBr e)) = do
+      markExpr l (GHC.HsBracket (GHC.TExpBr e)) = do
 #if __GLASGOW_HASKELL__ <= 710
         -- This exists like this as the lexer collapses [e|| and [|| into the
         -- same construtor
-        workOutString GHC.AnnOpen
+        workOutString l GHC.AnnOpen
           (\ss -> if spanLength ss == 3
                     then "[||"
                     else "[e||")

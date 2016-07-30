@@ -250,8 +250,8 @@ deltaInterpret = iterTM go
       (if r <= rigidity then setLayoutFlag else id) (deltaInterpret action)
       next
     go (MarkExternal ss akwid _ next)    = addDeltaAnnotationExt ss akwid >> next
-    go (StoreOriginalSrcSpan key next)   = storeOriginalSrcSpanDelta key >>= next
-    go (GetSrcSpanForKw kw next)         = getSrcSpanForKw kw >>= next
+    go (StoreOriginalSrcSpan _ key next) = storeOriginalSrcSpanDelta key >>= next
+    go (GetSrcSpanForKw ss kw next)      = getSrcSpanForKw ss kw >>= next
 #if __GLASGOW_HASKELL__ <= 710
     go (StoreString s ss next)           = storeString s ss >> next
 #endif
@@ -350,8 +350,8 @@ annotationsToCommentsDelta kws = do
 -- ---------------------------------------------------------------------
 
 -- | This function exists to overcome a shortcoming in the GHC AST for 7.10.1
-getSrcSpanForKw :: GHC.AnnKeywordId -> Delta GHC.SrcSpan
-getSrcSpanForKw kw = do
+getSrcSpanForKw :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta GHC.SrcSpan
+getSrcSpanForKw _ kw = do
     ga <- gets apAnns
     ss <- getSrcSpan
     case GHC.getAnnotation ga ss kw of

@@ -177,12 +177,12 @@ prettyInterpret = iterTM go
       rigidity <- asks drRigidity
       (if r <= rigidity then setLayoutFlag else id) (prettyInterpret action)
       next
-    go (StoreOriginalSrcSpan key next)  = storeOriginalSrcSpanPretty key >>= next
-    go (GetSrcSpanForKw kw next)        = getSrcSpanForKw kw >>= next
+    go (StoreOriginalSrcSpan l key next) = storeOriginalSrcSpanPretty l key >>= next
+    go (GetSrcSpanForKw ss kw next)      = getSrcSpanForKw ss kw >>= next
 #if __GLASGOW_HASKELL__ <= 710
-    go (StoreString s ss next)          = storeString s ss >> next
+    go (StoreString s ss next)           = storeString s ss >> next
 #endif
-    go (AnnotationsToComments kws next) = annotationsToCommentsPretty kws >> next
+    go (AnnotationsToComments kws next)  = annotationsToCommentsPretty kws >> next
 
     go (SetContextLevel ctxt lvl action next)  = setContextPretty ctxt lvl (prettyInterpret action) >> next
     go (UnsetContext    ctxt     action next)  = unsetContextPretty ctxt (prettyInterpret action) >> next
@@ -435,13 +435,15 @@ withSortKeyContexts ctxts kws =
 
 -- ---------------------------------------------------------------------
 
-storeOriginalSrcSpanPretty :: AnnKey -> Pretty AnnKey
-storeOriginalSrcSpanPretty key = return key
+storeOriginalSrcSpanPretty :: GHC.SrcSpan -> AnnKey -> Pretty AnnKey
+storeOriginalSrcSpanPretty s key = do
+  tellCapturedSpan key
+  return key
 
 -- ---------------------------------------------------------------------
 
-getSrcSpanForKw :: GHC.AnnKeywordId -> Pretty GHC.SrcSpan
-getSrcSpanForKw kw = return GHC.noSrcSpan
+getSrcSpanForKw :: GHC.SrcSpan -> GHC.AnnKeywordId -> Pretty GHC.SrcSpan
+getSrcSpanForKw ss kw = return ss
 
 {-
 -- | This function exists to overcome a shortcoming in the GHC AST for 7.10.1
@@ -534,6 +536,9 @@ annotationsToCommentsPretty kws = return ()
 tellFinalAnn :: (AnnKey, Annotation) -> Pretty ()
 tellFinalAnn (k, v) =
   tell (mempty { dwAnns = Endo (Map.insert k v) })
+
+tellCapturedSpan :: AnnKey -> Pretty ()
+tellCapturedSpan key = tell ( mempty { dwCapturedSpan = First $ Just key })
 
 tellKd :: (KeywordId, DeltaPos) -> Pretty ()
 tellKd kd = tell (mempty { annKds = [kd] })

@@ -178,8 +178,8 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
       next
     go (MarkExternal _ akwid s next) =
       printStringAtMaybeAnn (G akwid) (Just s) >> next
-    go (StoreOriginalSrcSpan _ next) = storeOriginalSrcSpanPrint >>= next
-    go (GetSrcSpanForKw _ next) = return GHC.noSrcSpan >>= next
+    go (StoreOriginalSrcSpan _ _ next) = storeOriginalSrcSpanPrint >>= next
+    go (GetSrcSpanForKw _ _ next) = return GHC.noSrcSpan >>= next
 #if __GLASGOW_HASKELL__ <= 710
     go (StoreString _ _ next) =
       printStoredString >> next
