@@ -160,13 +160,13 @@ prettyInterpret :: Annotated a -> Pretty a
 prettyInterpret = iterTM go
   where
     go :: AnnotationF (Pretty a) -> Pretty a
-    go (MarkPrim kwid _ next)           = addPrettyAnnotation kwid >> next
+    go (MarkPrim kwid _ next)           = addPrettyAnnotation (G kwid) >> next
     go (MarkPPOptional _kwid _ next)    = next
     go (MarkEOF next)                   = addEofAnnotation >> next
-    go (MarkExternal ss akwid _ next)   = addPrettyAnnotation akwid >> next
+    go (MarkExternal ss akwid _ next)   = addPrettyAnnotation (G akwid) >> next
     go (MarkOutside akwid kwid next)    = addPrettyAnnotationsOutside akwid kwid >> next
     go (MarkInside akwid next)          = addPrettyAnnotationsInside akwid >> next
-    go (MarkMany akwid next)            = addPrettyAnnotation akwid >> next
+    go (MarkMany akwid next)            = addPrettyAnnotation (G akwid) >> next
     go (MarkManyOptional _akwid next)   = next
     go (MarkOffsetPrim akwid n _ next)  = addPrettyAnnotationLs akwid n >> next
     go (WithAST lss prog next)          = withAST lss (prettyInterpret prog) >> next
@@ -197,7 +197,7 @@ addEofAnnotation = tellKd (G GHC.AnnEofPos, DP (1,0))
 
 -- ---------------------------------------------------------------------
 
-addPrettyAnnotation :: GHC.AnnKeywordId -> Pretty ()
+addPrettyAnnotation :: KeywordId -> Pretty ()
 addPrettyAnnotation ann = do
   noPrec <- gets apNoPrecedingSpace
   ctx <- asks prContext
@@ -205,33 +205,36 @@ addPrettyAnnotation ann = do
   -- cur <- asks prContext
   let
     dp = case ann of
-           GHC.AnnAs        -> tellKd (G ann,DP (0,1))
-           GHC.AnnBy        -> tellKd (G ann,DP (0,1))
-           GHC.AnnClass     -> tellKd (G ann,DP (0,1))
-           GHC.AnnClose     -> tellKd (G ann,DP (0,1))
-           GHC.AnnCloseC    -> tellKd (G ann,DP (0,0))
-           GHC.AnnDcolon    -> tellKd (G ann,DP (0,1))
-           GHC.AnnDeriving  -> tellKd (G ann,DP (0,1))
-           GHC.AnnEqual     -> tellKd (G ann,DP (0,1))
-           GHC.AnnFamily    -> tellKd (G ann,DP (0,1))
-           GHC.AnnGroup     -> tellKd (G ann,DP (0,1))
-           GHC.AnnHiding    -> tellKd (G ann,DP (0,1))
-           GHC.AnnIn        -> tellKd (G ann,DP (1,0))
-           GHC.AnnInstance  -> tellKd (G ann,DP (0,1))
-           GHC.AnnLam       -> tellKd (G ann,DP (0,1))
-           GHC.AnnMinus     -> tellKd (G ann,DP (0,1)) -- need to separate from preceding operator
-           GHC.AnnOf        -> tellKd (G ann,DP (0,1))
-           GHC.AnnOpenC     -> tellKd (G ann,DP (0,0))
-           GHC.AnnQualified -> tellKd (G ann,DP (0,1))
-           GHC.AnnSimpleQuote -> tellKd (G ann,DP (0,1))
-           GHC.AnnRarrow    -> tellKd (G ann,DP (0,1))
-           GHC.AnnRole      -> tellKd (G ann,DP (0,1))
-           GHC.AnnType      -> tellKd (G ann,DP (0,1))
-           GHC.AnnUsing     -> tellKd (G ann,DP (0,1))
-           GHC.AnnVal       -> tellKd (G ann,DP (0,1))
-           GHC.AnnWhere     -> tellKd (G ann,DP (0,1))
-           _ ->                tellKd (G ann,DP (0,0))
-  fromNoPrecedingSpace (tellKd (G ann,DP (0,0))) dp
+           (G GHC.AnnAs)        -> tellKd (ann,DP (0,1))
+           (G GHC.AnnBy)        -> tellKd (ann,DP (0,1))
+           (G GHC.AnnClass)     -> tellKd (ann,DP (0,1))
+           (G GHC.AnnClose)     -> tellKd (ann,DP (0,1))
+           (G GHC.AnnCloseC)    -> tellKd (ann,DP (0,0))
+           (G GHC.AnnDcolon)    -> tellKd (ann,DP (0,1))
+           (G GHC.AnnDeriving)  -> tellKd (ann,DP (0,1))
+           (G GHC.AnnEqual)     -> tellKd (ann,DP (0,1))
+           (G GHC.AnnFamily)    -> tellKd (ann,DP (0,1))
+           (G GHC.AnnGroup)     -> tellKd (ann,DP (0,1))
+           (G GHC.AnnHiding)    -> tellKd (ann,DP (0,1))
+           (G GHC.AnnIn)        -> tellKd (ann,DP (1,0))
+           (G GHC.AnnInstance)  -> tellKd (ann,DP (0,1))
+           (G GHC.AnnLam)       -> tellKd (ann,DP (0,1))
+           (G GHC.AnnMinus)     -> tellKd (ann,DP (0,1)) -- need to separate from preceding operator
+           (G GHC.AnnModule)    -> tellKd (ann,DP (0,1))
+           (G GHC.AnnOf)        -> tellKd (ann,DP (0,1))
+           (G GHC.AnnOpenC)     -> tellKd (ann,DP (0,0))
+           (G GHC.AnnOpenPE)    -> tellKd (ann,DP (0,1))
+           (G GHC.AnnQualified) -> tellKd (ann,DP (0,1))
+           (G GHC.AnnSimpleQuote) -> tellKd (ann,DP (0,1))
+           (G GHC.AnnRarrow)    -> tellKd (ann,DP (0,1))
+           (G GHC.AnnRole)      -> tellKd (ann,DP (0,1))
+           (G GHC.AnnType)      -> tellKd (ann,DP (0,1))
+           (G GHC.AnnThTyQuote) -> tellKd (ann,DP (0,1))
+           (G GHC.AnnUsing)     -> tellKd (ann,DP (0,1))
+           (G GHC.AnnVal)       -> tellKd (ann,DP (0,1))
+           (G GHC.AnnWhere)     -> tellKd (ann,DP (0,1))
+           _ ->                tellKd (ann,DP (0,0))
+  fromNoPrecedingSpace (tellKd (ann,DP (0,0))) dp
 
 -- ---------------------------------------------------------------------
 
@@ -251,7 +254,7 @@ addPrettyAnnotations _ann = return ()
 -- ---------------------------------------------------------------------
 
 addPrettyAnnotationLs :: GHC.AnnKeywordId -> Int -> Pretty ()
-addPrettyAnnotationLs ann _off = addPrettyAnnotation ann
+addPrettyAnnotationLs ann _off = addPrettyAnnotation (G ann)
 
 -- ---------------------------------------------------------------------
 
@@ -460,7 +463,8 @@ getSrcSpanForKw kw = do
 
 #if __GLASGOW_HASKELL__ <= 710
 storeString :: String -> GHC.SrcSpan -> Pretty ()
-storeString s ss = return ()
+-- storeString s ss = addAnnotationWorker (AnnString s) ss
+storeString s ss = addPrettyAnnotation (AnnString s)
 #endif
 
 -- ---------------------------------------------------------------------

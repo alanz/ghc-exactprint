@@ -48,6 +48,7 @@ import qualified CoAxiom        as GHC
 import qualified FastString     as GHC
 import qualified ForeignCall    as GHC
 import qualified GHC            as GHC
+import qualified Name           as GHC
 import qualified OccName        as GHC
 import qualified RdrName        as GHC
 import qualified Outputable     as GHC
@@ -653,11 +654,14 @@ data RdrName
   deriving (Data, Typeable)
 -}
 
+isSymRdr :: GHC.RdrName -> Bool
+isSymRdr n = (GHC.isSymOcc $ GHC.rdrNameOcc n) || rdrName2String n == "."
+
 instance Annotate GHC.RdrName where
   markAST l n = do
     let
       str = rdrName2String n
-      isSym = GHC.isSymOcc $ GHC.rdrNameOcc n
+      isSym = isSymRdr n
       doNormalRdrName = do
         let str' = case str of
               -- TODO: unicode support?
@@ -750,7 +754,7 @@ instance Annotate GHC.RdrName where
 #endif
          -- _ -> doNormalRdrName
          _ -> do
-            let isSym' = GHC.isSymOcc $ GHC.getOccName n'
+            let isSym' = isSymRdr  (GHC.nameRdrName n')
             when isSym' $ mark GHC.AnnOpenP -- '('
             markWithString GHC.AnnVal str
             -- markExternal l GHC.AnnVal str
@@ -859,9 +863,9 @@ instance Annotate (Maybe GHC.Role) where
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
    => Annotate (GHC.SpliceDecl name) where
   markAST _ (GHC.SpliceDecl e _flag) = do
-    mark GHC.AnnOpenPE
+    -- mark GHC.AnnOpenPE
     markLocated e
-    mark GHC.AnnCloseP
+    -- mark GHC.AnnCloseP
     markTrailingSemi
 
 {-
@@ -1022,12 +1026,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
    => Annotate (GHC.AnnDecl name) where
    markAST _ (GHC.HsAnnotation src prov e) = do
      markWithString GHC.AnnOpen src
-     mark GHC.AnnType
-     mark GHC.AnnModule
      case prov of
        (GHC.ValueAnnProvenance n) -> markLocated n
-       (GHC.TypeAnnProvenance n) -> markLocated n
-       (GHC.ModuleAnnProvenance) -> return ()
+       (GHC.TypeAnnProvenance n) -> do
+         mark GHC.AnnType
+         markLocated n
+       GHC.ModuleAnnProvenance -> mark GHC.AnnModule
 
      markLocated e
      markWithString GHC.AnnClose "#-}"
@@ -1412,7 +1416,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
           -- Nothing -> mark GHC.AnnFunId
           Nothing -> markListNoPrecedingSpace False pats
           Just (n,_) -> do
-            setContext (Set.singleton NoPrecedingSpace) $ markLocated n
+            -- setContext (Set.singleton NoPrecedingSpace) $ markLocated n
+            setContext (Set.fromList [NoPrecedingSpace,InIE]) $ markLocated n
             mapM_ markLocated pats
         -- markListNoPrecedingSpace pats
 #else
@@ -1834,8 +1839,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       mark GHC.AnnCloseP -- ')'
 
     markType l (GHC.HsSpliceTy s _) = do
+      -- inContext (Set.singleton InTypeBr) $ mark GHC.AnnOpenPE
       mark GHC.AnnOpenPE
       markAST l s
+      -- inContext (Set.singleton InTypeBr) $ mark GHC.AnnCloseP
       mark GHC.AnnCloseP
 
     markType _ (GHC.HsDocTy t ds) = do
@@ -1958,11 +1965,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markExternal l GHC.AnnVal
               ("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS fs) ++ "|]")
 
-#if __GLASGOW_HASKELL__ <= 710
-      GHC.HsTypedSplice _n b@(GHC.L _ (GHC.HsVar n))  -> do
-#else
       GHC.HsTypedSplice _n b@(GHC.L _ (GHC.HsVar (GHC.L _ n)))  -> do
-#endif
         markWithString GHC.AnnThIdTySplice ("$$" ++ (GHC.occNameString (GHC.occName n)))
         markLocated b
       GHC.HsTypedSplice _n b -> do
@@ -1970,11 +1973,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markLocated b
         mark GHC.AnnCloseP
 
-#if __GLASGOW_HASKELL__ <= 710
-      GHC.HsUntypedSplice _n b@(GHC.L _ (GHC.HsVar n))  -> do
-#else
       GHC.HsUntypedSplice _n b@(GHC.L _ (GHC.HsVar (GHC.L _ n)))  -> do
-#endif
         markWithString GHC.AnnThIdSplice ("$" ++ (GHC.occNameString (GHC.occName n)))
         markLocated b
       GHC.HsUntypedSplice _n b  -> do
@@ -1986,12 +1985,15 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ c =
     case c of
       GHC.HsSplice _n b@(GHC.L _ (GHC.HsVar n))  -> do
+        -- TODO: We do not seem to have any way to distinguish between which of
+        -- the next two lines will emit output. If AnnThIdSplice is there, the
+        -- markLocated b ends up with a negative offset so emits nothing.
         markWithString GHC.AnnThIdSplice   ("$" ++ (GHC.occNameString (GHC.occName n)))
-        markWithString GHC.AnnThIdTySplice ("$$" ++ (GHC.occNameString (GHC.occName n)))
+        markLocated b
+        mark GHC.AnnCloseP
+      GHC.HsSplice _n b@(GHC.L _ (GHC.HsBracket _)) -> do
         markLocated b
       GHC.HsSplice _n b -> do
-        mark GHC.AnnThIdSplice
-        mark GHC.AnnOpenPTE
         mark GHC.AnnOpenPE
         markLocated b
         mark GHC.AnnCloseP
@@ -2500,7 +2502,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
       markExpr _ (GHC.HsApp e1 e2) = do
         markLocated e1
-        markLocated e2
+        -- markLocated e2
+        setContext (Set.singleton InIE) $ markLocated e2
 
       markExpr _ (GHC.OpApp e1 e2 _ e3) = do
         -- setContext (Set.singleton InIE) $ markLocated e1
@@ -2809,10 +2812,23 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markAST l e
         mark GHC.AnnCloseP
 #else
-      markExpr l (GHC.HsSpliceE _ e) = do
-        mark GHC.AnnOpenPE
-        markAST l e
-        mark GHC.AnnCloseP
+      markExpr l (GHC.HsSpliceE isTyped e) = do
+        case e of
+          GHC.HsSplice _n b@(GHC.L _ (GHC.HsVar n))  -> do
+            mark GHC.AnnOpenPE
+            if isTyped
+              then markWithString GHC.AnnThIdTySplice ("$$" ++ (GHC.occNameString (GHC.occName n)))
+              else markWithString GHC.AnnThIdSplice   ("$" ++ (GHC.occNameString (GHC.occName n)))
+            markLocated b
+            mark GHC.AnnCloseP
+          GHC.HsSplice _n b -> do
+            if isTyped
+              then do
+                mark GHC.AnnThIdSplice
+                mark GHC.AnnOpenPTE
+              else mark GHC.AnnOpenPE
+            markLocated b
+            mark GHC.AnnCloseP
 
       markExpr l (GHC.HsQuasiQuoteE e) = do
         markAST l e
@@ -2828,17 +2844,24 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         mark GHC.AnnStatic
         markLocated e
 
-      markExpr _ (GHC.HsArrApp e1 e2 _ _ isRightToLeft) = do
+      markExpr _ (GHC.HsArrApp e1 e2 _ o isRightToLeft) = do
             -- isRightToLeft True  => right-to-left (f -< arg)
             --               False => left-to-right (arg >- f)
         if isRightToLeft
-          then markLocated e1
-          else markLocated e2
-        -- only one of the next 4 will be present
-        mark GHC.Annlarrowtail
-        mark GHC.Annrarrowtail
-        mark GHC.AnnLarrowtail
-        mark GHC.AnnRarrowtail
+          then do
+            markLocated e1
+            case o of
+              GHC.HsFirstOrderApp  -> mark GHC.Annlarrowtail
+              GHC.HsHigherOrderApp -> mark GHC.AnnLarrowtail
+            -- mark GHC.Annlarrowtail
+            -- mark GHC.AnnLarrowtail
+          else do
+            markLocated e2
+            case o of
+              GHC.HsFirstOrderApp  -> mark GHC.Annrarrowtail
+              GHC.HsHigherOrderApp -> mark GHC.AnnRarrowtail
+            -- mark GHC.Annrarrowtail
+            -- mark GHC.AnnRarrowtail
 
         if isRightToLeft
           then markLocated e2
@@ -2993,17 +3016,22 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
    => Annotate (GHC.HsCmd name) where
-  markAST _ (GHC.HsCmdArrApp e1 e2 _ _ isRightToLeft) = do
+  markAST _ (GHC.HsCmdArrApp e1 e2 _ o isRightToLeft) = do
         -- isRightToLeft True  => right-to-left (f -< arg)
         --               False => left-to-right (arg >- f)
     if isRightToLeft
-      then markLocated e1
-      else markLocated e2
-    -- only one of the next 4 will be present
-    mark GHC.Annlarrowtail
-    mark GHC.Annrarrowtail
-    mark GHC.AnnLarrowtail
-    mark GHC.AnnRarrowtail
+      then do
+        markLocated e1
+        case o of
+          GHC.HsFirstOrderApp  -> mark GHC.Annlarrowtail
+          GHC.HsHigherOrderApp -> mark GHC.AnnLarrowtail
+      else do
+        markLocated e2
+        case o of
+          GHC.HsFirstOrderApp  -> mark GHC.Annrarrowtail
+          GHC.HsHigherOrderApp -> mark GHC.AnnRarrowtail
+        -- mark GHC.Annrarrowtail
+        -- mark GHC.AnnRarrowtail
 
     if isRightToLeft
       then markLocated e2
@@ -3012,7 +3040,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsCmdArrForm e _mf cs) = do
     markWithString GHC.AnnOpen "(|"
     -- This may be an infix operation
-    applyListAnnotations (prepareListAnnotationWithContext (Set.singleton InOp) [e]
+    applyListAnnotationsContexts (LC (Set.singleton InIE) (Set.singleton InIE)
+                                     (Set.singleton InOp) (Set.singleton InOp))
+                       (prepareListAnnotation [e]
                          ++ prepareListAnnotation cs)
     -- markLocated e
     -- mapM_ markLocated cs
@@ -3229,8 +3259,6 @@ data FamilyDecl name = FamilyDecl
 
     mark GHC.AnnFamily
     markOptional GHC.AnnOpenP
-    -- applyListAnnotations (prepareListAnnotationWithContext (Set.singleton InIE) [ln]
-    --                      ++ prepareListAnnotation tyvars)
     applyListAnnotationsContexts (LC (Set.singleton InIE) (Set.singleton InIE) Set.empty Set.empty)
                 (prepareListAnnotation [ln]
               ++ prepareListAnnotation tyvars)

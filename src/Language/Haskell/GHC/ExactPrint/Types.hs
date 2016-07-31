@@ -244,6 +244,7 @@ data AstContext = FunRhs
                 | ListComp
                 | Intercalate -- This item may have a list separator following
                 | InOp -- RdrName may be used as an operator, backticks or parens may apply
+                       -- TODO: Rename InOp to InfixOp, amd InIE to PrefixOp
                 | ListStart -- Identifies first element of a list in layout, so its indentation can me managed differently
                 | ListItem -- Identifies subsequent elements of a list in layout
                 | TopLevel -- top level declaration
@@ -253,6 +254,7 @@ data AstContext = FunRhs
                 | Parens
                 | ExplicitNeverActive
                 | InParStmtBlock
+                | InTypeBr
                 -- Next four used to identify current list context
                 | CtxOnly
                 | CtxFirst
