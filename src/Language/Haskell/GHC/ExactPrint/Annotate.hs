@@ -583,8 +583,8 @@ instance (GHC.DataId name,Annotate name)
           setContext (Set.singleton InIE) $ markLocated ln
           mark GHC.AnnOpenP
 #if __GLASGOW_HASKELL__ <= 710
-          setContext (Set.fromList [InIE,Intercalate]) $ mapM_ markLocated ns
-          -- setContext (Set.singleton InIE) $ markListIntercalate ns
+          -- setContext (Set.fromList [InIE,Intercalate]) $ mapM_ markLocated ns
+          setContext (Set.singleton InIE) $ markListIntercalate ns
 #else
           case wc of
             -- GHC.NoIEWildcard -> setContext (Set.singleton InIE) $ mapM_ markLocated ns
@@ -1253,21 +1253,25 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #else
   markAST l (GHC.DataFamInstDecl ln (GHC.HsIB _ pats) defn _) = do
 #endif
-    mark GHC.AnnData
-    mark GHC.AnnNewtype
-    mark GHC.AnnInstance
-    mark GHC.AnnOpenP
+    case GHC.dd_ND defn of
+      GHC.NewType  -> mark GHC.AnnNewtype
+      GHC.DataType -> mark GHC.AnnData
+    -- when (isGadt $ GHC.dd_cons defn) $ mark GHC.AnnInstance
+    inContext (Set.singleton TopLevel) $ mark GHC.AnnInstance
+
+    markOptional GHC.AnnOpenP
 
     applyListAnnotations (prepareListAnnotation [ln]
                        ++ prepareListAnnotation pats
                          )
 
-    mark GHC.AnnCloseP
+    markOptional GHC.AnnCloseP
 #if __GLASGOW_HASKELL__ > 710
     mark GHC.AnnDcolon
     markMaybe (GHC.dd_kindSig defn)
 #endif
-    mark GHC.AnnWhere
+    -- mark GHC.AnnWhere
+    when (isGadt $ GHC.dd_cons defn) $ mark GHC.AnnWhere
     mark GHC.AnnEqual
     markDataDefn l defn
 

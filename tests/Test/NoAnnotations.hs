@@ -130,7 +130,7 @@ parseString :: FilePath -> String -> Anns -> GHC.ParsedSource
 parseString origFile src newAnns origParsed = do
   tmpDir <- getTemporaryDirectory
   let workDir = tmpDir </> "ghc-exactprint" </> "noannotations"
-  putStrLn $ "workDir=" ++ workDir
+  -- putStrLn $ "workDir=" ++ workDir
   createDirectoryIfMissing True workDir
   let fileName = workDir </> takeFileName origFile
   writeFile (workDir </> takeFileName origFile <.> ".anns")
