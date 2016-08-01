@@ -2209,14 +2209,19 @@ markHsConPatDetails ln dets = do
       markLocated a2
 
 markHsConDeclDetails :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
-                    =>  [GHC.Located name] -> GHC.HsConDeclDetails name -> Annotated ()
-markHsConDeclDetails lns dets = do
+                    =>  Bool -> [GHC.Located name] -> GHC.HsConDeclDetails name -> Annotated ()
+markHsConDeclDetails inGadt lns dets = do
   case dets of
     GHC.PrefixCon args -> mapM_ markLocated args
     GHC.RecCon fs -> do
       mark GHC.AnnOpenC
-      markLocated fs
-      mark GHC.AnnCloseC
+      if inGadt
+        then do
+          setContext (Set.fromList [InGadt,InRecCon]) $ markLocated fs
+          markOptional GHC.AnnCloseC
+        else do
+          setContext (Set.fromList [InRecCon]) $ markLocated fs
+          -- mark GHC.AnnCloseC
     GHC.InfixCon a1 a2 -> do
       markLocated a1
       mapM_ markLocated lns
@@ -2228,11 +2233,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
    => Annotate [GHC.LConDeclField name] where
   markAST _ fs = do
        markOptional GHC.AnnOpenC -- '{'
-       -- mapM_ markLocated fs
        markListIntercalate fs
        markOptional GHC.AnnDotdot
-       markOptional GHC.AnnCloseC -- '}'
-       markOptional GHC.AnnRarrow
+       inContext (Set.singleton InRecCon) $ mark GHC.AnnCloseC -- '}'
+       inContext (Set.singleton InGadt) $ do
+         -- mark GHC.AnnCloseC -- '}'
+         mark GHC.AnnRarrow
 
 -- ---------------------------------------------------------------------
 
@@ -3451,7 +3457,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
           GHC.InfixCon _ _ -> return ()
           _ -> markListIntercalate lns
 
-        markHsConDeclDetails lns dets
+        markHsConDeclDetails False lns dets
 
       GHC.ResTyGADT ls ty -> do
         -- only print names if not infix
@@ -3460,22 +3466,18 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
           _ -> markListIntercalate lns
 
         if depc_syntax
-          then ( do
-            markHsConDeclDetails lns dets
+          then do
+            markHsConDeclDetails True lns dets
             mark GHC.AnnDcolon
             markManyOptional GHC.AnnOpenP
-            )
 
-          else ( do
+          else do
             mark GHC.AnnDcolon
             markLocated (GHC.L ls (ResTyGADTHook bndrs))
             markManyOptional GHC.AnnOpenP
             unless (null $ GHC.unLoc ctx) $ do
               markLocated ctx
-              -- setContext (Set.singleton Parens) $ markLocated ctx
-              -- setContext (Set.fromList [NoDarrow,Parens]) $ markLocated ctx
-              -- mark GHC.AnnDarrow
-            markHsConDeclDetails lns dets )
+            markHsConDeclDetails True lns dets
 
         markLocated ty
 
@@ -3527,7 +3529,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
       GHC.InfixCon _ _ -> return ()
       _ -> markLocated ln
 
-    markHsConDeclDetails [ln] dets
+    markHsConDeclDetails False [ln] dets
 
     mark GHC.AnnVbar
     markTrailingSemi

@@ -255,6 +255,8 @@ data AstContext = FunRhs
                 | ExplicitNeverActive
                 | InParStmtBlock
                 | InTypeBr
+                | InGadt
+                | InRecCon
                 -- Next four used to identify current list context
                 | CtxOnly
                 | CtxFirst
