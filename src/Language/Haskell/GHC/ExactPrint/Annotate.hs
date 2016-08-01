@@ -1461,8 +1461,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,
       (_:_) -> do
         mark GHC.AnnVbar
         markListIntercalate guards
-        -- mapM_ markLocated guards
-        mark GHC.AnnEqual
+        -- mark GHC.AnnEqual
+        ifInContext (Set.fromList [CaseAlt])
+          (return ())
+          (mark GHC.AnnEqual)
 
     -- cntL <- countAnns GHC.AnnLam
     -- cntP <- countAnns GHC.AnnProc
@@ -3403,21 +3405,21 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
     inContext (Set.singleton Deriving) $ mark GHC.AnnDeriving
 #endif
-    -- ifInContext (Set.fromList [Deriving,Parens])
-    --   (markMany         GHC.AnnOpenP) -- may be nested parens around context
-    --   (markManyOptional GHC.AnnOpenP)
+    -- Mote: At least for GHC 7.10, a single item in parens is parsed as a
+    -- HsSigType, which is always a HsForAllTy. Without parens it is always a
+    -- HsVar. So for round trip pretty printing we need to take this into
+    -- account.
     case ts of
       []  -> markManyOptional GHC.AnnOpenP
+      [GHC.L _ GHC.HsForAllTy{}] -> markMany GHC.AnnOpenP
       [x] -> markManyOptional GHC.AnnOpenP
       _   -> markMany         GHC.AnnOpenP
 
     unsetContext Intercalate $ markListIntercalateWithFunLevel markLocated 2 ts
 
-    -- ifInContext (Set.fromList [Deriving,Parens])
-    --   (markMany         GHC.AnnCloseP) -- may be nested parens around context
-    --   (markManyOptional GHC.AnnCloseP)
     case ts of
       []  -> markManyOptional GHC.AnnCloseP
+      [GHC.L _ GHC.HsForAllTy{}] -> markMany GHC.AnnCloseP
       [x] -> markManyOptional GHC.AnnCloseP
       _   -> markMany         GHC.AnnCloseP
 
