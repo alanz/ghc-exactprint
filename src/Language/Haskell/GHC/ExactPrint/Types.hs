@@ -238,11 +238,12 @@ data AstContext = FunRhs
                 | NoPrecedingSpace
                 -- TODO: all GHC 7.10.3 tests pass with TypeAsKind not set. Can we get rid of it
                 | TypeAsKind -- For GHC < 8.0
-                | InIE -- TODO: rename this, it is used in OpApp too
                 | HasHiding
                 | AdvanceLine
                 | ListComp
                 | Intercalate -- This item may have a list separator following
+                | InIE -- possible 'type' or 'pattern'
+                | PrefixOp
                 | InOp -- RdrName may be used as an operator, backticks or parens may apply
                        -- TODO: Rename InOp to InfixOp, amd InIE to PrefixOp
                 | ListStart -- Identifies first element of a list in layout, so its indentation can me managed differently

@@ -525,7 +525,7 @@ instance Annotate (GHC.SourceText,GHC.FastString) where
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,Annotate name)
+instance (GHC.DataId name,GHC.HasOccName name,Annotate name)
   => Annotate [GHC.LIE name] where
    markAST _ ls = do
      inContext (Set.singleton HasHiding) $ mark GHC.AnnHiding -- in an import decl
@@ -534,15 +534,15 @@ instance (GHC.DataId name,Annotate name)
      setContextLevel (Set.singleton Intercalate) 2 $ mapM_ markLocated ls
      mark GHC.AnnCloseP -- ')'
 
-instance (GHC.DataId name,Annotate name)
+instance (GHC.DataId name,GHC.HasOccName name, Annotate name)
   => Annotate (GHC.IE name) where
   markAST _ ie = do
 
     case ie of
         (GHC.IEVar ln) -> do
           markOptional GHC.AnnPattern
-          markOptional GHC.AnnType
-          setContext (Set.singleton InIE) $ markLocated ln
+          -- markOptional GHC.AnnType
+          setContext (Set.fromList [PrefixOp,InIE]) $ markLocated ln
 
         (GHC.IEThingAbs ln@(GHC.L _ n)) -> do
           {-
@@ -555,13 +555,20 @@ instance (GHC.DataId name,Annotate name)
           individual item locations in an AnnType and AnnVal annotation.
 
           This need to be fixed for 7.12.
+
           -}
-          cnt <- countAnns GHC.AnnType
-          if cnt == 1
+          -- cnt <- countAnns GHC.AnnType
+          -- if cnt == 1
+          -- if (GHC.isTcClsNameSpace $ GHC.occNameSpace $ GHC.occName n)
+
+          -- The test on the following line is taken from GHC src for
+          -- lookupTopBndrRn_maybe, based on the -XTypeOperators extension
+
+          if (GHC.isTcOcc $ GHC.occName n) && (GHC.isSymOcc $ GHC.occName n)
             then do
               mark GHC.AnnType
-              markLocatedFromKw GHC.AnnVal ln
-            else setContext (Set.singleton InIE) $ markLocated ln
+              setContext (Set.singleton PrefixOp) $ markLocatedFromKw GHC.AnnVal ln
+            else setContext (Set.singleton PrefixOp) $ markLocated ln
 
 #if __GLASGOW_HASKELL__ <= 710
         (GHC.IEThingWith ln ns) -> do
@@ -578,29 +585,29 @@ instance (GHC.DataId name,Annotate name)
 -}
 #endif
           -- TODO: Deal with GHC 8.0 additions
-          setContext (Set.singleton InIE) $ markLocated ln
+          setContext (Set.singleton PrefixOp) $ markLocated ln
           mark GHC.AnnOpenP
 #if __GLASGOW_HASKELL__ <= 710
-          -- setContext (Set.fromList [InIE,Intercalate]) $ mapM_ markLocated ns
-          setContext (Set.singleton InIE) $ markListIntercalate ns
+          -- setContext (Set.fromList [PrefixOp,Intercalate]) $ mapM_ markLocated ns
+          setContext (Set.singleton PrefixOp) $ markListIntercalate ns
 #else
           case wc of
-            -- GHC.NoIEWildcard -> setContext (Set.singleton InIE) $ mapM_ markLocated ns
-            GHC.NoIEWildcard -> setContext (Set.fromList [InIE,Intercalate]) $ mapM_ markLocated ns
+            -- GHC.NoIEWildcard -> setContext (Set.singleton PrefixOp) $ mapM_ markLocated ns
+            GHC.NoIEWildcard -> setContext (Set.fromList [PrefixOp,Intercalate]) $ mapM_ markLocated ns
             GHC.IEWildcard n -> do
-              setContext (Set.fromList [InIE,Intercalate]) $ mapM_ markLocated (take n ns)
+              setContext (Set.fromList [PrefixOp,Intercalate]) $ mapM_ markLocated (take n ns)
               mark GHC.AnnDotdot
               case drop n ns of
                 [] -> return ()
                 ns' -> do
                   -- markOffset GHC.AnnComma 0
                   mark GHC.AnnComma
-                  setContext (Set.singleton InIE) $ mapM_ markLocated ns'
+                  setContext (Set.singleton PrefixOp) $ mapM_ markLocated ns'
 #endif
           mark GHC.AnnCloseP
 
         (GHC.IEThingAll ln) -> do
-          setContext (Set.fromList [InIE]) $ markLocated ln
+          setContext (Set.fromList [PrefixOp]) $ markLocated ln
           mark GHC.AnnOpenP
           mark GHC.AnnDotdot
           mark GHC.AnnCloseP
@@ -660,16 +667,17 @@ instance Annotate GHC.RdrName where
     let
       str = rdrName2String n
       isSym = isSymRdr n
+      -- isClass = GHC.isClsOcc $ GHC.rdrNameOcc n
       doNormalRdrName = do
         let str' = case str of
               -- TODO: unicode support?
                         "forall" -> if spanLength l == 1 then "∀" else str
                         _ -> str
         -- AZ: comment out for now, until a test fails that needs it
-        -- when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
+        when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
         markOptional GHC.AnnType
 
-        when isSym $ ifInContext (Set.singleton InIE)
+        when isSym $ ifInContext (Set.singleton PrefixOp)
                                    (mark         GHC.AnnOpenP) -- '('
                                    (markOptional GHC.AnnOpenP)
         when (not isSym) $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 0
@@ -679,7 +687,7 @@ instance Annotate GHC.RdrName where
           1 -> markWithString GHC.AnnVal str'
           _ -> traceM $ "Printing RdrName, more than 1 AnnVal:" ++ showGhc (l,n)
         when (not isSym) $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 1
-        when isSym $ ifInContext (Set.singleton InIE)
+        when isSym $ ifInContext (Set.singleton PrefixOp)
                                    (mark         GHC.AnnCloseP)
                                    (markOptional GHC.AnnCloseP)
                                    -- else mark GHC.AnnCloseP
@@ -769,7 +777,7 @@ instance Annotate GHC.Name where
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,Annotate name)
+instance (GHC.DataId name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.ImportDecl name) where
  markAST _ imp@(GHC.ImportDecl msrc modname mpkg src safeflag qualFlag _impl _as hiding) = do
 
@@ -1424,7 +1432,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
           Nothing -> markListNoPrecedingSpace False pats
           Just (n,_) -> do
             -- setContext (Set.singleton NoPrecedingSpace) $ markLocated n
-            setContext (Set.fromList [NoPrecedingSpace,InIE]) $ markLocated n
+            setContext (Set.fromList [NoPrecedingSpace,PrefixOp]) $ markLocated n
             mapM_ markLocated pats
         -- markListNoPrecedingSpace pats
 #else
@@ -1487,13 +1495,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #else
   markAST _ (GHC.TypeSig lns st)  = do
 #endif
-    -- mapM_ markLocated lns
-    -- case lns of
-    --   [] -> return ()
-    --   (ln:lns') ->do
-    --     setContext (Set.singleton NoPrecedingSpace) $ markLocated ln
-    --     mapM_ markLocated lns'
-    markListNoPrecedingSpace True lns
+    -- markListNoPrecedingSpace True lns
+    setContext (Set.singleton PrefixOp) $ markListNoPrecedingSpace True lns
     mark GHC.AnnDcolon
 #if __GLASGOW_HASKELL__ <= 710
     markLocated typ
@@ -2290,7 +2293,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
 #else
   markAST _ (GHC.BindStmt pat body _ _ _) = do
 #endif
-    unsetContext Intercalate $ markLocated pat
+    -- unsetContext Intercalate $ markLocated pat
+    unsetContext Intercalate $ setContext (Set.singleton PrefixOp) $ markLocated pat
     mark GHC.AnnLarrow
     -- markLocated body
     unsetContext Intercalate $ markLocated body
@@ -2521,15 +2525,16 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markOptional GHC.AnnCloseC
 
       markExpr _ (GHC.HsApp e1 e2) = do
-        markLocated e1
+        -- markLocated e1
+        setContext (Set.singleton PrefixOp) $ markLocated e1
         -- markLocated e2
-        setContext (Set.singleton InIE) $ markLocated e2
+        setContext (Set.singleton PrefixOp) $ markLocated e2
 
       markExpr _ (GHC.OpApp e1 e2 _ e3) = do
-        -- setContext (Set.singleton InIE) $ markLocated e1
+        -- setContext (Set.singleton PrefixOp) $ markLocated e1
         markLocated e1
         setContext (Set.singleton InOp) $ markLocated e2
-        -- setContext (Set.singleton InIE) $ markLocated e3
+        -- setContext (Set.singleton PrefixOp) $ markLocated e3
         markLocated e3
 
       markExpr _ (GHC.NegApp e _) = do
@@ -3060,7 +3065,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.HsCmdArrForm e _mf cs) = do
     markWithString GHC.AnnOpen "(|"
     -- This may be an infix operation
-    applyListAnnotationsContexts (LC (Set.singleton InIE) (Set.singleton InIE)
+    applyListAnnotationsContexts (LC (Set.singleton PrefixOp) (Set.singleton PrefixOp)
                                      (Set.singleton InOp) (Set.singleton InOp))
                        (prepareListAnnotation [e]
                          ++ prepareListAnnotation cs)
@@ -3279,7 +3284,7 @@ data FamilyDecl name = FamilyDecl
 
     mark GHC.AnnFamily
     markOptional GHC.AnnOpenP
-    applyListAnnotationsContexts (LC (Set.singleton InIE) (Set.singleton InIE) Set.empty Set.empty)
+    applyListAnnotationsContexts (LC (Set.singleton PrefixOp) (Set.singleton PrefixOp) Set.empty Set.empty)
                 (prepareListAnnotation [ln]
               ++ prepareListAnnotation tyvars)
     markOptional GHC.AnnCloseP
