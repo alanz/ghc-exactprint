@@ -169,6 +169,7 @@ prettyInterpret = iterTM go
     go (MarkMany akwid next)            = addPrettyAnnotation (G akwid) >> next
     go (MarkManyOptional _akwid next)   = next
     go (MarkOffsetPrim akwid n _ next)  = addPrettyAnnotationLs akwid n >> next
+    go (MarkOffsetPrimOptional _akwid _n _ next)  = next
     go (WithAST lss prog next)          = withAST lss (prettyInterpret prog) >> next
     go (CountAnns kwid next)            = countAnnsPretty kwid >>= next
     go (WithSortKey             kws next) = withSortKey             kws >> next
@@ -211,7 +212,9 @@ addPrettyAnnotation ann = do
            (G GHC.AnnClose)     -> tellKd (ann,DP (0,1))
            (G GHC.AnnCloseC)    -> tellKd (ann,DP (0,0))
            (G GHC.AnnDcolon)    -> tellKd (ann,DP (0,1))
+           (G GHC.AnnDo)        -> tellKd (ann,DP (0,1))
            (G GHC.AnnDeriving)  -> tellKd (ann,DP (0,1))
+           (G GHC.AnnElse)      -> tellKd (ann,DP (0,1))
            (G GHC.AnnEqual)     -> tellKd (ann,DP (0,1))
            (G GHC.AnnFamily)    -> tellKd (ann,DP (0,1))
            (G GHC.AnnGroup)     -> tellKd (ann,DP (0,1))
@@ -228,6 +231,7 @@ addPrettyAnnotation ann = do
            (G GHC.AnnSimpleQuote) -> tellKd (ann,DP (0,1))
            (G GHC.AnnRarrow)    -> tellKd (ann,DP (0,1))
            (G GHC.AnnRole)      -> tellKd (ann,DP (0,1))
+           (G GHC.AnnThen)      -> tellKd (ann,DP (0,1))
            (G GHC.AnnType)      -> tellKd (ann,DP (0,1))
            (G GHC.AnnThTyQuote) -> tellKd (ann,DP (0,1))
            (G GHC.AnnUsing)     -> tellKd (ann,DP (0,1))

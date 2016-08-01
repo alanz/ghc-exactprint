@@ -168,6 +168,8 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
       allAnns akwid >> next
     go (MarkOffsetPrim kwid _ mstr next) =
       printStringAtMaybeAnn (G kwid) mstr >> next
+    go (MarkOffsetPrimOptional kwid _ mstr next) =
+      printStringAtMaybeAnn (G kwid) mstr >> next
     go (WithAST lss action next) =
       exactPC lss (printInterpret action) >> next
     go (CountAnns kwid next) =

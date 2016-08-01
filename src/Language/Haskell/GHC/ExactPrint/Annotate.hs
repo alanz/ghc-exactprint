@@ -117,6 +117,7 @@ data AnnotationF next where
   MarkMany         :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   MarkManyOptional :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   MarkOffsetPrim   :: GHC.AnnKeywordId -> Int -> Maybe String              -> next -> AnnotationF next
+  MarkOffsetPrimOptional :: GHC.AnnKeywordId -> Int -> Maybe String        -> next -> AnnotationF next
   WithAST          :: Data a => GHC.Located a
                              -> Annotated b                                -> next -> AnnotationF next
   CountAnns        :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
@@ -158,6 +159,7 @@ makeFreeCon  'MarkExternal
 makeFreeCon  'MarkMany
 makeFreeCon  'MarkManyOptional
 makeFreeCon  'MarkOffsetPrim
+makeFreeCon  'MarkOffsetPrimOptional
 makeFreeCon  'CountAnns
 makeFreeCon  'StoreOriginalSrcSpan
 makeFreeCon  'GetSrcSpanForKw
@@ -230,6 +232,9 @@ markOffsetWithString kwid n s = markOffsetPrim kwid n (Just s)
 
 markOffset :: GHC.AnnKeywordId -> Int -> Annotated ()
 markOffset kwid n = markOffsetPrim kwid n Nothing
+
+markOffsetOptional :: GHC.AnnKeywordId -> Int -> Annotated ()
+markOffsetOptional kwid n = markOffsetPrimOptional kwid n Nothing
 
 markTrailingSemi :: Annotated ()
 markTrailingSemi = markOutside GHC.AnnSemi AnnSemiSep
@@ -2554,10 +2559,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       markExpr _ (GHC.HsIf _ e1 e2 e3) = setRigidFlag $ do
         mark GHC.AnnIf
         markLocated e1
-        markOffset GHC.AnnSemi 0
+        markOffsetOptional GHC.AnnSemi 0
         mark GHC.AnnThen
         markLocated e2
-        markOffset GHC.AnnSemi 1
+        markOffsetOptional GHC.AnnSemi 1
         mark GHC.AnnElse
         markLocated e3
 
