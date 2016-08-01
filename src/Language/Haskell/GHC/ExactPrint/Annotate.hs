@@ -2066,7 +2066,8 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
           -- markAST l n
           unsetContext Intercalate $ markAST l n
 #else
-          markLocated n
+          unsetContext Intercalate $ markAST l (GHC.unLoc n)
+          -- markLocated n
 #endif
       markPat _ (GHC.LazyPat p) = do
         mark GHC.AnnTilde
@@ -2477,7 +2478,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       markExpr l (GHC.HsVar n)           = unsetContext Intercalate $ markAST l n
 #else
       -- AZ:TODO:via mpickering: trailing comma should be here, not on n
-      markExpr l (GHC.HsVar n)           = markLocated n
+      -- markExpr l (GHC.HsVar n)           = markLocated n
+      markExpr l (GHC.HsVar n)           = markAST l (GHC.unLoc n)
 #endif
 
 #if __GLASGOW_HASKELL__ <= 710
