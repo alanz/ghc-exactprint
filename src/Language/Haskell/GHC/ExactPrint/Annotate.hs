@@ -293,13 +293,6 @@ markListIntercalateWithFun f ls = markListIntercalateWithFunLevel f 3 ls
 
 markListIntercalateWithFunLevel :: (t -> Annotated ()) -> Int -> [t] -> Annotated ()
 markListIntercalateWithFunLevel f level ls = markListIntercalateWithFunLevelCtx f level Intercalate ls
--- markListIntercalateWithFunLevel f level ls = go ls
---   where
---     go []  = return ()
---     go [x] = f x
---     go (x:xs) = do
---       setContextLevel (Set.singleton Intercalate) level $ f x
---       go xs
 
 markListIntercalateWithFunLevelCtx :: (t -> Annotated ()) -> Int -> AstContext -> [t] -> Annotated ()
 markListIntercalateWithFunLevelCtx f level ctx ls = go ls
@@ -1271,8 +1264,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markMaybe (GHC.dd_kindSig defn)
 #endif
     -- mark GHC.AnnWhere
-    when (isGadt $ GHC.dd_cons defn) $ mark GHC.AnnWhere
-    mark GHC.AnnEqual
+    if (isGadt $ GHC.dd_cons defn)
+      then mark GHC.AnnWhere
+      else mark GHC.AnnEqual
     markDataDefn l defn
 
 -- ---------------------------------------------------------------------
@@ -3388,8 +3382,9 @@ markDataDefn _ (GHC.HsDataDefn _ ctx typ mk cons mderivs) = do
 #if __GLASGOW_HASKELL__ <= 710
   markMaybe mk
 #endif
-  -- mapM_ markLocated cons
-  markListIntercalate cons
+  if isGadt cons
+    then markListWithLayout cons
+    else markListIntercalateWithFunLevel markLocated 2 cons
   case mderivs of
     Nothing -> return ()
     Just d -> setContext (Set.singleton Deriving) $ markLocated d
