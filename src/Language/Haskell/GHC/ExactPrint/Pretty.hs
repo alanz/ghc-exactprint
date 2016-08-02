@@ -217,6 +217,7 @@ addPrettyAnnotation ann = do
            (G GHC.AnnDo)        -> tellKd (ann,DP (0,1))
            (G GHC.AnnElse)      -> tellKd (ann,DP (0,1))
            (G GHC.AnnEqual)     -> tellKd (ann,DP (0,1))
+           (G GHC.AnnExport)    -> tellKd (ann,DP (0,1))
            (G GHC.AnnFamily)    -> tellKd (ann,DP (0,1))
            (G GHC.AnnGroup)     -> tellKd (ann,DP (0,1))
            (G GHC.AnnHiding)    -> tellKd (ann,DP (0,1))
@@ -354,6 +355,7 @@ entryDpFor ctx a = do
             -- && not (inAcs (Set.singleton TopLevel) ctx)
     inLambda = inAcs (Set.singleton LambdaExpr) ctx
 
+{-
     funBind :: GHC.HsBind GHC.RdrName -> Pretty DeltaPos
     funBind GHC.FunBind{} =
       if listStart
@@ -369,13 +371,21 @@ entryDpFor ctx a = do
       if listStart
         then return (DP (0,0))
         else fromLayout defVal (DP (1,2))
+-}
 
     grhs :: GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> Pretty DeltaPos
     grhs _ = do
-      fromLayout (DP (1,2)) (DP (1,2))
-      -- if listStart
-      --   then return (DP (0,0))
-      --   else fromLayout (DP (1,0)) (DP (1,12))
+      if inLambda
+        then return (DP (0,1))
+        else return (DP (1,2))
+      {-
+      let
+        defVal = if inLambda then DP (0,1) else DP (1,2)
+      fromLayout (DP (1,2)) defVal
+      -- fromLayout defVal (DP (1,2))
+
+      -- fromLayout (DP (1,2)) (DP (1,2))
+      -}
 
 -- ---------------------------------------------------------------------
 

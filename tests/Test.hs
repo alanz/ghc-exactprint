@@ -138,6 +138,11 @@ formatTT (ts, fs) = do
     putStrLn "Fail"
     mapM_ (putStrLn . fst) fs)
 
+tr :: IO (Counts,Int)
+tr = hSilence [stderr] $ do
+  prettyRoundTripTests <- findPrettyTests
+  runTestText (putTextToHandle stdout True) prettyRoundTripTests
+
 tt' :: IO (Counts,Int)
 tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkParserTest "ghc710" "Unicode.hs"
@@ -162,7 +167,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest "failing" "UnicodeRules.hs"
     -- , mkParserTest "failing" "UnicodeSyntax.hs"
 
-      mkPrettyRoundtrip "ghc710" "ExplicitNamespaces.hs"
+      mkPrettyRoundtrip "ghc710" "Internals.hs"
       -- mkPrettyRoundtrip "ghc710-only" "DataDecl.hs"
       -- mkPrettyRoundtrip "ghc710" "TemplateHaskell.hs"
       -- mkPrettyRoundtrip "ghc710" "Splice.hs"
@@ -173,20 +178,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkPrettyRoundtrip "ghc710" "ShiftingLambda.hs"
     -- , mkPrettyRoundtrip "ghc710" "Case.hs"
     -- , mkParserTest "ghc710" "DataDecl.hs"
-    -- , mkParserTest "ghc710" "TemplateHaskell.hs"
-    -- , mkParserTest      "ghc710" "Undefined2.hs"
-    -- , mkParserTest      "ghc710" "Vect.hs"
-    , mkParserTest      "ghc710" "ExplicitNamespaces.hs"
-      -- mkParserTest      "ghc710" "NestedDoLambda.hs"
-      -- mkParserTest      "ghc8" "SplicesUsed.hs"
-    -- , mkParserTest      "ghc8" "T5333.hs"
-    -- , mkParserTest      "ghc710" "Simple.hs"
-    -- , mkParserTest      "ghc710" "ShiftingLambda.hs"
-    -- , mkParserTest      "ghc710" "Case.hs"
-    -- , mkParserTest      "ghc710" "LambdaCase.hs"
-    -- , mkParserTest      "ghc710" "MultiWayIf.hs"
-    -- , mkParserTest      "ghc710" "ProcNotation.hs"
-    -- , mkParserTest      "ghc710" "UnicodeSyntax.hs"
+    , mkParserTest "ghc710" "Internals.hs"
 
     --   mkParserTest      "ghc8" "T10188.hs"
     -- , mkParserTest      "ghc8" "T10689a.hs"
