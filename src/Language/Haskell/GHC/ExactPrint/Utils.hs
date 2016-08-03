@@ -52,6 +52,12 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , pushAcs
   , bumpAcs
 
+#if __GLASGOW_HASKELL__ <= 710
+  -- * for boolean formulas in GHC 7.10.3
+  -- ,LBooleanFormula, BooleanFormula(..)
+  , makeBooleanFormulaAnns
+#endif
+
   -- * For tests
   , debug
   , debugM
@@ -76,6 +82,9 @@ import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Lookup
 
 import qualified Bag            as GHC
+#if __GLASGOW_HASKELL__ <= 710
+import qualified BooleanFormula as GHC
+#endif
 import qualified DynFlags       as GHC
 import qualified FastString     as GHC
 import qualified GHC
@@ -396,6 +405,115 @@ bumpAcs :: AstContextSet -> AstContextSet
 bumpAcs (ACS a) = ACS $ Map.mapMaybe f a
   where
     f n = Just (n + 1)
+
+-- ---------------------------------------------------------------------
+
+#if __GLASGOW_HASKELL__ <= 710
+-- Modeled on the GHC 8.x version, for use in GHC 7.10.3
+
+-- And note corresponds with ',', Or node with '|', parens to group when
+-- grouping on an Or
+type LBooleanFormula a = GHC.Located (BooleanFormula a)
+
+data BooleanFormula a = Var a | And [LBooleanFormula a] | Or [LBooleanFormula a]
+                      | BParens (LBooleanFormula a)
+  -- deriving (Eq, Data, Functor, Foldable, Traversable)
+
+toBooleanFormula :: (GHC.Outputable a) => GHC.BooleanFormula (GHC.Located a) -> LBooleanFormula (GHC.Located a)
+toBooleanFormula (GHC.Var v@(GHC.L ss _)) = (GHC.L ss (Var v)) -- No annotation needed
+toBooleanFormula (GHC.Or [a,b])  = GHC.L (ssFor a b) (Or  [toBooleanFormula a,toBooleanFormula b])
+toBooleanFormula (GHC.And [a,b]) = GHC.L (ssFor a b) (And [toBooleanFormula a,toBooleanFormula b])
+
+-- to be called in annotationsToCommentsBF by the pretty printer
+makeBooleanFormulaAnns :: (GHC.Outputable a)
+                       => GHC.BooleanFormula (GHC.Located a) -> [(GHC.AnnKeywordId,GHC.SrcSpan)]
+makeBooleanFormulaAnns bf = go 1 bf
+  where
+    go :: (GHC.Outputable a)
+       => Int -> GHC.BooleanFormula (GHC.Located a) -> [(GHC.AnnKeywordId,GHC.SrcSpan)]
+    go _ (GHC.Var v@(GHC.L ss _)) = []
+    go l v@(GHC.And [a,b]) =
+      go 3 a ++
+      go 3 b ++
+      (if l > 3 then addParensIfNeeded v else []) ++
+      [(GHC.AnnComma, ssAfter (getBoolSrcSpan a))]
+    go l v@(GHC.Or  [a,b]) =
+      go 2 a ++
+      go 2 b ++
+      (if l > 2 then addParensIfNeeded v else []) ++
+      [(GHC.AnnVbar,  ssAfter (getBoolSrcSpan a) )]
+    go _ x = error $ "makeBooleanFormulaAnns: unexpected case:" ++ showGhc x
+
+{-
+  a, b, c
+  And [a,And [b,c]]
+
+-}
+
+{-
+pprBooleanFormula :: (Rational -> a -> SDoc) -> Rational -> BooleanFormula a -> SDoc
+pprBooleanFormula pprVar = pprBooleanFormula' pprVar pprAnd pprOr
+  where
+  pprAnd p = cparen (p > 3) . fsep . punctuate comma
+  pprOr  p = cparen (p > 2) . fsep . intersperse (text "|")
+
+-- Pretty print a BooleanFormula,
+-- using the arguments as pretty printers for Var, And and Or respectively
+pprBooleanFormula' :: (Rational -> a -> SDoc)        -- Var
+                   -> (Rational -> [SDoc] -> SDoc)   -- And
+                   -> (Rational -> [SDoc] -> SDoc)   -- Or
+                   -> Rational -> BooleanFormula a -> SDoc
+pprBooleanFormula' pprVar pprAnd pprOr = go
+  where
+  go p (Var x)  = pprVar p x
+  go p (And []) = cparen (p > 0) $ empty
+  go p (And xs) = pprAnd p (map (go 3) xs)
+  go _ (Or  []) = keyword $ text "FALSE"
+  go p (Or  xs) = pprOr p (map (go 2) xs)
+
+-}
+addParensIfNeeded (GHC.Var _) = []
+addParensIfNeeded a = [(GHC.AnnOpenP,opp),(GHC.AnnCloseP,cpp)]
+  where
+    ss = getBoolSrcSpan a
+    opp = ssBefore ss
+    cpp = ssAfter ss
+
+
+ssFor a b = GHC.combineSrcSpans (getBoolSrcSpan a) (getBoolSrcSpan b)
+
+-- | Generate a SrcSpan of single char length before the given one
+ssBefore a = GHC.mkSrcSpan (GHC.RealSrcLoc s) (GHC.RealSrcLoc e)
+  where
+    GHC.RealSrcLoc as = GHC.srcSpanStart a
+    -- s = GHC.advanceSrcLoc ae ' '
+    s = GHC.mkRealSrcLoc (GHC.srcLocFile as) (GHC.srcLocLine as) (GHC.srcLocCol as - 2)
+    e = GHC.mkRealSrcLoc (GHC.srcLocFile as) (GHC.srcLocLine as) (GHC.srcLocCol as - 1)
+
+-- | Generate a SrcSpan of single char length after the given one
+ssAfter a = GHC.mkSrcSpan (GHC.RealSrcLoc s) (GHC.RealSrcLoc e)
+  where
+    GHC.RealSrcLoc ae = GHC.srcSpanEnd a
+    -- s = GHC.advanceSrcLoc ae ' '
+    s = ae
+    e = GHC.advanceSrcLoc s  ' '
+
+
+getBoolSrcSpan :: (GHC.Outputable a) => GHC.BooleanFormula (GHC.Located a) -> GHC.SrcSpan
+getBoolSrcSpan (GHC.Var v@(GHC.L ss _)) = ss
+getBoolSrcSpan (GHC.And [a,b]) = GHC.combineSrcSpans (getBoolSrcSpan a) (getBoolSrcSpan b)
+getBoolSrcSpan (GHC.Or  [a,b]) = GHC.combineSrcSpans (getBoolSrcSpan a) (getBoolSrcSpan b)
+getBoolSrcSpan x = error $ "getBoolSrcSpan: unexpected case:" ++ showGhc x
+
+{-
+
+GHC 7.10 version
+
+data BooleanFormula a = Var a | And [BooleanFormula a] | Or [BooleanFormula a]
+  deriving (Eq, Data, Typeable, Functor, Foldable, Traversable)
+
+-}
+#endif
 
 -- ---------------------------------------------------------------------
 

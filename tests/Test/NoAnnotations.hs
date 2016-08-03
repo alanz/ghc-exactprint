@@ -110,18 +110,13 @@ runPrettyRoundTrip :: FilePath -> GHC.ApiAnns -> GHC.ParsedSource
                    -> [Comment]
                    -> IO (Either (GHC.SrcSpan, String)(Anns, GHC.ParsedSource))
 runPrettyRoundTrip origFile !anns !parsedOrig cs = do
-  -- let comments = extractComments anns ++ cs
+  let !newAnns = addAnnotationsForPretty [] parsedOrig mempty
   let comments = case Map.lookup GHC.noSrcSpan (snd anns) of
         Nothing -> []
         Just cl -> map tokComment $ GHC.sortLocated cl
-  let !newAnns = addAnnotationsForPretty comments parsedOrig mempty
-  -- putStrLn $ "newAnns:" ++ showGhc newAnns
-  -- putStrLn $ "newAnns:" ++ (showAnnData newAnns 0 parsedOrig)
   let pragmas = filter (\(Comment c _ _) -> isPrefixOf "{-#" c ) comments
-  -- putStrLn $ "pragmas:[" ++ show pragmas ++ "]"
   let pragmaStr = intercalate "\n" $ map commentContents pragmas
   let !printed = pragmaStr ++ "\n" ++ exactPrint parsedOrig newAnns
-  -- putStrLn $ "printed:[" ++ printed ++ "]"
   parseString origFile printed newAnns parsedOrig
 
 

@@ -186,7 +186,10 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
     go (StoreString _ _ next) =
       printStoredString >> next
 #endif
-    go (AnnotationsToComments _ next) = next
+    go (AnnotationsToComments     _ next) = next
+#if __GLASGOW_HASKELL__ <= 710
+    go (AnnotationsToCommentsBF _ _ next) = next
+#endif
     go (WithSortKey             ks next) = withSortKey             ks >> next
     go (WithSortKeyContexts ctx ks next) = withSortKeyContexts ctx ks >> next
 

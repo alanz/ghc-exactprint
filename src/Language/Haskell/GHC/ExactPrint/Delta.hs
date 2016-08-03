@@ -256,7 +256,10 @@ deltaInterpret = iterTM go
 #if __GLASGOW_HASKELL__ <= 710
     go (StoreString s ss next)           = storeString s ss >> next
 #endif
-    go (AnnotationsToComments kws next)  = annotationsToCommentsDelta kws >> next
+    go (AnnotationsToComments     kws next) = annotationsToCommentsDelta kws >> next
+#if __GLASGOW_HASKELL__ <= 710
+    go (AnnotationsToCommentsBF _ kws next) = annotationsToCommentsDelta kws >> next
+#endif
     go (WithSortKey             kws next) = withSortKey kws >> next
     go (WithSortKeyContexts ctx kws next) = withSortKeyContexts ctx kws >> next
 

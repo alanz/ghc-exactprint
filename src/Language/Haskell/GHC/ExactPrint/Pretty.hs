@@ -36,7 +36,11 @@ import Data.Ord (comparing)
 -- import Language.Haskell.GHC.ExactPrint.Lookup
 #endif
 
+#if __GLASGOW_HASKELL__ <= 710
+import qualified BooleanFormula as GHC
+#endif
 import qualified GHC
+import qualified Outputable     as GHC
 import qualified SrcLoc        as GHC
 
 import qualified Data.Map as Map
@@ -183,7 +187,10 @@ prettyInterpret = iterTM go
 #if __GLASGOW_HASKELL__ <= 710
     go (StoreString s ss next)           = storeString s ss >> next
 #endif
-    go (AnnotationsToComments kws next)  = annotationsToCommentsPretty kws >> next
+    go (AnnotationsToComments kws next)       = annotationsToCommentsPretty kws >> next
+#if __GLASGOW_HASKELL__ <= 710
+    go (AnnotationsToCommentsBF bf kws next)  = annotationsToCommentsBFPretty bf kws >> next
+#endif
 
     go (SetContextLevel ctxt lvl action next)  = setContextPretty ctxt lvl (prettyInterpret action) >> next
     go (UnsetContext    ctxt     action next)  = unsetContextPretty ctxt (prettyInterpret action) >> next
@@ -194,7 +201,9 @@ prettyInterpret = iterTM go
 -- ---------------------------------------------------------------------
 
 addEofAnnotation :: Pretty ()
-addEofAnnotation = tellKd (G GHC.AnnEofPos, DP (1,0))
+addEofAnnotation = do
+  -- commentAllocation (const True)
+  tellKd (G GHC.AnnEofPos, DP (1,0))
 
 -- ---------------------------------------------------------------------
 
@@ -273,6 +282,12 @@ withSrcSpanPretty (GHC.L l a) =
                  , prContext = pushAcs (prContext s)
                  })
 
+getUnallocatedComments :: Pretty [Comment]
+getUnallocatedComments = gets apComments
+
+putUnallocatedComments :: [Comment] -> Pretty ()
+putUnallocatedComments cs = modify (\s -> s { apComments = cs } )
+
 -- ---------------------------------------------------------------------
 
 -- | Enter a new AST element. Maintain SrcSpan stack
@@ -289,16 +304,29 @@ withAST lss@(GHC.L ss t) action = do
                          , sortKeys       = Nothing
                          , dwCapturedSpan = mempty
                          }
-    ctx <- asks prContext
-    -- let spanStart = ss2pos ss
-        -- edp = DP (0,0)
-    noPrec <- gets apNoPrecedingSpace
-    -- edp <- trace ("Pretty.withAST:enter:(ss,constr,noPrec,ctx)=" ++ showGhc (ss,showConstr (toConstr t),noPrec,ctx)) $ entryDpFor ctx t
-    edp <- entryDpFor ctx t
 
-    -- let cs = []
-    let cs = trace ("Pretty.withAST:enter:(ss,constr,noPrec,ctx,edp)=" ++ showGhc (ss,showConstr (toConstr t),noPrec,ctx,edp)) []
-    -- (res, w) <- if inAcs (Set.singleton ListItem) ctx
+#if __GLASGOW_HASKELL__ <= 710
+    let spanStart = ss2pos ss
+    cs <- do
+      -- priorEndBeforeComments <- getPriorEnd
+      if GHC.isGoodSrcSpan ss
+        then
+          commentAllocation (priorComment spanStart) return
+        else
+          return []
+#else
+    let cs = []
+#endif
+
+    uncs <- getUnallocatedComments
+    ctx <- trace ("Pretty.withAST:cs:(ss,cs,uncs)=" ++ showGhc (ss,cs,uncs)) $ asks prContext
+    -- ctx <- asks prContext
+
+    noPrec <- gets apNoPrecedingSpace
+    edp <- trace ("Pretty.withAST:enter:(ss,constr,noPrec,ctx)=" ++ showGhc (ss,showConstr (toConstr t),noPrec,ctx)) $ entryDpFor ctx t
+    -- edp <- entryDpFor ctx t
+
+    -- let cs = trace ("Pretty.withAST:enter:(ss,constr,noPrec,ctx,edp)=" ++ showGhc (ss,showConstr (toConstr t),noPrec,ctx,edp)) []
     (res, w) <- if inAcs (Set.fromList [ListItem,TopLevel]) ctx
       then
            trace ("Pretty.withAST:setNoPrecedingSpace") $
@@ -549,6 +577,61 @@ bumpContextPretty =
 
 annotationsToCommentsPretty :: [GHC.AnnKeywordId] -> Pretty ()
 annotationsToCommentsPretty kws = return ()
+
+-- ---------------------------------------------------------------------
+
+#if __GLASGOW_HASKELL__ <= 710
+annotationsToCommentsBFPretty :: (GHC.Outputable a) => GHC.BooleanFormula (GHC.Located a) -> [GHC.AnnKeywordId] -> Pretty ()
+annotationsToCommentsBFPretty bf kws = do
+  -- cs <- gets apComments
+  cs <- trace ("annotationsToCommentsBFPretty:" ++ showGhc (bf,makeBooleanFormulaAnns bf)) $ gets apComments
+  -- return$ trace ("annotationsToCommentsBFPretty:" ++ showGhc (bf,makeBooleanFormulaAnns bf)) ()
+  -- error ("annotationsToCommentsBFPretty:" ++ showGhc (bf,makeBooleanFormulaAnns bf))
+  let
+    kws = makeBooleanFormulaAnns bf
+    newComments = map (uncurry mkKWComment ) kws
+  putUnallocatedComments (cs ++ newComments)
+#endif
+
+-- ---------------------------------------------------------------------
+-- |Split the ordered list of comments into ones that occur prior to
+-- the give SrcSpan and the rest
+priorComment :: Pos -> Comment -> Bool
+priorComment start c = (ss2pos . commentIdentifier $ c) < start
+
+-- TODO:AZ: We scan the entire comment list here. It may be better to impose an
+-- invariant that the comments are sorted, and consume them as the pos
+-- advances. It then becomes a process of using `takeWhile p` rather than a full
+-- partition.
+allocateComments :: (Comment -> Bool) -> [Comment] -> ([Comment], [Comment])
+allocateComments = partition
+
+-- ---------------------------------------------------------------------
+
+commentAllocation :: (Comment -> Bool)
+                  -> ([(Comment, DeltaPos)] -> Pretty a)
+                  -> Pretty a
+commentAllocation p k = do
+  cs <- getUnallocatedComments
+  let (allocated,cs') = allocateComments p cs
+  putUnallocatedComments cs'
+  k =<< mapM makeDeltaComment (sortBy (comparing commentIdentifier) allocated)
+
+
+makeDeltaComment :: Comment -> Pretty (Comment, DeltaPos)
+makeDeltaComment c = do
+  -- let pa = commentIdentifier c
+  -- pe <- getPriorEnd
+  -- let p = ss2delta pe pa
+  -- p' <- adjustDeltaForOffsetM p
+  -- setPriorEnd (ss2posEnd pa)
+  -- return (c, p')
+  return (c, (DP (0,1)))
+  -- return (c, (DP (0,0)))
+
+-- addDeltaComment :: Comment -> DeltaPos -> Pretty ()
+-- addDeltaComment d p = do
+--   addAnnDeltaPos (AnnComment d) p
 
 -- ---------------------------------------------------------------------
 

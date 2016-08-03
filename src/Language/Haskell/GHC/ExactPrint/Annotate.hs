@@ -1,15 +1,16 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE UndecidableInstances #-} -- Needed for the DataId constraint on ResTyGADTHook
 -- | 'annotate' is a function which given a GHC AST fragment, constructs
 -- a syntax tree which indicates which annotations belong to each specific
 -- part of the fragment.
@@ -132,6 +133,9 @@ data AnnotationF next where
   StoreString :: String -> GHC.SrcSpan                  -> next -> AnnotationF next
 #endif
   AnnotationsToComments :: [GHC.AnnKeywordId]           -> next -> AnnotationF next
+#if __GLASGOW_HASKELL__ <= 710
+  AnnotationsToCommentsBF :: (GHC.Outputable a) => GHC.BooleanFormula (GHC.Located a) -> [GHC.AnnKeywordId] -> next -> AnnotationF next
+#endif
 
   -- AZ experimenting with pretty printing
   -- Set the context for child element
@@ -167,6 +171,9 @@ makeFreeCon  'GetSrcSpanForKw
 makeFreeCon  'StoreString
 #endif
 makeFreeCon  'AnnotationsToComments
+#if __GLASGOW_HASKELL__ <= 710
+makeFreeCon  'AnnotationsToCommentsBF
+#endif
 makeFreeCon  'WithSortKey
 makeFreeCon  'SetContextLevel
 makeFreeCon  'UnsetContext
@@ -1627,7 +1634,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST l (GHC.MinimalSig src formula) = do
     markWithString GHC.AnnOpen src
 #if __GLASGOW_HASKELL__ <= 710
-    annotationsToComments [GHC.AnnOpenP,GHC.AnnCloseP,GHC.AnnComma,GHC.AnnVbar]
+    annotationsToCommentsBF formula [GHC.AnnOpenP,GHC.AnnCloseP,GHC.AnnComma,GHC.AnnVbar]
     markAST l formula
 #else
     markLocated formula
