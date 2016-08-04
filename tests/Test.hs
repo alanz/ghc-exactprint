@@ -167,7 +167,8 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest "failing" "UnicodeRules.hs"
     -- , mkParserTest "failing" "UnicodeSyntax.hs"
 
-      mkPrettyRoundtrip "ghc710" "Minimal.hs"
+      -- mkPrettyRoundtrip "ghc710" "NestedDoLambda.hs"
+      mkPrettyRoundtrip "ghc710" "PuncFunctions.hs"
       -- mkPrettyRoundtrip "ghc710-only" "DataDecl.hs"
       -- mkPrettyRoundtrip "ghc710" "TemplateHaskell.hs"
       -- mkPrettyRoundtrip "ghc710" "Splice.hs"
@@ -178,7 +179,8 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkPrettyRoundtrip "ghc710" "ShiftingLambda.hs"
     -- , mkPrettyRoundtrip "ghc710" "Case.hs"
     -- , mkParserTest "ghc710" "DataDecl.hs"
-    , mkParserTest "ghc710" "Minimal.hs"
+    -- , mkParserTest "ghc710" "NestedDoLambda.hs"
+    , mkParserTest "ghc710" "PuncFunctions.hs"
     -- , mkParserTest "ghc710" "Arrow.hs"
 
     --   mkParserTest      "ghc8" "T10188.hs"

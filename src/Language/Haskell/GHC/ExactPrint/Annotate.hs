@@ -3077,14 +3077,14 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       else markLocated e1
 
   markAST _ (GHC.HsCmdArrForm e _mf cs) = do
+    -- TODO: When RdrHsSyn.checkCmd hits an OpApp, it converts it to a HsCmdArrForm.
+    --       In this case it will not have AnnOpen/AnnClose
     markWithString GHC.AnnOpen "(|"
     -- This may be an infix operation
     applyListAnnotationsContexts (LC (Set.singleton PrefixOp) (Set.singleton PrefixOp)
                                      (Set.singleton InOp) (Set.singleton InOp))
                        (prepareListAnnotation [e]
                          ++ prepareListAnnotation cs)
-    -- markLocated e
-    -- mapM_ markLocated cs
     markWithString GHC.AnnClose "|)"
 
   markAST _ (GHC.HsCmdApp e1 e2) = do
@@ -3219,7 +3219,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markLocated k
     if (isGadt cons)
       then mark GHC.AnnWhere
-      else mark GHC.AnnEqual
+      else unless (null cons) $ mark GHC.AnnEqual
     markOptional GHC.AnnOpenC
     -- mapM_ markLocated cons
     -- markListWithLayout cons
@@ -3483,7 +3483,8 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
           mark GHC.AnnDarrow
         case dets of
           GHC.InfixCon _ _ -> return ()
-          _ -> markListIntercalate lns
+          -- _ -> markListIntercalate lns
+          _ -> setContext (Set.singleton PrefixOp) $ markListIntercalate lns
 
         markHsConDeclDetails False False lns dets
 
