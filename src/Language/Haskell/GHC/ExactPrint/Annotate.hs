@@ -135,6 +135,7 @@ data AnnotationF next where
   AnnotationsToComments :: [GHC.AnnKeywordId]           -> next -> AnnotationF next
 #if __GLASGOW_HASKELL__ <= 710
   AnnotationsToCommentsBF :: (GHC.Outputable a) => GHC.BooleanFormula (GHC.Located a) -> [GHC.AnnKeywordId] -> next -> AnnotationF next
+  FinalizeBF :: GHC.SrcSpan -> next -> AnnotationF next
 #endif
 
   -- AZ experimenting with pretty printing
@@ -173,6 +174,7 @@ makeFreeCon  'StoreString
 makeFreeCon  'AnnotationsToComments
 #if __GLASGOW_HASKELL__ <= 710
 makeFreeCon  'AnnotationsToCommentsBF
+makeFreeCon  'FinalizeBF
 #endif
 makeFreeCon  'WithSortKey
 makeFreeCon  'SetContextLevel
@@ -1636,6 +1638,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
     annotationsToCommentsBF formula [GHC.AnnOpenP,GHC.AnnCloseP,GHC.AnnComma,GHC.AnnVbar]
     markAST l formula
+    finalizeBF l
 #else
     markLocated formula
 #endif
@@ -3555,7 +3558,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
       GHC.InfixCon _ _ -> return ()
       _ -> markLocated ln
 
-    markHsConDeclDetails False [ln] dets
+    markHsConDeclDetails False False [ln] dets
 
     mark GHC.AnnVbar
     markTrailingSemi

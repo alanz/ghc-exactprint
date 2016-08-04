@@ -259,6 +259,7 @@ deltaInterpret = iterTM go
     go (AnnotationsToComments     kws next) = annotationsToCommentsDelta kws >> next
 #if __GLASGOW_HASKELL__ <= 710
     go (AnnotationsToCommentsBF _ kws next) = annotationsToCommentsDelta kws >> next
+    go (FinalizeBF _ next)                  = next
 #endif
     go (WithSortKey             kws next) = withSortKey kws >> next
     go (WithSortKeyContexts ctx kws next) = withSortKeyContexts ctx kws >> next

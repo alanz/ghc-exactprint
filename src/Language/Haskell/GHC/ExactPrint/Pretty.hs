@@ -190,6 +190,7 @@ prettyInterpret = iterTM go
     go (AnnotationsToComments kws next)       = annotationsToCommentsPretty kws >> next
 #if __GLASGOW_HASKELL__ <= 710
     go (AnnotationsToCommentsBF bf kws next)  = annotationsToCommentsBFPretty bf kws >> next
+    go (FinalizeBF l next)                    = finalizeBFPretty l >> next
 #endif
 
     go (SetContextLevel ctxt lvl action next)  = setContextPretty ctxt lvl (prettyInterpret action) >> next
@@ -319,8 +320,8 @@ withAST lss@(GHC.L ss t) action = do
 #endif
 
     uncs <- getUnallocatedComments
-    ctx <- trace ("Pretty.withAST:cs:(ss,cs,uncs)=" ++ showGhc (ss,cs,uncs)) $ asks prContext
-    -- ctx <- asks prContext
+    -- ctx <- trace ("Pretty.withAST:cs:(ss,cs,uncs)=" ++ showGhc (ss,cs,uncs)) $ asks prContext
+    ctx <- asks prContext
 
     noPrec <- gets apNoPrecedingSpace
     edp <- trace ("Pretty.withAST:enter:(ss,constr,noPrec,ctx)=" ++ showGhc (ss,showConstr (toConstr t),noPrec,ctx)) $ entryDpFor ctx t
@@ -591,6 +592,12 @@ annotationsToCommentsBFPretty bf kws = do
     kws = makeBooleanFormulaAnns bf
     newComments = map (uncurry mkKWComment ) kws
   putUnallocatedComments (cs ++ newComments)
+
+
+finalizeBFPretty :: GHC.SrcSpan -> Pretty ()
+finalizeBFPretty ss = do
+  commentAllocation (const True) (mapM_ (uncurry addPrettyComment))
+  return ()
 #endif
 
 -- ---------------------------------------------------------------------
@@ -629,9 +636,9 @@ makeDeltaComment c = do
   return (c, (DP (0,1)))
   -- return (c, (DP (0,0)))
 
--- addDeltaComment :: Comment -> DeltaPos -> Pretty ()
--- addDeltaComment d p = do
---   addAnnDeltaPos (AnnComment d) p
+addPrettyComment :: Comment -> DeltaPos -> Pretty ()
+addPrettyComment d p = do
+  tellKd ((AnnComment d), p)
 
 -- ---------------------------------------------------------------------
 
