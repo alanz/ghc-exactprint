@@ -95,7 +95,7 @@ import qualified RdrName        as GHC
 import qualified SrcLoc        as GHC
 import qualified Var            as GHC
 
-import qualified OccName(occNameString)
+import qualified OccName(occNameString,pprNameSpaceBrief)
 
 import Control.Arrow
 
@@ -542,7 +542,8 @@ showAnnData anns n =
                               ++ intercalate "," (map (showAnnData anns (n+1)) l) ++ "]"
 
         name       = ("{Name: "++) . (++"}") . showSDocDebug_ . GHC.ppr :: GHC.Name -> String
-        occName    = ("{OccName: "++) . (++"}") .  OccName.occNameString
+        -- occName    = ("{OccName: "++) . (++"}") .  OccName.occNameString
+        occName o   = ("{OccName: "++ OccName.occNameString o ++ " (" ++ GHC.showSDocUnsafe (OccName.pprNameSpaceBrief $ GHC.occNameSpace o) ++ "," ++ show (GHC.isSymOcc o) ++ ")}")
         moduleName = ("{ModuleName: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.ModuleName -> String
 
         -- srcSpan    = ("{"++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.SrcSpan -> String

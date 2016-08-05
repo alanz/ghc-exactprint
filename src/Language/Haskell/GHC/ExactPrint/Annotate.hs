@@ -49,6 +49,9 @@ import qualified CoAxiom        as GHC
 import qualified FastString     as GHC
 import qualified ForeignCall    as GHC
 import qualified GHC            as GHC
+#if __GLASGOW_HASKELL__ > 710
+import qualified Lexeme         as GHC
+#endif
 import qualified Name           as GHC
 import qualified OccName        as GHC
 import qualified RdrName        as GHC
@@ -577,14 +580,37 @@ instance (GHC.DataId name,GHC.HasOccName name, Annotate name)
           -- if cnt == 1
           -- if (GHC.isTcClsNameSpace $ GHC.occNameSpace $ GHC.occName n)
 
-          -- The test on the following line is taken from GHC src for
+          -- The test on the following line is taken from GHC 7.10 src for
           -- lookupTopBndrRn_maybe, based on the -XTypeOperators extension
 
+#if __GLASGOW_HASKELL__ <= 710
           if (GHC.isTcOcc $ GHC.occName n) && (GHC.isSymOcc $ GHC.occName n)
+#else
+          if ((GHC.isTcOcc $ GHC.occName n) && (GHC.isSymOcc $ GHC.occName n))
+                 && (not $ GHC.isLexConSym $ GHC.occNameFS $ GHC.occName n) -- rule out (:-$) etc
+#endif
             then do
               mark GHC.AnnType
               setContext (Set.singleton PrefixOp) $ markLocatedFromKw GHC.AnnVal ln
             else setContext (Set.singleton PrefixOp) $ markLocated ln
+{-
+ghc8:T10507:
+ghc8:T10806:
+    import GHC.TypeLits (Nat, type (<=))
+                              ^^^^^^^^^ AnnVal
+ghc710: ExplicitNamespaces:
+    import GHC.TypeLits                   (KnownNat, type (+), type (-))
+                                                     ^^^^^^^^  ^^^^^^^^ AnnVal
+
+ghc710: Imports.hs
+    module Imports( f, type (+), pattern Single ) where
+                       ^^^^^^^^ AnnVal
+
+ghc8: Eq.hs (using TypeOperators)
+  (:==$), (:==$$), (:==$$$), (:/=$), (:/=$$), (:/=$$$)
+  ^^^^^^  ^^^^^^^  ^^^^^^^^  ^^^^^^  ^^^^^^^  ^^^^^^^^
+
+-}
 
 #if __GLASGOW_HASKELL__ <= 710
         (GHC.IEThingWith ln ns) -> do
