@@ -229,12 +229,8 @@ defaultACS = ACS Map.empty
 instance GHC.Outputable AstContextSet where
   ppr x = GHC.text $ show x
 
--- mirror of GHC.HsMatchContext
-data AstContext = FunRhs
-                | LambdaExpr
+data AstContext = LambdaExpr
                 | CaseAlt
-                | IfAlt
-                | Infix   -- RdrName being used infix. May have backticks
                 | NoPrecedingSpace
                 -- TODO: all GHC 7.10.3 tests pass with TypeAsKind not set. Can we get rid of it
                 | TypeAsKind -- For GHC < 8.0
@@ -245,7 +241,7 @@ data AstContext = FunRhs
                 | InIE -- possible 'type' or 'pattern'
                 | PrefixOp
                 | InOp -- RdrName may be used as an operator, backticks or parens may apply
-                       -- TODO: Rename InOp to InfixOp, amd InIE to PrefixOp
+                       -- TODO: Rename InOp to InfixOp
                 | ListStart -- Identifies first element of a list in layout, so its indentation can me managed differently
                 | ListItem -- Identifies subsequent elements of a list in layout
                 | TopLevel -- top level declaration
@@ -258,6 +254,8 @@ data AstContext = FunRhs
                 | InTypeBr
                 | InGadt
                 | InRecCon
+                | LeftMost -- Is this the leftmost operator in a chain of OpApps?
+
                 -- Next four used to identify current list context
                 | CtxOnly
                 | CtxFirst

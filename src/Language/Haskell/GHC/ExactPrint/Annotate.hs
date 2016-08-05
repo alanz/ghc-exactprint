@@ -1527,7 +1527,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,
 
     inContext (Set.fromList [CaseAlt]) $ mark GHC.AnnRarrow -- For HsLam
     -- PrefixOp needed for single top-level HsVar
-    setContextLevel (Set.singleton PrefixOp) 2 $ markLocated expr
+    -- setContextLevel (Set.singleton PrefixOp) 2 $ markLocated expr
+    setContextLevel (Set.fromList [LeftMost,PrefixOp]) 2 $ markLocated expr
 
 -- ---------------------------------------------------------------------
 
@@ -2571,9 +2572,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         setContext (Set.singleton PrefixOp) $ markLocated e2
 
       markExpr _ (GHC.OpApp e1 e2 _ e3) = do
-        -- setContext (Set.singleton PrefixOp) $ markLocated e1
-        markLocated e1
+        -- When it is the leftmost item in a GRHS, e1 needs to have PrefixOp context
+        ifInContext (Set.singleton LeftMost)
+          (setContextLevel (Set.fromList [LeftMost,PrefixOp]) 2 $ markLocated e1)
+          (markLocated e1)
+
         setContext (Set.singleton InOp) $ markLocated e2
+
         -- setContext (Set.singleton PrefixOp) $ markLocated e3
         markLocated e3
 
