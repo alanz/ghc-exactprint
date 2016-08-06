@@ -1356,8 +1356,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.PatBind lhs (GHC.GRHSs grhs (GHC.L _ lb)) _typ _fvs _ticks) = do
 #endif
     markLocated lhs
-    mark GHC.AnnEqual
-    markListIntercalate grhs
+    case grhs of
+      (GHC.L _ (GHC.GRHS [] _):_) -> mark GHC.AnnEqual -- empty guards
+      _ -> return ()
+    markListIntercalateWithFunLevel markLocated 2 grhs
     when (not (GHC.isEmptyLocalBinds lb)) $ mark GHC.AnnWhere
 
     markLocalBindsWithLayout lb
@@ -1519,7 +1521,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,
       [] -> return ()
       (_:_) -> do
         mark GHC.AnnVbar
-        markListIntercalate guards
+        -- markListIntercalate guards
+        -- markListIntercalateWithFunLevel markLocated 2 guards
+        unsetContext Intercalate $ markListIntercalate guards
         ifInContext (Set.fromList [CaseAlt])
           (return ())
           (mark GHC.AnnEqual)
@@ -1673,8 +1677,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 -- --------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ <= 710
-#else
+#if __GLASGOW_HASKELL__ > 710
 markLHsSigType :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
                => GHC.LHsSigType name -> Annotated ()
 markLHsSigType (GHC.HsIB _ typ) = markLocated typ
@@ -1703,7 +1706,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 -- So the best strategy might be to convert all the annotations into comments,
 -- and then just print the names. DONE
 instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) where
-  markAST _ (GHC.Var x)  = markLocated x
+  -- markAST _ (GHC.Var x)  = markLocated x
+  markAST _ (GHC.Var x)  = setContext (Set.singleton PrefixOp) $ markLocated x
   markAST l (GHC.Or ls)  = mapM_ (markAST l) ls
   markAST l (GHC.And ls) = mapM_ (markAST l) ls
 #else
