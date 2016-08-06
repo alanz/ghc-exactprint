@@ -718,7 +718,6 @@ instance Annotate GHC.RdrName where
               -- TODO: unicode support?
                         "forall" -> if spanLength l == 1 then "∀" else str
                         _ -> str
-        -- AZ: comment out for now, until a test fails that needs it
         when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
         markOptional GHC.AnnType
 
@@ -2572,15 +2571,32 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         setContext (Set.singleton PrefixOp) $ markLocated e2
 
       markExpr _ (GHC.OpApp e1 e2 _ e3) = do
-        -- When it is the leftmost item in a GRHS, e1 needs to have PrefixOp context
-        ifInContext (Set.singleton LeftMost)
-          (setContextLevel (Set.fromList [LeftMost,PrefixOp]) 2 $ markLocated e1)
-          (markLocated e1)
+        let
+          normal =
+            -- When it is the leftmost item in a GRHS, e1 needs to have PrefixOp context
+            ifInContext (Set.singleton LeftMost)
+              (setContextLevel (Set.fromList [LeftMost,PrefixOp]) 2 $ markLocated e1)
+              (markLocated e1)
+        case e2 of
+          GHC.L _ (GHC.HsVar n) ->
+            -- TODO: generalise this. Is it a fixity thing?
+            if (GHC.occNameString $ GHC.occName n) == "."
+            -- if False
+              then setContextLevel (Set.singleton PrefixOp) 2 $ markLocated e1
+              else normal
+          _ -> normal
+
 
         setContext (Set.singleton InOp) $ markLocated e2
 
-        -- setContext (Set.singleton PrefixOp) $ markLocated e3
-        markLocated e3
+        -- markLocated e3
+        case e2 of
+          GHC.L _ (GHC.HsVar n) ->
+            if (GHC.occNameString $ GHC.occName n) == "."
+            -- if False
+              then setContextLevel (Set.singleton PrefixOp) 2 $ markLocated e3
+              else markLocated e3
+          _ -> markLocated e3
 
       markExpr _ (GHC.NegApp e _) = do
         mark GHC.AnnMinus
