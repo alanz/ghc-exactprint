@@ -224,8 +224,6 @@ withAST lss action =
   where
     prog = do
       action
-      -- Automatically add any trailing comma or semi
-      -- markOutside GHC.AnnComma (G GHC.AnnComma)
 
 -- ---------------------------------------------------------------------
 -- Additional smart constructors
@@ -811,6 +809,7 @@ instance Annotate GHC.RdrName where
             when isSym $ mark GHC.AnnCloseP -- ')'
     -- inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma `debug` ("AnnComma in RdrName")
+    -- inContext (Set.fromList [Intercalate]) $ trace ("AnnComma in RdrName") $ mark GHC.AnnComma
 
 -- ---------------------------------------------------------------------
 
@@ -1073,7 +1072,6 @@ markLHsSigWcType (GHC.HsIB _ (GHC.HsWC _ mwc ty)) = do
        applyListAnnotations ([(lwc,markExternal lwc GHC.AnnVal "_")]
                           ++ prepareListAnnotation [ty]
                             )
-    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 #endif
 -- ---------------------------------------------------------------------
 
@@ -1480,7 +1478,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
           -- Nothing -> mark GHC.AnnFunId
           Nothing -> markListNoPrecedingSpace False pats
           Just (n,_) -> do
-            -- setContext (Set.singleton NoPrecedingSpace) $ markLocated n
             setContext (Set.fromList [NoPrecedingSpace,PrefixOp]) $ markLocated n
             mapM_ markLocated pats
         -- markListNoPrecedingSpace pats
@@ -1489,7 +1486,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
           -- GHC.NonFunBindMatch  -> mark GHC.AnnFunId
           GHC.NonFunBindMatch  -> markListNoPrecedingSpace False pats
           GHC.FunBindMatch n _ -> do
-            setContext (Set.singleton NoPrecedingSpace) $ markLocated n
+            -- setContext (Set.singleton NoPrecedingSpace) $ markLocated n
+            setContext (Set.fromList [NoPrecedingSpace,PrefixOp]) $ markLocated n
             mapM_ markLocated pats
 #endif
 
@@ -1543,7 +1541,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #else
   markAST _ (GHC.TypeSig lns st)  = do
 #endif
-    -- markListNoPrecedingSpace True lns
     setContext (Set.singleton PrefixOp) $ markListNoPrecedingSpace True lns
     mark GHC.AnnDcolon
 #if __GLASGOW_HASKELL__ <= 710
@@ -1800,7 +1797,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markType l (GHC.HsQualTy cxt ty) = do
       inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
       setContext (Set.singleton Parens) $ markLocated cxt
-      mark GHC.AnnDarrow
+      -- mark GHC.AnnDarrow
       markLocated ty
   {-
     | HsQualTy   -- See Note [HsType binders]
@@ -2036,10 +2033,16 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         mark GHC.AnnCloseP
 
       GHC.HsUntypedSplice _n b@(GHC.L _ (GHC.HsVar (GHC.L _ n)))  -> do
+        -- TODO: We do not seem to have any way to distinguish between which of
+        -- the next two lines will emit output. If AnnThIdSplice is there, the
+        -- markLocated b ends up with a negative offset so emits nothing.
+        mark GHC.AnnOpenPE
         markWithString GHC.AnnThIdSplice ("$" ++ (GHC.occNameString (GHC.occName n)))
         markLocated b
+        mark GHC.AnnCloseP
       GHC.HsUntypedSplice _n b  -> do
-        mark GHC.AnnThIdSplice
+        -- TODO: when is this not optional?
+        markOptional GHC.AnnThIdSplice
         mark GHC.AnnOpenPE
         markLocated b
         mark GHC.AnnCloseP
@@ -2533,7 +2536,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
       markExpr l (GHC.HsVar n)           = unsetContext Intercalate $ markAST l n
 #else
-      markExpr l (GHC.HsVar n)           = markAST l (GHC.unLoc n)
+      markExpr l (GHC.HsVar n)           = unsetContext Intercalate $ markAST l (GHC.unLoc n)
 #endif
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -2882,7 +2885,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
                     else "[e|")
 #else
         markWithString GHC.AnnOpen "[|"
-        mark GHC.AnnOpenE  -- "[e|"
+        markOptional GHC.AnnOpenE  -- "[e|"
 #endif
         markLocated e
         markWithString GHC.AnnClose "|]"
@@ -2916,9 +2919,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 #if __GLASGOW_HASKELL__ > 710
       markExpr l (GHC.HsSpliceE e) = do
-        mark GHC.AnnOpenPE
+        -- mark GHC.AnnOpenPE
         markAST l e
-        mark GHC.AnnCloseP
+        -- mark GHC.AnnCloseP
 #else
       markExpr l (GHC.HsSpliceE isTyped e) = do
         case e of
@@ -3279,7 +3282,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       then markOptional GHC.AnnDarrow
       else do
         setContext (Set.singleton Parens) $ markLocated ctx
-        -- when (isNothing mctyp) $ mark GHC.AnnDarrow
     markTyClass ln tyVars
     case mk of
       Nothing -> return ()
@@ -3588,7 +3590,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
       _  -> return ()
     markTrailingSemi
 #else
-  markAST _ (GHC.ConDeclH98 ln mqtvs ctx
+  markAST _ (GHC.ConDeclH98 ln mqtvs mctx
                          dets _ ) = do
 {-
   | ConDeclH98
@@ -3622,15 +3624,20 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
         mapM_ markLocated bndrs
         mark GHC.AnnDot
 
-    setContext (Set.singleton Parens) $ markMaybe ctx
-    mark GHC.AnnDarrow
+    case mctx of
+      Just ctx -> do
+        setContext (Set.singleton Parens) $ markLocated ctx
+        unless (null $ GHC.unLoc ctx) $ mark GHC.AnnDarrow
+      Nothing -> return ()
+
     case dets of
       GHC.InfixCon _ _ -> return ()
       _ -> markLocated ln
 
     markHsConDeclDetails False False [ln] dets
 
-    mark GHC.AnnVbar
+    -- mark GHC.AnnVbar
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnVbar
     markTrailingSemi
   markAST _ (GHC.ConDeclGADT lns (GHC.HsIB _ typ) _) = do
     markListIntercalate lns
