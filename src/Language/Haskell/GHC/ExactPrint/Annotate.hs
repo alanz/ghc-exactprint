@@ -2576,11 +2576,25 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
       markExpr _ (GHC.OpApp e1 e2 _ e3) = do
         let
+          isInfix = case e2 of
+            -- TODO: generalise this. Is it a fixity thing?
+#if __GLASGOW_HASKELL__ <= 710
+            GHC.L _ (GHC.HsVar n) -> (GHC.occNameString $ GHC.occName n) == "."
+#else
+            GHC.L _ (GHC.HsVar (GHC.L _ n)) -> (GHC.occNameString $ GHC.occName n) == "."
+#endif
+            _                     -> False
+
           normal =
             -- When it is the leftmost item in a GRHS, e1 needs to have PrefixOp context
             ifInContext (Set.singleton LeftMost)
               (setContextLevel (Set.fromList [LeftMost,PrefixOp]) 2 $ markLocated e1)
               (markLocated e1)
+
+        if isInfix
+            then setContextLevel (Set.singleton PrefixOp) 2 $ markLocated e1
+            else normal
+{-
         case e2 of
           GHC.L _ (GHC.HsVar n) ->
             -- TODO: generalise this. Is it a fixity thing?
@@ -2589,11 +2603,14 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
               then setContextLevel (Set.singleton PrefixOp) 2 $ markLocated e1
               else normal
           _ -> normal
-
+-}
 
         setContext (Set.singleton InOp) $ markLocated e2
 
-        -- markLocated e3
+        if isInfix
+          then setContextLevel (Set.singleton PrefixOp) 2 $ markLocated e3
+          else markLocated e3
+{-
         case e2 of
           GHC.L _ (GHC.HsVar n) ->
             if (GHC.occNameString $ GHC.occName n) == "."
@@ -2601,6 +2618,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
               then setContextLevel (Set.singleton PrefixOp) 2 $ markLocated e3
               else markLocated e3
           _ -> markLocated e3
+-}
 
       markExpr _ (GHC.NegApp e _) = do
         mark GHC.AnnMinus
