@@ -1927,14 +1927,17 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       mark GHC.AnnBang
       markLocated t
 #else
-    markType _ (GHC.HsBangTy (GHC.HsSrcBang mt _up _str) t) = do
+    markType _ (GHC.HsBangTy (GHC.HsSrcBang mt _up str) t) = do
       case mt of
         Nothing -> return ()
         Just src -> do
           markWithString GHC.AnnOpen src
           markWithString GHC.AnnClose "#-}"
-      mark GHC.AnnBang
-      mark GHC.AnnTilde
+      case str of
+        GHC.SrcLazy     -> mark GHC.AnnTilde
+        GHC.SrcStrict   -> mark GHC.AnnBang
+        GHC.NoSrcStrict -> return ()
+
       markLocated t
   {-
     | HsBangTy    HsSrcBang (LHsType name)   -- Bang-style type annotations
