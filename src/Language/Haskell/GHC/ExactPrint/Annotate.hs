@@ -632,10 +632,12 @@ ghc8: Eq.hs (using TypeOperators)
           setContext (Set.singleton PrefixOp) $ markListIntercalate ns
 #else
           case wc of
-            -- GHC.NoIEWildcard -> setContext (Set.singleton PrefixOp) $ mapM_ markLocated ns
-            GHC.NoIEWildcard -> setContext (Set.fromList [PrefixOp,Intercalate]) $ mapM_ markLocated ns
+            -- GHC.NoIEWildcard -> setContext (Set.fromList [PrefixOp,Intercalate]) $ mapM_ markLocated ns
+            GHC.NoIEWildcard -> unsetContext Intercalate $ setContext (Set.fromList [PrefixOp]) $ markListIntercalate ns
+            -- GHC.NoIEWildcard -> setContext (Set.fromList [PrefixOp]) $ mapM_ markLocated ns
             GHC.IEWildcard n -> do
               setContext (Set.fromList [PrefixOp,Intercalate]) $ mapM_ markLocated (take n ns)
+              -- setContext (Set.fromList [PrefixOp]) $ mapM_ markLocated (take n ns)
               mark GHC.AnnDotdot
               case drop n ns of
                 [] -> return ()
@@ -1321,8 +1323,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
     markOptional GHC.AnnCloseP
 #if __GLASGOW_HASKELL__ > 710
-    mark GHC.AnnDcolon
-    markMaybe (GHC.dd_kindSig defn)
+    case (GHC.dd_kindSig defn) of
+      Just s -> do
+        mark GHC.AnnDcolon
+        markLocated s
+      Nothing -> return ()
 #endif
     -- mark GHC.AnnWhere
     if (isGadt $ GHC.dd_cons defn)
@@ -1578,10 +1583,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.GenericSig ns typ) = do
-#else
-  markAST _ (GHC.ClassOpSig _ ns (GHC.HsIB _ typ)) = do
-#endif
     mark GHC.AnnDefault
+#else
+  markAST _ (GHC.ClassOpSig isDefault ns (GHC.HsIB _ typ)) = do
+    when isDefault $ mark GHC.AnnDefault
+#endif
     markListIntercalate ns
     mark GHC.AnnDcolon
     markLocated typ
@@ -2356,8 +2362,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     ifInContext (Set.singleton Intercalate)
       (mark GHC.AnnComma)
       (inContext (Set.singleton AddVbar)     $ mark GHC.AnnVbar)
-    -- inContext (Set.singleton AddVbar)     $ mark GHC.AnnVbar
-    -- inContext (Set.singleton Intercalate) $ mark GHC.AnnComma
     markTrailingSemi
 
 #if __GLASGOW_HASKELL__ > 710
@@ -2387,8 +2391,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
     ifInContext (Set.singleton Intercalate)
       (mark GHC.AnnComma)
       (inContext (Set.singleton AddVbar)     $ mark GHC.AnnVbar)
-    -- inContext (Set.singleton AddVbar)     $ mark GHC.AnnVbar
-    -- inContext (Set.singleton Intercalate) $ mark GHC.AnnComma
     markTrailingSemi
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -3324,7 +3326,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     -- class defn in annSortKey for the class. This could cause problems when
     -- changing things.
     -- setLayoutFlag $
-    applyListAnnotationsLayout
+    setContext (Set.singleton InClassDecl) $
+      applyListAnnotationsLayout
                            (prepareListAnnotation sigs
                          ++ prepareListAnnotation (GHC.bagToList meths)
                          ++ prepareListAnnotation ats
@@ -3367,7 +3370,12 @@ data FamilyDecl name = FamilyDecl
       GHC.DataFamily -> mark GHC.AnnData
       _              -> mark GHC.AnnType
 
+#if __GLASGOW_HASKELL__ <= 710
     mark GHC.AnnFamily
+#else
+    ifInContext (Set.singleton InClassDecl) (return ()) (mark GHC.AnnFamily)
+#endif
+
     markOptional GHC.AnnOpenP
     applyListAnnotationsContexts (LC (Set.singleton PrefixOp) (Set.singleton PrefixOp) Set.empty Set.empty)
                 (prepareListAnnotation [ln]
@@ -3380,14 +3388,20 @@ data FamilyDecl name = FamilyDecl
         mark GHC.AnnDcolon
         markLocated k
 #else
-    mark GHC.AnnEqual
     case GHC.unLoc rsig of
       GHC.NoSig -> return ()
-      _ -> do
+      GHC.KindSig _ -> do
         mark GHC.AnnDcolon
         markLocated rsig
-    mark GHC.AnnVbar
-    markMaybe minj
+      GHC.TyVarSig _ -> do
+        mark GHC.AnnEqual
+        markLocated rsig
+    case minj of
+      Nothing -> return ()
+      Just inj -> do
+        mark GHC.AnnVbar
+        mark GHC.AnnEqual
+        markLocated inj
 #endif
     case info of
 #if __GLASGOW_HASKELL__ > 710

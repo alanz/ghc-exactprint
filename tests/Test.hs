@@ -149,7 +149,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
 
       -- mkPrettyRoundtrip "ghc710" "TypeOperators.hs"
-      -- mkPrettyRoundtrip "ghc710" "Ann01.hs"
+      mkPrettyRoundtrip "ghc710" "Associated.hs"
     -- , mkPrettyRoundtrip "ghc710" "TemplateHaskell.hs"
       -- mkPrettyRoundtrip "ghc710" "NestedDoLambda.hs"
       -- mkPrettyRoundtrip "ghc710" "PuncFunctions.hs"
@@ -164,10 +164,11 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkPrettyRoundtrip "ghc710" "Case.hs"
     -- , mkParserTest "ghc710" "Ann01.hs"
     -- , mkParserTest "ghc710" "TypeOperators.hs"
-      mkParserTest "ghc710" "TemplateHaskell.hs"
-    , mkParserTest "ghc8" "SplicesUsed.hs"
     -- , mkParserTest "ghc710" "PuncFunctions.hs"
-    -- , mkParserTest "ghc710" "Arrow.hs"
+    -- , mkParserTest "ghc710" "Associated.hs"
+    -- , mkParserTest "ghc8" "T6018.hs"
+    -- , mkParserTest "ghc8" "T6018fail.hs"
+    -- , mkParserTest "ghc8" "T6018rnfail.hs"
 
     --   mkParserTest      "ghc8" "Eq.hs"
     -- , mkParserTest      "ghc8" "T10806.hs"

@@ -254,6 +254,7 @@ data AstContext = LambdaExpr
                 | InTypeBr
                 | InGadt
                 | InRecCon
+                | InClassDecl
                 | LeftMost -- Is this the leftmost operator in a chain of OpApps?
 
                 -- Next four used to identify current list context
