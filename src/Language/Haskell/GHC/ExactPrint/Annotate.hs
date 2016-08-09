@@ -1588,7 +1588,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.ClassOpSig isDefault ns (GHC.HsIB _ typ)) = do
     when isDefault $ mark GHC.AnnDefault
 #endif
-    markListIntercalate ns
+    -- markListIntercalate ns
+    setContext (Set.singleton PrefixOp) $ markListIntercalate ns
     mark GHC.AnnDcolon
     markLocated typ
     markTrailingSemi
@@ -1782,12 +1783,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       -- mark GHC.AnnCloseP -- ")"
 #else
     markType _ (GHC.HsForAllTy tvs typ) = do
-      mark GHC.AnnOpenP -- "("
+      -- mark GHC.AnnOpenP -- "("
       mark GHC.AnnForall
       mapM_ markLocated tvs
       mark GHC.AnnDot
       markLocated typ
-      mark GHC.AnnCloseP -- ")"
+      -- mark GHC.AnnCloseP -- ")"
 
   {-
     = HsForAllTy   -- See Note [HsType binders]
@@ -1798,12 +1799,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   -}
 #endif
 
-#if __GLASGOW_HASKELL__ <= 710
-#else
+#if __GLASGOW_HASKELL__ > 710
     markType l (GHC.HsQualTy cxt ty) = do
       inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
       setContext (Set.singleton Parens) $ markLocated cxt
-      -- mark GHC.AnnDarrow
       markLocated ty
   {-
     | HsQualTy   -- See Note [HsType binders]
@@ -3632,18 +3631,15 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 -}
     case mqtvs of
       Nothing -> return ()
-#if __GLASGOW_HASKELL__ <= 710
-      Just (GHC.HsQTvs _ns bndrs) -> do
-#else
       Just (GHC.HsQTvs _ns bndrs _) -> do
-#endif
         mark GHC.AnnForall
         mapM_ markLocated bndrs
         mark GHC.AnnDot
 
     case mctx of
       Just ctx -> do
-        setContext (Set.singleton Parens) $ markLocated ctx
+        -- setContext (Set.singleton Parens) $ markLocated ctx
+        setContext (Set.fromList [Parens,NoDarrow]) $ markLocated ctx
         unless (null $ GHC.unLoc ctx) $ mark GHC.AnnDarrow
       Nothing -> return ()
 
