@@ -1919,11 +1919,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       mark GHC.AnnCloseP -- ')'
 
     markType l (GHC.HsSpliceTy s _) = do
-      -- inContext (Set.singleton InTypeBr) $ mark GHC.AnnOpenPE
+#if __GLASGOW_HASKELL__ <= 710
       mark GHC.AnnOpenPE
       markAST l s
-      -- inContext (Set.singleton InTypeBr) $ mark GHC.AnnCloseP
       mark GHC.AnnCloseP
+#else
+      markAST l s
+#endif
 
     markType _ (GHC.HsDocTy t ds) = do
       markLocated t
@@ -2205,9 +2207,13 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 
       -- SplicePat (HsSplice id)
       markPat l (GHC.SplicePat s) = do
+#if __GLASGOW_HASKELL__ <= 710
         mark GHC.AnnOpenPE
         markAST l s
         mark GHC.AnnCloseP
+#else
+        markAST l s
+#endif
 
       -- LitPat HsLit
       markPat l (GHC.LitPat lp) = markExternal l GHC.AnnVal (hsLit2String lp)
@@ -3661,7 +3667,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 
     case dets of
       GHC.InfixCon _ _ -> return ()
-      _ -> markLocated ln
+      _ -> setContext (Set.singleton PrefixOp) $ markLocated ln
 
     markHsConDeclDetails False False [ln] dets
 
