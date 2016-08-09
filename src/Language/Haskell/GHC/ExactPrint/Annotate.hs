@@ -750,11 +750,14 @@ instance Annotate GHC.RdrName where
 #else
       GHC.Orig _ _ -> if str == "~"
                         then do
-                          mark GHC.AnnOpenP -- '('
+                          -- mark GHC.AnnOpenP -- '('
+                          markOptional GHC.AnnOpenP -- '('
                           -- NOTE: GHC8 parser annotates oqtycon with AnnVal, oqtycon_no_varcon with AnnTilde
                           markWithString GHC.AnnVal "~"
-                          mark GHC.AnnTilde
-                          mark GHC.AnnCloseP -- ')'
+                          -- mark GHC.AnnTilde
+                          markOptional GHC.AnnTilde
+                          -- mark GHC.AnnCloseP -- ')'
+                          markOptional GHC.AnnCloseP -- ')'
                         else markExternal l GHC.AnnVal str
 #endif
       GHC.Exact n'  -> do
@@ -2032,11 +2035,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsAppType name) where
   markAST _ (GHC.HsAppInfix t)  = do
-    mark GHC.AnnSimpleQuote
+    -- mark GHC.AnnSimpleQuote
+    markOptional GHC.AnnSimpleQuote
     setContext (Set.singleton InOp) $ markLocated t
   markAST _ (GHC.HsAppPrefix t) = do
     markOptional GHC.AnnTilde
-    -- setContext (Set.singleton InOp) $ markLocated t
     markLocated t
 #endif
 -- ---------------------------------------------------------------------
