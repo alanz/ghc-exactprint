@@ -196,8 +196,8 @@ prettyInterpret = iterTM go
     go (SetContextLevel ctxt lvl action next)  = setContextPretty ctxt lvl (prettyInterpret action) >> next
     go (UnsetContext    ctxt     action next)  = unsetContextPretty ctxt (prettyInterpret action) >> next
     go (IfInContext  ctxt ifAction elseAction next) = ifInContextPretty ctxt ifAction elseAction >> next
-    go (NotInContext ctxt action next)              = notInContextPretty ctxt action >> next
-    go (BumpContext action next)                    = bumpContextPretty (prettyInterpret action) >> next
+    -- go (NotInContext ctxt action next)              = notInContextPretty ctxt action >> next
+    -- go (BumpContext action next)                    = bumpContextPretty (prettyInterpret action) >> next
 
 -- ---------------------------------------------------------------------
 

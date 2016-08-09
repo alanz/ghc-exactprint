@@ -267,8 +267,8 @@ deltaInterpret = iterTM go
     go (SetContextLevel ctxt lvl action next) = setContextDelta ctxt lvl (deltaInterpret action) >> next
     go (UnsetContext   _ctxt action next) = deltaInterpret action >> next
     go (IfInContext    ctxt ifAction elseAction next) = ifInContextDelta ctxt ifAction elseAction >> next
-    go (NotInContext ctxt action next)        = notInContextDelta ctxt action >> next
-    go (BumpContext action next)              = bumpContextDelta (deltaInterpret action) >> next
+    -- go (NotInContext ctxt action next)        = notInContextDelta ctxt action >> next
+    -- go (BumpContext action next)              = bumpContextDelta (deltaInterpret action) >> next
 
 withSortKey :: [(GHC.SrcSpan, Annotated b)] -> Delta ()
 withSortKey kws =

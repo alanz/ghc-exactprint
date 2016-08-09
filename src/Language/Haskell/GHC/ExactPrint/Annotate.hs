@@ -53,7 +53,7 @@ import qualified GHC            as GHC
 import qualified Lexeme         as GHC
 #endif
 import qualified Name           as GHC
-import qualified OccName        as GHC
+-- import qualified OccName        as GHC
 import qualified RdrName        as GHC
 import qualified Outputable     as GHC
 
@@ -147,8 +147,8 @@ data AnnotationF next where
   UnsetContext    ::         AstContext        -> Annotated () -> next -> AnnotationF next
   -- Query the context while in a child element
   IfInContext  :: Set.Set AstContext -> Annotated () -> Annotated ()   -> next -> AnnotationF next
-  NotInContext :: Set.Set AstContext -> Annotated ()                   -> next -> AnnotationF next
-  BumpContext  :: Annotated ()                                         -> next -> AnnotationF next
+  -- NotInContext :: Set.Set AstContext -> Annotated ()                   -> next -> AnnotationF next
+  -- BumpContext  :: Annotated ()                                         -> next -> AnnotationF next
   WithSortKeyContexts :: ListContexts -> [(GHC.SrcSpan, Annotated ())] -> next -> AnnotationF next
 
 deriving instance Functor (AnnotationF)
@@ -183,8 +183,8 @@ makeFreeCon  'WithSortKey
 makeFreeCon  'SetContextLevel
 makeFreeCon  'UnsetContext
 makeFreeCon  'IfInContext
-makeFreeCon  'NotInContext
-makeFreeCon  'BumpContext
+-- makeFreeCon  'NotInContext
+-- makeFreeCon  'BumpContext
 makeFreeCon  'WithSortKeyContexts
 
 -- ---------------------------------------------------------------------
@@ -1730,18 +1730,22 @@ instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) wh
 instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) where
   markAST _ (GHC.Var x)  = do
     markLocated x
-    mark GHC.AnnVbar -- '|'
+    -- mark GHC.AnnVbar -- '|'
+    inContext (Set.fromList [AddVbar]) $ mark GHC.AnnVbar
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
-  markAST l (GHC.Or ls)  = mapM_ markLocated ls
+  -- markAST l (GHC.Or ls)  = mapM_ markLocated ls
+  markAST l (GHC.Or ls)  = markListIntercalateWithFunLevelCtx markLocated 2 AddVbar ls
   markAST l (GHC.And ls) = do
-    markListIntercalate ls
-    mark GHC.AnnVbar -- '|'
+    markListIntercalateWithFunLevel markLocated 2 ls
+    -- mark GHC.AnnVbar -- '|'
+    inContext (Set.fromList [AddVbar]) $ mark GHC.AnnVbar
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
   markAST _ (GHC.Parens x)  = do
     mark GHC.AnnOpenP -- '('
     markLocated x
     mark GHC.AnnCloseP -- ')'
-    mark GHC.AnnVbar -- '|'
+    -- mark GHC.AnnVbar -- '|'
+    inContext (Set.fromList [AddVbar]) $ mark GHC.AnnVbar
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 #endif
 
