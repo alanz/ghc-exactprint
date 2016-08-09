@@ -1185,7 +1185,7 @@ instance (Annotate GHC.CExportSpec) where
 -- ---------------------------------------------------------------------
 
 instance (Annotate GHC.CCallConv) where
-  markAST l GHC.StdCallConv        =  markExternal l  GHC.AnnVal "stdcall"
+  markAST l GHC.StdCallConv        =  markExternal l GHC.AnnVal "stdcall"
   markAST l GHC.CCallConv          =  markExternal l GHC.AnnVal "ccall"
   markAST l GHC.CApiConv           =  markExternal l GHC.AnnVal "capi"
   markAST l GHC.PrimCallConv       =  markExternal l GHC.AnnVal "prim"
@@ -1690,10 +1690,22 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
    => Annotate [GHC.LHsSigType name] where
   markAST l ls = do
     mark GHC.AnnDeriving
-    markMany GHC.AnnOpenP
-    -- mapM_ markLHsSigType ls
+    -- Mote: a single item in parens is parsed as a HsAppsTy. Without parens it
+    -- is a HsTyVar. So for round trip pretty printing we need to take this into
+    -- account.
+    case ls of
+      []  -> markManyOptional GHC.AnnOpenP
+      [GHC.HsIB _ (GHC.L _ GHC.HsAppsTy{})] -> markMany GHC.AnnOpenP
+      [x] -> markManyOptional GHC.AnnOpenP
+      _   -> markMany         GHC.AnnOpenP
+    -- markMany GHC.AnnOpenP
     markListIntercalateWithFun markLHsSigType ls
-    markMany GHC.AnnCloseP
+    -- markMany GHC.AnnCloseP
+    case ls of
+      []  -> markManyOptional GHC.AnnCloseP
+      [GHC.HsIB _ (GHC.L _ GHC.HsAppsTy{})] -> markMany GHC.AnnCloseP
+      [x] -> markManyOptional GHC.AnnCloseP
+      _   -> markMany         GHC.AnnCloseP
 #endif
 
 -- --------------------------------------------------------------------

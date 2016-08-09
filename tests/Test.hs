@@ -149,7 +149,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
 
       -- mkPrettyRoundtrip "ghc710" "TypeOperators.hs"
-      mkPrettyRoundtrip "ghc710" "EmptyMostly.hs"
+      mkPrettyRoundtrip "ghc710" "Minimal.hs"
     -- , mkPrettyRoundtrip "ghc710" "TemplateHaskell.hs"
       -- mkPrettyRoundtrip "ghc710" "NestedDoLambda.hs"
       -- mkPrettyRoundtrip "ghc710" "PuncFunctions.hs"
@@ -165,7 +165,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest "ghc710" "Ann01.hs"
     -- , mkParserTest "ghc710" "TypeOperators.hs"
     -- , mkParserTest "ghc710" "PuncFunctions.hs"
-    , mkParserTest "ghc710" "EmptyMostly.hs"
+    , mkParserTest "ghc710" "Minimal.hs"
     -- , mkParserTest "ghc8" "T6018.hs"
     -- , mkParserTest "ghc8" "T6018fail.hs"
     -- , mkParserTest "ghc8" "T6018rnfail.hs"
