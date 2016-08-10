@@ -722,9 +722,12 @@ instance Annotate GHC.RdrName where
         when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
         markOptional GHC.AnnType
 
-        when canParen $ ifInContext (Set.singleton PrefixOp)
+        if canParen
+          then ifInContext (Set.singleton PrefixOp)
                                    (mark         GHC.AnnOpenP) -- '('
                                    (markOptional GHC.AnnOpenP)
+          else markOptional GHC.AnnOpenP
+
         unless isSym $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 0
         cnt  <- countAnns GHC.AnnVal
         case cnt of
@@ -732,9 +735,11 @@ instance Annotate GHC.RdrName where
           1 -> markWithString GHC.AnnVal str'
           _ -> traceM $ "Printing RdrName, more than 1 AnnVal:" ++ showGhc (l,n)
         unless isSym $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 1
-        when canParen $ ifInContext (Set.singleton PrefixOp)
+        if canParen
+          then ifInContext (Set.singleton PrefixOp)
                                    (mark         GHC.AnnCloseP)
                                    (markOptional GHC.AnnCloseP)
+          else markOptional GHC.AnnCloseP
 
     case n of
       -- GHC.Unqual o -> case str of
@@ -1574,7 +1579,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       mapM_ markLocated bndrs
       mark GHC.AnnDot
 
-    -- Note: 
     when (GHC.getLoc ctx1 /= GHC.noSrcSpan) $ do
         -- setContext (Set.singleton Parens) $ markLocated ctx1
         setContext (Set.fromList [Parens,NoDarrow]) $ markLocated ctx1
@@ -1830,8 +1834,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ > 710
     markType l (GHC.HsQualTy cxt ty) = do
       inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
-      -- setContext (Set.singleton Parens) $ markLocated cxt
-      markLocated cxt
+      setContext (Set.singleton Parens) $ markLocated cxt
+      -- markLocated cxt
       markLocated ty
   {-
     | HsQualTy   -- See Note [HsType binders]
@@ -2383,7 +2387,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
   -- markAST _ (GHC.LastStmt body _) = markLocated body
   markAST _ (GHC.LastStmt body _) = setContextLevel (Set.fromList [LeftMost,PrefixOp]) 2 $ markLocated body
 #else
-  markAST _ (GHC.LastStmt body _ _) = markLocated body
+  -- markAST _ (GHC.LastStmt body _ _) = markLocated body
+  markAST _ (GHC.LastStmt body _ _) =  setContextLevel (Set.fromList [LeftMost,PrefixOp]) 2 $ markLocated body
 #endif
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -3298,19 +3303,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     -- Turn these into comments so that they feed into the right place automatically
     annotationsToComments [GHC.AnnOpenP,GHC.AnnCloseP]
     mark GHC.AnnType
-    {-
-    -- ln may be used infix, in which case rearrange the order. It may be
-    -- simplest to just sort ln:tyvars
-    if (null tyvars || GHC.getLoc ln < GHC.getLoc (head tyvars) ) -- prefix
-      then
-        applyListAnnotations (prepareListAnnotation [ln]
-                             ++ prepareListAnnotation tyvars)
-      else
-        applyListAnnotations (prepareListAnnotationWithContext (Set.singleton InOp) [ln]
-                             ++ prepareListAnnotation tyvars)
-    -}
-    unsetContext InOp $
-     applyListAnnotationsContexts (LC (Set.singleton CtxOnly) (Set.singleton CtxFirst)
+
+    -- For pretty-printing, if it is infix, we need to add parens around the next bit.
+    -- unsetContext InOp $
+    applyListAnnotationsContexts (LC (Set.singleton CtxOnly) (Set.singleton CtxFirst)
                                       (Set.singleton CtxMiddle) (Set.singleton CtxLast))
                                -- (prepareListAnnotation [ln]
                                ([(GHC.getLoc ln,ifInContext (Set.singleton CtxMiddle)
