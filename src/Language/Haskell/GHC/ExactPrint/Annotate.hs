@@ -3298,6 +3298,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     -- Turn these into comments so that they feed into the right place automatically
     annotationsToComments [GHC.AnnOpenP,GHC.AnnCloseP]
     mark GHC.AnnType
+    {-
     -- ln may be used infix, in which case rearrange the order. It may be
     -- simplest to just sort ln:tyvars
     if (null tyvars || GHC.getLoc ln < GHC.getLoc (head tyvars) ) -- prefix
@@ -3306,6 +3307,17 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
                              ++ prepareListAnnotation tyvars)
       else
         applyListAnnotations (prepareListAnnotationWithContext (Set.singleton InOp) [ln]
+                             ++ prepareListAnnotation tyvars)
+    -}
+    unsetContext InOp $
+     applyListAnnotationsContexts (LC (Set.singleton CtxOnly) (Set.singleton CtxFirst)
+                                      (Set.singleton CtxMiddle) (Set.singleton CtxLast))
+                               -- (prepareListAnnotation [ln]
+                               ([(GHC.getLoc ln,ifInContext (Set.singleton CtxMiddle)
+                                                   (setContext (Set.singleton InOp) $ markLocated ln)
+                                                   (markLocated ln)
+                                  )
+                                ]
                              ++ prepareListAnnotation tyvars)
     -- markMany GHC.AnnCloseP
     mark GHC.AnnEqual
@@ -3594,21 +3606,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
           [GHC.L _ GHC.HsParTy{}] -> markOptional pa
           _ -> parenIfNeeded'' pa
 
+    -- -------------
+
     parenIfNeeded GHC.AnnOpenP
-    -- case ts of
-    --   []  -> markManyOptional GHC.AnnOpenP
-    --   [GHC.L _ GHC.HsForAllTy{}] -> markMany GHC.AnnOpenP
-    --   [x] -> markManyOptional GHC.AnnOpenP
-    --   _   -> markMany         GHC.AnnOpenP
 
     unsetContext Intercalate $ markListIntercalateWithFunLevel markLocated 2 ts
 
     parenIfNeeded GHC.AnnCloseP
-    -- case ts of
-    --   []  -> markManyOptional GHC.AnnCloseP
-    --   [GHC.L _ GHC.HsForAllTy{}] -> markMany GHC.AnnCloseP
-    --   [x] -> markManyOptional GHC.AnnCloseP
-    --   _   -> markMany         GHC.AnnCloseP
 
     ifInContext (Set.singleton NoDarrow)
       (return ())
