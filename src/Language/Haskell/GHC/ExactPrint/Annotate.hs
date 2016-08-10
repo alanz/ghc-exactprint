@@ -983,7 +983,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
    => Annotate (GHC.RuleDecls name) where
    markAST _ (GHC.HsRules src rules) = do
      markWithString GHC.AnnOpen src
-     mapM_ markLocated rules
+     -- mapM_ markLocated rules
+     -- markListIntercalate rules
+     -- markListWithLayout rules
+     setLayoutFlag $ markListIntercalateWithFunLevel markLocated 2 rules
      markWithString GHC.AnnClose "#-}"
      markTrailingSemi
 
@@ -1003,6 +1006,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLocated lhs
     mark GHC.AnnEqual
     markLocated rhs
+    inContext (Set.singleton Intercalate) $ mark GHC.AnnSemi
     markTrailingSemi
 
 -- ---------------------------------------------------------------------

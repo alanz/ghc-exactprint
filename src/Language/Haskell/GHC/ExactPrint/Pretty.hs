@@ -169,6 +169,7 @@ prettyInterpret = iterTM go
     go (MarkEOF next)                   = addEofAnnotation >> next
     go (MarkExternal ss akwid _ next)   = addPrettyAnnotation (G akwid) >> next
     go (MarkOutside akwid kwid next)    = addPrettyAnnotationsOutside akwid kwid >> next
+    -- go (MarkOutside akwid kwid next)    = addPrettyAnnotation kwid >> next
     go (MarkInside akwid next)          = addPrettyAnnotationsInside akwid >> next
     go (MarkMany akwid next)            = addPrettyAnnotation (G akwid) >> next
     go (MarkManyOptional _akwid next)   = next
