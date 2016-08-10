@@ -713,6 +713,7 @@ instance Annotate GHC.RdrName where
       str = rdrName2String n
       isSym = isSymRdr n
       -- isClass = GHC.isClsOcc $ GHC.rdrNameOcc n
+      canParen = isSym && rdrName2String n /= "$"
       doNormalRdrName = do
         let str' = case str of
               -- TODO: unicode support?
@@ -721,20 +722,19 @@ instance Annotate GHC.RdrName where
         when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
         markOptional GHC.AnnType
 
-        when isSym $ ifInContext (Set.singleton PrefixOp)
+        when canParen $ ifInContext (Set.singleton PrefixOp)
                                    (mark         GHC.AnnOpenP) -- '('
                                    (markOptional GHC.AnnOpenP)
-        when (not isSym) $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 0
+        unless isSym $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 0
         cnt  <- countAnns GHC.AnnVal
         case cnt of
           0 -> markExternal l GHC.AnnVal str'
           1 -> markWithString GHC.AnnVal str'
           _ -> traceM $ "Printing RdrName, more than 1 AnnVal:" ++ showGhc (l,n)
-        when (not isSym) $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 1
-        when isSym $ ifInContext (Set.singleton PrefixOp)
+        unless isSym $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 1
+        when canParen $ ifInContext (Set.singleton PrefixOp)
                                    (mark         GHC.AnnCloseP)
                                    (markOptional GHC.AnnCloseP)
-                                   -- else mark GHC.AnnCloseP
 
     case n of
       -- GHC.Unqual o -> case str of
@@ -1528,9 +1528,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,
       [] -> return ()
       (_:_) -> do
         mark GHC.AnnVbar
-        -- markListIntercalate guards
-        -- markListIntercalateWithFunLevel markLocated 2 guards
-        unsetContext Intercalate $ markListIntercalate guards
+        -- unsetContext Intercalate $ markListIntercalate guards
+        unsetContext Intercalate $ setContext (Set.fromList [LeftMost,PrefixOp]) $ markListIntercalate guards
         ifInContext (Set.fromList [CaseAlt])
           (return ())
           (mark GHC.AnnEqual)
@@ -2153,8 +2152,8 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
         let pun_RDR = "pun-right-hand-side"
         when (showGhc n /= pun_RDR) $
 #if __GLASGOW_HASKELL__ <= 710
-          -- markAST l n
-          unsetContext Intercalate $ markAST l n
+          -- unsetContext Intercalate $ markAST l n
+          unsetContext Intercalate $ setContext (Set.singleton PrefixOp) $ markAST l n
 #else
           -- unsetContext Intercalate $ markAST l (GHC.unLoc n)
           unsetContext Intercalate $ setContext (Set.singleton PrefixOp) $ markAST l (GHC.unLoc n)
@@ -2371,7 +2370,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
   => Annotate (GHC.Stmt name (GHC.Located body)) where
 
 #if __GLASGOW_HASKELL__ <= 710
-  markAST _ (GHC.LastStmt body _) = markLocated body
+  -- markAST _ (GHC.LastStmt body _) = markLocated body
+  markAST _ (GHC.LastStmt body _) = setContextLevel (Set.fromList [LeftMost,PrefixOp]) 2 $ markLocated body
 #else
   markAST _ (GHC.LastStmt body _ _) = markLocated body
 #endif
@@ -2612,9 +2612,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
           isInfix = case e2 of
             -- TODO: generalise this. Is it a fixity thing?
 #if __GLASGOW_HASKELL__ <= 710
-            GHC.L _ (GHC.HsVar n) -> (GHC.occNameString $ GHC.occName n) == "."
+            -- GHC.L _ (GHC.HsVar n) -> (GHC.occNameString $ GHC.occName n) == "."
+            -- GHC.L _ (GHC.HsVar n) -> (GHC.occNameString $ GHC.occName n) /= "$"
+            GHC.L _ (GHC.HsVar n) -> True
 #else
-            GHC.L _ (GHC.HsVar (GHC.L _ n)) -> (GHC.occNameString $ GHC.occName n) == "."
+            -- GHC.L _ (GHC.HsVar (GHC.L _ n)) -> (GHC.occNameString $ GHC.occName n) == "."
+            GHC.L _ (GHC.HsVar (GHC.L _ n)) -> True
 #endif
             _                     -> False
 
@@ -2638,7 +2641,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
           _ -> normal
 -}
 
-        setContext (Set.singleton InOp) $ markLocated e2
+        -- setContext (Set.singleton InOp) $ markLocated e2
+        unsetContext PrefixOp $ setContext (Set.singleton InOp) $ markLocated e2
 
         if isInfix
           then setContextLevel (Set.singleton PrefixOp) 2 $ markLocated e3
@@ -2767,8 +2771,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
       markExpr _ (GHC.ExplicitList _ _ es) = do
         mark GHC.AnnOpenS
-        -- markListIntercalate es
-        markListIntercalateWithFunLevel markLocated 2 es
+        -- markListIntercalateWithFunLevel markLocated 2 es
+        setContext (Set.singleton PrefixOp) $ markListIntercalateWithFunLevel markLocated 2 es
         mark GHC.AnnCloseS
 
       markExpr _ (GHC.ExplicitPArr _ es)   = do
@@ -3375,7 +3379,8 @@ markTyClass ln tyVars = do
     -- applyListAnnotations
     -- This may be an infix operation
     applyListAnnotationsContexts (LC (Set.singleton PrefixOp) (Set.singleton PrefixOp)
-                                     (Set.singleton InOp) (Set.singleton InOp))
+                                     Set.empty Set.empty)
+                                     -- (Set.singleton InOp) (Set.singleton InOp))
                         (prepareListAnnotation [ln]
                       ++ prepareListAnnotation (take 2 tyVars))
     markManyOptional GHC.AnnCloseP

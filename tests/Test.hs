@@ -149,7 +149,8 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
 
       -- mkPrettyRoundtrip "ghc710" "TypeOperators.hs"
-      mkPrettyRoundtrip "ghc710" "Remorse.hs"
+      -- mkPrettyRoundtrip "ghc710" "Remorse.hs"
+      mkPrettyRoundtrip "ghc710" "Commands.hs"
     -- , mkPrettyRoundtrip "ghc710" "TemplateHaskell.hs"
       -- mkPrettyRoundtrip "ghc710" "NestedDoLambda.hs"
       -- mkPrettyRoundtrip "ghc710" "PuncFunctions.hs"
@@ -166,20 +167,11 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest "ghc710" "TypeOperators.hs"
     -- , mkParserTest "ghc710" "PuncFunctions.hs"
     -- , mkParserTest "ghc710" "QuasiQuote.hs"
-    , mkParserTest "ghc710" "Remorse.hs"
-    -- , mkParserTest "ghc8" "T6018.hs"
-    -- , mkParserTest "ghc8" "T6018fail.hs"
-    -- , mkParserTest "ghc8" "T6018rnfail.hs"
 
-    --   mkParserTest      "ghc8" "Eq.hs"
-    -- , mkParserTest      "ghc8" "T10806.hs"
-    -- , mkParserTest      "ghc8" "T10507.hs"
-    -- , mkParserTest      "ghc8" "determ004.hs"
-    -- , mkParserTest      "ghc710" "ExplicitNamespaces.hs"
-    -- , mkParserTest      "ghc710" "Imports.hs"
-    -- , mkParserTest      "ghc710" "DataFamilies.hs"
-    -- , mkParserTest      "ghc710" "Dead1.hs"
-    -- , mkParserTest      "ghc710" "Sigs.hs"
+    -- , mkParserTest "ghc710" "Remorse.hs"
+    -- , mkParserTest "ghc710" "Commands.hs"
+    -- , mkParserTest "ghc710" "ListComprehensions.hs"
+
 
     -- , mkParserTest      "ghc710" "RdrNames.hs"
     -- , mkParserTest      "ghc8" "records-mixing-fields.hs"
