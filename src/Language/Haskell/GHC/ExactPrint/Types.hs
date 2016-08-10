@@ -248,7 +248,7 @@ data AstContext = LambdaExpr
                 | NoDarrow
                 | AddVbar
                 | Deriving
-                | Parens
+                | Parens -- TODO: Not currently used?
                 | ExplicitNeverActive
                 | InParStmtBlock
                 | InTypeBr

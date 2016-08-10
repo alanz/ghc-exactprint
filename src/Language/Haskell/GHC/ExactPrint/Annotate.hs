@@ -1563,20 +1563,26 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markTrailingSemi
 
 #if __GLASGOW_HASKELL__ <= 710
-  markAST _ (GHC.PatSynSig ln (_,GHC.HsQTvs _ns bndrs) ctx1 ctx2 typ) = do
+  markAST _ (GHC.PatSynSig ln (_ef,GHC.HsQTvs _ns bndrs) ctx1 ctx2 typ) = do
     mark GHC.AnnPattern
     markLocated ln
     mark GHC.AnnDcolon
 
     -- Note: The 'forall' bndrs '.' may occur multiple times
-    mark GHC.AnnForall
-    mapM_ markLocated bndrs
-    mark GHC.AnnDot
+    unless (null bndrs) $ do
+      mark GHC.AnnForall
+      mapM_ markLocated bndrs
+      mark GHC.AnnDot
 
-    setContext (Set.singleton Parens) $ markLocated ctx1
-    markOffset GHC.AnnDarrow 0
-    setContext (Set.singleton Parens) $ markLocated ctx2
-    markOffset GHC.AnnDarrow 1
+    -- Note: 
+    when (GHC.getLoc ctx1 /= GHC.noSrcSpan) $ do
+        -- setContext (Set.singleton Parens) $ markLocated ctx1
+        setContext (Set.fromList [Parens,NoDarrow]) $ markLocated ctx1
+        markOffset GHC.AnnDarrow 0
+    when (GHC.getLoc ctx2 /= GHC.noSrcSpan) $ do
+        -- setContext (Set.singleton Parens) $ markLocated ctx2
+        setContext (Set.fromList [Parens,NoDarrow]) $ markLocated ctx2
+        markOffset GHC.AnnDarrow 1
     markLocated typ
     markTrailingSemi
 #else
@@ -1794,13 +1800,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
       case mwc of
         Nothing -> if lc /= GHC.noSrcSpan
-          -- then setContext (Set.singleton Parens) $ markLocated ctx
           then markLocated ctx
           else return ()
         Just lwc -> do
          let sorted = lexicalSortLocated (GHC.L lwc GHC.HsWildcardTy:ctxs)
-         setContext (Set.singleton Parens) $ markLocated (GHC.L lc sorted)
-         -- mark GHC.AnnDarrow
+         -- setContext (Set.singleton Parens) $ markLocated (GHC.L lc sorted)
+         markLocated (GHC.L lc sorted)
 
       markLocated typ
       -- mark GHC.AnnCloseP -- ")"
@@ -1825,7 +1830,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ > 710
     markType l (GHC.HsQualTy cxt ty) = do
       inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
-      setContext (Set.singleton Parens) $ markLocated cxt
+      -- setContext (Set.singleton Parens) $ markLocated cxt
+      markLocated cxt
       markLocated ty
   {-
     | HsQualTy   -- See Note [HsType binders]
@@ -3319,8 +3325,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markMaybe mctyp
     if null (GHC.unLoc ctx)
       then markOptional GHC.AnnDarrow
-      else do
-        setContext (Set.singleton Parens) $ markLocated ctx
+      -- else setContext (Set.singleton Parens) $ markLocated ctx
+      else markLocated ctx
     markTyClass ln tyVars
     case mk of
       Nothing -> return ()
@@ -3566,23 +3572,43 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
     inContext (Set.singleton Deriving) $ mark GHC.AnnDeriving
 #endif
-    -- Mote: At least for GHC 7.10, a single item in parens is parsed as a
+    -- Mote: A single item in parens in a deriving clause is parsed as a
     -- HsSigType, which is always a HsForAllTy. Without parens it is always a
     -- HsVar. So for round trip pretty printing we need to take this into
     -- account.
-    case ts of
-      []  -> markManyOptional GHC.AnnOpenP
-      [GHC.L _ GHC.HsForAllTy{}] -> markMany GHC.AnnOpenP
-      [x] -> markManyOptional GHC.AnnOpenP
-      _   -> markMany         GHC.AnnOpenP
+    let
+      parenIfNeeded' pa =
+        case ts of
+          []  -> markManyOptional pa
+          [GHC.L _ GHC.HsForAllTy{}] -> markMany pa
+          [x] -> markManyOptional pa
+          _   -> markMany         pa
+
+      parenIfNeeded'' pa =
+        ifInContext (Set.singleton Parens)
+          (markMany pa)
+          (parenIfNeeded' pa)
+
+      parenIfNeeded pa =
+        case ts of
+          [GHC.L _ GHC.HsParTy{}] -> markOptional pa
+          _ -> parenIfNeeded'' pa
+
+    parenIfNeeded GHC.AnnOpenP
+    -- case ts of
+    --   []  -> markManyOptional GHC.AnnOpenP
+    --   [GHC.L _ GHC.HsForAllTy{}] -> markMany GHC.AnnOpenP
+    --   [x] -> markManyOptional GHC.AnnOpenP
+    --   _   -> markMany         GHC.AnnOpenP
 
     unsetContext Intercalate $ markListIntercalateWithFunLevel markLocated 2 ts
 
-    case ts of
-      []  -> markManyOptional GHC.AnnCloseP
-      [GHC.L _ GHC.HsForAllTy{}] -> markMany GHC.AnnCloseP
-      [x] -> markManyOptional GHC.AnnCloseP
-      _   -> markMany         GHC.AnnCloseP
+    parenIfNeeded GHC.AnnCloseP
+    -- case ts of
+    --   []  -> markManyOptional GHC.AnnCloseP
+    --   [GHC.L _ GHC.HsForAllTy{}] -> markMany GHC.AnnCloseP
+    --   [x] -> markManyOptional GHC.AnnCloseP
+    --   _   -> markMany         GHC.AnnCloseP
 
     ifInContext (Set.singleton NoDarrow)
       (return ())
@@ -3679,7 +3705,8 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
     case mctx of
       Just ctx -> do
         -- setContext (Set.singleton Parens) $ markLocated ctx
-        setContext (Set.fromList [Parens,NoDarrow]) $ markLocated ctx
+        -- setContext (Set.fromList [Parens,NoDarrow]) $ markLocated ctx
+        setContext (Set.fromList [NoDarrow]) $ markLocated ctx
         unless (null $ GHC.unLoc ctx) $ mark GHC.AnnDarrow
       Nothing -> return ()
 
