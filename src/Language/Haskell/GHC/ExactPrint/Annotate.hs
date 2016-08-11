@@ -922,13 +922,21 @@ instance Annotate (Maybe GHC.Role) where
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
    => Annotate (GHC.SpliceDecl name) where
-  markAST _ (GHC.SpliceDecl e _flag) = do
+  markAST _ (GHC.SpliceDecl e flag) = do
 #if __GLASGOW_HASKELL__ > 710
     mark GHC.AnnOpenPE
+#else
+    case flag of
+      GHC.ExplicitSplice -> mark GHC.AnnOpenPE
+      GHC.ImplicitSplice -> return ()
 #endif
     markLocated e
 #if __GLASGOW_HASKELL__ > 710
     mark GHC.AnnCloseP
+#else
+    case flag of
+      GHC.ExplicitSplice -> mark GHC.AnnCloseP
+      GHC.ImplicitSplice -> return ()
 #endif
     markTrailingSemi
 
@@ -2102,9 +2110,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       GHC.HsSplice _n b@(GHC.L _ (GHC.HsBracket _)) -> do
         markLocated b
       GHC.HsSplice _n b -> do
-        mark GHC.AnnOpenPE
+        -- mark GHC.AnnOpenPE
         markLocated b
-        mark GHC.AnnCloseP
+        -- mark GHC.AnnCloseP
 #endif
 
 #if __GLASGOW_HASKELL__ <= 710

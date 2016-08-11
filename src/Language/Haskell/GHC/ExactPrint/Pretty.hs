@@ -220,6 +220,7 @@ addPrettyAnnotation ann = do
            (G GHC.AnnAs)        -> tellKd (ann,DP (0,1))
            (G GHC.AnnBang)      -> tellKd (ann,DP (0,1))
            (G GHC.AnnBy)        -> tellKd (ann,DP (0,1))
+           (G GHC.AnnCase )     -> tellKd (ann,DP (0,1))
            (G GHC.AnnClass)     -> tellKd (ann,DP (0,1))
            (G GHC.AnnClose)     -> tellKd (ann,DP (0,1))
            (G GHC.AnnCloseC)    -> tellKd (ann,DP (0,0))

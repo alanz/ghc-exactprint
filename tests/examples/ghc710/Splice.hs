@@ -31,6 +31,8 @@ instance Ord a => MyClass (Quux2 a)
 class MyClass2 a b
 instance MyClass2 Int Bool
 
+makeLenses '' PostscriptFont
+
 $(return [])
 
 main = do
