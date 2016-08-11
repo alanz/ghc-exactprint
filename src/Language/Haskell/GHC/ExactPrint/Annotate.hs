@@ -2104,9 +2104,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         -- TODO: We do not seem to have any way to distinguish between which of
         -- the next two lines will emit output. If AnnThIdSplice is there, the
         -- markLocated b ends up with a negative offset so emits nothing.
-        markWithString GHC.AnnThIdSplice   ("$" ++ (GHC.occNameString (GHC.occName n)))
+        -- markWithString GHC.AnnThIdSplice   ("$" ++ (GHC.occNameString (GHC.occName n)))
+        markWithStringOptional GHC.AnnThIdSplice   ("$" ++ (GHC.occNameString (GHC.occName n)))
         markLocated b
-        mark GHC.AnnCloseP
+        -- mark GHC.AnnCloseP
       GHC.HsSplice _n b@(GHC.L _ (GHC.HsBracket _)) -> do
         markLocated b
       GHC.HsSplice _n b -> do
@@ -2984,16 +2985,19 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       markExpr l (GHC.HsSpliceE isTyped e) = do
         case e of
           GHC.HsSplice _n b@(GHC.L _ (GHC.HsVar n))  -> do
-            mark GHC.AnnOpenPE
             if isTyped
-              then markWithString GHC.AnnThIdTySplice ("$$" ++ (GHC.occNameString (GHC.occName n)))
-              else markWithString GHC.AnnThIdSplice   ("$" ++ (GHC.occNameString (GHC.occName n)))
+              then do
+                mark GHC.AnnOpenPTE
+                markWithStringOptional GHC.AnnThIdTySplice ("$$" ++ (GHC.occNameString (GHC.occName n)))
+              else do
+                mark GHC.AnnOpenPE
+                markWithStringOptional GHC.AnnThIdSplice   ("$" ++ (GHC.occNameString (GHC.occName n)))
             markLocated b
             mark GHC.AnnCloseP
           GHC.HsSplice _n b -> do
             if isTyped
               then do
-                mark GHC.AnnThIdSplice
+                markOptional GHC.AnnThIdSplice
                 mark GHC.AnnOpenPTE
               else mark GHC.AnnOpenPE
             markLocated b
