@@ -174,7 +174,7 @@ data KeywordId = G GHC.AnnKeywordId  -- ^ A normal keyword
 #if __GLASGOW_HASKELL__ <= 710
                | AnnUnicode GHC.AnnKeywordId -- ^ Used to indicate that we should print using unicode syntax if possible.
 #endif
-               deriving (Eq,Ord)
+               deriving (Eq, Ord, Data)
 
 instance Show KeywordId where
   show (G gc)          = "(G " ++ show gc ++ ")"
