@@ -923,21 +923,17 @@ instance Annotate (Maybe GHC.Role) where
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
    => Annotate (GHC.SpliceDecl name) where
   markAST _ (GHC.SpliceDecl e flag) = do
-#if __GLASGOW_HASKELL__ > 710
-    mark GHC.AnnOpenPE
-#else
     case flag of
       GHC.ExplicitSplice -> mark GHC.AnnOpenPE
       GHC.ImplicitSplice -> return ()
-#endif
-    markLocated e
-#if __GLASGOW_HASKELL__ > 710
-    mark GHC.AnnCloseP
-#else
+
+    -- markLocated e
+    setContext (Set.singleton InSpliceDecl) $ markLocated e
+
     case flag of
       GHC.ExplicitSplice -> mark GHC.AnnCloseP
       GHC.ImplicitSplice -> return ()
-#endif
+
     markTrailingSemi
 
 {-
@@ -2089,9 +2085,16 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       GHC.HsUntypedSplice _n b  -> do
         -- TODO: when is this not optional?
         markOptional GHC.AnnThIdSplice
-        mark GHC.AnnOpenPE
+        ifInContext (Set.singleton InSpliceDecl)
+          (return ())
+          (mark GHC.AnnOpenPE)
+        -- markOptional GHC.AnnOpenPE
         markLocated b
-        mark GHC.AnnCloseP
+        ifInContext (Set.singleton InSpliceDecl)
+          (return ())
+          (mark GHC.AnnCloseP)
+        -- mark GHC.AnnCloseP
+        -- markOptional GHC.AnnCloseP
 #else
   markAST _ c =
     case c of
