@@ -2246,9 +2246,10 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 #if __GLASGOW_HASKELL__ <= 710
       markPat _ (GHC.NPat ol _ _) = do
 #else
-      markPat _ (GHC.NPat ol _ _ _) = do
+      markPat _ (GHC.NPat ol mn _ _) = do
 #endif
-        markOptional GHC.AnnMinus
+        -- markOptional GHC.AnnMinus
+        when (isJust mn) $ mark GHC.AnnMinus
         markLocated ol
 
       -- NPlusKPat (Located id) (HsOverLit id) (SyntaxExpr id) (SyntaxExpr id)
