@@ -1842,8 +1842,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ > 710
     markType l (GHC.HsQualTy cxt ty) = do
       inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
-      setContext (Set.singleton Parens) $ markLocated cxt
-      -- markLocated cxt
+      -- setContext (Set.singleton Parens) $ markLocated cxt
+      markLocated cxt
       markLocated ty
   {-
     | HsQualTy   -- See Note [HsType binders]
@@ -3588,7 +3588,7 @@ markDataDefn _ (GHC.HsDataDefn _ ctx typ mk cons mderivs) = do
 -- Note: GHC.HsContext name aliases to here too
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
      => Annotate [GHC.LHsType name] where
-  markAST _ ts = do
+  markAST l ts = do
 #if __GLASGOW_HASKELL__ <= 710
     inContext (Set.singleton Deriving) $ mark GHC.AnnDeriving
 #endif
@@ -3599,7 +3599,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     let
       parenIfNeeded' pa =
         case ts of
-          []  -> markManyOptional pa
+          []  -> if l == GHC.noSrcSpan
+            then markManyOptional pa
+            else markMany pa
           [GHC.L _ GHC.HsForAllTy{}] -> markMany pa
           [x] -> markManyOptional pa
           _   -> markMany         pa
@@ -3625,7 +3627,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     ifInContext (Set.singleton NoDarrow)
       (return ())
       (if null ts
-        then markOptional GHC.AnnDarrow
+        then if l == GHC.noSrcSpan
+               then markOptional GHC.AnnDarrow
+               else mark         GHC.AnnDarrow
         else mark         GHC.AnnDarrow)
 
 -- ---------------------------------------------------------------------

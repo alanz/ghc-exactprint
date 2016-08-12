@@ -148,8 +148,10 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkParserTest "ghc710" "Unicode.hs"
 
 
-      -- mkPrettyRoundtrip "ghc710" "TypeOperators.hs"
-      mkPrettyRoundtrip "ghc710" "TemplateHaskell.hs"
+      mkPrettyRoundtrip "ghc710" "SemiInstance.hs"
+      -- mkPrettyRoundtrip "ghc710" "Arrow.hs"
+      -- mkPrettyRoundtrip "ghc710" "TemplateHaskell.hs"
+      -- mkPrettyRoundtrip "ghc710" "TH.hs"
       -- mkPrettyRoundtrip "ghc710" "SpacesSplice.hs"
       -- mkPrettyRoundtrip "ghc710" "Splice.hs"
       -- mkPrettyRoundtrip "ghc710" "SlidingTypeSyn.hs"
@@ -173,7 +175,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkParserTest "ghc710" "Splice.hs"
     -- , mkParserTest "ghc710" "SpliceSemi.hs"
     -- , mkParserTest "ghc710" "TemplateHaskell.hs"
-    -- , mkParserTest "ghc710" "Commands.hs"
+      -- mkParserTest "ghc710" "RdrNames.hs"
     -- , mkParserTest "ghc710" "ListComprehensions.hs"
 
       -- mkParserTest "ghc8" "T10704.hs"

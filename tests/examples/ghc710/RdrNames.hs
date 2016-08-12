@@ -142,4 +142,8 @@ data Coercible a b = MkCoercible ((~#) a b)
 -- ---------------------------------------------------------------------
 
 
-
+{- From #haskell-emacs
+gracjan> did you know that this is legal haskell:
+<gracjan> (+ 1) ` fmap {- -} ` [1,2,3]
+-}
+xxx = (+ 1) ` fmap {- -} ` [1,2,3]

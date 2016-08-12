@@ -331,10 +331,10 @@ withAST lss@(GHC.L ss t) action = do
     edp <- trace ("Pretty.withAST:enter:(ss,constr,noPrec,ctx)=" ++ showGhc (ss,showConstr (toConstr t),noPrec,ctx)) $ entryDpFor ctx t
     -- edp <- entryDpFor ctx t
 
-    -- let cs = trace ("Pretty.withAST:enter:(ss,constr,noPrec,ctx,edp)=" ++ showGhc (ss,showConstr (toConstr t),noPrec,ctx,edp)) []
-    (res, w) <- if inAcs (Set.fromList [ListItem,TopLevel]) ctx
+    let ctx1 = trace ("Pretty.withAST:edp:(ss,constr,edp)=" ++ showGhc (ss,showConstr (toConstr t),edp)) ctx
+    (res, w) <- if inAcs (Set.fromList [ListItem,TopLevel]) ctx1
       then
-           trace ("Pretty.withAST:setNoPrecedingSpace") $
+           -- trace ("Pretty.withAST:setNoPrecedingSpace") $
              censor maskWriter (listen (setNoPrecedingSpace action))
       else
            -- trace ("Pretty.withAST:setNoPrecedingSpace") $
@@ -367,7 +367,6 @@ entryDpFor ctx a = do
                     then 1 else 0
 
     def :: a -> Pretty DeltaPos
-    -- def _ = return $ DP (lineDefault,0)
     def _ =
       trace ("entryDpFor:(topLevel,listStart,inList)=" ++ show (topLevel,listStart,inList)) $
         if listStart
@@ -375,8 +374,6 @@ entryDpFor ctx a = do
           else if inList
             then if topLevel then return (DP (2,0)) else return (DP (1,0))
             else if topLevel then return (DP (2,0)) else return (DP (lineDefault,0))
-            -- else return (DP (lineDefault,0))
-            -- else fromLayout (DP (2,0)) (DP (lineDefault,0))
 
     topLevel = inAcs (Set.singleton TopLevel) ctx
     inCase = inAcs (Set.singleton CaseAlt) ctx
