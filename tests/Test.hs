@@ -149,7 +149,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
 
       mkPrettyRoundtrip "ghc710" "SemiInstance.hs"
-      -- mkPrettyRoundtrip "ghc710" "Arrow.hs"
+    , mkPrettyRoundtrip "ghc710" "Associated.hs"
       -- mkPrettyRoundtrip "ghc710" "TemplateHaskell.hs"
       -- mkPrettyRoundtrip "ghc710" "TH.hs"
       -- mkPrettyRoundtrip "ghc710" "SpacesSplice.hs"

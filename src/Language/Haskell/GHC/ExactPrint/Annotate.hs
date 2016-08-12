@@ -1311,12 +1311,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
   markAST _ (GHC.TyFamInstDecl eqn _) = do
     mark GHC.AnnType
-#if __GLASGOW_HASKELL__ <= 710
-    -- markOptional GHC.AnnInstance -- Note: this keyword is optional
     inContext (Set.singleton TopLevel) $ mark GHC.AnnInstance -- Note: this keyword is optional
-#else
-    mark GHC.AnnInstance -- Note: this keyword is optional
-#endif
     markLocated eqn
     markTrailingSemi
 
