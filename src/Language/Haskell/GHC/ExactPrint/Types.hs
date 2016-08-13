@@ -263,6 +263,7 @@ data AstContext = LambdaExpr
                 | CtxFirst
                 | CtxMiddle
                 | CtxLast
+                | CtxPos Int -- 0 for first, increasing for subsequent
                 deriving (Eq, Ord, Show)
 
 {-

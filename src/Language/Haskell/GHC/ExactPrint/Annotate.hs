@@ -147,8 +147,6 @@ data AnnotationF next where
   UnsetContext    ::         AstContext        -> Annotated () -> next -> AnnotationF next
   -- Query the context while in a child element
   IfInContext  :: Set.Set AstContext -> Annotated () -> Annotated ()   -> next -> AnnotationF next
-  -- NotInContext :: Set.Set AstContext -> Annotated ()                   -> next -> AnnotationF next
-  -- BumpContext  :: Annotated ()                                         -> next -> AnnotationF next
   WithSortKeyContexts :: ListContexts -> [(GHC.SrcSpan, Annotated ())] -> next -> AnnotationF next
 
 deriving instance Functor (AnnotationF)
@@ -183,8 +181,6 @@ makeFreeCon  'WithSortKey
 makeFreeCon  'SetContextLevel
 makeFreeCon  'UnsetContext
 makeFreeCon  'IfInContext
--- makeFreeCon  'NotInContext
--- makeFreeCon  'BumpContext
 makeFreeCon  'WithSortKeyContexts
 
 -- ---------------------------------------------------------------------
@@ -387,18 +383,18 @@ withSortKeyContextsHelper interpret (LC ctxOnly ctxInitial ctxMiddle ctxLast) kw
   -- mapM_ (deltaInterpret . snd) order
   case kws of
     [] -> return ()
-    [x] -> interpret (setContextLevel ctxOnly level $ snd x)
+    [x] -> interpret (setContextLevel (Set.insert (CtxPos 0) ctxOnly) level $ snd x)
     (x:xs) -> do
-      interpret (setContextLevel ctxInitial level $ snd x)
-      go xs
+      interpret (setContextLevel (Set.insert (CtxPos 0) ctxInitial) level $ snd x)
+      go 1 xs
   where
     -- order = sortBy (comparing fst) kws
     level = 2
-    go []  = return ()
-    go [x] = interpret (setContextLevel ctxLast level $ snd x)
-    go (x:xs) = do
-      interpret (setContextLevel ctxMiddle level $ snd x)
-      go xs
+    go _ []  = return ()
+    go n [x] = interpret (setContextLevel (Set.insert (CtxPos n) ctxLast) level $ snd x)
+    go n (x:xs) = do
+      interpret (setContextLevel (Set.insert (CtxPos n) ctxMiddle) level $ snd x)
+      go (n+1) xs
 
 -- ---------------------------------------------------------------------
 
@@ -3312,21 +3308,35 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     -- There may be arbitrary parens around parts of the constructor that are
     -- infix.
     -- Turn these into comments so that they feed into the right place automatically
-    annotationsToComments [GHC.AnnOpenP,GHC.AnnCloseP]
+    -- annotationsToComments [GHC.AnnOpenP,GHC.AnnCloseP]
     mark GHC.AnnType
+    markManyOptional GHC.AnnOpenP
+
+    let
+      isSym = GHC.isSymOcc $ GHC.occName $ GHC.unLoc ln
+      lnFun = do
+        ifInContext (Set.singleton CtxMiddle)
+                      (setContext (Set.singleton InOp) $ markLocated ln)
+                      (markLocated ln)
+      listFun b = do
+        when isSym $ ifInContext (Set.singleton (CtxPos 0))
+                      (markMany GHC.AnnOpenP)
+                      (return ())
+        markLocated b
+        when isSym $ ifInContext (Set.singleton (CtxPos 2))
+                      (markMany GHC.AnnCloseP)
+                      (return ())
+      prepareListFun ls = map (\b -> (GHC.getLoc b, listFun b )) ls
 
     -- For pretty-printing, if it is infix, we need to add parens around the next bit.
     -- unsetContext InOp $
     applyListAnnotationsContexts (LC (Set.singleton CtxOnly) (Set.singleton CtxFirst)
                                       (Set.singleton CtxMiddle) (Set.singleton CtxLast))
                                -- (prepareListAnnotation [ln]
-                               ([(GHC.getLoc ln,ifInContext (Set.singleton CtxMiddle)
-                                                   (setContext (Set.singleton InOp) $ markLocated ln)
-                                                   (markLocated ln)
-                                  )
-                                ]
-                             ++ prepareListAnnotation tyvars)
-    -- markMany GHC.AnnCloseP
+                               ([(GHC.getLoc ln,lnFun)]
+                             ++ prepareListFun tyvars)
+                             -- ++ prepareListAnnotation tyvars)
+    markManyOptional GHC.AnnCloseP
     mark GHC.AnnEqual
     markLocated typ
     markTrailingSemi
