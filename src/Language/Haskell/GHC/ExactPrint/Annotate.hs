@@ -2924,7 +2924,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markWithString GHC.AnnOpen "[d|"
         markOptional GHC.AnnOpenC
         -- mapM_ markLocated ds
-        markListWithLayout ds
+        setContext (Set.singleton NoAdvanceLine) $ markListWithLayout ds
         markOptional GHC.AnnCloseC
         markWithString GHC.AnnClose "|]"
       -- Introduced after the renamer

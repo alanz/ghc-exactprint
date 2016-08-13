@@ -358,22 +358,25 @@ withAST lss@(GHC.L ss t) action = do
 entryDpFor :: Typeable a => AstContextSet -> a -> Pretty DeltaPos
 entryDpFor ctx a = do
       (def
-        -- `extQ` funBind
-        -- `extQ` match
         `extQ` grhs
         ) a
   where
     lineDefault = if inAcs (Set.singleton AdvanceLine) ctx
                     then 1 else 0
+    noAdvanceLine = inAcs (Set.singleton NoAdvanceLine) ctx &&
+                    inAcs (Set.singleton ListStart) ctx
 
     def :: a -> Pretty DeltaPos
     def _ =
-      trace ("entryDpFor:(topLevel,listStart,inList)=" ++ show (topLevel,listStart,inList)) $
-        if listStart
-          then return (DP (1,2))
-          else if inList
-            then if topLevel then return (DP (2,0)) else return (DP (1,0))
-            else if topLevel then return (DP (2,0)) else return (DP (lineDefault,0))
+      trace ("entryDpFor:(topLevel,listStart,inList,noAdvanceLine)=" ++ show (topLevel,listStart,inList,noAdvanceLine)) $
+        if noAdvanceLine
+          then return (DP (0,1))
+          else
+            if listStart
+              then return (DP (1,2))
+              else if inList
+                then if topLevel then return (DP (2,0)) else return (DP (1,0))
+                else if topLevel then return (DP (2,0)) else return (DP (lineDefault,0))
 
     topLevel = inAcs (Set.singleton TopLevel) ctx
     inCase = inAcs (Set.singleton CaseAlt) ctx

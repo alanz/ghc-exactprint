@@ -236,6 +236,7 @@ data AstContext = LambdaExpr
                 | TypeAsKind -- For GHC < 8.0
                 | HasHiding
                 | AdvanceLine
+                | NoAdvanceLine
                 | ListComp
                 | Intercalate -- This item may have a list separator following
                 | InIE -- possible 'type' or 'pattern'
