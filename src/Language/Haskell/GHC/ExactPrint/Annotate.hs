@@ -789,7 +789,11 @@ instance Annotate GHC.RdrName where
          "*"  -> do
            markExternal l GHC.AnnVal str
          ":"  -> do
+           -- Note: The OccName for ":" has the following attributes (via occAttributes)
+           -- (d, Data DataSym Sym Val )
+           -- consDataConName   = mkWiredInDataConName BuiltInSyntax gHC_TYPES (fsLit ":") consDataConKey consDataCon
            doNormalRdrName
+           -- trace ("RdrName.checking :" ++ (occAttributes $ GHC.occName n)) doNormalRdrName
          ('(':',':_) -> do
            mark GHC.AnnOpenP
            let cnt = length $ filter (==',') str
@@ -2038,10 +2042,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ > 710
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsAppType name) where
-  markAST _ (GHC.HsAppInfix t)  = do
+  markAST _ (GHC.HsAppInfix n)  = do
     -- mark GHC.AnnSimpleQuote
-    markOptional GHC.AnnSimpleQuote
-    setContext (Set.singleton InOp) $ markLocated t
+    -- (Unqual {OccName: ++ (tc, Tc Sym )})))),
+    when (GHC.isDataOcc $ GHC.occName $ GHC.unLoc n) $ mark GHC.AnnSimpleQuote
+    -- markOptional GHC.AnnSimpleQuote
+    setContext (Set.singleton InOp) $ markLocated n
   markAST _ (GHC.HsAppPrefix t) = do
     markOptional GHC.AnnTilde
     markLocated t
@@ -3502,10 +3508,9 @@ data FamilyDecl name = FamilyDecl
 #if __GLASGOW_HASKELL__ > 710
       GHC.ClosedTypeFamily (Just eqns) -> do
         mark GHC.AnnWhere
-        mark GHC.AnnOpenC -- {
-        -- mapM_ markLocated eqns
+        markOptional GHC.AnnOpenC -- {
         markListWithLayout eqns
-        mark GHC.AnnCloseC -- }
+        markOptional GHC.AnnCloseC -- }
       GHC.ClosedTypeFamily Nothing -> do
         mark GHC.AnnWhere
         mark GHC.AnnOpenC -- {
