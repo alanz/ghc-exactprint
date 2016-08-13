@@ -148,14 +148,17 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkParserTest "ghc710" "Unicode.hs"
 
 
+      -- GHC 7.10 holdouts
       -- mkPrettyRoundtrip "ghc710" "NestedDoLambda.hs"
       -- mkPrettyRoundtrip "ghc710" "PuncFunctions.hs"
-      mkPrettyRoundtrip "ghc710" "TH.hs"
+      -- mkPrettyRoundtrip "ghc710" "TH.hs"
       -- mkPrettyRoundtrip "ghc710" "THMonadInstance.hs"
+
+      -- mkPrettyRoundtrip "ghc710" "TH.hs"
+      mkPrettyRoundtrip "ghc710" "TemplateHaskell.hs"
 
     -- , mkParserTest "ghc710" "MachineTypes.hs"
     -- , mkParserTest "ghc710" "TypeBrackets.hs"
-    -- , mkParserTest "ghc710" "TemplateHaskell.hs"
       -- mkParserTest "ghc710" "RdrNames.hs"
     -- , mkParserTest "ghc710" "ListComprehensions.hs"
 

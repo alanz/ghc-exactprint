@@ -400,7 +400,6 @@ withSortKeyContextsHelper interpret (LC ctxOnly ctxInitial ctxMiddle ctxLast) kw
 
 markListWithLayout :: Annotate ast => [GHC.Located ast] -> Annotated ()
 markListWithLayout ls =
-  -- setLayoutFlag (mapM_ markLocated ls)
   setLayoutFlag $ markList ls
 
 -- ---------------------------------------------------------------------
@@ -2064,7 +2063,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
       GHC.HsTypedSplice _n b@(GHC.L _ (GHC.HsVar (GHC.L _ n)))  -> do
         markWithString GHC.AnnThIdTySplice ("$$" ++ (GHC.occNameString (GHC.occName n)))
-        markLocated b
+        -- markLocated b
       GHC.HsTypedSplice _n b -> do
         mark GHC.AnnOpenPTE
         markLocated b
@@ -2075,7 +2074,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         -- the next two lines will emit output. If AnnThIdSplice is there, the
         -- markLocated b ends up with a negative offset so emits nothing.
         mark GHC.AnnOpenPE
-        markWithString GHC.AnnThIdSplice ("$" ++ (GHC.occNameString (GHC.occName n)))
+        markWithStringOptional GHC.AnnThIdSplice ("$" ++ (GHC.occNameString (GHC.occName n)))
         markLocated b
         mark GHC.AnnCloseP
       GHC.HsUntypedSplice _n b  -> do
@@ -2954,7 +2953,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
                     else "[e||")
 #else
         markWithString GHC.AnnOpen  "[||"
-        markWithString GHC.AnnOpenE "[e||"
+        markWithStringOptional GHC.AnnOpenE "[e||"
 #endif
         markLocated e
         markWithString GHC.AnnClose "||]"
@@ -3441,7 +3440,7 @@ markTyClass ln tyVars = do
                       (return ())
       prepareListFun ls = map (\b -> (GHC.getLoc b, listFun b )) ls
 
-    applyListAnnotationsContexts (LC (Set.singleton CtxOnly) (Set.singleton CtxFirst)
+    applyListAnnotationsContexts (LC (Set.fromList [CtxOnly,PrefixOp]) (Set.fromList [CtxFirst,PrefixOp])
                                       (Set.singleton CtxMiddle) (Set.singleton CtxLast))
                                -- (prepareListAnnotation [ln]
                                ([(GHC.getLoc ln,lnFun)]

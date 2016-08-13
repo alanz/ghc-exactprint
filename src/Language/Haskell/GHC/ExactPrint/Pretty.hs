@@ -356,10 +356,7 @@ withAST lss@(GHC.L ss t) action = do
 -- ---------------------------------------------------------------------
 
 entryDpFor :: Typeable a => AstContextSet -> a -> Pretty DeltaPos
-entryDpFor ctx a = do
-      (def
-        `extQ` grhs
-        ) a
+entryDpFor ctx a = (def `extQ` grhs) a
   where
     lineDefault = if inAcs (Set.singleton AdvanceLine) ctx
                     then 1 else 0
