@@ -2923,7 +2923,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       markExpr _ (GHC.HsBracket (GHC.DecBrL ds)) = do
         markWithString GHC.AnnOpen "[d|"
         markOptional GHC.AnnOpenC
-        mapM_ markLocated ds
+        -- mapM_ markLocated ds
+        markListWithLayout ds
         markOptional GHC.AnnCloseC
         markWithString GHC.AnnClose "|]"
       -- Introduced after the renamer
