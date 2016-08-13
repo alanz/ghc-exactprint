@@ -707,7 +707,6 @@ instance Annotate GHC.RdrName where
     let
       str = rdrName2String n
       isSym = isSymRdr n
-      -- isClass = GHC.isClsOcc $ GHC.rdrNameOcc n
       canParen = isSym && rdrName2String n /= "$"
       doNormalRdrName = do
         let str' = case str of
@@ -791,9 +790,6 @@ instance Annotate GHC.RdrName where
            markExternal l GHC.AnnVal str
          ":"  -> do
            doNormalRdrName
-           -- mark GHC.AnnOpenP -- '('
-           -- markExternal l GHC.AnnVal str
-           -- mark GHC.AnnCloseP -- ')'
          ('(':',':_) -> do
            mark GHC.AnnOpenP
            let cnt = length $ filter (==',') str
@@ -2070,26 +2066,28 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         mark GHC.AnnCloseP
 
       GHC.HsUntypedSplice _n b@(GHC.L _ (GHC.HsVar (GHC.L _ n)))  -> do
+        -- mark GHC.AnnOpenPE
+        ifInContext (Set.singleton InSpliceDecl)
+          (return ())
+          (mark GHC.AnnOpenPE)
         -- TODO: We do not seem to have any way to distinguish between which of
         -- the next two lines will emit output. If AnnThIdSplice is there, the
         -- markLocated b ends up with a negative offset so emits nothing.
-        mark GHC.AnnOpenPE
         markWithStringOptional GHC.AnnThIdSplice ("$" ++ (GHC.occNameString (GHC.occName n)))
         markLocated b
-        mark GHC.AnnCloseP
+        ifInContext (Set.singleton InSpliceDecl)
+          (return ())
+          (mark GHC.AnnCloseP)
       GHC.HsUntypedSplice _n b  -> do
         -- TODO: when is this not optional?
         markOptional GHC.AnnThIdSplice
         ifInContext (Set.singleton InSpliceDecl)
           (return ())
           (mark GHC.AnnOpenPE)
-        -- markOptional GHC.AnnOpenPE
         markLocated b
         ifInContext (Set.singleton InSpliceDecl)
           (return ())
           (mark GHC.AnnCloseP)
-        -- mark GHC.AnnCloseP
-        -- markOptional GHC.AnnCloseP
 #else
   markAST _ c =
     case c of
@@ -2100,13 +2098,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         -- markWithString GHC.AnnThIdSplice   ("$" ++ (GHC.occNameString (GHC.occName n)))
         markWithStringOptional GHC.AnnThIdSplice   ("$" ++ (GHC.occNameString (GHC.occName n)))
         markLocated b
-        -- mark GHC.AnnCloseP
       GHC.HsSplice _n b@(GHC.L _ (GHC.HsBracket _)) -> do
         markLocated b
       GHC.HsSplice _n b -> do
-        -- mark GHC.AnnOpenPE
         markLocated b
-        -- mark GHC.AnnCloseP
 #endif
 
 #if __GLASGOW_HASKELL__ <= 710
