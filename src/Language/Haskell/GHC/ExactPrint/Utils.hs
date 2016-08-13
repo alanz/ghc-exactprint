@@ -64,6 +64,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , warn
   , showGhc
   , showAnnData
+  , occAttributes
 
   , showSDoc_,  showSDocDebug_
   -- AZ's baggage
@@ -95,7 +96,7 @@ import qualified RdrName        as GHC
 import qualified SrcLoc        as GHC
 import qualified Var            as GHC
 
-import qualified OccName(occNameString,pprNameSpaceBrief)
+import qualified OccName(OccName(..),occNameString,pprNameSpaceBrief)
 
 import Control.Arrow
 
@@ -543,7 +544,7 @@ showAnnData anns n =
 
         name       = ("{Name: "++) . (++"}") . showSDocDebug_ . GHC.ppr :: GHC.Name -> String
         -- occName    = ("{OccName: "++) . (++"}") .  OccName.occNameString
-        occName o   = ("{OccName: "++ OccName.occNameString o ++ " (" ++ GHC.showSDocUnsafe (OccName.pprNameSpaceBrief $ GHC.occNameSpace o) ++ "," ++ show (GHC.isSymOcc o) ++ ")}")
+        occName o   = ("{OccName: "++ OccName.occNameString o ++ " " ++ occAttributes o ++ "}")
         moduleName = ("{ModuleName: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.ModuleName -> String
 
         -- srcSpan    = ("{"++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.SrcSpan -> String
@@ -597,6 +598,29 @@ showAnnData anns n =
         doShowAnn :: (Data a) => GHC.Located a -> String
         doShowAnn a =  show (getAnnotationEP a anns)
 -}
+
+
+        -- isVarOcc, isTvOcc, isTcOcc, isDataOcc, isDataSymOcc, isSymOcc, isValOcc,
+occAttributes :: OccName.OccName -> String
+occAttributes o = "(" ++ ns ++ vo ++ tv ++ tc ++ d ++ ds ++ s ++ v ++ ")"
+  where
+    ns = (GHC.showSDocUnsafe $ OccName.pprNameSpaceBrief $ GHC.occNameSpace o) ++ ", "
+    vo = if GHC.isVarOcc     o then "Var "     else ""
+    tv = if GHC.isTvOcc      o then "Tv "      else ""
+    tc = if GHC.isTcOcc      o then "Tc "      else ""
+    d  = if GHC.isDataOcc    o then "Data "    else ""
+    ds = if GHC.isDataSymOcc o then "DataSym " else ""
+    s  = if GHC.isSymOcc     o then "Sym "     else ""
+    v  = if GHC.isValOcc     o then "Val "     else ""
+
+{-
+data NameSpace = VarName        -- Variables, including "real" data constructors
+               | DataName       -- "Source" data constructors
+               | TvName         -- Type variables
+               | TcClsName      -- Type constructors and classes; Haskell has them
+                                -- in the same name space for now.
+-}
+
  -- ---------------------------------------------------------------------
 
 showSDoc_ :: GHC.SDoc -> String

@@ -3310,6 +3310,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     -- Turn these into comments so that they feed into the right place automatically
     -- annotationsToComments [GHC.AnnOpenP,GHC.AnnCloseP]
     mark GHC.AnnType
+
+    markTyClass ln tyvars
+    {-
     markManyOptional GHC.AnnOpenP
 
     let
@@ -3328,15 +3331,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
                       (return ())
       prepareListFun ls = map (\b -> (GHC.getLoc b, listFun b )) ls
 
-    -- For pretty-printing, if it is infix, we need to add parens around the next bit.
-    -- unsetContext InOp $
     applyListAnnotationsContexts (LC (Set.singleton CtxOnly) (Set.singleton CtxFirst)
                                       (Set.singleton CtxMiddle) (Set.singleton CtxLast))
                                -- (prepareListAnnotation [ln]
                                ([(GHC.getLoc ln,lnFun)]
                              ++ prepareListFun tyvars)
-                             -- ++ prepareListAnnotation tyvars)
     markManyOptional GHC.AnnCloseP
+    -}
     mark GHC.AnnEqual
     markLocated typ
     markTrailingSemi
@@ -3411,19 +3412,41 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 -- ---------------------------------------------------------------------
 
-markTyClass :: (Annotate a, Annotate ast)
+markTyClass :: (Annotate a, Annotate ast,GHC.HasOccName a)
                 => GHC.Located a -> [GHC.Located ast] -> Annotated ()
 markTyClass ln tyVars = do
     markManyOptional GHC.AnnOpenP
-    -- applyListAnnotations
+
+{-
     -- This may be an infix operation
     applyListAnnotationsContexts (LC (Set.singleton PrefixOp) (Set.singleton PrefixOp)
                                      Set.empty Set.empty)
-                                     -- (Set.singleton InOp) (Set.singleton InOp))
                         (prepareListAnnotation [ln]
                       ++ prepareListAnnotation (take 2 tyVars))
+-}
+    let
+      parensNeeded = (GHC.isSymOcc $ GHC.occName $ GHC.unLoc ln) && length tyVars > 2
+      lnFun = do
+        ifInContext (Set.singleton CtxMiddle)
+                      (setContext (Set.singleton InOp) $ markLocated ln)
+                      (markLocated ln)
+      listFun b = do
+        when parensNeeded $ ifInContext (Set.singleton (CtxPos 0))
+                      (markMany GHC.AnnOpenP)
+                      (return ())
+        markLocated b
+        when parensNeeded $ ifInContext (Set.singleton (CtxPos 2))
+                      (markMany GHC.AnnCloseP)
+                      (return ())
+      prepareListFun ls = map (\b -> (GHC.getLoc b, listFun b )) ls
+
+    applyListAnnotationsContexts (LC (Set.singleton CtxOnly) (Set.singleton CtxFirst)
+                                      (Set.singleton CtxMiddle) (Set.singleton CtxLast))
+                               -- (prepareListAnnotation [ln]
+                               ([(GHC.getLoc ln,lnFun)]
+                             ++ prepareListFun tyVars)
     markManyOptional GHC.AnnCloseP
-    mapM_ markLocated (drop 2 tyVars)
+    -- mapM_ markLocated (drop 2 tyVars)
 
 -- ---------------------------------------------------------------------
 
