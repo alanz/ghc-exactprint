@@ -917,9 +917,11 @@ instance Annotate (Maybe GHC.Role) where
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
    => Annotate (GHC.SpliceDecl name) where
+#if __GLASGOW_HASKELL__ > 710
   markAST _ (GHC.SpliceDecl e@(GHC.L _ (GHC.HsQuasiQuote{})) flag) = do
     setContext (Set.singleton InSpliceDecl) $ markLocated e
     markTrailingSemi
+#endif
   markAST _ (GHC.SpliceDecl e flag) = do
     case flag of
       GHC.ExplicitSplice -> mark GHC.AnnOpenPE
@@ -1471,7 +1473,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #endif
     case (get_infix mln,pats) of
       (True, a:b:xs) -> do
-        markOptional GHC.AnnOpenP
+        if null xs
+          then markOptional GHC.AnnOpenP
+          else mark         GHC.AnnOpenP
         markLocated a
         case mln of
 #if __GLASGOW_HASKELL__ <= 710
@@ -1482,7 +1486,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
           GHC.FunBindMatch n _ -> setContext (Set.singleton InOp) $ markLocated n
 #endif
         markLocated b
-        markOptional GHC.AnnCloseP
+        if null xs
+         then markOptional GHC.AnnCloseP
+         else mark         GHC.AnnCloseP
         mapM_ markLocated xs
       _ -> do
         annotationsToComments [GHC.AnnOpenP,GHC.AnnCloseP]
