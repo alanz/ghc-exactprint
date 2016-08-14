@@ -917,12 +917,14 @@ instance Annotate (Maybe GHC.Role) where
 
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
    => Annotate (GHC.SpliceDecl name) where
+  markAST _ (GHC.SpliceDecl e@(GHC.L _ (GHC.HsQuasiQuote{})) flag) = do
+    setContext (Set.singleton InSpliceDecl) $ markLocated e
+    markTrailingSemi
   markAST _ (GHC.SpliceDecl e flag) = do
     case flag of
       GHC.ExplicitSplice -> mark GHC.AnnOpenPE
       GHC.ImplicitSplice -> return ()
 
-    -- markLocated e
     setContext (Set.singleton InSpliceDecl) $ markLocated e
 
     case flag of
@@ -1740,7 +1742,7 @@ instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) wh
 #else
 instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) where
   markAST _ (GHC.Var x)  = do
-    markLocated x
+    setContext (Set.singleton PrefixOp) $ markLocated x
     -- mark GHC.AnnVbar -- '|'
     inContext (Set.fromList [AddVbar]) $ mark GHC.AnnVbar
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
