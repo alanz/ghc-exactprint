@@ -2223,7 +2223,6 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
         markWithString GHC.AnnClose ":]"
 
       markPat _ (GHC.ConPatIn n dets) = do
-        -- markHsConPatDetails n dets
         markHsConPatDetails n dets
 
       markPat _ (GHC.ConPatOut {}) =
@@ -2317,7 +2316,7 @@ markHsConPatDetails :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName n
 markHsConPatDetails ln dets = do
   case dets of
     GHC.PrefixCon args -> do
-      markLocated ln
+      setContext (Set.singleton PrefixOp) $ markLocated ln
       mapM_ markLocated args
     GHC.RecCon (GHC.HsRecFields fs dd) -> do
       markLocated ln
@@ -2707,8 +2706,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         if b == GHC.Boxed then mark GHC.AnnOpenP
                           else markWithString GHC.AnnOpen "(#"
 
-        -- markListIntercalate args
-        markListIntercalateWithFunLevel markLocated 2 args
+        -- markListIntercalateWithFunLevel markLocated 2 args
+        setContext (Set.singleton PrefixOp) $ markListIntercalateWithFunLevel markLocated 2 args
 
         if b == GHC.Boxed then mark GHC.AnnCloseP
                           else markWithString GHC.AnnClose "#)"
@@ -3486,7 +3485,7 @@ data FamilyDecl name = FamilyDecl
       Nothing -> return ()
       Just inj -> do
         mark GHC.AnnVbar
-        mark GHC.AnnEqual
+        -- mark GHC.AnnEqual
         markLocated inj
 #endif
     case info of
@@ -3525,12 +3524,11 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 
 -- ---------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ <= 710
-#else
+#if __GLASGOW_HASKELL__ > 710
 instance (GHC.DataId name,Annotate name)
   => Annotate (GHC.InjectivityAnn name) where
   markAST l (GHC.InjectivityAnn ln lns) = do
-    mark GHC.AnnVbar
+    -- mark GHC.AnnVbar
     markLocated ln
     mark GHC.AnnRarrow
     mapM_ markLocated lns
@@ -3758,7 +3756,8 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnVbar
     markTrailingSemi
   markAST _ (GHC.ConDeclGADT lns (GHC.HsIB _ typ) _) = do
-    markListIntercalate lns
+    -- markListIntercalate lns
+    setContext (Set.singleton PrefixOp) $ markListIntercalate lns
     mark GHC.AnnDcolon
     markLocated typ
     markTrailingSemi

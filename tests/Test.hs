@@ -156,7 +156,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
       -- mkPrettyRoundtrip "ghc710" "TH.hs"
       -- mkPrettyRoundtrip "ghc8" "MultiWayIf.hs"
-      mkPrettyRoundtrip "ghc8" "determ004.hs"
+      mkPrettyRoundtrip "ghc8" "T6018th.hs"
 
     -- , mkParserTest "ghc710" "MachineTypes.hs"
     -- , mkParserTest "ghc710" "TypeBrackets.hs"

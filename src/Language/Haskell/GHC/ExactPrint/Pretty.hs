@@ -218,6 +218,7 @@ addPrettyAnnotation ann = do
   let
     dp = case ann of
            (G GHC.AnnAs)        -> tellKd (ann,DP (0,1))
+           (G GHC.AnnAt)        -> tellKd (ann,DP (0,1))
            (G GHC.AnnBang)      -> tellKd (ann,DP (0,1))
            (G GHC.AnnBy)        -> tellKd (ann,DP (0,1))
            (G GHC.AnnCase )     -> tellKd (ann,DP (0,1))
