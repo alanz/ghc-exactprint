@@ -310,16 +310,6 @@ ifInContextDelta ctxt ifAction elseAction = do
     then deltaInterpret ifAction
     else deltaInterpret elseAction
 
-notInContextDelta :: Set.Set AstContext -> Annotated () -> Delta ()
-notInContextDelta ctxt action = do
-  cur <- asks drContext
-  let notInContext = not $ inAcs ctxt cur
-  when notInContext (deltaInterpret action)
-
-bumpContextDelta :: Delta () -> Delta ()
-bumpContextDelta =
-  local (\s -> s { drContext = bumpAcs (drContext s) } )
-
 -- ---------------------------------------------------------------------
 
 storeOriginalSrcSpanDelta :: AnnKey -> Delta AnnKey

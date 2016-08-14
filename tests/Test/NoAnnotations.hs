@@ -49,7 +49,7 @@ import System.FilePath
 -- import System.FilePath.Posix
 -- import System.IO
 import qualified Data.Map as Map
-import Data.List
+-- import Data.List
 -- import Data.Maybe
 
 import Test.Common
@@ -109,7 +109,7 @@ prettyRoundtripTest origFile = do
 runPrettyRoundTrip :: FilePath -> GHC.ApiAnns -> GHC.ParsedSource
                    -> [Comment]
                    -> IO (Either (GHC.SrcSpan, String)(Anns, GHC.ParsedSource))
-runPrettyRoundTrip origFile !anns !parsedOrig cs = do
+runPrettyRoundTrip origFile !anns !parsedOrig _cs = do
   let !newAnns = addAnnotationsForPretty [] parsedOrig mempty
   let comments = case Map.lookup GHC.noSrcSpan (snd anns) of
         Nothing -> []
@@ -148,7 +148,7 @@ diffText f1 f2 = diff
 -- AST and the one after pretty-print roundtripping.
 -- Based on @showAnnData@
 astStructure :: GHC.ParsedSource -> [Comment] -> String
-astStructure parsed cs = r
+astStructure parsed _cs = r
   where
     r = showAstData 0 parsed
 
@@ -183,7 +183,7 @@ showAstData n =
         moduleName = ("{ModuleName: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.ModuleName -> String
 
         srcSpan :: GHC.SrcSpan -> String
-        srcSpan ss = "{ "++ "ss" ++"}"
+        srcSpan _ss = "{ "++ "ss" ++"}"
 
         var        = ("{Var: "++) . (++"}") . showSDocDebug_ . GHC.ppr :: GHC.Var -> String
         dataCon    = ("{DataCon: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.DataCon -> String

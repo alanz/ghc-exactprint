@@ -268,16 +268,6 @@ ifInContextPrint ctxt ifAction elseAction = do
     then printInterpret ifAction
     else printInterpret elseAction
 
-notInContextPrint :: (Monad m, Monoid w) => Set.Set AstContext -> Annotated () -> EP w m ()
-notInContextPrint ctxt action = do
-  cur <- asks epContext
-  let notInContext = not $ inAcs ctxt cur
-  when notInContext (printInterpret action)
-
-bumpContextPrint :: (Monad m, Monoid w) => EP w m () -> EP w m ()
-bumpContextPrint =
-  local (\s -> s { epContext = bumpAcs (epContext s) } )
-
 -- ---------------------------------------------------------------------
 
 allAnns :: (Monad m, Monoid w) => GHC.AnnKeywordId -> EP w m ()

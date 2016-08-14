@@ -69,6 +69,8 @@ import Debug.Trace
 
 
 {-# ANN module "HLint: ignore Eta reduce" #-}
+{-# ANN module "HLint: ignore Redundant do" #-}
+{-# ANN module "HLint: ignore Reduce duplication" #-}
 -- ---------------------------------------------------------------------
 
 -- | ['MarkPrim'] The main constructor. Marks that a specific AnnKeywordId could
@@ -149,7 +151,7 @@ data AnnotationF next where
   IfInContext  :: Set.Set AstContext -> Annotated () -> Annotated ()   -> next -> AnnotationF next
   WithSortKeyContexts :: ListContexts -> [(GHC.SrcSpan, Annotated ())] -> next -> AnnotationF next
 
-deriving instance Functor (AnnotationF)
+deriving instance Functor AnnotationF
 
 type Annotated = FreeT AnnotationF Identity
 
@@ -319,9 +321,9 @@ markListIntercalateWithFunLevelCtx f level ctx ls = go ls
 
 -- ---------------------------------------------------------------------
 
-markListInitialContext :: Annotate ast => Set.Set AstContext -> [GHC.Located ast] -> Annotated ()
-markListInitialContext ctx ls =
-  markListWithContexts ctx Set.empty ls
+-- markListInitialContext :: Annotate ast => Set.Set AstContext -> [GHC.Located ast] -> Annotated ()
+-- markListInitialContext ctx ls =
+--   markListWithContexts ctx Set.empty ls
 
 markListWithContexts :: Annotate ast => Set.Set AstContext -> Set.Set AstContext -> [GHC.Located ast] -> Annotated ()
 markListWithContexts ctxInitial ctxRest ls =
@@ -456,10 +458,10 @@ applyListAnnotationsLayout ls = setLayoutFlag $ setContext (Set.singleton NoPrec
                                               $ withSortKeyContexts listContexts ls
 
 listContexts :: ListContexts
-listContexts = (LC (Set.fromList [CtxOnly,ListStart])
-                   (Set.fromList [CtxFirst,ListStart,Intercalate])
-                   (Set.fromList [CtxMiddle,ListItem,Intercalate])
-                   (Set.fromList [CtxLast,ListItem]))
+listContexts = LC (Set.fromList [CtxOnly,ListStart])
+                  (Set.fromList [CtxFirst,ListStart,Intercalate])
+                  (Set.fromList [CtxMiddle,ListItem,Intercalate])
+                  (Set.fromList [CtxLast,ListItem])
 
 -- ---------------------------------------------------------------------
 
@@ -551,7 +553,7 @@ instance (GHC.DataId name,GHC.HasOccName name, Annotate name)
     case ie of
         (GHC.IEVar ln) -> do
           -- TODO: I am pretty sure this criterion is inadequate
-          if (GHC.isDataOcc $ GHC.occName $ GHC.unLoc ln)
+          if GHC.isDataOcc $ GHC.occName $ GHC.unLoc ln
             then mark GHC.AnnPattern
             else markOptional GHC.AnnPattern
           setContext (Set.fromList [PrefixOp,InIE]) $ markLocated ln
@@ -577,7 +579,7 @@ instance (GHC.DataId name,GHC.HasOccName name, Annotate name)
           -- lookupTopBndrRn_maybe, based on the -XTypeOperators extension
 
 #if __GLASGOW_HASKELL__ <= 710
-          if (GHC.isTcOcc $ GHC.occName n) && (GHC.isSymOcc $ GHC.occName n)
+          if GHC.isTcOcc (GHC.occName n) && GHC.isSymOcc (GHC.occName n)
 #else
           if ((GHC.isTcOcc $ GHC.occName n) && (GHC.isSymOcc $ GHC.occName n))
                  && (not $ GHC.isLexConSym $ GHC.occNameFS $ GHC.occName n) -- rule out (:-$) etc
@@ -964,9 +966,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLocated ln
     case mln of
       Nothing -> return ()
-      Just ln -> do
+      Just lnn -> do
         mark GHC.AnnEqual
-        markLocated ln
+        markLocated lnn
     markWithString GHC.AnnClose "#-}" -- "#-}"
 
   markAST _ (GHC.HsVectTypeOut {}) =
@@ -1006,7 +1008,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLocated ln
     setContext (Set.singleton ExplicitNeverActive) $ markActivation act
 
-    when (not $ null bndrs) $ do
+    unless (null bndrs) $ do
       mark GHC.AnnForall
       mapM_ markLocated bndrs
       mark GHC.AnnDot
@@ -1341,7 +1343,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       Nothing -> return ()
 #endif
     -- mark GHC.AnnWhere
-    if (isGadt $ GHC.dd_cons defn)
+    if isGadt $ GHC.dd_cons defn
       then mark GHC.AnnWhere
       else mark GHC.AnnEqual
     markDataDefn l defn
@@ -2318,6 +2320,7 @@ markHsConPatDetails ln dets = do
     GHC.PrefixCon args -> do
       setContext (Set.singleton PrefixOp) $ markLocated ln
       mapM_ markLocated args
+      -- setContext (Set.singleton PrefixOp) $ mapM_ markLocated args
     GHC.RecCon (GHC.HsRecFields fs dd) -> do
       markLocated ln
       mark GHC.AnnOpenC -- '{'
@@ -2642,7 +2645,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
             -- GHC.L _ (GHC.HsVar n) -> (GHC.occNameString $ GHC.occName n) == "."
             -- GHC.L _ (GHC.HsVar n) -> (GHC.occNameString $ GHC.occName n) /= "$"
-            GHC.L _ (GHC.HsVar n) -> True
+            GHC.L _ (GHC.HsVar _) -> True
 #else
             -- GHC.L _ (GHC.HsVar (GHC.L _ n)) -> (GHC.occNameString $ GHC.occName n) == "."
             GHC.L _ (GHC.HsVar (GHC.L _ n)) -> True
@@ -2989,7 +2992,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markAST l e
         -- mark GHC.AnnCloseP
 #else
-      markExpr l (GHC.HsSpliceE isTyped e) = do
+      markExpr _ (GHC.HsSpliceE isTyped e) = do
         case e of
           GHC.HsSplice _n b@(GHC.L _ (GHC.HsVar n))  -> do
             if isTyped
@@ -3547,6 +3550,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
     {- -}
     markOptional GHC.AnnOpenP
     applyListAnnotations (prepareListAnnotation [ln]
+    -- applyListAnnotations (prepareListAnnotationWithContext (Set.singleton PrefixOp) [ln]
                          -- ++ prepareListAnnotation pats)
                          ++ prepareListAnnotationWithContext (Set.singleton PrefixOp) pats)
     markOptional GHC.AnnCloseP
@@ -3623,7 +3627,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
             then markManyOptional pa
             else markMany pa
           [GHC.L _ GHC.HsForAllTy{}] -> markMany pa
-          [x] -> markManyOptional pa
+          [_] -> markManyOptional pa
           _   -> markMany         pa
 
       parenIfNeeded'' pa =

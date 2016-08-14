@@ -23,8 +23,8 @@ import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Annotate
 
-import Control.Exception
-import Control.Monad.Identity
+-- import Control.Exception
+-- import Control.Monad.Identity
 import Control.Monad.RWS
 import Control.Monad.Trans.Free
 import Data.Generics
@@ -41,7 +41,7 @@ import qualified BooleanFormula as GHC
 #endif
 import qualified GHC
 import qualified Outputable     as GHC
-import qualified SrcLoc        as GHC
+-- import qualified SrcLoc        as GHC
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -136,11 +136,8 @@ prettyOptions ridigity =
     , prContext  = defaultACS
     }
 
-normalLayout :: PrettyOptions
-normalLayout = prettyOptions NormalLayout
-
 defaultPrettyState :: [Comment] -> Pos -> Anns -> PrettyState
-defaultPrettyState injectedComments priorEnd ans =
+defaultPrettyState injectedComments priorEnd _ans =
     PrettyState
       { priorEndPosition    = priorEnd
       , apComments = cs ++ injectedComments
@@ -153,9 +150,9 @@ defaultPrettyState injectedComments priorEnd ans =
     -- cs = flattenedComments ga
     cs = []
 
-    flattenedComments :: GHC.ApiAnns -> [Comment]
-    flattenedComments (_,cm) =
-      map tokComment . GHC.sortLocated . concat $ Map.elems cm
+    -- flattenedComments :: GHC.ApiAnns -> [Comment]
+    -- flattenedComments (_,cm) =
+    --   map tokComment . GHC.sortLocated . concat $ Map.elems cm
 
 -- ---------------------------------------------------------------------
 -- Free Monad Interpretation code
@@ -167,7 +164,7 @@ prettyInterpret = iterTM go
     go (MarkPrim kwid _ next)           = addPrettyAnnotation (G kwid) >> next
     go (MarkPPOptional _kwid _ next)    = next
     go (MarkEOF next)                   = addEofAnnotation >> next
-    go (MarkExternal ss akwid _ next)   = addPrettyAnnotation (G akwid) >> next
+    go (MarkExternal _ss akwid _ next)  = addPrettyAnnotation (G akwid) >> next
     go (MarkOutside akwid kwid next)    = addPrettyAnnotationsOutside akwid kwid >> next
     -- go (MarkOutside akwid kwid next)    = addPrettyAnnotation kwid >> next
     go (MarkInside akwid next)          = addPrettyAnnotationsInside akwid >> next
@@ -213,8 +210,7 @@ addPrettyAnnotation :: KeywordId -> Pretty ()
 addPrettyAnnotation ann = do
   noPrec <- gets apNoPrecedingSpace
   ctx <- asks prContext
-  cur <- trace ("Pretty.addPrettyAnnotation:=" ++ showGhc (ann,noPrec,ctx)) $ asks prContext
-  -- cur <- asks prContext
+  _ <- trace ("Pretty.addPrettyAnnotation:=" ++ showGhc (ann,noPrec,ctx)) $ asks prContext
   let
     dp = case ann of
            (G GHC.AnnAs)        -> tellKd (ann,DP (0,1))
@@ -272,11 +268,6 @@ addPrettyAnnotationsInside _ann = return ()
 
 -- ---------------------------------------------------------------------
 
-addPrettyAnnotations :: GHC.AnnKeywordId -> Pretty ()
-addPrettyAnnotations _ann = return ()
-
--- ---------------------------------------------------------------------
-
 addPrettyAnnotationLs :: GHC.AnnKeywordId -> Int -> Pretty ()
 addPrettyAnnotationLs ann _off = addPrettyAnnotation (G ann)
 
@@ -325,7 +316,7 @@ withAST lss@(GHC.L ss t) action = do
     let cs = []
 #endif
 
-    uncs <- getUnallocatedComments
+    -- uncs <- getUnallocatedComments
     -- ctx <- trace ("Pretty.withAST:cs:(ss,cs,uncs)=" ++ showGhc (ss,cs,uncs)) $ asks prContext
     ctx <- asks prContext
 
@@ -378,7 +369,7 @@ entryDpFor ctx a = (def `extQ` grhs) a
                 else if topLevel then return (DP (2,0)) else return (DP (lineDefault,0))
 
     topLevel = inAcs (Set.singleton TopLevel) ctx
-    inCase = inAcs (Set.singleton CaseAlt) ctx
+    -- inCase = inAcs (Set.singleton CaseAlt) ctx
     -- listStart = trace ("listStart:ctx=" ++ show ctx) $ inAcs (Set.singleton ListStart) ctx
     --                                                  && not (inAcs (Set.singleton TopLevel) ctx)
     listStart = inAcs (Set.singleton ListStart) ctx
@@ -423,20 +414,20 @@ entryDpFor ctx a = (def `extQ` grhs) a
 
 -- |Like fromMaybe, in that if no layout flag is set return the first value,
 -- else return the second and reset the layout flag.
-fromLayout :: a -> a -> Pretty a
-fromLayout def lay = do
-  PrettyState{apMarkLayout} <- get
-  if apMarkLayout
-    then do
-      modify (\s -> s { apMarkLayout = False
-                      })
-      return lay
-    else return def
+-- fromLayout :: a -> a -> Pretty a
+-- fromLayout def lay = do
+--   PrettyState{apMarkLayout} <- get
+--   if apMarkLayout
+--     then do
+--       modify (\s -> s { apMarkLayout = False
+--                       })
+--       return lay
+--     else return def
 
 fromNoPrecedingSpace :: Pretty a -> Pretty a -> Pretty a
 fromNoPrecedingSpace def lay = do
   PrettyState{apNoPrecedingSpace} <- get
-  ctx <- asks prContext
+  -- ctx <- asks prContext
   if apNoPrecedingSpace
     then do
       modify (\s -> s { apNoPrecedingSpace = False
@@ -466,7 +457,7 @@ getAnnKey PrettyOptions {curSrcSpan, annConName}
 -- ---------------------------------------------------------------------
 
 countAnnsPretty :: GHC.AnnKeywordId -> Pretty Int
-countAnnsPretty ann = return 0
+countAnnsPretty _ann = return 0
 
 -- ---------------------------------------------------------------------
 
@@ -488,14 +479,14 @@ withSortKeyContexts ctxts kws =
 -- ---------------------------------------------------------------------
 
 storeOriginalSrcSpanPretty :: GHC.SrcSpan -> AnnKey -> Pretty AnnKey
-storeOriginalSrcSpanPretty s key = do
+storeOriginalSrcSpanPretty _s key = do
   tellCapturedSpan key
   return key
 
 -- ---------------------------------------------------------------------
 
 getSrcSpanForKw :: GHC.SrcSpan -> GHC.AnnKeywordId -> Pretty GHC.SrcSpan
-getSrcSpanForKw ss kw = return ss
+getSrcSpanForKw ss _kw = return ss
 
 {-
 -- | This function exists to overcome a shortcoming in the GHC AST for 7.10.1
@@ -512,8 +503,7 @@ getSrcSpanForKw kw = do
 
 #if __GLASGOW_HASKELL__ <= 710
 storeString :: String -> GHC.SrcSpan -> Pretty ()
--- storeString s ss = addAnnotationWorker (AnnString s) ss
-storeString s ss = addPrettyAnnotation (AnnString s)
+storeString s _ss = addPrettyAnnotation (AnnString s)
 #endif
 
 -- ---------------------------------------------------------------------
@@ -535,18 +525,18 @@ setNoPrecedingSpace action = do
   let reset = modify (\s -> s { apNoPrecedingSpace = oldVal })
   action <* reset
 
-withNoPrecedingSpace :: Pretty () -> Pretty ()
-withNoPrecedingSpace action = do
-  oldVal <- gets apNoPrecedingSpace
-  inLayout <- gets apMarkLayout
-  if inLayout
-    then do
-      modify (\s -> s { apNoPrecedingSpace = True } )
-      let reset = modify (\s -> s { apNoPrecedingSpace = oldVal
-                                  , apMarkLayout = False
-                                  })
-      action <* reset
-    else action
+-- withNoPrecedingSpace :: Pretty () -> Pretty ()
+-- withNoPrecedingSpace action = do
+--   oldVal <- gets apNoPrecedingSpace
+--   inLayout <- gets apMarkLayout
+--   if inLayout
+--     then do
+--       modify (\s -> s { apNoPrecedingSpace = True } )
+--       let reset = modify (\s -> s { apNoPrecedingSpace = oldVal
+--                                   , apMarkLayout = False
+--                                   })
+--       action <* reset
+--     else action
 
 -- ---------------------------------------------------------------------
 
@@ -567,26 +557,16 @@ ifInContextPretty ctxt ifAction elseAction = do
     then prettyInterpret ifAction
     else prettyInterpret elseAction
 
-notInContextPretty :: Set.Set AstContext -> Annotated () -> Pretty ()
-notInContextPretty ctxt action = do
-  cur <- asks prContext
-  let notInContext = not $ inAcs ctxt cur
-  when notInContext (prettyInterpret action)
-
-bumpContextPretty :: Pretty () -> Pretty ()
-bumpContextPretty =
-  local (\s -> s { prContext = bumpAcs (prContext s) } )
-
 -- ---------------------------------------------------------------------
 
 annotationsToCommentsPretty :: [GHC.AnnKeywordId] -> Pretty ()
-annotationsToCommentsPretty kws = return ()
+annotationsToCommentsPretty _kws = return ()
 
 -- ---------------------------------------------------------------------
 
 #if __GLASGOW_HASKELL__ <= 710
 annotationsToCommentsBFPretty :: (GHC.Outputable a) => GHC.BooleanFormula (GHC.Located a) -> [GHC.AnnKeywordId] -> Pretty ()
-annotationsToCommentsBFPretty bf kws = do
+annotationsToCommentsBFPretty bf _kws = do
   -- cs <- gets apComments
   cs <- trace ("annotationsToCommentsBFPretty:" ++ showGhc (bf,makeBooleanFormulaAnns bf)) $ gets apComments
   -- return$ trace ("annotationsToCommentsBFPretty:" ++ showGhc (bf,makeBooleanFormulaAnns bf)) ()
@@ -598,7 +578,7 @@ annotationsToCommentsBFPretty bf kws = do
 
 
 finalizeBFPretty :: GHC.SrcSpan -> Pretty ()
-finalizeBFPretty ss = do
+finalizeBFPretty _ss = do
   commentAllocation (const True) (mapM_ (uncurry addPrettyComment))
   return ()
 #endif

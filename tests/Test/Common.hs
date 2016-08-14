@@ -33,20 +33,20 @@ import Language.Haskell.GHC.ExactPrint.Preprocess
 
 import qualified ApiAnnotation as GHC
 import qualified DynFlags      as GHC
-import qualified FastString    as GHC
+-- import qualified FastString    as GHC
 import qualified GHC           as GHC hiding (parseModule)
-import qualified Lexer         as GHC
+-- import qualified Lexer         as GHC
 import qualified MonadUtils    as GHC
-import qualified Parser        as GHC
-import qualified SrcLoc        as GHC
-import qualified StringBuffer  as GHC
+-- import qualified Parser        as GHC
+-- import qualified SrcLoc        as GHC
+-- import qualified StringBuffer  as GHC
 
 #if __GLASGOW_HASKELL__ <= 710
 #else
 import qualified GHC.LanguageExtensions as LangExt
 #endif
 
-import qualified Data.Map as Map
+-- import qualified Data.Map as Map
 
 import Control.Monad
 import Data.List hiding (find)
@@ -84,6 +84,7 @@ data ReportType =
    Success
  | RoundTripFailure deriving (Eq, Show)
 
+{-
 runParser :: GHC.P a -> GHC.DynFlags -> FilePath -> String -> GHC.ParseResult a
 runParser parser flags filename str = GHC.unP parser parseState
     where
@@ -100,6 +101,7 @@ mkApiAnns pstate = (Map.fromListWith (++) . GHC.annotations $ pstate
 
 removeSpaces :: String -> String
 removeSpaces = map (\case {'\160' -> ' '; s -> s})
+-}
 
 roundTripTest :: FilePath -> IO Report
 roundTripTest f = genTest noChange f f
