@@ -23,25 +23,18 @@ import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Annotate
 
--- import Control.Exception
--- import Control.Monad.Identity
 import Control.Monad.RWS
 import Control.Monad.Trans.Free
 import Data.Generics
 import Data.List
--- import Data.Maybe
 import Data.Ord (comparing)
 
-#if __GLASGOW_HASKELL__ <= 710
--- import Language.Haskell.GHC.ExactPrint.Lookup
-#endif
 
 #if __GLASGOW_HASKELL__ <= 710
 import qualified BooleanFormula as GHC
+import qualified Outputable     as GHC
 #endif
 import qualified GHC
-import qualified Outputable     as GHC
--- import qualified SrcLoc        as GHC
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -201,7 +194,6 @@ prettyInterpret = iterTM go
 
 addEofAnnotation :: Pretty ()
 addEofAnnotation = do
-  -- commentAllocation (const True)
   tellKd (G GHC.AnnEofPos, DP (1,0))
 
 -- ---------------------------------------------------------------------
@@ -280,11 +272,13 @@ withSrcSpanPretty (GHC.L l a) =
                  , prContext = pushAcs (prContext s)
                  })
 
+#if __GLASGOW_HASKELL__ <= 710
 getUnallocatedComments :: Pretty [Comment]
 getUnallocatedComments = gets apComments
 
 putUnallocatedComments :: [Comment] -> Pretty ()
 putUnallocatedComments cs = modify (\s -> s { apComments = cs } )
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -584,6 +578,7 @@ finalizeBFPretty _ss = do
 #endif
 
 -- ---------------------------------------------------------------------
+#if __GLASGOW_HASKELL__ <= 710
 -- |Split the ordered list of comments into ones that occur prior to
 -- the give SrcSpan and the rest
 priorComment :: Pos -> Comment -> Bool
@@ -595,9 +590,11 @@ priorComment start c = (ss2pos . commentIdentifier $ c) < start
 -- partition.
 allocateComments :: (Comment -> Bool) -> [Comment] -> ([Comment], [Comment])
 allocateComments = partition
+#endif
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ <= 710
 commentAllocation :: (Comment -> Bool)
                   -> ([(Comment, DeltaPos)] -> Pretty a)
                   -> Pretty a
@@ -607,21 +604,14 @@ commentAllocation p k = do
   putUnallocatedComments cs'
   k =<< mapM makeDeltaComment (sortBy (comparing commentIdentifier) allocated)
 
-
 makeDeltaComment :: Comment -> Pretty (Comment, DeltaPos)
 makeDeltaComment c = do
-  -- let pa = commentIdentifier c
-  -- pe <- getPriorEnd
-  -- let p = ss2delta pe pa
-  -- p' <- adjustDeltaForOffsetM p
-  -- setPriorEnd (ss2posEnd pa)
-  -- return (c, p')
   return (c, (DP (0,1)))
-  -- return (c, (DP (0,0)))
 
 addPrettyComment :: Comment -> DeltaPos -> Pretty ()
 addPrettyComment d p = do
   tellKd ((AnnComment d), p)
+#endif
 
 -- ---------------------------------------------------------------------
 

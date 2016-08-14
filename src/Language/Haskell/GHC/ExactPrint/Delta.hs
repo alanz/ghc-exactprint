@@ -417,6 +417,7 @@ peekAnnotationDelta an = do
     let unicodeAnns = case unicodeEquivalent an of
           [] -> []
           [kw] -> GHC.getAnnotation ga ss kw
+          (kw:_) -> GHC.getAnnotation ga ss kw -- Keep exhaustiveness checker happy
     return $ unicodeAnns ++ GHC.getAnnotation ga ss an
 #endif
 
