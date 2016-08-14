@@ -1870,7 +1870,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
     markType _ (GHC.HsAppTy t1 t2) = do
       inContext (Set.fromList [TypeAsKind]) $ do mark GHC.AnnDcolon -- for HsKind, alias for HsType
-      markLocated t1
+      -- markLocated t1
+      setContext (Set.singleton PrefixOp) $ markLocated t1
       markLocated t2
 
     markType _ (GHC.HsFunTy t1 t2) = do
@@ -2058,7 +2059,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     setContext (Set.singleton InOp) $ markLocated n
   markAST _ (GHC.HsAppPrefix t) = do
     markOptional GHC.AnnTilde
-    markLocated t
+    -- markLocated t
+    setContext (Set.singleton PrefixOp) $ markLocated t
 #endif
 -- ---------------------------------------------------------------------
 
@@ -2740,7 +2742,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         mark GHC.AnnIf
         markOptional GHC.AnnOpenC
         setContext (Set.singleton CaseAlt) $ do
-          mapM_ markLocated rhs
+          -- mapM_ markLocated rhs
+          markListWithLayout rhs
         markOptional GHC.AnnCloseC
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -2837,7 +2840,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #else
       markExpr _ (GHC.ExprWithTySig e typ) = do
 #endif
-        markLocated e
+        -- markLocated e
+        setContextLevel (Set.singleton PrefixOp) 2 $ markLocated e
         mark GHC.AnnDcolon
 #if __GLASGOW_HASKELL__ <= 710
         markLocated typ
@@ -3142,8 +3146,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   => Annotate (GHC.HsRecUpdField name) where
   markAST _ (GHC.HsRecField lbl expr punFlag) = do
     unsetContext Intercalate $ markLocated lbl
-    -- when (punFlag == False) $ mark GHC.AnnEqual
-    -- markLocated expr
     when (punFlag == False) $ do
       mark GHC.AnnEqual
       unsetContext Intercalate $ markLocated expr
@@ -3321,34 +3323,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnType
 
     markTyClass ln tyvars
-    {-
-    markManyOptional GHC.AnnOpenP
-
-    let
-      isSym = GHC.isSymOcc $ GHC.occName $ GHC.unLoc ln
-      lnFun = do
-        ifInContext (Set.singleton CtxMiddle)
-                      (setContext (Set.singleton InOp) $ markLocated ln)
-                      (markLocated ln)
-      listFun b = do
-        when isSym $ ifInContext (Set.singleton (CtxPos 0))
-                      (markMany GHC.AnnOpenP)
-                      (return ())
-        markLocated b
-        when isSym $ ifInContext (Set.singleton (CtxPos 2))
-                      (markMany GHC.AnnCloseP)
-                      (return ())
-      prepareListFun ls = map (\b -> (GHC.getLoc b, listFun b )) ls
-
-    applyListAnnotationsContexts (LC (Set.singleton CtxOnly) (Set.singleton CtxFirst)
-                                      (Set.singleton CtxMiddle) (Set.singleton CtxLast))
-                               -- (prepareListAnnotation [ln]
-                               ([(GHC.getLoc ln,lnFun)]
-                             ++ prepareListFun tyvars)
-    markManyOptional GHC.AnnCloseP
-    -}
     mark GHC.AnnEqual
     markLocated typ
+    -- setContextLevel (Set.fromList [LeftMost,PrefixOp]) 2 $ markLocated typ
     markTrailingSemi
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -3568,10 +3545,14 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 #else
   markAST _ (GHC.TyFamEqn ln (GHC.HsIB _ pats) typ) = do
 #endif
+    -- markTyClass ln pats
+    {- -}
     markOptional GHC.AnnOpenP
     applyListAnnotations (prepareListAnnotation [ln]
-                         ++ prepareListAnnotation pats)
+                         -- ++ prepareListAnnotation pats)
+                         ++ prepareListAnnotationWithContext (Set.singleton PrefixOp) pats)
     markOptional GHC.AnnCloseP
+    {- -}
     mark GHC.AnnEqual
     markLocated typ
 
@@ -3586,6 +3567,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 #endif
     mark GHC.AnnType
     mark GHC.AnnInstance
+    -- markTyClass ln bndrs
     applyListAnnotations (prepareListAnnotation [ln]
                        ++ prepareListAnnotation bndrs
                          )
@@ -3821,23 +3803,20 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 instance (Annotate name, GHC.DataId name, GHC.OutputableBndr name,GHC.HasOccName name)
   => Annotate (GHC.HsRecField name (GHC.LPat name)) where
   markAST _ (GHC.HsRecField n e punFlag) = do
-    -- markLocated n
     unsetContext Intercalate $ markLocated n
-    -- mark GHC.AnnEqual
-    when (punFlag == False) $ mark GHC.AnnEqual
-    -- markLocated e
-    unsetContext Intercalate $ markLocated e
-    -- mark GHC.AnnEqual
+    when (punFlag == False) $ do
+      mark GHC.AnnEqual
+      unsetContext Intercalate $ markLocated e
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 
 instance (Annotate name, GHC.DataId name, GHC.OutputableBndr name,GHC.HasOccName name)
   => Annotate (GHC.HsRecField name (GHC.LHsExpr name)) where
-  markAST _ (GHC.HsRecField n e _) = do
-    -- markLocated n
+  markAST _ (GHC.HsRecField n e punFlag) = do
     unsetContext Intercalate $ markLocated n
-    mark GHC.AnnEqual
-    unsetContext Intercalate $ markLocated e
+    when (punFlag == False) $ do
+      mark GHC.AnnEqual
+      unsetContext Intercalate $ markLocated e
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 -- ---------------------------------------------------------------------
