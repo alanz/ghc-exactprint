@@ -1653,7 +1653,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
     markListIntercalate typs
 #else
-    markListIntercalateWithFun markLHsSigType typs
+    markListIntercalateWithFunLevel markLHsSigType 2 typs
 #endif
     markWithString GHC.AnnClose "#-}" -- '#-}'
     markTrailingSemi
@@ -3366,7 +3366,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
     unless (null fds) $ do
       mark GHC.AnnVbar
-      markListIntercalate fds
+      markListIntercalateWithFunLevel markLocated 2 fds
     mark GHC.AnnWhere
     markOptional GHC.AnnOpenC -- '{'
     markInside GHC.AnnSemi

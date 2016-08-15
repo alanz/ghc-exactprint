@@ -53,6 +53,7 @@ addAnnotationsForPretty cs ast ans
   = runPrettyWithComments opts cs (annotate ast) ans (0,0)
   where
     opts = prettyOptions NormalLayout
+    -- opts = prettyOptions RigidLayout
 
 -- ---------------------------------------------------------------------
 --
@@ -236,6 +237,7 @@ addPrettyAnnotation ann = do
            (G GHC.AnnQualified) -> tellKd (ann,DP (0,1))
            (G GHC.AnnRarrow)    -> tellKd (ann,DP (0,1))
            (G GHC.AnnRole)      -> tellKd (ann,DP (0,1))
+           (G GHC.AnnSafe)      -> tellKd (ann,DP (0,1))
            (G GHC.AnnSimpleQuote) -> tellKd (ann,DP (0,1))
            (G GHC.AnnThTyQuote) -> tellKd (ann,DP (0,1))
            (G GHC.AnnThen)      -> tellKd (ann,DP (0,1))
