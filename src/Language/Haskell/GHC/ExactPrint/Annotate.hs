@@ -3200,23 +3200,28 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       then markLocated e2
       else markLocated e1
 
-  markAST _ (GHC.HsCmdArrForm e _mf cs) = do
-    -- TODO: When RdrHsSyn.checkCmd hits an OpApp, it converts it to a HsCmdArrForm.
-    --       In this case it will not have AnnOpen/AnnClose
-    markWithString GHC.AnnOpen "(|"
+  markAST _ (GHC.HsCmdArrForm e mf cs) = do
+    -- The AnnOpen should be marked for a prefix usage, not for a postfix one,
+    -- due to the way checkCmd maps both HsArrForm and OpApp to HsCmdArrForm
+
+    -- TODO: This test assumes no auto-generated SrcSpans
+    let isPrefixOp = case cs of
+          [] -> True
+          (GHC.L h _:_) -> GHC.getLoc e < h
+    when isPrefixOp $ markWithString GHC.AnnOpen "(|"
     -- This may be an infix operation
     applyListAnnotationsContexts (LC (Set.singleton PrefixOp) (Set.singleton PrefixOp)
                                      (Set.singleton InOp) (Set.singleton InOp))
                        (prepareListAnnotation [e]
                          ++ prepareListAnnotation cs)
-    markWithString GHC.AnnClose "|)"
+    when isPrefixOp $ markWithString GHC.AnnClose "|)"
 
   markAST _ (GHC.HsCmdApp e1 e2) = do
     markLocated e1
     markLocated e2
 
   markAST l (GHC.HsCmdLam match) = do
-    mark GHC.AnnLam
+    -- mark GHC.AnnLam
     -- markMatchGroup l match
     setContext (Set.singleton LambdaExpr) $ do markMatchGroup l match
 

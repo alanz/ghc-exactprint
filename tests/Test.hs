@@ -149,17 +149,19 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
 
       -- GHC 7.10 holdouts
-      mkPrettyRoundtrip "ghc710-only" "TypeFamilies.hs"
-      -- mkPrettyRoundtrip "ghc710" "NestedDoLambda.hs"
+      -- mkPrettyRoundtrip "ghc710-only" "TypeFamilies.hs"
+      mkPrettyRoundtrip "ghc710" "NestedDoLambda.hs"
       -- mkPrettyRoundtrip "ghc710" "TH.hs"
 
+      -- GHC 8.0 holdouts
       -- mkPrettyRoundtrip "ghc710" "TH.hs"
       -- mkPrettyRoundtrip "ghc8" "MultiWayIf.hs"
       -- mkPrettyRoundtrip "ghc8" "Rae31.hs"
     -- , mkPrettyRoundtrip "ghc8" "RaeBlogPost.hs"
 
-    -- , mkParserTest "ghc710" "MachineTypes.hs"
-    -- , mkParserTest "ghc710" "TypeBrackets.hs"
+
+    , mkParserTest "ghc710" "NestedDoLambda.hs"
+    , mkParserTest "ghc710" "Arrow.hs"
       -- mkParserTest "ghc710" "RdrNames.hs"
     -- , mkParserTest "ghc710" "ListComprehensions.hs"
 
