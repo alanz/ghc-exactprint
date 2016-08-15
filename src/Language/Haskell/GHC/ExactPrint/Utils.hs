@@ -74,9 +74,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
 
 import Control.Monad.State
 import qualified Data.ByteString as B
--- import Data.Data (Data, toConstr, showConstr, cast)
 import Data.Generics
--- import Data.List (intercalate, sortBy, elemIndex)
 import Data.Ord (comparing)
 
 import Language.Haskell.GHC.ExactPrint.Types
@@ -93,14 +91,12 @@ import qualified Name           as GHC
 import qualified NameSet        as GHC
 import qualified Outputable     as GHC
 import qualified RdrName        as GHC
-import qualified SrcLoc        as GHC
+import qualified SrcLoc         as GHC
 import qualified Var            as GHC
 
 import qualified OccName(OccName(..),occNameString,pprNameSpaceBrief)
 
 import Control.Arrow
-
---import qualified Data.Generics as SYB
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -108,6 +104,9 @@ import Data.List
 
 import Debug.Trace
 
+{-# ANN module "HLint: ignore Eta reduce" #-}
+{-# ANN module "HLint: ignore Redundant do" #-}
+{-# ANN module "HLint: ignore Reduce duplication" #-}
 -- ---------------------------------------------------------------------
 
 -- |Global switch to enable debug tracing in ghc-exactprint
@@ -267,7 +266,7 @@ isListComp cts = case cts of
 isGadt :: [GHC.LConDecl name] -> Bool
 isGadt [] = False
 #if __GLASGOW_HASKELL__ <= 710
-isGadt ((GHC.L _ (GHC.ConDecl{GHC.con_res=GHC.ResTyGADT _ _})):_) = True
+isGadt (GHC.L _ GHC.ConDecl{GHC.con_res=GHC.ResTyGADT _ _}:_) = True
 #else
 isGadt ((GHC.L _ (GHC.ConDeclGADT{})):_) = True
 #endif
@@ -550,7 +549,7 @@ showAnnData anns n =
 
         name       = ("{Name: "++) . (++"}") . showSDocDebug_ . GHC.ppr :: GHC.Name -> String
         -- occName    = ("{OccName: "++) . (++"}") .  OccName.occNameString
-        occName o   = ("{OccName: "++ OccName.occNameString o ++ " " ++ occAttributes o ++ "}")
+        occName o   = "{OccName: "++ OccName.occNameString o ++ " " ++ occAttributes o ++ "}"
         moduleName = ("{ModuleName: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.ModuleName -> String
 
         -- srcSpan    = ("{"++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.SrcSpan -> String

@@ -8,7 +8,6 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-} -- Needed for the DataId constraint on ResTyGADTHook
 -- | 'annotate' is a function which given a GHC AST fragment, constructs
@@ -32,7 +31,6 @@ module Language.Haskell.GHC.ExactPrint.Annotate
        , withSortKeyContextsHelper
        ) where
 
--- import Data.Maybe ( fromMaybe )
 #if __GLASGOW_HASKELL__ <= 710
 import Data.Ord ( comparing )
 import Data.List ( sortBy )
@@ -53,7 +51,6 @@ import qualified GHC            as GHC
 import qualified Lexeme         as GHC
 #endif
 import qualified Name           as GHC
--- import qualified OccName        as GHC
 import qualified RdrName        as GHC
 import qualified Outputable     as GHC
 
@@ -479,13 +476,8 @@ instance Annotate (GHC.HsModule GHC.RdrName) where
         mark GHC.AnnModule
         markExternal ln GHC.AnnVal (GHC.moduleNameString mn)
 
-        case mdepr of
-          Nothing -> return ()
-          Just depr -> markLocated depr
-
-        case mexp of
-          Nothing   -> return ()
-          Just exps -> markLocated exps
+        forM_ mdepr markLocated
+        forM_ mexp markLocated
 
         mark GHC.AnnWhere
 
@@ -493,7 +485,6 @@ instance Annotate (GHC.HsModule GHC.RdrName) where
     markManyOptional GHC.AnnSemi -- possible leading semis
     setContextLevel (Set.singleton TopLevel) 2 $ markListWithLayout imps
 
-    -- mapM_ markLocated decs
     setContextLevel (Set.singleton TopLevel) 2 $ markListWithLayout decs
 
     markOptional GHC.AnnCloseC -- Possible '}'
@@ -702,7 +693,7 @@ data RdrName
 -}
 
 isSymRdr :: GHC.RdrName -> Bool
-isSymRdr n = (GHC.isSymOcc $ GHC.rdrNameOcc n) || rdrName2String n == "."
+isSymRdr n = GHC.isSymOcc (GHC.rdrNameOcc n) || rdrName2String n == "."
 
 instance Annotate GHC.RdrName where
   markAST l n = do
@@ -815,9 +806,7 @@ instance Annotate GHC.RdrName where
             markWithString GHC.AnnVal str
             -- markExternal l GHC.AnnVal str
             when isSym $ mark GHC.AnnCloseP -- ')'
-    -- inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma `debug` ("AnnComma in RdrName")
-    -- inContext (Set.fromList [Intercalate]) $ trace ("AnnComma in RdrName") $ mark GHC.AnnComma
 
 -- ---------------------------------------------------------------------
 
@@ -971,7 +960,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markLocated lnn
     markWithString GHC.AnnClose "#-}" -- "#-}"
 
-  markAST _ (GHC.HsVectTypeOut {}) =
+  markAST _ GHC.HsVectTypeOut {} =
     traceM "warning: HsVectTypeOut appears after renaming"
 
   markAST _ (GHC.HsVectClassIn src ln) = do
@@ -980,11 +969,11 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLocated ln
     markWithString GHC.AnnClose "#-}" -- "#-}"
 
-  markAST _ (GHC.HsVectClassOut {}) =
+  markAST _ GHC.HsVectClassOut {} =
     traceM "warning: HsVecClassOut appears after renaming"
-  markAST _ (GHC.HsVectInstIn {})   =
+  markAST _ GHC.HsVectInstIn {}   =
     traceM "warning: HsVecInstsIn appears after renaming"
-  markAST _ (GHC.HsVectInstOut {})   =
+  markAST _ GHC.HsVectInstOut {}   =
     traceM "warning: HsVecInstOut appears after renaming"
 
 -- ---------------------------------------------------------------------
@@ -1159,10 +1148,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnForeign
     mark GHC.AnnImport
     markLocated cconv
-    if ll == GHC.noSrcSpan
-      then return ()
-      else markLocated safety
-    -- markMaybe mh
+    unless (ll == GHC.noSrcSpan) $ markLocated safety
 #if __GLASGOW_HASKELL__ <= 710
     markExternal ls GHC.AnnVal (show src)
 #else
@@ -1376,7 +1362,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       (GHC.L _ (GHC.GRHS [] _):_) -> mark GHC.AnnEqual -- empty guards
       _ -> return ()
     markListIntercalateWithFunLevel markLocated 2 grhs
-    when (not (GHC.isEmptyLocalBinds lb)) $ mark GHC.AnnWhere
+    unless (GHC.isEmptyLocalBinds lb) $ mark GHC.AnnWhere
 
     markLocalBindsWithLayout lb
     markTrailingSemi
@@ -1446,7 +1432,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 -- ---------------------------------------------------------------------
 
 instance Annotate GHC.HsIPName where
-  markAST l (GHC.HsIPName n) = markExternal l (GHC.AnnVal) ("?" ++ GHC.unpackFS n)
+  markAST l (GHC.HsIPName n) = markExternal l GHC.AnnVal ("?" ++ GHC.unpackFS n)
 
 -- ---------------------------------------------------------------------
 
@@ -1799,15 +1785,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
     markType _ (GHC.HsForAllTy _f mwc (GHC.HsQTvs _kvs tvs) ctx@(GHC.L lc ctxs) typ) = do
       -- mark GHC.AnnOpenP -- "("
-      when (not $ null tvs) $ do
+      unless (null tvs) $ do
         mark GHC.AnnForall
         mapM_ markLocated tvs
         mark GHC.AnnDot
 
       case mwc of
-        Nothing -> if lc /= GHC.noSrcSpan
-          then markLocated ctx
-          else return ()
+        Nothing -> when (lc /= GHC.noSrcSpan) $ markLocated ctx
         Just lwc -> do
          let sorted = lexicalSortLocated (GHC.L lwc GHC.HsWildcardTy:ctxs)
          -- setContext (Set.singleton Parens) $ markLocated (GHC.L lc sorted)
@@ -1955,10 +1939,10 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markType _ (GHC.HsBangTy b t) = do
       case b of
         (GHC.HsSrcBang ms (Just True) _) -> do
-          markWithString GHC.AnnOpen  (maybe "{-# UNPACK" id ms)
+          markWithString GHC.AnnOpen  (fromMaybe "{-# UNPACK" ms)
           markWithString GHC.AnnClose "#-}"
         (GHC.HsSrcBang ms (Just False) _) -> do
-          markWithString GHC.AnnOpen  (maybe "{-# NOUNPACK" id ms)
+          markWithString GHC.AnnOpen  (fromMaybe "{-# NOUNPACK" ms)
           markWithString GHC.AnnClose "#-}"
         _ -> return ()
       mark GHC.AnnBang
@@ -2031,7 +2015,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #endif
 
 #if __GLASGOW_HASKELL__ <= 710
-    markType l (GHC.HsWildcardTy) = do
+    markType l GHC.HsWildcardTy = do
       markExternal l GHC.AnnVal "_"
     markType l (GHC.HsNamedWildcardTy n) = do
       markExternal l GHC.AnnVal  (showGhc n)
@@ -2125,7 +2109,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   => Annotate (GHC.HsQuasiQuote name) where
   markAST l (GHC.HsQuasiQuote n _pos fs) = do
         markExternal l GHC.AnnVal
-              ("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS fs) ++ "|]")
+              ("[" ++ showGhc n ++ "|" ++ GHC.unpackFS fs ++ "|]")
 #endif
 
 -- ---------------------------------------------------------------------
@@ -2225,7 +2209,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
       markPat _ (GHC.ConPatIn n dets) = do
         markHsConPatDetails n dets
 
-      markPat _ (GHC.ConPatOut {}) =
+      markPat _ GHC.ConPatOut {} =
         traceM "warning: ConPatOut Introduced after renaming"
 
       -- ViewPat (LHsExpr id) (LPat id) (PostTc id Type)
@@ -2280,11 +2264,11 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
         markLHsSigWcType ty
 #endif
 
-      markPat _ (GHC.SigPatOut {}) =
+      markPat _ GHC.SigPatOut {} =
         traceM "warning: SigPatOut introduced after renaming"
 
       -- CoPat HsAnnotated (Pat id) Type
-      markPat _ (GHC.CoPat {}) =
+      markPat _ GHC.CoPat {} =
         traceM "warning: CoPat introduced after renaming"
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -2372,7 +2356,7 @@ instance (GHC.DataId name) => Annotate (GHC.HsOverLit name) where
   markAST l ol =
     let str = case GHC.ol_val ol of
                 GHC.HsIntegral src _ -> src
-                GHC.HsFractional l2   -> (GHC.fl_text l2)
+                GHC.HsFractional l2  -> GHC.fl_text l2
                 GHC.HsIsString src _ -> src
     in
     markExternal l GHC.AnnVal str
@@ -2467,18 +2451,18 @@ instance (GHC.DataId name,GHC.OutputableBndr name,Annotate name
       unsetContext Intercalate $
         markListWithContextsFunction
           (LC (Set.singleton Intercalate)  -- only
-              (Set.empty) -- first
-              (Set.empty) -- middle
+              Set.empty -- first
+              Set.empty -- middle
               (Set.singleton Intercalate) -- last
           ) (markAST l) pbs
          )
       (
       unsetContext Intercalate $
         markListWithContextsFunction
-          (LC (Set.empty) -- only
+          (LC Set.empty -- only
               (Set.fromList [AddVbar]) -- first
               (Set.fromList [AddVbar]) -- middle
-              (Set.empty)              -- last
+              Set.empty                -- last
           ) (markAST l) pbs
        )
     markTrailingSemi
@@ -2549,18 +2533,18 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 -- ---------------------------------------------------------------------
 
 markHsLocalBinds :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
-                     => (GHC.HsLocalBinds name) -> Annotated ()
+                     => GHC.HsLocalBinds name -> Annotated ()
 markHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) =
     applyListAnnotationsLayout
        (prepareListAnnotation (GHC.bagToList binds)
      ++ prepareListAnnotation sigs
        )
-markHsLocalBinds (GHC.HsValBinds (GHC.ValBindsOut {}))
+markHsLocalBinds (GHC.HsValBinds GHC.ValBindsOut {})
    = traceM "warning: ValBindsOut introduced after renaming"
 
 -- markHsLocalBinds (GHC.HsIPBinds (GHC.IPBinds binds _)) = mapM_ markLocated (reverse binds)
 markHsLocalBinds (GHC.HsIPBinds (GHC.IPBinds binds _)) = markListWithLayout (reverse binds)
-markHsLocalBinds (GHC.EmptyLocalBinds)                 = return ()
+markHsLocalBinds GHC.EmptyLocalBinds                   = return ()
 
 -- ---------------------------------------------------------------------
 
@@ -3087,7 +3071,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markLocated e
 #endif
 
-      markExpr l (GHC.EWildPat) = do
+      markExpr l GHC.EWildPat = do
         markExternal l GHC.AnnVal "_"
 
       markExpr _ (GHC.EAsPat ln e) = do
@@ -3174,7 +3158,7 @@ instance (GHC.DataId name)
 -- |Used for declarations that need to be aligned together, e.g. in a
 -- do or let .. in statement/expr
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
-  => Annotate ([GHC.ExprLStmt name]) where
+  => Annotate [GHC.ExprLStmt name] where
   markAST _ ls = mapM_ markLocated ls
 
 -- ---------------------------------------------------------------------
@@ -3283,7 +3267,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markOptional GHC.AnnCloseC
 
 #if __GLASGOW_HASKELL__ <= 710
-  markAST _ (GHC.HsCmdCast {}) =
+  markAST _ GHC.HsCmdCast {} =
     traceM "warning: HsCmdCast introduced after renaming"
 #endif
 
@@ -3349,7 +3333,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       Just k -> do
         mark GHC.AnnDcolon
         markLocated k
-    if (isGadt cons)
+    if isGadt cons
       then mark GHC.AnnWhere
       else unless (null cons) $ mark GHC.AnnEqual
     markOptional GHC.AnnOpenC
@@ -3375,7 +3359,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
     markTyClass ln tyVars
 
-    when (not $ null fds) $ do
+    unless (null fds) $ do
       mark GHC.AnnVbar
       markListIntercalate fds
     mark GHC.AnnWhere
@@ -3411,7 +3395,7 @@ markTyClass ln tyVars = do
                       ++ prepareListAnnotation (take 2 tyVars))
 -}
     let
-      parensNeeded = (GHC.isSymOcc $ GHC.occName $ GHC.unLoc ln) && length tyVars > 2
+      parensNeeded = GHC.isSymOcc (GHC.occName $ GHC.unLoc ln) && length tyVars > 2
       lnFun = do
         ifInContext (Set.singleton CtxMiddle)
                       (setContext (Set.singleton InOp) $ markLocated ln)
@@ -3428,7 +3412,6 @@ markTyClass ln tyVars = do
 
     applyListAnnotationsContexts (LC (Set.fromList [CtxOnly,PrefixOp]) (Set.fromList [CtxFirst,PrefixOp])
                                       (Set.singleton CtxMiddle) (Set.singleton CtxLast))
-                               -- (prepareListAnnotation [ln]
                                ([(GHC.getLoc ln,lnFun)]
                              ++ prepareListFun tyVars)
     markManyOptional GHC.AnnCloseP
@@ -3580,12 +3563,12 @@ instance Annotate GHC.DocDecl where
   markAST l v =
     let str =
           case v of
-            (GHC.DocCommentNext (GHC.HsDocString fs)) -> (GHC.unpackFS fs)
-            (GHC.DocCommentPrev (GHC.HsDocString fs)) -> (GHC.unpackFS fs)
-            (GHC.DocCommentNamed _s (GHC.HsDocString fs)) -> (GHC.unpackFS fs)
-            (GHC.DocGroup _i (GHC.HsDocString fs)) -> (GHC.unpackFS fs)
+            (GHC.DocCommentNext (GHC.HsDocString fs))     -> GHC.unpackFS fs
+            (GHC.DocCommentPrev (GHC.HsDocString fs))     -> GHC.unpackFS fs
+            (GHC.DocCommentNamed _s (GHC.HsDocString fs)) -> GHC.unpackFS fs
+            (GHC.DocGroup _i (GHC.HsDocString fs))        -> GHC.unpackFS fs
     in
-      markExternal l (GHC.AnnVal) str
+      markExternal l GHC.AnnVal str
 
 -- ---------------------------------------------------------------------
 
@@ -3647,11 +3630,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
     ifInContext (Set.singleton NoDarrow)
       (return ())
-      (if null ts
-        then if l == GHC.noSrcSpan
-               then markOptional GHC.AnnDarrow
-               else mark         GHC.AnnDarrow
-        else mark         GHC.AnnDarrow)
+      (if null ts && (l == GHC.noSrcSpan)
+         then markOptional GHC.AnnDarrow
+         else mark         GHC.AnnDarrow)
 
 -- ---------------------------------------------------------------------
 
@@ -3663,7 +3644,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
     case res of
       GHC.ResTyH98 -> do
 
-        when (not $ null bndrs) $ do
+        unless (null bndrs) $ do
           mark GHC.AnnForall
           mapM_ markLocated bndrs
           mark GHC.AnnDot
@@ -3793,7 +3774,7 @@ instance Annotate WildCardAnon where
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (ResTyGADTHook name) where
   markAST _ (ResTyGADTHook bndrs) = do
-    when (not $ null bndrs) $ do
+    unless (null bndrs) $ do
       mark GHC.AnnForall
       mapM_ markLocated bndrs
       mark GHC.AnnDot
@@ -3804,7 +3785,7 @@ instance (Annotate name, GHC.DataId name, GHC.OutputableBndr name,GHC.HasOccName
   => Annotate (GHC.HsRecField name (GHC.LPat name)) where
   markAST _ (GHC.HsRecField n e punFlag) = do
     unsetContext Intercalate $ markLocated n
-    when (punFlag == False) $ do
+    unless punFlag $ do
       mark GHC.AnnEqual
       unsetContext Intercalate $ markLocated e
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
@@ -3814,7 +3795,7 @@ instance (Annotate name, GHC.DataId name, GHC.OutputableBndr name,GHC.HasOccName
   => Annotate (GHC.HsRecField name (GHC.LHsExpr name)) where
   markAST _ (GHC.HsRecField n e punFlag) = do
     unsetContext Intercalate $ markLocated n
-    when (punFlag == False) $ do
+    unless punFlag $ do
       mark GHC.AnnEqual
       unsetContext Intercalate $ markLocated e
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
@@ -3841,7 +3822,7 @@ instance (GHC.DataId name,Annotate name)
 
 -- ---------------------------------------------------------------------
 
-instance Annotate (GHC.CType) where
+instance Annotate GHC.CType where
   markAST _ (GHC.CType src mh f) = do
     markWithString GHC.AnnOpen src
     case mh of

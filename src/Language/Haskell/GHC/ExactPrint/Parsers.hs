@@ -65,6 +65,9 @@ import qualified GHC.LanguageExtensions as LangExt
 
 import qualified Data.Map as Map
 
+{-# ANN module "HLint: ignore Eta reduce" #-}
+{-# ANN module "HLint: ignore Redundant do" #-}
+{-# ANN module "HLint: ignore Reduce duplication" #-}
 -- ---------------------------------------------------------------------
 
 -- | Wrapper function which returns Annotations along with the parsed
@@ -219,9 +222,9 @@ parseModuleApiAnnsWithCpp cppOptions file =
             return (contents1,lp,dflags)
       return $
         case parseFile dflags' file fileContents of
-          GHC.PFailed ss m -> Left $ (ss, (GHC.showSDoc dflags m))
+          GHC.PFailed ss m -> Left (ss, GHC.showSDoc dflags m)
           GHC.POk (mkApiAnns -> apianns) pmod  ->
-            Right $ (apianns, injectedComments, dflags', pmod)
+            Right (apianns, injectedComments, dflags', pmod)
 
 -- ---------------------------------------------------------------------
 
@@ -248,7 +251,7 @@ initDynFlagsPure fp s = do
   dflags0 <- GHC.getSessionDynFlags
   let pragmaInfo = GHC.getOptions
         dflags0
-        (GHC.stringToStringBuffer $ s)
+        (GHC.stringToStringBuffer s)
         fp
   (dflags1, _, _)
     <- GHC.parseDynamicFilePragma dflags0 pragmaInfo
@@ -262,4 +265,4 @@ initDynFlagsPure fp s = do
 mkApiAnns :: GHC.PState -> GHC.ApiAnns
 mkApiAnns pstate
   = ( Map.fromListWith (++) . GHC.annotations $ pstate
-    , Map.fromList ((GHC.noSrcSpan, GHC.comment_q pstate) : (GHC.annotations_comments pstate)))
+    , Map.fromList ((GHC.noSrcSpan, GHC.comment_q pstate) : GHC.annotations_comments pstate))

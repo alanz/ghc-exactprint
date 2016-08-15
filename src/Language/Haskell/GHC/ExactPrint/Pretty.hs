@@ -2,7 +2,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE RecordWildCards #-} -- ++AZ++ TODO: get rid of this abomination
 
 -----------------------------------------------------------------------------
 -- |
@@ -42,6 +41,8 @@ import qualified Data.Set as Set
 import Debug.Trace
 
 {-# ANN module "HLint: ignore Eta reduce" #-}
+{-# ANN module "HLint: ignore Redundant do" #-}
+{-# ANN module "HLint: ignore Reduce duplication" #-}
 
 -- ---------------------------------------------------------------------
 
@@ -606,11 +607,11 @@ commentAllocation p k = do
 
 makeDeltaComment :: Comment -> Pretty (Comment, DeltaPos)
 makeDeltaComment c = do
-  return (c, (DP (0,1)))
+  return (c, DP (0,1))
 
 addPrettyComment :: Comment -> DeltaPos -> Pretty ()
 addPrettyComment d p = do
-  tellKd ((AnnComment d), p)
+  tellKd (AnnComment d, p)
 #endif
 
 -- ---------------------------------------------------------------------

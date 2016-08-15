@@ -83,6 +83,8 @@ import qualified Data.Set as Set
 -- import Debug.Trace
 
 {-# ANN module "HLint: ignore Eta reduce" #-}
+{-# ANN module "HLint: ignore Redundant do" #-}
+{-# ANN module "HLint: ignore Reduce duplication" #-}
 
 -- ---------------------------------------------------------------------
 -- | Transform concrete annotations into relative annotations which are
@@ -521,7 +523,7 @@ withAST lss@(GHC.L ss _) action = do
                 off (ss2delta priorEndAfterComments ss)
     -- Preparation complete, perform the action
     when (GHC.isGoodSrcSpan ss && priorEndAfterComments < ss2pos ss) (do
-      modify (\s -> s { priorEndPosition    = (ss2pos ss) } ))
+      modify (\s -> s { priorEndPosition    = ss2pos ss } ))
     (res, w) <- censor maskWriter (listen action)
 
     let kds = annKds w
@@ -589,7 +591,7 @@ checkUnicode gkw@(G kw) ss =
   if kw `Set.member` unicodeSyntax
     then
       let s = keywordToString gkw in
-      if (length s /= spanLength ss)
+      if length s /= spanLength ss
         then AnnUnicode kw
         else gkw
   else
@@ -671,7 +673,7 @@ addDeltaAnnotationLs :: GHC.AnnKeywordId -> Int -> Delta ()
 addDeltaAnnotationLs ann off = do
   ss <- getSrcSpan
   ma <- peekAnnotationDelta ann
-  let ma' = filter (\s -> (GHC.isSubspanOf s ss)) ma
+  let ma' = filter (\s -> GHC.isSubspanOf s ss) ma
   case drop off ma' of
     [] -> return ()
         `debug` ("addDeltaAnnotationLs:missed:(off,ann,ma)=" ++ showGhc (off,ss,ann))

@@ -40,6 +40,12 @@ import qualified Data.Set as Set
 
 -- import Debug.Trace
 --
+{-# ANN module ("HLint: ignore Eta reduce" :: String) #-}
+{-# ANN module ("HLint: ignore Redundant do" :: String) #-}
+{-# ANN module ("HLint: ignore Reduce duplication" :: String) #-}
+
+-- ---------------------------------------------------------------------
+
 data CppOptions = CppOptions
                 { cppDefine :: [String]    -- ^ CPP #define macros
                 , cppInclude :: [FilePath] -- ^ CPP Includes directory
@@ -137,7 +143,7 @@ getCppTokens directiveToks origSrcToks postCppToks = toks
     -- GHC.Token does not have Ord, can't use a set directly
     origSpans = map (\(GHC.L l _,_) -> l) origSrcToks
     m1Spans = map (\(GHC.L l _,_) -> l) m1Toks
-    missingSpans = (Set.fromList origSpans) Set.\\ (Set.fromList m1Spans)
+    missingSpans = Set.fromList origSpans Set.\\ Set.fromList m1Spans
 
     missingToks = filter (\(GHC.L l _,_) -> Set.member l missingSpans) origSrcToks
 

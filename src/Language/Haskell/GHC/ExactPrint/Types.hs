@@ -197,7 +197,7 @@ instance Show KeywordId where
 instance GHC.Outputable KeywordId where
   ppr k     = GHC.text (show k)
 
-instance GHC.Outputable (AnnConName) where
+instance GHC.Outputable AnnConName where
   ppr tr     = GHC.text (show tr)
 
 instance GHC.Outputable Annotation where

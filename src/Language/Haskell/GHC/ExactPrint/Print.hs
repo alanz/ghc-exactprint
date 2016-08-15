@@ -43,7 +43,10 @@ import qualified Data.Set as Set
 
 import qualified GHC
 
-------------------------------------------------------------------------------
+{-# ANN module "HLint: ignore Eta reduce" #-}
+{-# ANN module "HLint: ignore Redundant do" #-}
+{-# ANN module "HLint: ignore Reduce duplication" #-}
+-- ---------------------------------------------------------------------
 -- Printing of source elements
 
 -- | Print an AST with a map of potential modified `Anns`. The usual way to
@@ -176,7 +179,7 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
       countAnnsEP (G kwid) >>= next
     go (SetLayoutFlag r action next) = do
       rigidity <- asks epRigidity
-      (if (r <= rigidity) then setLayout else id) (printInterpret action)
+      (if r <= rigidity then setLayout else id) (printInterpret action)
       next
     go (MarkExternal _ akwid s next) =
       printStringAtMaybeAnn (G akwid) (Just s) >> next
@@ -309,7 +312,7 @@ advance cl = do
   printWhitespace (undelta p cl colOffset)
 
 getAndRemoveAnnotation :: (Monad m, Monoid w, Data a) => GHC.Located a -> EP w m (Maybe Annotation)
-getAndRemoveAnnotation a = gets ((getAnnotationEP a) . epAnns)
+getAndRemoveAnnotation a = gets (getAnnotationEP a . epAnns)
 
 markPrim :: (Monad m, Monoid w) => KeywordId -> Maybe String -> EP w m ()
 markPrim kwid mstr =
@@ -500,8 +503,8 @@ printString layout str = do
   -- tell (mempty {output = Endo $ showString str })
 
   if not layout && c == 0
-    then lift (epWhitespacePrint str) >>= \s -> tell (EPWriter { output = s})
-    else lift (epTokenPrint      str) >>= \s -> tell (EPWriter { output = s})
+    then lift (epWhitespacePrint str) >>= \s -> tell EPWriter { output = s}
+    else lift (epTokenPrint      str) >>= \s -> tell EPWriter { output = s}
 
 
 newLine :: (Monad m, Monoid w) => EP w m ()
