@@ -303,7 +303,6 @@ withAST lss@(GHC.L ss t) action = do
 #if __GLASGOW_HASKELL__ <= 710
     let spanStart = ss2pos ss
     cs <- do
-      -- priorEndBeforeComments <- getPriorEnd
       if GHC.isGoodSrcSpan ss
         then
           commentAllocation (priorComment spanStart) return
@@ -355,7 +354,7 @@ entryDpFor ctx a = (def `extQ` grhs) a
 
     def :: a -> Pretty DeltaPos
     def _ =
-      trace ("entryDpFor:(topLevel,listStart,inList,noAdvanceLine)=" ++ show (topLevel,listStart,inList,noAdvanceLine)) $
+      trace ("entryDpFor:(topLevel,listStart,inList,noAdvanceLine,ctx)=" ++ show (topLevel,listStart,inList,noAdvanceLine,ctx)) $
         if noAdvanceLine
           then return (DP (0,1))
           else

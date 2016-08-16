@@ -406,7 +406,8 @@ markListWithLayout ls =
 markList :: Annotate ast => [GHC.Located ast] -> Annotated ()
 markList ls =
   setContext (Set.singleton NoPrecedingSpace)
-   $ markListWithContexts (Set.singleton ListStart) (Set.singleton ListItem) ls
+   -- $ markListWithContexts (Set.singleton ListStart) (Set.singleton ListItem) ls
+   $ markListWithContexts' listContexts' ls
 
 markLocalBindsWithLayout :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => GHC.HsLocalBinds name -> Annotated ()
@@ -459,6 +460,12 @@ listContexts = LC (Set.fromList [CtxOnly,ListStart])
                   (Set.fromList [CtxFirst,ListStart,Intercalate])
                   (Set.fromList [CtxMiddle,ListItem,Intercalate])
                   (Set.fromList [CtxLast,ListItem])
+
+listContexts' :: ListContexts
+listContexts' = LC (Set.fromList [CtxOnly,  ListStart])
+                   (Set.fromList [CtxFirst, ListStart])
+                   (Set.fromList [CtxMiddle,ListItem])
+                   (Set.fromList [CtxLast,  ListItem])
 
 -- ---------------------------------------------------------------------
 
@@ -1347,10 +1354,14 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     -- current context is passed through unchanged to the matches.
     -- TODO: perhaps bring the edp from the first match up to the annotation for
     -- the FunBind.
-    -- bumpContext $ mapM_ markLocated matches
-    ifInContext (Set.fromList [CtxOnly,CtxFirst])
-      (markListWithContexts' listContexts matches)
-      (markListWithContexts (lcMiddle listContexts) (lcLast listContexts) matches)
+    let
+      tlFun =
+        ifInContext (Set.fromList [CtxOnly,CtxFirst])
+          (markListWithContexts' listContexts matches)
+          (markListWithContexts (lcMiddle listContexts) (lcLast listContexts) matches)
+    ifInContext (Set.singleton TopLevel)
+      (setContextLevel (Set.singleton TopLevel) 2 tlFun)
+      tlFun
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.PatBind lhs (GHC.GRHSs grhs lb) _typ _fvs _ticks) = do
@@ -3200,7 +3211,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       then markLocated e2
       else markLocated e1
 
-  markAST _ (GHC.HsCmdArrForm e mf cs) = do
+  markAST _ (GHC.HsCmdArrForm e _mf cs) = do
     -- The AnnOpen should be marked for a prefix usage, not for a postfix one,
     -- due to the way checkCmd maps both HsArrForm and OpApp to HsCmdArrForm
 
@@ -3415,8 +3426,9 @@ markTyClass ln tyVars = do
                       (return ())
       prepareListFun ls = map (\b -> (GHC.getLoc b, listFun b )) ls
 
-    applyListAnnotationsContexts (LC (Set.fromList [CtxOnly,PrefixOp]) (Set.fromList [CtxFirst,PrefixOp])
-                                      (Set.singleton CtxMiddle) (Set.singleton CtxLast))
+    unsetContext CtxMiddle $
+      applyListAnnotationsContexts (LC (Set.fromList [CtxOnly,PrefixOp]) (Set.fromList [CtxFirst,PrefixOp])
+                                        (Set.singleton CtxMiddle) (Set.singleton CtxLast))
                                ([(GHC.getLoc ln,lnFun)]
                              ++ prepareListFun tyVars)
     markManyOptional GHC.AnnCloseP
