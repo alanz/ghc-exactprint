@@ -241,6 +241,7 @@ data AstContext = LambdaExpr
                 | Intercalate -- This item may have a list separator following
                 | InIE -- possible 'type' or 'pattern'
                 | PrefixOp
+                | PrefixOpDollar
                 | InOp -- RdrName may be used as an operator, backticks or parens may apply
                        -- TODO: Rename InOp to InfixOp
                 | ListStart -- Identifies first element of a list in layout, so its indentation can me managed differently

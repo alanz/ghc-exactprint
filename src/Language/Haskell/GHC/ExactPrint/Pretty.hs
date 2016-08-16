@@ -246,6 +246,7 @@ addPrettyAnnotation ann = do
            (G GHC.AnnUsing)     -> tellKd (ann,DP (0,1))
            (G GHC.AnnVal)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnValStr)    -> tellKd (ann,DP (0,1))
+           (G GHC.AnnVbar)      -> tellKd (ann,DP (0,1))
            -- (G GHC.AnnWhere)     -> tellKd (ann,DP (0,1))
            (G GHC.AnnWhere)     -> tellKd (ann,DP (1,2))
            _ ->                tellKd (ann,DP (0,0))

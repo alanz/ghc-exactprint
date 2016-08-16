@@ -406,7 +406,7 @@ markListWithLayout ls =
 markList :: Annotate ast => [GHC.Located ast] -> Annotated ()
 markList ls =
   setContext (Set.singleton NoPrecedingSpace)
-   -- $ markListWithContexts (Set.singleton ListStart) (Set.singleton ListItem) ls
+   --  markListWithContexts (Set.singleton ListStart) (Set.singleton ListItem) ls
    $ markListWithContexts' listContexts' ls
 
 markLocalBindsWithLayout :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
@@ -716,11 +716,29 @@ instance Annotate GHC.RdrName where
         when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
         markOptional GHC.AnnType
 
-        if canParen
-          then ifInContext (Set.singleton PrefixOp)
-                                   (mark         GHC.AnnOpenP) -- '('
-                                   (markOptional GHC.AnnOpenP)
-          else markOptional GHC.AnnOpenP
+        let
+          markParen :: GHC.AnnKeywordId -> Annotated ()
+          markParen pa = do
+            if canParen
+              then ifInContext (Set.singleton PrefixOp)
+                                       (mark         pa) -- '('
+                                       (markOptional pa)
+              else if isSym
+                then ifInContext (Set.singleton PrefixOpDollar)
+                       (mark pa)
+                       (markOptional pa)
+                else markOptional pa
+
+        -- if canParen
+        --   then ifInContext (Set.singleton PrefixOp)
+        --                            (mark         GHC.AnnOpenP) -- '('
+        --                            (markOptional GHC.AnnOpenP)
+        --   else if isSym
+        --     then ifInContext (Set.singleton PrefixOpDollar)
+        --            (mark GHC.AnnOpenP)
+        --            (markOptional GHC.AnnOpenP)
+        --     else markOptional GHC.AnnOpenP
+        markParen GHC.AnnOpenP
 
         unless isSym $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 0
         cnt  <- countAnns GHC.AnnVal
@@ -729,11 +747,12 @@ instance Annotate GHC.RdrName where
           1 -> markWithString GHC.AnnVal str'
           _ -> traceM $ "Printing RdrName, more than 1 AnnVal:" ++ showGhc (l,n)
         unless isSym $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 1
-        if canParen
-          then ifInContext (Set.singleton PrefixOp)
-                                   (mark         GHC.AnnCloseP)
-                                   (markOptional GHC.AnnCloseP)
-          else markOptional GHC.AnnCloseP
+        -- if canParen
+        --   then ifInContext (Set.singleton PrefixOp)
+        --                            (mark         GHC.AnnCloseP)
+        --                            (markOptional GHC.AnnCloseP)
+        --   else markOptional GHC.AnnCloseP
+        markParen GHC.AnnCloseP
 
     case n of
       -- GHC.Unqual o -> case str of
@@ -2923,7 +2942,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       -- TODO: make monomorphic
       markExpr l (GHC.HsBracket (GHC.VarBr True v)) = do
         mark GHC.AnnSimpleQuote
-        markLocatedFromKw GHC.AnnName (GHC.L l v)
+        -- markLocatedFromKw GHC.AnnName (GHC.L l v)
+        setContext (Set.singleton PrefixOpDollar) $ markLocatedFromKw GHC.AnnName (GHC.L l v)
       markExpr l (GHC.HsBracket (GHC.VarBr False v)) = do
         mark GHC.AnnThTyQuote
         markLocatedFromKw GHC.AnnName (GHC.L l v)
