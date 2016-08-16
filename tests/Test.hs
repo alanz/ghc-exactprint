@@ -155,9 +155,6 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- GHC 8.0 holdouts
       -- mkPrettyRoundtrip "ghc8" "Rae31.hs"
     -- , mkPrettyRoundtrip "ghc8" "RaeBlogPost.hs"
-      -- mkPrettyRoundtrip "ghc8" "T10246.hs"
-      -- mkPrettyRoundtrip "ghc8" "T10482.hs"
-      mkPrettyRoundtrip "ghc8" "T10704.hs"
 
 
     -- , mkParserTest "ghc710" "NestedDoLambda.hs"

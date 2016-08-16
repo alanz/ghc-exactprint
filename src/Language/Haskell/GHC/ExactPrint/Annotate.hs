@@ -2742,15 +2742,20 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       -- when moving these expressions it's useful that they maintain "internal
       -- integrity", that is to say the subparts remain indented relative to each
       -- other.
-      markExpr _ (GHC.HsIf _ e1 e2 e3) = setRigidFlag $ do
+      markExpr _ (GHC.HsIf _ e1 e2 e3) = setLayoutFlag $ do
+      -- markExpr _ (GHC.HsIf _ e1 e2 e3) = setRigidFlag $ do
         mark GHC.AnnIf
         markLocated e1
         markOffsetOptional GHC.AnnSemi 0
         mark GHC.AnnThen
-        markLocated e2
+        -- markLocated e2
+        -- setContextLevel (Set.singleton AdvanceLine) 2 $ markLocated e2
+        setContextLevel (Set.singleton ListStart) 2 $ markLocated e2
         markOffsetOptional GHC.AnnSemi 1
         mark GHC.AnnElse
-        markLocated e3
+        -- markLocated e3
+        -- setContextLevel (Set.singleton AdvanceLine) 2 $ markLocated e3
+        setContextLevel (Set.singleton ListStart) 2 $ markLocated e3
 
       markExpr _ (GHC.HsMultiIf _ rhs) = do
         mark GHC.AnnIf
