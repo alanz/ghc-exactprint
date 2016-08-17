@@ -1923,8 +1923,15 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     -- HsOpTy              (LHsType name) (Located name) (LHsType name)
 #endif
       markLocated t1
-      mark GHC.AnnSimpleQuote
-      setContext (Set.singleton InOp) $ markLocated lo
+      if (GHC.isTcOcc $ GHC.occName $ GHC.unLoc lo)
+        then do
+          markOptional GHC.AnnSimpleQuote
+          -- setContext (Set.singleton InOp) $ markLocated lo
+        else do
+          mark GHC.AnnSimpleQuote
+          -- markLocated lo
+      -- setContext (Set.singleton InOp) $ markLocated lo
+      unsetContext PrefixOp $ setContext (Set.singleton InOp) $ markLocated lo
       markLocated t2
 
     markType _ (GHC.HsParTy t) = do
