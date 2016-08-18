@@ -2553,6 +2553,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       -- integrity", that is to say the subparts remain indented relative to each
       -- other.
       markExpr _ (GHC.HsIf _ e1 e2 e3) = setLayoutFlag $ do
+      -- markExpr _ (GHC.HsIf _ e1 e2 e3) = setRigidFlag $ do
         mark GHC.AnnIf
         markLocated e1
         markOffsetOptional GHC.AnnSemi 0

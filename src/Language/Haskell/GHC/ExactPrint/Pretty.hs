@@ -53,7 +53,6 @@ addAnnotationsForPretty cs ast ans
   = runPrettyWithComments opts cs (annotate ast) ans (0,0)
   where
     opts = prettyOptions NormalLayout
-    -- opts = prettyOptions RigidLayout
 
 -- ---------------------------------------------------------------------
 --
