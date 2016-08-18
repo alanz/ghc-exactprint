@@ -232,18 +232,14 @@ instance GHC.Outputable AstContextSet where
 data AstContext = LambdaExpr
                 | CaseAlt
                 | NoPrecedingSpace
-                -- TODO: all GHC 7.10.3 tests pass with TypeAsKind not set. Can we get rid of it
-                | TypeAsKind -- For GHC < 8.0
                 | HasHiding
                 | AdvanceLine
                 | NoAdvanceLine
-                | ListComp
                 | Intercalate -- This item may have a list separator following
                 | InIE -- possible 'type' or 'pattern'
                 | PrefixOp
                 | PrefixOpDollar
-                | InOp -- RdrName may be used as an operator, backticks or parens may apply
-                       -- TODO: Rename InOp to InfixOp
+                | InfixOp -- RdrName may be used as an infix operator
                 | ListStart -- Identifies first element of a list in layout, so its indentation can me managed differently
                 | ListItem -- Identifies subsequent elements of a list in layout
                 | TopLevel -- top level declaration
@@ -252,8 +248,6 @@ data AstContext = LambdaExpr
                 | Deriving
                 | Parens -- TODO: Not currently used?
                 | ExplicitNeverActive
-                | InParStmtBlock
-                | InTypeBr
                 | InGadt
                 | InRecCon
                 | InClassDecl
@@ -268,26 +262,6 @@ data AstContext = LambdaExpr
                 | CtxPos Int -- 0 for first, increasing for subsequent
                 deriving (Eq, Ord, Show)
 
-{-
-data HsMatchContext id  -- Context of a Match
-  = FunRhs id Bool              -- Function binding for f; True <=> written infix
-  | LambdaExpr                  -- Patterns of a lambda
-  | CaseAlt                     -- Patterns and guards on a case alternative
-  | IfAlt                       -- Guards of a multi-way if alternative
-  | ProcExpr                    -- Patterns of a proc
-  | PatBindRhs                  -- A pattern binding  eg [y] <- e = e
-
-  | RecUpd                      -- Record update [used only in DsExpr to
-                                --    tell matchWrapper what sort of
-                                --    runtime error message to generate]
-
-  | StmtCtxt (HsStmtContext id) -- Pattern of a do-stmt, list comprehension,
-                                -- pattern guard, etc
-
-  | ThPatSplice                 -- A Template Haskell pattern splice
-  | ThPatQuote                  -- A Template Haskell pattern quotation [p| (a,b) |]
-  | PatSyn                      -- A pattern synonym declaration
--}
 
 data ListContexts = LC { lcOnly,lcInitial,lcMiddle,lcLast :: !(Set.Set AstContext) }
   deriving (Eq,Show)

@@ -142,12 +142,7 @@ defaultPrettyState injectedComments priorEnd _ans =
       }
   where
     cs :: [Comment]
-    -- cs = flattenedComments ga
     cs = []
-
-    -- flattenedComments :: GHC.ApiAnns -> [Comment]
-    -- flattenedComments (_,cm) =
-    --   map tokComment . GHC.sortLocated . concat $ Map.elems cm
 
 -- ---------------------------------------------------------------------
 -- Free Monad Interpretation code
@@ -189,8 +184,6 @@ prettyInterpret = iterTM go
     go (SetContextLevel ctxt lvl action next)  = setContextPretty ctxt lvl (prettyInterpret action) >> next
     go (UnsetContext    ctxt     action next)  = unsetContextPretty ctxt (prettyInterpret action) >> next
     go (IfInContext  ctxt ifAction elseAction next) = ifInContextPretty ctxt ifAction elseAction >> next
-    -- go (NotInContext ctxt action next)              = notInContextPretty ctxt action >> next
-    -- go (BumpContext action next)                    = bumpContextPretty (prettyInterpret action) >> next
 
 -- ---------------------------------------------------------------------
 
@@ -218,7 +211,6 @@ addPrettyAnnotation ann = do
            (G GHC.AnnDcolon)    -> tellKd (ann,DP (0,1))
            (G GHC.AnnDeriving)  -> tellKd (ann,DP (0,1))
            (G GHC.AnnDo)        -> tellKd (ann,DP (0,1))
-           -- (G GHC.AnnElse)      -> tellKd (ann,DP (0,1))
            (G GHC.AnnElse)      -> tellKd (ann,DP (1,2))
            (G GHC.AnnEqual)     -> tellKd (ann,DP (0,1))
            (G GHC.AnnExport)    -> tellKd (ann,DP (0,1))
@@ -241,7 +233,6 @@ addPrettyAnnotation ann = do
            (G GHC.AnnSafe)      -> tellKd (ann,DP (0,1))
            (G GHC.AnnSimpleQuote) -> tellKd (ann,DP (0,1))
            (G GHC.AnnThTyQuote) -> tellKd (ann,DP (0,1))
-           -- (G GHC.AnnThen)      -> tellKd (ann,DP (0,1))
            (G GHC.AnnThen)      -> tellKd (ann,DP (1,2))
            (G GHC.AnnTilde)     -> tellKd (ann,DP (0,1))
            (G GHC.AnnType)      -> tellKd (ann,DP (0,1))
@@ -368,60 +359,19 @@ entryDpFor ctx a = (def `extQ` grhs) a
                 else if topLevel then return (DP (2,0)) else return (DP (lineDefault,0))
 
     topLevel = inAcs (Set.singleton TopLevel) ctx
-    -- inCase = inAcs (Set.singleton CaseAlt) ctx
-    -- listStart = trace ("listStart:ctx=" ++ show ctx) $ inAcs (Set.singleton ListStart) ctx
-    --                                                  && not (inAcs (Set.singleton TopLevel) ctx)
     listStart = inAcs (Set.singleton ListStart) ctx
               && not (inAcs (Set.singleton TopLevel) ctx)
     inList = inAcs (Set.singleton ListItem) ctx
-            -- && not (inAcs (Set.singleton TopLevel) ctx)
     inLambda = inAcs (Set.singleton LambdaExpr) ctx
 
-{-
-    funBind :: GHC.HsBind GHC.RdrName -> Pretty DeltaPos
-    funBind GHC.FunBind{} =
-      if listStart
-        then return $ DP (1,2)
-        else fromLayout (DP (2,0)) (DP (1,2))
-    funBind GHC.PatBind{} = return $ DP (2,0)
-    funBind _ = return $ DP (lineDefault,0)
-
-    match :: GHC.Match GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> Pretty DeltaPos
-    match _ = do
-      let
-        defVal = if inLambda then DP (0,1) else DP (1,0)
-      if listStart
-        then return (DP (0,0))
-        else fromLayout defVal (DP (1,2))
--}
 
     grhs :: GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> Pretty DeltaPos
     grhs _ = do
       if inLambda
         then return (DP (0,1))
         else return (DP (1,2))
-      {-
-      let
-        defVal = if inLambda then DP (0,1) else DP (1,2)
-      fromLayout (DP (1,2)) defVal
-      -- fromLayout defVal (DP (1,2))
-
-      -- fromLayout (DP (1,2)) (DP (1,2))
-      -}
 
 -- ---------------------------------------------------------------------
-
--- |Like fromMaybe, in that if no layout flag is set return the first value,
--- else return the second and reset the layout flag.
--- fromLayout :: a -> a -> Pretty a
--- fromLayout def lay = do
---   PrettyState{apMarkLayout} <- get
---   if apMarkLayout
---     then do
---       modify (\s -> s { apMarkLayout = False
---                       })
---       return lay
---     else return def
 
 fromNoPrecedingSpace :: Pretty a -> Pretty a -> Pretty a
 fromNoPrecedingSpace def lay = do
@@ -434,9 +384,7 @@ fromNoPrecedingSpace def lay = do
       trace ("fromNoPrecedingSpace:def") def
       -- def
     else
-      -- if (inAcs (Set.singleton TopLevel) ctx)
-      --   then trace ("fromNoPrecedingSpace:tl:def") def
-      --   else trace ("fromNoPrecedingSpace:lay") lay
+      -- lay
       trace ("fromNoPrecedingSpace:lay") lay
 
 
@@ -472,7 +420,6 @@ withSortKeyContexts ctxts kws =
   let order = sortBy (comparing fst) kws
   in do
     tellSortKey (map fst order)
-    -- mapM_ (prettyInterpret . snd) order
     withSortKeyContextsHelper prettyInterpret ctxts order
 
 -- ---------------------------------------------------------------------
@@ -486,17 +433,6 @@ storeOriginalSrcSpanPretty _s key = do
 
 getSrcSpanForKw :: GHC.SrcSpan -> GHC.AnnKeywordId -> Pretty GHC.SrcSpan
 getSrcSpanForKw ss _kw = return ss
-
-{-
--- | This function exists to overcome a shortcoming in the GHC AST for 7.10.1
-getSrcSpanForKw :: GHC.AnnKeywordId -> Delta GHC.SrcSpan
-getSrcSpanForKw kw = do
-    ga <- gets apAnns
-    ss <- getSrcSpan
-    case GHC.getAnnotation ga ss kw of
-      []     -> return GHC.noSrcSpan
-      (sp:_) -> return sp
--}
 
 -- ---------------------------------------------------------------------
 
@@ -523,19 +459,6 @@ setNoPrecedingSpace action = do
   modify (\s -> s { apNoPrecedingSpace = True } )
   let reset = modify (\s -> s { apNoPrecedingSpace = oldVal })
   action <* reset
-
--- withNoPrecedingSpace :: Pretty () -> Pretty ()
--- withNoPrecedingSpace action = do
---   oldVal <- gets apNoPrecedingSpace
---   inLayout <- gets apMarkLayout
---   if inLayout
---     then do
---       modify (\s -> s { apNoPrecedingSpace = True } )
---       let reset = modify (\s -> s { apNoPrecedingSpace = oldVal
---                                   , apMarkLayout = False
---                                   })
---       action <* reset
---     else action
 
 -- ---------------------------------------------------------------------
 

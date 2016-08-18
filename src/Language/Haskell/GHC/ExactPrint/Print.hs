@@ -154,15 +154,10 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
       printStringAtMaybeAnn (G GHC.AnnEofPos) (Just "") >> next
     go (MarkPrim kwid mstr next) =
       markPrim (G kwid) mstr >> next
-      -- let annString = fromMaybe (keywordToString kwid) mstr in
-      --   printStringAtMaybeAnn (G kwid) annString >> next
     go (MarkPPOptional kwid mstr next) =
       markPrim (G kwid) mstr >> next
     go (MarkOutside _ kwid next) =
-      -- markPrim kwid Nothing >> next
-      -- let annString = keywordToString kwid in
       printStringAtMaybeAnnAll kwid Nothing  >> next
-      -- printStringAtMaybeAnnAll kwid ";"  >> next
     go (MarkInside akwid next) =
       allAnns akwid >> next
     go (MarkMany akwid next) =
@@ -197,15 +192,9 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
     go (WithSortKey             ks next) = withSortKey             ks >> next
     go (WithSortKeyContexts ctx ks next) = withSortKeyContexts ctx ks >> next
 
-    -- go (SetContextLevel _ _ action next) = printInterpret action >> next
-    -- go (IfInContext _ ifAction elseAction next) = printInterpret ifAction >> next
-    -- go (NotInContext _ action next)      = printInterpret action >> next
-
     go (SetContextLevel ctxt lvl       action next) = setContextPrint ctxt lvl (printInterpret action) >> next
     go (UnsetContext   _ctxt           action next) = printInterpret action >> next
     go (IfInContext  ctxt ifAction elseAction next) = ifInContextPrint ctxt ifAction elseAction >> next
-    -- go (NotInContext ctxt              action next) = notInContextPrint ctxt action >> next
-    -- go (BumpContext                    action next) = bumpContextPrint (printInterpret action) >> next
 
 -------------------------------------------------------------------------
 
@@ -316,8 +305,6 @@ getAndRemoveAnnotation a = gets (getAnnotationEP a . epAnns)
 
 markPrim :: (Monad m, Monoid w) => KeywordId -> Maybe String -> EP w m ()
 markPrim kwid mstr =
-  -- let annString = fromMaybe (keywordToString kwid) mstr
-  -- in printStringAtMaybeAnn kwid annString
   printStringAtMaybeAnn kwid mstr
 
 withContext :: (Monad m, Monoid w)
