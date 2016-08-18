@@ -235,6 +235,18 @@ Annotate, and param is the interpreter param set when the interpreter is run
    RigidLayout  | NormalLayout | layout NOT captured
    RigidLayout  | RigidLayout  | layout captured
 
+The flag is only used on HsIf and HsCase
+
+So
+
+   state                       | HsCase    | HsIf
+   ----------------------------|-----------+------
+   before rigidity flag (AZ)   | no layout | layout
+   param NormalLayout          | no layout | no layout
+   param RigidLayout           | layout    | layout
+   ----------------------------+-----------+-------
+   desired future HaRe         | no layout | layout
+   desired future apply-refact | layout    | layout
 -}
 
 -- ---------------------------------------------------------------------
