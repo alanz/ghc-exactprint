@@ -33,7 +33,13 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
 
         -- * Internal
 
+        , ghcWrapper
+
+        , initDynFlags
+        , initDynFlagsPure
         , parseModuleApiAnnsWithCpp
+        , parseModuleApiAnnsWithCppInternal
+        , postParseTransform
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Annotate
@@ -99,12 +105,10 @@ runParser parser flags filename str = GHC.unP parser parseState
 -- myParser fname expr = withDynFlags (\\d -> parseExpr d fname expr)
 -- @
 withDynFlags :: (GHC.DynFlags -> a) -> IO a
-withDynFlags action =
-    GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
-      GHC.runGhc (Just libdir) $ do
-        dflags <- GHC.getSessionDynFlags
-        void $ GHC.setSessionDynFlags dflags
-        return (action dflags)
+withDynFlags action = ghcWrapper $ do
+  dflags <- GHC.getSessionDynFlags
+  void $ GHC.setSessionDynFlags dflags
+  return (action dflags)
 
 -- ---------------------------------------------------------------------
 
@@ -151,25 +155,23 @@ parsePattern df fp = parseWith df fp GHC.parsePattern
 -- @
 --
 -- Note: 'GHC.ParsedSource' is a synonym for 'GHC.Located' ('GHC.HsModule' 'GHC.RdrName')
-parseModule :: FilePath
-            -> IO (Either (GHC.SrcSpan, String)
-                          (Anns, GHC.ParsedSource))
+parseModule
+  :: FilePath -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource))
 parseModule = parseModuleWithCpp defaultCppOptions normalLayout
+
 
 -- | This entry point will work out which language extensions are
 -- required but will _not_ perform CPP processing.
 -- In contrast to `parseModoule` the input source is read from the provided
 -- string; the `FilePath` parameter solely exists to provide a name
 -- in source location annotations.
-parseModuleFromString :: FilePath
-                      -> String
-                      -> IO (Either (GHC.SrcSpan, String)
-                                    (Anns, GHC.ParsedSource))
-parseModuleFromString fp s = do
-  GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
-    GHC.runGhc (Just libdir) $ do
-      dflags <- initDynFlagsPure fp s
-      return $ parseWith dflags fp GHC.parseModule s
+parseModuleFromString
+  :: FilePath
+  -> String
+  -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource))
+parseModuleFromString fp s = ghcWrapper $ do
+  dflags <- initDynFlagsPure fp s
+  return $ parseWith dflags fp GHC.parseModule s
 
 parseModuleWithOptions :: DeltaOptions
                        -> FilePath
@@ -180,57 +182,89 @@ parseModuleWithOptions opts fp =
 
 
 -- | Parse a module with specific instructions for the C pre-processor.
-parseModuleWithCpp :: CppOptions
-                   -> DeltaOptions
-                   -> FilePath
-                   -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource))
+parseModuleWithCpp
+  :: CppOptions
+  -> DeltaOptions
+  -> FilePath
+  -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource))
 parseModuleWithCpp cpp opts fp = do
   res <- parseModuleApiAnnsWithCpp cpp fp
-  return (either Left mkAnns res)
-  where
-    mkAnns (apianns, cs, _, m) =
-      Right (relativiseApiAnnsWithOptions opts cs m apianns, m)
+  return $ postParseTransform res opts
+
+-- ---------------------------------------------------------------------
 
 -- | Low level function which is used in the internal tests.
 -- It is advised to use 'parseModule' or 'parseModuleWithCpp' instead of
 -- this function.
-parseModuleApiAnnsWithCpp :: CppOptions
-                          -> FilePath
-                          -> IO (Either (GHC.SrcSpan, String)
-                                        (GHC.ApiAnns, [Comment], GHC.DynFlags, GHC.ParsedSource))
-parseModuleApiAnnsWithCpp cppOptions file =
-  GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
-    GHC.runGhc (Just libdir) $ do
-      dflags <- initDynFlags file
+parseModuleApiAnnsWithCpp
+  :: CppOptions
+  -> FilePath
+  -> IO
+       ( Either
+           (GHC.SrcSpan, String)
+           (GHC.ApiAnns, [Comment], GHC.DynFlags, GHC.ParsedSource)
+       )
+parseModuleApiAnnsWithCpp cppOptions file = ghcWrapper $ do
+  dflags <- initDynFlags file
+  parseModuleApiAnnsWithCppInternal cppOptions dflags file
+
+-- | Internal function. Default runner of GHC.Ghc action in IO.
+ghcWrapper :: GHC.Ghc a -> IO a
+ghcWrapper =
+  GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut
+    . GHC.runGhc (Just libdir)
+
+-- | Internal function. Exposed if you want to muck with DynFlags
+-- before parsing.
+parseModuleApiAnnsWithCppInternal
+  :: GHC.GhcMonad m
+  => CppOptions
+  -> GHC.DynFlags
+  -> FilePath
+  -> m
+       ( Either
+           (GHC.SrcSpan, String)
+           (GHC.ApiAnns, [Comment], GHC.DynFlags, GHC.ParsedSource)
+       )
+parseModuleApiAnnsWithCppInternal cppOptions dflags file = do
 #if __GLASGOW_HASKELL__ <= 710
-      let useCpp = GHC.xopt GHC.Opt_Cpp dflags
+  let useCpp = GHC.xopt GHC.Opt_Cpp dflags
 #else
-      let useCpp = GHC.xopt LangExt.Cpp dflags
+  let useCpp = GHC.xopt LangExt.Cpp dflags
 #endif
-      (fileContents, injectedComments, dflags') <-
-        if useCpp
-          then do
-            (contents,dflags1) <- getPreprocessedSrcDirect cppOptions file
-            cppComments <- getCppTokensAsComments cppOptions file
-            return (contents,cppComments,dflags1)
-          else do
-            txt <- GHC.liftIO $ readFileGhc file
-            let (contents1,lp) = stripLinePragmas txt
-            return (contents1,lp,dflags)
-      return $
-        case parseFile dflags' file fileContents of
-          GHC.PFailed ss m -> Left $ (ss, (GHC.showSDoc dflags m))
-          GHC.POk (mkApiAnns -> apianns) pmod  ->
-            Right $ (apianns, injectedComments, dflags', pmod)
+  (fileContents, injectedComments, dflags') <-
+    if useCpp
+      then do
+        (contents,dflags1) <- getPreprocessedSrcDirect cppOptions file
+        cppComments <- getCppTokensAsComments cppOptions file
+        return (contents,cppComments,dflags1)
+      else do
+        txt <- GHC.liftIO $ readFileGhc file
+        let (contents1,lp) = stripLinePragmas txt
+        return (contents1,lp,dflags)
+  return $
+    case parseFile dflags' file fileContents of
+      GHC.PFailed ss m -> Left $ (ss, (GHC.showSDoc dflags m))
+      GHC.POk (mkApiAnns -> apianns) pmod  ->
+        Right $ (apianns, injectedComments, dflags', pmod)
 
--- ---------------------------------------------------------------------
+-- | Internal function. Exposed if you want to much with DynFlags
+-- before parsing. Or after parsing.
+postParseTransform
+  :: Either a (GHC.ApiAnns, [Comment], GHC.DynFlags, GHC.ParsedSource)
+  -> DeltaOptions
+  -> Either a (Anns, GHC.ParsedSource)
+postParseTransform parseRes opts = either Left mkAnns parseRes
+  where
+    mkAnns (apianns, cs, _, m) =
+      Right (relativiseApiAnnsWithOptions opts cs m apianns, m)
 
+-- | Internal function. Initializes DynFlags value for parsing.
 initDynFlags :: GHC.GhcMonad m => FilePath -> m GHC.DynFlags
 initDynFlags file = do
-  dflags0 <- GHC.getSessionDynFlags
-  src_opts <- GHC.liftIO $ GHC.getOptionsFromFile dflags0 file
-  (dflags1, _, _)
-    <- GHC.parseDynamicFilePragma dflags0 src_opts
+  dflags0         <- GHC.getSessionDynFlags
+  src_opts        <- GHC.liftIO $ GHC.getOptionsFromFile dflags0 file
+  (dflags1, _, _) <- GHC.parseDynamicFilePragma dflags0 src_opts
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
   void $ GHC.setSessionDynFlags dflags2
@@ -246,12 +280,8 @@ initDynFlagsPure fp s = do
   -- as long as `parseDynamicFilePragma` is impure there seems to be
   -- no reason to use it.
   dflags0 <- GHC.getSessionDynFlags
-  let pragmaInfo = GHC.getOptions
-        dflags0
-        (GHC.stringToStringBuffer $ s)
-        fp
-  (dflags1, _, _)
-    <- GHC.parseDynamicFilePragma dflags0 pragmaInfo
+  let pragmaInfo = GHC.getOptions dflags0 (GHC.stringToStringBuffer $ s) fp
+  (dflags1, _, _) <- GHC.parseDynamicFilePragma dflags0 pragmaInfo
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
   void $ GHC.setSessionDynFlags dflags2
