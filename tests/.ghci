@@ -2,5 +2,6 @@
 :set -i../src
 :set -i../test
 :set -hide-package monads-tf
+:set -hide-package fast-tags
 :set package ghc
 :set -Wall

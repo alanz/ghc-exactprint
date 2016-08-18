@@ -378,8 +378,6 @@ markListWithContextsFunction (LC ctxOnly ctxInitial ctxMiddle ctxLast) f ls =
 -- Expects the kws to be ordered already
 withSortKeyContextsHelper :: (Monad m) => (Annotated () -> m ()) -> ListContexts -> [(GHC.SrcSpan, Annotated ())] -> m ()
 withSortKeyContextsHelper interpret (LC ctxOnly ctxInitial ctxMiddle ctxLast) kws = do
-  -- tellSortKey (map fst order)
-  -- mapM_ (deltaInterpret . snd) order
   case kws of
     [] -> return ()
     [x] -> interpret (setContextLevel (Set.insert (CtxPos 0) ctxOnly) level $ snd x)
@@ -387,7 +385,6 @@ withSortKeyContextsHelper interpret (LC ctxOnly ctxInitial ctxMiddle ctxLast) kw
       interpret (setContextLevel (Set.insert (CtxPos 0) ctxInitial) level $ snd x)
       go 1 xs
   where
-    -- order = sortBy (comparing fst) kws
     level = 2
     go _ []  = return ()
     go n [x] = interpret (setContextLevel (Set.insert (CtxPos n) ctxLast) level $ snd x)
@@ -728,18 +725,9 @@ instance Annotate GHC.RdrName where
                        (mark pa)
                        (markOptional pa)
                 else markOptional pa
+              -- (Unqual {OccName: :$ (tc, Tc Sym )})))),
 
-        -- if canParen
-        --   then ifInContext (Set.singleton PrefixOp)
-        --                            (mark         GHC.AnnOpenP) -- '('
-        --                            (markOptional GHC.AnnOpenP)
-        --   else if isSym
-        --     then ifInContext (Set.singleton PrefixOpDollar)
-        --            (mark GHC.AnnOpenP)
-        --            (markOptional GHC.AnnOpenP)
-        --     else markOptional GHC.AnnOpenP
         markParen GHC.AnnOpenP
-
         unless isSym $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 0
         cnt  <- countAnns GHC.AnnVal
         case cnt of
@@ -747,11 +735,6 @@ instance Annotate GHC.RdrName where
           1 -> markWithString GHC.AnnVal str'
           _ -> traceM $ "Printing RdrName, more than 1 AnnVal:" ++ showGhc (l,n)
         unless isSym $ inContext (Set.fromList [InOp]) $ markOffset GHC.AnnBackquote 1
-        -- if canParen
-        --   then ifInContext (Set.singleton PrefixOp)
-        --                            (mark         GHC.AnnCloseP)
-        --                            (markOptional GHC.AnnCloseP)
-        --   else markOptional GHC.AnnCloseP
         markParen GHC.AnnCloseP
 
     case n of
@@ -3435,13 +3418,6 @@ markTyClass :: (Annotate a, Annotate ast,GHC.HasOccName a)
 markTyClass ln tyVars = do
     markManyOptional GHC.AnnOpenP
 
-{-
-    -- This may be an infix operation
-    applyListAnnotationsContexts (LC (Set.singleton PrefixOp) (Set.singleton PrefixOp)
-                                     Set.empty Set.empty)
-                        (prepareListAnnotation [ln]
-                      ++ prepareListAnnotation (take 2 tyVars))
--}
     let
       parensNeeded = GHC.isSymOcc (GHC.occName $ GHC.unLoc ln) && length tyVars > 2
       lnFun = do
@@ -3464,7 +3440,6 @@ markTyClass ln tyVars = do
                                ([(GHC.getLoc ln,lnFun)]
                              ++ prepareListFun tyVars)
     markManyOptional GHC.AnnCloseP
-    -- mapM_ markLocated (drop 2 tyVars)
 
 -- ---------------------------------------------------------------------
 
@@ -3575,15 +3550,15 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 #else
   markAST _ (GHC.TyFamEqn ln (GHC.HsIB _ pats) typ) = do
 #endif
-    -- markTyClass ln pats
-    {- -}
+    let
+      fun = ifInContext (Set.singleton (CtxPos 0))
+                (setContext (Set.singleton PrefixOp) $ markLocated ln)
+                (markLocated ln)
     markOptional GHC.AnnOpenP
-    applyListAnnotations (prepareListAnnotation [ln]
-    -- applyListAnnotations (prepareListAnnotationWithContext (Set.singleton PrefixOp) [ln]
-                         -- ++ prepareListAnnotation pats)
+    applyListAnnotationsContexts (LC Set.empty Set.empty Set.empty Set.empty)
+                         ([(GHC.getLoc ln, fun)]
                          ++ prepareListAnnotationWithContext (Set.singleton PrefixOp) pats)
     markOptional GHC.AnnCloseP
-    {- -}
     mark GHC.AnnEqual
     markLocated typ
 
