@@ -2340,7 +2340,8 @@ markHsConDeclDetails :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName 
 
 markHsConDeclDetails isDeprecated inGadt lns dets = do
   case dets of
-    GHC.PrefixCon args -> mapM_ markLocated args
+    -- GHC.PrefixCon args -> mapM_ markLocated args
+    GHC.PrefixCon args -> setContext (Set.singleton PrefixOp) $ mapM_ markLocated args
     GHC.RecCon fs -> do
       mark GHC.AnnOpenC
       if inGadt
