@@ -214,6 +214,28 @@ instance GHC.Outputable DeltaPos where
 -- Flag used to control whether we use rigid or normal layout rules.
 -- NOTE: check is done via comparison of enumeration order, be careful with any changes
 data Rigidity = NormalLayout | RigidLayout deriving (Eq, Ord, Show)
+{-
+
+Rigidity logic. The same type is used for two different things
+
+1. As a flag in Annotate to the "SetLayoutFlag" operation, which specifies
+   NormalLayout - Layout should be captured unconditionally
+
+   RigidLayout - Layout should be captured or not depending on a parameter kept
+                 in the interpreter Read state
+
+2. As the controlling parameter for the optional (Rigid) layout
+
+The nett effect is the following, where flag is the hard-coded flag value in
+Annotate, and param is the interpreter param set when the interpreter is run
+
+   flag         |  param       | result
+   -------------+--------------+--------------------
+   NormalLayout |  either      | layout captured
+   RigidLayout  | NormalLayout | layout NOT captured
+   RigidLayout  | RigidLayout  | layout captured
+
+-}
 
 -- ---------------------------------------------------------------------
 
