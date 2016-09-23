@@ -95,9 +95,12 @@ data PrettyWriter = PrettyWriter
 
          -- | Used locally to pass Keywords, delta pairs relevant to a specific
          -- subtree to the parent.
-       , annKds         :: ![(KeywordId, DeltaPos)]
-       , sortKeys       :: !(Maybe [GHC.SrcSpan])
-       , dwCapturedSpan :: !(First AnnKey)
+       , annKds          :: ![(KeywordId, DeltaPos)]
+       , sortKeys        :: !(Maybe [GHC.SrcSpan])
+       , dwCapturedSpan  :: !(First AnnKey)
+       -- , prLayoutContext :: !(Set.Set LayoutContext)
+       -- , prLayoutContext :: !(ACS' LayoutContext)
+       , prLayoutContext :: !(ACS' AstContext)
        }
 
 data PrettyState = PrettyState
@@ -107,7 +110,7 @@ data PrettyState = PrettyState
          -- | Ordered list of comments still to be allocated
        , apComments :: ![Comment]
 
-       , apMarkLayout :: Bool
+       , apMarkLayout  :: Bool
        , apLayoutStart :: LayoutStartCol
 
        , apNoPrecedingSpace :: Bool
@@ -115,9 +118,9 @@ data PrettyState = PrettyState
        }
 
 instance Monoid PrettyWriter where
-  mempty = PrettyWriter mempty mempty mempty mempty
-  (PrettyWriter a b e g) `mappend` (PrettyWriter c d f h)
-    = PrettyWriter (a <> c) (b <> d) (e <> f) (g <> h)
+  mempty = PrettyWriter mempty mempty mempty mempty mempty
+  (PrettyWriter a b e g i) `mappend` (PrettyWriter c d f h j)
+    = PrettyWriter (a <> c) (b <> d) (e <> f) (g <> h) (i <> j)
 
 -- ---------------------------------------------------------------------
 
@@ -182,7 +185,8 @@ prettyInterpret = iterTM go
 
     go (SetContextLevel ctxt lvl action next)  = setContextPretty ctxt lvl (prettyInterpret action) >> next
     go (UnsetContext    ctxt     action next)  = unsetContextPretty ctxt (prettyInterpret action) >> next
-    go (IfInContext  ctxt ifAction elseAction next) = ifInContextPretty ctxt ifAction elseAction >> next
+    go (IfInContext ctxt ia ea next)           = ifInContextPretty ctxt ia ea >> next
+    go (TellContext c next)                    = tellContext c >> next
 
 -- ---------------------------------------------------------------------
 
@@ -261,13 +265,6 @@ addPrettyAnnotationLs ann _off = addPrettyAnnotation (G ann)
 
 -- ---------------------------------------------------------------------
 
-withSrcSpanPretty :: Data a => GHC.Located a -> Pretty b -> Pretty b
-withSrcSpanPretty (GHC.L l a) =
-  local (\s -> s { curSrcSpan = l
-                 , annConName = annGetConstr a
-                 , prContext = pushAcs (prContext s)
-                 })
-
 #if __GLASGOW_HASKELL__ <= 710
 getUnallocatedComments :: Pretty [Comment]
 getUnallocatedComments = gets apComments
@@ -278,19 +275,36 @@ putUnallocatedComments cs = modify (\s -> s { apComments = cs } )
 
 -- ---------------------------------------------------------------------
 
+withSrcSpanPretty :: Data a => GHC.Located a -> Pretty b -> Pretty b
+withSrcSpanPretty (GHC.L l a) = -- action = do
+  -- peek into the current state of the output, to extract the layout context
+  -- flags passed up from subelements of the AST.
+  -- (_,w) <- listen (return () :: Pretty ())
+
+  local (\s -> s { curSrcSpan = l
+                 , annConName = annGetConstr a
+                 , prContext  = pushAcs (prContext s)
+                 -- , prContext  = (pushAcs (prContext s)) <> (prLayoutContext w)
+                 })
+        -- action
+
+-- ---------------------------------------------------------------------
+
 -- | Enter a new AST element. Maintain SrcSpan stack
 withAST :: Data a
         => GHC.Located a
         -> Pretty b -> Pretty b
 withAST lss@(GHC.L ss t) action = do
+  return () `debug` ("Pretty.withAST:enter 1:(ss)=" ++ showGhc (ss,showConstr (toConstr t)))
   -- Calculate offset required to get to the start of the SrcSPan
   -- off <- gets apLayoutStart
   withSrcSpanPretty lss $ do
     return () `debug` ("Pretty.withAST:enter:(ss)=" ++ showGhc (ss,showConstr (toConstr t)))
 
-    let maskWriter s = s { annKds         = []
-                         , sortKeys       = Nothing
-                         , dwCapturedSpan = mempty
+    let maskWriter s = s { annKds          = []
+                         , sortKeys        = Nothing
+                         , dwCapturedSpan  = mempty
+                         -- , prLayoutContext = pushAcs (prLayoutContext s)
                          }
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -324,12 +338,13 @@ withAST lss@(GHC.L ss t) action = do
 
     let kds = annKds w
         an = Ann
-               { annEntryDelta = edp
-               , annPriorComments = cs
+               { annEntryDelta        = edp
+               , annPriorComments     = cs
                , annFollowingComments = [] -- only used in Transform and Print
-               , annsDP     = kds
-               , annSortKey = sortKeys w
-               , annCapturedSpan = getFirst $ dwCapturedSpan w }
+               , annsDP               = kds
+               , annSortKey           = sortKeys w
+               , annCapturedSpan      = getFirst $ dwCapturedSpan w
+               }
 
     addAnnotationsPretty an
      `debug` ("Pretty.withAST:(annkey,an)=" ++ show (mkAnnKey lss,an))
@@ -556,3 +571,6 @@ tellKd kd = tell (mempty { annKds = [kd] })
 
 tellSortKey :: [GHC.SrcSpan] -> Pretty ()
 tellSortKey xs = tell (mempty { sortKeys = Just xs } )
+
+tellContext :: Set.Set AstContext -> Pretty ()
+tellContext lc = tell (mempty { prLayoutContext = setAcsWithLevel lc 2 mempty} )

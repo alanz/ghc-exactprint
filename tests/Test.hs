@@ -148,16 +148,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkParserTest "ghc710" "Unicode.hs"
 
 
-      -- GHC 7.10 holdouts
-      -- mkPrettyRoundtrip "ghc710-only" "TypeFamilies.hs"
-
-      -- mkPrettyRoundtrip "ghc710" "LiftedConstructors.hs"
-      -- mkPrettyRoundtrip "ghc710" "OveridingPrimitives.hs"
-      -- mkPrettyRoundtrip "ghc710" "TypeFamilies2.hs"
-
-
-      -- GHC 8.0 holdouts
-      mkPrettyRoundtrip "ghc8" "RaeBlogPost.hs"
+      mkPrettyRoundtrip "ghc710" "AddAndOr3.hs"
 
 
 

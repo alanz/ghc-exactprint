@@ -1,9 +1,11 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 module Language.Haskell.GHC.ExactPrint.Types
   ( -- * Core Types
    Anns
@@ -26,7 +28,8 @@ module Language.Haskell.GHC.ExactPrint.Types
   -- * Other
 
   , Rigidity(..)
-  , AstContext(..),AstContextSet(..),defaultACS
+  , AstContext(..),AstContextSet,defaultACS
+  , ACS'(..)
   , ListContexts(..)
 
   -- * Internal Types
@@ -251,16 +254,29 @@ So
 
 -- ---------------------------------------------------------------------
 
-data AstContextSet = ACS
-  { acs :: !(Map.Map AstContext Int) -- ^ how many levels each AstContext should
-                                     -- propagate down the AST. Removed when it
-                                     -- hits zero
+data ACS' a = ACS
+  { acs :: !(Map.Map a Int) -- ^ how many levels each AstContext should
+                            -- propagate down the AST. Removed when it hits zero
   } deriving (Show)
+
+instance Monoid (ACS' AstContext) where
+  mempty = ACS mempty
+  -- ACS a `mappend` ACS b = ACS (a `mappend` b)
+  ACS a `mappend` ACS b = ACS (Map.unionWith max a b)
+  -- For Data.Map, mappend == union, which is a left-biased replace for key collisions
+
+type AstContextSet = ACS' AstContext
+-- data AstContextSet = ACS
+--   { acs :: !(Map.Map AstContext Int) -- ^ how many levels each AstContext should
+--                                      -- propagate down the AST. Removed when it
+--                                      -- hits zero
+--   } deriving (Show)
 
 defaultACS :: AstContextSet
 defaultACS = ACS Map.empty
 
-instance GHC.Outputable AstContextSet where
+-- instance GHC.Outputable AstContextSet where
+instance (Show a) => GHC.Outputable (ACS' a) where
   ppr x = GHC.text $ show x
 
 data AstContext = LambdaExpr
@@ -294,11 +310,20 @@ data AstContext = LambdaExpr
                 | CtxMiddle
                 | CtxLast
                 | CtxPos Int -- 0 for first, increasing for subsequent
+
+                -- Next are used in tellContext to push context up the tree
+                | FollowingLine
                 deriving (Eq, Ord, Show)
 
 
 data ListContexts = LC { lcOnly,lcInitial,lcMiddle,lcLast :: !(Set.Set AstContext) }
   deriving (Eq,Show)
+
+-- ---------------------------------------------------------------------
+
+-- data LayoutContext = FollowingLine -- ^Indicates that an item such as a SigD
+--                                    -- should not have blank lines after it
+--                 deriving (Eq, Ord, Show)
 
 -- ---------------------------------------------------------------------
 

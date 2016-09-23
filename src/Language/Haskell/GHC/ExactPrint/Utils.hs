@@ -374,7 +374,12 @@ setAcs ctxt acs = setAcsWithLevel ctxt 3 acs
 
 -- | Put the provided context elements into the existing set with given level
 -- counts
-setAcsWithLevel :: Set.Set AstContext -> Int -> AstContextSet -> AstContextSet
+-- setAcsWithLevel :: Set.Set AstContext -> Int -> AstContextSet -> AstContextSet
+-- setAcsWithLevel ctxt level (ACS a) = ACS a'
+--   where
+--     upd s (k,v) = Map.insert k v s
+--     a' = foldl' upd a $ zip (Set.toList ctxt) (repeat level)
+setAcsWithLevel :: (Ord a) => Set.Set a -> Int -> ACS' a -> ACS' a
 setAcsWithLevel ctxt level (ACS a) = ACS a'
   where
     upd s (k,v) = Map.insert k v s
@@ -382,17 +387,20 @@ setAcsWithLevel ctxt level (ACS a) = ACS a'
 
 -- ---------------------------------------------------------------------
 -- | Remove the provided context element from the existing set
-unsetAcs :: AstContext -> AstContextSet -> AstContextSet
+-- unsetAcs :: AstContext -> AstContextSet -> AstContextSet
+unsetAcs :: (Ord a) => a -> ACS' a -> ACS' a
 unsetAcs ctxt (ACS a) = ACS $ Map.delete ctxt a
 
 -- ---------------------------------------------------------------------
 
 -- | Are any of the contexts currently active?
-inAcs :: Set.Set AstContext -> AstContextSet -> Bool
+-- inAcs :: Set.Set AstContext -> AstContextSet -> Bool
+inAcs :: (Ord a) => Set.Set a -> ACS' a -> Bool
 inAcs ctxt (ACS a) = not $ Set.null $ Set.intersection ctxt (Set.fromList $ Map.keys a)
 
 -- | propagate the ACS down a level, dropping all values which hit zero
-pushAcs :: AstContextSet -> AstContextSet
+-- pushAcs :: AstContextSet -> AstContextSet
+pushAcs :: ACS' a -> ACS' a
 pushAcs (ACS a) = ACS $ Map.mapMaybe f a
   where
     f n
@@ -401,7 +409,8 @@ pushAcs (ACS a) = ACS $ Map.mapMaybe f a
 
 -- |Sometimes we have to pass the context down unchanged. Bump each count up by
 -- one so that it is unchanged after a @pushAcs@ call.
-bumpAcs :: AstContextSet -> AstContextSet
+-- bumpAcs :: AstContextSet -> AstContextSet
+bumpAcs :: ACS' a -> ACS' a
 bumpAcs (ACS a) = ACS $ Map.mapMaybe f a
   where
     f n = Just (n + 1)

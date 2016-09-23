@@ -147,6 +147,8 @@ data AnnotationF next where
   -- Query the context while in a child element
   IfInContext  :: Set.Set AstContext -> Annotated () -> Annotated ()   -> next -> AnnotationF next
   WithSortKeyContexts :: ListContexts -> [(GHC.SrcSpan, Annotated ())] -> next -> AnnotationF next
+  --
+  TellContext :: Set.Set AstContext -> next -> AnnotationF next
 
 deriving instance Functor AnnotationF
 
@@ -181,6 +183,7 @@ makeFreeCon  'SetContextLevel
 makeFreeCon  'UnsetContext
 makeFreeCon  'IfInContext
 makeFreeCon  'WithSortKeyContexts
+makeFreeCon  'TellContext
 
 -- ---------------------------------------------------------------------
 
@@ -214,11 +217,7 @@ workOutString l kw f = do
 
 -- |Main driver point for annotations.
 withAST :: Data a => GHC.Located a -> Annotated () -> Annotated ()
-withAST lss action =
-  liftF (WithAST lss prog ())
-  where
-    prog = do
-      action
+withAST lss action = liftF (WithAST lss action ())
 
 -- ---------------------------------------------------------------------
 -- Additional smart constructors
@@ -290,7 +289,7 @@ markListIntercalate :: Annotate ast => [GHC.Located ast] -> Annotated ()
 markListIntercalate ls = markListIntercalateWithFun markLocated ls
 
 markListIntercalateWithFun :: (t -> Annotated ()) -> [t] -> Annotated ()
-markListIntercalateWithFun f ls = markListIntercalateWithFunLevel f 3 ls
+markListIntercalateWithFun f ls = markListIntercalateWithFunLevel f 2 ls
 
 markListIntercalateWithFunLevel :: (t -> Annotated ()) -> Int -> [t] -> Annotated ()
 markListIntercalateWithFunLevel f level ls = markListIntercalateWithFunLevelCtx f level Intercalate ls
@@ -1480,6 +1479,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     markLHsSigWcType st
 #endif
     markTrailingSemi
+    tellContext (Set.singleton FollowingLine)
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.PatSynSig ln (_ef,GHC.HsQTvs _ns bndrs) ctx1 ctx2 typ) = do
