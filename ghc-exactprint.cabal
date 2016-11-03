@@ -47,6 +47,11 @@ Flag roundtrip {
   Default:     False
 }
 
+Flag dev {
+  Description: Development mode, do not use ghc-exactprint lib in the tests
+  Default:     False
+}
+
 
 library
   exposed-modules:     Language.Haskell.GHC.ExactPrint
@@ -85,7 +90,12 @@ library
 
 Test-Suite test
   type:                exitcode-stdio-1.0
-  hs-source-dirs:      tests
+  if flag (dev)
+    hs-source-dirs:      tests
+                         src
+  else
+    hs-source-dirs:      tests
+
   main-is:             Test.hs
   other-modules:       Test.Common
                      , Test.Consistency
@@ -103,12 +113,18 @@ Test-Suite test
                      , directory >= 1.2
                      , filepath  >= 1.4
                      , ghc  >= 7.10.2
-                     , ghc-exactprint >= 0.3
+                     -- , ghc-exactprint >= 0.3
                      , ghc-paths  >= 0.1
                      , mtl        >= 2.2.1
                      , syb        >= 0.5
                      , silently   >= 1.2
                      , filemanip  >= 0.3
+                     -- for the lib only
+  if flag (dev)
+      build-depends: free
+  else
+      build-depends: ghc-exactprint >= 0.3
+                     
   if impl (ghc >= 7.11)
       build-depends: ghc-boot
 
@@ -171,7 +187,7 @@ executable prepare-hackage
                  , ghc       >= 7.10.2
                  , ghc-paths >= 0.1
                  , HUnit
-                 , text >= 1.2.2
+                 , text   >= 1.2.2
                  , turtle >= 1.2.5
     buildable: True
     if impl (ghc >= 7.11)
