@@ -98,8 +98,6 @@ data PrettyWriter = PrettyWriter
        , annKds          :: ![(KeywordId, DeltaPos)]
        , sortKeys        :: !(Maybe [GHC.SrcSpan])
        , dwCapturedSpan  :: !(First AnnKey)
-       -- , prLayoutContext :: !(Set.Set LayoutContext)
-       -- , prLayoutContext :: !(ACS' LayoutContext)
        , prLayoutContext :: !(ACS' AstContext)
        }
 
@@ -276,17 +274,19 @@ putUnallocatedComments cs = modify (\s -> s { apComments = cs } )
 -- ---------------------------------------------------------------------
 
 withSrcSpanPretty :: Data a => GHC.Located a -> Pretty b -> Pretty b
-withSrcSpanPretty (GHC.L l a) = -- action = do
+withSrcSpanPretty (GHC.L l a) action = do
   -- peek into the current state of the output, to extract the layout context
   -- flags passed up from subelements of the AST.
-  -- (_,w) <- listen (return () :: Pretty ())
+  (_,w) <- listen (return () :: Pretty ())
+
+  _ <- trace ("withSrcSpanPretty: prLayoutContext w=" ++ show (prLayoutContext w) ) (return ())
 
   local (\s -> s { curSrcSpan = l
                  , annConName = annGetConstr a
-                 , prContext  = pushAcs (prContext s)
-                 -- , prContext  = (pushAcs (prContext s)) <> (prLayoutContext w)
+                 -- , prContext  = pushAcs (prContext s)
+                 , prContext  = (pushAcs (prContext s)) <> (prLayoutContext w)
                  })
-        -- action
+        action
 
 -- ---------------------------------------------------------------------
 
