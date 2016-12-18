@@ -1083,7 +1083,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #else
     if GHC.unLoc cconv == GHC.PrimCallConv
       then markExternal ls GHC.AnnVal src
-      else markExternal ls GHC.AnnVal (show src)
+      -- else markExternal ls GHC.AnnVal (show src)
+      else markExternal ls GHC.AnnVal src
 #endif
     markLocated ln
     mark GHC.AnnDcolon

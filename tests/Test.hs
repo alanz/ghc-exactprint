@@ -148,7 +148,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkParserTest "ghc710" "Unicode.hs"
 
 
-      mkPrettyRoundtrip "ghc710" "AddAndOr3.hs"
+      mkPrettyRoundtrip "ghc710" "Arrow.hs"
 
 
 

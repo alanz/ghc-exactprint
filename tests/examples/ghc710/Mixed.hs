@@ -17,7 +17,8 @@ x `f` y = x
 g x = x + if True then 1 else 2
 h x = x + 1::Int
 
-{-# SPECIALISe j :: Int -> Int #-}
+{-# SPECIALISe j :: Int -> Int
+                  , Integer -> Integer #-}
 j n = n + 1
 
 test = let k x y = x+y in 1 `k` 2 `k` 3
@@ -28,6 +29,7 @@ ng1 x y = negate y
 
 instance (Num a, Num b) => Num (a,b)
   where
+   {-# Specialise instance Num (Int,Int) #-}
    negate (a,b) = (ng 'c' a, ng1 'c' b)   where  ng x y = negate y
 
 
