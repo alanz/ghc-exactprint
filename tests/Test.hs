@@ -147,11 +147,13 @@ tt' :: IO (Counts,Int)
 tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkParserTest "ghc710" "Unicode.hs"
 
+      -- mkPrettyRoundtrip "ghc710" "ForeignDecl.hs"
 
-      mkPrettyRoundtrip "ghc710" "Arrow.hs"
-
-
-
+      mkParserTest "ghc710" "Control.hs"
+    , mkParserTest "ghc710" "ForeignDecl.hs"
+    , mkParserTest "ghc8"   "Main.hs"
+    , mkParserTest "ghc8"   "T10904.hs"
+    , mkParserTest "ghc8"   "T10955dyn.hs"
 
 
     -- , mkParserTest "ghc710" "NestedDoLambda.hs"
