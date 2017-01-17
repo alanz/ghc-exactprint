@@ -1462,6 +1462,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,
           (return ())
           (mark GHC.AnnEqual)
 
+    markOptional GHC.AnnEqual -- For apply-refact Structure8.hs test
+
     inContext (Set.fromList [CaseAlt]) $ mark GHC.AnnRarrow -- For HsLam
     setContextLevel (Set.fromList [LeftMost,PrefixOp]) 2 $ markLocated expr
 
