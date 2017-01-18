@@ -2037,7 +2037,9 @@ data ConDeclField name  -- Record fields have Haddoc docs on them
 #if __GLASGOW_HASKELL__ > 710
 instance (GHC.DataId name)
       => Annotate (GHC.FieldOcc name) where
-  markAST _ (GHC.FieldOcc rn _) = markLocated rn
+  markAST _ (GHC.FieldOcc rn _) = do
+    markLocated rn
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 #endif
 
 -- ---------------------------------------------------------------------

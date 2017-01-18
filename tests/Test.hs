@@ -149,12 +149,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
       -- mkPrettyRoundtrip "ghc710" "ForeignDecl.hs"
 
-      mkParserTest "ghc710" "Control.hs"
-    , mkParserTest "ghc710" "ForeignDecl.hs"
-    , mkParserTest "ghc8"   "Main.hs"
-    , mkParserTest "ghc8"   "T10904.hs"
-    , mkParserTest "ghc8"   "T10955dyn.hs"
-
+      mkParserTest "ghc710" "Field1.hs"
 
     -- , mkParserTest "ghc710" "NestedDoLambda.hs"
     -- , mkParserTest "ghc710" "Arrow.hs"
