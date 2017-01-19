@@ -363,6 +363,7 @@ withSrcSpanDelta (GHC.L l a) =
   local (\s -> s { curSrcSpan = l
                  , annConName = annGetConstr a
                  , drContext = pushAcs (drContext s)
+                    `debug` ("withSrcSpanDelta: (l,annConName,drContext)=" ++ showGhc (l,annGetConstr a, pushAcs (drContext s)))
                  })
 
 
@@ -526,12 +527,12 @@ withAST lss@(GHC.L ss _) action = do
 
     let kds = annKds w
         an = Ann
-               { annEntryDelta = edp
-               , annPriorComments = cs
+               { annEntryDelta        = edp
+               , annPriorComments     = cs
                , annFollowingComments = [] -- only used in Transform and Print
-               , annsDP     = kds
-               , annSortKey = sortKeys w
-               , annCapturedSpan = getFirst $ dwCapturedSpan w }
+               , annsDP               = kds
+               , annSortKey           = sortKeys w
+               , annCapturedSpan      = getFirst $ dwCapturedSpan w }
 
     addAnnotationsDelta an
      `debug` ("leaveAST:(annkey,an)=" ++ show (mkAnnKey lss,an))

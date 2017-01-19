@@ -1990,6 +1990,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         ifInContext (Set.singleton InSpliceDecl)
           (return ())
           (mark GHC.AnnCloseP)
+#if defined(MIN_VERSION_GLASGOW_HASKELL) && (MIN_VERSION_GLASGOW_HASKELL(8,0,1,1))
+      GHC.HsSpliced{} -> error "HsSpliced only exists between renamer and typechecker in GHC"
+#endif
 #else
   markAST _ c =
     case c of
@@ -2206,7 +2209,7 @@ markHsConPatDetails ln dets = do
       mark GHC.AnnCloseC -- '}'
     GHC.InfixCon a1 a2 -> do
       markLocated a1
-      markLocated ln
+      setContext (Set.singleton InfixOp) $ markLocated ln
       markLocated a2
 
 markHsConDeclDetails :: (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
@@ -2456,7 +2459,13 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
       markExpr l (GHC.HsVar n)           = unsetContext Intercalate $ markAST l n
 #else
-      markExpr l (GHC.HsVar n)           = unsetContext Intercalate $ markAST l (GHC.unLoc n)
+      markExpr l (GHC.HsVar n) = unsetContext Intercalate $ do
+        ifInContext (Set.singleton PrefixOp)
+          (setContext (Set.singleton PrefixOp) $ markLocated n)
+          (ifInContext (Set.singleton InfixOp)
+            (setContext (Set.singleton InfixOp) $ markLocated n)
+            (markLocated n)
+            )
 #endif
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -3002,7 +3011,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.HsTupArg name) where
   markAST _ (GHC.Present (GHC.L l e)) = do
-    markAST l e
+    markLocated (GHC.L l e)
+    inContext (Set.fromList [Intercalate]) $ markOutside GHC.AnnComma (G GHC.AnnComma)
 
   markAST _ (GHC.Missing _) = do
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
