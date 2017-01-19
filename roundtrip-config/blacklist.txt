@@ -6,3 +6,6 @@
 ./hackage-roundtrip-work/beautifHOL-0.11/ParHOL.hs
 ./hackage-roundtrip-work/clafer-0.4.4/src/Language/Clafer/Front/LexClafer.hs
 ./hackage-roundtrip-work/clafer-0.4.4/src/Language/Clafer/Front/ParClafer.hs
+./hackage-roundtrip-work/Ebnf2ps-1.0.15/dist/build/ebnf2ps/ebnf2ps-tmp/Ebnf2psParser.hs
+./hackage-roundtrip-work/EditTimeReport-1.0/dist/build/report/report-tmp/QueryLexer.hs
+./hackage-roundtrip-work/EditTimeReport-1.0/dist/build/report/report-tmp/QueryParser.hs

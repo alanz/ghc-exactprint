@@ -1,0 +1,1 @@
+./hackage-roundtrip-work/directory-1.3.0.0/tests/GetPermissions001.hs
