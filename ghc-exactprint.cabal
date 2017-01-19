@@ -1,5 +1,5 @@
 name:                ghc-exactprint
-version:             0.5.2.1
+version:             0.5.3.0
 synopsis:            ExactPrint for GHC
 description:         Using the API Annotations available from GHC 7.10.2, this
                      library provides a means to round trip any code that can
@@ -26,7 +26,7 @@ author:              Alan Zimmerman, Matthew Pickering
 maintainer:          alan.zimm@gmail.com
 category:            Development
 build-type:          Simple
-tested-with:    GHC == 7.10.3, GHC == 8.0.1
+tested-with:    GHC == 7.10.3, GHC == 8.0.1, GHC == 8.0.2
 extra-source-files:  ChangeLog
                      tests/examples/failing/*.hs
                      tests/examples/ghc710/*.hs
@@ -113,7 +113,6 @@ Test-Suite test
                      , directory >= 1.2
                      , filepath  >= 1.4
                      , ghc  >= 7.10.2
-                     -- , ghc-exactprint >= 0.3
                      , ghc-paths  >= 0.1
                      , mtl        >= 2.2.1
                      , syb        >= 0.5
@@ -123,8 +122,8 @@ Test-Suite test
   if flag (dev)
       build-depends: free
   else
-      build-depends: ghc-exactprint >= 0.3
-                     
+      build-depends: ghc-exactprint >= 0.5.3
+
   if impl (ghc >= 7.11)
       build-depends: ghc-boot
 
@@ -188,7 +187,7 @@ executable prepare-hackage
                  , ghc-paths >= 0.1
                  , HUnit
                  , text   >= 1.2.2
-                 , turtle >= 1.2.5
+                 , turtle >= 1.3.0
     buildable: True
     if impl (ghc >= 7.11)
         build-depends: ghc-boot

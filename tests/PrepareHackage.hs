@@ -19,7 +19,7 @@ main :: IO ()
 main = do
   packages <- allCabalPackages
   -- packages <- allCabalPackagesTest
-  echo (T.pack $ "number of packages:" ++ (show $ length packages))
+  myecho (T.pack $ "number of packages:" ++ (show $ length packages))
   packageDirsFull <- drop 2 <$> getDirectoryContents hackageWorkDir
   let cond c = c == '.' || c == '-' || isDigit c
   let packageDirs = map (T.dropWhileEnd cond . T.pack) packageDirsFull
@@ -35,19 +35,19 @@ main = do
 
 preparePackage :: Set.Set Text -> Text -> IO ()
 preparePackage alreadyUnpacked package = do
-  echo $ "preparePackage:" <> package
+  myecho $ "preparePackage:" <> package
   if Set.member package alreadyUnpacked
-     then echo $ "already unpacked:" <> package
+     then myecho $ "already unpacked:" <> package
      else preparePackage' package
 
 preparePackage' :: Text -> IO ()
 preparePackage' package = do
   (ec,dir) <- shellStrict ("cabal get --destdir=" <> T.pack hackageWorkDir <> " " <> package) empty
-  -- echo (T.pack $ "cabal get:" ++ show dir)
-  echo (T.pack $ show ec)
+  -- myecho (T.pack $ "cabal get:" ++ show dir)
+  myecho (T.pack $ show ec)
   when (ec == ExitSuccess) $ do
     let bits = T.splitOn " " (head $ T.lines dir)
-    echo (T.pack $ "cabal get:dir=" ++ show (last bits))
+    myecho (T.pack $ "cabal get:dir=" ++ show (last bits))
     cleanPackage (last bits)
   return ()
 
@@ -57,28 +57,25 @@ preparePackage' package = do
 
 cleanPackage :: Text -> IO ()
 cleanPackage dir = do
-  echo ("cleaning:" <> dir)
+  myecho ("cleaning:" <> dir)
   fs <- findSrcFiles (T.unpack dir)
   let
     doOne :: FilePath -> IO ()
     doOne fn = do
-      echo ("doOne:" <> T.pack fn)
+      myecho ("doOne:" <> T.pack fn)
       let tmpFn = fn <.> "clean"
       clean <- cleanupWhiteSpace fn
       writeFile tmpFn clean
-      -- writeFileUtf8 tmpFn clean
-      -- T.writeFile tmpFn (T.pack clean) -- convert to Text to deal with encoding issues of is8859 euro symbol
       removeFile fn
       renameFile tmpFn fn
       return ()
   mapM_ doOne fs
-  echo ("cleaned up:" <> dir)
+  myecho ("cleaned up:" <> dir)
 
 -- ---------------------------------------------------------------------
 -- | The computation 'writeFile' @file str@ function writes the string @str@,
 -- to the file @file@.
 writeFileUtf8 :: FilePath -> String -> IO ()
--- writeFileUtf8 ff txt = withFile ff WriteMode (\ hdl -> hSetEncoding hdl utf8 >> hPutStr hdl txt)
 writeFileUtf8 ff txt = withFile ff WriteMode (\ hdl -> hSetEncoding hdl utf8 >> GHC.hPutStr hdl txt)
 
 -- ---------------------------------------------------------------------
@@ -95,7 +92,7 @@ allCabalPackages = do
   let cmd = "cabal list --simple-output | awk '{ print $1 }' | sort | uniq"
   (_ec,r) <- shellStrict cmd empty
   let packages = T.lines r
-  echo (T.pack $ show $ take 5 packages)
+  myecho (T.pack $ show $ take 5 packages)
   return packages
 
 -- ---------------------------------------------------------------------
@@ -106,13 +103,7 @@ cleanupWhiteSpace file = do
   contents <- readFileGhc file
   let cleaned = map cleanupOneLine (lines $ contents)
   return (unlines cleaned)
-{-
-cleanupWhiteSpace :: FilePath -> IO T.Text
-cleanupWhiteSpace file = do
-  contents <- readFileGhc file
-  let cleaned = map cleanupOneLine (T.lines $ T.pack contents)
-  return (T.unlines cleaned)
--}
+
 tabWidth :: Int
 tabWidth = 8
 
@@ -138,28 +129,6 @@ cleanupOneLine str = str'
         (c:cur') ->go (col + 1) (c:res) cur'
     str1 = go 0 [] str
     str' = reverse $ dropWhile isSpace str1
-{-
-cleanupOneLine :: T.Text -> T.Text
-cleanupOneLine str = str'
-  where
-    numSpacesForTab n = tabWidth - (n `mod` tabWidth)
-    -- loop over the line, keeping current pos. Where a tab is found, insert
-    -- spaces until the next tab stop. Discard any trailing whitespace.
-    go col res cur =
-      if T.null cur
-         then res
-         else
-           case T.head cur of
-             '\t' -> go (col + toAdd) (res <> T.replicate toAdd " ") (T.tail cur)
-                where
-                  toAdd = numSpacesForTab col
-             '\xa0' -> go (col + 1) (T.snoc res ' ') (T.tail cur)
-             -- nonBreakingSpace -> go (col + 1) (T.snoc res ' ') (T.tail cur)
-             c -> go (col + 1) (T.snoc res c) (T.tail cur)
-    str1 = go 0 T.empty str
-    -- str2 = T.map (\c -> if c == nonBreakingSpace then ' ' else c) str1
-    str' = T.dropWhileEnd isSpace str1
--}
 
 -- ---------------------------------------------------------------------
 
@@ -187,6 +156,11 @@ testTabs = TestCase $ assertEqual "testTabs" t2tabsExpected (cleanupOneLine t2ta
 
 testList :: String -> [Test] -> Test
 testList str ts = TestLabel str (TestList ts)
+
+-- ---------------------------------------------------------------------
+
+myecho :: T.Text -> IO ()
+myecho t = mapM_ echo (textToLines t)
 
 -- ---------------------------------------------------------------------
 

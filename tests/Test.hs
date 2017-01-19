@@ -149,20 +149,9 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
       -- mkPrettyRoundtrip "ghc710" "ForeignDecl.hs"
 
-      mkParserTest "ghc710" "Field1.hs"
+      -- mkParserTest "ghc8" "AddParams2.hs"
+      mkParserTest "ghc710" "DroppedComma.hs"
 
-    -- , mkParserTest "ghc710" "NestedDoLambda.hs"
-    -- , mkParserTest "ghc710" "Arrow.hs"
-      -- mkParserTest "ghc710" "RdrNames.hs"
-    -- , mkParserTest "ghc710" "ListComprehensions.hs"
-
-      -- mkParserTest "ghc8" "T10704.hs"
-
-    -- , mkParserTest      "ghc710" "RdrNames.hs"
-    -- , mkParserTest      "ghc8" "records-mixing-fields.hs"
-    -- , mkParserTest      "ghc8" "records-no-uni-update.hs"
-    -- , mkParserTest      "ghc8" "records-poly.hs"
-    -- , mkParserTest      "ghc8" "records-run.hs"
     ]
 
 testsTT :: Test
