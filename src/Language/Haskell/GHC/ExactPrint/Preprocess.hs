@@ -112,8 +112,13 @@ getCppTokensAsComments cppOptions sourceFile = do
                do
                   let toks = GHC.addSourceToTokens startLoc source ts
                       cppCommentToks = getCppTokens directiveToks nonDirectiveToks toks
-                  return $ map (tokComment . commentToAnnotation . fst) cppCommentToks
+                  return $ filter goodComment
+                         $  map (tokComment . commentToAnnotation . fst) cppCommentToks
         GHC.PFailed sspan err -> parseError flags2 sspan err
+
+goodComment :: Comment -> Bool
+goodComment (Comment "" _ _) = False
+goodComment _              = True
 
 -- ---------------------------------------------------------------------
 
