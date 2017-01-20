@@ -149,7 +149,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
       -- mkPrettyRoundtrip "ghc710" "ForeignDecl.hs"
 
-      mkParserTest "ghc8" "GA1r.hs"
+      mkParserTest "ghc8" "PSQ.hs"
       -- mkParserTest "ghc710" "DroppedComma.hs"
 
     ]

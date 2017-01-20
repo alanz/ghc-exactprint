@@ -2204,8 +2204,11 @@ markHsConPatDetails ln dets = do
     GHC.RecCon (GHC.HsRecFields fs dd) -> do
       markLocated ln
       mark GHC.AnnOpenC -- '{'
-      markListIntercalateWithFunLevel markLocated 2 fs
-      when (isJust dd) $ mark GHC.AnnDotdot
+      case dd of
+        Nothing ->  markListIntercalateWithFunLevel markLocated 2 fs
+        Just _ -> do
+          setContext (Set.singleton Intercalate) $ mapM_ markLocated fs
+          mark GHC.AnnDotdot
       mark GHC.AnnCloseC -- '}'
     GHC.InfixCon a1 a2 -> do
       markLocated a1
@@ -2231,7 +2234,7 @@ markHsConDeclDetails isDeprecated inGadt lns dets = do
             else setContext (Set.fromList [InRecCon]) $ markLocated fs
     GHC.InfixCon a1 a2 -> do
       markLocated a1
-      mapM_ markLocated lns
+      setContext (Set.singleton InfixOp) $ mapM_ markLocated lns
       markLocated a2
 
 -- ---------------------------------------------------------------------
@@ -2669,7 +2672,6 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         markLocated e
         mark GHC.AnnOpenC
         markListIntercalate fs
-        markOptional GHC.AnnDotdot
         mark GHC.AnnCloseC
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -3236,13 +3238,24 @@ markTyClass ln tyVars = do
                       (setContext (Set.singleton InfixOp) $ markLocated ln)
                       (markLocated ln)
       listFun b = do
-        when parensNeeded $ ifInContext (Set.singleton (CtxPos 0))
+        if parensNeeded
+          then ifInContext (Set.singleton (CtxPos 0))
                       (markMany GHC.AnnOpenP)
                       (return ())
+          else ifInContext (Set.singleton (CtxPos 0))
+                      (markManyOptional GHC.AnnOpenP)
+                      (return ())
+
         markLocated b
-        when parensNeeded $ ifInContext (Set.singleton (CtxPos 2))
+
+        if parensNeeded
+          then ifInContext (Set.singleton (CtxPos 2))
                       (markMany GHC.AnnCloseP)
                       (return ())
+          else ifInContext (Set.singleton (CtxPos 2))
+                      (markManyOptional GHC.AnnCloseP)
+                      (return ())
+
       prepareListFun ls = map (\b -> (GHC.getLoc b, listFun b )) ls
 
     unsetContext CtxMiddle $
