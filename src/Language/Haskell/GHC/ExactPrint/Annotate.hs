@@ -53,6 +53,7 @@ import qualified Lexeme         as GHC
 import qualified Name           as GHC
 import qualified RdrName        as GHC
 import qualified Outputable     as GHC
+import qualified TysWiredIn     as GHC
 
 import Control.Monad.Trans.Free
 import Control.Monad.Free.TH (makeFreeCon)
@@ -1757,7 +1758,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
         else unsetContext Intercalate  $ markAST _l name
 #else
       -- TODO: Should the isExactName test move into the RdrName Annotate instanced?
-      if (GHC.isDataOcc $ GHC.occName $ GHC.unLoc name) && (not $ isExactName $ GHC.unLoc name)
+      if ((GHC.isDataOcc $ GHC.occName $ GHC.unLoc name) && ((not $ isExactName $ GHC.unLoc name)))
+                   || (showGhc name == "()")
         then do
             mark GHC.AnnSimpleQuote
             markLocatedFromKw GHC.AnnName name
