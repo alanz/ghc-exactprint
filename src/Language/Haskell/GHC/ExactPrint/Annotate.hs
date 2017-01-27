@@ -53,7 +53,6 @@ import qualified Lexeme         as GHC
 import qualified Name           as GHC
 import qualified RdrName        as GHC
 import qualified Outputable     as GHC
-import qualified TysWiredIn     as GHC
 
 import Control.Monad.Trans.Free
 import Control.Monad.Free.TH (makeFreeCon)
@@ -661,6 +660,12 @@ instance Annotate GHC.RdrName where
                         _ -> str
         when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
         markOptional GHC.AnnType
+        let str'' = if isSym && (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n)
+              then -- Horrible hack until GHC 8.2 with https://phabricator.haskell.org/D3016
+                  if spanLength l - length str' > 6 -- length of "type" + 2 parens
+                    then "(" ++ str' ++ ")"
+                    else str'
+              else str'
 
         let
           markParen :: GHC.AnnKeywordId -> Annotated ()
@@ -680,7 +685,7 @@ instance Annotate GHC.RdrName where
         cnt  <- countAnns GHC.AnnVal
         case cnt of
           0 -> markExternal l GHC.AnnVal str'
-          1 -> markWithString GHC.AnnVal str'
+          1 -> markWithString GHC.AnnVal str''
           _ -> traceM $ "Printing RdrName, more than 1 AnnVal:" ++ showGhc (l,n)
         unless isSym $ inContext (Set.fromList [InfixOp]) $ markOffset GHC.AnnBackquote 1
         markParen GHC.AnnCloseP
@@ -721,6 +726,8 @@ instance Annotate GHC.RdrName where
            mark GHC.AnnTildehsh
            mark GHC.AnnCloseP
          "*"  -> do
+           markExternal l GHC.AnnVal str
+         "★"  -> do -- Note: unicode star
            markExternal l GHC.AnnVal str
          ":"  -> do
            -- Note: The OccName for ":" has the following attributes (via occAttributes)
@@ -2464,7 +2471,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 #if __GLASGOW_HASKELL__ <= 710
       markExpr l (GHC.HsVar n)           = unsetContext Intercalate $ markAST l n
 #else
-      markExpr l (GHC.HsVar n) = unsetContext Intercalate $ do
+      markExpr _ (GHC.HsVar n) = unsetContext Intercalate $ do
         ifInContext (Set.singleton PrefixOp)
           (setContext (Set.singleton PrefixOp) $ markLocated n)
           (ifInContext (Set.singleton InfixOp)
@@ -2775,7 +2782,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       markExpr _ (GHC.HsBracket (GHC.DecBrL ds)) = do
         markWithString GHC.AnnOpen "[d|"
         markOptional GHC.AnnOpenC
-        setContext (Set.singleton NoAdvanceLine) $ markListWithLayout ds
+        setContext (Set.singleton NoAdvanceLine)
+             $ setContextLevel (Set.singleton TopLevel) 2 $ markListWithLayout ds
         markOptional GHC.AnnCloseC
         markWithString GHC.AnnClose "|]"
       -- Introduced after the renamer
@@ -3292,7 +3300,8 @@ data FamilyDecl name = FamilyDecl
 #if __GLASGOW_HASKELL__ <= 710
     mark GHC.AnnFamily
 #else
-    ifInContext (Set.singleton InClassDecl) (return ()) (mark GHC.AnnFamily)
+    -- ifInContext (Set.singleton InClassDecl) (return ()) (mark GHC.AnnFamily)
+    mark GHC.AnnFamily
 #endif
 
     markOptional GHC.AnnOpenP
