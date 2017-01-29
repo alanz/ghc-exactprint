@@ -1156,6 +1156,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnInstance
     markMaybe mov
     markLocated typ
+    markTrailingSemi
 
 -- ---------------------------------------------------------------------
 
@@ -1271,6 +1272,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       then mark GHC.AnnWhere
       else mark GHC.AnnEqual
     markDataDefn l defn
+    markTrailingSemi
 
 -- ---------------------------------------------------------------------
 
@@ -1305,6 +1307,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       _ -> return ()
     markListIntercalateWithFunLevel markLocated 2 grhs
     unless (GHC.isEmptyLocalBinds lb) $ mark GHC.AnnWhere
+    markOptional GHC.AnnWhere
 
     markLocalBindsWithLayout lb
     markTrailingSemi
@@ -3152,7 +3155,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
      => Annotate (GHC.TyClDecl name) where
 
-  markAST l (GHC.FamDecl famdecl) = markAST l famdecl
+  markAST l (GHC.FamDecl famdecl) = markAST l famdecl >> markTrailingSemi
 
 #if __GLASGOW_HASKELL__ <= 710
   markAST _ (GHC.SynDecl ln (GHC.HsQTvs _ tyvars) typ _) = do
@@ -3383,15 +3386,16 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
 #else
   markAST _ (GHC.TyFamEqn ln (GHC.HsIB _ pats) typ) = do
 #endif
-    let
-      fun = ifInContext (Set.singleton (CtxPos 0))
-                (setContext (Set.singleton PrefixOp) $ markLocated ln)
-                (markLocated ln)
-    markOptional GHC.AnnOpenP
-    applyListAnnotationsContexts (LC Set.empty Set.empty Set.empty Set.empty)
-                         ([(GHC.getLoc ln, fun)]
-                         ++ prepareListAnnotationWithContext (Set.singleton PrefixOp) pats)
-    markOptional GHC.AnnCloseP
+    markTyClass ln pats
+    -- let
+    --   fun = ifInContext (Set.singleton (CtxPos 0))
+    --             (setContext (Set.singleton PrefixOp) $ markLocated ln)
+    --             (markLocated ln)
+    -- markOptional GHC.AnnOpenP
+    -- applyListAnnotationsContexts (LC Set.empty Set.empty Set.empty Set.empty)
+    --                      ([(GHC.getLoc ln, fun)]
+    --                      ++ prepareListAnnotationWithContext (Set.singleton PrefixOp) pats)
+    -- markOptional GHC.AnnCloseP
     mark GHC.AnnEqual
     markLocated typ
 
@@ -3424,7 +3428,7 @@ instance Annotate GHC.DocDecl where
             (GHC.DocCommentNamed _s (GHC.HsDocString fs)) -> GHC.unpackFS fs
             (GHC.DocGroup _i (GHC.HsDocString fs))        -> GHC.unpackFS fs
     in
-      markExternal l GHC.AnnVal str
+      markExternal l GHC.AnnVal str >> markTrailingSemi
 
 -- ---------------------------------------------------------------------
 
