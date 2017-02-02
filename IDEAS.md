@@ -20,3 +20,14 @@ Show instance for BooleanFormula
 
 Sort out GADT parsing, as first class process.
 
+## For roundtrip
+
+Explicitly filter out files with
+
+  - hashbang at the top
+  - #LINE pragma
+  - CPP and trailing backslash
+  - any #define
+  - any #include. But, use filename in SrcSpan?
+
+GHC: Capture ^L (formfeed) as a specific kind of comment?
