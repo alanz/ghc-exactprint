@@ -869,3 +869,13 @@
 ./hackage-roundtrip-work/smallarray-0.2.2.4/Data/ByteArray.hs
 ./hackage-roundtrip-work/uuagc-bootstrap-0.9.40.2/src-derived/HsToken.hs
 ./hackage-roundtrip-work/uhc-light-1.1.9.5/src/UHC/Light/Compiler/Gam/TyKiGam.hs
+./hackage-roundtrip-work/uhc-light-1.1.9.5/src/UHC/Light/Compiler/Generics.hs
+./hackage-roundtrip-work/TrieMap-4.1.0/Data/TrieMap/RadixTrie.hs
+./hackage-roundtrip-work/uhc-light-1.1.9.5/src/UHC/Light/Compiler/Base/HsName/Built
+./hackage-roundtrip-work/uhc-light-1.1.9.5/src/UHC/Light/Compiler/ConfigInternalVersions.hs
+./hackage-roundtrip-work/uuagc-0.9.52.1/src-generated/ConcreteSyntax.hs
+./hackage-roundtrip-work/uhc-light-1.1.9.5/src/UHC/Light/Compiler/Core/Merge.hs
+./hackage-roundtrip-work/yarr-1.4.0.2/Data/Yarr/Utils/FixedVector/VecTupleInstances.hs
+./hackage-roundtrip-work/uhc-light-1.1.9.5/src/UHC/Light/Compiler/EHC/CompilePhase/TopLevelPhases.hs
+./hackage-roundtrip-work/uhc-light-1.1.9.5/src/UHC/Light/Compiler/Gam.hs
+./hackage-roundtrip-work/vector-space-0.10.4/src/Data/Basis.hs
