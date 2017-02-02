@@ -2836,7 +2836,9 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
 #if __GLASGOW_HASKELL__ > 710
       markExpr l (GHC.HsSpliceE e) = do
+        markOptional GHC.AnnOpenPE
         markAST l e
+        markOptional GHC.AnnCloseP
 #else
       markExpr _ (GHC.HsSpliceE isTyped e) = do
         case e of
@@ -3196,6 +3198,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     if isGadt cons
       then mark GHC.AnnWhere
       else unless (null cons) $ mark GHC.AnnEqual
+    markOptional GHC.AnnWhere
     markOptional GHC.AnnOpenC
     setLayoutFlag $ setContext (Set.singleton NoPrecedingSpace)
                   $ markListWithContexts' listContexts cons

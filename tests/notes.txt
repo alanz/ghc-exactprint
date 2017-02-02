@@ -1,3 +1,31 @@
+2017-02-02
+----------
+
+Roundtrip failures
+
+To be fixed in GHC
+------------------
+
+- failing/CtrOp.hs
+- failing/InfixOperator.hs
+- failing/overloadedlabelsrun04.hs
+- failing/TensorTests.hs
+- failing/List2.hs
+
+To be fixed in ghc-exactprint
+-----------------------------
+
+- ghc8/RulePragma.hs
+- ghc8/DatatypeContext.hs (but is horrible in the AST. Still)
+
+
+
+
+
+
+
+
+------------------------------------------------------
 Using GHC 2015-12-24
 
 In hand
