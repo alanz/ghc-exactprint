@@ -415,9 +415,9 @@ markMaybe (Just ast) = markLocated ast
 prepareListAnnotation :: Annotate a => [GHC.Located a] -> [(GHC.SrcSpan,Annotated ())]
 prepareListAnnotation ls = map (\b -> (GHC.getLoc b,markLocated b)) ls
 
-prepareListAnnotationWithContext :: Annotate a => Set.Set AstContext
-                                 -> [GHC.Located a] -> [(GHC.SrcSpan,Annotated ())]
-prepareListAnnotationWithContext ctx ls = map (\b -> (GHC.getLoc b,setContext ctx (markLocated b))) ls
+-- prepareListAnnotationWithContext :: Annotate a => Set.Set AstContext
+--                                  -> [GHC.Located a] -> [(GHC.SrcSpan,Annotated ())]
+-- prepareListAnnotationWithContext ctx ls = map (\b -> (GHC.getLoc b,setContext ctx (markLocated b))) ls
 
 applyListAnnotations :: [(GHC.SrcSpan, Annotated ())] -> Annotated ()
 applyListAnnotations ls = withSortKey ls
@@ -3310,11 +3310,7 @@ data FamilyDecl name = FamilyDecl
     mark GHC.AnnFamily
 #endif
 
-    markOptional GHC.AnnOpenP
-    applyListAnnotationsContexts (LC (Set.singleton PrefixOp) (Set.singleton PrefixOp) Set.empty Set.empty)
-                (prepareListAnnotation [ln]
-              ++ prepareListAnnotation tyvars)
-    markOptional GHC.AnnCloseP
+    markTyClass ln tyvars
 #if __GLASGOW_HASKELL__ <= 710
     case mkind of
       Nothing -> return ()

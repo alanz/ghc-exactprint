@@ -447,21 +447,14 @@ printStringAtLsDelta cs cl s = do
 isGoodDeltaWithOffset :: DeltaPos -> LayoutStartCol -> Bool
 isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP (undelta (0,0) dp colOffset))
 
--- AZ:TODO: harvest the commonality between this and printStringAtLsDelta
 printQueuedComment :: (Monad m, Monoid w) => Comment -> DeltaPos -> EP w m ()
 printQueuedComment Comment{commentContents} dp = do
   p <- getPos
   colOffset <- getLayoutOffset
   let (dr,dc) = undelta (0,0) dp colOffset
   -- do not lose comments against the left margin
-  when (isGoodDelta (DP (dr,max 0 dc)))
-    (do
-      printCommentAt (undelta p dp colOffset) commentContents
-      let commentDP@(DP (cr,_cc)) = dpFromString commentContents
-      if cr == 0
-        then setPos (undelta p (dp `addDP` commentDP) colOffset)
-        else setPos (undelta p (dp `addDP` commentDP) 1)
-      )
+  when (isGoodDelta (DP (dr,max 0 dc))) $
+    printCommentAt (undelta p dp colOffset) commentContents
 
 -- ---------------------------------------------------------------------
 
@@ -482,14 +475,20 @@ countAnnsEP an = length <$> peekAnnFinal an
 
 printString :: (Monad m, Monoid w) => Bool -> String -> EP w m ()
 printString layout str = do
-  EPState{epPos = (l,c), epMarkLayout} <- get
+  EPState{epPos = (_,c), epMarkLayout} <- get
   PrintOptions{epTokenPrint, epWhitespacePrint} <- ask
-  when (epMarkLayout && layout) (
-                      modify (\s -> s { epLHS = LayoutStartCol c, epMarkLayout = False } ))
-  setPos (l, c + length str)
-  --
-  -- tell (mempty {output = Endo $ showString str })
+  when (epMarkLayout && layout) $
+    modify (\s -> s { epLHS = LayoutStartCol c, epMarkLayout = False } )
 
+  -- Advance position, taking care of any newlines in the string
+  let strDP@(DP (cr,_cc)) = dpFromString str
+  p <- getPos
+  colOffset <- getLayoutOffset
+  if cr == 0
+    then setPos (undelta p strDP colOffset)
+    else setPos (undelta p strDP 1)
+
+  --
   if not layout && c == 0
     then lift (epWhitespacePrint str) >>= \s -> tell EPWriter { output = s}
     else lift (epTokenPrint      str) >>= \s -> tell EPWriter { output = s}
