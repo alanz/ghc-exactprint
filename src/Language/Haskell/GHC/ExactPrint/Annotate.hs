@@ -1245,22 +1245,21 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
    => Annotate (GHC.DataFamInstDecl name) where
 
 #if __GLASGOW_HASKELL__ <= 710
-  markAST l (GHC.DataFamInstDecl ln (GHC.HsWB pats _ _ _) defn _) = do
+  markAST l (GHC.DataFamInstDecl ln (GHC.HsWB pats _ _ _)
+             defn@(GHC.HsDataDefn nd ctx typ _mk cons mderivs) _) = do
 #else
-  markAST l (GHC.DataFamInstDecl ln (GHC.HsIB _ pats) defn _) = do
+  markAST l (GHC.DataFamInstDecl ln (GHC.HsIB _ pats)
+             defn@(GHC.HsDataDefn nd ctx typ _mk cons mderivs) _) = do
 #endif
     case GHC.dd_ND defn of
       GHC.NewType  -> mark GHC.AnnNewtype
       GHC.DataType -> mark GHC.AnnData
     inContext (Set.singleton TopLevel) $ mark GHC.AnnInstance
 
-    markOptional GHC.AnnOpenP
+    markLocated ctx
 
-    applyListAnnotations (prepareListAnnotation [ln]
-                       ++ prepareListAnnotation pats
-                         )
+    markTyClass ln pats
 
-    markOptional GHC.AnnCloseP
 #if __GLASGOW_HASKELL__ > 710
     case (GHC.dd_kindSig defn) of
       Just s -> do
@@ -1271,7 +1270,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     if isGadt $ GHC.dd_cons defn
       then mark GHC.AnnWhere
       else mark GHC.AnnEqual
-    markDataDefn l defn
+    markDataDefn l (GHC.HsDataDefn nd (GHC.noLoc []) typ _mk cons mderivs)
     markTrailingSemi
 
 -- ---------------------------------------------------------------------

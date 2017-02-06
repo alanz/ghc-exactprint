@@ -15,8 +15,7 @@ To be fixed in GHC
 To be fixed in ghc-exactprint
 -----------------------------
 
-- ghc8/RulePragma.hs
-- ghc8/DatatypeContext.hs (but is horrible in the AST. Still)
+All done
 
 
 
