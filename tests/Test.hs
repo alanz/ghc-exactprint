@@ -150,7 +150,11 @@ tt' :: IO (Counts,Int)
 tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkParserTest "ghc710" "Unicode.hs"
 
-      -- mkPrettyRoundtrip "ghc710" "ForeignDecl.hs"
+      -- mkPrettyRoundtrip "ghc8" "StringSource.hs"
+      -- mkPrettyRoundtrip "ghc8" "records-prov-req.hs"
+      -- mkPrettyRoundtrip "ghc8" "records-poly-update.hs"
+      -- mkPrettyRoundtrip "ghc8" "poly-export-fail2.hs"
+      mkPrettyRoundtrip "ghc8" "pmc007.hs"
 
       -- mkParserTest "ghc8" "DatatypeContexts.hs"
       -- mkParserTest "ghc8" "Families.hs"
@@ -159,7 +163,6 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- , mkParserTest "failing" "CtorOp.hs"
       -- mkParserTest "failing" "TensorTests.hs"
       -- mkParserTest "failing" "List2.hs"
-      mkTestModBad "List2.hs"
 
 
       -- mkParserTest "ghc710" "DroppedComma.hs"

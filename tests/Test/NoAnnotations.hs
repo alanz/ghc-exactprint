@@ -117,8 +117,8 @@ runPrettyRoundTrip origFile !anns !parsedOrig _cs = do
   let pragmas = filter (\(Comment c _ _) -> isPrefixOf "{-#" c ) comments
   let pragmaStr = intercalate "\n" $ map commentContents pragmas
 
-  -- let !printed = pragmaStr ++ "\n" ++ exactPrint parsedOrig newAnns
-  let !printed = pragmaStr ++ "\n" ++ (showSDoc_ $ GHC.ppr parsedOrig)
+  let !printed = pragmaStr ++ "\n" ++ exactPrint parsedOrig newAnns
+  -- let !printed = pragmaStr ++ "\n" ++ (showSDoc_ $ GHC.ppr parsedOrig)
 
   parseString origFile printed newAnns parsedOrig
 
