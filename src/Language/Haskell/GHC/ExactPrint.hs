@@ -16,12 +16,16 @@ module Language.Haskell.GHC.ExactPrint
         -- * Transformation
         , module Language.Haskell.GHC.ExactPrint.Transform
 
+        -- * Adding default annotations
+        , addAnnotationsForPretty
+
         -- * Printing
         , exactPrint
 
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Delta
+import Language.Haskell.GHC.ExactPrint.Pretty
 import Language.Haskell.GHC.ExactPrint.Print
 import Language.Haskell.GHC.ExactPrint.Transform
 import Language.Haskell.GHC.ExactPrint.Types

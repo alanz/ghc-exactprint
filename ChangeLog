@@ -1,3 +1,13 @@
+2017-02-07 v0.5.3.0
+	* Support GHC 8.0.2
+	* Correct the logic around RigidLayout to function as originally
+	intended.
+	* Introduce Pretty module to add default annotations to a bare AST
+	fragment, so that it can be printed correctly via exactprint. In
+	this case, "correct" is defined as generating the same AST if
+	parsed again, it may not be beautiful layout.
+	* Expose some additional internal parsing options (@lspitzner)
+
 2016-07-24 v0.5.2.1
 	* Remove additional files from release tarball
 
