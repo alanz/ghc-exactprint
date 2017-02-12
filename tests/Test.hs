@@ -28,12 +28,12 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-data GHCVersion = GHC710 | GHC8 deriving (Eq, Ord, Show)
+data GHCVersion = GHC710 | GHC80 deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
 ghcVersion =
 #if __GLASGOW_HASKELL__ >= 711
-  GHC8
+  GHC80
 #else
   GHC710
 #endif
@@ -43,7 +43,7 @@ testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
     GHC710 -> ["ghc710-only","ghc710"]
-    GHC8   -> ["ghc710", "ghc8"]
+    GHC80  -> ["ghc710", "ghc80"]
 
 -- ---------------------------------------------------------------------
 
@@ -150,14 +150,14 @@ tt' :: IO (Counts,Int)
 tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkParserTest "ghc710" "Unicode.hs"
 
-      -- mkPrettyRoundtrip "ghc8" "StringSource.hs"
-      -- mkPrettyRoundtrip "ghc8" "records-prov-req.hs"
-      -- mkPrettyRoundtrip "ghc8" "records-poly-update.hs"
-      -- mkPrettyRoundtrip "ghc8" "poly-export-fail2.hs"
-      mkPrettyRoundtrip "ghc8" "pmc007.hs"
+      -- mkPrettyRoundtrip "ghc80" "StringSource.hs"
+      -- mkPrettyRoundtrip "ghc80" "records-prov-req.hs"
+      -- mkPrettyRoundtrip "ghc80" "records-poly-update.hs"
+      -- mkPrettyRoundtrip "ghc80" "poly-export-fail2.hs"
+      mkPrettyRoundtrip "ghc80" "pmc007.hs"
 
-      -- mkParserTest "ghc8" "DatatypeContexts.hs"
-      -- mkParserTest "ghc8" "Families.hs"
+      -- mkParserTest "ghc80" "DatatypeContexts.hs"
+      -- mkParserTest "ghc80" "Families.hs"
 
    -- Needs GHC changes
       -- , mkParserTest "failing" "CtorOp.hs"
