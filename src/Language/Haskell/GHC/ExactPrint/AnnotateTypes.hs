@@ -41,7 +41,6 @@ import Language.Haskell.GHC.ExactPrint.Types
 
 -- import qualified Bag            as GHC
 -- import qualified BasicTypes     as GHC
--- import qualified BooleanFormula as GHC
 -- import qualified Class          as GHC
 -- import qualified CoAxiom        as GHC
 -- import qualified FastString     as GHC
@@ -52,7 +51,10 @@ import qualified GHC            as GHC
 #endif
 -- import qualified Name           as GHC
 -- import qualified RdrName        as GHC
--- import qualified Outputable     as GHC
+#if __GLASGOW_HASKELL__ <= 710
+import qualified BooleanFormula as GHC
+import qualified Outputable     as GHC
+#endif
 
 import Control.Monad.Trans.Free
 import Control.Monad.Free.TH (makeFreeCon)
