@@ -55,8 +55,8 @@ import qualified Name           as GHC
 import qualified RdrName        as GHC
 import qualified Outputable     as GHC
 
-import Control.Monad.Trans.Free
-import Control.Monad.Free.TH (makeFreeCon)
+-- import Control.Monad.Trans.Free
+-- import Control.Monad.Free.TH (makeFreeCon)
 import Control.Monad.Identity
 import Data.Data
 import Data.Maybe
