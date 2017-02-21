@@ -71,6 +71,8 @@ import Debug.Trace
 {-# ANN module "HLint: ignore Reduce duplication" #-}
 -- ---------------------------------------------------------------------
 
+class Data ast => Annotate ast where
+  markAST :: GHC.SrcSpan -> ast -> Annotated ()
 
 -- ---------------------------------------------------------------------
 

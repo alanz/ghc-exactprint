@@ -341,8 +341,3 @@ listContexts' = LC (Set.fromList [CtxOnly,  ListStart])
                    (Set.fromList [CtxLast,  ListItem])
 
 -- ---------------------------------------------------------------------
-
-class Data ast => Annotate ast where
-  markAST :: GHC.SrcSpan -> ast -> Annotated ()
-
--- ---------------------------------------------------------------------
