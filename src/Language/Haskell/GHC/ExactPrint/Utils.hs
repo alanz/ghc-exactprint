@@ -286,7 +286,9 @@ ghcCommentText (GHC.L _ (GHC.AnnDocCommentPrev s))  = s
 ghcCommentText (GHC.L _ (GHC.AnnDocCommentNamed s)) = s
 ghcCommentText (GHC.L _ (GHC.AnnDocSection _ s))    = s
 ghcCommentText (GHC.L _ (GHC.AnnDocOptions s))      = s
+#if __GLASGOW_HASKELL__ < 801
 ghcCommentText (GHC.L _ (GHC.AnnDocOptionsOld s))   = s
+#endif
 ghcCommentText (GHC.L _ (GHC.AnnLineComment s))     = s
 ghcCommentText (GHC.L _ (GHC.AnnBlockComment s))    = s
 
@@ -530,7 +532,7 @@ showAnnData anns n =
         bagVar    :: GHC.Bag (GHC.Located (GHC.HsBind GHC.Var)) -> String
         bagVar     = ("{Bag(Located (HsBind Var)): "++) . (++"}") . list . GHC.bagToList
 
-        nameSet = ("{NameSet: "++) . (++"}") . list . GHC.nameSetElems
+        nameSet = ("{NameSet: "++) . (++"}") . list . GHC.nameSetElemsStable
 
         fixity = ("{Fixity: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Fixity -> String
 

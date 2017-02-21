@@ -56,16 +56,18 @@ Flag dev {
 library
   exposed-modules:     Language.Haskell.GHC.ExactPrint
                      , Language.Haskell.GHC.ExactPrint.Annotate
+                     , Language.Haskell.GHC.ExactPrint.AnnotateTypes
+                     , Language.Haskell.GHC.ExactPrint.Annotater
                      , Language.Haskell.GHC.ExactPrint.Delta
                      , Language.Haskell.GHC.ExactPrint.GhcInterim
                      , Language.Haskell.GHC.ExactPrint.Lookup
+                     , Language.Haskell.GHC.ExactPrint.Parsers
                      , Language.Haskell.GHC.ExactPrint.Preprocess
                      , Language.Haskell.GHC.ExactPrint.Pretty
                      , Language.Haskell.GHC.ExactPrint.Print
                      , Language.Haskell.GHC.ExactPrint.Transform
                      , Language.Haskell.GHC.ExactPrint.Types
                      , Language.Haskell.GHC.ExactPrint.Utils
-                     , Language.Haskell.GHC.ExactPrint.Parsers
 
 
   -- other-modules:
@@ -83,7 +85,14 @@ library
                      , free      >= 4.12
   if impl (ghc >= 7.11)
       build-depends: ghc-boot
-  hs-source-dirs:      src
+   hs-source-dirs:      src
+  if impl (ghc > 8.0)
+      hs-source-dirs: src-ghc82
+  else
+    if impl (ghc > 7.10)
+        hs-source-dirs: src-ghc80
+    else
+        hs-source-dirs: src-ghc710
   default-language:    Haskell2010
   if impl (ghc < 7.10.2)
       buildable: False

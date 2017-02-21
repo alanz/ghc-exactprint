@@ -30,6 +30,9 @@ keywordToString kw =
       AnnUnicode kw'    -> keywordToString (G kw')
 #endif
       AnnSemiSep        -> ";"
+#if __GLASGOW_HASKELL__ >= 801
+      (G GHC.AnnAnyclass) -> "anyclass"
+#endif
       (G GHC.AnnOpen  ) -> mkErr kw
       (G GHC.AnnClose ) -> mkErr kw
       (G GHC.AnnVal   ) -> mkErr kw
@@ -38,7 +41,9 @@ keywordToString kw =
       (G GHC.AnnFunId  ) -> mkErr kw
       (G GHC.AnnInfix  ) -> mkErr kw
       (G GHC.AnnValStr ) -> mkErr kw
+#if __GLASGOW_HASKELL__ < 801
       (G GHC.AnnName   ) -> mkErr kw
+#endif
       (G GHC.AnnAs     ) -> "as"
       (G GHC.AnnAt     ) -> "@"
       (G GHC.AnnBang   ) -> "!"
@@ -96,6 +101,9 @@ keywordToString kw =
       (G GHC.AnnRole     ) -> "role"
       (G GHC.AnnSafe     ) -> "safe"
       (G GHC.AnnSemi     ) -> ";"
+#if __GLASGOW_HASKELL__ >= 801
+      (G GHC.AnnStock    )  -> "stock"
+#endif
       (G GHC.AnnStatic   ) -> "static"
       (G GHC.AnnThen     ) -> "then"
       (G GHC.AnnTilde    ) -> "~"

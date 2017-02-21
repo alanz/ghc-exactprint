@@ -1,5 +1,6 @@
 :set -package ghc
 :set -i../src
+:set -i../src-ghc80
 :set -i../test
 :set -hide-package monads-tf
 :set -hide-package fast-tags
