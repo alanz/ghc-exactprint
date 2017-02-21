@@ -85,7 +85,7 @@ library
                      , free      >= 4.12
   if impl (ghc >= 7.11)
       build-depends: ghc-boot
-   hs-source-dirs:      src
+  hs-source-dirs:      src
   if impl (ghc > 8.0)
       hs-source-dirs: src-ghc82
   else
