@@ -40,7 +40,9 @@ import Language.Haskell.GHC.ExactPrint.Types
 -- import Language.Haskell.GHC.ExactPrint.Utils
 
 -- import qualified Bag            as GHC
--- import qualified BasicTypes     as GHC
+#if __GLASGOW_HASKELL__ > 800
+import qualified BasicTypes     as GHC
+#endif
 -- import qualified Class          as GHC
 -- import qualified CoAxiom        as GHC
 -- import qualified FastString     as GHC
@@ -341,5 +343,18 @@ listContexts' = LC (Set.fromList [CtxOnly,  ListStart])
                    (Set.fromList [CtxFirst, ListStart])
                    (Set.fromList [CtxMiddle,ListItem])
                    (Set.fromList [CtxLast,  ListItem])
+
+-- ---------------------------------------------------------------------
+
+
+#if __GLASGOW_HASKELL__ > 800
+markAnnOpen :: GHC.SrcSpan -> GHC.SourceText -> String -> Annotated ()
+markAnnOpen l GHC.NoSourceText txt   =  markExternal l GHC.AnnOpen txt
+markAnnOpen l (GHC.SourceText txt) _ =  markExternal l GHC.AnnOpen txt
+
+markSourceText :: GHC.SrcSpan -> GHC.SourceText -> String -> Annotated ()
+markSourceText l GHC.NoSourceText txt   =  markExternal l GHC.AnnVal txt
+markSourceText l (GHC.SourceText txt) _ =  markExternal l GHC.AnnVal txt
+#endif
 
 -- ---------------------------------------------------------------------
