@@ -28,6 +28,7 @@ category:            Development
 build-type:          Simple
 tested-with:    GHC == 7.10.3, GHC == 8.0.1, GHC == 8.0.2
 extra-source-files:  ChangeLog
+                     src-ghc710/Language/Haskell/GHC/ExactPrint/*.hs
                      tests/examples/failing/*.hs
                      tests/examples/ghc710/*.hs
                      tests/examples/ghc710-only/*.hs
