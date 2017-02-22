@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -201,7 +202,11 @@ showAstData n =
         bagVar    :: GHC.Bag (GHC.Located (GHC.HsBind GHC.Var)) -> String
         bagVar     = ("{Bag(Located (HsBind Var)): "++) . (++"}") . list . GHC.bagToList
 
+#if __GLASGOW_HASKELL__ > 800
+        nameSet = ("{NameSet: "++) . (++"}") . list . GHC.nameSetElemsStable
+#else
         nameSet = ("{NameSet: "++) . (++"}") . list . GHC.nameSetElems
+#endif
 
         fixity = ("{Fixity: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Fixity -> String
 

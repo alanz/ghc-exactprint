@@ -696,8 +696,13 @@ addHiding1 ans (GHC.L l p) = do
           [GHC.L li imp1,imp2] = GHC.hsmodImports p
           n1 = GHC.L l1 (GHC.mkVarUnqual (GHC.mkFastString "n1"))
           n2 = GHC.L l2 (GHC.mkVarUnqual (GHC.mkFastString "n2"))
+#if __GLASGOW_HASKELL__ > 800
+          v1 = GHC.L l1 (GHC.IEVar (GHC.L l1 (GHC.IEName n1)))
+          v2 = GHC.L l2 (GHC.IEVar (GHC.L l2 (GHC.IEName n2)))
+#else
           v1 = GHC.L l1 (GHC.IEVar n1)
           v2 = GHC.L l2 (GHC.IEVar n2)
+#endif
           impHiding = GHC.L l0 [v1,v2]
           imp1' = imp1 { GHC.ideclHiding = Just (True,impHiding)}
           p' = p { GHC.hsmodImports = [GHC.L li imp1',imp2]}
@@ -722,8 +727,13 @@ addHiding2 ans (GHC.L l p) = do
           Just (_,GHC.L lh ns) = GHC.ideclHiding imp1
           n1 = GHC.L l1 (GHC.mkVarUnqual (GHC.mkFastString "n1"))
           n2 = GHC.L l2 (GHC.mkVarUnqual (GHC.mkFastString "n2"))
+#if __GLASGOW_HASKELL__ > 800
+          v1 = GHC.L l1 (GHC.IEVar (GHC.L l1 (GHC.IEName n1)))
+          v2 = GHC.L l2 (GHC.IEVar (GHC.L l2 (GHC.IEName n2)))
+#else
           v1 = GHC.L l1 (GHC.IEVar n1)
           v2 = GHC.L l2 (GHC.IEVar n2)
+#endif
           imp1' = imp1 { GHC.ideclHiding = Just (True,GHC.L lh (ns ++ [v1,v2]))}
           p' = p { GHC.hsmodImports = [GHC.L li imp1']}
         addSimpleAnnT n1        (DP (0,0)) [((G GHC.AnnVal),DP (0,0))]
