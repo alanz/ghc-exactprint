@@ -28,11 +28,13 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-data GHCVersion = GHC710 | GHC80 deriving (Eq, Ord, Show)
+data GHCVersion = GHC710 | GHC80 | GHC82 deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
 ghcVersion =
-#if __GLASGOW_HASKELL__ >= 711
+#if __GLASGOW_HASKELL__ > 800
+  GHC82
+#elif __GLASGOW_HASKELL__ >= 711
   GHC80
 #else
   GHC710
@@ -44,6 +46,7 @@ testDirs =
   case ghcVersion of
     GHC710 -> ["ghc710-only","ghc710"]
     GHC80  -> ["ghc710", "ghc80"]
+    GHC82  -> ["ghc710", "ghc80", "ghc82"]
 
 -- ---------------------------------------------------------------------
 
@@ -111,7 +114,9 @@ failingTests = testList "Failing tests"
     mkTestModBad "InfixOperator.hs"
   , mkTestModBad "CtorOp.hs" -- Should be fixed in GHC 8.2
 
-#if __GLASGOW_HASKELL__ > 710
+#if __GLASGOW_HASKELL__ > 800
+  , mkTestModBad "overloadedlabelsrun04.hs"
+#elif __GLASGOW_HASKELL__ > 710
   , mkTestModBad "overloadedlabelsrun04.hs"
   , mkTestModBad "TensorTests.hs" -- Should be fixed in GHC 8.2
   , mkTestModBad "List2.hs"       -- Should be fixed in GHC 8.2
