@@ -490,7 +490,7 @@ showAnnData anns n =
           `extQ` string `extQ` fastString `extQ` srcSpan
           `extQ` bytestring
           `extQ` name `extQ` occName `extQ` moduleName `extQ` var `extQ` dataCon
-          `extQ` overLit
+          -- `extQ` overLit
           `extQ` bagName `extQ` bagRdrName `extQ` bagVar `extQ` nameSet
           `extQ` fixity
           `ext2Q` located
@@ -522,8 +522,8 @@ showAnnData anns n =
         var        = ("{Var: "++) . (++"}") . showSDocDebug_ . GHC.ppr :: GHC.Var -> String
         dataCon    = ("{DataCon: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.DataCon -> String
 
-        overLit :: GHC.HsOverLit GHC.RdrName -> String
-        overLit    = ("{HsOverLit:"++) . (++"}") . showSDoc_ . GHC.ppr
+        -- overLit :: GHC.HsOverLit GHC.RdrName -> String
+        -- overLit    = ("{HsOverLit:"++) . (++"}") . showSDoc_ . GHC.ppr
 
         bagRdrName:: GHC.Bag (GHC.Located (GHC.HsBind GHC.RdrName)) -> String
         bagRdrName = ("{Bag(Located (HsBind RdrName)): "++) . (++"}") . list . GHC.bagToList

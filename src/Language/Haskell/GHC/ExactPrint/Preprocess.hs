@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- | This module provides support for CPP, interpreter directives and line
@@ -32,7 +33,9 @@ import FastString (mkFastString)
 import Control.Exception
 import Data.List hiding (find)
 import Data.Maybe
+#if __GLASGOW_HASKELL__ <= 800
 import Language.Haskell.GHC.ExactPrint.GhcInterim (commentToAnnotation)
+#endif
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 import qualified Data.Set as Set
@@ -113,7 +116,11 @@ getCppTokensAsComments cppOptions sourceFile = do
                   let toks = GHC.addSourceToTokens startLoc source ts
                       cppCommentToks = getCppTokens directiveToks nonDirectiveToks toks
                   return $ filter goodComment
+#if __GLASGOW_HASKELL__ > 800
+                         $  map (tokComment . GHC.commentToAnnotation . fst) cppCommentToks
+#else
                          $  map (tokComment . commentToAnnotation . fst) cppCommentToks
+#endif
         GHC.PFailed sspan err -> parseError flags2 sspan err
 
 goodComment :: Comment -> Bool

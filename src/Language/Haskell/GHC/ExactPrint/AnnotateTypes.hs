@@ -348,13 +348,21 @@ listContexts' = LC (Set.fromList [CtxOnly,  ListStart])
 
 
 #if __GLASGOW_HASKELL__ > 800
-markAnnOpen :: GHC.SrcSpan -> GHC.SourceText -> String -> Annotated ()
-markAnnOpen l GHC.NoSourceText txt   =  markExternal l GHC.AnnOpen txt
-markAnnOpen l (GHC.SourceText txt) _ =  markExternal l GHC.AnnOpen txt
+markAnnOpen :: GHC.SourceText -> String -> Annotated ()
+markAnnOpen GHC.NoSourceText txt   =  markWithString GHC.AnnOpen txt
+markAnnOpen (GHC.SourceText txt) _ =  markWithString GHC.AnnOpen txt
 
-markSourceText :: GHC.SrcSpan -> GHC.SourceText -> String -> Annotated ()
-markSourceText l GHC.NoSourceText txt   =  markExternal l GHC.AnnVal txt
-markSourceText l (GHC.SourceText txt) _ =  markExternal l GHC.AnnVal txt
+markSourceText :: GHC.SourceText -> String -> Annotated ()
+markSourceText GHC.NoSourceText txt   =  markWithString GHC.AnnVal txt
+markSourceText (GHC.SourceText txt) _ =  markWithString GHC.AnnVal txt
+
+markExternalSourceText :: GHC.SrcSpan -> GHC.SourceText -> String -> Annotated ()
+markExternalSourceText l GHC.NoSourceText txt   =  markExternal l GHC.AnnVal txt
+markExternalSourceText l (GHC.SourceText txt) _ =  markExternal l GHC.AnnVal txt
+
+sourceTextToString :: GHC.SourceText -> String -> String
+sourceTextToString GHC.NoSourceText alt   = alt
+sourceTextToString (GHC.SourceText txt) _ = txt
 #endif
 
 -- ---------------------------------------------------------------------

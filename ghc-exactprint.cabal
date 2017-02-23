@@ -60,7 +60,6 @@ library
                      , Language.Haskell.GHC.ExactPrint.AnnotateTypes
                      , Language.Haskell.GHC.ExactPrint.Annotater
                      , Language.Haskell.GHC.ExactPrint.Delta
-                     , Language.Haskell.GHC.ExactPrint.GhcInterim
                      , Language.Haskell.GHC.ExactPrint.Lookup
                      , Language.Haskell.GHC.ExactPrint.Parsers
                      , Language.Haskell.GHC.ExactPrint.Preprocess
@@ -70,6 +69,8 @@ library
                      , Language.Haskell.GHC.ExactPrint.Types
                      , Language.Haskell.GHC.ExactPrint.Utils
 
+  if impl (ghc < 8.0.2)
+      exposed-modules: Language.Haskell.GHC.ExactPrint.GhcInterim
 
   -- other-modules:
   -- other-extensions:
@@ -107,6 +108,14 @@ Test-Suite test
                          src
   else
     hs-source-dirs:      tests
+
+  if impl (ghc > 8.0.3)
+      hs-source-dirs: src-ghc82
+  else
+    if impl (ghc > 7.10.3)
+        hs-source-dirs: src-ghc80
+    else
+        hs-source-dirs: src-ghc710
 
   main-is:             Test.hs
   other-modules:       Test.Common

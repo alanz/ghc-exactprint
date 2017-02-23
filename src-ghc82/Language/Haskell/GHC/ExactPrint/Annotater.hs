@@ -209,7 +209,7 @@ instance Annotate (GHC.HsModule GHC.RdrName) where
 instance Annotate GHC.WarningTxt where
   markAST _ (GHC.WarningTxt (GHC.L ls txt) lss) = do
     -- markExternal ls GHC.AnnOpen txt
-    markAnnOpen ls txt "{-# WARNING"
+    markAnnOpen txt "{-# WARNING"
     mark GHC.AnnOpenS
     markListIntercalate lss
     mark GHC.AnnCloseS
@@ -217,7 +217,7 @@ instance Annotate GHC.WarningTxt where
 
   markAST _ (GHC.DeprecatedTxt (GHC.L ls txt) lss) = do
     -- markExternal ls GHC.AnnOpen txt
-    markAnnOpen ls txt "{-# DEPRECATED"
+    markAnnOpen txt "{-# DEPRECATED"
     mark GHC.AnnOpenS
     markListIntercalate lss
     mark GHC.AnnCloseS
@@ -228,7 +228,7 @@ instance Annotate GHC.WarningTxt where
 instance Annotate GHC.StringLiteral where
   markAST l (GHC.StringLiteral src fs) = do
     -- markExternal l GHC.AnnVal src
-    markSourceText l src (show (GHC.unpackFS fs))
+    markExternalSourceText l src (show (GHC.unpackFS fs))
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 -- ---------------------------------------------------------------------
@@ -236,7 +236,7 @@ instance Annotate GHC.StringLiteral where
 instance Annotate (GHC.SourceText,GHC.FastString) where
   markAST l (src,fs) = do
     -- markExternal l GHC.AnnVal src
-    markSourceText l src (show (GHC.unpackFS fs))
+    markExternalSourceText l src (show (GHC.unpackFS fs))
 
 -- ---------------------------------------------------------------------
 
@@ -486,7 +486,7 @@ instance Annotate GHC.Name where
 
 instance (GHC.DataId name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.ImportDecl name) where
- markAST _ imp@(GHC.ImportDecl msrc modname mpkg src safeflag qualFlag _impl _as hiding) = do
+ markAST l imp@(GHC.ImportDecl msrc modname mpkg src safeflag qualFlag _impl _as hiding) = do
 
    -- 'import' maybe_src maybe_safe optqualified maybe_pkg modid maybeas maybeimpspec
    mark GHC.AnnImport
@@ -494,15 +494,15 @@ instance (GHC.DataId name,GHC.HasOccName name,Annotate name)
    -- "{-# SOURCE" and "#-}"
    case msrc of
      GHC.SourceText txt -> do
-       markWithString GHC.AnnOpen "{-# SOURCE"
+       markAnnOpen msrc "{-# SOURCE"
        markWithString GHC.AnnClose "#-}"
      GHC.NoSourceText -> return ()
    when safeflag (mark GHC.AnnSafe)
    when qualFlag (unsetContext TopLevel $ mark GHC.AnnQualified)
    case mpkg of
-    Nothing -> return ()
     Just (GHC.StringLiteral (GHC.SourceText srcPkg) _) ->
       markWithString GHC.AnnPackageName srcPkg
+    _ -> return ()
 
    markLocated modname
 
@@ -595,7 +595,7 @@ instance Annotate (GHC.SpliceDecl GHC.RdrName) where
 instance Annotate (GHC.VectDecl GHC.RdrName) where
   markAST l (GHC.HsVect src ln e) = do
     -- markWithString GHC.AnnOpen src -- "{-# VECTORISE"
-    markAnnOpen l src "{-# VECTORISE"
+    markAnnOpen src "{-# VECTORISE"
     markLocated ln
     mark GHC.AnnEqual
     markLocated e
@@ -603,13 +603,13 @@ instance Annotate (GHC.VectDecl GHC.RdrName) where
 
   markAST l (GHC.HsNoVect src ln) = do
     -- markWithString GHC.AnnOpen src -- "{-# NOVECTORISE"
-    markAnnOpen l src "{-# NOVECTORISE"
+    markAnnOpen src "{-# NOVECTORISE"
     markLocated ln
     markWithString GHC.AnnClose "#-}" -- "#-}"
 
   markAST l (GHC.HsVectTypeIn src _b ln mln) = do
     -- markWithString GHC.AnnOpen src -- "{-# VECTORISE" or "{-# VECTORISE SCALAR"
-    markAnnOpen l src  "{-# VECTORISE"  -- or "{-# VECTORISE SCALAR"
+    markAnnOpen src  "{-# VECTORISE"  -- or "{-# VECTORISE SCALAR"
     mark GHC.AnnType
     markLocated ln
     case mln of
@@ -624,7 +624,7 @@ instance Annotate (GHC.VectDecl GHC.RdrName) where
 
   markAST l (GHC.HsVectClassIn src ln) = do
     -- markWithString GHC.AnnOpen src -- "{-# VECTORISE"
-    markAnnOpen l src "{-# VECTORISE"
+    markAnnOpen src "{-# VECTORISE"
     mark GHC.AnnClass
     markLocated ln
     markWithString GHC.AnnClose "#-}" -- "#-}"
@@ -641,7 +641,7 @@ instance Annotate (GHC.VectDecl GHC.RdrName) where
 instance Annotate (GHC.RuleDecls GHC.RdrName) where
    markAST l (GHC.HsRules src rules) = do
      -- markWithString GHC.AnnOpen src
-     markAnnOpen l src "{-# RULES"
+     markAnnOpen src "{-# RULES"
      setLayoutFlag $ markListIntercalateWithFunLevel markLocated 2 rules
      markWithString GHC.AnnClose "#-}"
      markTrailingSemi
@@ -673,12 +673,12 @@ markActivation l act = do
       mark GHC.AnnOpenS --  '['
       mark GHC.AnnTilde -- ~
       -- markWithString GHC.AnnVal src
-      markSourceText l src (show phase)
+      markSourceText src (show phase)
       mark GHC.AnnCloseS -- ']'
     GHC.ActiveAfter src phase -> do
       mark GHC.AnnOpenS --  '['
       -- markWithString GHC.AnnVal src
-      markSourceText l src (show phase)
+      markSourceText src (show phase)
       mark GHC.AnnCloseS -- ']'
     GHC.NeverActive -> do
       inContext (Set.singleton ExplicitNeverActive) $ do
@@ -737,8 +737,7 @@ data HsImplicitBndrs name thing   -- See Note [HsType binders]
 
 instance Annotate (GHC.AnnDecl GHC.RdrName) where
    markAST l (GHC.HsAnnotation src prov e) = do
-     -- markWithString GHC.AnnOpen src
-     markAnnOpen l src "{-# ANN"
+     markAnnOpen src "{-# ANN"
      case prov of
        (GHC.ValueAnnProvenance n) -> markLocated n
        (GHC.TypeAnnProvenance n) -> do
@@ -755,7 +754,7 @@ instance Annotate (GHC.AnnDecl GHC.RdrName) where
 instance Annotate name => Annotate (GHC.WarnDecls name) where
    markAST l (GHC.Warnings src warns) = do
      -- markWithString GHC.AnnOpen src
-     markAnnOpen l src "{-# WARNING" -- Note: might be {-# DEPRECATED
+     markAnnOpen src "{-# WARNING" -- Note: might be {-# DEPRECATED
      mapM_ markLocated warns
      markWithString GHC.AnnClose "#-}"
 
@@ -787,7 +786,7 @@ instance Annotate (GHC.ForeignDecl GHC.RdrName) where
     markLocated cconv
     unless (ll == GHC.noSrcSpan) $ markLocated safety
     -- markExternal ls GHC.AnnVal src
-    markSourceText ls src ""
+    markExternalSourceText ls src ""
     markLocated ln
     mark GHC.AnnDcolon
     markLocated typ
@@ -890,27 +889,27 @@ instance Annotate GHC.OverlapMode where
 
   -- NOTE: NoOverlap is only used in the typechecker
   markAST l (GHC.NoOverlap src) = do
-    markAnnOpen l src "{-# NO_OVERLAP"
+    markAnnOpen src "{-# NO_OVERLAP"
     markWithString GHC.AnnClose "#-}"
 
   markAST l (GHC.Overlappable src) = do
     -- markWithString GHC.AnnOpen src
-    markAnnOpen l src "{-# OVERLAPPABLE"
+    markAnnOpen src "{-# OVERLAPPABLE"
     markWithString GHC.AnnClose "#-}"
 
   markAST l (GHC.Overlapping src) = do
     -- markWithString GHC.AnnOpen src
-    markAnnOpen l src "{-# OVERLAPPING"
+    markAnnOpen src "{-# OVERLAPPING"
     markWithString GHC.AnnClose "#-}"
 
   markAST l (GHC.Overlaps src) = do
     -- markWithString GHC.AnnOpen src
-    markAnnOpen l src "{-# OVERLAPS"
+    markAnnOpen src "{-# OVERLAPS"
     markWithString GHC.AnnClose "#-}"
 
   markAST l (GHC.Incoherent src) = do
     -- markWithString GHC.AnnOpen src
-    markAnnOpen l src "{-# INCOHERENT"
+    markAnnOpen src "{-# INCOHERENT"
     markWithString GHC.AnnClose "#-}"
 
 -- ---------------------------------------------------------------------
@@ -948,7 +947,7 @@ instance Annotate (GHC.TyFamInstDecl GHC.RdrName) where
 
 instance Annotate (GHC.DataFamInstDecl GHC.RdrName) where
 
-  markAST l (GHC.DataFamInstDecl ln (GHC.HsIB _ pats) fix
+  markAST l (GHC.DataFamInstDecl ln (GHC.HsIB _ pats) fixity
              defn@(GHC.HsDataDefn nd ctx typ _mk cons mderivs) _) = do
     case GHC.dd_ND defn of
       GHC.NewType  -> mark GHC.AnnNewtype
@@ -1153,7 +1152,7 @@ instance Annotate (GHC.Sig GHC.RdrName) where
 
   markAST _ (GHC.PatSynSig lns (GHC.HsIB _ typ)) = do
     mark GHC.AnnPattern
-    mapM markLocated lns
+    mapM_ markLocated lns
     mark GHC.AnnDcolon
     markLocated typ
     markTrailingSemi
@@ -1177,7 +1176,7 @@ instance Annotate (GHC.Sig GHC.RdrName) where
          GHC.InfixN -> "infix"
     markWithString GHC.AnnInfix fixstr
     -- markWithString GHC.AnnVal src
-    markSourceText l src (show v)
+    markSourceText src (show v)
     setContext (Set.singleton InfixOp) $ markListIntercalate lns
     markTrailingSemi
 
@@ -1185,7 +1184,7 @@ instance Annotate (GHC.Sig GHC.RdrName) where
   -- '{-# INLINE' activation qvar '#-}'
   markAST l (GHC.InlineSig ln inl) = do
     -- markWithString GHC.AnnOpen (GHC.inl_src inl) -- '{-# INLINE'
-    markAnnOpen l (GHC.inl_src inl) "{-# INLINE"
+    markAnnOpen (GHC.inl_src inl) "{-# INLINE"
     markActivation l (GHC.inl_act inl)
     setContext (Set.singleton PrefixOp) $ markLocated ln
     markWithString GHC.AnnClose "#-}" -- '#-}'
@@ -1193,7 +1192,7 @@ instance Annotate (GHC.Sig GHC.RdrName) where
 
   markAST l (GHC.SpecSig ln typs inl) = do
     -- markWithString GHC.AnnOpen (GHC.inl_src inl)
-    markAnnOpen l (GHC.inl_src inl) "{-# SPECIALISE" -- Note: may be {-# SPECIALISE_INLINE
+    markAnnOpen (GHC.inl_src inl) "{-# SPECIALISE" -- Note: may be {-# SPECIALISE_INLINE
     markActivation l (GHC.inl_act inl)
     markLocated ln
     mark GHC.AnnDcolon -- '::'
@@ -1205,7 +1204,7 @@ instance Annotate (GHC.Sig GHC.RdrName) where
   -- '{-# SPECIALISE' 'instance' inst_type '#-}'
   markAST l (GHC.SpecInstSig src typ) = do
     -- markWithString GHC.AnnOpen src
-    markAnnOpen l src "{-# SPECIALISE"
+    markAnnOpen src "{-# SPECIALISE"
     mark GHC.AnnInstance
     markLHsSigType typ
     markWithString GHC.AnnClose "#-}" -- '#-}'
@@ -1216,7 +1215,7 @@ instance Annotate (GHC.Sig GHC.RdrName) where
   -- MinimalSig (BooleanFormula (Located name))
   markAST l (GHC.MinimalSig src formula) = do
     -- markWithString GHC.AnnOpen src
-    markAnnOpen l src "{-# MINIMAL"
+    markAnnOpen src "{-# MINIMAL"
     markLocated formula
     markWithString GHC.AnnClose "#-}"
     markTrailingSemi
@@ -1296,7 +1295,7 @@ instance Annotate (GHC.HsType GHC.RdrName) where
       markLocated cxt
       markLocated typ
 
-    markType l (GHC.HsTyVar promoted name) = do
+    markType _ (GHC.HsTyVar promoted name) = do
       when (promoted == GHC.Promoted) $ mark GHC.AnnSimpleQuote
       markLocated name
 
@@ -1424,9 +1423,9 @@ instance Annotate (GHC.HsType GHC.RdrName) where
     markType l (GHC.HsTyLit lit) = do
       case lit of
         (GHC.HsNumTy s v) ->
-          markSourceText l s (show v)
+          markSourceText s (show v)
         (GHC.HsStrTy s v) ->
-          markSourceText l s (show v)
+          markSourceText s (show v)
 
     -- HsWrapTy HsTyAnnotated (HsType name)
 
@@ -1582,7 +1581,6 @@ instance Annotate (GHC.Pat GHC.RdrName) where
 
       -- NPat (HsOverLit id) (Maybe (SyntaxExpr id)) (SyntaxExpr id)
       markPat _ (GHC.NPat ol mn _ _) = do
-        -- markOptional GHC.AnnMinus
         when (isJust mn) $ mark GHC.AnnMinus
         markLocated ol
 
@@ -1627,8 +1625,8 @@ hsLit2String lit =
     GHC.HsDoublePrim (GHC.FL src _)   -> src ++ "##"
 
 toSourceTextWithSuffix :: (Show a) => GHC.SourceText -> a -> String -> String
-toSourceTextWithSuffix (GHC.NoSourceText)   alt suffix = show alt ++ suffix
-toSourceTextWithSuffix (GHC.SourceText txt) alt suffix = txt ++ suffix
+toSourceTextWithSuffix (GHC.NoSourceText)    alt suffix = show alt ++ suffix
+toSourceTextWithSuffix (GHC.SourceText txt) _alt suffix = txt ++ suffix
 
 -- --------------------------------------------------------------------
 
@@ -1695,7 +1693,7 @@ instance (GHC.DataId name) => Annotate (GHC.HsOverLit name) where
                 GHC.HsFractional l2  -> GHC.SourceText $ GHC.fl_text l2
                 GHC.HsIsString src _ -> src
     in
-    markSourceText l str ""
+    markExternalSourceText l str ""
 
 -- ---------------------------------------------------------------------
 
@@ -2047,7 +2045,7 @@ instance Annotate (GHC.HsExpr GHC.RdrName) where
         mark GHC.AnnDcolon
         markLHsSigWcType typ
 
-      markExpr _ (GHC.ExprWithTySigOut e typ)
+      markExpr _ (GHC.ExprWithTySigOut _e _typ)
         = error "ExprWithTySigOut only occurs after renamer"
 
       markExpr _ (GHC.ArithSeq _ _ seqInfo) = do
@@ -2098,18 +2096,21 @@ instance Annotate (GHC.HsExpr GHC.RdrName) where
 
       markExpr l (GHC.HsSCC src csFStr e) = do
         -- markWithString GHC.AnnOpen src -- "{-# SCC"
-        markAnnOpen l src "{-# SCC"
+        markAnnOpen src "{-# SCC"
         -- markWithStringOptional GHC.AnnVal    (GHC.sl_st csFStr)
         -- markWithString         GHC.AnnValStr (GHC.sl_st csFStr)
-        markSourceText l (GHC.sl_st csFStr) (GHC.unpackFS $ GHC.sl_fs csFStr)
+        let txt = sourceTextToString (GHC.sl_st csFStr) (GHC.unpackFS $ GHC.sl_fs csFStr)
+        markWithStringOptional GHC.AnnVal    txt
+        markWithString         GHC.AnnValStr txt
+        markSourceText (GHC.sl_st csFStr) (GHC.unpackFS $ GHC.sl_fs csFStr)
         markWithString GHC.AnnClose "#-}"
         markLocated e
 
       markExpr l (GHC.HsCoreAnn src csFStr e) = do
         -- markWithString GHC.AnnOpen src -- "{-# CORE"
-        markAnnOpen l src "{-# CORE"
+        markAnnOpen src "{-# CORE"
         -- markWithString GHC.AnnVal (GHC.sl_st csFStr)
-        markSourceText l (GHC.sl_st csFStr) (GHC.unpackFS $ GHC.sl_fs csFStr)
+        markSourceText (GHC.sl_st csFStr) (GHC.unpackFS $ GHC.sl_fs csFStr)
         markWithString GHC.AnnClose "#-}"
         markLocated e
       -- TODO: make monomorphic
@@ -2199,12 +2200,12 @@ instance Annotate (GHC.HsExpr GHC.RdrName) where
       markExpr l (GHC.HsTickPragma src (str,(v1,v2),(v3,v4)) ((s1,s2),(s3,s4)) e) = do
         -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
         -- markWithString       GHC.AnnOpen  src
-        markAnnOpen l src  "{-# GENERATED"
+        markAnnOpen src  "{-# GENERATED"
         markOffsetWithString GHC.AnnVal 0 (stringLiteralToString str) -- STRING
 
         let
-          markOne n v GHC.NoSourceText     = markOffsetWithString GHC.AnnVal n (show v)
-          markOne n v (GHC.SourceText str) = markOffsetWithString GHC.AnnVal n str
+          markOne n  v GHC.NoSourceText   = markOffsetWithString GHC.AnnVal n (show v)
+          markOne n _v (GHC.SourceText s) = markOffsetWithString GHC.AnnVal n s
 
         -- markOffsetWithString GHC.AnnVal 1 v1 -- INTEGER
         markOne  1 v1 s1 -- INTEGER
@@ -2347,11 +2348,11 @@ instance Annotate (GHC.HsCmd GHC.RdrName) where
       then markLocated e2
       else markLocated e1
 
-  markAST _ (GHC.HsCmdArrForm e fix _mf cs) = do
+  markAST _ (GHC.HsCmdArrForm e fixity _mf cs) = do
     -- The AnnOpen should be marked for a prefix usage, not for a postfix one,
     -- due to the way checkCmd maps both HsArrForm and OpApp to HsCmdArrForm
 
-    let isPrefixOp = case fix of
+    let isPrefixOp = case fixity of
           GHC.Infix  -> False
           GHC.Prefix -> True
     when isPrefixOp $ markWithString GHC.AnnOpen "(|"
@@ -2361,18 +2362,7 @@ instance Annotate (GHC.HsCmd GHC.RdrName) where
                        (prepareListAnnotation [e]
                          ++ prepareListAnnotation cs)
     when isPrefixOp $ markWithString GHC.AnnClose "|)"
-{-
-    | HsCmdArrForm         -- Command formation,  (| e cmd1 .. cmdn |)
-        (LHsExpr id)     -- The operator.
-                         -- After type-checking, a type abstraction to be
-                         -- applied to the type of the local environment tuple
-        LexicalFixity    -- Whether the operator appeared prefix or infix when
-                         -- parsed.
-        (Maybe Fixity)   -- fixity (filled in by the renamer), for forms that
-                         -- were converted from OpApp's by the renamer
-        [LHsCmdTop id]   -- argument commands
 
--}
   markAST _ (GHC.HsCmdApp e1 e2) = do
     markLocated e1
     markLocated e2
@@ -2439,7 +2429,7 @@ instance Annotate (GHC.TyClDecl GHC.RdrName) where
 
   markAST l (GHC.FamDecl famdecl) = markAST l famdecl >> markTrailingSemi
 
-  markAST _ (GHC.SynDecl ln (GHC.HsQTvs _ tyvars _) fix typ _) = do
+  markAST _ (GHC.SynDecl ln (GHC.HsQTvs _ tyvars _) fixity typ _) = do
     -- There may be arbitrary parens around parts of the constructor that are
     -- infix.
     -- Turn these into comments so that they feed into the right place automatically
@@ -2459,7 +2449,7 @@ instance Annotate (GHC.TyClDecl GHC.RdrName) where
             , tcdFVs    :: PostRn name NameSet }
 -}
 
-  markAST _ (GHC.DataDecl ln (GHC.HsQTvs _ns tyVars _) fix
+  markAST _ (GHC.DataDecl ln (GHC.HsQTvs _ns tyVars _) fixity
                 (GHC.HsDataDefn nd ctx mctyp mk cons derivs) _ _) = do
     if nd == GHC.DataType
       then mark GHC.AnnData
@@ -2487,7 +2477,7 @@ instance Annotate (GHC.TyClDecl GHC.RdrName) where
 
   -- -----------------------------------
 
-  markAST _ (GHC.ClassDecl ctx ln (GHC.HsQTvs _ns tyVars _) fix fds
+  markAST _ (GHC.ClassDecl ctx ln (GHC.HsQTvs _ns tyVars _) fixity fds
                           sigs meths ats atdefs docs _) = do
     mark GHC.AnnClass
     unless (null $ GHC.unLoc ctx) $ markLocated ctx
@@ -2563,9 +2553,12 @@ instance Annotate [GHC.LHsDerivingClause GHC.RdrName] where
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.HsDerivingClause GHC.RdrName) where
-  markAST _ (GHC.HsDerivingClause mstrategy (GHC.L _ tys)) = do
+  markAST _ (GHC.HsDerivingClause mstrategy (GHC.L _ typs)) = do
+    mark GHC.AnnDeriving
     markMaybe mstrategy
-    mapM_ markLHsSigType tys
+    mark GHC.AnnOpenP
+    markListIntercalateWithFunLevel markLHsSigType 2 typs
+    mark GHC.AnnCloseP
 
 {-
 data HsDerivingClause name
@@ -2589,7 +2582,7 @@ data HsDerivingClause name
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.FamilyDecl GHC.RdrName) where
-  markAST _ (GHC.FamilyDecl info ln (GHC.HsQTvs _ tyvars _) fix rsig minj) = do
+  markAST _ (GHC.FamilyDecl info ln (GHC.HsQTvs _ tyvars _) fixity rsig minj) = do
 {-
 data FamilyDecl name = FamilyDecl
   { fdInfo           :: FamilyInfo name              -- type/data, closed/open
@@ -2653,7 +2646,7 @@ instance (GHC.DataId name,Annotate name)
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.TyFamInstEqn GHC.RdrName) where
-  markAST _ (GHC.TyFamEqn ln (GHC.HsIB _ pats) fix typ) = do
+  markAST _ (GHC.TyFamEqn ln (GHC.HsIB _ pats) fixity typ) = do
     markTyClass ln pats
     -- let
     --   fun = ifInContext (Set.singleton (CtxPos 0))
@@ -2670,7 +2663,7 @@ instance Annotate (GHC.TyFamInstEqn GHC.RdrName) where
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.TyFamDefltEqn GHC.RdrName) where
-  markAST _ (GHC.TyFamEqn ln (GHC.HsQTvs _ns bndrs _) fix typ) = do
+  markAST _ (GHC.TyFamEqn ln (GHC.HsQTvs _ns bndrs _) fixity typ) = do
     mark GHC.AnnType
     mark GHC.AnnInstance
     applyListAnnotations (prepareListAnnotation [ln]
@@ -2866,14 +2859,14 @@ instance (GHC.DataId name,Annotate name)
 instance Annotate GHC.CType where
   markAST l (GHC.CType src mh f) = do
     -- markWithString GHC.AnnOpen src
-    markAnnOpen l src ""
+    markAnnOpen src ""
     case mh of
       Nothing -> return ()
       Just (GHC.Header srcH _h) ->
          -- markWithString GHC.AnnHeader srcH
          markWithString GHC.AnnHeader (toSourceTextWithSuffix srcH "" "")
     -- markWithString GHC.AnnVal (fst f)
-    markSourceText l (fst f) (GHC.unpackFS $ snd f)
+    markSourceText  (fst f) (GHC.unpackFS $ snd f)
     markWithString GHC.AnnClose "#-}"
 
 -- ---------------------------------------------------------------------

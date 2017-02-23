@@ -8,9 +8,8 @@ import Lexer
 import SrcLoc
 
 -- ---------------------------------------------------------------------
-#if __GLASGOW_HASKELL__ < 802
-{-# DEPRECATED commentToAnnotation "Migrate to GHC" #-}
-#endif
+#if __GLASGOW_HASKELL__ > 800
+#else
 -- From Lexer.x
 commentToAnnotation :: Located Token -> Located AnnotationComment
 commentToAnnotation (L l (ITdocCommentNext s))  = L l (AnnDocCommentNext s)
@@ -24,3 +23,4 @@ commentToAnnotation (L l (ITdocOptionsOld s))   = L l (AnnDocOptionsOld s)
 commentToAnnotation (L l (ITlineComment s))     = L l (AnnLineComment s)
 commentToAnnotation (L l (ITblockComment s))    = L l (AnnBlockComment s)
 commentToAnnotation _ = error $ "commentToAnnotation called for non-comment:" -- ++ show x
+#endif
