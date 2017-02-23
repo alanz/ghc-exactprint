@@ -279,21 +279,15 @@ instance (GHC.DataId name,GHC.HasOccName name, Annotate name)
             else setContext (Set.singleton PrefixOp) $ markLocated ln
 
         (GHC.IEThingWith ln wc ns _lfs) -> do
-{-
-  | IEThingWith (Located name)
-                IEWildcard
-                [Located name]
-                [Located (FieldLbl name)]
-                 -- ^ Class/Type plus some methods/constructors
-                 -- and record fields; see Note [IEThingWith]
-
--}
           setContext (Set.singleton PrefixOp) $ markLocated ln
           mark GHC.AnnOpenP
           case wc of
-            GHC.NoIEWildcard -> unsetContext Intercalate $ setContext (Set.fromList [PrefixOp]) $ markListIntercalate ns
+            GHC.NoIEWildcard ->
+              unsetContext Intercalate $ setContext (Set.fromList [PrefixOp])
+                $ markListIntercalate ns
             GHC.IEWildcard n -> do
-              setContext (Set.fromList [PrefixOp,Intercalate]) $ mapM_ markLocated (take n ns)
+              setContext (Set.fromList [PrefixOp,Intercalate])
+                $ mapM_ markLocated (take n ns)
               mark GHC.AnnDotdot
               case drop n ns of
                 [] -> return ()
@@ -326,13 +320,17 @@ instance (GHC.DataId name,GHC.HasOccName name, Annotate name)
 
 instance (GHC.DataId name,GHC.HasOccName name, Annotate name)
   => Annotate (GHC.IEWrappedName name) where
-  markAST _ (GHC.IEName ln) = markLocated ln
+  markAST _ (GHC.IEName ln) = do
+    markLocated ln
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
   markAST _ (GHC.IEPattern ln) = do
     mark GHC.AnnPattern
     markLocated ln
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
   markAST _ (GHC.IEType ln) = do
     mark GHC.AnnType
     markLocated ln
+    inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 {-
 data IEWrappedName name
   = IEName    (Located name)  -- ^ no extra
@@ -797,7 +795,7 @@ instance Annotate (GHC.ForeignDecl GHC.RdrName) where
     mark GHC.AnnForeign
     mark GHC.AnnExport
     markLocated spec
-    markExternal ls GHC.AnnVal (show src)
+    markExternal ls GHC.AnnVal (sourceTextToString src "")
     setContext (Set.singleton PrefixOp) $ markLocated ln
     mark GHC.AnnDcolon
     markLocated typ
@@ -1056,7 +1054,7 @@ instance Annotate (GHC.HsBind GHC.RdrName) where
 instance Annotate (GHC.IPBind GHC.RdrName) where
   markAST _ (GHC.IPBind en e) = do
     case en of
-      Left n -> markLocated n
+      Left n   -> markLocated n
       Right _i -> return ()
     mark GHC.AnnEqual
     markLocated e
@@ -1383,21 +1381,6 @@ instance Annotate (GHC.HsType GHC.RdrName) where
         GHC.NoSrcStrict -> return ()
 
       markLocated t
-  {-
-    | HsBangTy    HsSrcBang (LHsType name)   -- Bang-style type annotations
-  data HsSrcBang =
-    HsSrcBang (Maybe SourceText) -- Note [Pragma source text] in BasicTypes
-              SrcUnpackedness
-              SrcStrictness
-  data SrcStrictness = SrcLazy -- ^ Lazy, ie '~'
-                     | SrcStrict -- ^ Strict, ie '!'
-                     | NoSrcStrict -- ^ no strictness annotation
-
-  data SrcUnpackedness = SrcUnpack -- ^ {-# UNPACK #-} specified
-                       | SrcNoUnpack -- ^ {-# NOUNPACK #-} specified
-                       | NoSrcUnpack -- ^ no unpack pragma
-
-  -}
 
     markType _ (GHC.HsRecTy cons) = do
       mark GHC.AnnOpenC  -- '{'
@@ -1423,9 +1406,9 @@ instance Annotate (GHC.HsType GHC.RdrName) where
     markType l (GHC.HsTyLit lit) = do
       case lit of
         (GHC.HsNumTy s v) ->
-          markSourceText s (show v)
+          markExternalSourceText l s (show v)
         (GHC.HsStrTy s v) ->
-          markSourceText s (show v)
+          markExternalSourceText l s (show v)
 
     -- HsWrapTy HsTyAnnotated (HsType name)
 
@@ -1452,29 +1435,34 @@ instance Annotate (GHC.HsSplice GHC.RdrName) where
         markExternal l GHC.AnnVal
               ("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS fs) ++ "|]")
 
+      GHC.HsTypedSplice hasParens _n b@(GHC.L _ (GHC.HsVar (GHC.L _ n)))  -> do
+        when (hasParens == GHC.HasParens) $ mark GHC.AnnOpenPTE
+        markWithStringOptional GHC.AnnThIdTySplice ("$$" ++ (GHC.occNameString (GHC.occName n)))
+        markLocated b
+        when (hasParens == GHC.HasParens) $ mark GHC.AnnCloseP
+
       GHC.HsTypedSplice hasParens _n b -> do
         when (hasParens == GHC.HasParens) $ mark GHC.AnnOpenPTE
         markLocated b
         when (hasParens == GHC.HasParens) $ mark GHC.AnnCloseP
-        {-
-           = HsTypedSplice       --  $$z  or $$(f 4)
-                HasParens        -- Whether $$( ) variant found, for pretty printing
-                id               -- A unique name to identify this splice point
-                (LHsExpr id)     -- See Note [Pending Splices]
-        -}
 
-      GHC.HsUntypedSplice hasParens _n b  -> do
-        -- TODO: when is this not optional?
-        markOptional GHC.AnnThIdSplice
-        when (hasParens == GHC.HasParens) $ mark GHC.AnnOpenPE
+      -- -------------------------------
+
+      GHC.HsUntypedSplice hasParens _n b@(GHC.L _ (GHC.HsVar (GHC.L _ n)))  -> do
+        when (hasParens == GHC.HasParens) $  mark GHC.AnnOpenPE
+        -- TODO: We do not seem to have any way to distinguish between which of
+        -- the next two lines will emit output. If AnnThIdSplice is there, the
+        -- markLocated b ends up with a negative offset so emits nothing.
+        markWithStringOptional GHC.AnnThIdSplice ("$" ++ (GHC.occNameString (GHC.occName n)))
         markLocated b
         when (hasParens == GHC.HasParens) $ mark GHC.AnnCloseP
-         {-
-          | HsUntypedSplice     --  $z  or $(f 4)
-               HasParens        -- Whether $( ) variant found, for pretty printing
-               id               -- A unique name to identify this splice point
-               (LHsExpr id)     -- See Note [Pending Splices]
-         -}
+
+      GHC.HsUntypedSplice hasParens _n b  -> do
+        case hasParens of
+          GHC.NoParens  -> mark GHC.AnnThIdSplice
+          GHC.HasParens -> mark GHC.AnnOpenPE
+        markLocated b
+        when (hasParens == GHC.HasParens) $ mark GHC.AnnCloseP
 
       GHC.HsSpliced{} -> error "HsSpliced only exists between renamer and typechecker in GHC"
 
@@ -1824,7 +1812,7 @@ markHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) =
 markHsLocalBinds (GHC.HsValBinds GHC.ValBindsOut {})
    = traceM "warning: ValBindsOut introduced after renaming"
 
-markHsLocalBinds (GHC.HsIPBinds (GHC.IPBinds binds _)) = markListWithLayout (reverse binds)
+markHsLocalBinds (GHC.HsIPBinds (GHC.IPBinds binds _)) = markListWithLayout binds
 markHsLocalBinds GHC.EmptyLocalBinds                   = return ()
 
 -- ---------------------------------------------------------------------
@@ -2154,10 +2142,21 @@ instance Annotate (GHC.HsExpr GHC.RdrName) where
       markExpr _ (GHC.HsTcBracketOut _ _) =
         traceM "warning: HsTcBracketOut introduced after renamer"
 
-      markExpr l (GHC.HsSpliceE e) = do
-        markOptional GHC.AnnOpenPE
-        markAST l e
-        markOptional GHC.AnnCloseP
+      -- markExpr l (GHC.HsSpliceE (GHC.HsUntypedSplice hasParen unqualSplice e)) = do
+      --   case hasParen of
+      --     GHC.NoParens  -> mark GHC.AnnThIdSplice
+      --     GHC.HasParens -> mark GHC.AnnOpenPE
+      --   markLocated e
+      --   when (hasParen == GHC.HasParens) $ mark GHC.AnnCloseP
+
+      -- markExpr l (GHC.HsSpliceE (GHC.HsTypedSplice hasParen unqualSplice e)) = do
+      --   case hasParen of
+      --     GHC.NoParens  -> mark GHC.AnnThIdSplice
+      --     GHC.HasParens -> mark GHC.AnnOpenPTE
+      --   markLocated e
+      --   when (hasParen == GHC.HasParens) $ mark GHC.AnnCloseP
+
+      markExpr l (GHC.HsSpliceE e) = markAST l e
 
       markExpr _ (GHC.HsProc p c) = do
         mark GHC.AnnProc

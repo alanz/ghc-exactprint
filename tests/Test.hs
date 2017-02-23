@@ -151,7 +151,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
       -- mkPrettyRoundtrip "ghc80" "pmc007.hs"
 
-      mkParserTest "ghc710" "ExprPragma.hs"
+      mkParserTest "ghc710" "TemplateHaskell.hs"
       -- mkParserTest "ghc80" "Families.hs"
 
    -- Needs GHC changes
