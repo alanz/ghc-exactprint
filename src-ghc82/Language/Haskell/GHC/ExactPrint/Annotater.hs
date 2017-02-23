@@ -153,10 +153,8 @@ markList ls =
   setContext (Set.singleton NoPrecedingSpace)
    $ markListWithContexts' listContexts' ls
 
-markLocalBindsWithLayout :: (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-  => GHC.HsLocalBinds name -> Annotated ()
-markLocalBindsWithLayout binds =
-  markHsLocalBinds binds
+markLocalBindsWithLayout :: GHC.HsLocalBinds GHC.RdrName -> Annotated ()
+markLocalBindsWithLayout binds = markHsLocalBinds binds
 
 -- ---------------------------------------------------------------------
 
@@ -531,8 +529,7 @@ instance Annotate GHC.ModuleName where
 
 -- ---------------------------------------------------------------------
 
-markLHsDecl :: (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-            => GHC.LHsDecl name -> Annotated ()
+markLHsDecl :: GHC.LHsDecl GHC.RdrName -> Annotated ()
 markLHsDecl (GHC.L l decl) =
     case decl of
       GHC.TyClD d       -> markLocated (GHC.L l d)
@@ -550,8 +547,7 @@ markLHsDecl (GHC.L l decl) =
       GHC.DocD d        -> markLocated (GHC.L l d)
       GHC.RoleAnnotD d  -> markLocated (GHC.L l d)
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-            => Annotate (GHC.HsDecl name) where
+instance Annotate (GHC.HsDecl GHC.RdrName) where
   markAST l d = markLHsDecl (GHC.L l d)
 
 -- ---------------------------------------------------------------------
@@ -570,8 +566,7 @@ instance Annotate (Maybe GHC.Role) where
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-   => Annotate (GHC.SpliceDecl name) where
+instance Annotate (GHC.SpliceDecl GHC.RdrName) where
   markAST _ (GHC.SpliceDecl e@(GHC.L _ (GHC.HsQuasiQuote{})) _flag) = do
     markLocated e
     markTrailingSemi
@@ -597,8 +592,7 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-   => Annotate (GHC.VectDecl name) where
+instance Annotate (GHC.VectDecl GHC.RdrName) where
   markAST l (GHC.HsVect src ln e) = do
     -- markWithString GHC.AnnOpen src -- "{-# VECTORISE"
     markAnnOpen l src "{-# VECTORISE"
@@ -644,8 +638,7 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-   => Annotate (GHC.RuleDecls name) where
+instance Annotate (GHC.RuleDecls GHC.RdrName) where
    markAST l (GHC.HsRules src rules) = do
      -- markWithString GHC.AnnOpen src
      markAnnOpen l src "{-# RULES"
@@ -655,8 +648,7 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-   => Annotate (GHC.RuleDecl name) where
+instance Annotate (GHC.RuleDecl GHC.RdrName) where
   markAST l (GHC.HsRule ln act bndrs lhs _ rhs _) = do
     markLocated ln
     setContext (Set.singleton ExplicitNeverActive) $ markActivation l act
@@ -697,8 +689,7 @@ markActivation l act = do
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-   => Annotate (GHC.RuleBndr name) where
+instance Annotate (GHC.RuleBndr GHC.RdrName) where
   markAST _ (GHC.RuleBndr ln) = markLocated ln
   markAST _ (GHC.RuleBndrSig ln st) = do
     mark GHC.AnnOpenP -- "("
@@ -709,8 +700,7 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
 
 -- ---------------------------------------------------------------------
 
-markLHsSigWcType :: (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-                 => GHC.LHsSigWcType name -> Annotated ()
+markLHsSigWcType :: GHC.LHsSigWcType GHC.RdrName -> Annotated ()
 -- markLHsSigWcType (GHC.HsIB _ (GHC.HsWC _ ty)) = do
 --   applyListAnnotations ([(lwc,markExternal lwc GHC.AnnVal "_")]
 --                      ++ prepareListAnnotation [ty]
@@ -745,8 +735,7 @@ data HsImplicitBndrs name thing   -- See Note [HsType binders]
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-   => Annotate (GHC.AnnDecl name) where
+instance Annotate (GHC.AnnDecl GHC.RdrName) where
    markAST l (GHC.HsAnnotation src prov e) = do
      -- markWithString GHC.AnnOpen src
      markAnnOpen l src "{-# ANN"
@@ -790,8 +779,7 @@ instance Annotate GHC.FastString where
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-   => Annotate (GHC.ForeignDecl name) where
+instance Annotate (GHC.ForeignDecl GHC.RdrName) where
   markAST _ (GHC.ForeignImport ln (GHC.HsIB _ typ) _
                (GHC.CImport cconv safety@(GHC.L ll _) _mh _imp (GHC.L ls src))) = do
     mark GHC.AnnForeign
@@ -839,8 +827,7 @@ instance (Annotate GHC.Safety) where
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-   => Annotate (GHC.DerivDecl name) where
+instance Annotate (GHC.DerivDecl GHC.RdrName) where
 
   markAST _ (GHC.DerivDecl typ ms mov) = do
     mark GHC.AnnDeriving
@@ -880,8 +867,7 @@ instance Annotate GHC.DerivStrategy where
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-   => Annotate (GHC.DefaultDecl name) where
+instance Annotate (GHC.DefaultDecl GHC.RdrName) where
 
   markAST _ (GHC.DefaultDecl typs) = do
     mark GHC.AnnDefault
@@ -892,8 +878,7 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-   => Annotate (GHC.InstDecl name) where
+instance Annotate (GHC.InstDecl GHC.RdrName) where
 
   markAST l (GHC.ClsInstD      cid) = markAST l  cid
   markAST l (GHC.DataFamInstD dfid) = markAST l dfid
@@ -930,8 +915,7 @@ instance Annotate GHC.OverlapMode where
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-   => Annotate (GHC.ClsInstDecl name) where
+instance Annotate (GHC.ClsInstDecl GHC.RdrName) where
 
   markAST _ (GHC.ClsInstDecl (GHC.HsIB _ poly) binds sigs tyfams datafams mov) = do
     mark GHC.AnnInstance
@@ -952,8 +936,7 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-   => Annotate (GHC.TyFamInstDecl name) where
+instance Annotate (GHC.TyFamInstDecl GHC.RdrName) where
 
   markAST _ (GHC.TyFamInstDecl eqn _) = do
     mark GHC.AnnType
@@ -963,8 +946,7 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-   => Annotate (GHC.DataFamInstDecl name) where
+instance Annotate (GHC.DataFamInstDecl GHC.RdrName) where
 
   markAST l (GHC.DataFamInstDecl ln (GHC.HsIB _ pats) fix
              defn@(GHC.HsDataDefn nd ctx typ _mk cons mderivs) _) = do
@@ -1000,8 +982,7 @@ data DataFamInstDecl name
 -}
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-  => Annotate (GHC.HsBind name) where
+instance Annotate (GHC.HsBind GHC.RdrName) where
   markAST _ (GHC.FunBind _ (GHC.MG (GHC.L _ matches) _ _ _) _ _ _) = do
     -- Note: from a layout perspective a FunBind should not exist, so the
     -- current context is passed through unchanged to the matches.
@@ -1073,8 +1054,7 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-    => Annotate (GHC.IPBind name) where
+instance Annotate (GHC.IPBind GHC.RdrName) where
   markAST _ (GHC.IPBind en e) = do
     case en of
       Left n -> markLocated n
@@ -1090,9 +1070,8 @@ instance Annotate GHC.HsIPName where
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name
-         ,GHC.HasOccName name,Annotate name, Annotate body)
-  => Annotate (GHC.Match name (GHC.Located body)) where
+instance (Annotate body)
+  => Annotate (GHC.Match GHC.RdrName (GHC.Located body)) where
 
   markAST _ (GHC.Match mln pats _typ (GHC.GRHSs grhs (GHC.L _ lb))) = do
     let
@@ -1143,15 +1122,15 @@ instance (GHC.DataId name,GHC.OutputableBndrId name
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,
-          Annotate name, Annotate body)
-  => Annotate (GHC.GRHS name (GHC.Located body)) where
+instance (Annotate body)
+  => Annotate (GHC.GRHS GHC.RdrName (GHC.Located body)) where
   markAST _ (GHC.GRHS guards expr) = do
     case guards of
       [] -> return ()
       (_:_) -> do
         mark GHC.AnnVbar
-        unsetContext Intercalate $ setContext (Set.fromList [LeftMost,PrefixOp]) $ markListIntercalate guards
+        unsetContext Intercalate $ setContext (Set.fromList [LeftMost,PrefixOp])
+          $ markListIntercalate guards
         ifInContext (Set.fromList [CaseAlt])
           (return ())
           (mark GHC.AnnEqual)
@@ -1163,8 +1142,7 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-  => Annotate (GHC.Sig name) where
+instance Annotate (GHC.Sig GHC.RdrName) where
 
   markAST _ (GHC.TypeSig lns st)  = do
     setContext (Set.singleton PrefixOp) $ markListNoPrecedingSpace True lns
@@ -1245,12 +1223,10 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
 
 -- --------------------------------------------------------------------
 
-markLHsSigType :: (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-               => GHC.LHsSigType name -> Annotated ()
+markLHsSigType :: GHC.LHsSigType GHC.RdrName -> Annotated ()
 markLHsSigType (GHC.HsIB _ typ) = markLocated typ
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-   => Annotate [GHC.LHsSigType name] where
+instance Annotate [GHC.LHsSigType GHC.RdrName] where
   markAST _ ls = do
     mark GHC.AnnDeriving
     -- Mote: a single item in parens is parsed as a HsAppsTy. Without parens it
@@ -1290,8 +1266,7 @@ instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) wh
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-  => Annotate (GHC.HsTyVarBndr name) where
+instance Annotate (GHC.HsTyVarBndr GHC.RdrName) where
   markAST _l (GHC.UserTyVar n) = do
     markLocated n
 
@@ -1304,8 +1279,7 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-   => Annotate (GHC.HsType name) where
+instance Annotate (GHC.HsType GHC.RdrName) where
   markAST loc ty = do
     markType loc ty
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
@@ -1462,8 +1436,7 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-  => Annotate (GHC.HsAppType name) where
+instance Annotate (GHC.HsAppType GHC.RdrName) where
   markAST _ (GHC.HsAppInfix n)  = do
     when (GHC.isDataOcc $ GHC.occName $ GHC.unLoc n) $ mark GHC.AnnSimpleQuote
     setContext (Set.singleton InfixOp) $ markLocated n
@@ -1473,8 +1446,7 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-  => Annotate (GHC.HsSplice name) where
+instance Annotate (GHC.HsSplice GHC.RdrName) where
   markAST l c =
     case c of
       GHC.HsQuasiQuote _ n _pos fs -> do
@@ -1509,8 +1481,7 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name) =>
-                             Annotate (GHC.ConDeclField name) where
+instance Annotate (GHC.ConDeclField GHC.RdrName) where
   markAST _ (GHC.ConDeclField ns ty mdoc) = do
 {-
 data ConDeclField name  -- Record fields have Haddoc docs on them
@@ -1543,8 +1514,7 @@ instance Annotate GHC.HsDocString where
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,Annotate name,GHC.OutputableBndrId name,GHC.HasOccName name)
-  => Annotate (GHC.Pat name) where
+instance Annotate (GHC.Pat GHC.RdrName) where
   markAST loc typ = do
     markPat loc typ
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma `debug` ("AnnComma in Pat")
@@ -1662,8 +1632,7 @@ toSourceTextWithSuffix (GHC.SourceText txt) alt suffix = txt ++ suffix
 
 -- --------------------------------------------------------------------
 
-markHsConPatDetails :: (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-                      => GHC.Located name -> GHC.HsConPatDetails name -> Annotated ()
+markHsConPatDetails :: GHC.Located GHC.RdrName -> GHC.HsConPatDetails GHC.RdrName -> Annotated ()
 markHsConPatDetails ln dets = do
   case dets of
     GHC.PrefixCon args -> do
@@ -1683,12 +1652,13 @@ markHsConPatDetails ln dets = do
       setContext (Set.singleton InfixOp) $ markLocated ln
       markLocated a2
 
-markHsConDeclDetails :: (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-                    => Bool -> Bool -> [GHC.Located name] -> GHC.HsConDeclDetails name -> Annotated ()
+markHsConDeclDetails ::
+  Bool -> Bool -> [GHC.Located GHC.RdrName] -> GHC.HsConDeclDetails GHC.RdrName -> Annotated ()
 
 markHsConDeclDetails isDeprecated inGadt lns dets = do
   case dets of
-    GHC.PrefixCon args -> setContext (Set.singleton PrefixOp) $ mapM_ markLocated args
+    GHC.PrefixCon args ->
+      setContext (Set.singleton PrefixOp) $ mapM_ markLocated args
     GHC.RecCon fs -> do
       mark GHC.AnnOpenC
       if inGadt
@@ -1707,8 +1677,7 @@ markHsConDeclDetails isDeprecated inGadt lns dets = do
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-   => Annotate [GHC.LConDeclField name] where
+instance Annotate [GHC.LConDeclField GHC.RdrName] where
   markAST _ fs = do
        markOptional GHC.AnnOpenC -- '{'
        markListIntercalate fs
@@ -1737,11 +1706,10 @@ instance (GHC.DataId name,Annotate arg)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,Annotate name
-         ,GHC.HasOccName name,Annotate body)
-  => Annotate (GHC.Stmt name (GHC.Located body)) where
+instance (Annotate body) => Annotate (GHC.Stmt GHC.RdrName (GHC.Located body)) where
 
-  markAST _ (GHC.LastStmt body _ _) =  setContextLevel (Set.fromList [LeftMost,PrefixOp]) 2 $ markLocated body
+  markAST _ (GHC.LastStmt body _ _)
+    = setContextLevel (Set.fromList [LeftMost,PrefixOp]) 2 $ markLocated body
 
   markAST _ (GHC.BindStmt pat body _ _ _) = do
     unsetContext Intercalate $ setContext (Set.singleton PrefixOp) $ markLocated pat
@@ -1838,21 +1806,18 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,Annotate name
 
 -- Note: We never have a located ParStmtBlock, so have nothing to hang the
 -- annotation on. This means there is no pushing of context from the parent ParStmt.
-instance  (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-  =>  Annotate (GHC.ParStmtBlock name name) where
+instance Annotate (GHC.ParStmtBlock GHC.RdrName GHC.RdrName) where
   markAST _ (GHC.ParStmtBlock stmts _ns _) = do
     markListIntercalate stmts
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-  => Annotate (GHC.HsLocalBinds name) where
+instance Annotate (GHC.HsLocalBinds GHC.RdrName) where
   markAST _ lb = markHsLocalBinds lb
 
 -- ---------------------------------------------------------------------
 
-markHsLocalBinds :: (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-                     => GHC.HsLocalBinds name -> Annotated ()
+markHsLocalBinds :: GHC.HsLocalBinds GHC.RdrName -> Annotated ()
 markHsLocalBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) =
     applyListAnnotationsLayout
        (prepareListAnnotation (GHC.bagToList binds)
@@ -1866,24 +1831,21 @@ markHsLocalBinds GHC.EmptyLocalBinds                   = return ()
 
 -- ---------------------------------------------------------------------
 
-markMatchGroup :: (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name,
-                                               Annotate body)
-                   => GHC.SrcSpan -> GHC.MatchGroup name (GHC.Located body)
+markMatchGroup :: (Annotate body)
+                   => GHC.SrcSpan -> GHC.MatchGroup GHC.RdrName (GHC.Located body)
                    -> Annotated ()
 markMatchGroup _ (GHC.MG (GHC.L _ matches) _ _ _)
   = setContextLevel (Set.singleton AdvanceLine) 2 $ markListWithLayout matches
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name,
-                                               Annotate body)
-  => Annotate [GHC.Located (GHC.Match name (GHC.Located body))] where
+instance (Annotate body)
+  => Annotate [GHC.Located (GHC.Match GHC.RdrName (GHC.Located body))] where
   markAST _ ls = mapM_ markLocated ls
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-  => Annotate (GHC.HsExpr name) where
+instance Annotate (GHC.HsExpr GHC.RdrName) where
   markAST loc expr = do
     markExpr loc expr
     inContext (Set.singleton AddVbar) $ mark GHC.AnnVbar
@@ -2085,10 +2047,8 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
         mark GHC.AnnDcolon
         markLHsSigWcType typ
 
-      markExpr _ (GHC.ExprWithTySigOut e typ) = do
-        markLocated e
-        mark GHC.AnnDcolon
-        markLHsSigWcType typ
+      markExpr _ (GHC.ExprWithTySigOut e typ)
+        = error "ExprWithTySigOut only occurs after renamer"
 
       markExpr _ (GHC.ArithSeq _ _ seqInfo) = do
         mark GHC.AnnOpenS -- '['
@@ -2292,8 +2252,7 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
 
 -- ---------------------------------------------------------------------
 
-markLHsWcType :: (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-              => GHC.LHsWcType name -> Annotated ()
+markLHsWcType :: GHC.LHsWcType GHC.RdrName -> Annotated ()
 markLHsWcType (GHC.HsWC _ ty) = do
   markLocated ty
 {-
@@ -2320,8 +2279,7 @@ instance Annotate GHC.HsLit where
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-  => Annotate (GHC.HsRecUpdField name) where
+instance Annotate (GHC.HsRecUpdField GHC.RdrName) where
   markAST _ (GHC.HsRecField lbl expr punFlag) = do
     unsetContext Intercalate $ markLocated lbl
     when (punFlag == False) $ do
@@ -2351,14 +2309,12 @@ instance (GHC.DataId name)
 
 -- |Used for declarations that need to be aligned together, e.g. in a
 -- do or let .. in statement/expr
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-  => Annotate [GHC.ExprLStmt name] where
+instance Annotate [GHC.ExprLStmt GHC.RdrName] where
   markAST _ ls = mapM_ markLocated ls
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-  => Annotate (GHC.HsTupArg name) where
+instance Annotate (GHC.HsTupArg GHC.RdrName) where
   markAST _ (GHC.Present (GHC.L l e)) = do
     markLocated (GHC.L l e)
     inContext (Set.fromList [Intercalate]) $ markOutside GHC.AnnComma (G GHC.AnnComma)
@@ -2368,12 +2324,10 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-  => Annotate (GHC.HsCmdTop name) where
+instance Annotate (GHC.HsCmdTop GHC.RdrName) where
   markAST _ (GHC.HsCmdTop cmd _ _ _) = markLocated cmd
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-   => Annotate (GHC.HsCmd name) where
+instance Annotate (GHC.HsCmd GHC.RdrName) where
   markAST _ (GHC.HsCmdArrApp e1 e2 _ o isRightToLeft) = do
         -- isRightToLeft True  => right-to-left (f -< arg)
         --               False => left-to-right (arg >- f)
@@ -2476,14 +2430,12 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-  => Annotate [GHC.Located (GHC.StmtLR name name (GHC.LHsCmd name))] where
+instance Annotate [GHC.Located (GHC.StmtLR GHC.RdrName GHC.RdrName (GHC.LHsCmd GHC.RdrName))] where
   markAST _ ls = mapM_ markLocated ls
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-     => Annotate (GHC.TyClDecl name) where
+instance Annotate (GHC.TyClDecl GHC.RdrName) where
 
   markAST l (GHC.FamDecl famdecl) = markAST l famdecl >> markTrailingSemi
 
@@ -2605,14 +2557,12 @@ markTyClass ln tyVars = do
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,Annotate name, GHC.OutputableBndrId name,GHC.HasOccName name)
-   => Annotate [GHC.LHsDerivingClause name] where
+instance Annotate [GHC.LHsDerivingClause GHC.RdrName] where
   markAST _ ds = mapM_ markLocated ds
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,Annotate name, GHC.OutputableBndrId name,GHC.HasOccName name)
-   => Annotate (GHC.HsDerivingClause name) where
+instance Annotate (GHC.HsDerivingClause GHC.RdrName) where
   markAST _ (GHC.HsDerivingClause mstrategy (GHC.L _ tys)) = do
     markMaybe mstrategy
     mapM_ markLHsSigType tys
@@ -2638,8 +2588,7 @@ data HsDerivingClause name
 -}
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,Annotate name, GHC.OutputableBndrId name,GHC.HasOccName name)
-   => Annotate (GHC.FamilyDecl name) where
+instance Annotate (GHC.FamilyDecl GHC.RdrName) where
   markAST _ (GHC.FamilyDecl info ln (GHC.HsQTvs _ tyvars _) fix rsig minj) = do
 {-
 data FamilyDecl name = FamilyDecl
@@ -2687,8 +2636,7 @@ data FamilyDecl name = FamilyDecl
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,Annotate name,GHC.OutputableBndrId name,GHC.HasOccName name)
-  => Annotate (GHC.FamilyResultSig name) where
+instance Annotate (GHC.FamilyResultSig GHC.RdrName) where
   markAST _ (GHC.NoSig)        = return ()
   markAST _ (GHC.KindSig k)    = markLocated k
   markAST _ (GHC.TyVarSig ltv) = markLocated ltv
@@ -2704,8 +2652,7 @@ instance (GHC.DataId name,Annotate name)
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,Annotate name,GHC.OutputableBndrId name,GHC.HasOccName name)
-  => Annotate (GHC.TyFamInstEqn name) where
+instance Annotate (GHC.TyFamInstEqn GHC.RdrName) where
   markAST _ (GHC.TyFamEqn ln (GHC.HsIB _ pats) fix typ) = do
     markTyClass ln pats
     -- let
@@ -2722,8 +2669,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndrId name,GHC.HasOccName
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,Annotate name,GHC.OutputableBndrId name,GHC.HasOccName name)
-  => Annotate (GHC.TyFamDefltEqn name) where
+instance Annotate (GHC.TyFamDefltEqn GHC.RdrName) where
   markAST _ (GHC.TyFamEqn ln (GHC.HsQTvs _ns bndrs _) fix typ) = do
     mark GHC.AnnType
     mark GHC.AnnInstance
@@ -2749,8 +2695,7 @@ instance Annotate GHC.DocDecl where
 
 -- ---------------------------------------------------------------------
 
-markDataDefn :: (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-  => GHC.SrcSpan -> GHC.HsDataDefn name -> Annotated ()
+markDataDefn :: GHC.SrcSpan -> GHC.HsDataDefn GHC.RdrName -> Annotated ()
 markDataDefn _ (GHC.HsDataDefn _ ctx typ _mk cons derivs) = do
   markLocated ctx
   markMaybe typ
@@ -2762,8 +2707,7 @@ markDataDefn _ (GHC.HsDataDefn _ ctx typ _mk cons derivs) = do
 -- ---------------------------------------------------------------------
 
 -- Note: GHC.HsContext name aliases to here too
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-     => Annotate [GHC.LHsType name] where
+instance Annotate [GHC.LHsType GHC.RdrName] where
   markAST l ts = do
     -- Mote: A single item in parens in a deriving clause is parsed as a
     -- HsSigType, which is always a HsForAllTy. Without parens it is always a
@@ -2805,8 +2749,7 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,Annotate name,GHC.OutputableBndrId name,GHC.HasOccName name)
-      => Annotate (GHC.ConDecl name) where
+instance Annotate (GHC.ConDecl GHC.RdrName) where
   markAST _ (GHC.ConDeclH98 ln mqtvs mctx
                          dets _ ) = do
 {-
@@ -2881,8 +2824,7 @@ instance Annotate WildCardAnon where
 
 -- ---------------------------------------------------------------------
 
-instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate name)
-  => Annotate (ResTyGADTHook name) where
+instance Annotate (ResTyGADTHook GHC.RdrName) where
   markAST _ (ResTyGADTHook bndrs) = do
     unless (null bndrs) $ do
       mark GHC.AnnForall
@@ -2891,8 +2833,7 @@ instance (GHC.DataId name,GHC.OutputableBndrId name,GHC.HasOccName name,Annotate
 
 -- ---------------------------------------------------------------------
 
-instance (Annotate name, GHC.DataId name, GHC.OutputableBndrId name,GHC.HasOccName name)
-  => Annotate (GHC.HsRecField name (GHC.LPat name)) where
+instance Annotate (GHC.HsRecField GHC.RdrName (GHC.LPat GHC.RdrName)) where
   markAST _ (GHC.HsRecField n e punFlag) = do
     unsetContext Intercalate $ markLocated n
     unless punFlag $ do
@@ -2901,8 +2842,7 @@ instance (Annotate name, GHC.DataId name, GHC.OutputableBndrId name,GHC.HasOccNa
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 
-instance (Annotate name, GHC.DataId name, GHC.OutputableBndrId name,GHC.HasOccName name)
-  => Annotate (GHC.HsRecField name (GHC.LHsExpr name)) where
+instance Annotate (GHC.HsRecField GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
   markAST _ (GHC.HsRecField n e punFlag) = do
     unsetContext Intercalate $ markLocated n
     unless punFlag $ do
