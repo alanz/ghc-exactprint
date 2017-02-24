@@ -46,7 +46,9 @@ testDirs =
   case ghcVersion of
     GHC710 -> ["ghc710-only","ghc710"]
     GHC80  -> ["ghc710", "ghc80"]
-    GHC82  -> ["ghc710", "ghc80", "ghc82"]
+    -- GHC82  -> ["ghc710", "ghc80", "ghc82"]
+    -- GHC82  -> ["ghc82-ghc-test"]
+    GHC82  -> ["ghc82"]
 
 -- ---------------------------------------------------------------------
 
@@ -156,8 +158,8 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
       -- mkPrettyRoundtrip "ghc80" "pmc007.hs"
 
-      mkParserTest "ghc710" "TemplateHaskell.hs"
-      -- mkParserTest "ghc80" "Families.hs"
+      -- mkParserTest "ghc710" "TemplateHaskell.hs"
+      mkParserTest "ghc82" "AssocTyDef02.hs"
 
    -- Needs GHC changes
       -- , mkParserTest "failing" "CtorOp.hs"

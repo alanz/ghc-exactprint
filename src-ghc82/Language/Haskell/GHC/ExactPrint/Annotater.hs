@@ -1206,6 +1206,22 @@ instance Annotate (GHC.Sig GHC.RdrName) where
     markLocated formula
     markWithString GHC.AnnClose "#-}"
     markTrailingSemi
+{-
+  | SCCFunSig  SourceText      -- Note [Pragma source text] in BasicTypes
+               (Located name)  -- Function name
+               (Maybe StringLiteral)
+-}
+
+  markAST _ (GHC.CompleteMatchSig src (GHC.L _ ns) mlns) = do
+    markAnnOpen src "{-# COMPLETE"
+    mapM_ markLocated ns
+    mark GHC.AnnDcolon
+    markMaybe mlns
+    markWithString GHC.AnnClose "#-}" -- '#-}'
+    markTrailingSemi
+{-
+  | CompleteMatchSig SourceText (Located [Located name]) (Maybe (Located name))
+-}
 
 -- --------------------------------------------------------------------
 
@@ -1288,6 +1304,7 @@ instance Annotate (GHC.HsType GHC.RdrName) where
 
     markType _ (GHC.HsAppsTy ts) = do
       mapM_ markLocated ts
+      inContext (Set.fromList [AddVbar]) $ mark GHC.AnnVbar
 
     markType _ (GHC.HsAppTy t1 t2) = do
       setContext (Set.singleton PrefixOp) $ markLocated t1
@@ -1316,6 +1333,13 @@ instance Annotate (GHC.HsType GHC.RdrName) where
       case tt  of
         GHC.HsBoxedOrConstraintTuple -> mark GHC.AnnCloseP  -- ')'
         _                            -> markWithString GHC.AnnClose "#)" -- '#)'
+
+    markType _ (GHC.HsSumTy tys) = do
+      markWithString GHC.AnnOpen "(#"
+      -- mapM_ markLocated tys
+      markListIntercalateWithFunLevelCtx markLocated 2 AddVbar tys
+      markWithString GHC.AnnClose "#)"
+  --  HsSumTy             [LHsType name]  -- Element types (length gives arity)
 
     markType _ (GHC.HsOpTy t1 lo t2) = do
     -- HsOpTy              (LHsType name) (Located name) (LHsType name)
@@ -1533,6 +1557,22 @@ instance Annotate (GHC.Pat GHC.RdrName) where
         if b == GHC.Boxed then mark GHC.AnnCloseP
                           else markWithString GHC.AnnClose "#)"
 
+      markPat _ (GHC.SumPat pat alt arity _) = do
+        markWithString GHC.AnnOpen "(#"
+        replicateM_ (alt - 1) $ mark GHC.AnnVbar
+        markLocated pat
+        replicateM_ (arity - alt) $ mark GHC.AnnVbar
+        markWithString GHC.AnnClose "#)"
+{-
+    SumPat      (LPat id)          -- Sum sub-pattern
+                ConTag             -- Alternative (one-based)
+                Arity              -- Arity
+                (PostTc id [Type]) -- PlaceHolder before typechecker, filled in
+                                   -- afterwards with the types of the
+                                   -- alternative
+    -- ^ Anonymous sum pattern
+
+-}
       markPat _ (GHC.PArrPat ps _) = do
         markWithString GHC.AnnOpen "[:"
         mapM_ markLocated ps
@@ -1917,7 +1957,25 @@ instance Annotate (GHC.HsExpr GHC.RdrName) where
         if b == GHC.Boxed then mark GHC.AnnCloseP
                           else markWithString GHC.AnnClose "#)"
 
+      markExpr _ (GHC.ExplicitSum alt arity expr _) = do
+        markWithString GHC.AnnOpen "(#"
+        replicateM_ (alt - 1) $ mark GHC.AnnVbar
+        markLocated expr
+        replicateM_ (arity - alt) $ mark GHC.AnnVbar
+        markWithString GHC.AnnClose "#)"
+{-
+ppr_expr (ExplicitSum alt arity expr _)
+  = text "(#" <+> ppr_bars (alt - 1) <+> ppr expr <+> ppr_bars (arity - alt) <+> text "#)"
+  where
+    ppr_bars n = hsep (replicate n (char '|'))
 
+  | ExplicitSum
+          ConTag --  Alternative (one-based)
+          Arity  --  Sum arity
+          (LHsExpr id)
+          (PostTc id [Type])   -- the type arguments
+
+-}
       markExpr l (GHC.HsCase e1 matches) = setRigidFlag $ do
         mark GHC.AnnCase
         setContextLevel (Set.singleton PrefixOp) 2 $ markLocated e1
@@ -1998,7 +2056,8 @@ instance Annotate (GHC.HsExpr GHC.RdrName) where
 
       markExpr _ (GHC.ExplicitPArr _ es)   = do
         markWithString GHC.AnnOpen "[:"
-        mapM_ markLocated es
+        -- mapM_ markLocated es
+        markListIntercalateWithFunLevel markLocated 2 es
         markWithString GHC.AnnClose ":]"
 
       markExpr _ (GHC.RecordCon n _ _ (GHC.HsRecFields fs dd)) = do
