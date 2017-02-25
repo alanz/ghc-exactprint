@@ -2274,7 +2274,11 @@ ppr_expr (ExplicitSum alt arity expr _)
         markLocated e
 
       markExpr l GHC.EWildPat = do
-        markExternal l GHC.AnnVal "_"
+        ifInContext (Set.fromList [InfixOp])
+          (do  mark GHC.AnnBackquote
+               markWithString GHC.AnnVal "_"
+               mark GHC.AnnBackquote)
+          (markExternal l GHC.AnnVal "_")
 
       markExpr _ (GHC.EAsPat ln e) = do
         markLocated ln
