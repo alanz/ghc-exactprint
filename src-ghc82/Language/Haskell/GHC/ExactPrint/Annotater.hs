@@ -1139,14 +1139,13 @@ instance Annotate (GHC.Sig GHC.RdrName) where
 
   markAST _ (GHC.PatSynSig lns (GHC.HsIB _ typ)) = do
     mark GHC.AnnPattern
-    mapM_ markLocated lns
+    markListIntercalate lns
     mark GHC.AnnDcolon
     markLocated typ
     markTrailingSemi
 
   markAST _ (GHC.ClassOpSig isDefault ns (GHC.HsIB _ typ)) = do
     when isDefault $ mark GHC.AnnDefault
-    -- markListIntercalate ns
     setContext (Set.singleton PrefixOp) $ markListIntercalate ns
     mark GHC.AnnDcolon
     markLocated typ
@@ -1201,9 +1200,15 @@ instance Annotate (GHC.Sig GHC.RdrName) where
 
   -- MinimalSig (BooleanFormula (Located name))
   markAST _ (GHC.MinimalSig src formula) = do
-    -- markWithString GHC.AnnOpen src
     markAnnOpen src "{-# MINIMAL"
     markLocated formula
+    markWithString GHC.AnnClose "#-}"
+    markTrailingSemi
+
+  markAST _ (GHC.SCCFunSig src ln ml) = do
+    markAnnOpen src "{-# SCC"
+    markLocated ln
+    markMaybe ml
     markWithString GHC.AnnClose "#-}"
     markTrailingSemi
 {-
