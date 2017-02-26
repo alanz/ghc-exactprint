@@ -257,25 +257,7 @@ instance (GHC.DataId name,GHC.HasOccName name, Annotate name)
         (GHC.IEVar ln) -> markLocated ln
 
         (GHC.IEThingAbs ln@(GHC.L _ n)) -> do
-          {-
-          At the moment (7.10.2) GHC does not cleanly represent an export of the form
-           "type Foo"
-          and it only captures the name "Foo".
-
-          The Api Annotations workaround is to have the IEThingAbs SrcSpan
-          extend across both the "type" and "Foo", and then to capture the
-          individual item locations in an AnnType and AnnVal annotation.
-
-          This need to be fixed for 7.12.
-
-          -}
-
-          if ((GHC.isTcOcc $ GHC.occName n) && (GHC.isSymOcc $ GHC.occName n))
-                 && (not $ GHC.isLexConSym $ GHC.occNameFS $ GHC.occName n) -- rule out (:-$) etc
-            then do
-              mark GHC.AnnType
-              setContext (Set.singleton PrefixOp) $ markLocatedFromKw GHC.AnnVal ln
-            else setContext (Set.singleton PrefixOp) $ markLocated ln
+          setContext (Set.singleton PrefixOp) $ markLocated ln
 
         (GHC.IEThingWith ln wc ns _lfs) -> do
           setContext (Set.singleton PrefixOp) $ markLocated ln
@@ -320,7 +302,7 @@ instance (GHC.DataId name,GHC.HasOccName name, Annotate name)
 instance (GHC.DataId name,GHC.HasOccName name, Annotate name)
   => Annotate (GHC.IEWrappedName name) where
   markAST _ (GHC.IEName ln) = do
-    markLocated ln
+    setContext (Set.singleton PrefixOp) $ markLocated ln
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
   markAST _ (GHC.IEPattern ln) = do
     mark GHC.AnnPattern
@@ -387,8 +369,6 @@ instance Annotate GHC.RdrName where
               -- TODO: unicode support?
                         "forall" -> if spanLength l == 1 then "∀" else str
                         _ -> str
-        when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
-        markOptional GHC.AnnType
         let str'' = if isSym && (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n)
               then -- Horrible hack until GHC 8.2 with https://phabricator.haskell.org/D3016
                   if spanLength l - length str' > 6 -- length of "type" + 2 parens
@@ -1363,7 +1343,6 @@ instance Annotate (GHC.HsType GHC.RdrName) where
       mark GHC.AnnCloseP -- ')'
 
     markType _ (GHC.HsIParamTy n t) = do
-      markWithString GHC.AnnVal "?"
       markLocated n
       mark GHC.AnnDcolon
       markLocated t
@@ -1478,7 +1457,7 @@ instance Annotate (GHC.HsSplice GHC.RdrName) where
 
       GHC.HsUntypedSplice hasParens _n b  -> do
         case hasParens of
-          GHC.NoParens  -> mark GHC.AnnThIdSplice
+          GHC.NoParens  -> markOptional GHC.AnnThIdSplice
           GHC.HasParens -> mark GHC.AnnOpenPE
         markLocated b
         when (hasParens == GHC.HasParens) $ mark GHC.AnnCloseP
@@ -1885,11 +1864,10 @@ instance Annotate (GHC.HsExpr GHC.RdrName) where
 
       markExpr l (GHC.HsOverLabel _ fs)
         = markExternal l GHC.AnnVal ("#" ++ GHC.unpackFS fs)
-      --  HsOverLabel (Maybe id) FastString
 
 
-      markExpr l (GHC.HsIPVar (GHC.HsIPName v))         =
-        markExternal l GHC.AnnVal ("?" ++ GHC.unpackFS v)
+      markExpr l (GHC.HsIPVar n@(GHC.HsIPName _v))         =
+        markAST l n
       markExpr l (GHC.HsOverLit ov)     = markAST l ov
       markExpr l (GHC.HsLit lit)        = markAST l lit
 
@@ -2137,14 +2115,10 @@ ppr_expr (ExplicitSum alt arity expr _)
         markWithString GHC.AnnClose ":]" -- ':]'
 
       markExpr _ (GHC.HsSCC src csFStr e) = do
-        -- markWithString GHC.AnnOpen src -- "{-# SCC"
         markAnnOpen src "{-# SCC"
-        -- markWithStringOptional GHC.AnnVal    (GHC.sl_st csFStr)
-        -- markWithString         GHC.AnnValStr (GHC.sl_st csFStr)
         let txt = sourceTextToString (GHC.sl_st csFStr) (GHC.unpackFS $ GHC.sl_fs csFStr)
         markWithStringOptional GHC.AnnVal    txt
         markWithString         GHC.AnnValStr txt
-        markSourceText (GHC.sl_st csFStr) (GHC.unpackFS $ GHC.sl_fs csFStr)
         markWithString GHC.AnnClose "#-}"
         markLocated e
 
@@ -2602,11 +2576,16 @@ instance Annotate [GHC.LHsDerivingClause GHC.RdrName] where
 
 instance Annotate (GHC.HsDerivingClause GHC.RdrName) where
   markAST _ (GHC.HsDerivingClause mstrategy (GHC.L _ typs)) = do
+    let needsParens = case typs of
+          [(GHC.HsIB _ (GHC.L _ (GHC.HsTyVar _ _)))] -> False
+          _                           -> True
     mark GHC.AnnDeriving
     markMaybe mstrategy
-    mark GHC.AnnOpenP
+    if needsParens then mark         GHC.AnnOpenP
+                   else markOptional GHC.AnnOpenP
     markListIntercalateWithFunLevel markLHsSigType 2 typs
-    mark GHC.AnnCloseP
+    if needsParens then mark         GHC.AnnCloseP
+                   else markOptional GHC.AnnCloseP
 
 {-
 data HsDerivingClause name

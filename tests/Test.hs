@@ -46,9 +46,10 @@ testDirs =
   case ghcVersion of
     GHC710 -> ["ghc710-only","ghc710"]
     GHC80  -> ["ghc710", "ghc80"]
-    -- GHC82  -> ["ghc710", "ghc80", "ghc82"]
+    GHC82  -> ["ghc710", "ghc80", "ghc82"]
     -- GHC82  -> ["ghc82-ghc-test"]
-    GHC82  -> ["ghc82"]
+    -- GHC82  -> ["ghc82-ghc-backups-rename"]
+    -- GHC82  -> ["ghc82"]
 
 -- ---------------------------------------------------------------------
 
@@ -104,7 +105,8 @@ mkTests = do
   prettyRoundTripTests <- findPrettyTests
   return $ TestList [
                       internalTests, roundTripTests, transformTests, failingTests, noAnnotationTests
-                    -- , prettyRoundTripTests
+                    ,
+                      prettyRoundTripTests
                     ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -157,9 +159,9 @@ tt' :: IO (Counts,Int)
 tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
       -- mkPrettyRoundtrip "ghc80" "pmc007.hs"
+      mkPrettyRoundtrip "ghc710" "SpacesSplice.hs"
 
-      -- mkParserTest "ghc710" "TemplateHaskell.hs"
-      mkParserTest "ghc82" "AssocTyDef02.hs"
+      -- mkParserTest "ghc710" "SpacesSplice.hs"
 
    -- Needs GHC changes
       -- , mkParserTest "failing" "CtorOp.hs"

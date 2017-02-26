@@ -204,6 +204,7 @@ addPrettyAnnotation ann = do
            (G GHC.AnnAs)        -> tellKd (ann,DP (0,1))
            (G GHC.AnnAt)        -> tellKd (ann,DP (0,1))
            (G GHC.AnnBang)      -> tellKd (ann,DP (0,1))
+           (G GHC.AnnBackquote) -> tellKd (ann,DP (0,1))
            (G GHC.AnnBy)        -> tellKd (ann,DP (0,1))
            (G GHC.AnnCase )     -> tellKd (ann,DP (0,1))
            (G GHC.AnnClass)     -> tellKd (ann,DP (0,1))
@@ -249,7 +250,8 @@ addPrettyAnnotation ann = do
 -- ---------------------------------------------------------------------
 
 addPrettyAnnotationsOutside :: GHC.AnnKeywordId -> KeywordId -> Pretty ()
-addPrettyAnnotationsOutside _akwid _kwid = return ()
+addPrettyAnnotationsOutside _akwid AnnSemiSep = return ()
+addPrettyAnnotationsOutside _akwid kwid = addPrettyAnnotation kwid
 
 -- ---------------------------------------------------------------------
 
