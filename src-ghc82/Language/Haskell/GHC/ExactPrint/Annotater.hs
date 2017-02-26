@@ -2185,7 +2185,7 @@ ppr_expr (ExplicitSum alt arity expr _)
       markExpr _ (GHC.HsBracket (GHC.TypBr e)) = do
         markWithString GHC.AnnOpen "[t|"
         markLocated e
-        markWithString GHC.AnnClose "|]"
+        mark GHC.AnnCloseQ -- "|]"
       markExpr _ (GHC.HsBracket (GHC.PatBr e)) = do
         markWithString GHC.AnnOpen  "[p|"
         markLocated e
