@@ -2505,9 +2505,7 @@ instance Annotate (GHC.TyClDecl GHC.RdrName) where
       then mark GHC.AnnData
       else mark GHC.AnnNewtype
     markMaybe mctyp
-    if null (GHC.unLoc ctx)
-      then markOptional GHC.AnnDarrow
-      else markLocated ctx
+    markLocated ctx
     markTyClass ln tyVars
     case mk of
       Nothing -> return ()
@@ -2530,7 +2528,7 @@ instance Annotate (GHC.TyClDecl GHC.RdrName) where
   markAST _ (GHC.ClassDecl ctx ln (GHC.HsQTvs _ns tyVars _) fixity fds
                           sigs meths ats atdefs docs _) = do
     mark GHC.AnnClass
-    unless (null $ GHC.unLoc ctx) $ markLocated ctx
+    markLocated ctx
 
     markTyClass ln tyVars
 
