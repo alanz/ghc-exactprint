@@ -624,7 +624,12 @@ unicodeEquivalent kw =
       , (GHC.Annlarrowtail, GHC.AnnlarrowtailU)
       , (GHC.Annrarrowtail, GHC.AnnrarrowtailU)
       , (GHC.AnnLarrowtail, GHC.AnnLarrowtailU)
-      , (GHC.AnnRarrowtail, GHC.AnnRarrowtailU)]
+      , (GHC.AnnRarrowtail, GHC.AnnRarrowtailU)
+      , (GHC.AnnCloseB,     GHC.AnnCloseBU)
+      , (GHC.AnnCloseQ,     GHC.AnnCloseQU)
+      , (GHC.AnnOpenB,      GHC.AnnOpenBU)
+      , (GHC.AnnOpenEQ,     GHC.AnnOpenEQU)
+      ]
 #endif
 
 

@@ -1451,6 +1451,7 @@ instance Annotate (GHC.HsSplice GHC.RdrName) where
     case c of
       GHC.HsQuasiQuote _ n _pos fs -> do
         markExternal l GHC.AnnVal
+              -- Note: Lexer.x does not provide unicode alternative. 2017-02-26
               ("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS fs) ++ "|]")
 
       GHC.HsTypedSplice hasParens _n b@(GHC.L _ (GHC.HsVar (GHC.L _ n)))  -> do
@@ -2167,15 +2168,15 @@ ppr_expr (ExplicitSum alt arity expr _)
         setContext (Set.singleton NoAdvanceLine)
              $ setContextLevel (Set.singleton TopLevel) 2 $ markListWithLayout ds
         markOptional GHC.AnnCloseC
-        markWithString GHC.AnnClose "|]"
+        mark GHC.AnnCloseQ -- "|]"
       -- Introduced after the renamer
       markExpr _ (GHC.HsBracket (GHC.DecBrG _)) =
         traceM "warning: DecBrG introduced after renamer"
       markExpr _l (GHC.HsBracket (GHC.ExpBr e)) = do
-        markWithString GHC.AnnOpen "[|"
+        mark GHC.AnnOpenEQ -- "[|"
         markOptional GHC.AnnOpenE  -- "[e|"
         markLocated e
-        markWithString GHC.AnnClose "|]"
+        mark GHC.AnnCloseQ -- "|]"
       markExpr _l (GHC.HsBracket (GHC.TExpBr e)) = do
         markWithString GHC.AnnOpen  "[||"
         markWithStringOptional GHC.AnnOpenE "[e||"
@@ -2188,7 +2189,7 @@ ppr_expr (ExplicitSum alt arity expr _)
       markExpr _ (GHC.HsBracket (GHC.PatBr e)) = do
         markWithString GHC.AnnOpen  "[p|"
         markLocated e
-        markWithString GHC.AnnClose "|]"
+        mark GHC.AnnCloseQ -- "|]"
 
       markExpr _ (GHC.HsRnBracketOut _ _) =
         traceM "warning: HsRnBracketOut introduced after renamer"
@@ -2411,13 +2412,14 @@ instance Annotate (GHC.HsCmd GHC.RdrName) where
     let isPrefixOp = case fixity of
           GHC.Infix  -> False
           GHC.Prefix -> True
-    when isPrefixOp $ markWithString GHC.AnnOpen "(|"
+    when isPrefixOp $ mark GHC.AnnOpenB -- "(|"
+
     -- This may be an infix operation
     applyListAnnotationsContexts (LC (Set.singleton PrefixOp) (Set.singleton PrefixOp)
                                      (Set.singleton InfixOp) (Set.singleton InfixOp))
                        (prepareListAnnotation [e]
                          ++ prepareListAnnotation cs)
-    when isPrefixOp $ markWithString GHC.AnnClose "|)"
+    when isPrefixOp $ mark GHC.AnnCloseB -- "|)"
 
   markAST _ (GHC.HsCmdApp e1 e2) = do
     markLocated e1

@@ -49,8 +49,16 @@ keywordToString kw =
       (G GHC.AnnBy     ) -> "by"
       (G GHC.AnnCase   ) -> "case"
       (G GHC.AnnClass   ) -> "class"
+#if __GLASGOW_HASKELL__ >= 801
+      (G GHC.AnnCloseB  ) -> "|)"
+      (G GHC.AnnCloseBU ) -> "⦈"
+#endif
       (G GHC.AnnCloseC  ) -> "}"
       (G GHC.AnnCloseP  ) -> ")"
+#if __GLASGOW_HASKELL__ >= 801
+      (G GHC.AnnCloseQ  ) -> "|]"
+      (G GHC.AnnCloseQU ) -> "⟧"
+#endif
       (G GHC.AnnCloseS  ) -> "]"
       (G GHC.AnnColon   ) -> ":"
       (G GHC.AnnComma   ) -> ","
@@ -83,9 +91,17 @@ keywordToString kw =
       (G GHC.AnnModule   ) -> "module"
       (G GHC.AnnNewtype  ) -> "newtype"
       (G GHC.AnnOf       ) -> "of"
+#if __GLASGOW_HASKELL__ >= 801
+      (G GHC.AnnOpenB    ) -> "(|"
+      (G GHC.AnnOpenBU   ) ->  "⦇"
+#endif
       (G GHC.AnnOpenC    ) -> "{"
 #if __GLASGOW_HASKELL__ > 710
       (G GHC.AnnOpenE    ) -> "[e|"
+#endif
+#if __GLASGOW_HASKELL__ >= 801
+      (G GHC.AnnOpenEQ   ) -> "[|"
+      (G GHC.AnnOpenEQU  ) ->  "⟦"
 #endif
       (G GHC.AnnOpenP    ) -> "("
       (G GHC.AnnOpenPE   ) -> "$("
@@ -151,7 +167,8 @@ unicodeChars =
       , (G GHC.AnnRarrow, "→")
       , (G GHC.AnnRarrowtail, "⤜")
       , (G GHC.Annlarrowtail, "⤙")
-      , (G GHC.Annrarrowtail, "⤚")]
+      , (G GHC.Annrarrowtail, "⤚")
+      ]
 
 {-
 From Lexer.x
