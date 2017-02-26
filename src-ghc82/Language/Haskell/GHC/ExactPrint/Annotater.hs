@@ -1219,7 +1219,7 @@ instance Annotate (GHC.Sig GHC.RdrName) where
 
   markAST _ (GHC.CompleteMatchSig src (GHC.L _ ns) mlns) = do
     markAnnOpen src "{-# COMPLETE"
-    mapM_ markLocated ns
+    markListIntercalate ns
     mark GHC.AnnDcolon
     markMaybe mlns
     markWithString GHC.AnnClose "#-}" -- '#-}'
