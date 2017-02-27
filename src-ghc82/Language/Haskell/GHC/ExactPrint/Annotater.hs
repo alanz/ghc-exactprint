@@ -302,15 +302,15 @@ instance (GHC.DataId name,GHC.HasOccName name, Annotate name)
   => Annotate (GHC.IEWrappedName name) where
   markAST _ (GHC.IEName ln) = do
     unsetContext Intercalate $ setContext (Set.fromList [PrefixOp])
-      $ setContext (Set.singleton PrefixOp) $ markLocated ln
+      $ markLocated ln
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
   markAST _ (GHC.IEPattern ln) = do
     mark GHC.AnnPattern
-    markLocated ln
+    setContext (Set.singleton PrefixOp) $ markLocated ln
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
   markAST _ (GHC.IEType ln) = do
     mark GHC.AnnType
-    markLocated ln
+    setContext (Set.singleton PrefixOp) $ markLocated ln
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 {-
 data IEWrappedName name
@@ -2512,10 +2512,6 @@ instance Annotate (GHC.TyClDecl GHC.RdrName) where
 markTyClass :: (Annotate a, Annotate ast,GHC.HasOccName a)
                 => GHC.LexicalFixity -> GHC.Located a -> [GHC.Located ast] -> Annotated ()
 markTyClass fixity ln tyVars = do
-    -- let markParens = if fixity == GHC.Infix && length tyVars > 2
-    --       then markMany
-    --       else markManyOptional
-    -- markParens GHC.AnnOpenP
     if fixity == GHC.Prefix
       then do
         markManyOptional GHC.AnnOpenP
@@ -2523,14 +2519,19 @@ markTyClass fixity ln tyVars = do
         setContext (Set.singleton PrefixOp) $ mapM_ markLocated tyVars
         markManyOptional GHC.AnnCloseP
       else do
+        let markParens = if fixity == GHC.Infix && length tyVars > 2
+              then markMany
+              else markManyOptional
+        -- markParens GHC.AnnOpenP
         case tyVars of
           (x:y:xs) -> do
-            markManyOptional GHC.AnnOpenP
+            -- markManyOptional GHC.AnnOpenP
+            markParens GHC.AnnOpenP
             markLocated x
             setContext (Set.singleton InfixOp) $ markLocated ln
             markLocated y
-            markManyOptional GHC.AnnCloseP
-            -- markParens GHC.AnnCloseP
+            -- markManyOptional GHC.AnnCloseP
+            markParens GHC.AnnCloseP
             mapM_ markLocated xs
             markManyOptional GHC.AnnCloseP
           _ -> error $ "markTyClass: Infix op without operands"

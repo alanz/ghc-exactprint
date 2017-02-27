@@ -159,9 +159,9 @@ tt' :: IO (Counts,Int)
 tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
       -- mkPrettyRoundtrip "ghc80" "pmc007.hs"
-      mkPrettyRoundtrip "ghc710" "SlidingTypeSyn.hs"
+      mkPrettyRoundtrip "ghc80" "T11959.hs"
 
-      -- mkParserTest "ghc710" "SlidingTypeSyn.hs"
+      -- mkParserTest "ghc80" "T11959.hs"
 
    -- Needs GHC changes
       -- , mkParserTest "failing" "CtorOp.hs"
