@@ -2606,7 +2606,7 @@ instance Annotate (GHC.FamilyDecl GHC.RdrName) where
 
     mark GHC.AnnFamily
 
-    markTyClass ln tyvars
+    markTyClass fixity ln tyvars
     case GHC.unLoc rsig of
       GHC.NoSig -> return ()
       GHC.KindSig _ -> do
