@@ -41,7 +41,6 @@ import qualified CoAxiom        as GHC
 import qualified FastString     as GHC
 import qualified ForeignCall    as GHC
 import qualified GHC            as GHC
-import qualified Lexeme         as GHC
 import qualified Name           as GHC
 import qualified RdrName        as GHC
 import qualified Outputable     as GHC
@@ -254,12 +253,12 @@ instance (GHC.DataId name,GHC.HasOccName name, Annotate name)
   markAST _ ie = do
 
     case ie of
-        (GHC.IEVar ln) -> markLocated ln
+        GHC.IEVar ln -> markLocated ln
 
-        (GHC.IEThingAbs ln@(GHC.L _ n)) -> do
+        GHC.IEThingAbs ln -> do
           setContext (Set.singleton PrefixOp) $ markLocated ln
 
-        (GHC.IEThingWith ln wc ns _lfs) -> do
+        GHC.IEThingWith ln wc ns _lfs -> do
           setContext (Set.singleton PrefixOp) $ markLocated ln
           mark GHC.AnnOpenP
           case wc of
@@ -548,7 +547,7 @@ instance Annotate (GHC.SpliceDecl GHC.RdrName) where
   markAST _ (GHC.SpliceDecl e@(GHC.L _ (GHC.HsQuasiQuote{})) _flag) = do
     markLocated e
     markTrailingSemi
-  markAST _ (GHC.SpliceDecl e flag) = do
+  markAST _ (GHC.SpliceDecl e _flag) = do
     markLocated e
     markTrailingSemi
 
@@ -918,7 +917,7 @@ instance Annotate (GHC.DataFamInstDecl GHC.RdrName) where
 
     markLocated ctx
 
-    markTyClass ln pats
+    markTyClass fixity ln pats
 
     case (GHC.dd_kindSig defn) of
       Just s -> do
@@ -1447,8 +1446,9 @@ instance Annotate (GHC.HsSplice GHC.RdrName) where
 
       GHC.HsUntypedSplice hasParens _n b  -> do
         case hasParens of
-          GHC.NoParens  -> markOptional GHC.AnnThIdSplice
           GHC.HasParens -> mark GHC.AnnOpenPE
+          GHC.HasDollar -> mark GHC.AnnThIdSplice
+          GHC.NoParens  -> return ()
         markLocated b
         when (hasParens == GHC.HasParens) $ mark GHC.AnnCloseP
 
@@ -1931,10 +1931,10 @@ instance Annotate (GHC.HsExpr GHC.RdrName) where
         if b == GHC.Boxed then mark GHC.AnnCloseP
                           else markWithString GHC.AnnClose "#)"
 
-      markExpr _ (GHC.ExplicitSum alt arity expr _) = do
+      markExpr _ (GHC.ExplicitSum alt arity e _) = do
         markWithString GHC.AnnOpen "(#"
         replicateM_ (alt - 1) $ mark GHC.AnnVbar
-        markLocated expr
+        markLocated e
         replicateM_ (arity - alt) $ mark GHC.AnnVbar
         markWithString GHC.AnnClose "#)"
 {-
@@ -2271,6 +2271,9 @@ ppr_expr (ExplicitSum alt arity expr _)
       markExpr _ (GHC.HsUnboundVar _) =
         traceM "warning: HsUnboundVar introduced after renaming"
 
+      markExpr _ (GHC.HsConLikeOut{}) =
+        traceM "warning: HsConLikeOut introduced after type checking"
+
 
 -- ---------------------------------------------------------------------
 
@@ -2458,7 +2461,7 @@ instance Annotate (GHC.TyClDecl GHC.RdrName) where
     -- annotationsToComments [GHC.AnnOpenP,GHC.AnnCloseP]
     mark GHC.AnnType
 
-    markTyClass ln tyvars
+    markTyClass fixity ln tyvars
     mark GHC.AnnEqual
     markLocated typ
     markTrailingSemi
@@ -2470,7 +2473,7 @@ instance Annotate (GHC.TyClDecl GHC.RdrName) where
       else mark GHC.AnnNewtype
     markMaybe mctyp
     markLocated ctx
-    markTyClass ln tyVars
+    markTyClass fixity ln tyVars
     case mk of
       Nothing -> return ()
       Just k -> do
@@ -2494,7 +2497,7 @@ instance Annotate (GHC.TyClDecl GHC.RdrName) where
     mark GHC.AnnClass
     markLocated ctx
 
-    markTyClass ln tyVars
+    markTyClass fixity ln tyVars
 
     unless (null fds) $ do
       mark GHC.AnnVbar
@@ -2519,42 +2522,22 @@ instance Annotate (GHC.TyClDecl GHC.RdrName) where
 -- ---------------------------------------------------------------------
 
 markTyClass :: (Annotate a, Annotate ast,GHC.HasOccName a)
-                => GHC.Located a -> [GHC.Located ast] -> Annotated ()
-markTyClass ln tyVars = do
+                => GHC.LexicalFixity -> GHC.Located a -> [GHC.Located ast] -> Annotated ()
+markTyClass fixity ln tyVars = do
     markManyOptional GHC.AnnOpenP
-
-    let
-      parensNeeded = GHC.isSymOcc (GHC.occName $ GHC.unLoc ln) && length tyVars > 2
-      lnFun = do
-        ifInContext (Set.singleton CtxMiddle)
-                      (setContext (Set.singleton InfixOp) $ markLocated ln)
-                      (markLocated ln)
-      listFun b = do
-        if parensNeeded
-          then ifInContext (Set.singleton (CtxPos 0))
-                      (markMany GHC.AnnOpenP)
-                      (return ())
-          else ifInContext (Set.singleton (CtxPos 0))
-                      (markManyOptional GHC.AnnOpenP)
-                      (return ())
-
-        markLocated b
-
-        if parensNeeded
-          then ifInContext (Set.singleton (CtxPos 2))
-                      (markMany GHC.AnnCloseP)
-                      (return ())
-          else ifInContext (Set.singleton (CtxPos 2))
-                      (markManyOptional GHC.AnnCloseP)
-                      (return ())
-
-      prepareListFun ls = map (\b -> (GHC.getLoc b, listFun b )) ls
-
-    unsetContext CtxMiddle $
-      applyListAnnotationsContexts (LC (Set.fromList [CtxOnly,PrefixOp]) (Set.fromList [CtxFirst,PrefixOp])
-                                        (Set.singleton CtxMiddle) (Set.singleton CtxLast))
-                               ([(GHC.getLoc ln,lnFun)]
-                             ++ prepareListFun tyVars)
+    if fixity == GHC.Prefix
+      then do
+        setContext (Set.singleton PrefixOp) $ markLocated ln
+        setContext (Set.singleton PrefixOp) $ mapM_ markLocated tyVars
+      else do
+        case tyVars of
+          (x:y:xs) -> do
+            markLocated x
+            setContext (Set.singleton InfixOp) $ markLocated ln
+            markLocated y
+            markManyOptional GHC.AnnCloseP
+            mapM_ markLocated xs
+          _ -> error $ "markTyClass: Infix op without operands"
     markManyOptional GHC.AnnCloseP
 
 -- ---------------------------------------------------------------------
@@ -2654,7 +2637,7 @@ instance (GHC.DataId name,Annotate name)
 
 instance Annotate (GHC.TyFamInstEqn GHC.RdrName) where
   markAST _ (GHC.TyFamEqn ln (GHC.HsIB _ pats) fixity typ) = do
-    markTyClass ln pats
+    markTyClass fixity ln pats
     mark GHC.AnnEqual
     markLocated typ
 
