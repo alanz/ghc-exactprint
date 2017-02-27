@@ -302,7 +302,8 @@ instance (GHC.DataId name,GHC.HasOccName name, Annotate name)
 instance (GHC.DataId name,GHC.HasOccName name, Annotate name)
   => Annotate (GHC.IEWrappedName name) where
   markAST _ (GHC.IEName ln) = do
-    setContext (Set.singleton PrefixOp) $ markLocated ln
+    unsetContext Intercalate $ setContext (Set.fromList [PrefixOp])
+      $ setContext (Set.singleton PrefixOp) $ markLocated ln
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
   markAST _ (GHC.IEPattern ln) = do
     mark GHC.AnnPattern
@@ -548,24 +549,8 @@ instance Annotate (GHC.SpliceDecl GHC.RdrName) where
     markLocated e
     markTrailingSemi
   markAST _ (GHC.SpliceDecl e flag) = do
-    case flag of
-      GHC.ExplicitSplice -> mark GHC.AnnOpenPE
-      GHC.ImplicitSplice -> return ()
-
     markLocated e
-
-    case flag of
-      GHC.ExplicitSplice -> mark GHC.AnnCloseP
-      GHC.ImplicitSplice -> return ()
-
     markTrailingSemi
-
-{-
-- data SpliceExplicitFlag = ExplicitSplice | -- <=> $(f x y)
--                           ImplicitSplice   -- <=> f x y,  i.e. a naked
--                           top level expression
--
--}
 
 -- ---------------------------------------------------------------------
 
@@ -969,10 +954,16 @@ instance Annotate (GHC.HsBind GHC.RdrName) where
       (GHC.L _ (GHC.GRHS [] _):_) -> mark GHC.AnnEqual -- empty guards
       _ -> return ()
     markListIntercalateWithFunLevel markLocated 2 grhs
-    unless (GHC.isEmptyLocalBinds lb) $ mark GHC.AnnWhere
-    markOptional GHC.AnnWhere
 
-    markLocalBindsWithLayout lb
+    -- TODO: extract this common code
+    case lb of
+      GHC.EmptyLocalBinds -> return ()
+      _ -> do
+        mark GHC.AnnWhere
+        markOptional GHC.AnnOpenC -- '{'
+        markInside GHC.AnnSemi
+        markLocalBindsWithLayout lb
+        markOptional GHC.AnnCloseC -- '}'
     markTrailingSemi
 
   markAST _ (GHC.VarBind _n rhse _) =
@@ -1435,8 +1426,9 @@ instance Annotate (GHC.HsSplice GHC.RdrName) where
 
       GHC.HsTypedSplice hasParens _n b@(GHC.L _ (GHC.HsVar (GHC.L _ n)))  -> do
         when (hasParens == GHC.HasParens) $ mark GHC.AnnOpenPTE
-        markWithStringOptional GHC.AnnThIdTySplice ("$$" ++ (GHC.occNameString (GHC.occName n)))
-        markLocated b
+        if (hasParens == GHC.HasDollar)
+          then markWithString GHC.AnnThIdTySplice ("$$" ++ (GHC.occNameString (GHC.occName n)))
+          else markLocated b
         when (hasParens == GHC.HasParens) $ mark GHC.AnnCloseP
 
       GHC.HsTypedSplice hasParens _n b -> do
@@ -1448,11 +1440,9 @@ instance Annotate (GHC.HsSplice GHC.RdrName) where
 
       GHC.HsUntypedSplice hasParens _n b@(GHC.L _ (GHC.HsVar (GHC.L _ n)))  -> do
         when (hasParens == GHC.HasParens) $  mark GHC.AnnOpenPE
-        -- TODO: We do not seem to have any way to distinguish between which of
-        -- the next two lines will emit output. If AnnThIdSplice is there, the
-        -- markLocated b ends up with a negative offset so emits nothing.
-        markWithStringOptional GHC.AnnThIdSplice ("$" ++ (GHC.occNameString (GHC.occName n)))
-        markLocated b
+        if (hasParens == GHC.HasDollar)
+          then markWithString GHC.AnnThIdSplice ("$" ++ (GHC.occNameString (GHC.occName n)))
+          else markLocated b
         when (hasParens == GHC.HasParens) $ mark GHC.AnnCloseP
 
       GHC.HsUntypedSplice hasParens _n b  -> do
