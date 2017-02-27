@@ -1937,19 +1937,7 @@ instance Annotate (GHC.HsExpr GHC.RdrName) where
         markLocated e
         replicateM_ (arity - alt) $ mark GHC.AnnVbar
         markWithString GHC.AnnClose "#)"
-{-
-ppr_expr (ExplicitSum alt arity expr _)
-  = text "(#" <+> ppr_bars (alt - 1) <+> ppr expr <+> ppr_bars (arity - alt) <+> text "#)"
-  where
-    ppr_bars n = hsep (replicate n (char '|'))
 
-  | ExplicitSum
-          ConTag --  Alternative (one-based)
-          Arity  --  Sum arity
-          (LHsExpr id)
-          (PostTc id [Type])   -- the type arguments
-
--}
       markExpr l (GHC.HsCase e1 matches) = setRigidFlag $ do
         mark GHC.AnnCase
         setContextLevel (Set.singleton PrefixOp) 2 $ markLocated e1
@@ -2524,21 +2512,28 @@ instance Annotate (GHC.TyClDecl GHC.RdrName) where
 markTyClass :: (Annotate a, Annotate ast,GHC.HasOccName a)
                 => GHC.LexicalFixity -> GHC.Located a -> [GHC.Located ast] -> Annotated ()
 markTyClass fixity ln tyVars = do
-    markManyOptional GHC.AnnOpenP
+    -- let markParens = if fixity == GHC.Infix && length tyVars > 2
+    --       then markMany
+    --       else markManyOptional
+    -- markParens GHC.AnnOpenP
     if fixity == GHC.Prefix
       then do
+        markManyOptional GHC.AnnOpenP
         setContext (Set.singleton PrefixOp) $ markLocated ln
         setContext (Set.singleton PrefixOp) $ mapM_ markLocated tyVars
+        markManyOptional GHC.AnnCloseP
       else do
         case tyVars of
           (x:y:xs) -> do
+            markManyOptional GHC.AnnOpenP
             markLocated x
             setContext (Set.singleton InfixOp) $ markLocated ln
             markLocated y
             markManyOptional GHC.AnnCloseP
+            -- markParens GHC.AnnCloseP
             mapM_ markLocated xs
+            markManyOptional GHC.AnnCloseP
           _ -> error $ "markTyClass: Infix op without operands"
-    markManyOptional GHC.AnnCloseP
 
 -- ---------------------------------------------------------------------
 
