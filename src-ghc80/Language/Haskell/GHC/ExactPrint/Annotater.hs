@@ -41,13 +41,10 @@ import qualified CoAxiom        as GHC
 import qualified FastString     as GHC
 import qualified ForeignCall    as GHC
 import qualified GHC            as GHC
-import qualified Lexeme         as GHC
 import qualified Name           as GHC
 import qualified RdrName        as GHC
 import qualified Outputable     as GHC
 
--- import Control.Monad.Trans.Free
--- import Control.Monad.Free.TH (makeFreeCon)
 import Control.Monad.Identity
 import Data.Data
 import Data.Maybe
@@ -260,26 +257,7 @@ instance (GHC.DataId name,GHC.HasOccName name, Annotate name)
             else markOptional GHC.AnnPattern
           setContext (Set.fromList [PrefixOp,InIE]) $ markLocated ln
 
-        (GHC.IEThingAbs ln@(GHC.L _ n)) -> do
-          {-
-          At the moment (7.10.2) GHC does not cleanly represent an export of the form
-           "type Foo"
-          and it only captures the name "Foo".
-
-          The Api Annotations workaround is to have the IEThingAbs SrcSpan
-          extend across both the "type" and "Foo", and then to capture the
-          individual item locations in an AnnType and AnnVal annotation.
-
-          This need to be fixed for 7.12.
-
-          -}
-
-          -- if ((GHC.isTcOcc $ GHC.occName n) && (GHC.isSymOcc $ GHC.occName n))
-          --        && (not $ GHC.isLexConSym $ GHC.occNameFS $ GHC.occName n) -- rule out (:-$) etc
-          --   then do
-          --     mark GHC.AnnType
-          --     setContext (Set.singleton PrefixOp) $ markLocatedFromKw GHC.AnnVal ln
-          --   else setContext (Set.singleton PrefixOp) $ markLocated ln
+        (GHC.IEThingAbs ln) -> do
           setContext (Set.fromList [PrefixOp,InIE]) $ markLocated ln
 
         (GHC.IEThingWith ln wc ns _lfs) -> do
@@ -298,8 +276,7 @@ instance (GHC.DataId name,GHC.HasOccName name, Annotate name)
                   setContext (Set.fromList [PrefixOp,InIE]) $ mapM_ markLocated ns'
           mark GHC.AnnCloseP
 
-        (GHC.IEThingAll ln@(GHC.L _ n)) -> do
-          -- setContext (Set.fromList [PrefixOp]) $ markLocated ln
+        (GHC.IEThingAll ln) -> do
           setContext (Set.fromList [PrefixOp,InIE]) $ markLocated ln
           mark GHC.AnnOpenP
           mark GHC.AnnDotdot
@@ -335,12 +312,10 @@ instance Annotate GHC.RdrName where
               -- TODO: unicode support?
                         "forall" -> if spanLength l == 1 then "∀" else str
                         _ -> str
-        when (isSym || (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n)) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
-        -- when isSym $ inContext (Set.singleton InIE) $ mark GHC.AnnType
+        when (isSym && (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n)) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
         let str'' = if isSym && (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n)
               then -- Horrible hack until GHC 8.2 with https://phabricator.haskell.org/D3016
                   if spanLength l - length str' > 6 -- length of "type" + 2 parens
-                    -- then str'
                     then "(" ++ str' ++ ")"
                     else str'
               else str'
