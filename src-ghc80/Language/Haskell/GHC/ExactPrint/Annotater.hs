@@ -798,17 +798,20 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
     mark GHC.AnnInstance
     markMaybe mov
     markLocated poly
-    mark GHC.AnnWhere
-    markOptional GHC.AnnOpenC -- '{'
-    markInside GHC.AnnSemi
+    if null (GHC.bagToList binds) && null sigs && null tyfams && null datafams
+      then markOptional GHC.AnnWhere
+      else do
+        mark GHC.AnnWhere
+        markOptional GHC.AnnOpenC -- '{'
+        markInside GHC.AnnSemi
 
-    applyListAnnotationsLayout (prepareListAnnotation (GHC.bagToList binds)
-                             ++ prepareListAnnotation sigs
-                             ++ prepareListAnnotation tyfams
-                             ++ prepareListAnnotation datafams
-                               )
+        applyListAnnotationsLayout (prepareListAnnotation (GHC.bagToList binds)
+                                 ++ prepareListAnnotation sigs
+                                 ++ prepareListAnnotation tyfams
+                                 ++ prepareListAnnotation datafams
+                                   )
 
-    markOptional GHC.AnnCloseC -- '}'
+        markOptional GHC.AnnCloseC -- '}'
     markTrailingSemi
 
 -- ---------------------------------------------------------------------
@@ -873,10 +876,15 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       (GHC.L _ (GHC.GRHS [] _):_) -> mark GHC.AnnEqual -- empty guards
       _ -> return ()
     markListIntercalateWithFunLevel markLocated 2 grhs
-    unless (GHC.isEmptyLocalBinds lb) $ mark GHC.AnnWhere
-    markOptional GHC.AnnWhere
 
-    markLocalBindsWithLayout lb
+    case lb of
+      GHC.EmptyLocalBinds -> return ()
+      _ -> do
+        mark GHC.AnnWhere
+        markOptional GHC.AnnOpenC -- '{'
+        markInside GHC.AnnSemi
+        markLocalBindsWithLayout lb
+        markOptional GHC.AnnCloseC -- '}'
     markTrailingSemi
 
   markAST _ (GHC.VarBind _n rhse _) =
@@ -2060,10 +2068,18 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       markExpr _ (GHC.HsTcBracketOut _ _) =
         traceM "warning: HsTcBracketOut introduced after renamer"
 
+      -- --------------------------------
+
+      -- markExpr l (GHC.HsSpliceE e@(GHC.HsUntypedSplice _ (GHC.L _ (GHC.HsSpliceE{})))) = do
+      --   mark GHC.AnnOpenPE
+      --   markAST l e
+      --   mark GHC.AnnCloseP
       markExpr l (GHC.HsSpliceE e) = do
         markOptional GHC.AnnOpenPE
         markAST l e
         markOptional GHC.AnnCloseP
+
+      -- --------------------------------
 
       markExpr _ (GHC.HsProc p c) = do
         mark GHC.AnnProc

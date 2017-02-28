@@ -2151,20 +2151,6 @@ instance Annotate (GHC.HsExpr GHC.RdrName) where
       markExpr _ (GHC.HsTcBracketOut _ _) =
         traceM "warning: HsTcBracketOut introduced after renamer"
 
-      -- markExpr l (GHC.HsSpliceE (GHC.HsUntypedSplice hasParen unqualSplice e)) = do
-      --   case hasParen of
-      --     GHC.NoParens  -> mark GHC.AnnThIdSplice
-      --     GHC.HasParens -> mark GHC.AnnOpenPE
-      --   markLocated e
-      --   when (hasParen == GHC.HasParens) $ mark GHC.AnnCloseP
-
-      -- markExpr l (GHC.HsSpliceE (GHC.HsTypedSplice hasParen unqualSplice e)) = do
-      --   case hasParen of
-      --     GHC.NoParens  -> mark GHC.AnnThIdSplice
-      --     GHC.HasParens -> mark GHC.AnnOpenPTE
-      --   markLocated e
-      --   when (hasParen == GHC.HasParens) $ mark GHC.AnnCloseP
-
       markExpr l (GHC.HsSpliceE e) = markAST l e
 
       markExpr _ (GHC.HsProc p c) = do
