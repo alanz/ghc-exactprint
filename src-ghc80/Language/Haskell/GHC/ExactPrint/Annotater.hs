@@ -306,19 +306,19 @@ instance Annotate GHC.RdrName where
     let
       str = rdrName2String n
       isSym = isSymRdr n
+      -- Horrible hack until GHC 8.2 with https://phabricator.haskell.org/D3016
+      typeIESym = isSym && (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n)
+                        && spanLength l - length str > 6 -- length of "type" + 2 parens
       canParen = isSym && rdrName2String n /= "$"
+                       && (not typeIESym)
       doNormalRdrName = do
         let str' = case str of
               -- TODO: unicode support?
                         "forall" -> if spanLength l == 1 then "∀" else str
                         _ -> str
         when (isSym && (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n)) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
-        let str'' = if isSym && (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n)
-              then -- Horrible hack until GHC 8.2 with https://phabricator.haskell.org/D3016
-                  if spanLength l - length str' > 6 -- length of "type" + 2 parens
-                    then "(" ++ str' ++ ")"
-                    else str'
-              else str'
+        let str'' = if typeIESym then "(" ++ str' ++ ")"
+                                 else str'
 
         let
           markParen :: GHC.AnnKeywordId -> Annotated ()
