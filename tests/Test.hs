@@ -105,8 +105,8 @@ mkTests = do
   prettyRoundTripTests <- findPrettyTests
   return $ TestList [
                       internalTests, roundTripTests, transformTests, failingTests, noAnnotationTests
-                    ,
-                      prettyRoundTripTests
+                    -- ,
+                    --   prettyRoundTripTests
                     ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -159,17 +159,15 @@ tt' :: IO (Counts,Int)
 tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
       -- mkPrettyRoundtrip "ghc80" "pmc007.hs"
-      mkPrettyRoundtrip "ghc82" "Completesig03A.hs"
+      -- mkPrettyRoundtrip "ghc82" "Completesig03A.hs"
 
-      -- mkParserTest "ghc82" "Completesig03A.hs.hs"
+      mkParserTest "ghc80" "read018.hs"
 
    -- Needs GHC changes
-      -- , mkParserTest "failing" "CtorOp.hs"
-      -- mkParserTest "failing" "TensorTests.hs"
-      -- mkParserTest "failing" "List2.hs"
+        -- mkParserTest "failing" "CtorOp.hs"
+        -- mkParserTest "failing" "InfixOperator.hs"
 
 
-      -- mkParserTest "ghc710" "DroppedComma.hs"
 
     ]
 

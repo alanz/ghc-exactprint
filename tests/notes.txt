@@ -1,3 +1,12 @@
+2017-02-28
+-----------
+
+Candidates for GHC 8.0
+  DiophantineVect.hs
+  read018.hs
+
+
+
 2017-02-02
 ----------
 

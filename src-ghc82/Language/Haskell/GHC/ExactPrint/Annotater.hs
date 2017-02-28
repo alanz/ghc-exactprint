@@ -2525,15 +2525,12 @@ markTyClass fixity ln tyVars = do
         let markParens = if fixity == GHC.Infix && length tyVars > 2
               then markMany
               else markManyOptional
-        -- markParens GHC.AnnOpenP
         case tyVars of
           (x:y:xs) -> do
-            -- markManyOptional GHC.AnnOpenP
             markParens GHC.AnnOpenP
             markLocated x
             setContext (Set.singleton InfixOp) $ markLocated ln
             markLocated y
-            -- markManyOptional GHC.AnnCloseP
             markParens GHC.AnnCloseP
             mapM_ markLocated xs
             markManyOptional GHC.AnnCloseP

@@ -1994,7 +1994,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
       markExpr _ (GHC.ExplicitPArr _ es)   = do
         markWithString GHC.AnnOpen "[:"
-        mapM_ markLocated es
+        markListIntercalate es
         markWithString GHC.AnnClose ":]"
 
       markExpr _ (GHC.RecordCon n _ _ (GHC.HsRecFields fs dd)) = do
@@ -2405,9 +2405,8 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       then mark GHC.AnnData
       else mark GHC.AnnNewtype
     markMaybe mctyp
-    if null (GHC.unLoc ctx)
-      then markOptional GHC.AnnDarrow
-      else markLocated ctx
+    when (null (GHC.unLoc ctx)) $ markOptional GHC.AnnDarrow
+    markLocated ctx
     markTyClass ln tyVars
     case mk of
       Nothing -> return ()
@@ -2430,7 +2429,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
   markAST _ (GHC.ClassDecl ctx ln (GHC.HsQTvs _ns tyVars _) fds
                           sigs meths ats atdefs docs _) = do
     mark GHC.AnnClass
-    unless (null $ GHC.unLoc ctx) $ markLocated ctx
+    markLocated ctx
 
     markTyClass ln tyVars
 
