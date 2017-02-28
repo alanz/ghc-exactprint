@@ -1190,8 +1190,11 @@ instance Annotate (GHC.Sig GHC.RdrName) where
   markAST _ (GHC.CompleteMatchSig src (GHC.L _ ns) mlns) = do
     markAnnOpen src "{-# COMPLETE"
     markListIntercalate ns
-    mark GHC.AnnDcolon
-    markMaybe mlns
+    case mlns of
+      Nothing -> return ()
+      Just _ -> do
+        mark GHC.AnnDcolon
+        markMaybe mlns
     markWithString GHC.AnnClose "#-}" -- '#-}'
     markTrailingSemi
 {-
@@ -2643,9 +2646,7 @@ instance Annotate (GHC.TyFamDefltEqn GHC.RdrName) where
   markAST _ (GHC.TyFamEqn ln (GHC.HsQTvs _ns bndrs _) fixity typ) = do
     mark GHC.AnnType
     mark GHC.AnnInstance
-    applyListAnnotations (prepareListAnnotation [ln]
-                       ++ prepareListAnnotation bndrs
-                         )
+    markTyClass fixity ln bndrs
     mark GHC.AnnEqual
     markLocated typ
 
