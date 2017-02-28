@@ -274,39 +274,33 @@ instance (GHC.DataId name,GHC.HasOccName name, Annotate name)
 
           -}
 
-          if ((GHC.isTcOcc $ GHC.occName n) && (GHC.isSymOcc $ GHC.occName n))
-                 && (not $ GHC.isLexConSym $ GHC.occNameFS $ GHC.occName n) -- rule out (:-$) etc
-            then do
-              mark GHC.AnnType
-              setContext (Set.singleton PrefixOp) $ markLocatedFromKw GHC.AnnVal ln
-            else setContext (Set.singleton PrefixOp) $ markLocated ln
+          -- if ((GHC.isTcOcc $ GHC.occName n) && (GHC.isSymOcc $ GHC.occName n))
+          --        && (not $ GHC.isLexConSym $ GHC.occNameFS $ GHC.occName n) -- rule out (:-$) etc
+          --   then do
+          --     mark GHC.AnnType
+          --     setContext (Set.singleton PrefixOp) $ markLocatedFromKw GHC.AnnVal ln
+          --   else setContext (Set.singleton PrefixOp) $ markLocated ln
+          setContext (Set.fromList [PrefixOp,InIE]) $ markLocated ln
 
         (GHC.IEThingWith ln wc ns _lfs) -> do
-{-
-  | IEThingWith (Located name)
-                IEWildcard
-                [Located name]
-                [Located (FieldLbl name)]
-                 -- ^ Class/Type plus some methods/constructors
-                 -- and record fields; see Note [IEThingWith]
-
--}
-          setContext (Set.singleton PrefixOp) $ markLocated ln
+          setContext (Set.fromList [PrefixOp,InIE]) $ markLocated ln
           mark GHC.AnnOpenP
           case wc of
-            GHC.NoIEWildcard -> unsetContext Intercalate $ setContext (Set.fromList [PrefixOp]) $ markListIntercalate ns
+            GHC.NoIEWildcard -> unsetContext Intercalate $ setContext (Set.fromList [PrefixOp,InIE])
+                                 $ markListIntercalate ns
             GHC.IEWildcard n -> do
-              setContext (Set.fromList [PrefixOp,Intercalate]) $ mapM_ markLocated (take n ns)
+              setContext (Set.fromList [PrefixOp,Intercalate,InIE]) $ mapM_ markLocated (take n ns)
               mark GHC.AnnDotdot
               case drop n ns of
                 [] -> return ()
                 ns' -> do
                   mark GHC.AnnComma
-                  setContext (Set.singleton PrefixOp) $ mapM_ markLocated ns'
+                  setContext (Set.fromList [PrefixOp,InIE]) $ mapM_ markLocated ns'
           mark GHC.AnnCloseP
 
-        (GHC.IEThingAll ln) -> do
-          setContext (Set.fromList [PrefixOp]) $ markLocated ln
+        (GHC.IEThingAll ln@(GHC.L _ n)) -> do
+          -- setContext (Set.fromList [PrefixOp]) $ markLocated ln
+          setContext (Set.fromList [PrefixOp,InIE]) $ markLocated ln
           mark GHC.AnnOpenP
           mark GHC.AnnDotdot
           mark GHC.AnnCloseP
@@ -326,39 +320,6 @@ instance (GHC.DataId name,GHC.HasOccName name, Annotate name)
       (markOptional GHC.AnnComma)
 
 -- ---------------------------------------------------------------------
-{-
--- For details on above see note [Api annotations] in ApiAnnotation
-data RdrName
-  = Unqual OccName
-        -- ^ Used for ordinary, unqualified occurrences, e.g. @x@, @y@ or @Foo@.
-        -- Create such a 'RdrName' with 'mkRdrUnqual'
-
-  | Qual ModuleName OccName
-        -- ^ A qualified name written by the user in
-        -- /source/ code.  The module isn't necessarily
-        -- the module where the thing is defined;
-        -- just the one from which it is imported.
-        -- Examples are @Bar.x@, @Bar.y@ or @Bar.Foo@.
-        -- Create such a 'RdrName' with 'mkRdrQual'
-
-  | Orig Module OccName
-        -- ^ An original name; the module is the /defining/ module.
-        -- This is used when GHC generates code that will be fed
-        -- into the renamer (e.g. from deriving clauses), but where
-        -- we want to say \"Use Prelude.map dammit\". One of these
-        -- can be created with 'mkOrig'
-
-  | Exact Name
-        -- ^ We know exactly the 'Name'. This is used:
-        --
-        --  (1) When the parser parses built-in syntax like @[]@
-        --      and @(,)@, but wants a 'RdrName' from it
-        --
-        --  (2) By Template Haskell, when TH has generated a unique name
-        --
-        -- Such a 'RdrName' can be created by using 'getRdrName' on a 'Name'
-  deriving (Data, Typeable)
--}
 
 isSymRdr :: GHC.RdrName -> Bool
 isSymRdr n = GHC.isSymOcc (GHC.rdrNameOcc n) || rdrName2String n == "."
@@ -374,11 +335,12 @@ instance Annotate GHC.RdrName where
               -- TODO: unicode support?
                         "forall" -> if spanLength l == 1 then "∀" else str
                         _ -> str
-        when (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
-        markOptional GHC.AnnType
+        when (isSym || (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n)) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
+        -- when isSym $ inContext (Set.singleton InIE) $ mark GHC.AnnType
         let str'' = if isSym && (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n)
               then -- Horrible hack until GHC 8.2 with https://phabricator.haskell.org/D3016
                   if spanLength l - length str' > 6 -- length of "type" + 2 parens
+                    -- then str'
                     then "(" ++ str' ++ ")"
                     else str'
               else str'
