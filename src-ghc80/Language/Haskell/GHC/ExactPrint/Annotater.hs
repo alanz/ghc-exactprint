@@ -316,7 +316,8 @@ instance Annotate GHC.RdrName where
               -- TODO: unicode support?
                         "forall" -> if spanLength l == 1 then "∀" else str
                         _ -> str
-        when (isSym && (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n)) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
+        -- when (isSym && (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n)) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
+        when (spanLength l - length str > 4) $ inContext (Set.singleton InIE) $ mark GHC.AnnType
         let str'' = if typeIESym then "(" ++ str' ++ ")"
                                  else str'
 
