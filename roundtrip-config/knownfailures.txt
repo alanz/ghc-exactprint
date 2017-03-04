@@ -879,3 +879,12 @@
 ./hackage-roundtrip-work/uhc-light-1.1.9.5/src/UHC/Light/Compiler/EHC/CompilePhase/TopLevelPhases.hs
 ./hackage-roundtrip-work/uhc-light-1.1.9.5/src/UHC/Light/Compiler/Gam.hs
 ./hackage-roundtrip-work/vector-space-0.10.4/src/Data/Basis.hs
+./hackage-roundtrip-work/uhc-light-1.1.9.5/src/UHC/Light/Compiler/CoreRun/Prim.hs
+./hackage-roundtrip-work/uhc-light-1.1.9.5/src/UHC/Light/Compiler/EHC/CompilePhase/Output.hs
+./hackage-roundtrip-work/uhc-light-1.1.9.5/src/UHC/Light/Compiler/VarMp.hs
+./hackage-roundtrip-work/twiml-0.2.0.0/src/Text/XML/Twiml/Verbs/End.hs
+./hackage-roundtrip-work/TrieMap-4.1.0/Data/TrieMap/RadixTrie/Edge.hs
+./hackage-roundtrip-work/uuagc-bootstrap-0.9.40.2/src-derived/AG2AspectAG.hs
+./hackage-roundtrip-work/uuagc-bootstrap-0.9.40.2/src-derived/Patterns.hs
+./hackage-roundtrip-work/uhc-light-1.1.9.5/src/UHC/Light/Compiler/CoreRun/Run/Val/RunImplStk.hs
+./hackage-roundtrip-work/uhc-light-1.1.9.5/src/UHC/Light/Compiler/Base/HsName/Builtin.hs
