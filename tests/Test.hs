@@ -116,7 +116,7 @@ failingTests = testList "Failing tests"
   [
   -- Tests requiring future GHC modifications
     mkTestModBad "InfixOperator.hs"
-  , mkTestModBad "CtorOp.hs" -- Should be fixed in GHC 8.2
+  , mkTestModBad "CtorOp.hs" -- Should be fixed in GHC 8.4
 
 #if __GLASGOW_HASKELL__ > 800
   , mkTestModBad "overloadedlabelsrun04.hs"
@@ -162,7 +162,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkPrettyRoundtrip "ghc80" "MultiQuote.hs"
       -- mkPrettyRoundtrip "ghc710" "Ann01.hs"
 
-      mkParserTest "ghc80" "MultiQuote.hs"
+      mkParserTest "ghc80" "MonadT.hs"
       -- mkParserTest "ghc710" "Ann01.hs"
 
    -- Needs GHC changes

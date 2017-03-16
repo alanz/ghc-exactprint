@@ -651,7 +651,7 @@ instance Annotate (GHC.RuleBndr GHC.RdrName) where
 -- ---------------------------------------------------------------------
 
 markLHsSigWcType :: GHC.LHsSigWcType GHC.RdrName -> Annotated ()
-markLHsSigWcType (GHC.HsWC _ (GHC.HsIB _ ty)) = do
+markLHsSigWcType (GHC.HsWC _ (GHC.HsIB _ ty _)) = do
   markLocated ty
 
 -- ---------------------------------------------------------------------
@@ -699,7 +699,7 @@ instance Annotate GHC.FastString where
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.ForeignDecl GHC.RdrName) where
-  markAST _ (GHC.ForeignImport ln (GHC.HsIB _ typ) _
+  markAST _ (GHC.ForeignImport ln (GHC.HsIB _ typ _) _
                (GHC.CImport cconv safety@(GHC.L ll _) _mh _imp (GHC.L ls src))) = do
     mark GHC.AnnForeign
     mark GHC.AnnImport
@@ -712,7 +712,7 @@ instance Annotate (GHC.ForeignDecl GHC.RdrName) where
     markTrailingSemi
 
 
-  markAST _l (GHC.ForeignExport ln (GHC.HsIB _ typ) _ (GHC.CExport spec (GHC.L ls src))) = do
+  markAST _l (GHC.ForeignExport ln (GHC.HsIB _ typ _) _ (GHC.CExport spec (GHC.L ls src))) = do
     mark GHC.AnnForeign
     mark GHC.AnnExport
     markLocated spec
@@ -831,7 +831,7 @@ instance Annotate GHC.OverlapMode where
 
 instance Annotate (GHC.ClsInstDecl GHC.RdrName) where
 
-  markAST _ (GHC.ClsInstDecl (GHC.HsIB _ poly) binds sigs tyfams datafams mov) = do
+  markAST _ (GHC.ClsInstDecl (GHC.HsIB _ poly _) binds sigs tyfams datafams mov) = do
     mark GHC.AnnInstance
     markMaybe mov
     markLocated poly
@@ -862,7 +862,7 @@ instance Annotate (GHC.TyFamInstDecl GHC.RdrName) where
 
 instance Annotate (GHC.DataFamInstDecl GHC.RdrName) where
 
-  markAST l (GHC.DataFamInstDecl ln (GHC.HsIB _ pats) fixity
+  markAST l (GHC.DataFamInstDecl ln (GHC.HsIB _ pats _) fixity
              defn@(GHC.HsDataDefn nd ctx typ _mk cons mderivs) _) = do
     case GHC.dd_ND defn of
       GHC.NewType  -> mark GHC.AnnNewtype
@@ -1061,14 +1061,14 @@ instance Annotate (GHC.Sig GHC.RdrName) where
     markTrailingSemi
     tellContext (Set.singleton FollowingLine)
 
-  markAST _ (GHC.PatSynSig lns (GHC.HsIB _ typ)) = do
+  markAST _ (GHC.PatSynSig lns (GHC.HsIB _ typ _)) = do
     mark GHC.AnnPattern
     markListIntercalate lns
     mark GHC.AnnDcolon
     markLocated typ
     markTrailingSemi
 
-  markAST _ (GHC.ClassOpSig isDefault ns (GHC.HsIB _ typ)) = do
+  markAST _ (GHC.ClassOpSig isDefault ns (GHC.HsIB _ typ _)) = do
     when isDefault $ mark GHC.AnnDefault
     setContext (Set.singleton PrefixOp) $ markListIntercalate ns
     mark GHC.AnnDcolon
@@ -1140,7 +1140,7 @@ instance Annotate (GHC.Sig GHC.RdrName) where
 -- --------------------------------------------------------------------
 
 markLHsSigType :: GHC.LHsSigType GHC.RdrName -> Annotated ()
-markLHsSigType (GHC.HsIB _ typ) = markLocated typ
+markLHsSigType (GHC.HsIB _ typ _) = markLocated typ
 
 instance Annotate [GHC.LHsSigType GHC.RdrName] where
   markAST _ ls = do
@@ -1150,13 +1150,13 @@ instance Annotate [GHC.LHsSigType GHC.RdrName] where
     -- account.
     case ls of
       []  -> markManyOptional GHC.AnnOpenP
-      [GHC.HsIB _ (GHC.L _ GHC.HsAppsTy{})] -> markMany GHC.AnnOpenP
+      [GHC.HsIB _ (GHC.L _ GHC.HsAppsTy{}) _] -> markMany GHC.AnnOpenP
       [_] -> markManyOptional GHC.AnnOpenP
       _   -> markMany         GHC.AnnOpenP
     markListIntercalateWithFun markLHsSigType ls
     case ls of
       []  -> markManyOptional GHC.AnnCloseP
-      [GHC.HsIB _ (GHC.L _ GHC.HsAppsTy{})] -> markMany GHC.AnnCloseP
+      [GHC.HsIB _ (GHC.L _ GHC.HsAppsTy{}) _] -> markMany GHC.AnnCloseP
       [_] -> markManyOptional GHC.AnnCloseP
       _   -> markMany         GHC.AnnCloseP
 
@@ -1601,7 +1601,7 @@ instance (GHC.DataId name) => Annotate (GHC.HsOverLit name) where
 
 instance (GHC.DataId name,Annotate arg)
     => Annotate (GHC.HsImplicitBndrs name (GHC.Located arg)) where
-  markAST _ (GHC.HsIB _ thing) = do
+  markAST _ (GHC.HsIB _ thing _) = do
     markLocated thing
 
 -- ---------------------------------------------------------------------
@@ -2399,7 +2399,7 @@ instance Annotate [GHC.LHsDerivingClause GHC.RdrName] where
 instance Annotate (GHC.HsDerivingClause GHC.RdrName) where
   markAST _ (GHC.HsDerivingClause mstrategy (GHC.L _ typs)) = do
     let needsParens = case typs of
-          [(GHC.HsIB _ (GHC.L _ (GHC.HsTyVar _ _)))] -> False
+          [(GHC.HsIB _ (GHC.L _ (GHC.HsTyVar _ _)) _)] -> False
           _                           -> True
     mark GHC.AnnDeriving
     markMaybe mstrategy
@@ -2466,7 +2466,7 @@ instance (GHC.DataId name,Annotate name)
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.TyFamInstEqn GHC.RdrName) where
-  markAST _ (GHC.TyFamEqn ln (GHC.HsIB _ pats) fixity typ) = do
+  markAST _ (GHC.TyFamEqn ln (GHC.HsIB _ pats _) fixity typ) = do
     markTyClass fixity ln pats
     mark GHC.AnnEqual
     markLocated typ
@@ -2575,7 +2575,7 @@ instance Annotate (GHC.ConDecl GHC.RdrName) where
 
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnVbar
     markTrailingSemi
-  markAST _ (GHC.ConDeclGADT lns (GHC.HsIB _ typ) _) = do
+  markAST _ (GHC.ConDeclGADT lns (GHC.HsIB _ typ _) _) = do
     setContext (Set.singleton PrefixOp) $ markListIntercalate lns
     mark GHC.AnnDcolon
     markLocated typ
