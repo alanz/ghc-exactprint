@@ -16,7 +16,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , KeywordId(..)
   , Comment(..)
   -- * Positions
-  , Pos
+  , Pos(..)
   , DeltaPos(..)
   -- * AnnKey
   , AnnKey(..)
@@ -69,16 +69,15 @@ instance Show Comment where
 instance GHC.Outputable Comment where
   ppr x = GHC.text (show x)
 
-type Pos = (Int,Int)
+-- type Pos = (Int,Int)
+data Pos = P { posRow    :: Int
+             , posColumn :: Int
+             } deriving (Show,Eq,Ord,Typeable,Data)
 
 -- | A relative positions, row then column
 data DeltaPos = DP { deltaRow    :: Int
                    , deltaColumn :: Int
                    } deriving (Show,Eq,Ord,Typeable,Data)
-
--- deltaRow, deltaColumn :: DeltaPos -> Int
--- deltaRow (DP (r, _)) = r
--- deltaColumn (DP (_, c)) = c
 
 
 -- | Marks the start column of a layout block.

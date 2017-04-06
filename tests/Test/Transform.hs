@@ -222,38 +222,37 @@ changeWhereIn3 declIndex ans p = return (ans',p')
 -- ---------------------------------------------------------------------
 
 changeRenameCase1 :: Changer
-changeRenameCase1 ans parsed = return (ans,rename "bazLonger" [((3,15),(3,18))] parsed)
+changeRenameCase1 ans parsed = return (ans,rename "bazLonger" [((P 3 15),(P 3 18))] parsed)
 
 changeRenameCase2 :: Changer
-changeRenameCase2 ans parsed = return (ans,rename "fooLonger" [((3,1),(3,4))] parsed)
+changeRenameCase2 ans parsed = return (ans,rename "fooLonger" [((P 3 1),(P 3 4))] parsed)
 
 changeLayoutLet2 :: Changer
-changeLayoutLet2 ans parsed = return (ans,rename "xxxlonger" [((7,5),(7,8)),((8,24),(8,27))] parsed)
+changeLayoutLet2 ans parsed = return (ans,rename "xxxlonger" [((P 7 5),(P 7 8)),((P 8 24),(P 8 27))] parsed)
 
 changeLocToName :: Changer
-changeLocToName ans parsed = return (ans,rename "LocToName.newPoint" [((20,1),(20,11)),((20,28),(20,38)),((24,1),(24,11))] parsed)
+changeLocToName ans parsed = return (ans,rename "LocToName.newPoint" [((P 20 1),(P 20 11)),((P 20 28),(P 20 38)),((P 24 1),(P 24 11))] parsed)
 
 changeLayoutIn3 :: Changer
-changeLayoutIn3 ans parsed = return (ans,rename "anotherX" [((7,13),(7,14)),((7,37),(7,38)),((8,37),(8,38))] parsed)
--- changeLayoutIn3 parsed = rename "anotherX" [((7,13),(7,14)),((7,37),(7,38))] parsed
+changeLayoutIn3 ans parsed = return (ans,rename "anotherX" [((P 7 13),(P 7 14)),((P 7 37),(P 7 38)),((P 8 37),(P 8 38))] parsed)
 
 changeLayoutIn4 :: Changer
-changeLayoutIn4 ans parsed = return (ans,rename "io" [((7,8),(7,13)),((7,28),(7,33))] parsed)
+changeLayoutIn4 ans parsed = return (ans,rename "io" [((P 7 8),(P 7 13)),((P 7 28),(P 7 33))] parsed)
 
 changeLayoutIn1 :: Changer
-changeLayoutIn1 ans parsed = return (ans,rename "square" [((7,17),(7,19)),((7,24),(7,26))] parsed)
+changeLayoutIn1 ans parsed = return (ans,rename "square" [((P 7 17),(P 7 19)),((P 7 24),(P 7 26))] parsed)
 
 changeRename1 :: Changer
-changeRename1 ans parsed = return (ans,rename "bar2" [((3,1),(3,4))] parsed)
+changeRename1 ans parsed = return (ans,rename "bar2" [((P 3 1),(P 3 4))] parsed)
 
 changeRename2 :: Changer
-changeRename2 ans parsed = return (ans,rename "joe" [((2,1),(2,5))] parsed)
+changeRename2 ans parsed = return (ans,rename "joe" [((P 2 1),(P 2 5))] parsed)
 
 changeLayoutLet3 :: Changer
-changeLayoutLet3 ans parsed = return (ans,rename "xxxlonger" [((7,5),(7,8)),((9,14),(9,17))] parsed)
+changeLayoutLet3 ans parsed = return (ans,rename "xxxlonger" [((P 7 5),(P 7 8)),((P 9 14),(P 9 17))] parsed)
 
 changeLayoutLet5 :: Changer
-changeLayoutLet5 ans parsed = return (ans,rename "x" [((7,5),(7,8)),((9,14),(9,17))] parsed)
+changeLayoutLet5 ans parsed = return (ans,rename "x" [((P 7 5),(P 7 8)),((P 9 14),(P 9 17))] parsed)
 
 -- AZ:TODO: the GHC 8 version only needs to consider Located RdrName
 rename :: (SYB.Data a) => String -> [(Pos, Pos)] -> a -> a
@@ -270,7 +269,7 @@ rename newNameStr spans a
       where
         srcSpans  = map (\(start, end) -> GHC.mkSrcSpan (f start) (f end)) spans
         fname = fromMaybe (GHC.mkFastString "f") (GHC.srcSpanFileName_maybe ln)
-        f = uncurry (GHC.mkSrcLoc fname)
+        f (P r c) = GHC.mkSrcLoc fname r c
 
 
     replaceRdr :: GHC.Located GHC.RdrName -> GHC.Located GHC.RdrName

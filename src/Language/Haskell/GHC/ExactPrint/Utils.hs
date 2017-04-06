@@ -147,7 +147,7 @@ ss2delta ref ss = pos2delta ref (ss2pos ss)
 -- | Convert the start of the second @Pos@ to be an offset from the
 -- first. The assumption is the reference starts before the second @Pos@
 pos2delta :: Pos -> Pos -> DeltaPos
-pos2delta (refl,refc) (l,c) = DP lo co
+pos2delta (P refl refc) (P l c) = DP lo co
   where
     lo = l - refl
     co = if lo == 0 then c - refc
@@ -156,7 +156,7 @@ pos2delta (refl,refc) (l,c) = DP lo co
 -- | Apply the delta to the current position, taking into account the
 -- current column offset if advancing to a new line
 undelta :: Pos -> DeltaPos -> LayoutStartCol -> Pos
-undelta (l,c) (DP dl dc) (LayoutStartCol co) = (fl,fc)
+undelta (P l c) (DP dl dc) (LayoutStartCol co) = P fl fc
   where
     fl = l + dl
     fc = if dl == 0 then c  + dc
@@ -202,10 +202,10 @@ stepDP (DP a b) (DP c d)
 -- ---------------------------------------------------------------------
 
 ss2pos :: GHC.SrcSpan -> Pos
-ss2pos ss = (srcSpanStartLine ss,srcSpanStartColumn ss)
+ss2pos ss = P (srcSpanStartLine ss) (srcSpanStartColumn ss)
 
 ss2posEnd :: GHC.SrcSpan -> Pos
-ss2posEnd ss = (srcSpanEndLine ss,srcSpanEndColumn ss)
+ss2posEnd ss = P (srcSpanEndLine ss) (srcSpanEndColumn ss)
 
 srcSpanEndColumn :: GHC.SrcSpan -> Int
 srcSpanEndColumn (GHC.RealSrcSpan s) = GHC.srcSpanEndCol s

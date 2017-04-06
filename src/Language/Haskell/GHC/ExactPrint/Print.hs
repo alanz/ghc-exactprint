@@ -136,7 +136,7 @@ runEP epReader action ans =
 
 defaultEPState :: Anns -> EPState
 defaultEPState as = EPState
-             { epPos    = (1,1)
+             { epPos    = P 1 1
              , epAnns   = as
              , epAnnKds = []
              , epLHS    = 1
@@ -447,13 +447,13 @@ printStringAtLsDelta cs cl s = do
 isGoodDeltaWithOffset :: DeltaPos -> LayoutStartCol -> Bool
 isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP r c)
   where
-    (r,c) = undelta (0,0) dp colOffset
+    (P r c) = undelta (P 0 0) dp colOffset
 
 printQueuedComment :: (Monad m, Monoid w) => Comment -> DeltaPos -> EP w m ()
 printQueuedComment Comment{commentContents} dp = do
   p <- getPos
   colOffset <- getLayoutOffset
-  let (dr,dc) = undelta (0,0) dp colOffset
+  let (P dr dc) = undelta (P 0 0) dp colOffset
   -- do not lose comments against the left margin
   when (isGoodDelta (DP dr (max 0 dc))) $
     printCommentAt (undelta p dp colOffset) commentContents
@@ -477,7 +477,7 @@ countAnnsEP an = length <$> peekAnnFinal an
 
 printString :: (Monad m, Monoid w) => Bool -> String -> EP w m ()
 printString layout str = do
-  EPState{epPos = (_,c), epMarkLayout} <- get
+  EPState{epPos = (P _ c), epMarkLayout} <- get
   PrintOptions{epTokenPrint, epWhitespacePrint} <- ask
   when (epMarkLayout && layout) $
     modify (\s -> s { epLHS = LayoutStartCol c, epMarkLayout = False } )
@@ -498,15 +498,15 @@ printString layout str = do
 
 newLine :: (Monad m, Monoid w) => EP w m ()
 newLine = do
-    (l,_) <- getPos
+    (P l _) <- getPos
     printString False "\n"
-    setPos (l+1,1)
+    setPos (P (l+1) 1)
 
 padUntil :: (Monad m, Monoid w) => Pos -> EP w m ()
-padUntil (l,c) = do
-    (l1,c1) <- getPos
+padUntil (P l c) = do
+    (P l1 c1) <- getPos
     if | l1 == l && c1 <= c -> printString False $ replicate (c - c1) ' '
-       | l1 < l             -> newLine >> padUntil (l,c)
+       | l1 < l             -> newLine >> padUntil (P l c)
        | otherwise          -> return ()
 
 printWhitespace :: (Monad m, Monoid w) => Pos -> EP w m ()

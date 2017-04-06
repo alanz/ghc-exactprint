@@ -50,7 +50,7 @@ import Debug.Trace
 -- properly when done.
 addAnnotationsForPretty :: (Annotate a) => [Comment] -> GHC.Located a -> Anns -> Anns
 addAnnotationsForPretty cs ast ans
-  = runPrettyWithComments opts cs (annotate ast) ans (0,0)
+  = runPrettyWithComments opts cs (annotate ast) ans (P 0 0)
   where
     opts = prettyOptions NormalLayout
 
