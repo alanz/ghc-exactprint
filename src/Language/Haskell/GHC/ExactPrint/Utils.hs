@@ -136,7 +136,7 @@ warn c _ = c
 
 -- | A good delta has no negative values.
 isGoodDelta :: DeltaPos -> Bool
-isGoodDelta (DP (ro,co)) = ro >= 0 && co >= 0
+isGoodDelta (DP ro co) = ro >= 0 && co >= 0
 
 
 -- | Create a delta from the current position to the start of the given
@@ -147,7 +147,7 @@ ss2delta ref ss = pos2delta ref (ss2pos ss)
 -- | Convert the start of the second @Pos@ to be an offset from the
 -- first. The assumption is the reference starts before the second @Pos@
 pos2delta :: Pos -> Pos -> DeltaPos
-pos2delta (refl,refc) (l,c) = DP (lo,co)
+pos2delta (refl,refc) (l,c) = DP lo co
   where
     lo = l - refl
     co = if lo == 0 then c - refc
@@ -156,7 +156,7 @@ pos2delta (refl,refc) (l,c) = DP (lo,co)
 -- | Apply the delta to the current position, taking into account the
 -- current column offset if advancing to a new line
 undelta :: Pos -> DeltaPos -> LayoutStartCol -> Pos
-undelta (l,c) (DP (dl,dc)) (LayoutStartCol co) = (fl,fc)
+undelta (l,c) (DP dl dc) (LayoutStartCol co) = (fl,fc)
   where
     fl = l + dl
     fc = if dl == 0 then c  + dc
@@ -168,9 +168,9 @@ undelta (l,c) (DP (dl,dc)) (LayoutStartCol co) = (fl,fc)
 -- > DP (0, 9) `addDP` DP (1, 5) == DP (1, 5)
 -- > DP (1, 4) `addDP` DP (1, 3) == DP (2, 3)
 addDP :: DeltaPos -> DeltaPos -> DeltaPos
-addDP (DP (a, b)) (DP (c, d)) =
-  if c >= 1 then DP (a+c, d)
-            else DP (a,   b+d)
+addDP (DP a b) (DP c d) =
+  if c >= 1 then DP (a+c) d
+            else DP a     (b+d)
 
 -- | "Subtract" two @DeltaPos@ from each other, in the sense of calculating the
 -- remaining delta for the second after the first has been applied.
@@ -189,15 +189,15 @@ addDP (DP (a, b)) (DP (c, d)) =
 -- > DP (3,  3) `addDP` DP (0, 4) == DP (0, 1) -- maintain col delta at least
 -- > DP (1, 21) `addDP` DP (1, 4) == DP (1, 4) -- go one line forward and to expected col
 stepDP :: DeltaPos -> DeltaPos -> DeltaPos
-stepDP (DP (a,b)) (DP (c,d))
-  | (a,b) == (c,d) = DP (a,b)
-  | a == c = if b < d then DP (0,d - b)
+stepDP (DP a b) (DP c d)
+  | (a,b) == (c,d) = DP a b
+  | a == c = if b < d then DP 0 (d - b)
                       else if d == 0
-                             then DP (1,0)
-                             -- else DP (0,1)
-                             else DP (c,d)
-  | a < c = DP (c - a,d)
-  | otherwise = DP (1,d)
+                             then DP 1 0
+                             -- else DP 0 1
+                             else DP c d
+  | a < c = DP (c - a) d
+  | otherwise = DP 1 d
 
 -- ---------------------------------------------------------------------
 
@@ -318,7 +318,7 @@ getAnnotationEP  la as =
 -- start of the current element.
 annTrueEntryDelta :: Annotation -> DeltaPos
 annTrueEntryDelta Ann{annEntryDelta, annPriorComments} =
-  foldr addDP (DP (0,0)) (map (\(a, b) -> addDP b (dpFromString $ commentContents a)) annPriorComments )
+  foldr addDP (DP 0 0) (map (\(a, b) -> addDP b (dpFromString $ commentContents a)) annPriorComments )
     `addDP` annEntryDelta
 
 -- | Take an annotation and a required "true entry" and calculate an equivalent
@@ -327,7 +327,7 @@ annCommentEntryDelta :: Annotation -> DeltaPos -> DeltaPos
 annCommentEntryDelta Ann{annPriorComments} trueDP = dp
   where
     commentDP =
-      foldr addDP (DP (0,0)) (map (\(a, b) -> addDP b (dpFromString $ commentContents a)) annPriorComments )
+      foldr addDP (DP 0 0) (map (\(a, b) -> addDP b (dpFromString $ commentContents a)) annPriorComments )
     dp = stepDP commentDP trueDP
 
 -- | Return the DP of the first item that generates output, either a comment or the entry DP
@@ -343,7 +343,7 @@ annLeadingCommentEntryDelta Ann{annPriorComments,annEntryDelta} = dp
 dpFromString ::  String -> DeltaPos
 dpFromString xs = dpFromString' xs 0 0
   where
-    dpFromString' "" line col = DP (line, col)
+    dpFromString' "" line col = DP line col
     dpFromString' ('\n': cs) line _   = dpFromString' cs (line + 1) 0
     dpFromString' (_:cs)     line col = dpFromString' cs line       (col + 1)
 

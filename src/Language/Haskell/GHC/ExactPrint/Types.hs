@@ -18,7 +18,6 @@ module Language.Haskell.GHC.ExactPrint.Types
   -- * Positions
   , Pos
   , DeltaPos(..)
-  , deltaRow, deltaColumn
   -- * AnnKey
   , AnnKey(..)
   , mkAnnKey
@@ -73,11 +72,13 @@ instance GHC.Outputable Comment where
 type Pos = (Int,Int)
 
 -- | A relative positions, row then column
-newtype DeltaPos = DP (Int,Int) deriving (Show,Eq,Ord,Typeable,Data)
+data DeltaPos = DP { deltaRow    :: Int
+                   , deltaColumn :: Int
+                   } deriving (Show,Eq,Ord,Typeable,Data)
 
-deltaRow, deltaColumn :: DeltaPos -> Int
-deltaRow (DP (r, _)) = r
-deltaColumn (DP (_, c)) = c
+-- deltaRow, deltaColumn :: DeltaPos -> Int
+-- deltaRow (DP (r, _)) = r
+-- deltaColumn (DP (_, c)) = c
 
 
 -- | Marks the start column of a layout block.
@@ -89,7 +90,7 @@ instance Show LayoutStartCol where
 
 
 annNone :: Annotation
-annNone = Ann (DP (0,0)) [] [] [] Nothing Nothing
+annNone = Ann (DP 0 0) [] [] [] Nothing Nothing
 
 data Annotation = Ann
   {

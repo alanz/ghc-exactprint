@@ -381,8 +381,8 @@ adjustDeltaForOffsetM dp = do
   return (adjustDeltaForOffset colOffset dp)
 
 adjustDeltaForOffset :: LayoutStartCol -> DeltaPos -> DeltaPos
-adjustDeltaForOffset _colOffset              dp@(DP (0,_)) = dp -- same line
-adjustDeltaForOffset (LayoutStartCol colOffset) (DP (l,c)) = DP (l,c - colOffset)
+adjustDeltaForOffset _colOffset              dp@(DP 0 _) = dp -- same line
+adjustDeltaForOffset (LayoutStartCol colOffset) (DP l c) = DP l (c - colOffset)
 
 -- ---------------------------------------------------------------------
 
@@ -735,8 +735,8 @@ addEofAnnotation = do
     [] -> return ()
     (pa:pss) -> do
       commentAllocation (const True) (mapM_ (uncurry addDeltaComment))
-      let DP (r,c) = ss2delta pe pa
-      addAnnDeltaPos (G GHC.AnnEofPos) (DP (r, c - 1))
+      let DP r c = ss2delta pe pa
+      addAnnDeltaPos (G GHC.AnnEofPos) (DP r (c - 1))
       setPriorEndAST pa `warn` ("Trailing annotations after Eof: " ++ showGhc pss)
 
 -- ---------------------------------------------------------------------

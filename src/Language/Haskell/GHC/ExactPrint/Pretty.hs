@@ -190,7 +190,7 @@ prettyInterpret = iterTM go
 
 addEofAnnotation :: Pretty ()
 addEofAnnotation = do
-  tellKd (G GHC.AnnEofPos, DP (1,0))
+  tellKd (G GHC.AnnEofPos, DP 1 0)
 
 -- ---------------------------------------------------------------------
 
@@ -201,51 +201,51 @@ addPrettyAnnotation ann = do
   _ <- trace ("Pretty.addPrettyAnnotation:=" ++ showGhc (ann,noPrec,ctx)) $ asks prContext
   let
     dp = case ann of
-           (G GHC.AnnAs)        -> tellKd (ann,DP (0,1))
-           (G GHC.AnnAt)        -> tellKd (ann,DP (0,1))
-           (G GHC.AnnBang)      -> tellKd (ann,DP (0,1))
-           (G GHC.AnnBackquote) -> tellKd (ann,DP (0,1))
-           (G GHC.AnnBy)        -> tellKd (ann,DP (0,1))
-           (G GHC.AnnCase )     -> tellKd (ann,DP (0,1))
-           (G GHC.AnnClass)     -> tellKd (ann,DP (0,1))
-           (G GHC.AnnClose)     -> tellKd (ann,DP (0,1))
-           (G GHC.AnnCloseC)    -> tellKd (ann,DP (0,0))
-           (G GHC.AnnDcolon)    -> tellKd (ann,DP (0,1))
-           (G GHC.AnnDeriving)  -> tellKd (ann,DP (0,1))
-           (G GHC.AnnDo)        -> tellKd (ann,DP (0,1))
-           (G GHC.AnnElse)      -> tellKd (ann,DP (1,2))
-           (G GHC.AnnEqual)     -> tellKd (ann,DP (0,1))
-           (G GHC.AnnExport)    -> tellKd (ann,DP (0,1))
-           (G GHC.AnnFamily)    -> tellKd (ann,DP (0,1))
-           (G GHC.AnnForall)    -> tellKd (ann,DP (0,1))
-           (G GHC.AnnGroup)     -> tellKd (ann,DP (0,1))
-           (G GHC.AnnHiding)    -> tellKd (ann,DP (0,1))
-           (G GHC.AnnImport)    -> tellKd (ann,DP (0,1))
-           (G GHC.AnnIn)        -> tellKd (ann,DP (1,0))
-           (G GHC.AnnInstance)  -> tellKd (ann,DP (0,1))
-           (G GHC.AnnLam)       -> tellKd (ann,DP (0,1))
-           (G GHC.AnnMinus)     -> tellKd (ann,DP (0,1)) -- need to separate from preceding operator
-           (G GHC.AnnModule)    -> tellKd (ann,DP (0,1))
-           (G GHC.AnnOf)        -> tellKd (ann,DP (0,1))
-           (G GHC.AnnOpenC)     -> tellKd (ann,DP (0,0))
-           (G GHC.AnnOpenPE)    -> tellKd (ann,DP (0,1))
-           (G GHC.AnnQualified) -> tellKd (ann,DP (0,1))
-           (G GHC.AnnRarrow)    -> tellKd (ann,DP (0,1))
-           (G GHC.AnnRole)      -> tellKd (ann,DP (0,1))
-           (G GHC.AnnSafe)      -> tellKd (ann,DP (0,1))
-           (G GHC.AnnSimpleQuote) -> tellKd (ann,DP (0,1))
-           (G GHC.AnnThTyQuote) -> tellKd (ann,DP (0,1))
-           (G GHC.AnnThen)      -> tellKd (ann,DP (1,2))
-           (G GHC.AnnTilde)     -> tellKd (ann,DP (0,1))
-           (G GHC.AnnType)      -> tellKd (ann,DP (0,1))
-           (G GHC.AnnUsing)     -> tellKd (ann,DP (0,1))
-           (G GHC.AnnVal)       -> tellKd (ann,DP (0,1))
-           (G GHC.AnnValStr)    -> tellKd (ann,DP (0,1))
-           (G GHC.AnnVbar)      -> tellKd (ann,DP (0,1))
-           -- (G GHC.AnnWhere)     -> tellKd (ann,DP (0,1))
-           (G GHC.AnnWhere)     -> tellKd (ann,DP (1,2))
-           _ ->                tellKd (ann,DP (0,0))
-  fromNoPrecedingSpace (tellKd (ann,DP (0,0))) dp
+           (G GHC.AnnAs)        -> tellKd (ann,DP 0 1)
+           (G GHC.AnnAt)        -> tellKd (ann,DP 0 1)
+           (G GHC.AnnBang)      -> tellKd (ann,DP 0 1)
+           (G GHC.AnnBackquote) -> tellKd (ann,DP 0 1)
+           (G GHC.AnnBy)        -> tellKd (ann,DP 0 1)
+           (G GHC.AnnCase )     -> tellKd (ann,DP 0 1)
+           (G GHC.AnnClass)     -> tellKd (ann,DP 0 1)
+           (G GHC.AnnClose)     -> tellKd (ann,DP 0 1)
+           (G GHC.AnnCloseC)    -> tellKd (ann,DP 0 0)
+           (G GHC.AnnDcolon)    -> tellKd (ann,DP 0 1)
+           (G GHC.AnnDeriving)  -> tellKd (ann,DP 0 1)
+           (G GHC.AnnDo)        -> tellKd (ann,DP 0 1)
+           (G GHC.AnnElse)      -> tellKd (ann,DP 1 2)
+           (G GHC.AnnEqual)     -> tellKd (ann,DP 0 1)
+           (G GHC.AnnExport)    -> tellKd (ann,DP 0 1)
+           (G GHC.AnnFamily)    -> tellKd (ann,DP 0 1)
+           (G GHC.AnnForall)    -> tellKd (ann,DP 0 1)
+           (G GHC.AnnGroup)     -> tellKd (ann,DP 0 1)
+           (G GHC.AnnHiding)    -> tellKd (ann,DP 0 1)
+           (G GHC.AnnImport)    -> tellKd (ann,DP 0 1)
+           (G GHC.AnnIn)        -> tellKd (ann,DP 1 0)
+           (G GHC.AnnInstance)  -> tellKd (ann,DP 0 1)
+           (G GHC.AnnLam)       -> tellKd (ann,DP 0 1)
+           (G GHC.AnnMinus)     -> tellKd (ann,DP 0 1) -- need to separate from preceding operator
+           (G GHC.AnnModule)    -> tellKd (ann,DP 0 1)
+           (G GHC.AnnOf)        -> tellKd (ann,DP 0 1)
+           (G GHC.AnnOpenC)     -> tellKd (ann,DP 0 0)
+           (G GHC.AnnOpenPE)    -> tellKd (ann,DP 0 1)
+           (G GHC.AnnQualified) -> tellKd (ann,DP 0 1)
+           (G GHC.AnnRarrow)    -> tellKd (ann,DP 0 1)
+           (G GHC.AnnRole)      -> tellKd (ann,DP 0 1)
+           (G GHC.AnnSafe)      -> tellKd (ann,DP 0 1)
+           (G GHC.AnnSimpleQuote) -> tellKd (ann,DP 0 1)
+           (G GHC.AnnThTyQuote) -> tellKd (ann,DP 0 1)
+           (G GHC.AnnThen)      -> tellKd (ann,DP 1 2)
+           (G GHC.AnnTilde)     -> tellKd (ann,DP 0 1)
+           (G GHC.AnnType)      -> tellKd (ann,DP 0 1)
+           (G GHC.AnnUsing)     -> tellKd (ann,DP 0 1)
+           (G GHC.AnnVal)       -> tellKd (ann,DP 0 1)
+           (G GHC.AnnValStr)    -> tellKd (ann,DP 0 1)
+           (G GHC.AnnVbar)      -> tellKd (ann,DP 0 1)
+           -- (G GHC.AnnWhere)     -> tellKd (ann,DP 0 1)
+           (G GHC.AnnWhere)     -> tellKd (ann,DP 1 2)
+           _ ->                tellKd (ann,DP 0 0)
+  fromNoPrecedingSpace (tellKd (ann,DP 0 0)) dp
 
 -- ---------------------------------------------------------------------
 
@@ -366,13 +366,13 @@ entryDpFor ctx a = (def `extQ` grhs) a
     def _ =
       trace ("entryDpFor:(topLevel,listStart,inList,noAdvanceLine,ctx)=" ++ show (topLevel,listStart,inList,noAdvanceLine,ctx)) $
         if noAdvanceLine
-          then return (DP (0,1))
+          then return (DP 0 1)
           else
             if listStart
-              then return (DP (1,2))
+              then return (DP 1 2)
               else if inList
-                then if topLevel then return (DP (2,0)) else return (DP (1,0))
-                else if topLevel then return (DP (2,0)) else return (DP (lineDefault,0))
+                then if topLevel then return (DP 2 0) else return (DP 1 0)
+                else if topLevel then return (DP 2 0) else return (DP lineDefault 0)
 
     topLevel = inAcs (Set.singleton TopLevel) ctx
     listStart = inAcs (Set.singleton ListStart) ctx
@@ -384,8 +384,8 @@ entryDpFor ctx a = (def `extQ` grhs) a
     grhs :: GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> Pretty DeltaPos
     grhs _ = do
       if inLambda
-        then return (DP (0,1))
-        else return (DP (1,2))
+        then return (DP 0 1)
+        else return (DP 1 2)
 
 -- ---------------------------------------------------------------------
 

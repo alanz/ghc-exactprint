@@ -118,13 +118,13 @@ changeLocalDecls2 ans (GHC.L l p) = do
               Nothing -> error "wtf"
               Just ann -> Map.insert newAnnKey ann2 mkds2
                 where
-                  ann1 = ann { annsDP = annsDP ann ++ [(G GHC.AnnWhere,DP (1,2))]
+                  ann1 = ann { annsDP = annsDP ann ++ [(G GHC.AnnWhere,DP 1 2)]
                              , annCapturedSpan = Just newAnnKey
                              , annSortKey = Just [ls, ld]
                              }
                   mkds2 = Map.insert (mkAnnKey m) ann1 mkds
                   ann2 = annNone
-                             { annEntryDelta     = DP (1,0) }
+                             { annEntryDelta     = DP 1 0 }
         modifyAnnsT addWhere
         let decls = [s,d]
         -- logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)
@@ -394,7 +394,7 @@ addLocaLDecl2 ans lp = do
 
          (parent',_) <- modifyValD (GHC.getLoc parent) parent $ \_m decls -> do
            transferEntryDPT (head decls) newDecl
-           setEntryDPT (head decls) (DP (1, 0))
+           setEntryDPT (head decls) (DP 1 0)
            return ((newDecl:decls),Nothing)
 
          replaceDecls lp (parent':tail tlDecs)
@@ -706,10 +706,10 @@ addHiding1 ans (GHC.L l p) = do
           impHiding = GHC.L l0 [v1,v2]
           imp1' = imp1 { GHC.ideclHiding = Just (True,impHiding)}
           p' = p { GHC.hsmodImports = [GHC.L li imp1',imp2]}
-        addSimpleAnnT impHiding (DP (0,1)) [((G GHC.AnnHiding),DP (0,0)),((G GHC.AnnOpenP),DP (0,1)),((G GHC.AnnCloseP),DP (0,0))]
-        addSimpleAnnT n1        (DP (0,0)) [((G GHC.AnnVal),DP (0,0))]
-        addSimpleAnnT v1        (DP (0,0)) [((G GHC.AnnComma),DP (0,0))]
-        addSimpleAnnT n2        (DP (0,0)) [((G GHC.AnnVal),DP (0,0))]
+        addSimpleAnnT impHiding (DP 0 1) [((G GHC.AnnHiding),DP 0 0),((G GHC.AnnOpenP),DP 0 1),((G GHC.AnnCloseP),DP 0 0)]
+        addSimpleAnnT n1        (DP 0 0) [((G GHC.AnnVal),DP 0 0)]
+        addSimpleAnnT v1        (DP 0 0) [((G GHC.AnnComma),DP 0 0)]
+        addSimpleAnnT n2        (DP 0 0) [((G GHC.AnnVal),DP 0 0)]
         return (GHC.L l p')
 
   let (lp',(ans',_),_w) = runTransform ans doTransform
@@ -736,9 +736,9 @@ addHiding2 ans (GHC.L l p) = do
 #endif
           imp1' = imp1 { GHC.ideclHiding = Just (True,GHC.L lh (ns ++ [v1,v2]))}
           p' = p { GHC.hsmodImports = [GHC.L li imp1']}
-        addSimpleAnnT n1        (DP (0,0)) [((G GHC.AnnVal),DP (0,0))]
-        addSimpleAnnT v1        (DP (0,0)) [((G GHC.AnnComma),DP (0,0))]
-        addSimpleAnnT n2        (DP (0,0)) [((G GHC.AnnVal),DP (0,0))]
+        addSimpleAnnT n1        (DP 0 0) [((G GHC.AnnVal),DP 0 0)]
+        addSimpleAnnT v1        (DP 0 0) [((G GHC.AnnComma),DP 0 0)]
+        addSimpleAnnT n2        (DP 0 0) [((G GHC.AnnVal),DP 0 0)]
         addTrailingCommaT (last ns)
         return (GHC.L l p')
 

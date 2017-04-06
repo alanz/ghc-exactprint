@@ -445,7 +445,9 @@ printStringAtLsDelta cs cl s = do
 
 
 isGoodDeltaWithOffset :: DeltaPos -> LayoutStartCol -> Bool
-isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP (undelta (0,0) dp colOffset))
+isGoodDeltaWithOffset dp colOffset = isGoodDelta (DP r c)
+  where
+    (r,c) = undelta (0,0) dp colOffset
 
 printQueuedComment :: (Monad m, Monoid w) => Comment -> DeltaPos -> EP w m ()
 printQueuedComment Comment{commentContents} dp = do
@@ -453,7 +455,7 @@ printQueuedComment Comment{commentContents} dp = do
   colOffset <- getLayoutOffset
   let (dr,dc) = undelta (0,0) dp colOffset
   -- do not lose comments against the left margin
-  when (isGoodDelta (DP (dr,max 0 dc))) $
+  when (isGoodDelta (DP dr (max 0 dc))) $
     printCommentAt (undelta p dp colOffset) commentContents
 
 -- ---------------------------------------------------------------------
@@ -481,7 +483,7 @@ printString layout str = do
     modify (\s -> s { epLHS = LayoutStartCol c, epMarkLayout = False } )
 
   -- Advance position, taking care of any newlines in the string
-  let strDP@(DP (cr,_cc)) = dpFromString str
+  let strDP@(DP cr _cc) = dpFromString str
   p <- getPos
   colOffset <- getLayoutOffset
   if cr == 0

@@ -288,7 +288,7 @@ addSimpleAnnT ast dp kds = do
 -- |Add a trailing comma annotation, unless there is already one
 addTrailingCommaT :: (Data a) => GHC.Located a -> Transform ()
 addTrailingCommaT ast = do
-  modifyAnnsT (addTrailingComma ast (DP (0,0)))
+  modifyAnnsT (addTrailingComma ast (DP 0 0))
 
 -- ---------------------------------------------------------------------
 
@@ -356,7 +356,7 @@ setPrecedingLinesDecl ld n c ans = setPrecedingLines ld n c ans
 
 -- | Adjust the entry annotations to provide an `n` line preceding gap
 setPrecedingLines :: (SYB.Data a) => GHC.Located a -> Int -> Int -> Anns -> Anns
-setPrecedingLines ast n c anne = setEntryDP ast (DP (n,c)) anne
+setPrecedingLines ast n c anne = setEntryDP ast (DP n c) anne
 
 -- ---------------------------------------------------------------------
 
@@ -365,7 +365,7 @@ setPrecedingLines ast n c anne = setEntryDP ast (DP (n,c)) anne
 getEntryDP :: (Data a) => Anns -> GHC.Located a -> DeltaPos
 getEntryDP anns ast =
   case Map.lookup (mkAnnKey ast) anns of
-    Nothing  -> DP (0,0)
+    Nothing  -> DP 0 0
     Just ann -> annTrueEntryDelta ann
 
 -- ---------------------------------------------------------------------
@@ -403,7 +403,7 @@ transferEntryDP a b anns = (const anns2) anns
       anA <- Map.lookup (mkAnnKey a) anns
       anB <- Map.lookup (mkAnnKey b) anns
       let anB'  = Ann
-            { annEntryDelta        = DP (0,0) -- Need to adjust for comments after
+            { annEntryDelta        = DP 0 0 -- Need to adjust for comments after
             , annPriorComments     = annPriorComments     anB
             , annFollowingComments = annFollowingComments anB
             , annsDP               = annsDP          anB
@@ -485,7 +485,7 @@ balanceComments' first second = do
         an2' = an2 { annPriorComments = stay}
         ans' = Map.insert k1 an1' $ Map.insert k2 an2' ans
 
-    simpleBreak (_,DP (r,_c)) = r > 0
+    simpleBreak (_,DP r _c) = r > 0
 
   modifyAnnsT (moveComments simpleBreak)
 
@@ -524,7 +524,7 @@ balanceTrailingComments first second = do
         an1' = an1 { annFollowingComments = stay }
         ans' = Map.insert k1 an1' $ Map.insert k2 an2 ans
 
-    simpleBreak (_,DP (r,_c)) = r > 0
+    simpleBreak (_,DP r _c) = r > 0
 
   ans <- getAnnsT
   let (ans',mov) = moveComments simpleBreak ans
@@ -695,7 +695,7 @@ instance HasDecls (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
                   Nothing -> error "wtf"
                   Just ann -> Map.insert (mkAnnKey m) ann1 mkds
                     where
-                      ann1 = ann { annsDP = annsDP ann ++ [(G GHC.AnnWhere,DP (1,2))]
+                      ann1 = ann { annsDP = annsDP ann ++ [(G GHC.AnnWhere,DP 1 2)]
                                  }
             modifyAnnsT addWhere
             modifyAnnsT (setPrecedingLines (ghead "LMatch.replaceDecls" newBinds) 1 4)
@@ -805,7 +805,7 @@ replaceDeclsPatBind p@(GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds) b c d)) new
                   Nothing -> error "wtf"
                   Just ann -> Map.insert (mkAnnKey p) ann1 mkds
                     where
-                      ann1 = ann { annsDP = annsDP ann ++ [(G GHC.AnnWhere,DP (1,2))]
+                      ann1 = ann { annsDP = annsDP ann ++ [(G GHC.AnnWhere,DP 1 2)]
                                  }
             modifyAnnsT addWhere
             modifyAnnsT (setPrecedingLines (ghead "LMatch.replaceDecls" newDecls) 1 4)
