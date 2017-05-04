@@ -245,13 +245,14 @@ deltaInterpret = iterTM go
     go (MarkMany akwid next)            = addDeltaAnnotations akwid >> next
     go (MarkManyOptional akwid next)    = addDeltaAnnotations akwid >> next
     go (MarkOffsetPrim akwid n _ next)  = addDeltaAnnotationLs akwid n >> next
-    go (MarkOffsetPrimOptional akwid n _ next) = addDeltaAnnotationLs akwid n >> next
+    -- go (MarkOffsetPrimOptional akwid n _ next) = addDeltaAnnotationLs akwid n >> next
     go (WithAST lss prog next)          = withAST lss (deltaInterpret prog) >> next
     go (CountAnns kwid next)            = countAnnsDelta kwid >>= next
     go (SetLayoutFlag r action next)    = do
       rigidity <- asks drRigidity
       (if r <= rigidity then setLayoutFlag else id) (deltaInterpret action)
       next
+    go (MarkAnnBeforeAnn ann1 ann2 next) = deltaMarkAnnBeforeAnn ann1 ann2 >> next
     go (MarkExternal ss akwid _ next)    = addDeltaAnnotationExt ss akwid >> next
     go (StoreOriginalSrcSpan _ key next) = storeOriginalSrcSpanDelta key >>= next
     go (GetSrcSpanForKw ss kw next)      = getSrcSpanForKw ss kw >>= next
@@ -652,6 +653,21 @@ makeDeltaComment c = do
 addDeltaComment :: Comment -> DeltaPos -> Delta ()
 addDeltaComment d p = do
   addAnnDeltaPos (AnnComment d) p
+
+-- ---------------------------------------------------------------------
+
+-- |If the first annotation has a smaller SrcSpan than the second, then mark it.
+deltaMarkAnnBeforeAnn :: GHC.AnnKeywordId -> GHC.AnnKeywordId -> Delta ()
+deltaMarkAnnBeforeAnn annBefore annAfter = do
+  ss <- getSrcSpan
+  mb <- peekAnnotationDelta annBefore
+  ma <- peekAnnotationDelta annAfter
+  let
+    before = sort $ filter (\s -> GHC.isSubspanOf s ss) mb
+    after  = sort $ filter (\s -> GHC.isSubspanOf s ss) ma
+  case (before,after) of
+    (b:_, a:_) -> when (b < a) $ addDeltaAnnotation annBefore
+    _ -> return ()
 
 -- ---------------------------------------------------------------------
 

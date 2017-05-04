@@ -120,13 +120,14 @@ data AnnotationF next where
   MarkMany         :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   MarkManyOptional :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   MarkOffsetPrim   :: GHC.AnnKeywordId -> Int -> Maybe String              -> next -> AnnotationF next
-  MarkOffsetPrimOptional :: GHC.AnnKeywordId -> Int -> Maybe String        -> next -> AnnotationF next
+  -- MarkOffsetPrimOptional :: GHC.AnnKeywordId -> Int -> Maybe String        -> next -> AnnotationF next
   WithAST          :: Data a => GHC.Located a
                              -> Annotated b                                -> next -> AnnotationF next
   CountAnns        :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
   WithSortKey      :: [(GHC.SrcSpan, Annotated ())]                        -> next -> AnnotationF next
 
   SetLayoutFlag    ::  Rigidity -> Annotated ()                            -> next -> AnnotationF next
+  MarkAnnBeforeAnn :: GHC.AnnKeywordId -> GHC.AnnKeywordId                 -> next -> AnnotationF next
 
   -- Required to work around deficiencies in the GHC AST
   StoreOriginalSrcSpan :: GHC.SrcSpan -> AnnKey         -> (AnnKey -> next) -> AnnotationF next
@@ -166,7 +167,7 @@ makeFreeCon  'MarkExternal
 makeFreeCon  'MarkMany
 makeFreeCon  'MarkManyOptional
 makeFreeCon  'MarkOffsetPrim
-makeFreeCon  'MarkOffsetPrimOptional
+-- makeFreeCon  'MarkOffsetPrimOptional
 makeFreeCon  'CountAnns
 makeFreeCon  'StoreOriginalSrcSpan
 makeFreeCon  'GetSrcSpanForKw
@@ -184,6 +185,7 @@ makeFreeCon  'UnsetContext
 makeFreeCon  'IfInContext
 makeFreeCon  'WithSortKeyContexts
 makeFreeCon  'TellContext
+makeFreeCon  'MarkAnnBeforeAnn
 
 -- ---------------------------------------------------------------------
 
@@ -240,8 +242,8 @@ markOffsetWithString kwid n s = markOffsetPrim kwid n (Just s)
 markOffset :: GHC.AnnKeywordId -> Int -> Annotated ()
 markOffset kwid n = markOffsetPrim kwid n Nothing
 
-markOffsetOptional :: GHC.AnnKeywordId -> Int -> Annotated ()
-markOffsetOptional kwid n = markOffsetPrimOptional kwid n Nothing
+-- markOffsetOptional :: GHC.AnnKeywordId -> Int -> Annotated ()
+-- markOffsetOptional kwid n = markOffsetPrimOptional kwid n Nothing
 
 markTrailingSemi :: Annotated ()
 markTrailingSemi = markOutside GHC.AnnSemi AnnSemiSep
@@ -2587,10 +2589,12 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
       -- markExpr _ (GHC.HsIf _ e1 e2 e3) = setRigidFlag $ do
         mark GHC.AnnIf
         markLocated e1
-        markOffsetOptional GHC.AnnSemi 0
+        -- markOffsetOptional GHC.AnnSemi 0
+        markAnnBeforeAnn GHC.AnnSemi GHC.AnnThen
         mark GHC.AnnThen
         setContextLevel (Set.singleton ListStart) 2 $ markLocated e2
-        markOffsetOptional GHC.AnnSemi 1
+        -- markOffsetOptional GHC.AnnSemi 1
+        markAnnBeforeAnn GHC.AnnSemi GHC.AnnElse
         mark GHC.AnnElse
         setContextLevel (Set.singleton ListStart) 2 $ markLocated e3
 

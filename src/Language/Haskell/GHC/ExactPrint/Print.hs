@@ -166,8 +166,8 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
       allAnns akwid >> next
     go (MarkOffsetPrim kwid _ mstr next) =
       printStringAtMaybeAnn (G kwid) mstr >> next
-    go (MarkOffsetPrimOptional kwid _ mstr next) =
-      printStringAtMaybeAnn (G kwid) mstr >> next
+    -- go (MarkOffsetPrimOptional kwid _ mstr next) =
+    --   printStringAtMaybeAnn (G kwid) mstr >> next
     go (WithAST lss action next) =
       exactPC lss (printInterpret action) >> next
     go (CountAnns kwid next) =
@@ -176,6 +176,8 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
       rigidity <- asks epRigidity
       (if r <= rigidity then setLayout else id) (printInterpret action)
       next
+
+    go (MarkAnnBeforeAnn ann1 ann2 next) = printMarkAnnBeforeAnn (G ann1) (G ann2) >> next
     go (MarkExternal _ akwid s next) =
       printStringAtMaybeAnn (G akwid) (Just s) >> next
     go (StoreOriginalSrcSpan _ _ next) = storeOriginalSrcSpanPrint >>= next
@@ -353,6 +355,25 @@ setPos l = modify (\s -> s {epPos = l})
 -- |Get the current column offset
 getLayoutOffset :: (Monad m, Monoid w) => EP w m LayoutStartCol
 getLayoutOffset = gets epLHS
+
+-- ---------------------------------------------------------------------
+
+-- |If the first annotation has a smaller SrcSpan than the second, then mark it.
+-- In the printer this means the first appearing before the second in the list
+-- of annotations remaining
+printMarkAnnBeforeAnn :: (Monad m, Monoid w) => KeywordId -> KeywordId -> EP w m ()
+printMarkAnnBeforeAnn annBefore annAfter = do
+  kd <- gets epAnnKds
+  case kd of
+    []    -> return () -- Should never be triggered
+    (k:_kds) -> do
+      -- find the first ann, then the second. If found in that order, annotate.
+      let find a = (\(kw,_) -> kw == a)
+      case break (find annBefore) k of
+        (_,[]) -> return () -- annBefore not present
+        (_,rest) -> if null (snd $ break (find annAfter) rest)
+                      then return ()
+                      else markPrim annBefore (Nothing)
 
 -- ---------------------------------------------------------------------
 

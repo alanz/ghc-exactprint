@@ -148,13 +148,13 @@ tr = hSilence [stderr] $ do
 
 tt' :: IO (Counts,Int)
 tt' = runTestText (putTextToHandle stdout True) $ TestList [
-      -- mkParserTest "ghc710" "Unicode.hs"
+      mkParserTest "ghc80" "SemicolonIf.hs"
 
       -- mkPrettyRoundtrip "ghc80" "StringSource.hs"
       -- mkPrettyRoundtrip "ghc80" "records-prov-req.hs"
       -- mkPrettyRoundtrip "ghc80" "records-poly-update.hs"
       -- mkPrettyRoundtrip "ghc80" "poly-export-fail2.hs"
-      mkPrettyRoundtrip "ghc80" "pmc007.hs"
+      -- mkPrettyRoundtrip "ghc80" "pmc007.hs"
 
       -- mkParserTest "ghc80" "DatatypeContexts.hs"
       -- mkParserTest "ghc80" "Families.hs"
