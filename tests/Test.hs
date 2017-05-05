@@ -95,9 +95,10 @@ filterPrettyRoundTrip fps = sort $ Set.toList $ Set.difference (Set.fromList fps
     [
       -- testPrefix </> "ghc80" </> "MultiQuote.hs"
       "MultiQuote.hs"
+    , "TestUtils.hs"
     , "T10689a.hs"
     , "Zwaluw.hs"
-    , "determ004.hs.hs"
+    , "determ004.hs"
     ]
 #else
   -- GHC 7.10
