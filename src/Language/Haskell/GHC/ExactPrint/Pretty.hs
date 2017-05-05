@@ -161,7 +161,7 @@ prettyInterpret = iterTM go
     go (MarkMany akwid next)            = addPrettyAnnotation (G akwid) >> next
     go (MarkManyOptional _akwid next)   = next
     go (MarkOffsetPrim akwid n _ next)  = addPrettyAnnotationLs akwid n >> next
-    go (MarkOffsetPrimOptional _akwid _n _ next)  = next
+    -- go (MarkOffsetPrimOptional _akwid _n _ next)  = next
     go (WithAST lss prog next)          = withAST lss (prettyInterpret prog) >> next
     go (CountAnns kwid next)            = countAnnsPretty kwid >>= next
     go (WithSortKey             kws next) = withSortKey             kws >> next
@@ -171,6 +171,7 @@ prettyInterpret = iterTM go
       (if r <= rigidity then setLayoutFlag else id) (prettyInterpret action)
       next
     go (StoreOriginalSrcSpan l key next) = storeOriginalSrcSpanPretty l key >>= next
+    go (MarkAnnBeforeAnn _ann1 _ann2 next) = next
     go (GetSrcSpanForKw ss kw next)      = getSrcSpanForKw ss kw >>= next
 #if __GLASGOW_HASKELL__ <= 710
     go (StoreString s ss next)           = storeString s ss >> next
