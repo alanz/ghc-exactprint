@@ -131,6 +131,7 @@ data AnnotationF next where
   WithSortKey      :: [(GHC.SrcSpan, Annotated ())]                        -> next -> AnnotationF next
 
   SetLayoutFlag    ::  Rigidity -> Annotated ()                            -> next -> AnnotationF next
+  MarkAnnBeforeAnn :: GHC.AnnKeywordId -> GHC.AnnKeywordId                 -> next -> AnnotationF next
 
   -- Required to work around deficiencies in the GHC AST
   StoreOriginalSrcSpan :: GHC.SrcSpan -> AnnKey         -> (AnnKey -> next) -> AnnotationF next
@@ -188,6 +189,7 @@ makeFreeCon  'UnsetContext
 makeFreeCon  'IfInContext
 makeFreeCon  'WithSortKeyContexts
 makeFreeCon  'TellContext
+makeFreeCon  'MarkAnnBeforeAnn
 
 -- ---------------------------------------------------------------------
 

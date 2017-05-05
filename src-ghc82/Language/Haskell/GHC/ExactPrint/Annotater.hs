@@ -1863,10 +1863,10 @@ instance Annotate (GHC.HsExpr GHC.RdrName) where
       -- markExpr _ (GHC.HsIf _ e1 e2 e3) = setRigidFlag $ do
         mark GHC.AnnIf
         markLocated e1
-        markOffsetOptional GHC.AnnSemi 0
+        markAnnBeforeAnn GHC.AnnSemi GHC.AnnThen
         mark GHC.AnnThen
         setContextLevel (Set.singleton ListStart) 2 $ markLocated e2
-        markOffsetOptional GHC.AnnSemi 1
+        markAnnBeforeAnn GHC.AnnSemi GHC.AnnElse
         mark GHC.AnnElse
         setContextLevel (Set.singleton ListStart) 2 $ markLocated e3
 

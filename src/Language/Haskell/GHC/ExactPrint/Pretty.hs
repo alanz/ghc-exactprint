@@ -171,6 +171,7 @@ prettyInterpret = iterTM go
       (if r <= rigidity then setLayoutFlag else id) (prettyInterpret action)
       next
     go (StoreOriginalSrcSpan l key next) = storeOriginalSrcSpanPretty l key >>= next
+    go (MarkAnnBeforeAnn _ann1 _ann2 next) = next
     go (GetSrcSpanForKw ss kw next)      = getSrcSpanForKw ss kw >>= next
 #if __GLASGOW_HASKELL__ <= 710
     go (StoreString s ss next)           = storeString s ss >> next

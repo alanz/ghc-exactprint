@@ -188,7 +188,8 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkPrettyRoundtrip "ghc80" "T10689a.hs"
       -- mkPrettyRoundtrip "ghc710" "Ann01.hs"
 
-      mkParserTest "ghc80" "T10689a.hs"
+      mkParserTest "ghc80" "SemicolonIf.hs"
+      -- mkParserTest "ghc80" "T10689a.hs"
       -- mkParserTest "ghc80" "MonadT.hs"
       -- mkParserTest "ghc710" "Ann01.hs"
 
