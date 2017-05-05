@@ -14,7 +14,7 @@ import System.IO
 import System.Exit
 
 import Data.List
-
+import qualified Data.Set as Set
 import System.IO.Silently
 
 import Test.Common
@@ -74,18 +74,42 @@ transform = hSilence [stderr] $ do
 -- ---------------------------------------------------------------------
 
 findTests :: IO Test
-findTests = testList "Round-trip tests" <$> mapM (findTestsDir mkParserTest) testDirs
+findTests = testList "Round-trip tests" <$> mapM (findTestsDir id mkParserTest) testDirs
 
 findPrettyTests :: IO Test
-findPrettyTests = testList "Default Annotations round-trip tests" <$> mapM (findTestsDir mkPrettyRoundtrip) testDirs
+findPrettyTests =
+  testList "Default Annotations round-trip tests"
+           <$> mapM (findTestsDir filterPrettyRoundTrip mkPrettyRoundtrip) testDirs
 
-findTestsDir :: (FilePath -> FilePath -> Test) -> FilePath -> IO Test
-findTestsDir mkTestFn dir = do
+-- | Filter out tests that are known to fail, for particular compilers
+filterPrettyRoundTrip :: [FilePath] -> [FilePath]
+filterPrettyRoundTrip fps = sort $ Set.toList $ Set.difference (Set.fromList fps) skipped
+-- filterPrettyRoundTrip fps = error $ "filterPrettyRoundTrip:fps=" ++ show fps
+  where
+#if __GLASGOW_HASKELL__ > 800
+  -- GHC 8.2
+  skipped = Set.empty
+#elif __GLASGOW_HASKELL__ >= 711
+  -- GHC 8.0
+  skipped = Set.fromList
+    [
+      -- testPrefix </> "ghc80" </> "MultiQuote.hs"
+      "MultiQuote.hs"
+    , "T10689a.hs"
+    , "Zwaluw.hs"
+    , "determ004.hs.hs"
+    ]
+#else
+  -- GHC 7.10
+  skipped = Set.empty
+#endif
+
+findTestsDir :: ([FilePath] -> [FilePath]) -> (FilePath -> FilePath -> Test) -> FilePath -> IO Test
+findTestsDir filterFn mkTestFn dir = do
   let fp = testPrefix </> dir
   fs <- getDirectoryContents fp
   let testFiles = sort $ filter (".hs" `isSuffixOf`) fs
-  -- return $ testList dir (map (mkTestFn dir) testFiles)
-  return $ testList dir (map (\fn -> TestLabel fn (mkTestFn dir fn)) testFiles)
+  return $ testList dir (map (\fn -> TestLabel fn (mkTestFn dir fn)) $ filterFn testFiles)
 
 listTests :: IO ()
 listTests = do
@@ -105,8 +129,8 @@ mkTests = do
   prettyRoundTripTests <- findPrettyTests
   return $ TestList [
                       internalTests, roundTripTests, transformTests, failingTests, noAnnotationTests
-                    -- ,
-                    --   prettyRoundTripTests
+                    ,
+                      prettyRoundTripTests
                     ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -160,9 +184,11 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
       -- mkPrettyRoundtrip "ghc80" "pmc007.hs"
       -- mkPrettyRoundtrip "ghc80" "MultiQuote.hs"
+      -- mkPrettyRoundtrip "ghc80" "T10689a.hs"
       -- mkPrettyRoundtrip "ghc710" "Ann01.hs"
 
-      mkParserTest "ghc80" "MonadT.hs"
+      mkParserTest "ghc80" "T10689a.hs"
+      -- mkParserTest "ghc80" "MonadT.hs"
       -- mkParserTest "ghc710" "Ann01.hs"
 
    -- Needs GHC changes
