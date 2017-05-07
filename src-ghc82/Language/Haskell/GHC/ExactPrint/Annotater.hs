@@ -365,12 +365,6 @@ instance Annotate GHC.RdrName where
               -- TODO: unicode support?
                         "forall" -> if spanLength l == 1 then "∀" else str
                         _ -> str
-        let str'' = if isSym && (GHC.isTcClsNameSpace $ GHC.rdrNameSpace n)
-              then -- Horrible hack until GHC 8.2 with https://phabricator.haskell.org/D3016
-                  if spanLength l - length str' > 6 -- length of "type" + 2 parens
-                    then "(" ++ str' ++ ")"
-                    else str'
-              else str'
 
         let
           markParen :: GHC.AnnKeywordId -> Annotated ()
@@ -390,7 +384,7 @@ instance Annotate GHC.RdrName where
         cnt  <- countAnns GHC.AnnVal
         case cnt of
           0 -> markExternal l GHC.AnnVal str'
-          1 -> markWithString GHC.AnnVal str''
+          1 -> markWithString GHC.AnnVal str'
           _ -> traceM $ "Printing RdrName, more than 1 AnnVal:" ++ showGhc (l,n)
         unless isSym $ inContext (Set.fromList [InfixOp]) $ markOffset GHC.AnnBackquote 1
         markParen GHC.AnnCloseP
@@ -1549,7 +1543,7 @@ markHsConPatDetails ln dets = do
       mark GHC.AnnCloseC -- '}'
     GHC.InfixCon a1 a2 -> do
       markLocated a1
-      setContext (Set.singleton InfixOp) $ markLocated ln
+      unsetContext PrefixOp $ setContext (Set.singleton InfixOp) $ markLocated ln
       markLocated a2
 
 markHsConDeclDetails ::
