@@ -453,7 +453,7 @@ instance Annotate GHC.Name where
 
 instance (GHC.DataId name,GHC.HasOccName name,Annotate name)
   => Annotate (GHC.ImportDecl name) where
- markAST _ imp@(GHC.ImportDecl msrc modname mpkg src safeflag qualFlag _impl _as hiding) = do
+ markAST _ imp@(GHC.ImportDecl msrc modname mpkg _src safeflag qualFlag _impl _as hiding) = do
 
    -- 'import' maybe_src maybe_safe optqualified maybe_pkg modid maybeas maybeimpspec
    mark GHC.AnnImport
