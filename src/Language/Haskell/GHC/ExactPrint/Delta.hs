@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE NamedFieldPuns #-}
 -- |  This module converts 'GHC.ApiAnns' into 'Anns' by traversing a
--- structure created by the "Annotate" modue.
+-- structure created by the "Annotate" module.
 --
 -- == Structure of an Annotation
 --
@@ -11,18 +11,80 @@
 --
 -- == Layout Calculation
 --
--- Certain expressions such as do blocks and let bindings obey
--- <https://en.wikibooks.org/wiki/Haskell/Indentation layout rules>. We
--- calculate the 'annEntryDelta' slightly differently when such rules
--- apply.
+-- In order to properly place syntax nodes and comments properly after
+-- refactoring them (in such a way that the indentation level changes), their
+-- position (encoded in the 'addEntryDelta' field) is not expressed as absolute
+-- but relative to their context. As further motivation, consider the simple
+-- let-into-where-block refactoring, from:
 --
--- 1. The first element which the layout rule applies to is given
--- a 'annEntryDelta' as normal.
--- 2. Further elements which must obey the rules are then given
--- 'annEntryDelta's relative to the LHS of the first element.
+-- @
+-- foo = do
+--   let bar = do
+--         x
+--         -- comment
+--         y
+--   bar
+-- @
+--
+-- to
+--
+-- @
+-- foo = do
+--   bar
+--  where
+--   bar = do
+--     x
+--     -- comment
+--     y
+-- @
+--
+-- Notice how the column of @x@, @y@ and the comment change due to this
+-- refactoring but certain relative positions (e.g. the comment starting at the
+-- same column as @x@) remain unchanged.
+--
+-- Now, what does "context" mean exactly? Here we reference the
+-- "indentation level" as used in the haskell report (see chapter 2.7:
+-- <https://www.haskell.org/onlinereport/haskell2010/haskellch2.html#x7-210002.7>):
+-- 'addEntryDelta' is mostly relative to the current (inner-most) indentation
+-- level. But in order to get better results, for the purpose of defining
+-- relative positions a the offside-rule is modified slightly: Normally it
+-- fires (only) at the first elements after where/let/do/of, introducing a new
+-- indentation level. In addition, the rule here fires also at the "@let@"
+-- keyword (when it is part of a "@let-in@" construct) and at the "@if@" keyword.
+--
+-- The effect of this additional applications of the offside-rule is that any
+-- elements (more or less directly) following the "@let@" ("@if@"")
+-- keyword have a position relative to the "@let@" ("@if@")
+-- keyword position, even when the regular offside-rule does apply not yet/not
+-- anymore. This affects two concrete things: Comments directly following
+-- "@let@"/"@if@", and the respective follow-up keywords: "@in@" or
+-- "@then@"/"@else@".
+--
+-- Due to this additional indentation level, it is possible to observe/obtain
+-- negative delta-positions; consider:
+--
+-- @
+-- foo = let x = 1
+--   in x
+-- @
+--
+-- Here, the @in@ keyword has an 'annEntryDelta' of @DP (1, -4)@ as it appears
+-- one line below the previous elements and 4 columns /left/ relative to the
+-- start of the @let@ keyword.
+--
+-- In general, the element that defines such an indentation level (i.e. the
+-- first element after a where/let/do/of) will have an 'annEntryDelta' relative
+-- to the previous inner-most indentation level; in other words: a new
+-- indentation level becomes relevant only after the construct introducing the
+-- element received its 'annEntryDelta' position. (Otherwise these elements
+-- always would have a zero horizontal position - relative to itself.)
+--
+-- (This affects comments, too: A comment preceding the first element of a
+-- layout block will have a position relative to the outer block, not of the
+-- newly introduced layout block.)
 --
 -- For example, in the following expression the statement corresponding to
--- `baz` will be given a 'annEntryDelta' of @DP (1, 2)@ as it appears
+-- @baz@ will be given a 'annEntryDelta' of @DP (1, 2)@ as it appears
 -- 1 line and 2 columns after the @do@ keyword. On the other hand, @bar@
 -- will be given a 'annEntryDelta' of @DP (1,0)@ as it appears 1 line
 -- further than @baz@ but in the same column as the start of the layout
@@ -43,7 +105,7 @@
 --
 -- === annTrueEntryDelta
 -- A very useful function is 'annTrueEntryDelta' which calculates the
--- offset from the last synctactic element (ignoring comments). This is
+-- offset from the last syntactic element (ignoring comments). This is
 -- different to 'annEntryDelta' which does not ignore comments.
 --
 --
