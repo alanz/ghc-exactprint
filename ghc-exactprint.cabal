@@ -1,5 +1,5 @@
 name:                ghc-exactprint
-version:             0.5.3.1
+version:             0.5.4.0
 synopsis:            ExactPrint for GHC
 description:         Using the API Annotations available from GHC 7.10.2, this
                      library provides a means to round trip any code that can
@@ -17,6 +17,9 @@ description:         Using the API Annotations available from GHC 7.10.2, this
                         * Print - converts an AST and its annotations to
                           properly formatted source text.
                      .
+                        * Pretty - adds annotations to an AST (fragment) so that
+                          the output can be parsed back to the same AST.
+                     .
                      .
                      Note: requires GHC 7.10.2 or later
 
@@ -26,7 +29,7 @@ author:              Alan Zimmerman, Matthew Pickering
 maintainer:          alan.zimm@gmail.com
 category:            Development
 build-type:          Simple
-tested-with:    GHC == 7.10.3, GHC == 8.0.1, GHC == 8.0.2
+tested-with:    GHC == 7.10.3, GHC == 8.0.1, GHC == 8.0.2, GHC == 8.2.1
 extra-source-files:  ChangeLog
                      src-ghc710/Language/Haskell/GHC/ExactPrint/*.hs
                      tests/examples/failing/*.hs
@@ -75,7 +78,7 @@ library
   -- other-modules:
   -- other-extensions:
   GHC-Options:         -Wall
-  build-depends:       base >=4.7 && <5.0
+  build-depends:       base >=4.7 && <4.11
                      , bytestring >= 0.10.6
                      , containers >= 0.5
                      , directory >= 1.2
@@ -127,7 +130,7 @@ Test-Suite test
   if impl (ghc < 7.10.2)
       buildable: False
   Build-depends:       HUnit >= 1.2
-                     , base < 5
+                     , base < 4.11
                      , bytestring
                      , containers >= 0.5
                      , Diff
