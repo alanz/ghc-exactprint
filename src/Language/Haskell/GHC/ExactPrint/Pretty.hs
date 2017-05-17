@@ -38,8 +38,6 @@ import qualified GHC
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import Debug.Trace
-
 {-# ANN module "HLint: ignore Eta reduce" #-}
 {-# ANN module "HLint: ignore Redundant do" #-}
 {-# ANN module "HLint: ignore Reduce duplication" #-}
@@ -199,7 +197,7 @@ addPrettyAnnotation :: KeywordId -> Pretty ()
 addPrettyAnnotation ann = do
   noPrec <- gets apNoPrecedingSpace
   ctx <- asks prContext
-  _ <- trace ("Pretty.addPrettyAnnotation:=" ++ showGhc (ann,noPrec,ctx)) $ asks prContext
+  _ <- debugP ("Pretty.addPrettyAnnotation:=" ++ showGhc (ann,noPrec,ctx)) $ asks prContext
   let
     dp = case ann of
            (G GHC.AnnAs)        -> tellKd (ann,DP (0,1))
@@ -283,7 +281,7 @@ withSrcSpanPretty (GHC.L l a) action = do
   -- flags passed up from subelements of the AST.
   (_,w) <- listen (return () :: Pretty ())
 
-  _ <- trace ("withSrcSpanPretty: prLayoutContext w=" ++ show (prLayoutContext w) ) (return ())
+  _ <- debugP ("withSrcSpanPretty: prLayoutContext w=" ++ show (prLayoutContext w) ) (return ())
 
   local (\s -> s { curSrcSpan = l
                  , annConName = annGetConstr a
@@ -324,20 +322,20 @@ withAST lss@(GHC.L ss t) action = do
 #endif
 
     -- uncs <- getUnallocatedComments
-    -- ctx <- trace ("Pretty.withAST:cs:(ss,cs,uncs)=" ++ showGhc (ss,cs,uncs)) $ asks prContext
+    -- ctx <- debugP ("Pretty.withAST:cs:(ss,cs,uncs)=" ++ showGhc (ss,cs,uncs)) $ asks prContext
     ctx <- asks prContext
 
     noPrec <- gets apNoPrecedingSpace
-    edp <- trace ("Pretty.withAST:enter:(ss,constr,noPrec,ctx)=" ++ showGhc (ss,showConstr (toConstr t),noPrec,ctx)) $ entryDpFor ctx t
+    edp <- debugP ("Pretty.withAST:enter:(ss,constr,noPrec,ctx)=" ++ showGhc (ss,showConstr (toConstr t),noPrec,ctx)) $ entryDpFor ctx t
     -- edp <- entryDpFor ctx t
 
-    let ctx1 = trace ("Pretty.withAST:edp:(ss,constr,edp)=" ++ showGhc (ss,showConstr (toConstr t),edp)) ctx
+    let ctx1 = debugP ("Pretty.withAST:edp:(ss,constr,edp)=" ++ showGhc (ss,showConstr (toConstr t),edp)) ctx
     (res, w) <- if inAcs (Set.fromList [ListItem,TopLevel]) ctx1
       then
-           -- trace ("Pretty.withAST:setNoPrecedingSpace") $
+           -- debugP ("Pretty.withAST:setNoPrecedingSpace") $
              censor maskWriter (listen (setNoPrecedingSpace action))
       else
-           -- trace ("Pretty.withAST:setNoPrecedingSpace") $
+           -- debugP ("Pretty.withAST:setNoPrecedingSpace") $
             censor maskWriter (listen action)
 
     let kds = annKds w
@@ -366,7 +364,7 @@ entryDpFor ctx a = (def `extQ` grhs) a
 
     def :: a -> Pretty DeltaPos
     def _ =
-      trace ("entryDpFor:(topLevel,listStart,inList,noAdvanceLine,ctx)=" ++ show (topLevel,listStart,inList,noAdvanceLine,ctx)) $
+      debugP ("entryDpFor:(topLevel,listStart,inList,noAdvanceLine,ctx)=" ++ show (topLevel,listStart,inList,noAdvanceLine,ctx)) $
         if noAdvanceLine
           then return (DP (0,1))
           else
@@ -399,11 +397,11 @@ fromNoPrecedingSpace def lay = do
     then do
       modify (\s -> s { apNoPrecedingSpace = False
                       })
-      trace ("fromNoPrecedingSpace:def") def
+      debugP ("fromNoPrecedingSpace:def") def
       -- def
     else
       -- lay
-      trace ("fromNoPrecedingSpace:lay") lay
+      debugP ("fromNoPrecedingSpace:lay") lay
 
 
 -- ---------------------------------------------------------------------
@@ -508,8 +506,8 @@ annotationsToCommentsPretty _kws = return ()
 annotationsToCommentsBFPretty :: (GHC.Outputable a) => GHC.BooleanFormula (GHC.Located a) -> [GHC.AnnKeywordId] -> Pretty ()
 annotationsToCommentsBFPretty bf _kws = do
   -- cs <- gets apComments
-  cs <- trace ("annotationsToCommentsBFPretty:" ++ showGhc (bf,makeBooleanFormulaAnns bf)) $ gets apComments
-  -- return$ trace ("annotationsToCommentsBFPretty:" ++ showGhc (bf,makeBooleanFormulaAnns bf)) ()
+  cs <- debugP ("annotationsToCommentsBFPretty:" ++ showGhc (bf,makeBooleanFormulaAnns bf)) $ gets apComments
+  -- return$ debugP ("annotationsToCommentsBFPretty:" ++ showGhc (bf,makeBooleanFormulaAnns bf)) ()
   -- error ("annotationsToCommentsBFPretty:" ++ showGhc (bf,makeBooleanFormulaAnns bf))
   let
     kws = makeBooleanFormulaAnns bf
