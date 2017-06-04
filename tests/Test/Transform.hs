@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeFamilies #-}
 module Test.Transform where
 
 import Language.Haskell.GHC.ExactPrint
@@ -103,8 +104,8 @@ changeLocalDecls2 ans (GHC.L l p) = do
   -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
   let (p',(ans',_),_w) = runTransform ans doAddLocal
       doAddLocal = SYB.everywhereM (SYB.mkM replaceLocalBinds) p
-      replaceLocalBinds :: GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)
-                        -> Transform (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
+      replaceLocalBinds :: GHC.LMatch ParseI (GHC.LHsExpr ParseI)
+                        -> Transform (GHC.LMatch ParseI (GHC.LHsExpr ParseI))
 #if __GLASGOW_HASKELL__ <= 710
       replaceLocalBinds m@(GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.EmptyLocalBinds)))) = do
 #else
@@ -155,8 +156,8 @@ changeLocalDecls ans (GHC.L l p) = do
   -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
   let (p',(ans',_),_w) = runTransform ans doAddLocal
       doAddLocal = SYB.everywhereM (SYB.mkM replaceLocalBinds) p
-      replaceLocalBinds :: GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName)
-                        -> Transform (GHC.LMatch GHC.RdrName (GHC.LHsExpr GHC.RdrName))
+      replaceLocalBinds :: GHC.LMatch ParseI (GHC.LHsExpr ParseI)
+                        -> Transform (GHC.LMatch ParseI (GHC.LHsExpr ParseI))
 #if __GLASGOW_HASKELL__ <= 710
       replaceLocalBinds m@(GHC.L lm (GHC.Match mln pats typ (GHC.GRHSs rhs (GHC.HsValBinds (GHC.ValBindsIn binds sigs))))) = do
 #else
@@ -278,7 +279,7 @@ rename newNameStr spans a
         | cond ln = GHC.L ln newName
     replaceRdr x = x
 
-    replaceHsVar :: GHC.LHsExpr GHC.RdrName -> GHC.LHsExpr GHC.RdrName
+    replaceHsVar :: GHC.LHsExpr ParseI -> GHC.LHsExpr ParseI
     replaceHsVar (GHC.L ln (GHC.HsVar _))
 #if __GLASGOW_HASKELL__ <= 710
         | cond ln = GHC.L ln (GHC.HsVar newName)
@@ -287,6 +288,7 @@ rename newNameStr spans a
 #endif
     replaceHsVar x = x
 
+    replacePat :: GHC.LPat ParseI -> GHC.LPat ParseI
     replacePat (GHC.L ln (GHC.VarPat _))
 #if __GLASGOW_HASKELL__ <= 710
         | cond ln = GHC.L ln (GHC.VarPat newName)
@@ -318,7 +320,7 @@ changeLetIn1 :: Changer
 changeLetIn1 ans parsed
   = return (ans,SYB.everywhere (SYB.mkT replace) parsed)
   where
-    replace :: GHC.HsExpr GHC.RdrName -> GHC.HsExpr GHC.RdrName
+    replace :: GHC.HsExpr ParseI -> GHC.HsExpr ParseI
 #if __GLASGOW_HASKELL__ <= 710
     replace (GHC.HsLet localDecls expr@(GHC.L _ _))
 #else
@@ -526,7 +528,7 @@ rmDecl2 ans lp = do
   let
       doRmDecl = do
         let
-          go :: GHC.LHsExpr GHC.RdrName -> Transform (GHC.LHsExpr GHC.RdrName)
+          go :: GHC.LHsExpr ParseI -> Transform (GHC.LHsExpr ParseI)
           go e@(GHC.L _ (GHC.HsLet{})) = do
             decs <- hsDecls e
             e' <- replaceDecls e (init decs)
@@ -585,7 +587,7 @@ rmDecl5 ans lp = do
   let
       doRmDecl = do
         let
-          go :: GHC.HsExpr GHC.RdrName -> Transform (GHC.HsExpr GHC.RdrName)
+          go :: GHC.HsExpr ParseI -> Transform (GHC.HsExpr ParseI)
 #if __GLASGOW_HASKELL__ <= 710
           go (GHC.HsLet lb expr) = do
 #else

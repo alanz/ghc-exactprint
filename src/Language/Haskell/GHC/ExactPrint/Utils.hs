@@ -538,12 +538,21 @@ showAnnData anns n =
         -- overLit :: GHC.HsOverLit GHC.RdrName -> String
         -- overLit    = ("{HsOverLit:"++) . (++"}") . showSDoc_ . GHC.ppr
 
+#if MIN_VERSION_ghc(8,3,0)
+        bagRdrName:: GHC.Bag (GHC.Located (GHC.HsBind GHC.GhcPs)) -> String
+        bagRdrName = ("{Bag(Located (HsBind GhcPs)): "++) . (++"}") . list . GHC.bagToList
+        bagName   :: GHC.Bag (GHC.Located (GHC.HsBind GHC.GhcRn)) -> String
+        bagName    = ("{Bag(Located (HsBind GhcRn)): "++) . (++"}") . list . GHC.bagToList
+        bagVar    :: GHC.Bag (GHC.Located (GHC.HsBind GHC.GhcTc)) -> String
+        bagVar     = ("{Bag(Located (HsBind GhcTc)): "++) . (++"}") . list . GHC.bagToList
+#else
         bagRdrName:: GHC.Bag (GHC.Located (GHC.HsBind GHC.RdrName)) -> String
         bagRdrName = ("{Bag(Located (HsBind RdrName)): "++) . (++"}") . list . GHC.bagToList
         bagName   :: GHC.Bag (GHC.Located (GHC.HsBind GHC.Name)) -> String
         bagName    = ("{Bag(Located (HsBind Name)): "++) . (++"}") . list . GHC.bagToList
         bagVar    :: GHC.Bag (GHC.Located (GHC.HsBind GHC.Var)) -> String
         bagVar     = ("{Bag(Located (HsBind Var)): "++) . (++"}") . list . GHC.bagToList
+#endif
 
 #if __GLASGOW_HASKELL__ > 800
         nameSet = ("{NameSet: "++) . (++"}") . list . GHC.nameSetElemsStable

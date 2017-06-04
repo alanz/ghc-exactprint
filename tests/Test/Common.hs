@@ -29,17 +29,13 @@ import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Parsers (parseModuleApiAnnsWithCpp)
 import Language.Haskell.GHC.ExactPrint.Preprocess
+import Language.Haskell.GHC.ExactPrint.Types
 
 
 import qualified ApiAnnotation as GHC
 import qualified DynFlags      as GHC
--- import qualified FastString    as GHC
 import qualified GHC           as GHC hiding (parseModule)
--- import qualified Lexer         as GHC
 import qualified MonadUtils    as GHC
--- import qualified Parser        as GHC
--- import qualified SrcLoc        as GHC
--- import qualified StringBuffer  as GHC
 
 #if __GLASGOW_HASKELL__ <= 710
 #else
@@ -177,7 +173,7 @@ mkDebugOutput filename printed original apianns anns parsed =
 
 
 runRoundTrip :: Changer
-             -> GHC.ApiAnns -> GHC.Located (GHC.HsModule GHC.RdrName)
+             -> GHC.ApiAnns -> GHC.Located (GHC.HsModule ParseI)
              -> [Comment]
              -> IO (String, Anns, GHC.ParsedSource)
 runRoundTrip f !anns !parsedOrig cs = do

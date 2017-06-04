@@ -1,5 +1,7 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
@@ -32,6 +34,12 @@ module Language.Haskell.GHC.ExactPrint.Types
   , ACS'(..)
   , ListContexts(..)
 
+  -- * GHC Trees that Grow
+#if MIN_VERSION_ghc(8,3,0)
+  , IsPass
+#endif
+  , ParseI, RenameI, TypecheckI
+
   -- * Internal Types
   , LayoutStartCol(..)
   , declFun
@@ -41,12 +49,30 @@ module Language.Haskell.GHC.ExactPrint.Types
 
 import Data.Data (Data, Typeable, toConstr,cast)
 
-import qualified DynFlags      as GHC
+import qualified DynFlags   as GHC
 import qualified GHC
-import qualified Outputable    as GHC
+import qualified Outputable as GHC
+import qualified Var        as GHC
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+
+-- ---------------------------------------------------------------------
+
+#if MIN_VERSION_ghc(8,3,0)
+-- |bundle up the constraints required for a trees that grow pass
+type IsPass pass = (GHC.DataId pass, GHC.OutputableBndrId pass, GHC.SourceTextX pass)
+#endif
+
+#if MIN_VERSION_ghc(8,3,0)
+type ParseI     = GHC.GhcPs
+type RenameI    = GHC.GhcRn
+type TypecheckI = GHC.GhcTc
+#else
+type ParseI     = GHC.RdrName
+type RenameI    = GHC.Name
+type TypecheckI = GHC.Var
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -157,7 +183,11 @@ mkAnnKeyPrim (GHC.L l a) = AnnKey l (annGetConstr a)
 -- |Make an unwrapped @AnnKey@ for the @LHsDecl@ case, a normal one otherwise.
 mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
 mkAnnKey ld =
+#if MIN_VERSION_ghc(8,3,0)
+  case cast ld :: Maybe (GHC.LHsDecl GHC.GhcPs) of
+#else
   case cast ld :: Maybe (GHC.LHsDecl GHC.RdrName) of
+#endif
     Just d -> declFun mkAnnKeyPrim d
     Nothing -> mkAnnKeyPrim ld
 
@@ -327,7 +357,11 @@ data ListContexts = LC { lcOnly,lcInitial,lcMiddle,lcLast :: !(Set.Set AstContex
 
 -- ---------------------------------------------------------------------
 
+#if MIN_VERSION_ghc(8,3,0)
+declFun :: (forall a . Data a => GHC.Located a -> b) -> GHC.LHsDecl GHC.GhcPs -> b
+#else
 declFun :: (forall a . Data a => GHC.Located a -> b) -> GHC.LHsDecl GHC.RdrName -> b
+#endif
 declFun f (GHC.L l de) =
   case de of
       GHC.TyClD d       -> f (GHC.L l d)

@@ -13,7 +13,7 @@ import System.Environment
 import System.Exit
 import System.FilePath
 import System.IO
-import System.IO.Temp
+-- import System.IO.Temp
 import Test.Common
 import Test.CommonUtils
 import Test.HUnit
@@ -31,6 +31,7 @@ verb = Debug
 writeCPP :: FilePath -> IO ()
 writeCPP fp = appendFileFlush cppFile (('\n' : fp))
 
+writeError :: FilePath -> IO ()
 writeError = writeCPP
 
 writeParseFail :: FilePath -> String -> IO ()
@@ -62,6 +63,7 @@ appendFileFlush f txt = withFile f AppendMode (\ hdl -> hPutStr hdl txt >> hFlus
 
 -- ---------------------------------------------------------------------
 
+readFileIfPresent :: FilePath -> IO [String]
 readFileIfPresent fileName = do
   isPresent <- doesFileExist fileName
   if isPresent

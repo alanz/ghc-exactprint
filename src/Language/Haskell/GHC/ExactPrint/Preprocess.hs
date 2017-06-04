@@ -121,7 +121,11 @@ getCppTokensAsComments cppOptions sourceFile = do
 #else
                          $  map (tokComment . commentToAnnotation . fst) cppCommentToks
 #endif
+#if MIN_VERSION_ghc(8,3,0)
+        GHC.PFailed _warnfun sspan err -> parseError flags2 sspan err
+#else
         GHC.PFailed sspan err -> parseError flags2 sspan err
+#endif
 
 goodComment :: Comment -> Bool
 goodComment (Comment "" _ _) = False
@@ -176,7 +180,11 @@ tokeniseOriginalSrc startLoc flags buf = do
   let src = stripPreprocessorDirectives buf
   case GHC.lexTokenStream src startLoc flags of
     GHC.POk _ ts -> return $ GHC.addSourceToTokens startLoc src ts
+#if MIN_VERSION_ghc(8,3,0)
+    GHC.PFailed _warnfun sspan err -> parseError flags sspan err
+#else
     GHC.PFailed sspan err -> parseError flags sspan err
+#endif
 
 -- ---------------------------------------------------------------------
 
