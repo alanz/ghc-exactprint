@@ -60,11 +60,6 @@ import qualified Data.Set as Set
 -- ---------------------------------------------------------------------
 
 #if MIN_VERSION_ghc(8,3,0)
--- |bundle up the constraints required for a trees that grow pass
-type IsPass pass = (GHC.DataId pass, GHC.OutputableBndrId pass, GHC.SourceTextX pass)
-#endif
-
-#if MIN_VERSION_ghc(8,3,0)
 type ParseI     = GHC.GhcPs
 type RenameI    = GHC.GhcRn
 type TypecheckI = GHC.GhcTc
@@ -73,6 +68,14 @@ type ParseI     = GHC.RdrName
 type RenameI    = GHC.Name
 type TypecheckI = GHC.Var
 #endif
+
+#if MIN_VERSION_ghc(8,3,0)
+-- |bundle up the constraints required for a trees that grow pass
+type IsPass pass = (GHC.DataId pass, GHC.OutputableBndrId pass, GHC.SourceTextX pass)
+else
+type IsPass pass = (GHC.DataId pass, GHC.OutputableBndrId pass)
+#endif
+
 
 -- ---------------------------------------------------------------------
 
