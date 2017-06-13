@@ -127,7 +127,7 @@ newtype TransformT m a = TransformT { runTransformT :: RWST () [String] (Anns,In
                          ,MonadReader ()
                          ,MonadWriter [String]
                          ,MonadState (Anns,Int)
-                         -- ,MonadTrans
+                         ,MonadTrans
                          )
 
 
@@ -179,7 +179,7 @@ modifyAnnsT f = do
 -- |Once we have 'Anns', a 'GHC.SrcSpan' is used purely as part of an 'AnnKey'
 -- to index into the 'Anns'. If we need to add new elements to the AST, they
 -- need their own 'GHC.SrcSpan' for this.
-uniqueSrcSpanT :: Transform GHC.SrcSpan
+uniqueSrcSpanT :: (Monad m) => TransformT m GHC.SrcSpan
 uniqueSrcSpanT = do
   (an,col) <- get
   put (an,col + 1 )
@@ -193,12 +193,12 @@ isUniqueSrcSpan ss = srcSpanStartLine ss == -1
 -- ---------------------------------------------------------------------
 -- |Make a copy of an AST element, replacing the existing SrcSpans with new
 -- ones, and duplicating the matching annotations.
-cloneT :: (Data a) => a -> Transform (a, [(GHC.SrcSpan, GHC.SrcSpan)])
+cloneT :: (Data a,Monad m) => a -> TransformT m (a, [(GHC.SrcSpan, GHC.SrcSpan)])
 cloneT ast = do
   runWriterT $ SYB.everywhereM (return `SYB.ext2M` replaceLocated) ast
   where
-    replaceLocated :: forall loc a. (Typeable loc,Data a)
-                    => (GHC.GenLocated loc a) -> WriterT [(GHC.SrcSpan, GHC.SrcSpan)] Transform (GHC.GenLocated loc a)
+    replaceLocated :: forall loc a m. (Typeable loc,Data a,Monad m)
+                    => (GHC.GenLocated loc a) -> WriterT [(GHC.SrcSpan, GHC.SrcSpan)] (TransformT m) (GHC.GenLocated loc a)
     replaceLocated (GHC.L l t) = do
       case cast l :: Maybe GHC.SrcSpan of
         Just ss -> do
@@ -212,11 +212,11 @@ cloneT ast = do
 
 -- ---------------------------------------------------------------------
 -- |Slightly more general form of cloneT
-graftT :: (Data a) => Anns -> a -> Transform a
+graftT :: (Data a,Monad m) => Anns -> a -> TransformT m a
 graftT origAnns = SYB.everywhereM (return `SYB.ext2M` replaceLocated)
   where
-    replaceLocated :: forall loc a. (Typeable loc, Data a)
-                    => GHC.GenLocated loc a -> Transform (GHC.GenLocated loc a)
+    replaceLocated :: forall loc a m. (Typeable loc, Data a, Monad m)
+                    => GHC.GenLocated loc a -> TransformT m (GHC.GenLocated loc a)
     replaceLocated (GHC.L l t) = do
       case cast l :: Maybe GHC.SrcSpan of
         Just ss -> do
@@ -276,7 +276,7 @@ wrapDecl (GHC.L l s) = GHC.L l (GHC.ValD s)
 
 -- |Create a simple 'Annotation' without comments, and attach it to the first
 -- parameter.
-addSimpleAnnT :: (Data a) => GHC.Located a -> DeltaPos -> [(KeywordId, DeltaPos)] -> Transform ()
+addSimpleAnnT :: (Data a,Monad m) => GHC.Located a -> DeltaPos -> [(KeywordId, DeltaPos)] -> TransformT m ()
 addSimpleAnnT ast dp kds = do
   let ann = annNone { annEntryDelta = dp
                     , annsDP = kds
@@ -286,21 +286,21 @@ addSimpleAnnT ast dp kds = do
 -- ---------------------------------------------------------------------
 
 -- |Add a trailing comma annotation, unless there is already one
-addTrailingCommaT :: (Data a) => GHC.Located a -> Transform ()
+addTrailingCommaT :: (Data a,Monad m) => GHC.Located a -> TransformT m ()
 addTrailingCommaT ast = do
   modifyAnnsT (addTrailingComma ast (DP (0,0)))
 
 -- ---------------------------------------------------------------------
 
 -- |Remove a trailing comma annotation, if there is one one
-removeTrailingCommaT :: (Data a) => GHC.Located a -> Transform ()
+removeTrailingCommaT :: (Data a,Monad m) => GHC.Located a -> TransformT m ()
 removeTrailingCommaT ast = do
   modifyAnnsT (removeTrailingComma ast)
 
 -- ---------------------------------------------------------------------
 
 -- |'Transform' monad version of 'getEntryDP'
-getEntryDPT :: (Data a) => GHC.Located a -> Transform DeltaPos
+getEntryDPT :: (Data a,Monad m) => GHC.Located a -> TransformT m DeltaPos
 getEntryDPT ast = do
   anns <- getAnnsT
   return (getEntryDP anns ast)
@@ -308,28 +308,28 @@ getEntryDPT ast = do
 -- ---------------------------------------------------------------------
 
 -- |'Transform' monad version of 'getEntryDP'
-setEntryDPT :: (Data a) => GHC.Located a -> DeltaPos -> Transform ()
+setEntryDPT :: (Data a,Monad m) => GHC.Located a -> DeltaPos -> TransformT m ()
 setEntryDPT ast dp = do
   modifyAnnsT (setEntryDP ast dp)
 
 -- ---------------------------------------------------------------------
 
 -- |'Transform' monad version of 'transferEntryDP'
-transferEntryDPT :: (Data a,Data b) => GHC.Located a -> GHC.Located b -> Transform ()
+transferEntryDPT :: (Data a,Data b,Monad m) => GHC.Located a -> GHC.Located b -> TransformT m ()
 transferEntryDPT a b =
   modifyAnnsT (transferEntryDP a b)
 
 -- ---------------------------------------------------------------------
 
 -- |'Transform' monad version of 'setPrecedingLinesDecl'
-setPrecedingLinesDeclT ::  GHC.LHsDecl GHC.RdrName -> Int -> Int -> Transform ()
+setPrecedingLinesDeclT :: (Monad m) => GHC.LHsDecl GHC.RdrName -> Int -> Int -> TransformT m ()
 setPrecedingLinesDeclT ld n c =
   modifyAnnsT (setPrecedingLinesDecl ld n c)
 
 -- ---------------------------------------------------------------------
 
 -- |'Transform' monad version of 'setPrecedingLines'
-setPrecedingLinesT ::  (SYB.Data a) => GHC.Located a -> Int -> Int -> Transform ()
+setPrecedingLinesT ::  (SYB.Data a,Monad m) => GHC.Located a -> Int -> Int -> TransformT m ()
 setPrecedingLinesT ld n c =
   modifyAnnsT (setPrecedingLines ld n c)
 
@@ -452,7 +452,7 @@ removeTrailingComma a anns =
 -- from the second one to the 'annFollowingComments' of the first if they belong
 -- to it instead. This is typically required before deleting or duplicating
 -- either of the AST elements.
-balanceComments :: (Data a,Data b) => GHC.Located a -> GHC.Located b -> Transform ()
+balanceComments :: (Data a,Data b,Monad m) => GHC.Located a -> GHC.Located b -> TransformT m ()
 balanceComments first second = do
   -- ++AZ++ : replace the nested casts with appropriate SYB.gmapM
   -- logTr $ "balanceComments entered"
@@ -469,7 +469,7 @@ balanceComments first second = do
 -- it are attached to it, and not the following element. Of necessity this is a
 -- heuristic process, to be tuned later. Possibly a variant should be provided
 -- with a passed-in decision function.
-balanceComments' :: (Data a,Data b) => GHC.Located a -> GHC.Located b -> Transform ()
+balanceComments' :: (Data a,Data b,Monad m) => GHC.Located a -> GHC.Located b -> TransformT m ()
 balanceComments' first second = do
   let
     k1 = mkAnnKey first
@@ -492,7 +492,7 @@ balanceComments' first second = do
 -- |Once 'balanceComments' has been called to move trailing comments to a
 -- 'GHC.FunBind', these need to be pushed down from the top level to the last
 -- 'GHC.Match' if that 'GHC.Match' needs to be manipulated.
-balanceCommentsFB :: (Data b) => GHC.LHsBind GHC.RdrName -> GHC.Located b -> Transform ()
+balanceCommentsFB :: (Data b,Monad m) => GHC.LHsBind GHC.RdrName -> GHC.Located b -> TransformT m ()
 #if __GLASGOW_HASKELL__ <= 710
 balanceCommentsFB (GHC.L _ (GHC.FunBind _ _ (GHC.MG matches _ _ _) _ _ _)) second = do
 #else
@@ -894,7 +894,7 @@ instance HasDecls (GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) where
 -- the general case and one specific for a 'GHC.LHsBind'. This is required
 -- because a 'GHC.FunBind' may have multiple 'GHC.Match' items, so we cannot
 -- gurantee that 'replaceDecls' after 'hsDecls' is idempotent.
-hasDeclsSybTransform :: (SYB.Data t2, Monad m)
+hasDeclsSybTransform :: (SYB.Data t2,Monad m)
        => (forall t. HasDecls t => t -> m t)
              -- ^Worker function for the general case
        -> (GHC.LHsBind GHC.RdrName -> m (GHC.LHsBind GHC.RdrName))
@@ -938,7 +938,7 @@ hasDeclsSybTransform workerHasDecls workerBind t = trf t
 -- return anything for these as there is not meaningful 'replaceDecls' for it.
 -- This function provides a version of 'hsDecls' that returns the 'GHC.FunBind'
 -- decls too, where they are needed for analysis only.
-hsDeclsGeneric :: (SYB.Data t) => t -> Transform [GHC.LHsDecl GHC.RdrName]
+hsDeclsGeneric :: (SYB.Data t,Monad m) => t -> TransformT m [GHC.LHsDecl GHC.RdrName]
 hsDeclsGeneric t = q t
   where
     q = return []
@@ -961,7 +961,7 @@ hsDeclsGeneric t = q t
 
     -- ---------------------------------
 
-    lhsbind :: GHC.LHsBind GHC.RdrName -> Transform [GHC.LHsDecl GHC.RdrName]
+    lhsbind :: (Monad m) => GHC.LHsBind GHC.RdrName -> TransformT m [GHC.LHsDecl GHC.RdrName]
 #if __GLASGOW_HASKELL__ <= 710
     lhsbind (GHC.L _ (GHC.FunBind _ _ (GHC.MG matches _ _ _) _ _ _)) = do
 #else
@@ -980,12 +980,12 @@ hsDeclsGeneric t = q t
 
     -- ---------------------------------
 
-    llocalbinds :: GHC.Located (GHC.HsLocalBinds GHC.RdrName) -> Transform [GHC.LHsDecl GHC.RdrName]
+    llocalbinds :: (Monad m) => GHC.Located (GHC.HsLocalBinds GHC.RdrName) -> TransformT m [GHC.LHsDecl GHC.RdrName]
     llocalbinds (GHC.L _ ds) = localbinds ds
 
     -- ---------------------------------
 
-    localbinds :: GHC.HsLocalBinds GHC.RdrName -> Transform [GHC.LHsDecl GHC.RdrName]
+    localbinds :: (Monad m) => GHC.HsLocalBinds GHC.RdrName -> TransformT m [GHC.LHsDecl GHC.RdrName]
     localbinds d = hsDeclsValBinds d
 
 -- ---------------------------------------------------------------------
