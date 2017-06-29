@@ -979,8 +979,8 @@ instance (Annotate body)
 
   markAST _ (GHC.Match mln pats _typ (GHC.GRHSs grhs (GHC.L _ lb))) = do
     let
-      get_infix (GHC.FunRhs _ f) = f
-      get_infix _                = GHC.Prefix
+      get_infix (GHC.FunRhs _ f _) = f
+      get_infix _                  = GHC.Prefix
 
       isFunBind GHC.FunRhs{} = True
       isFunBind _            = False
@@ -991,7 +991,7 @@ instance (Annotate body)
           else mark         GHC.AnnOpenP
         markLocated a
         case mln of
-          GHC.FunRhs n _ -> setContext (Set.singleton InfixOp) $ markLocated n
+          GHC.FunRhs n _ _ -> setContext (Set.singleton InfixOp) $ markLocated n
           _              -> return ()
         markLocated b
         if null xs
@@ -1002,8 +1002,10 @@ instance (Annotate body)
         annotationsToComments [GHC.AnnOpenP,GHC.AnnCloseP]
         inContext (Set.fromList [LambdaExpr]) $ do mark GHC.AnnLam -- For HsLam
         case mln of
-          GHC.FunRhs n _ -> do
-            setContext (Set.fromList [NoPrecedingSpace,PrefixOp]) $ markLocated n
+          GHC.FunRhs n _ s -> do
+            setContext (Set.fromList [NoPrecedingSpace,PrefixOp]) $ do
+              when (s == GHC.SrcStrict) $ mark GHC.AnnBang
+              markLocated n
             mapM_ markLocated pats
           _  -> markListNoPrecedingSpace False pats
 
