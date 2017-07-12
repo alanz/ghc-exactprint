@@ -1090,8 +1090,9 @@ modifyValD p ast f = do
 class (Monad m) => (HasTransform m) where
   liftT :: Transform a -> m a
 
-instance HasTransform (TransformT Identity) where
-  liftT = id
+instance Monad m => HasTransform (TransformT m) where
+  liftT (TransformT (RWST t))
+    = TransformT . RWST $ \r s -> return . runIdentity $ t r s
 
 -- ---------------------------------------------------------------------
 
