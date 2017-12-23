@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
@@ -157,7 +158,7 @@ mkAnnKeyPrim (GHC.L l a) = AnnKey l (annGetConstr a)
 -- |Make an unwrapped @AnnKey@ for the @LHsDecl@ case, a normal one otherwise.
 mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
 mkAnnKey ld =
-  case cast ld :: Maybe (GHC.LHsDecl GHC.RdrName) of
+  case cast ld :: Maybe (GHC.LHsDecl GHC.GhcPs) of
     Just d -> declFun mkAnnKeyPrim d
     Nothing -> mkAnnKeyPrim ld
 
@@ -259,6 +260,9 @@ data ACS' a = ACS
                             -- propagate down the AST. Removed when it hits zero
   } deriving (Show)
 
+instance Semigroup (ACS' AstContext) where
+  (<>) = mappend
+
 instance Monoid (ACS' AstContext) where
   mempty = ACS mempty
   -- ACS a `mappend` ACS b = ACS (a `mappend` b)
@@ -327,7 +331,7 @@ data ListContexts = LC { lcOnly,lcInitial,lcMiddle,lcLast :: !(Set.Set AstContex
 
 -- ---------------------------------------------------------------------
 
-declFun :: (forall a . Data a => GHC.Located a -> b) -> GHC.LHsDecl GHC.RdrName -> b
+declFun :: (forall a . Data a => GHC.Located a -> b) -> GHC.LHsDecl GHC.GhcPs -> b
 declFun f (GHC.L l de) =
   case de of
       GHC.TyClD d       -> f (GHC.L l d)

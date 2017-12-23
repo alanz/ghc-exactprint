@@ -37,22 +37,11 @@ import Data.List ( sortBy )
 #endif
 
 import Language.Haskell.GHC.ExactPrint.Types
--- import Language.Haskell.GHC.ExactPrint.Utils
 
--- import qualified Bag            as GHC
 #if __GLASGOW_HASKELL__ > 800
 import qualified BasicTypes     as GHC
 #endif
--- import qualified Class          as GHC
--- import qualified CoAxiom        as GHC
--- import qualified FastString     as GHC
--- import qualified ForeignCall    as GHC
 import qualified GHC            as GHC
-#if __GLASGOW_HASKELL__ > 710
--- import qualified Lexeme         as GHC
-#endif
--- import qualified Name           as GHC
--- import qualified RdrName        as GHC
 #if __GLASGOW_HASKELL__ <= 710
 import qualified BooleanFormula as GHC
 import qualified Outputable     as GHC
@@ -62,7 +51,6 @@ import Control.Monad.Trans.Free
 import Control.Monad.Free.TH (makeFreeCon)
 import Control.Monad.Identity
 import Data.Data
--- import Data.Maybe
 
 import qualified Data.Set as Set
 

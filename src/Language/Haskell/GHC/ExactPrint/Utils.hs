@@ -538,11 +538,11 @@ showAnnData anns n =
         -- overLit :: GHC.HsOverLit GHC.RdrName -> String
         -- overLit    = ("{HsOverLit:"++) . (++"}") . showSDoc_ . GHC.ppr
 
-        bagRdrName:: GHC.Bag (GHC.Located (GHC.HsBind GHC.RdrName)) -> String
+        bagRdrName:: GHC.Bag (GHC.Located (GHC.HsBind GHC.GhcPs)) -> String
         bagRdrName = ("{Bag(Located (HsBind RdrName)): "++) . (++"}") . list . GHC.bagToList
-        bagName   :: GHC.Bag (GHC.Located (GHC.HsBind GHC.Name)) -> String
+        bagName   :: GHC.Bag (GHC.Located (GHC.HsBind GHC.GhcRn)) -> String
         bagName    = ("{Bag(Located (HsBind Name)): "++) . (++"}") . list . GHC.bagToList
-        bagVar    :: GHC.Bag (GHC.Located (GHC.HsBind GHC.Var)) -> String
+        bagVar    :: GHC.Bag (GHC.Located (GHC.HsBind GHC.GhcTc)) -> String
         bagVar     = ("{Bag(Located (HsBind Var)): "++) . (++"}") . list . GHC.bagToList
 
 #if __GLASGOW_HASKELL__ > 800
