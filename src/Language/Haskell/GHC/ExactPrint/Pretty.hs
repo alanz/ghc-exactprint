@@ -113,6 +113,9 @@ data PrettyState = PrettyState
 
        }
 
+instance Semigroup PrettyWriter where
+  (<>) = mappend
+
 instance Monoid PrettyWriter where
   mempty = PrettyWriter mempty mempty mempty mempty mempty
   (PrettyWriter a b e g i) `mappend` (PrettyWriter c d f h j)

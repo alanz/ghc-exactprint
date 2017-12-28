@@ -287,6 +287,9 @@ tellCapturedSpan key = tell ( mempty { dwCapturedSpan = First $ Just key })
 tellKd :: (KeywordId, DeltaPos) -> Delta ()
 tellKd kd = tell (mempty { annKds = [kd] })
 
+instance Semigroup DeltaWriter where
+  (<>) = mappend
+
 instance Monoid DeltaWriter where
   mempty = DeltaWriter mempty mempty mempty mempty
   (DeltaWriter a b e g) `mappend` (DeltaWriter c d f h)

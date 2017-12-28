@@ -105,6 +105,9 @@ stringOptions = printOptions (\_ b -> return b) return return NormalLayout
 data EPWriter a = EPWriter
               { output :: !a }
 
+instance Monoid w => Semigroup (EPWriter w) where
+  (<>) = mappend
+
 instance Monoid w => Monoid (EPWriter w) where
   mempty = EPWriter mempty
   (EPWriter a) `mappend` (EPWriter b) = EPWriter (a <> b)

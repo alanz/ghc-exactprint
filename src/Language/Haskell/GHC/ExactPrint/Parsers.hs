@@ -86,7 +86,7 @@ parseWith :: Annotate w
           -> Either (GHC.SrcSpan, String) (Anns, GHC.Located w)
 parseWith dflags fileName parser s =
   case runParser parser dflags fileName s of
-    GHC.PFailed ss m                    -> Left (ss, GHC.showSDoc dflags m)
+    GHC.PFailed _ ss m                    -> Left (ss, GHC.showSDoc dflags m)
     GHC.POk (mkApiAnns -> apianns) pmod -> Right (as, pmod)
       where as = relativiseApiAnns pmod apianns
 
@@ -247,7 +247,7 @@ parseModuleApiAnnsWithCppInternal cppOptions dflags file = do
         return (contents1,lp,dflags)
   return $
     case parseFile dflags' file fileContents of
-      GHC.PFailed ss m -> Left $ (ss, (GHC.showSDoc dflags m))
+      GHC.PFailed _ ss m -> Left $ (ss, (GHC.showSDoc dflags m))
       GHC.POk (mkApiAnns -> apianns) pmod  ->
         Right $ (apianns, injectedComments, dflags', pmod)
 
