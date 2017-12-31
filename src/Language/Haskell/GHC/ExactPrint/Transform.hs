@@ -653,7 +653,7 @@ instance HasDecls (GHC.LMatch GhcPs (GHC.LHsExpr GhcPs)) where
 #elif __GLASGOW_HASKELL__ >= 710
   hsDecls d@(GHC.L _ (GHC.Match _ _ _ (GHC.GRHSs _ lb))) = do
 #else
-  hsDecls d@(GHC.L _ (GHC.Match _ _ _ (GHC.GRHSs _ (GHC.L _ lb)))) = do
+  hsDecls d@(GHC.L _ (GHC.Match _ _ _ (GHC.GRHSs _ lb))) = do
 #endif
     decls <- hsDeclsValBinds lb
     orderedDecls d decls

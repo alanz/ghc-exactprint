@@ -45,7 +45,6 @@ module Language.Haskell.GHC.ExactPrint.Types
   ) where
 
 import Data.Data (Data, Typeable, toConstr,cast)
-import Data.Semigroup
 
 import qualified DynFlags      as GHC
 import qualified GHC
@@ -276,8 +275,10 @@ data ACS' a = ACS
                             -- propagate down the AST. Removed when it hits zero
   } deriving (Show)
 
+#if __GLASGOW_HASKELL__ >= 804
 instance Semigroup (ACS' AstContext) where
   (<>) = mappend
+#endif
 
 instance Monoid (ACS' AstContext) where
   mempty = ACS mempty
