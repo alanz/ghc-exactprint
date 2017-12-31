@@ -212,7 +212,6 @@ instance Annotate GHC.WarningTxt where
     markWithString GHC.AnnClose "#-}"
 
   markAST _ (GHC.DeprecatedTxt (GHC.L _ txt) lss) = do
-    -- markExternal ls GHC.AnnOpen txt
     markAnnOpen txt "{-# DEPRECATED"
     mark GHC.AnnOpenS
     markListIntercalate lss
@@ -305,48 +304,8 @@ instance Annotate (GHC.IEWrappedName GHC.RdrName) where
     mark GHC.AnnType
     setContext (Set.singleton PrefixOp) $ markLocated ln
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
-{-
-data IEWrappedName name
-  = IEName    (Located name)  -- ^ no extra
-  | IEPattern (Located name)  -- ^ pattern X
-  | IEType    (Located name)  -- ^ type (:+:)
-  deriving (Eq,Data)
 
--}
 -- ---------------------------------------------------------------------
-{-
--- For details on above see note [Api annotations] in ApiAnnotation
-data RdrName
-  = Unqual OccName
-        -- ^ Used for ordinary, unqualified occurrences, e.g. @x@, @y@ or @Foo@.
-        -- Create such a 'RdrName' with 'mkRdrUnqual'
-
-  | Qual ModuleName OccName
-        -- ^ A qualified name written by the user in
-        -- /source/ code.  The module isn't necessarily
-        -- the module where the thing is defined;
-        -- just the one from which it is imported.
-        -- Examples are @Bar.x@, @Bar.y@ or @Bar.Foo@.
-        -- Create such a 'RdrName' with 'mkRdrQual'
-
-  | Orig Module OccName
-        -- ^ An original name; the module is the /defining/ module.
-        -- This is used when GHC generates code that will be fed
-        -- into the renamer (e.g. from deriving clauses), but where
-        -- we want to say \"Use Prelude.map dammit\". One of these
-        -- can be created with 'mkOrig'
-
-  | Exact Name
-        -- ^ We know exactly the 'Name'. This is used:
-        --
-        --  (1) When the parser parses built-in syntax like @[]@
-        --      and @(,)@, but wants a 'RdrName' from it
-        --
-        --  (2) By Template Haskell, when TH has generated a unique name
-        --
-        -- Such a 'RdrName' can be created by using 'getRdrName' on a 'Name'
-  deriving (Data, Typeable)
--}
 
 isSymRdr :: GHC.RdrName -> Bool
 isSymRdr n = GHC.isSymOcc (GHC.rdrNameOcc n) || rdrName2String n == "."
@@ -438,13 +397,6 @@ instance Annotate GHC.RdrName where
             markWithString GHC.AnnVal str
             when isSym $ mark GHC.AnnCloseP -- ')'
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma `debug` ("AnnComma in RdrName")
-
--- ---------------------------------------------------------------------
-
--- TODO: What is this used for? Not in ExactPrint
-instance Annotate GHC.Name where
-  markAST l n = do
-    markExternal l GHC.AnnVal (showGhc n)
 
 -- ---------------------------------------------------------------------
 
@@ -742,26 +694,6 @@ instance Annotate (GHC.DerivDecl GHC.GhcPs) where
     markMaybe mov
     markLHsSigType typ
     markTrailingSemi
-{-
-stand_alone_deriving :: { LDerivDecl RdrName }
-  : 'deriving' deriv_strategy 'instance' overlap_pragma inst_type
-                {% do { let { err = text "in the stand-alone deriving instance"
-                                    <> colon <+> quotes (ppr $5) }
-                      ; ams (sLL $1 (hsSigType $>) (DerivDecl $5 $2 $4))
-                            [mj AnnDeriving $1, mj AnnInstance $3] } }
-
-data DerivDecl name = DerivDecl
-        { deriv_type         :: LHsSigType name
-        , deriv_strategy     :: Maybe (Located DerivStrategy)
-        , deriv_overlap_mode :: Maybe (Located OverlapMode)
-         -- ^ - 'ApiAnnotation.AnnKeywordId' : 'ApiAnnotation.AnnDeriving',
-         --        'ApiAnnotation.AnnInstance', 'ApiAnnotation.AnnStock',
-         --        'ApiAnnotation.AnnAnyClass', 'Api.AnnNewtype',
-         --        'ApiAnnotation.AnnOpen','ApiAnnotation.AnnClose'
-
-  -- For details on above see note [Api annotations] in ApiAnnotation
-        }
--}
 
 -- ---------------------------------------------------------------------
 
@@ -839,15 +771,7 @@ instance Annotate (GHC.ClsInstDecl GHC.GhcPs) where
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.TyFamInstDecl GHC.GhcPs) where
-  -- newtype TyFamInstDecl pass = TyFamInstDecl { tfid_eqn :: TyFamInstEqn pass }
 
-  -- type TyFamInstEqn pass = FamInstEqn pass (LHsType pass)
-
-  -- type FamInstEqn pass rhs
-  --   = HsImplicitBndrs pass (FamEqn pass (HsTyPats pass) rhs)
-
-
-  -- markAST _ (GHC.TyFamInstDecl (GHC.HsIB _ (GHC.FamEqn ln pats fixity _) _)) = do
   markAST l (GHC.TyFamInstDecl (GHC.HsIB _ eqn _)) = do
     mark GHC.AnnType
     inContext (Set.singleton TopLevel) $ mark GHC.AnnInstance -- Note: this keyword is optional
@@ -856,7 +780,6 @@ instance Annotate (GHC.TyFamInstDecl GHC.GhcPs) where
 
 -- ---------------------------------------------------------------------
 
--- TODO: can this become markTyClass?
 markFamEqn (GHC.FamEqn ln pats fixity rhs) = do
   markTyClass fixity ln pats
   mark GHC.AnnEqual
@@ -865,29 +788,7 @@ markFamEqn (GHC.FamEqn ln pats fixity rhs) = do
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.DataFamInstDecl GHC.GhcPs) where
-  -- newtype DataFamInstDecl pass
-  --   = DataFamInstDecl { dfid_eqn :: FamInstEqn pass (HsDataDefn pass) }
 
-  -- type FamInstEqn pass rhs
-  --   = HsImplicitBndrs pass (FamEqn pass (HsTyPats pass) rhs)
-
-  -- data HsImplicitBndrs pass thing   -- See Note [HsType binders]
-  --   = HsIB { hsib_vars :: PostRn pass [Name] -- Implicitly-bound kind & type vars
-  --          , hsib_body :: thing              -- Main payload (type or list of types)
-  --          , hsib_closed :: PostRn pass Bool -- Taking the hsib_vars into account,
-  --                                            -- is the payload closed? Used in
-  --                                            -- TcHsType.decideKindGeneralisationPlan
-  --     }
-
-  -- data FamEqn pass pats rhs
-  --   = FamEqn
-  --        { feqn_tycon  :: Located (IdP pass)
-  --        , feqn_pats   :: pats
-  --        , feqn_fixity :: LexicalFixity -- ^ Fixity used in the declaration
-  --        , feqn_rhs    :: rhs
-  --        }
-
-  -- markAST l (GHC.DataFamInstDecl ln (GHC.HsIB _ pats _) fixity
   markAST l (GHC.DataFamInstDecl (GHC.HsIB _ (GHC.FamEqn ln pats fixity
              defn@(GHC.HsDataDefn nd ctx typ _mk cons mderivs) ) _ )) = do
     case GHC.dd_ND defn of
@@ -2497,44 +2398,13 @@ instance Annotate (GHC.InjectivityAnn GHC.GhcPs) where
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.TyFamInstEqn GHC.GhcPs) where
-  -- type TyFamInstEqn pass = FamInstEqn pass (LHsType pass)
 
-  -- type FamInstEqn pass rhs
-  --   = HsImplicitBndrs pass (FamEqn pass (HsTyPats pass) rhs)
-
-  -- data HsImplicitBndrs pass thing   -- See Note [HsType binders]
-  --   = HsIB { hsib_vars :: PostRn pass [Name] -- Implicitly-bound kind & type vars
-  --          , hsib_body :: thing              -- Main payload (type or list of types)
-  --          , hsib_closed :: PostRn pass Bool -- Taking the hsib_vars into account,
-  --                                            -- is the payload closed? Used in
-  --                                            -- TcHsType.decideKindGeneralisationPlan
-  --     }
-
-  -- data FamEqn pass pats rhs
-  --   = FamEqn
-  --        { feqn_tycon  :: Located (IdP pass)
-  --        , feqn_pats   :: pats
-  --        , feqn_fixity :: LexicalFixity -- ^ Fixity used in the declaration
-  --        , feqn_rhs    :: rhs
-  --        }
-
-  markAST _ (GHC.HsIB _ (GHC.FamEqn ln pats fixity typ) _) = do
-    markTyClass fixity ln pats
-    mark GHC.AnnEqual
-    markLocated typ
+  markAST _ (GHC.HsIB _ eqn _) = do
+    markFamEqn eqn
 
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.TyFamDefltEqn GHC.GhcPs) where
-  -- type TyFamDefltEqn pass = FamEqn pass (LHsQTyVars pass) (LHsType pass)
-
-  -- data FamEqn pass pats rhs
-  --   = FamEqn
-  --        { feqn_tycon  :: Located (IdP pass)
-  --        , feqn_pats   :: pats
-  --        , feqn_fixity :: LexicalFixity -- ^ Fixity used in the declaration
-  --        , feqn_rhs    :: rhs
-  --        }
 
   markAST _ (GHC.FamEqn ln (GHC.HsQTvs _ns bndrs _) fixity typ) = do
     mark GHC.AnnType
