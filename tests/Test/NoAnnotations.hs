@@ -70,7 +70,7 @@ noAnnotationTests = TestLabel "no annotation tests" $ TestList
 
 noAnnTests :: [Test]
 noAnnTests = [
-  
+
         ]
 
 -- ---------------------------------------------------------------------
@@ -93,7 +93,8 @@ prettyRoundtripTest origFile = do
                 roundtripStructure = astStructure parsed' []
                 (status,debugTxt') = if roundtripStructure == originalStructure
                   then (Success, "ok")
-                  else (RoundTripFailure,diffText originalStructure roundtripStructure)
+                  else (RoundTripFailure,diffText originalStructure roundtripStructure
+                         ++ sep ++ originalStructure ++ sep ++ roundtripStructure)
                 cppStatus = Nothing
                 inconsistent = Nothing
                 !annsOrig = relativiseApiAnnsWithComments injectedComments parsed apianns
@@ -109,7 +110,7 @@ prettyRoundtripTest origFile = do
 
 runPrettyRoundTrip :: FilePath -> GHC.ApiAnns -> GHC.ParsedSource
                    -> [Comment]
-                   -> IO (Either (GHC.SrcSpan, String)(Anns, GHC.ParsedSource))
+                   -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource))
 runPrettyRoundTrip origFile !anns !parsedOrig _cs = do
   let !newAnns = addAnnotationsForPretty [] parsedOrig mempty
   let comments = case Map.lookup GHC.noSrcSpan (snd anns) of
@@ -192,14 +193,14 @@ showAstData n =
         var        = ("{Var: "++) . (++"}") . showSDocDebug_ . GHC.ppr :: GHC.Var -> String
         dataCon    = ("{DataCon: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.DataCon -> String
 
-        overLit :: GHC.HsOverLit GHC.RdrName -> String
+        overLit :: GHC.HsOverLit GHC.GhcPs -> String
         overLit    = ("{HsOverLit:"++) . (++"}") . showSDoc_ . GHC.ppr
 
-        bagRdrName:: GHC.Bag (GHC.Located (GHC.HsBind GHC.RdrName)) -> String
+        bagRdrName:: GHC.Bag (GHC.Located (GHC.HsBind GHC.GhcPs)) -> String
         bagRdrName = ("{Bag(Located (HsBind RdrName)): "++) . (++"}") . list . GHC.bagToList
-        bagName   :: GHC.Bag (GHC.Located (GHC.HsBind GHC.Name)) -> String
+        bagName   :: GHC.Bag (GHC.Located (GHC.HsBind GHC.GhcRn)) -> String
         bagName    = ("{Bag(Located (HsBind Name)): "++) . (++"}") . list . GHC.bagToList
-        bagVar    :: GHC.Bag (GHC.Located (GHC.HsBind GHC.Var)) -> String
+        bagVar    :: GHC.Bag (GHC.Located (GHC.HsBind GHC.GhcTc)) -> String
         bagVar     = ("{Bag(Located (HsBind Var)): "++) . (++"}") . list . GHC.bagToList
 
 #if __GLASGOW_HASKELL__ > 800

@@ -115,7 +115,7 @@ withDynFlags action = ghcWrapper $ do
 
 -- ---------------------------------------------------------------------
 
-parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located (GHC.HsModule GHC.RdrName))
+parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located (GHC.HsModule GHC.GhcPs))
 parseFile = runParser GHC.parseModule
 
 -- ---------------------------------------------------------------------
@@ -124,27 +124,27 @@ type Parser a = GHC.DynFlags -> FilePath -> String
                 -> Either (GHC.SrcSpan, String)
                           (Anns, a)
 
-parseExpr :: Parser (GHC.LHsExpr GHC.RdrName)
+parseExpr :: Parser (GHC.LHsExpr GHC.GhcPs)
 parseExpr df fp = parseWith df fp GHC.parseExpression
 
-parseImport :: Parser (GHC.LImportDecl GHC.RdrName)
+parseImport :: Parser (GHC.LImportDecl GHC.GhcPs)
 parseImport df fp = parseWith df fp GHC.parseImport
 
-parseType :: Parser (GHC.LHsType GHC.RdrName)
+parseType :: Parser (GHC.LHsType GHC.GhcPs)
 parseType df fp = parseWith df fp GHC.parseType
 
 -- safe, see D1007
-parseDecl :: Parser (GHC.LHsDecl GHC.RdrName)
+parseDecl :: Parser (GHC.LHsDecl GHC.GhcPs)
 #if __GLASGOW_HASKELL__ <= 710
 parseDecl df fp = parseWith df fp (head . OL.fromOL <$> GHC.parseDeclaration)
 #else
 parseDecl df fp = parseWith df fp GHC.parseDeclaration
 #endif
 
-parseStmt :: Parser (GHC.ExprLStmt GHC.RdrName)
+parseStmt :: Parser (GHC.ExprLStmt GHC.GhcPs)
 parseStmt df fp = parseWith df fp GHC.parseStatement
 
-parsePattern :: Parser (GHC.LPat GHC.RdrName)
+parsePattern :: Parser (GHC.LPat GHC.GhcPs)
 parsePattern df fp = parseWith df fp GHC.parsePattern
 
 -- ---------------------------------------------------------------------
@@ -157,7 +157,7 @@ parsePattern df fp = parseWith df fp GHC.parsePattern
 -- parseModule = parseModuleWithCpp defaultCppOptions
 -- @
 --
--- Note: 'GHC.ParsedSource' is a synonym for 'GHC.Located' ('GHC.HsModule' 'GHC.RdrName')
+-- Note: 'GHC.ParsedSource' is a synonym for 'GHC.Located' ('GHC.HsModule' 'GHC.GhcPs')
 parseModule
   :: FilePath -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource))
 parseModule = parseModuleWithCpp defaultCppOptions normalLayout

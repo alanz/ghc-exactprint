@@ -28,11 +28,13 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-data GHCVersion = GHC710 | GHC80 | GHC82 deriving (Eq, Ord, Show)
+data GHCVersion = GHC710 | GHC80 | GHC82 | GHC84 deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
 ghcVersion =
-#if __GLASGOW_HASKELL__ > 800
+#if __GLASGOW_HASKELL__ > 802
+  GHC84
+#elif __GLASGOW_HASKELL__ > 800
   GHC82
 #elif __GLASGOW_HASKELL__ >= 711
   GHC80
@@ -47,9 +49,7 @@ testDirs =
     GHC710 -> ["ghc710-only","ghc710"]
     GHC80  -> ["ghc710", "ghc80"]
     GHC82  -> ["ghc710", "ghc80", "ghc82"]
-    -- GHC82  -> ["ghc82-ghc-test"]
-    -- GHC82  -> ["ghc82-ghc-backups-rename"]
-    -- GHC82  -> ["ghc82"]
+    GHC84  -> ["ghc710", "ghc80", "ghc82"]
 
 -- ---------------------------------------------------------------------
 
@@ -187,9 +187,10 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkPrettyRoundtrip "ghc80" "pmc007.hs"
       -- mkPrettyRoundtrip "ghc80" "MultiQuote.hs"
       -- mkPrettyRoundtrip "ghc80" "T10689a.hs"
-      -- mkPrettyRoundtrip "ghc710" "Ann01.hs"
 
-       mkParserTest "ghc82" "T13594.hs"
+      mkPrettyRoundtrip "ghc80" "T10946.hs"
+
+       -- mkParserTest "ghc710" "TemplateHaskell.hs"
       -- mkParserTest "ghc80" "SemicolonIf.hs"
       -- mkParserTest "ghc80" "T10689a.hs"
       -- mkParserTest "ghc80" "MonadT.hs"

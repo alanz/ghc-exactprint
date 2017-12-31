@@ -839,12 +839,28 @@ instance Annotate (GHC.ClsInstDecl GHC.GhcPs) where
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.TyFamInstDecl GHC.GhcPs) where
+  -- newtype TyFamInstDecl pass = TyFamInstDecl { tfid_eqn :: TyFamInstEqn pass }
 
-  markAST _ (GHC.TyFamInstDecl (GHC.HsIB _ (GHC.FamEqn ln pats fixity _) _)) = do
+  -- type TyFamInstEqn pass = FamInstEqn pass (LHsType pass)
+
+  -- type FamInstEqn pass rhs
+  --   = HsImplicitBndrs pass (FamEqn pass (HsTyPats pass) rhs)
+
+
+  -- markAST _ (GHC.TyFamInstDecl (GHC.HsIB _ (GHC.FamEqn ln pats fixity _) _)) = do
+  markAST l (GHC.TyFamInstDecl (GHC.HsIB _ eqn _)) = do
     mark GHC.AnnType
     inContext (Set.singleton TopLevel) $ mark GHC.AnnInstance -- Note: this keyword is optional
-    -- markLocated eqn
+    markFamEqn eqn
     markTrailingSemi
+
+-- ---------------------------------------------------------------------
+
+-- TODO: can this become markTyClass?
+markFamEqn (GHC.FamEqn ln pats fixity rhs) = do
+  markTyClass fixity ln pats
+  mark GHC.AnnEqual
+  markLocated rhs
 
 -- ---------------------------------------------------------------------
 
