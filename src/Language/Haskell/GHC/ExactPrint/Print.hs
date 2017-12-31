@@ -30,7 +30,6 @@ import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Annotate
 import Language.Haskell.GHC.ExactPrint.Lookup
 
--- import Control.Exception
 import Control.Monad.Identity
 import Control.Monad.RWS
 import Control.Monad.Trans.Free
@@ -105,8 +104,10 @@ stringOptions = printOptions (\_ b -> return b) return return NormalLayout
 data EPWriter a = EPWriter
               { output :: !a }
 
+#if __GLASGOW_HASKELL__ >= 804
 instance Monoid w => Semigroup (EPWriter w) where
   (<>) = mappend
+#endif
 
 instance Monoid w => Monoid (EPWriter w) where
   mempty = EPWriter mempty

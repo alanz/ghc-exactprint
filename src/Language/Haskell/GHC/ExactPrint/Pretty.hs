@@ -113,8 +113,10 @@ data PrettyState = PrettyState
 
        }
 
+#if __GLASGOW_HASKELL__ >= 804
 instance Semigroup PrettyWriter where
   (<>) = mappend
+#endif
 
 instance Monoid PrettyWriter where
   mempty = PrettyWriter mempty mempty mempty mempty mempty

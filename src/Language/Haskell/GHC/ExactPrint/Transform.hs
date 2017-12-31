@@ -263,13 +263,13 @@ decl2Sig _                      = []
 -- ---------------------------------------------------------------------
 
 -- |Convert a 'GHC.LSig' into a 'GHC.LHsDecl'
-wrapSig :: GHC.LSig GHC.GhcPs -> GHC.LHsDecl GHC.GhcPs
+wrapSig :: GHC.LSig GhcPs -> GHC.LHsDecl GhcPs
 wrapSig (GHC.L l s) = GHC.L l (GHC.SigD s)
 
 -- ---------------------------------------------------------------------
 
 -- |Convert a 'GHC.LHsBind' into a 'GHC.LHsDecl'
-wrapDecl :: GHC.LHsBind GHC.GhcPs -> GHC.LHsDecl GHC.GhcPs
+wrapDecl :: GHC.LHsBind GhcPs -> GHC.LHsDecl GhcPs
 wrapDecl (GHC.L l s) = GHC.L l (GHC.ValD s)
 
 -- ---------------------------------------------------------------------
@@ -322,7 +322,7 @@ transferEntryDPT a b =
 -- ---------------------------------------------------------------------
 
 -- |'Transform' monad version of 'setPrecedingLinesDecl'
-setPrecedingLinesDeclT :: (Monad m) => GHC.LHsDecl GHC.GhcPs -> Int -> Int -> TransformT m ()
+setPrecedingLinesDeclT :: (Monad m) => GHC.LHsDecl GhcPs -> Int -> Int -> TransformT m ()
 setPrecedingLinesDeclT ld n c =
   modifyAnnsT (setPrecedingLinesDecl ld n c)
 
@@ -349,7 +349,7 @@ mergeAnnList (x:xs) = foldr mergeAnns x xs
 
 -- |Unwrap a HsDecl and call setPrecedingLines on it
 -- ++AZ++ TODO: get rid of this, it is a synonym only
-setPrecedingLinesDecl :: GHC.LHsDecl GHC.GhcPs -> Int -> Int -> Anns -> Anns
+setPrecedingLinesDecl :: GHC.LHsDecl GhcPs -> Int -> Int -> Anns -> Anns
 setPrecedingLinesDecl ld n c ans = setPrecedingLines ld n c ans
 
 -- ---------------------------------------------------------------------
@@ -457,10 +457,10 @@ balanceComments first second = do
   -- ++AZ++ : replace the nested casts with appropriate SYB.gmapM
   -- logTr $ "balanceComments entered"
   -- logDataWithAnnsTr "first" first
-  case cast first :: Maybe (GHC.LHsDecl GHC.GhcPs) of
+  case cast first :: Maybe (GHC.LHsDecl GhcPs) of
     Just (GHC.L l (GHC.ValD fb@(GHC.FunBind{}))) -> do
       balanceCommentsFB (GHC.L l fb) second
-    _ -> case cast first :: Maybe (GHC.LHsBind GHC.GhcPs) of
+    _ -> case cast first :: Maybe (GHC.LHsBind GhcPs) of
       Just fb'@(GHC.L _ (GHC.FunBind{})) -> do
         balanceCommentsFB fb' second
       _ -> balanceComments' first second
@@ -492,7 +492,7 @@ balanceComments' first second = do
 -- |Once 'balanceComments' has been called to move trailing comments to a
 -- 'GHC.FunBind', these need to be pushed down from the top level to the last
 -- 'GHC.Match' if that 'GHC.Match' needs to be manipulated.
-balanceCommentsFB :: (Data b,Monad m) => GHC.LHsBind GHC.GhcPs -> GHC.Located b -> TransformT m ()
+balanceCommentsFB :: (Data b,Monad m) => GHC.LHsBind GhcPs -> GHC.Located b -> TransformT m ()
 #if __GLASGOW_HASKELL__ <= 710
 balanceCommentsFB (GHC.L _ (GHC.FunBind _ _ (GHC.MG matches _ _ _) _ _ _)) second = do
 #else
@@ -559,11 +559,11 @@ moveTrailingComments first second = do
 -- |Insert a declaration into an AST element having sub-declarations
 -- (@HasDecls@) according to the given location function.
 insertAt :: (HasDecls (GHC.Located ast))
-              => (GHC.LHsDecl GHC.GhcPs
-                  -> [GHC.LHsDecl GHC.GhcPs]
-                  -> [GHC.LHsDecl GHC.GhcPs])
+              => (GHC.LHsDecl GhcPs
+                  -> [GHC.LHsDecl GhcPs]
+                  -> [GHC.LHsDecl GhcPs])
               -> GHC.Located ast
-              -> GHC.LHsDecl GHC.GhcPs
+              -> GHC.LHsDecl GhcPs
               -> Transform (GHC.Located ast)
 insertAt f t decl = do
   oldDecls <- hsDecls t
@@ -573,7 +573,7 @@ insertAt f t decl = do
 -- AST item
 insertAtStart, insertAtEnd :: (HasDecls (GHC.Located ast))
               => GHC.Located ast
-              -> GHC.LHsDecl GHC.GhcPs
+              -> GHC.LHsDecl GhcPs
               -> Transform (GHC.Located ast)
 
 insertAtStart = insertAt (:)
@@ -584,7 +584,7 @@ insertAtEnd   = insertAt (\x xs -> xs ++ [x])
 insertAfter, insertBefore :: (HasDecls (GHC.Located ast))
                           => GHC.Located old
                           -> GHC.Located ast
-                          -> GHC.LHsDecl GHC.GhcPs
+                          -> GHC.LHsDecl GhcPs
                           -> Transform (GHC.Located ast)
 insertAfter (GHC.getLoc -> k) = insertAt findAfter
   where
@@ -610,7 +610,7 @@ class (Data t) => HasDecls t where
     -- given syntax phrase. They are always returned in the wrapped 'GHC.HsDecl'
     -- form, even if orginating in local decls. This is safe, as annotations
     -- never attach to the wrapper, only to the wrapped item.
-    hsDecls :: (Monad m) => t -> TransformT m [GHC.LHsDecl GHC.GhcPs]
+    hsDecls :: (Monad m) => t -> TransformT m [GHC.LHsDecl GhcPs]
 
     -- | Replace the directly enclosed decl list by the given
     --  decl list. Runs in the 'Transform' monad to be able to update list order
@@ -631,7 +631,7 @@ class (Data t) => HasDecls t where
     --   where
     --     nn = 2
     -- @
-    replaceDecls :: (Monad m) => t -> [GHC.LHsDecl GHC.GhcPs] -> TransformT m t
+    replaceDecls :: (Monad m) => t -> [GHC.LHsDecl GhcPs] -> TransformT m t
 
 -- ---------------------------------------------------------------------
 
@@ -645,9 +645,11 @@ instance HasDecls GHC.ParsedSource where
 
 -- ---------------------------------------------------------------------
 
-instance HasDecls (GHC.LMatch GHC.GhcPs (GHC.LHsExpr GHC.GhcPs)) where
+instance HasDecls (GHC.LMatch GhcPs (GHC.LHsExpr GhcPs)) where
 #if __GLASGOW_HASKELL__ >= 804
   hsDecls d@(GHC.L _ (GHC.Match _ _ (GHC.GRHSs _ (GHC.L _ lb)))) = do
+#elif __GLASGOW_HASKELL__ >= 802
+  hsDecls d@(GHC.L _ (GHC.Match _ _ _ (GHC.GRHSs _ (GHC.L _ lb)))) = do
 #elif __GLASGOW_HASKELL__ >= 710
   hsDecls d@(GHC.L _ (GHC.Match _ _ _ (GHC.GRHSs _ lb))) = do
 #else
@@ -735,7 +737,7 @@ instance HasDecls (GHC.LMatch GHC.GhcPs (GHC.LHsExpr GHC.GhcPs)) where
 
 -- ---------------------------------------------------------------------
 
-instance HasDecls (GHC.LHsExpr GHC.GhcPs) where
+instance HasDecls (GHC.LHsExpr GhcPs) where
 #if __GLASGOW_HASKELL__ <= 710
   hsDecls ls@(GHC.L _ (GHC.HsLet decls _ex)) = do
 #else
@@ -761,7 +763,7 @@ instance HasDecls (GHC.LHsExpr GHC.GhcPs) where
         logTr "replaceDecls HsPar"
         e' <- replaceDecls e newDecls
         return (GHC.L l (GHC.HsPar e'))
-  replaceDecls old _new = error $ "replaceDecls (GHC.LHsExpr GHC.GhcPs) undefined for:" ++ showGhc old
+  replaceDecls old _new = error $ "replaceDecls (GHC.LHsExpr GhcPs) undefined for:" ++ showGhc old
 
 -- ---------------------------------------------------------------------
 
@@ -769,7 +771,7 @@ instance HasDecls (GHC.LHsExpr GHC.GhcPs) where
 -- cannot be a member of 'HasDecls' because a 'GHC.FunBind' is not idempotent
 -- for 'hsDecls' \/ 'replaceDecls'. 'hsDeclsPatBindD' \/ 'replaceDeclsPatBindD' is
 -- idempotent.
-hsDeclsPatBindD :: (Monad m) => GHC.LHsDecl GHC.GhcPs -> TransformT m [GHC.LHsDecl GHC.GhcPs]
+hsDeclsPatBindD :: (Monad m) => GHC.LHsDecl GhcPs -> TransformT m [GHC.LHsDecl GhcPs]
 hsDeclsPatBindD (GHC.L l (GHC.ValD d)) = hsDeclsPatBind (GHC.L l d)
 hsDeclsPatBindD x = error $ "hsDeclsPatBindD called for:" ++ showGhc x
 
@@ -777,7 +779,7 @@ hsDeclsPatBindD x = error $ "hsDeclsPatBindD called for:" ++ showGhc x
 -- cannot be a member of 'HasDecls' because a 'GHC.FunBind' is not idempotent
 -- for 'hsDecls' \/ 'replaceDecls'. 'hsDeclsPatBind' \/ 'replaceDeclsPatBind' is
 -- idempotent.
-hsDeclsPatBind :: (Monad m) => GHC.LHsBind GHC.GhcPs -> TransformT m [GHC.LHsDecl GHC.GhcPs]
+hsDeclsPatBind :: (Monad m) => GHC.LHsBind GhcPs -> TransformT m [GHC.LHsDecl GhcPs]
 #if __GLASGOW_HASKELL__ <= 710
 hsDeclsPatBind d@(GHC.L _ (GHC.PatBind _ (GHC.GRHSs _grhs lb) _ _ _)) = do
 #else
@@ -793,8 +795,8 @@ hsDeclsPatBind x = error $ "hsDeclsPatBind called for:" ++ showGhc x
 -- cannot be a member of 'HasDecls' because a 'GHC.FunBind' is not idempotent
 -- for 'hsDecls' \/ 'replaceDecls'. 'hsDeclsPatBindD' \/ 'replaceDeclsPatBindD' is
 -- idempotent.
-replaceDeclsPatBindD :: (Monad m) => GHC.LHsDecl GHC.GhcPs -> [GHC.LHsDecl GHC.GhcPs]
-                     -> TransformT m (GHC.LHsDecl GHC.GhcPs)
+replaceDeclsPatBindD :: (Monad m) => GHC.LHsDecl GhcPs -> [GHC.LHsDecl GhcPs]
+                     -> TransformT m (GHC.LHsDecl GhcPs)
 replaceDeclsPatBindD (GHC.L l (GHC.ValD d)) newDecls = do
   (GHC.L _ d') <- replaceDeclsPatBind (GHC.L l d) newDecls
   return (GHC.L l (GHC.ValD d'))
@@ -804,8 +806,8 @@ replaceDeclsPatBindD x _ = error $ "replaceDeclsPatBindD called for:" ++ showGhc
 -- cannot be a member of 'HasDecls' because a 'GHC.FunBind' is not idempotent
 -- for 'hsDecls' \/ 'replaceDecls'. 'hsDeclsPatBind' \/ 'replaceDeclsPatBind' is
 -- idempotent.
-replaceDeclsPatBind :: (Monad m) => GHC.LHsBind GHC.GhcPs -> [GHC.LHsDecl GHC.GhcPs]
-                    -> TransformT m (GHC.LHsBind GHC.GhcPs)
+replaceDeclsPatBind :: (Monad m) => GHC.LHsBind GhcPs -> [GHC.LHsDecl GhcPs]
+                    -> TransformT m (GHC.LHsBind GhcPs)
 replaceDeclsPatBind p@(GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds) b c d)) newDecls
     = do
         logTr "replaceDecls PatBind"
@@ -842,7 +844,7 @@ replaceDeclsPatBind x _ = error $ "replaceDeclsPatBind called for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
-instance HasDecls (GHC.LStmt GHC.GhcPs (GHC.LHsExpr GHC.GhcPs)) where
+instance HasDecls (GHC.LStmt GhcPs (GHC.LHsExpr GhcPs)) where
 #if __GLASGOW_HASKELL__ <= 710
   hsDecls ls@(GHC.L _ (GHC.LetStmt lb))       = do
 #else
@@ -915,7 +917,7 @@ instance HasDecls (GHC.LStmt GHC.GhcPs (GHC.LHsExpr GHC.GhcPs)) where
 hasDeclsSybTransform :: (SYB.Data t2,Monad m)
        => (forall t. HasDecls t => t -> m t)
              -- ^Worker function for the general case
-       -> (GHC.LHsBind GHC.GhcPs -> m (GHC.LHsBind GHC.GhcPs))
+       -> (GHC.LHsBind GhcPs -> m (GHC.LHsBind GhcPs))
              -- ^Worker function for FunBind/PatBind
        -> t2 -- ^Item to be updated
        -> m t2
@@ -930,16 +932,16 @@ hasDeclsSybTransform workerHasDecls workerBind t = trf t
 
     parsedSource (p::GHC.ParsedSource) = workerHasDecls p
 
-    lmatch (lm::GHC.LMatch GHC.GhcPs (GHC.LHsExpr GHC.GhcPs))
+    lmatch (lm::GHC.LMatch GhcPs (GHC.LHsExpr GhcPs))
       = workerHasDecls lm
 
-    lexpr (le::GHC.LHsExpr GHC.GhcPs)
+    lexpr (le::GHC.LHsExpr GhcPs)
       = workerHasDecls le
 
-    lstmt (d::GHC.LStmt GHC.GhcPs (GHC.LHsExpr GHC.GhcPs))
+    lstmt (d::GHC.LStmt GhcPs (GHC.LHsExpr GhcPs))
       = workerHasDecls d
 
-    lhsbind (b@(GHC.L _ GHC.FunBind{}):: GHC.LHsBind GHC.GhcPs)
+    lhsbind (b@(GHC.L _ GHC.FunBind{}):: GHC.LHsBind GhcPs)
       = workerBind b
     lhsbind b@(GHC.L _ GHC.PatBind{})
       = workerBind b
@@ -956,7 +958,7 @@ hasDeclsSybTransform workerHasDecls workerBind t = trf t
 -- return anything for these as there is not meaningful 'replaceDecls' for it.
 -- This function provides a version of 'hsDecls' that returns the 'GHC.FunBind'
 -- decls too, where they are needed for analysis only.
-hsDeclsGeneric :: (SYB.Data t,Monad m) => t -> TransformT m [GHC.LHsDecl GHC.GhcPs]
+hsDeclsGeneric :: (SYB.Data t,Monad m) => t -> TransformT m [GHC.LHsDecl GhcPs]
 hsDeclsGeneric t = q t
   where
     q = return []
@@ -971,15 +973,15 @@ hsDeclsGeneric t = q t
 
     parsedSource (p::GHC.ParsedSource) = hsDecls p
 
-    lmatch (lm::GHC.LMatch GHC.GhcPs (GHC.LHsExpr GHC.GhcPs)) = hsDecls lm
+    lmatch (lm::GHC.LMatch GhcPs (GHC.LHsExpr GhcPs)) = hsDecls lm
 
-    lexpr (le::GHC.LHsExpr GHC.GhcPs) = hsDecls le
+    lexpr (le::GHC.LHsExpr GhcPs) = hsDecls le
 
-    lstmt (d::GHC.LStmt GHC.GhcPs (GHC.LHsExpr GHC.GhcPs)) = hsDecls d
+    lstmt (d::GHC.LStmt GhcPs (GHC.LHsExpr GhcPs)) = hsDecls d
 
     -- ---------------------------------
 
-    lhsbind :: (Monad m) => GHC.LHsBind GHC.GhcPs -> TransformT m [GHC.LHsDecl GHC.GhcPs]
+    lhsbind :: (Monad m) => GHC.LHsBind GhcPs -> TransformT m [GHC.LHsDecl GhcPs]
 #if __GLASGOW_HASKELL__ <= 710
     lhsbind (GHC.L _ (GHC.FunBind _ _ (GHC.MG matches _ _ _) _ _ _)) = do
 #else
@@ -998,18 +1000,18 @@ hsDeclsGeneric t = q t
 
     -- ---------------------------------
 
-    llocalbinds :: (Monad m) => GHC.Located (GHC.HsLocalBinds GHC.GhcPs) -> TransformT m [GHC.LHsDecl GHC.GhcPs]
+    llocalbinds :: (Monad m) => GHC.Located (GHC.HsLocalBinds GhcPs) -> TransformT m [GHC.LHsDecl GhcPs]
     llocalbinds (GHC.L _ ds) = localbinds ds
 
     -- ---------------------------------
 
-    localbinds :: (Monad m) => GHC.HsLocalBinds GHC.GhcPs -> TransformT m [GHC.LHsDecl GHC.GhcPs]
+    localbinds :: (Monad m) => GHC.HsLocalBinds GhcPs -> TransformT m [GHC.LHsDecl GhcPs]
     localbinds d = hsDeclsValBinds d
 
 -- ---------------------------------------------------------------------
 
 -- |Look up the annotated order and sort the decls accordingly
-orderedDecls :: (Data a,Monad m) => GHC.Located a -> [GHC.LHsDecl GHC.GhcPs] -> TransformT m [GHC.LHsDecl GHC.GhcPs]
+orderedDecls :: (Data a,Monad m) => GHC.Located a -> [GHC.LHsDecl GhcPs] -> TransformT m [GHC.LHsDecl GhcPs]
 orderedDecls parent decls = do
   ans <- getAnnsT
   case getAnnotationEP parent ans of
@@ -1028,7 +1030,7 @@ orderedDecls parent decls = do
 -- care, as this does not necessarily return the declarations in order, the
 -- ordering should be done by the calling function from the 'GHC.HsLocalBinds'
 -- context in the AST.
-hsDeclsValBinds :: (Monad m) => GHC.HsLocalBinds GHC.GhcPs -> TransformT m [GHC.LHsDecl GHC.GhcPs]
+hsDeclsValBinds :: (Monad m) => GHC.HsLocalBinds GhcPs -> TransformT m [GHC.LHsDecl GhcPs]
 hsDeclsValBinds lb = case lb of
     GHC.HsValBinds (GHC.ValBindsIn bs sigs) -> do
       let
@@ -1044,8 +1046,8 @@ hsDeclsValBinds lb = case lb of
 -- ordering should be done by the calling function from the 'GHC.HsLocalBinds'
 -- context in the AST.
 replaceDeclsValbinds :: (Monad m)
-                     => GHC.HsLocalBinds GHC.GhcPs -> [GHC.LHsDecl GHC.GhcPs]
-                     -> TransformT m (GHC.HsLocalBinds GHC.GhcPs)
+                     => GHC.HsLocalBinds GhcPs -> [GHC.LHsDecl GhcPs]
+                     -> TransformT m (GHC.HsLocalBinds GhcPs)
 replaceDeclsValbinds _ [] = do
   return (GHC.EmptyLocalBinds)
 replaceDeclsValbinds (GHC.HsValBinds _b) new
@@ -1066,8 +1068,8 @@ replaceDeclsValbinds (GHC.EmptyLocalBinds) new
 
 -- ---------------------------------------------------------------------
 
-type Decl  = GHC.LHsDecl GHC.GhcPs
-type Match = GHC.LMatch GHC.GhcPs (GHC.LHsExpr GHC.GhcPs)
+type Decl  = GHC.LHsDecl GhcPs
+type Match = GHC.LMatch GhcPs (GHC.LHsExpr GhcPs)
 
 -- |Modify a 'GHC.LHsBind' wrapped in a 'GHC.ValD'. For a 'GHC.PatBind' the
 -- declarations are extracted and returned after modification. For a
@@ -1115,7 +1117,7 @@ instance HasTransform (TransformT Identity) where
 
 -- | Apply a transformation to the decls contained in @t@
 modifyDeclsT :: (HasDecls t,HasTransform m)
-             => ([GHC.LHsDecl GHC.GhcPs] -> m [GHC.LHsDecl GHC.GhcPs])
+             => ([GHC.LHsDecl GhcPs] -> m [GHC.LHsDecl GhcPs])
              -> t -> m t
 modifyDeclsT action t = do
   decls <- liftT $ hsDecls t

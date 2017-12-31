@@ -287,8 +287,10 @@ tellCapturedSpan key = tell ( mempty { dwCapturedSpan = First $ Just key })
 tellKd :: (KeywordId, DeltaPos) -> Delta ()
 tellKd kd = tell (mempty { annKds = [kd] })
 
+#if __GLASGOW_HASKELL__ >= 804
 instance Semigroup DeltaWriter where
   (<>) = mappend
+#endif
 
 instance Monoid DeltaWriter where
   mempty = DeltaWriter mempty mempty mempty mempty

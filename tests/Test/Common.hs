@@ -29,6 +29,7 @@ import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Parsers (parseModuleApiAnnsWithCpp)
 import Language.Haskell.GHC.ExactPrint.Preprocess
+import Language.Haskell.GHC.ExactPrint.Types
 
 
 import qualified ApiAnnotation as GHC
@@ -92,7 +93,7 @@ runParser parser flags filename str = GHC.unP parser parseState
       buffer = GHC.stringToStringBuffer str
       parseState = GHC.mkPState flags buffer location
 
-parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located (GHC.HsModule GHC.GhcPs))
+parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located (GHC.HsModule GhcPs))
 parseFile = runParser GHC.parseModule
 
 mkApiAnns :: GHC.PState -> GHC.ApiAnns
@@ -177,7 +178,7 @@ mkDebugOutput filename printed original apianns anns parsed =
 
 
 runRoundTrip :: Changer
-             -> GHC.ApiAnns -> GHC.Located (GHC.HsModule GHC.GhcPs)
+             -> GHC.ApiAnns -> GHC.Located (GHC.HsModule GhcPs)
              -> [Comment]
              -> IO (String, Anns, GHC.ParsedSource)
 runRoundTrip f !anns !parsedOrig cs = do
@@ -209,7 +210,11 @@ getModSummaryForFile fileName = do
   cfileName <- GHC.liftIO $ canonicalizePath fileName
 
   graph <- GHC.getModuleGraph
+#if __GLASGOW_HASKELL__ >= 804
   cgraph <- GHC.liftIO $ canonicalizeGraph (GHC.mgModSummaries graph)
+#else
+  cgraph <- GHC.liftIO $ canonicalizeGraph graph
+#endif
 
   let mm = filter (\(mfn,_ms) -> mfn == Just cfileName) cgraph
   case mm of

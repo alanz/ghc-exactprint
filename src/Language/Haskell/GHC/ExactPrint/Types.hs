@@ -33,14 +33,19 @@ module Language.Haskell.GHC.ExactPrint.Types
   , ACS'(..)
   , ListContexts(..)
 
+  -- * GHC version compatibility
+  , GhcPs
+  , GhcRn
+  , GhcTc
+
   -- * Internal Types
   , LayoutStartCol(..)
   , declFun
 
-
   ) where
 
 import Data.Data (Data, Typeable, toConstr,cast)
+import Data.Semigroup
 
 import qualified DynFlags      as GHC
 import qualified GHC
@@ -155,10 +160,21 @@ instance Show AnnKey where
 mkAnnKeyPrim :: (Data a) => GHC.Located a -> AnnKey
 mkAnnKeyPrim (GHC.L l a) = AnnKey l (annGetConstr a)
 
+
+#if __GLASGOW_HASKELL__ <= 802
+type GhcPs = GHC.RdrName
+type GhcRn = GHC.Name
+type GhcTc = GHC.Id
+#else
+type GhcPs = GHC.GhcPs
+type GhcRn = GHC.GhcRn
+type GhcTc = GHC.GhcTc
+#endif
+
 -- |Make an unwrapped @AnnKey@ for the @LHsDecl@ case, a normal one otherwise.
 mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
 mkAnnKey ld =
-  case cast ld :: Maybe (GHC.LHsDecl GHC.GhcPs) of
+  case cast ld :: Maybe (GHC.LHsDecl GhcPs) of
     Just d -> declFun mkAnnKeyPrim d
     Nothing -> mkAnnKeyPrim ld
 
@@ -331,7 +347,7 @@ data ListContexts = LC { lcOnly,lcInitial,lcMiddle,lcLast :: !(Set.Set AstContex
 
 -- ---------------------------------------------------------------------
 
-declFun :: (forall a . Data a => GHC.Located a -> b) -> GHC.LHsDecl GHC.GhcPs -> b
+declFun :: (forall a . Data a => GHC.Located a -> b) -> GHC.LHsDecl GhcPs -> b
 declFun f (GHC.L l de) =
   case de of
       GHC.TyClD d       -> f (GHC.L l d)

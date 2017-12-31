@@ -86,7 +86,11 @@ parseWith :: Annotate w
           -> Either (GHC.SrcSpan, String) (Anns, GHC.Located w)
 parseWith dflags fileName parser s =
   case runParser parser dflags fileName s of
+#if __GLASGOW_HASKELL__ >= 804
     GHC.PFailed _ ss m                    -> Left (ss, GHC.showSDoc dflags m)
+#else
+    GHC.PFailed ss m                    -> Left (ss, GHC.showSDoc dflags m)
+#endif
     GHC.POk (mkApiAnns -> apianns) pmod -> Right (as, pmod)
       where as = relativiseApiAnns pmod apianns
 
@@ -115,7 +119,7 @@ withDynFlags action = ghcWrapper $ do
 
 -- ---------------------------------------------------------------------
 
-parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located (GHC.HsModule GHC.GhcPs))
+parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located (GHC.HsModule GhcPs))
 parseFile = runParser GHC.parseModule
 
 -- ---------------------------------------------------------------------
@@ -124,27 +128,27 @@ type Parser a = GHC.DynFlags -> FilePath -> String
                 -> Either (GHC.SrcSpan, String)
                           (Anns, a)
 
-parseExpr :: Parser (GHC.LHsExpr GHC.GhcPs)
+parseExpr :: Parser (GHC.LHsExpr GhcPs)
 parseExpr df fp = parseWith df fp GHC.parseExpression
 
-parseImport :: Parser (GHC.LImportDecl GHC.GhcPs)
+parseImport :: Parser (GHC.LImportDecl GhcPs)
 parseImport df fp = parseWith df fp GHC.parseImport
 
-parseType :: Parser (GHC.LHsType GHC.GhcPs)
+parseType :: Parser (GHC.LHsType GhcPs)
 parseType df fp = parseWith df fp GHC.parseType
 
 -- safe, see D1007
-parseDecl :: Parser (GHC.LHsDecl GHC.GhcPs)
+parseDecl :: Parser (GHC.LHsDecl GhcPs)
 #if __GLASGOW_HASKELL__ <= 710
 parseDecl df fp = parseWith df fp (head . OL.fromOL <$> GHC.parseDeclaration)
 #else
 parseDecl df fp = parseWith df fp GHC.parseDeclaration
 #endif
 
-parseStmt :: Parser (GHC.ExprLStmt GHC.GhcPs)
+parseStmt :: Parser (GHC.ExprLStmt GhcPs)
 parseStmt df fp = parseWith df fp GHC.parseStatement
 
-parsePattern :: Parser (GHC.LPat GHC.GhcPs)
+parsePattern :: Parser (GHC.LPat GhcPs)
 parsePattern df fp = parseWith df fp GHC.parsePattern
 
 -- ---------------------------------------------------------------------
@@ -157,7 +161,7 @@ parsePattern df fp = parseWith df fp GHC.parsePattern
 -- parseModule = parseModuleWithCpp defaultCppOptions
 -- @
 --
--- Note: 'GHC.ParsedSource' is a synonym for 'GHC.Located' ('GHC.HsModule' 'GHC.GhcPs')
+-- Note: 'GHC.ParsedSource' is a synonym for 'GHC.Located' ('GHC.HsModule' 'GhcPs')
 parseModule
   :: FilePath -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource))
 parseModule = parseModuleWithCpp defaultCppOptions normalLayout
@@ -247,7 +251,11 @@ parseModuleApiAnnsWithCppInternal cppOptions dflags file = do
         return (contents1,lp,dflags)
   return $
     case parseFile dflags' file fileContents of
+#if __GLASGOW_HASKELL__ >= 804
       GHC.PFailed _ ss m -> Left $ (ss, (GHC.showSDoc dflags m))
+#else
+      GHC.PFailed ss m -> Left $ (ss, (GHC.showSDoc dflags m))
+#endif
       GHC.POk (mkApiAnns -> apianns) pmod  ->
         Right $ (apianns, injectedComments, dflags', pmod)
 
