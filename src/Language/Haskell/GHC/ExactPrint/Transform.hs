@@ -648,7 +648,7 @@ instance HasDecls GHC.ParsedSource where
 instance HasDecls (GHC.LMatch GhcPs (GHC.LHsExpr GhcPs)) where
 #if __GLASGOW_HASKELL__ >= 804
   hsDecls d@(GHC.L _ (GHC.Match _ _ (GHC.GRHSs _ (GHC.L _ lb)))) = do
-#elif __GLASGOW_HASKELL__ >= 802
+#elif __GLASGOW_HASKELL__ >= 800
   hsDecls d@(GHC.L _ (GHC.Match _ _ _ (GHC.GRHSs _ (GHC.L _ lb)))) = do
 #elif __GLASGOW_HASKELL__ >= 710
   hsDecls d@(GHC.L _ (GHC.Match _ _ _ (GHC.GRHSs _ lb))) = do
