@@ -49,7 +49,9 @@ testDirs =
     GHC710 -> ["ghc710-only","ghc710"]
     GHC80  -> ["ghc710", "ghc80"]
     GHC82  -> ["ghc710", "ghc80", "ghc82"]
-    GHC84  -> ["ghc710", "ghc80", "ghc82"]
+    -- GHC84  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc84-copied"]
+    -- GHC84  -> ["ghc84-copied"]
+    GHC84  -> ["ghc84"]
 
 -- ---------------------------------------------------------------------
 
@@ -129,9 +131,11 @@ mkTests = do
   roundTripTests <- findTests
   prettyRoundTripTests <- findPrettyTests
   return $ TestList [
-                      internalTests, roundTripTests, transformTests, failingTests, noAnnotationTests
-                    ,
-                      prettyRoundTripTests
+                      -- internalTests,
+                      roundTripTests
+                    -- , transformTests, failingTests, noAnnotationTests
+                    -- ,
+                    --   prettyRoundTripTests
                     ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -188,9 +192,9 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkPrettyRoundtrip "ghc80" "MultiQuote.hs"
       -- mkPrettyRoundtrip "ghc80" "T10689a.hs"
 
-      mkPrettyRoundtrip "ghc80" "T10946.hs"
+      -- mkPrettyRoundtrip "ghc80" "T10946.hs"
 
-       -- mkParserTest "ghc710" "TemplateHaskell.hs"
+       mkParserTest "ghc84" "SafeFlags03.hs"
       -- mkParserTest "ghc80" "SemicolonIf.hs"
       -- mkParserTest "ghc80" "T10689a.hs"
       -- mkParserTest "ghc80" "MonadT.hs"

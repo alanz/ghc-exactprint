@@ -780,6 +780,10 @@ instance Annotate (GHC.TyFamInstDecl GHC.GhcPs) where
 
 -- ---------------------------------------------------------------------
 
+markFamEqn :: (GHC.HasOccName (GHC.IdP pass),
+               Annotate (GHC.IdP pass), Annotate ast1, Annotate ast2)
+           => GHC.FamEqn pass [GHC.Located ast1] (GHC.Located ast2)
+                    -> Annotated ()
 markFamEqn (GHC.FamEqn ln pats fixity rhs) = do
   markTyClass fixity ln pats
   mark GHC.AnnEqual
