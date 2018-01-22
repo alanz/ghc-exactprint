@@ -774,7 +774,7 @@ instance Annotate (GHC.TyFamInstDecl GHC.GhcPs) where
 
   markAST l (GHC.TyFamInstDecl (GHC.HsIB _ eqn _)) = do
     mark GHC.AnnType
-    inContext (Set.singleton TopLevel) $ mark GHC.AnnInstance -- Note: this keyword is optional
+    mark GHC.AnnInstance -- Note: this keyword is optional
     markFamEqn eqn
     markTrailingSemi
 
@@ -798,7 +798,7 @@ instance Annotate (GHC.DataFamInstDecl GHC.GhcPs) where
     case GHC.dd_ND defn of
       GHC.NewType  -> mark GHC.AnnNewtype
       GHC.DataType -> mark GHC.AnnData
-    inContext (Set.singleton TopLevel) $ mark GHC.AnnInstance
+    mark GHC.AnnInstance
 
     markLocated ctx
 
@@ -869,14 +869,14 @@ instance Annotate (GHC.HsBind GHC.GhcPs) where
   markAST l (GHC.PatSynBind (GHC.PSB ln _fvs args def dir)) = do
     mark GHC.AnnPattern
     case args of
-      GHC.InfixPatSyn la lb -> do
+      GHC.InfixCon la lb -> do
         markLocated la
         setContext (Set.singleton InfixOp) $ markLocated ln
         markLocated lb
-      GHC.PrefixPatSyn ns -> do
+      GHC.PrefixCon ns -> do
         markLocated ln
         mapM_ markLocated ns
-      GHC.RecordPatSyn fs -> do
+      GHC.RecCon fs -> do
         markLocated ln
         mark GHC.AnnOpenC  -- '{'
         markListIntercalateWithFun (markLocated . GHC.recordPatSynSelectorId) fs
@@ -2024,10 +2024,10 @@ instance Annotate (GHC.HsExpr GHC.GhcPs) where
           else markLocated e1
 
       markExpr _ (GHC.HsArrForm e _ cs) = do
-        markWithString GHC.AnnOpen "(|"
+        markWithString GHC.AnnOpenB "(|"
         markLocated e
         mapM_ markLocated cs
-        markWithString GHC.AnnClose "|)"
+        markWithString GHC.AnnCloseB "|)"
 
       markExpr _ (GHC.HsTick _ _) = return ()
       markExpr _ (GHC.HsBinTick _ _ _) = return ()

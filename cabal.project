@@ -1,6 +1,6 @@
 packages: .
           ../../ekmett/free
-          ../Haskell-Turtle-Library
+          -- ../Haskell-Turtle-Library
 repository head.hackage
   url: http://head.hackage.haskell.org/
   secure: True
