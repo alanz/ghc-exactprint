@@ -772,7 +772,7 @@ instance Annotate (GHC.ClsInstDecl GHC.GhcPs) where
 
 instance Annotate (GHC.TyFamInstDecl GHC.GhcPs) where
 
-  markAST l (GHC.TyFamInstDecl (GHC.HsIB _ eqn _)) = do
+  markAST _ (GHC.TyFamInstDecl (GHC.HsIB _ eqn _)) = do
     mark GHC.AnnType
     mark GHC.AnnInstance -- Note: this keyword is optional
     markFamEqn eqn
@@ -2302,6 +2302,9 @@ instance Annotate (GHC.TyClDecl GHC.GhcPs) where
 markTyClass :: (Annotate a, Annotate ast,GHC.HasOccName a)
                 => GHC.LexicalFixity -> GHC.Located a -> [GHC.Located ast] -> Annotated ()
 markTyClass fixity ln tyVars = do
+    -- There may be arbitrary parens around parts of the constructor
+    -- Turn these into comments so that they feed into the right place automatically
+    annotationsToComments [GHC.AnnOpenP,GHC.AnnCloseP]
     let markParens = if fixity == GHC.Infix && length tyVars > 2
           then markMany
           else markManyOptional
@@ -2309,6 +2312,7 @@ markTyClass fixity ln tyVars = do
       then do
         markManyOptional GHC.AnnOpenP
         setContext (Set.singleton PrefixOp) $ markLocated ln
+        -- setContext (Set.singleton PrefixOp) $ mapM_ markLocated tyVars
         setContext (Set.singleton PrefixOp) $ mapM_ markLocated $ take 2 tyVars
         when (length tyVars >= 2) $ do
           markParens GHC.AnnCloseP

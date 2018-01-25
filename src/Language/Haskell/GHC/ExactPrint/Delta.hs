@@ -396,19 +396,17 @@ storeString s ss = addAnnotationWorker (AnnString s) ss
 -- comments.
 annotationsToCommentsDelta :: [GHC.AnnKeywordId] -> Delta ()
 annotationsToCommentsDelta kws = do
-  ga <- gets apAnns
   ss <- getSrcSpan
   cs <- gets apComments
   let
-    doOne :: GHC.AnnKeywordId -> [Comment]
-    doOne kw = comments
-      where
-        spans = GHC.getAnnotation ga ss kw
-        comments = map (mkKWComment kw) spans
+    doOne :: GHC.AnnKeywordId -> Delta [Comment]
+    doOne kw = do
+      (spans,_) <- getAndRemoveAnnotationDelta ss kw
+      return $ map (mkKWComment kw) spans
     -- TODO:AZ make sure these are sorted/merged properly when the invariant for
     -- allocateComments is re-established.
-    newComments = concatMap doOne kws
-  putUnallocatedComments (cs ++ newComments)
+  newComments <- mapM doOne kws
+  putUnallocatedComments (cs ++ concat newComments)
 
 -- ---------------------------------------------------------------------
 

@@ -134,7 +134,10 @@ mkTests = do
   return $ TestList [
                       internalTests,
                       roundTripTests
-                    , transformTests, failingTests, noAnnotationTests
+                    ,
+                      transformTests
+                    , failingTests
+                    , noAnnotationTests
                     ,
                       prettyRoundTripTests
                     ]
@@ -146,15 +149,16 @@ failingTests = testList "Failing tests"
   [
   -- Tests requiring future GHC modifications
     mkTestModBad "InfixOperator.hs"
-  , mkTestModBad "CtorOp.hs" -- Should be fixed in GHC 8.4
 
-#if __GLASGOW_HASKELL__ > 800
+#if __GLASGOW_HASKELL__ > 802
+#elif __GLASGOW_HASKELL__ > 800
   , mkTestModBad "overloadedlabelsrun04.hs"
 #elif __GLASGOW_HASKELL__ > 710
   , mkTestModBad "overloadedlabelsrun04.hs"
   , mkTestModBad "TensorTests.hs" -- Should be fixed in GHC 8.2
   , mkTestModBad "List2.hs"       -- Should be fixed in GHC 8.2
 #else
+  , mkTestModBad "CtorOp.hs" -- Should be fixed in GHC 8.4
   , mkTestModBad "UnicodeSyntax.hs"
   , mkTestModBad "UnicodeRules.hs"
   , mkTestModBad "Deprecation.hs"
@@ -194,10 +198,17 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkPrettyRoundtrip "ghc80" "T10689a.hs"
 
       -- mkPrettyRoundtrip "ghc82" "TensorTests.hs"
-      mkPrettyRoundtrip "ghc80" "T10041.hs"
 
-     -- , mkParserTest "ghc84" "T13747.hs"
-     -- , mkParserTest "ghc84" "arrowfail003.hs"
+      mkPrettyRoundtrip "ghc710" "SlidingTypeSyn.hs"
+    , mkPrettyRoundtrip "ghc710" "TypeOperators.hs"
+    , mkPrettyRoundtrip "ghc80" "TestUtils.hs"
+
+    --   mkParserTest      "ghc710" "SlidingTypeSyn.hs"
+    -- , mkParserTest      "ghc710" "TypeOperators.hs"
+    -- , mkParserTest      "ghc80" "TestUtils.hs"
+
+     --   mkParserTest "ghc84" "Functors.hs"
+     -- , mkParserTest "ghc80" "MonadT.hs"
 
       -- mkParserTest "ghc80" "SemicolonIf.hs"
       -- mkParserTest "ghc80" "T10689a.hs"
