@@ -307,6 +307,9 @@ deltaInterpret = iterTM go
     go (MarkEOF next)                   = addEofAnnotation >> next
     go (MarkPrim kwid _ next)           = addDeltaAnnotation kwid >> next
     go (MarkPPOptional kwid _ next)     = addDeltaAnnotation kwid >> next
+#if __GLASGOW_HASKELL__ >= 804
+    go (MarkInstead akwid kwid next)    = addDeltaAnnotationInstead akwid kwid >> next
+#endif
     go (MarkOutside akwid kwid next)    = addDeltaAnnotationsOutside akwid kwid >> next
     go (MarkInside akwid next)          = addDeltaAnnotationsInside akwid >> next
     go (MarkMany akwid next)            = addDeltaAnnotations akwid >> next
@@ -786,6 +789,19 @@ addDeltaAnnotationsInside ann = do
                     -- `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
   let filtered = sort $ filter (\s -> GHC.isSubspanOf s ss) ma
   mapM_ do_one filtered
+
+-- ---------------------------------------------------------------------
+#if __GLASGOW_HASKELL__ >= 804
+addDeltaAnnotationInstead :: GHC.AnnKeywordId  -> KeywordId -> Delta ()
+addDeltaAnnotationInstead ann' kw = do
+  ss <- getSrcSpan
+  (ma,ann) <- getOneAnnotationDelta ann'
+  case nub ma of -- ++AZ++ TODO: get rid of duplicates earlier
+    []     -> return () `debug` ("addDeltaAnnotation empty ma for:" ++ show (ss,ann))
+    [pa]   -> addAnnotationWorker kw pa
+    (pa:_) -> addAnnotationWorker kw pa `warn` ("addDeltaAnnotationInstead:(ss,ann,kw,ma)=" ++ showGhc (ss,ann,kw,ma))
+#endif
+-- ---------------------------------------------------------------------
 
 -- | Look up and add possibly multiple Delta annotations not enclosed by
 -- the current SrcSpan at the current position, and advance the

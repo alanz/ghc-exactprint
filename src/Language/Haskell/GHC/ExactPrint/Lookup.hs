@@ -148,6 +148,9 @@ keywordToString kw =
       (G GHC.AnnlarrowtailU) -> "⤙"
       (G GHC.AnnrarrowtailU) -> "⤚"
 #endif
+#if __GLASGOW_HASKELL__ >= 804
+      AnnTypeApp             -> "@"
+#endif
 
 #if __GLASGOW_HASKELL__ <= 710
 -- | Tries to find a unicode equivalent to a 'KeywordId'.

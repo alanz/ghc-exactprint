@@ -266,7 +266,8 @@ instance Annotate (GHC.IE GHC.GhcPs) where
                 [] -> return ()
                 ns' -> do
                   mark GHC.AnnComma
-                  setContext (Set.singleton PrefixOp) $ mapM_ markLocated ns'
+                  unsetContext Intercalate $ setContext (Set.fromList [PrefixOp])
+                    $ markListIntercalate ns'
           mark GHC.AnnCloseP
 
         (GHC.IEThingAll ln) -> do
@@ -315,7 +316,7 @@ instance Annotate GHC.RdrName where
     let
       str = rdrName2String n
       isSym = isSymRdr n
-      canParen = isSym && rdrName2String n /= "$"
+      canParen = isSym
       doNormalRdrName = do
         let str' = case str of
               -- TODO: unicode support?
@@ -2074,7 +2075,7 @@ instance Annotate (GHC.HsExpr GHC.GhcPs) where
 
       markExpr _ (GHC.HsAppType e ty) = do
         markLocated e
-        mark GHC.AnnAt
+        markInstead GHC.AnnAt AnnTypeApp
         markLHsWcType ty
       markExpr _ (GHC.HsAppTypeOut _ _) =
         traceM "warning: HsAppTypeOut introduced after renaming"
@@ -2409,6 +2410,7 @@ instance Annotate (GHC.TyFamInstEqn GHC.GhcPs) where
 
   markAST _ (GHC.HsIB _ eqn _) = do
     markFamEqn eqn
+    markTrailingSemi
 
 -- ---------------------------------------------------------------------
 

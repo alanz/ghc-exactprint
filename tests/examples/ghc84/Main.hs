@@ -94,11 +94,9 @@ witnesses [d| type family Unspell (w :: Symbol) = (r :: Nat) | r -> w where
             |]
 deriving instance Show (UnspellRefl w)
 
-
 main = runQ (witnesses stuffhave2) >>= print
 
 test@Just{} = reify_Elim (typeRep @Integer) (typeOf ((+1)::Integer->Integer))
-
 
 lemma :: v -> TypeRep f -> TypeRep v
       -> Maybe (TypeRep (v `Elim` f), f -> v `Elim` f)

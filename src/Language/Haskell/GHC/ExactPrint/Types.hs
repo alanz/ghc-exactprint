@@ -191,7 +191,10 @@ annGetConstr a = CN (show $ toConstr a)
 -- | The different syntactic elements which are not represented in the
 -- AST.
 data KeywordId = G GHC.AnnKeywordId  -- ^ A normal keyword
-               | AnnSemiSep          -- ^ A seperating comma
+               | AnnSemiSep          -- ^ A separating comma
+#if __GLASGOW_HASKELL__ >= 804
+               | AnnTypeApp          -- ^ Visible type application annotation
+#endif
                | AnnComment Comment
                | AnnString String    -- ^ Used to pass information from
                                      -- Delta to Print when we have to work
@@ -205,6 +208,7 @@ data KeywordId = G GHC.AnnKeywordId  -- ^ A normal keyword
 instance Show KeywordId where
   show (G gc)          = "(G " ++ show gc ++ ")"
   show AnnSemiSep      = "AnnSemiSep"
+  show AnnTypeApp      = "AnnTypeApp"
   show (AnnComment dc) = "(AnnComment " ++ show dc ++ ")"
   show (AnnString s)   = "(AnnString " ++ s ++ ")"
 #if __GLASGOW_HASKELL__ <= 710

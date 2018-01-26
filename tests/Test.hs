@@ -199,11 +199,19 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
       -- mkPrettyRoundtrip "ghc82" "TensorTests.hs"
 
-      mkPrettyRoundtrip "ghc710" "SlidingTypeSyn.hs"
-    , mkPrettyRoundtrip "ghc710" "TypeOperators.hs"
-    , mkPrettyRoundtrip "ghc80" "TestUtils.hs"
+   --    mkParserTest      "ghc84" "Main.hs"
+      -- mkParserTest      "ghc84" "Types.hs"
+    -- , mkPrettyRoundtrip "ghc80" "BundleExport.hs"
+    -- , mkPrettyRoundtrip "ghc80" "ExportSyntax.hs"
+    -- , mkPrettyRoundtrip "ghc80" "export-class.hs"
+    -- , mkPrettyRoundtrip "ghc80" "export-syntax.hs"
+    -- , mkPrettyRoundtrip "ghc80" "export-type.hs"
 
-    --   mkParserTest      "ghc710" "SlidingTypeSyn.hs"
+      -- mkPrettyRoundtrip "ghc84" "Main.hs"
+      mkPrettyRoundtrip "ghc84" "Types.hs"
+
+      -- mkParserTest      "ghc80" "BundleExport.hs"
+
     -- , mkParserTest      "ghc710" "TypeOperators.hs"
     -- , mkParserTest      "ghc80" "TestUtils.hs"
 
