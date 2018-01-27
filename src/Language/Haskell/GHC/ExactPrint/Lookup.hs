@@ -148,7 +148,7 @@ keywordToString kw =
       (G GHC.AnnlarrowtailU) -> "⤙"
       (G GHC.AnnrarrowtailU) -> "⤚"
 #endif
-#if __GLASGOW_HASKELL__ >= 804
+#if __GLASGOW_HASKELL__ >= 800
       AnnTypeApp             -> "@"
 #endif
 

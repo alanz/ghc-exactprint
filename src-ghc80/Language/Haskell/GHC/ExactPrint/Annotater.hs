@@ -2152,7 +2152,7 @@ instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate n
 
       markExpr _ (GHC.HsAppType e ty) = do
         markLocated e
-        mark GHC.AnnAt
+        markInstead GHC.AnnAt AnnTypeApp
         markLHsWcType ty
       markExpr _ (GHC.HsAppTypeOut _ _) =
         traceM "warning: HsAppTypeOut introduced after renaming"

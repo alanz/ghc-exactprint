@@ -208,7 +208,10 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- , mkPrettyRoundtrip "ghc80" "export-type.hs"
 
       -- mkPrettyRoundtrip "ghc84" "Main.hs"
-      mkPrettyRoundtrip "ghc84" "Types.hs"
+      -- mkPrettyRoundtrip "ghc84" "Types.hs"
+
+      mkPrettyRoundtrip "ghc80" "Vta1.hs"
+    , mkPrettyRoundtrip "ghc80" "Vta2.hs"
 
       -- mkParserTest      "ghc80" "BundleExport.hs"
 

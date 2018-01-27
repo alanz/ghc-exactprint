@@ -69,7 +69,7 @@ page (prev, out, next) (Failure res fname) = do
       writeFile (failuresHtmlDir </> out) (mkPage fname (ppDiff diff) prev next original res)
   where
     tokenize :: String -> [[String]]
-    tokenize s = map (:[]) . lines $ s
+    -- tokenize s = map (:[]) . lines $ s
 
 mkPage :: FilePath -> String -> String -> String -> String -> String -> String
 mkPage filename diff prev next original printed  =

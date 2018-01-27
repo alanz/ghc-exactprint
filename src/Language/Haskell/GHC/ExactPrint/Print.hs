@@ -160,7 +160,7 @@ printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
       markPrim (G kwid) mstr >> next
     go (MarkPPOptional kwid mstr next) =
       markPrim (G kwid) mstr >> next
-#if __GLASGOW_HASKELL__ >= 804
+#if __GLASGOW_HASKELL__ >= 800
     go (MarkInstead _ kwid next) =
       printStringAtMaybeAnnAll kwid Nothing  >> next
 #endif

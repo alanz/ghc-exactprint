@@ -307,7 +307,7 @@ deltaInterpret = iterTM go
     go (MarkEOF next)                   = addEofAnnotation >> next
     go (MarkPrim kwid _ next)           = addDeltaAnnotation kwid >> next
     go (MarkPPOptional kwid _ next)     = addDeltaAnnotation kwid >> next
-#if __GLASGOW_HASKELL__ >= 804
+#if __GLASGOW_HASKELL__ >= 800
     go (MarkInstead akwid kwid next)    = addDeltaAnnotationInstead akwid kwid >> next
 #endif
     go (MarkOutside akwid kwid next)    = addDeltaAnnotationsOutside akwid kwid >> next
@@ -791,7 +791,7 @@ addDeltaAnnotationsInside ann = do
   mapM_ do_one filtered
 
 -- ---------------------------------------------------------------------
-#if __GLASGOW_HASKELL__ >= 804
+#if __GLASGOW_HASKELL__ >= 800
 addDeltaAnnotationInstead :: GHC.AnnKeywordId  -> KeywordId -> Delta ()
 addDeltaAnnotationInstead ann' kw = do
   ss <- getSrcSpan

@@ -192,7 +192,7 @@ annGetConstr a = CN (show $ toConstr a)
 -- AST.
 data KeywordId = G GHC.AnnKeywordId  -- ^ A normal keyword
                | AnnSemiSep          -- ^ A separating comma
-#if __GLASGOW_HASKELL__ >= 804
+#if __GLASGOW_HASKELL__ >= 800
                | AnnTypeApp          -- ^ Visible type application annotation
 #endif
                | AnnComment Comment
@@ -208,7 +208,7 @@ data KeywordId = G GHC.AnnKeywordId  -- ^ A normal keyword
 instance Show KeywordId where
   show (G gc)          = "(G " ++ show gc ++ ")"
   show AnnSemiSep      = "AnnSemiSep"
-#if __GLASGOW_HASKELL__ >= 804
+#if __GLASGOW_HASKELL__ >= 800
   show AnnTypeApp      = "AnnTypeApp"
 #endif
   show (AnnComment dc) = "(AnnComment " ++ show dc ++ ")"

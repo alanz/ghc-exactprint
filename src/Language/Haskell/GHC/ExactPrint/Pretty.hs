@@ -158,7 +158,7 @@ prettyInterpret = iterTM go
     go (MarkPPOptional _kwid _ next)    = next
     go (MarkEOF next)                   = addEofAnnotation >> next
     go (MarkExternal _ss akwid _ next)  = addPrettyAnnotation (G akwid) >> next
-#if __GLASGOW_HASKELL__ >= 804
+#if __GLASGOW_HASKELL__ >= 800
     go (MarkInstead akwid kwid next)    = addPrettyAnnotationsInstead akwid kwid >> next
 #endif
     go (MarkOutside akwid kwid next)    = addPrettyAnnotationsOutside akwid kwid >> next
@@ -254,7 +254,7 @@ addPrettyAnnotation ann = do
            (G GHC.AnnValStr)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnVbar)         -> tellKd (ann,DP (0,1))
            (G GHC.AnnWhere)        -> tellKd (ann,DP (1,2))
-#if __GLASGOW_HASKELL__ >= 804
+#if __GLASGOW_HASKELL__ >= 800
            AnnTypeApp              -> tellKd (ann,DP (0,1))
 #endif
            _ ->                tellKd (ann,DP (0,0))
@@ -262,7 +262,7 @@ addPrettyAnnotation ann = do
 
 -- ---------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ >= 804
+#if __GLASGOW_HASKELL__ >= 800
 addPrettyAnnotationsInstead :: GHC.AnnKeywordId -> KeywordId -> Pretty ()
 addPrettyAnnotationsInstead _akwid AnnSemiSep = return ()
 addPrettyAnnotationsInstead _akwid kwid = addPrettyAnnotation kwid

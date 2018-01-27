@@ -107,7 +107,7 @@ data AnnotationF next where
   MarkPPOptional   :: GHC.AnnKeywordId -> Maybe String                     -> next -> AnnotationF next
   MarkEOF          ::                                                         next -> AnnotationF next
   MarkExternal     :: GHC.SrcSpan -> GHC.AnnKeywordId -> String            -> next -> AnnotationF next
-#if __GLASGOW_HASKELL__ >= 804
+#if __GLASGOW_HASKELL__ >= 800
   MarkInstead      :: GHC.AnnKeywordId -> KeywordId                        -> next -> AnnotationF next
 #endif
   MarkOutside      :: GHC.AnnKeywordId -> KeywordId                        -> next -> AnnotationF next
@@ -156,7 +156,7 @@ type Annotated = FreeT AnnotationF Identity
 makeFreeCon  'MarkEOF
 makeFreeCon  'MarkPrim
 makeFreeCon  'MarkPPOptional
-#if __GLASGOW_HASKELL__ >= 804
+#if __GLASGOW_HASKELL__ >= 800
 makeFreeCon  'MarkInstead
 #endif
 makeFreeCon  'MarkOutside
