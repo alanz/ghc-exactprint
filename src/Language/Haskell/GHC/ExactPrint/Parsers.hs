@@ -37,6 +37,7 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
 
         , initDynFlags
         , initDynFlagsPure
+        , parseModuleFromStringInternal
         , parseModuleApiAnnsWithCpp
         , parseModuleApiAnnsWithCppInternal
         , postParseTransform
@@ -178,7 +179,20 @@ parseModuleFromString
   -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource))
 parseModuleFromString fp s = ghcWrapper $ do
   dflags <- initDynFlagsPure fp s
-  return $ parseWith dflags fp GHC.parseModule s
+  return $ parseModuleFromStringInternal dflags fp s
+
+-- | Internal part of 'parseModuleFromString'.
+parseModuleFromStringInternal
+  :: GHC.DynFlags
+  -> FilePath
+  -> String
+  -> Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource)
+parseModuleFromStringInternal dflags fileName str =
+  let (str1, lp) = stripLinePragmas str
+      res        = case runParser GHC.parseModule dflags fileName str1 of
+        GHC.PFailed ss m    -> Left (ss, GHC.showSDoc dflags m)
+        GHC.POk     x  pmod -> Right $ (mkApiAnns x, lp, dflags, pmod)
+  in  postParseTransform res normalLayout
 
 parseModuleWithOptions :: DeltaOptions
                        -> FilePath
