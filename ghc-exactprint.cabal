@@ -37,6 +37,7 @@ extra-source-files:  ChangeLog
                      tests/examples/ghc710-only/*.hs
                      tests/examples/ghc80/*.hs
                      tests/examples/ghc82/*.hs
+                     tests/examples/ghc84/*.hs
                      tests/examples/transform/*.hs
                      tests/examples/failing/*.hs.bad
                      tests/examples/transform/*.hs.expected
