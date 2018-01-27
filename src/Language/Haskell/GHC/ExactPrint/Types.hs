@@ -208,7 +208,9 @@ data KeywordId = G GHC.AnnKeywordId  -- ^ A normal keyword
 instance Show KeywordId where
   show (G gc)          = "(G " ++ show gc ++ ")"
   show AnnSemiSep      = "AnnSemiSep"
+#if __GLASGOW_HASKELL__ >= 804
   show AnnTypeApp      = "AnnTypeApp"
+#endif
   show (AnnComment dc) = "(AnnComment " ++ show dc ++ ")"
   show (AnnString s)   = "(AnnString " ++ s ++ ")"
 #if __GLASGOW_HASKELL__ <= 710
