@@ -1,5 +1,5 @@
 packages: .
-          ../../ekmett/free
+          -- ../../ekmett/free
           -- ../Haskell-Turtle-Library
 repository head.hackage
   url: http://head.hackage.haskell.org/

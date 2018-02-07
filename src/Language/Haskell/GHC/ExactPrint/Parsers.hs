@@ -190,7 +190,11 @@ parseModuleFromStringInternal
 parseModuleFromStringInternal dflags fileName str =
   let (str1, lp) = stripLinePragmas str
       res        = case runParser GHC.parseModule dflags fileName str1 of
+#if __GLASGOW_HASKELL__ >= 804
+        GHC.PFailed _ ss m  -> Left (ss, GHC.showSDoc dflags m)
+#else
         GHC.PFailed ss m    -> Left (ss, GHC.showSDoc dflags m)
+#endif
         GHC.POk     x  pmod -> Right $ (mkApiAnns x, lp, dflags, pmod)
   in  postParseTransform res normalLayout
 

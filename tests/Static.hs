@@ -54,7 +54,6 @@ page :: (FilePath, FilePath, FilePath) -> Failure -> IO ()
 page (prev, out, next) (Failure res fname) = do
 --  traceM out
   original <- readFile fname
-  -- let diff = getDiff (tokenize original) (tokenize res)
   let lres = lines res
   let maxLines = 50000
   let diff = getGroupedDiff (lines original) (take maxLines lres)
@@ -67,9 +66,6 @@ page (prev, out, next) (Failure res fname) = do
     else
       -- writeFile ("failures" </> out) (mkPage (ppDiff diff) prev next original res)
       writeFile (failuresHtmlDir </> out) (mkPage fname (ppDiff diff) prev next original res)
-  where
-    tokenize :: String -> [[String]]
-    -- tokenize s = map (:[]) . lines $ s
 
 mkPage :: FilePath -> String -> String -> String -> String -> String -> String
 mkPage filename diff prev next original printed  =
