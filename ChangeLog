@@ -1,5 +1,7 @@
-2018-00-27 v0.5.6.0
-	* Support GHC 8.4 slpha2
+2018-03-11 v0.5.6.1
+	* Relax base constraints so tests can configure with GHC 8.4.1
+2018-01-27 v0.5.6.0
+	* Support GHC 8.4 alpha2
 	* Include test examples for GHC 8.2
 	* Fix parseModuleFromString to correctly handle the sheband case (@lspitzner)
 2017-07-23 v0.5.5.0
