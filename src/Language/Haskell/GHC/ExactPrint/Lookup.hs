@@ -122,7 +122,9 @@ keywordToString kw =
       (G GHC.AnnStatic   ) -> "static"
       (G GHC.AnnThen     ) -> "then"
       (G GHC.AnnTilde    ) -> "~"
+#if __GLASGOW_HASKELL__ <= 804
       (G GHC.AnnTildehsh ) -> "~#"
+#endif
       (G GHC.AnnType     ) -> "type"
       (G GHC.AnnUnit     ) -> "()"
       (G GHC.AnnUsing    ) -> "using"
@@ -150,6 +152,9 @@ keywordToString kw =
 #endif
 #if __GLASGOW_HASKELL__ >= 800
       AnnTypeApp             -> "@"
+#endif
+#if __GLASGOW_HASKELL__ > 804
+      (G GHC.AnnVia) -> "via"
 #endif
 
 #if __GLASGOW_HASKELL__ <= 710

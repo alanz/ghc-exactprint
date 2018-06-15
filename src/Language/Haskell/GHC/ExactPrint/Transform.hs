@@ -250,27 +250,43 @@ captureOrderAnnKey parentKey ls ans = ans'
 -- nothing to any annotations that may be attached to either of the elements.
 -- It is used as a utility function in 'replaceDecls'
 decl2Bind :: GHC.LHsDecl name -> [GHC.LHsBind name]
+#if __GLASGOW_HASKELL__ > 804
+decl2Bind (GHC.L l (GHC.ValD _ s)) = [GHC.L l s]
+#else
 decl2Bind (GHC.L l (GHC.ValD s)) = [GHC.L l s]
+#endif
 decl2Bind _                      = []
 
 -- |Pure function to convert a 'GHC.LSig' to a 'GHC.LHsBind'. This does
 -- nothing to any annotations that may be attached to either of the elements.
 -- It is used as a utility function in 'replaceDecls'
 decl2Sig :: GHC.LHsDecl name -> [GHC.LSig name]
+#if __GLASGOW_HASKELL__ > 804
+decl2Sig (GHC.L l (GHC.SigD _ s)) = [GHC.L l s]
+#else
 decl2Sig (GHC.L l (GHC.SigD s)) = [GHC.L l s]
+#endif
 decl2Sig _                      = []
 
 -- ---------------------------------------------------------------------
 
 -- |Convert a 'GHC.LSig' into a 'GHC.LHsDecl'
 wrapSig :: GHC.LSig GhcPs -> GHC.LHsDecl GhcPs
+#if __GLASGOW_HASKELL__ > 804
+wrapSig (GHC.L l s) = GHC.L l (GHC.SigD GHC.noExt s)
+#else
 wrapSig (GHC.L l s) = GHC.L l (GHC.SigD s)
+#endif
 
 -- ---------------------------------------------------------------------
 
 -- |Convert a 'GHC.LHsBind' into a 'GHC.LHsDecl'
 wrapDecl :: GHC.LHsBind GhcPs -> GHC.LHsDecl GhcPs
+#if __GLASGOW_HASKELL__ > 804
+wrapDecl (GHC.L l s) = GHC.L l (GHC.ValD GHC.noExt s)
+#else
 wrapDecl (GHC.L l s) = GHC.L l (GHC.ValD s)
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -458,7 +474,11 @@ balanceComments first second = do
   -- logTr $ "balanceComments entered"
   -- logDataWithAnnsTr "first" first
   case cast first :: Maybe (GHC.LHsDecl GhcPs) of
-    Just (GHC.L l (GHC.ValD fb@(GHC.FunBind{}))) -> do
+#if __GLASGOW_HASKELL__ > 804
+    Just (GHC.L l (GHC.ValD _ fb@(GHC.FunBind{}))) -> do
+#else
+    Just (GHC.L l (GHC.ValD   fb@(GHC.FunBind{}))) -> do
+#endif
       balanceCommentsFB (GHC.L l fb) second
     _ -> case cast first :: Maybe (GHC.LHsBind GhcPs) of
       Just fb'@(GHC.L _ (GHC.FunBind{})) -> do
@@ -493,10 +513,12 @@ balanceComments' first second = do
 -- 'GHC.FunBind', these need to be pushed down from the top level to the last
 -- 'GHC.Match' if that 'GHC.Match' needs to be manipulated.
 balanceCommentsFB :: (Data b,Monad m) => GHC.LHsBind GhcPs -> GHC.Located b -> TransformT m ()
-#if __GLASGOW_HASKELL__ <= 710
-balanceCommentsFB (GHC.L _ (GHC.FunBind _ _ (GHC.MG matches _ _ _) _ _ _)) second = do
-#else
+#if __GLASGOW_HASKELL__ > 804
+balanceCommentsFB (GHC.L _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _ _)) second = do
+#elif __GLASGOW_HASKELL__ > 710
 balanceCommentsFB (GHC.L _ (GHC.FunBind _ (GHC.MG (GHC.L _ matches) _ _ _) _ _ _)) second = do
+#else
+balanceCommentsFB (GHC.L _ (GHC.FunBind _ _ (GHC.MG matches _ _ _) _ _ _)) second = do
 #endif
   -- logTr $ "balanceCommentsFB entered"
   balanceComments' (last matches) second
@@ -646,7 +668,9 @@ instance HasDecls GHC.ParsedSource where
 -- ---------------------------------------------------------------------
 
 instance HasDecls (GHC.LMatch GhcPs (GHC.LHsExpr GhcPs)) where
-#if __GLASGOW_HASKELL__ >= 804
+#if __GLASGOW_HASKELL__ > 804
+  hsDecls d@(GHC.L _ (GHC.Match _ _ _ (GHC.GRHSs _ _ (GHC.L _ lb)))) = do
+#elif __GLASGOW_HASKELL__ >= 804
   hsDecls d@(GHC.L _ (GHC.Match _ _ (GHC.GRHSs _ (GHC.L _ lb)))) = do
 #elif __GLASGOW_HASKELL__ >= 800
   hsDecls d@(GHC.L _ (GHC.Match _ _ _ (GHC.GRHSs _ (GHC.L _ lb)))) = do
@@ -657,8 +681,15 @@ instance HasDecls (GHC.LMatch GhcPs (GHC.LHsExpr GhcPs)) where
 #endif
     decls <- hsDeclsValBinds lb
     orderedDecls d decls
+#if __GLASGOW_HASKELL__ > 804
+  hsDecls (GHC.L _ (GHC.Match _ _ _ (GHC.XGRHSs _))) = return []
+  hsDecls (GHC.L _ (GHC.XMatch _))                   = return []
+#endif
 
-#if __GLASGOW_HASKELL__ >= 804
+
+#if __GLASGOW_HASKELL__ > 804
+  replaceDecls m@(GHC.L l (GHC.Match xm c p (GHC.GRHSs xr rhs binds))) []
+#elif __GLASGOW_HASKELL__ >= 804
   replaceDecls m@(GHC.L l (GHC.Match c p (GHC.GRHSs rhs binds))) []
 #else
   replaceDecls m@(GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds))) []
@@ -684,13 +715,17 @@ instance HasDecls (GHC.LMatch GhcPs (GHC.LHsExpr GhcPs)) where
         binds'' <- replaceDeclsValbinds (GHC.unLoc binds) []
         let binds' = GHC.L (GHC.getLoc binds) binds''
 #endif
-#if __GLASGOW_HASKELL__ >= 804
+#if __GLASGOW_HASKELL__ > 804
+        return (GHC.L l (GHC.Match xm c p (GHC.GRHSs xr rhs binds')))
+#elif __GLASGOW_HASKELL__ >= 804
         return (GHC.L l (GHC.Match c p (GHC.GRHSs rhs binds')))
 #else
         return (GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds')))
 #endif
 
-#if __GLASGOW_HASKELL__ >= 804
+#if __GLASGOW_HASKELL__ > 804
+  replaceDecls m@(GHC.L l (GHC.Match xm c p (GHC.GRHSs xr rhs binds))) newBinds
+#elif __GLASGOW_HASKELL__ >= 804
   replaceDecls m@(GHC.L l (GHC.Match c p (GHC.GRHSs rhs binds))) newBinds
 #else
   replaceDecls m@(GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds))) newBinds
@@ -704,7 +739,11 @@ instance HasDecls (GHC.LMatch GhcPs (GHC.LHsExpr GhcPs)) where
 #else
         case GHC.unLoc binds of
 #endif
+#if __GLASGOW_HASKELL__ > 804
+          GHC.EmptyLocalBinds{} -> do
+#else
           GHC.EmptyLocalBinds -> do
+#endif
             let
               addWhere mkds =
                 case Map.lookup (mkAnnKey m) mkds of
@@ -729,25 +768,37 @@ instance HasDecls (GHC.LMatch GhcPs (GHC.LHsExpr GhcPs)) where
         let binds' = GHC.L (GHC.getLoc binds) binds''
 #endif
         -- logDataWithAnnsTr "Match.replaceDecls:binds'" binds'
-#if __GLASGOW_HASKELL__ >= 804
+#if __GLASGOW_HASKELL__ > 804
+        return (GHC.L l (GHC.Match xm c p (GHC.GRHSs xr rhs binds')))
+#elif __GLASGOW_HASKELL__ >= 804
         return (GHC.L l (GHC.Match c p (GHC.GRHSs rhs binds')))
 #else
         return (GHC.L l (GHC.Match mf p t (GHC.GRHSs rhs binds')))
+#endif
+#if __GLASGOW_HASKELL__ > 804
+  replaceDecls (GHC.L _ (GHC.Match _ _ _ (GHC.XGRHSs _))) _ = error "replaceDecls"
+  replaceDecls (GHC.L _ (GHC.XMatch _)) _                   = error "replaceDecls"
 #endif
 
 -- ---------------------------------------------------------------------
 
 instance HasDecls (GHC.LHsExpr GhcPs) where
-#if __GLASGOW_HASKELL__ <= 710
-  hsDecls ls@(GHC.L _ (GHC.HsLet decls _ex)) = do
-#else
+#if __GLASGOW_HASKELL__ > 804
+  hsDecls ls@(GHC.L _ (GHC.HsLet _ (GHC.L _ decls) _ex)) = do
+#elif __GLASGOW_HASKELL__ > 710
   hsDecls ls@(GHC.L _ (GHC.HsLet (GHC.L _ decls) _ex)) = do
+#else
+  hsDecls ls@(GHC.L _ (GHC.HsLet decls _ex)) = do
 #endif
     ds <- hsDeclsValBinds decls
     orderedDecls ls ds
   hsDecls _                               = return []
 
+#if __GLASGOW_HASKELL__ > 804
+  replaceDecls e@(GHC.L l (GHC.HsLet x decls ex)) newDecls
+#else
   replaceDecls e@(GHC.L l (GHC.HsLet decls ex)) newDecls
+#endif
     = do
         logTr "replaceDecls HsLet"
         modifyAnnsT (captureOrder e newDecls)
@@ -757,12 +808,25 @@ instance HasDecls (GHC.LHsExpr GhcPs) where
         decls'' <- replaceDeclsValbinds (GHC.unLoc decls) newDecls
         let decls' = GHC.L (GHC.getLoc decls) decls''
 #endif
+#if __GLASGOW_HASKELL__ > 804
+        return (GHC.L l (GHC.HsLet x decls' ex))
+#else
         return (GHC.L l (GHC.HsLet decls' ex))
+#endif
+
+#if __GLASGOW_HASKELL__ > 804
+  replaceDecls (GHC.L l (GHC.HsPar x e)) newDecls
+#else
   replaceDecls (GHC.L l (GHC.HsPar e)) newDecls
+#endif
     = do
         logTr "replaceDecls HsPar"
         e' <- replaceDecls e newDecls
+#if __GLASGOW_HASKELL__ > 804
+        return (GHC.L l (GHC.HsPar x e'))
+#else
         return (GHC.L l (GHC.HsPar e'))
+#endif
   replaceDecls old _new = error $ "replaceDecls (GHC.LHsExpr GhcPs) undefined for:" ++ showGhc old
 
 -- ---------------------------------------------------------------------
@@ -772,7 +836,11 @@ instance HasDecls (GHC.LHsExpr GhcPs) where
 -- for 'hsDecls' \/ 'replaceDecls'. 'hsDeclsPatBindD' \/ 'replaceDeclsPatBindD' is
 -- idempotent.
 hsDeclsPatBindD :: (Monad m) => GHC.LHsDecl GhcPs -> TransformT m [GHC.LHsDecl GhcPs]
+#if __GLASGOW_HASKELL__ > 804
+hsDeclsPatBindD (GHC.L l (GHC.ValD _ d)) = hsDeclsPatBind (GHC.L l d)
+#else
 hsDeclsPatBindD (GHC.L l (GHC.ValD d)) = hsDeclsPatBind (GHC.L l d)
+#endif
 hsDeclsPatBindD x = error $ "hsDeclsPatBindD called for:" ++ showGhc x
 
 -- | Extract the immediate declarations for a 'GHC.PatBind'. This
@@ -780,10 +848,12 @@ hsDeclsPatBindD x = error $ "hsDeclsPatBindD called for:" ++ showGhc x
 -- for 'hsDecls' \/ 'replaceDecls'. 'hsDeclsPatBind' \/ 'replaceDeclsPatBind' is
 -- idempotent.
 hsDeclsPatBind :: (Monad m) => GHC.LHsBind GhcPs -> TransformT m [GHC.LHsDecl GhcPs]
-#if __GLASGOW_HASKELL__ <= 710
-hsDeclsPatBind d@(GHC.L _ (GHC.PatBind _ (GHC.GRHSs _grhs lb) _ _ _)) = do
-#else
+#if __GLASGOW_HASKELL__ > 804
+hsDeclsPatBind d@(GHC.L _ (GHC.PatBind _ _ (GHC.GRHSs _ _grhs (GHC.L _ lb)) _)) = do
+#elif __GLASGOW_HASKELL__ > 710
 hsDeclsPatBind d@(GHC.L _ (GHC.PatBind _ (GHC.GRHSs _grhs (GHC.L _ lb)) _ _ _)) = do
+#else
+hsDeclsPatBind d@(GHC.L _ (GHC.PatBind _ (GHC.GRHSs _grhs lb) _ _ _)) = do
 #endif
   decls <- hsDeclsValBinds lb
   orderedDecls d decls
@@ -797,9 +867,15 @@ hsDeclsPatBind x = error $ "hsDeclsPatBind called for:" ++ showGhc x
 -- idempotent.
 replaceDeclsPatBindD :: (Monad m) => GHC.LHsDecl GhcPs -> [GHC.LHsDecl GhcPs]
                      -> TransformT m (GHC.LHsDecl GhcPs)
+#if __GLASGOW_HASKELL__ > 804
+replaceDeclsPatBindD (GHC.L l (GHC.ValD x d)) newDecls = do
+  (GHC.L _ d') <- replaceDeclsPatBind (GHC.L l d) newDecls
+  return (GHC.L l (GHC.ValD x d'))
+#else
 replaceDeclsPatBindD (GHC.L l (GHC.ValD d)) newDecls = do
   (GHC.L _ d') <- replaceDeclsPatBind (GHC.L l d) newDecls
   return (GHC.L l (GHC.ValD d'))
+#endif
 replaceDeclsPatBindD x _ = error $ "replaceDeclsPatBindD called for:" ++ showGhc x
 
 -- | Replace the immediate declarations for a 'GHC.PatBind'. This
@@ -808,7 +884,11 @@ replaceDeclsPatBindD x _ = error $ "replaceDeclsPatBindD called for:" ++ showGhc
 -- idempotent.
 replaceDeclsPatBind :: (Monad m) => GHC.LHsBind GhcPs -> [GHC.LHsDecl GhcPs]
                     -> TransformT m (GHC.LHsBind GhcPs)
+#if __GLASGOW_HASKELL__ > 804
+replaceDeclsPatBind p@(GHC.L l (GHC.PatBind x a (GHC.GRHSs xr rhss binds) b)) newDecls
+#else
 replaceDeclsPatBind p@(GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds) b c d)) newDecls
+#endif
     = do
         logTr "replaceDecls PatBind"
         -- Need to throw in a fresh where clause if the binds were empty,
@@ -818,7 +898,11 @@ replaceDeclsPatBind p@(GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds) b c d)) new
 #else
         case GHC.unLoc binds of
 #endif
+#if __GLASGOW_HASKELL__ > 804
+          GHC.EmptyLocalBinds{} -> do
+#else
           GHC.EmptyLocalBinds -> do
+#endif
             let
               addWhere mkds =
                 case Map.lookup (mkAnnKey p) mkds of
@@ -839,33 +923,51 @@ replaceDeclsPatBind p@(GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds) b c d)) new
         binds'' <- replaceDeclsValbinds (GHC.unLoc binds) newDecls
         let binds' = GHC.L (GHC.getLoc binds) binds''
 #endif
+#if __GLASGOW_HASKELL__ > 804
+        return (GHC.L l (GHC.PatBind x a (GHC.GRHSs xr rhss binds') b))
+#else
         return (GHC.L l (GHC.PatBind a (GHC.GRHSs rhss binds') b c d))
+#endif
 replaceDeclsPatBind x _ = error $ "replaceDeclsPatBind called for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
 instance HasDecls (GHC.LStmt GhcPs (GHC.LHsExpr GhcPs)) where
-#if __GLASGOW_HASKELL__ <= 710
-  hsDecls ls@(GHC.L _ (GHC.LetStmt lb))       = do
-#else
+#if __GLASGOW_HASKELL__ > 804
+  hsDecls ls@(GHC.L _ (GHC.LetStmt _ (GHC.L _ lb))) = do
+#elif __GLASGOW_HASKELL__ > 710
   hsDecls ls@(GHC.L _ (GHC.LetStmt (GHC.L _ lb))) = do
+#else
+  hsDecls ls@(GHC.L _ (GHC.LetStmt lb))       = do
 #endif
     decls <- hsDeclsValBinds lb
     orderedDecls ls decls
-#if __GLASGOW_HASKELL__ <= 710
+#if __GLASGOW_HASKELL__ > 804
+  hsDecls (GHC.L _ (GHC.LastStmt _ e _ _))    = hsDecls e
+#elif __GLASGOW_HASKELL__ > 710
   hsDecls (GHC.L _ (GHC.LastStmt e _))        = hsDecls e
 #else
   hsDecls (GHC.L _ (GHC.LastStmt e _ _))      = hsDecls e
 #endif
-#if __GLASGOW_HASKELL__ <= 710
-  hsDecls (GHC.L _ (GHC.BindStmt _pat e _ _)) = hsDecls e
-#else
+#if __GLASGOW_HASKELL__ > 804
+  hsDecls (GHC.L _ (GHC.BindStmt _ _pat e _ _)) = hsDecls e
+#elif __GLASGOW_HASKELL__ > 710
   hsDecls (GHC.L _ (GHC.BindStmt _pat e _ _ _)) = hsDecls e
+#else
+  hsDecls (GHC.L _ (GHC.BindStmt _pat e _ _)) = hsDecls e
 #endif
+#if __GLASGOW_HASKELL__ > 804
+  hsDecls (GHC.L _ (GHC.BodyStmt _ e _ _))    = hsDecls e
+#else
   hsDecls (GHC.L _ (GHC.BodyStmt e _ _ _))    = hsDecls e
+#endif
   hsDecls _                                   = return []
 
+#if __GLASGOW_HASKELL__ > 804
+  replaceDecls s@(GHC.L l (GHC.LetStmt x lb)) newDecls
+#else
   replaceDecls s@(GHC.L l (GHC.LetStmt lb)) newDecls
+#endif
     = do
         modifyAnnsT (captureOrder s newDecls)
 #if __GLASGOW_HASKELL__ <= 710
@@ -874,34 +976,55 @@ instance HasDecls (GHC.LStmt GhcPs (GHC.LHsExpr GhcPs)) where
         lb'' <- replaceDeclsValbinds (GHC.unLoc lb) newDecls
         let lb' = GHC.L (GHC.getLoc lb) lb''
 #endif
-        return (GHC.L l (GHC.LetStmt lb'))
-#if __GLASGOW_HASKELL__ <= 710
-  replaceDecls (GHC.L l (GHC.LastStmt e se)) newDecls
+#if __GLASGOW_HASKELL__ > 804
+        return (GHC.L l (GHC.LetStmt x lb'))
+#else
+        return (GHC.L l (GHC.LetStmt   lb'))
+#endif
+#if __GLASGOW_HASKELL__ > 804
+  replaceDecls (GHC.L l (GHC.LastStmt x e d se)) newDecls
     = do
         e' <- replaceDecls e newDecls
-        return (GHC.L l (GHC.LastStmt e' se))
-#else
+        return (GHC.L l (GHC.LastStmt x e' d se))
+#elif __GLASGOW_HASKELL__ > 710
   replaceDecls (GHC.L l (GHC.LastStmt e d se)) newDecls
     = do
         e' <- replaceDecls e newDecls
         return (GHC.L l (GHC.LastStmt e' d se))
+#else
+  replaceDecls (GHC.L l (GHC.LastStmt e se)) newDecls
+    = do
+        e' <- replaceDecls e newDecls
+        return (GHC.L l (GHC.LastStmt e' se))
 #endif
-#if __GLASGOW_HASKELL__ <= 710
-  replaceDecls (GHC.L l (GHC.BindStmt pat e a b)) newDecls
+#if __GLASGOW_HASKELL__ > 804
+  replaceDecls (GHC.L l (GHC.BindStmt x pat e a b)) newDecls
     = do
       e' <- replaceDecls e newDecls
-      return (GHC.L l (GHC.BindStmt pat e' a b))
-#else
+      return (GHC.L l (GHC.BindStmt x pat e' a b))
+#elif __GLASGOW_HASKELL__ > 710
   replaceDecls (GHC.L l (GHC.BindStmt pat e a b c)) newDecls
     = do
       e' <- replaceDecls e newDecls
       return (GHC.L l (GHC.BindStmt pat e' a b c))
+#else
+  replaceDecls (GHC.L l (GHC.BindStmt pat e a b)) newDecls
+    = do
+      e' <- replaceDecls e newDecls
+      return (GHC.L l (GHC.BindStmt pat e' a b))
 #endif
 
+#if __GLASGOW_HASKELL__ > 804
+  replaceDecls (GHC.L l (GHC.BodyStmt x e a b)) newDecls
+    = do
+      e' <- replaceDecls e newDecls
+      return (GHC.L l (GHC.BodyStmt x e' a b))
+#else
   replaceDecls (GHC.L l (GHC.BodyStmt e a b c)) newDecls
     = do
       e' <- replaceDecls e newDecls
       return (GHC.L l (GHC.BodyStmt e' a b c))
+#endif
   replaceDecls x _newDecls = return x
 
 -- =====================================================================
@@ -947,9 +1070,15 @@ hasDeclsSybTransform workerHasDecls workerBind t = trf t
       = workerBind b
     lhsbind x = return x
 
+#if __GLASGOW_HASKELL__ > 804
+    lvald (GHC.L l (GHC.ValD x d)) = do
+      (GHC.L _ d') <- lhsbind (GHC.L l d)
+      return (GHC.L l (GHC.ValD x d'))
+#else
     lvald (GHC.L l (GHC.ValD d)) = do
       (GHC.L _ d') <- lhsbind (GHC.L l d)
       return (GHC.L l (GHC.ValD d'))
+#endif
     lvald x = return x
 
 -- ---------------------------------------------------------------------
@@ -982,10 +1111,12 @@ hsDeclsGeneric t = q t
     -- ---------------------------------
 
     lhsbind :: (Monad m) => GHC.LHsBind GhcPs -> TransformT m [GHC.LHsDecl GhcPs]
-#if __GLASGOW_HASKELL__ <= 710
-    lhsbind (GHC.L _ (GHC.FunBind _ _ (GHC.MG matches _ _ _) _ _ _)) = do
-#else
+#if __GLASGOW_HASKELL__ > 804
+    lhsbind (GHC.L _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _ _)) = do
+#elif __GLASGOW_HASKELL__ > 710
     lhsbind (GHC.L _ (GHC.FunBind _ (GHC.MG (GHC.L _ matches) _ _ _) _ _ _)) = do
+#else
+    lhsbind (GHC.L _ (GHC.FunBind _ _ (GHC.MG matches _ _ _) _ _ _)) = do
 #endif
         dss <- mapM hsDecls matches
         return (concat dss)
@@ -995,7 +1126,11 @@ hsDeclsGeneric t = q t
 
     -- ---------------------------------
 
+#if __GLASGOW_HASKELL__ > 804
+    lhsbindd (GHC.L l (GHC.ValD _ d)) = lhsbind (GHC.L l d)
+#else
     lhsbindd (GHC.L l (GHC.ValD d)) = lhsbind (GHC.L l d)
+#endif
     lhsbindd _ = return []
 
     -- ---------------------------------
@@ -1032,6 +1167,17 @@ orderedDecls parent decls = do
 -- context in the AST.
 hsDeclsValBinds :: (Monad m) => GHC.HsLocalBinds GhcPs -> TransformT m [GHC.LHsDecl GhcPs]
 hsDeclsValBinds lb = case lb of
+#if __GLASGOW_HASKELL__ > 804
+    GHC.HsValBinds _ (GHC.ValBinds _ bs sigs) -> do
+      let
+        bds = map wrapDecl (GHC.bagToList bs)
+        sds = map wrapSig sigs
+      return (bds ++ sds)
+    GHC.HsValBinds _ (GHC.XValBindsLR _) -> error $ "hsDecls.XValBindsLR not valid"
+    GHC.HsIPBinds {}       -> return []
+    GHC.EmptyLocalBinds {} -> return []
+    GHC.XHsLocalBindsLR {} -> return []
+#else
     GHC.HsValBinds (GHC.ValBindsIn bs sigs) -> do
       let
         bds = map wrapDecl (GHC.bagToList bs)
@@ -1040,6 +1186,7 @@ hsDeclsValBinds lb = case lb of
     GHC.HsValBinds (GHC.ValBindsOut _ _) -> error $ "hsDecls.ValbindsOut not valid"
     GHC.HsIPBinds _     -> return []
     GHC.EmptyLocalBinds -> return []
+#endif
 
 -- | Utility function for returning decls to 'GHC.HsLocalBinds'. Use with
 -- care, as this does not manage the declaration order, the
@@ -1049,22 +1196,45 @@ replaceDeclsValbinds :: (Monad m)
                      => GHC.HsLocalBinds GhcPs -> [GHC.LHsDecl GhcPs]
                      -> TransformT m (GHC.HsLocalBinds GhcPs)
 replaceDeclsValbinds _ [] = do
+#if __GLASGOW_HASKELL__ > 804
+  return (GHC.EmptyLocalBinds GHC.noExt)
+#else
   return (GHC.EmptyLocalBinds)
+#endif
+#if __GLASGOW_HASKELL__ > 804
+replaceDeclsValbinds (GHC.HsValBinds _ _b) new
+#else
 replaceDeclsValbinds (GHC.HsValBinds _b) new
+#endif
     = do
         logTr "replaceDecls HsLocalBinds"
         let decs = GHC.listToBag $ concatMap decl2Bind new
         let sigs = concatMap decl2Sig new
+#if __GLASGOW_HASKELL__ > 804
+        return (GHC.HsValBinds GHC.noExt (GHC.ValBinds GHC.noExt decs sigs))
+#else
         return (GHC.HsValBinds (GHC.ValBindsIn decs sigs))
-replaceDeclsValbinds (GHC.HsIPBinds _b) _new    = error "undefined replaceDecls HsIPBinds"
+#endif
+replaceDeclsValbinds (GHC.HsIPBinds {}) _new    = error "undefined replaceDecls HsIPBinds"
+#if __GLASGOW_HASKELL__ > 804
+replaceDeclsValbinds (GHC.EmptyLocalBinds _) new
+#else
 replaceDeclsValbinds (GHC.EmptyLocalBinds) new
+#endif
     = do
         logTr "replaceDecls HsLocalBinds"
         let newBinds = map decl2Bind new
             newSigs  = map decl2Sig  new
         let decs = GHC.listToBag $ concat newBinds
         let sigs = concat newSigs
+#if __GLASGOW_HASKELL__ > 804
+        return (GHC.HsValBinds GHC.noExt (GHC.ValBinds GHC.noExt decs sigs))
+#else
         return (GHC.HsValBinds (GHC.ValBindsIn decs sigs))
+#endif
+#if __GLASGOW_HASKELL__ > 804
+replaceDeclsValbinds (GHC.XHsLocalBindsLR _) _ = error "replaceDeclsValbinds. XHsLocalBindsLR"
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -1080,7 +1250,11 @@ modifyValD :: forall m t. (HasTransform m)
                 -> Decl
                 -> (Match -> [Decl] -> m ([Decl], Maybe t))
                 -> m (Decl,Maybe t)
+#if __GLASGOW_HASKELL__ > 804
+modifyValD p pb@(GHC.L ss (GHC.ValD _ (GHC.PatBind {} ))) f =
+#else
 modifyValD p pb@(GHC.L ss (GHC.ValD (GHC.PatBind {} ))) f =
+#endif
   if ss == p
      then do
        ds <- liftT $ hsDeclsPatBindD pb

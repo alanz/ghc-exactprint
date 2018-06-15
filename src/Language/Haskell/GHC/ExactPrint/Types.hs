@@ -355,6 +355,25 @@ data ListContexts = LC { lcOnly,lcInitial,lcMiddle,lcLast :: !(Set.Set AstContex
 -- ---------------------------------------------------------------------
 
 declFun :: (forall a . Data a => GHC.Located a -> b) -> GHC.LHsDecl GhcPs -> b
+
+#if __GLASGOW_HASKELL__ > 804
+declFun f (GHC.L l de) =
+  case de of
+      GHC.TyClD _ d       -> f (GHC.L l d)
+      GHC.InstD _ d       -> f (GHC.L l d)
+      GHC.DerivD _ d      -> f (GHC.L l d)
+      GHC.ValD _ d        -> f (GHC.L l d)
+      GHC.SigD _ d        -> f (GHC.L l d)
+      GHC.DefD _ d        -> f (GHC.L l d)
+      GHC.ForD _ d        -> f (GHC.L l d)
+      GHC.WarningD _ d    -> f (GHC.L l d)
+      GHC.AnnD _ d        -> f (GHC.L l d)
+      GHC.RuleD _ d       -> f (GHC.L l d)
+      GHC.SpliceD _ d     -> f (GHC.L l d)
+      GHC.DocD _ d        -> f (GHC.L l d)
+      GHC.RoleAnnotD _ d  -> f (GHC.L l d)
+      GHC.XHsDecl _       -> error "declFun:XHsDecl"
+#else
 declFun f (GHC.L l de) =
   case de of
       GHC.TyClD d       -> f (GHC.L l d)
@@ -374,7 +393,7 @@ declFun f (GHC.L l de) =
 #if __GLASGOW_HASKELL__ < 711
       GHC.QuasiQuoteD d -> f (GHC.L l d)
 #endif
-
+#endif
 
 -- ---------------------------------------------------------------------
 

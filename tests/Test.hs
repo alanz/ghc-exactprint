@@ -28,11 +28,14 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-data GHCVersion = GHC710 | GHC80 | GHC82 | GHC84 deriving (Eq, Ord, Show)
+data GHCVersion = GHC710 | GHC80 | GHC82 | GHC84 | GHC86
+     deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
 ghcVersion =
-#if __GLASGOW_HASKELL__ > 802
+#if __GLASGOW_HASKELL__ > 804
+  GHC86
+#elif __GLASGOW_HASKELL__ > 802
   GHC84
 #elif __GLASGOW_HASKELL__ > 800
   GHC82
@@ -50,9 +53,10 @@ testDirs =
     GHC80  -> ["ghc710", "ghc80"]
     GHC82  -> ["ghc710", "ghc80", "ghc82"]
     GHC84  -> ["ghc710", "ghc80", "ghc82", "ghc84" ]
-    -- GHC84  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc84-copied"]
-    -- GHC84  -> ["ghc84-copied"]
-    -- GHC84  -> ["ghc84"]
+    GHC86  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
+    -- GHC86  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc84-copied"]
+    -- GHC86  -> ["ghc86-copied"]
+    -- GHC86  -> ["ghc86"]
 
 -- ---------------------------------------------------------------------
 

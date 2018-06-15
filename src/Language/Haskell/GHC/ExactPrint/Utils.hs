@@ -263,7 +263,9 @@ isListComp :: GHC.HsStmtContext name -> Bool
 isListComp cts = case cts of
           GHC.ListComp  -> True
           GHC.MonadComp -> True
+#if __GLASGOW_HASKELL__ <= 804
           GHC.PArrComp  -> True
+#endif
 
           GHC.DoExpr       -> False
           GHC.MDoExpr      -> False
