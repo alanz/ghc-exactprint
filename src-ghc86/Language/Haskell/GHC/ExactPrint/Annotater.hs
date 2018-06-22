@@ -41,10 +41,10 @@ import qualified CoAxiom        as GHC
 import qualified FastString     as GHC
 import qualified ForeignCall    as GHC
 import qualified GHC            as GHC
-import qualified HsDoc          as GHC
+--  import qualified HsDoc          as GHC
 import qualified Name           as GHC
 import qualified RdrName        as GHC
-import qualified Outputable     as GHC
+-- import qualified Outputable     as GHC
 
 import Control.Monad.Identity
 import Data.Data
@@ -287,6 +287,7 @@ instance Annotate (GHC.IE GHC.GhcPs) where
         (GHC.IEDoc {})      -> return ()
 
         (GHC.IEDocNamed {}) -> return ()
+        GHC.XIE x -> error $ "got XIE for :" ++ showGhc x
     ifInContext (Set.fromList [Intercalate])
       (mark         GHC.AnnComma)
       (markOptional GHC.AnnComma)
@@ -438,6 +439,8 @@ instance Annotate (GHC.ImportDecl GHC.GhcPs) where
          else markLocated lie
    markTrailingSemi
 
+ markAST _ (GHC.XImportDecl x) = error $ "got XImportDecl for:" ++ showGhc x
+
 -- ---------------------------------------------------------------------
 
 instance Annotate GHC.ModuleName where
@@ -462,6 +465,7 @@ markLHsDecl (GHC.L l decl) =
       GHC.SpliceD _ d     -> markLocated (GHC.L l d)
       GHC.DocD _ d        -> markLocated (GHC.L l d)
       GHC.RoleAnnotD _ d  -> markLocated (GHC.L l d)
+      GHC.XHsDecl x  -> error $ "got XHsDecl for:" ++ showGhc x
 
 instance Annotate (GHC.HsDecl GHC.GhcPs) where
   markAST l d = markLHsDecl (GHC.L l d)
@@ -474,6 +478,7 @@ instance Annotate (GHC.RoleAnnotDecl GHC.GhcPs) where
     mark GHC.AnnRole
     markLocated ln
     mapM_ markLocated mr
+  markAST _ (GHC.XRoleAnnotDecl x) = error $ "got XRoleAnnotDecl for:" ++ showGhc x
 
 instance Annotate (Maybe GHC.Role) where
   markAST l Nothing  = markExternal l GHC.AnnVal "_"
@@ -489,14 +494,17 @@ instance Annotate (GHC.SpliceDecl GHC.GhcPs) where
     markLocated e
     markTrailingSemi
 
+  markAST _ (GHC.XSpliceDecl x) = error $ "got XSpliceDecl for:" ++ showGhc x
+
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.RuleDecls GHC.GhcPs) where
-   markAST _ (GHC.HsRules _ src rules) = do
-     markAnnOpen src "{-# RULES"
-     setLayoutFlag $ markListIntercalateWithFunLevel markLocated 2 rules
-     markWithString GHC.AnnClose "#-}"
-     markTrailingSemi
+  markAST _ (GHC.HsRules _ src rules) = do
+    markAnnOpen src "{-# RULES"
+    setLayoutFlag $ markListIntercalateWithFunLevel markLocated 2 rules
+    markWithString GHC.AnnClose "#-}"
+    markTrailingSemi
+  markAST _ (GHC.XRuleDecls x) = error $ "got XRuleDecls for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -515,6 +523,8 @@ instance Annotate (GHC.RuleDecl GHC.GhcPs) where
     markLocated rhs
     inContext (Set.singleton Intercalate) $ mark GHC.AnnSemi
     markTrailingSemi
+
+  markAST _ (GHC.XRuleDecl x) = error $ "got XRuleDecl for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -547,12 +557,15 @@ instance Annotate (GHC.RuleBndr GHC.GhcPs) where
     mark GHC.AnnDcolon
     markLHsSigWcType st
     mark GHC.AnnCloseP -- ")"
+  markAST _ (GHC.XRuleBndr x) = error $ "got XRuleBndr for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
 markLHsSigWcType :: GHC.LHsSigWcType GHC.GhcPs -> Annotated ()
 markLHsSigWcType (GHC.HsWC _ (GHC.HsIB _ ty)) = do
   markLocated ty
+markLHsSigWcType (GHC.HsWC _ (GHC.XHsImplicitBndrs _)) = error "markLHsSigWcType extension hit"
+markLHsSigWcType (GHC.XHsWildCardBndrs _)              = error "markLHsSigWcType extension hit"
 
 -- ---------------------------------------------------------------------
 
@@ -570,6 +583,8 @@ instance Annotate (GHC.AnnDecl GHC.GhcPs) where
      markWithString GHC.AnnClose "#-}"
      markTrailingSemi
 
+   markAST _ (GHC.XAnnDecl x) = error $ "got XAnnDecl for:" ++ showGhc x
+
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.WarnDecls GHC.GhcPs) where
@@ -577,6 +592,8 @@ instance Annotate (GHC.WarnDecls GHC.GhcPs) where
      markAnnOpen src "{-# WARNING" -- Note: might be {-# DEPRECATED
      mapM_ markLocated warns
      markWithString GHC.AnnClose "#-}"
+
+   markAST _ (GHC.XWarnDecls x) = error $ "got XWarnDecls for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -588,6 +605,8 @@ instance Annotate (GHC.WarnDecl GHC.GhcPs) where
        GHC.WarningTxt    _src ls -> markListIntercalate ls
        GHC.DeprecatedTxt _src ls -> markListIntercalate ls
      mark GHC.AnnCloseS -- "]"
+
+   markAST _ (GHC.XWarnDecl x) = error $ "got XWarnDecl for:" ++ showGhc x
 
 instance Annotate GHC.FastString where
   -- TODO: https://ghc.haskell.org/trac/ghc/ticket/10313 applies.
@@ -619,6 +638,10 @@ instance Annotate (GHC.ForeignDecl GHC.GhcPs) where
     mark GHC.AnnDcolon
     markLocated typ
 
+
+  markAST _ (GHC.ForeignImport _ _ (GHC.XHsImplicitBndrs _) _) = error "markAST ForeignDecl hit extenstion"
+  markAST _ (GHC.ForeignExport _ _ (GHC.XHsImplicitBndrs _) _) = error "markAST ForeignDecl hit extenstion"
+  markAST _ (GHC.XForeignDecl _)                               = error "markAST ForeignDecl hit extenstion"
 
 -- ---------------------------------------------------------------------
 
@@ -689,6 +712,11 @@ data HsWildCardBndrs pass thing
 
 -}
 
+
+  markAST _ (GHC.DerivDecl _ (GHC.HsWC _ (GHC.XHsImplicitBndrs _)) _ _) = error "markAST DerivDecl hit extension"
+  markAST _ (GHC.DerivDecl _ (GHC.XHsWildCardBndrs _) _ _)              = error "markAST DerivDecl hit extension"
+  markAST _ (GHC.XDerivDecl _)                                          = error "markAST DerivDecl hit extension"
+
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.DerivStrategy GHC.GhcPs) where
@@ -696,6 +724,11 @@ instance Annotate (GHC.DerivStrategy GHC.GhcPs) where
   markAST _ GHC.StockStrategy    = mark GHC.AnnStock
   markAST _ GHC.AnyclassStrategy = mark GHC.AnnAnyclass
   markAST _ GHC.NewtypeStrategy  = mark GHC.AnnNewtype
+  markAST _ (GHC.ViaStrategy (GHC.HsIB _ ty)) = do
+    mark GHC.AnnVia
+    markLocated ty
+  markAST _ (GHC.ViaStrategy (GHC.XHsImplicitBndrs _))
+    = error $ "got XHsImplicitBndrs in AnnDerivStrategy"
 
 -- ---------------------------------------------------------------------
 
@@ -708,6 +741,8 @@ instance Annotate (GHC.DefaultDecl GHC.GhcPs) where
     mark GHC.AnnCloseP -- ')'
     markTrailingSemi
 
+  markAST _ (GHC.XDefaultDecl x) = error $ "got XDefaultDecl for:" ++ showGhc x
+
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.InstDecl GHC.GhcPs) where
@@ -715,6 +750,7 @@ instance Annotate (GHC.InstDecl GHC.GhcPs) where
   markAST l (GHC.ClsInstD     _  cid) = markAST l  cid
   markAST l (GHC.DataFamInstD _ dfid) = markAST l dfid
   markAST l (GHC.TyFamInstD   _ tfid) = markAST l tfid
+  markAST _ (GHC.XInstDecl x) = error $ "got XInstDecl for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -762,6 +798,9 @@ instance Annotate (GHC.ClsInstDecl GHC.GhcPs) where
     markOptional GHC.AnnCloseC -- '}'
     markTrailingSemi
 
+  markAST _ (GHC.ClsInstDecl _ (GHC.XHsImplicitBndrs _) _ _ _ _ _) = error "extension hit for ClsInstDecl"
+  markAST _ (GHC.XClsInstDecl _)                                   = error "extension hit for ClsInstDecl"
+
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.TyFamInstDecl GHC.GhcPs) where
@@ -771,6 +810,8 @@ instance Annotate (GHC.TyFamInstDecl GHC.GhcPs) where
     mark GHC.AnnInstance -- Note: this keyword is optional
     markFamEqn eqn
     markTrailingSemi
+
+  markAST _ (GHC.TyFamInstDecl (GHC.XHsImplicitBndrs _)) = error "extension hit for TyFamInstDecl"
 
 -- ---------------------------------------------------------------------
 
@@ -782,6 +823,7 @@ markFamEqn (GHC.FamEqn _ ln pats fixity rhs) = do
   markTyClass fixity ln pats
   mark GHC.AnnEqual
   markLocated rhs
+markFamEqn (GHC.XFamEqn _) = error "got XFamEqn"
 
 -- ---------------------------------------------------------------------
 
@@ -825,6 +867,15 @@ data FamEqn pass pats rhs
        , feqn_rhs    :: rhs
        }
 -}
+
+  markAST _
+            (GHC.DataFamInstDecl
+             (GHC.HsIB _ (GHC.FamEqn _ _ _ _ (GHC.XHsDataDefn _))))
+    = error "extension hit for DataFamInstDecl"
+  markAST _ (GHC.DataFamInstDecl (GHC.HsIB _ (GHC.XFamEqn _)))
+    = error "extension hit for DataFamInstDecl"
+  markAST _ (GHC.DataFamInstDecl (GHC.XHsImplicitBndrs _))
+    = error "extension hit for DataFamInstDecl"
 
 -- ---------------------------------------------------------------------
 
@@ -908,6 +959,17 @@ instance Annotate (GHC.HsBind GHC.GhcPs) where
 
     markTrailingSemi
 
+  -- -----------------------------------
+
+  markAST _ (GHC.FunBind _ _ (GHC.XMatchGroup _) _ _)
+    = error "extension hit for HsBind"
+  markAST _ (GHC.PatBind _ _ (GHC.XGRHSs _) _)
+    = error "extension hit for HsBind"
+  markAST _ (GHC.PatSynBind _ (GHC.XPatSynBind _))
+    = error "extension hit for HsBind"
+  markAST _ (GHC.XHsBindsLR _)
+    = error "extension hit for HsBind"
+
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.IPBind GHC.GhcPs) where
@@ -918,6 +980,8 @@ instance Annotate (GHC.IPBind GHC.GhcPs) where
     mark GHC.AnnEqual
     markLocated e
     markTrailingSemi
+
+  markAST _ (GHC.XCIPBind x) = error $ "got XIPBind for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -978,6 +1042,13 @@ instance (Annotate body)
         markOptional GHC.AnnCloseC -- '}'
     markTrailingSemi
 
+  -- -----------------------------------
+
+  markAST _ (GHC.Match _ _ _ (GHC.XGRHSs _))
+    = error "hit extension for Match"
+  markAST _ (GHC.XMatch _)
+    = error "hit extension for Match"
+
 -- ---------------------------------------------------------------------
 
 instance (Annotate body)
@@ -997,6 +1068,8 @@ instance (Annotate body)
 
     inContext (Set.fromList [CaseAlt]) $ mark GHC.AnnRarrow -- For HsLam
     setContextLevel (Set.fromList [LeftMost,PrefixOp]) 2 $ markLocated expr
+
+  markAST _ (GHC.XGRHS x) = error $ "got XGRHS for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -1085,10 +1158,21 @@ instance Annotate (GHC.Sig GHC.GhcPs) where
     markWithString GHC.AnnClose "#-}" -- '#-}'
     markTrailingSemi
 
+  -- -----------------------------------
+  markAST _ (GHC.PatSynSig _ _ (GHC.XHsImplicitBndrs _))
+    = error "hit extension for Sig"
+  markAST _ (GHC.ClassOpSig _ _ _ (GHC.XHsImplicitBndrs _))
+    = error "hit extension for Sig"
+  markAST _ (GHC.FixSig _ (GHC.XFixitySig _))
+    = error "hit extension for Sig"
+  markAST _ (GHC.XSig _)
+    = error "hit extension for Sig"
+
 -- --------------------------------------------------------------------
 
 markLHsSigType :: GHC.LHsSigType GHC.GhcPs -> Annotated ()
 markLHsSigType (GHC.HsIB _ typ) = markLocated typ
+markLHsSigType (GHC.XHsImplicitBndrs x) = error $ "got XHsImplicitBndrs for:" ++ showGhc x
 
 instance Annotate [GHC.LHsSigType GHC.GhcPs] where
   markAST _ ls = do
@@ -1096,17 +1180,9 @@ instance Annotate [GHC.LHsSigType GHC.GhcPs] where
     -- Mote: a single item in parens is parsed as a HsAppsTy. Without parens it
     -- is a HsTyVar. So for round trip pretty printing we need to take this into
     -- account.
-    case ls of
-      []  -> markManyOptional GHC.AnnOpenP
-      [GHC.HsIB _ (GHC.L _ GHC.HsAppsTy{})] -> markMany GHC.AnnOpenP
-      [_] -> markManyOptional GHC.AnnOpenP
-      _   -> markMany         GHC.AnnOpenP
+    markManyOptional GHC.AnnOpenP
     markListIntercalateWithFun markLHsSigType ls
-    case ls of
-      []  -> markManyOptional GHC.AnnCloseP
-      [GHC.HsIB _ (GHC.L _ GHC.HsAppsTy{})] -> markMany GHC.AnnCloseP
-      [_] -> markManyOptional GHC.AnnCloseP
-      _   -> markMany         GHC.AnnCloseP
+    markManyOptional GHC.AnnCloseP
 
 -- --------------------------------------------------------------------
 
@@ -1140,6 +1216,8 @@ instance Annotate (GHC.HsTyVarBndr GHC.GhcPs) where
     markLocated ty
     mark GHC.AnnCloseP -- '('
 
+  markAST _l (GHC.XTyVarBndr x) = error $ "got XTyVarBndr for:" ++ showGhc x
+
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.HsType GHC.GhcPs) where
@@ -1163,10 +1241,6 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
     markType _ (GHC.HsTyVar _ promoted name) = do
       when (promoted == GHC.Promoted) $ mark GHC.AnnSimpleQuote
       markLocated name
-
-    markType _ (GHC.HsAppsTy _ ts) = do
-      mapM_ markLocated ts
-      inContext (Set.fromList [AddVbar]) $ mark GHC.AnnVbar
 
     markType _ (GHC.HsAppTy _ t1 t2) = do
       setContext (Set.singleton PrefixOp) $ markLocated t1
@@ -1216,10 +1290,10 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
       mark GHC.AnnDcolon
       markLocated t
 
-    markType _ (GHC.HsEqTy _ t1 t2) = do
-      markLocated t1
-      mark GHC.AnnTilde
-      markLocated t2
+    markType l (GHC.HsStarTy _ isUnicode) = do
+      if isUnicode
+        then markExternal l GHC.AnnVal "\x2605" -- Unicode star
+        else markExternal l GHC.AnnVal "*"
 
     markType _ (GHC.HsKindSig _ t k) = do
       mark GHC.AnnOpenP  -- '('
@@ -1275,16 +1349,18 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
     markType l (GHC.HsWildCardTy _) = do
       markExternal l GHC.AnnVal "_"
 
+    markType _ (GHC.XHsType x) = error $ "got XHsType for:" ++ showGhc x
+
 
 -- ---------------------------------------------------------------------
 
-instance Annotate (GHC.HsAppType GHC.GhcPs) where
-  markAST _ (GHC.HsAppInfix _ n)  = do
-    when (GHC.isDataOcc $ GHC.occName $ GHC.unLoc n) $ mark GHC.AnnSimpleQuote
-    setContext (Set.singleton InfixOp) $ markLocated n
-  markAST _ (GHC.HsAppPrefix _ t) = do
-    markOptional GHC.AnnTilde
-    setContext (Set.singleton PrefixOp) $ markLocated t
+-- instance Annotate (GHC.HsAppType GHC.GhcPs) where
+--   markAST _ (GHC.HsAppInfix _ n)  = do
+--     when (GHC.isDataOcc $ GHC.occName $ GHC.unLoc n) $ mark GHC.AnnSimpleQuote
+--     setContext (Set.singleton InfixOp) $ markLocated n
+--   markAST _ (GHC.HsAppPrefix _ t) = do
+--     markOptional GHC.AnnTilde
+--     setContext (Set.singleton PrefixOp) $ markLocated t
 
 -- ---------------------------------------------------------------------
 
@@ -1327,6 +1403,10 @@ instance Annotate (GHC.HsSplice GHC.GhcPs) where
 
       GHC.HsSpliced{} -> error "HsSpliced only exists between renamer and typechecker in GHC"
 
+      -- -------------------------------
+
+      (GHC.XSplice x) -> error $ "got XSplice for:" ++ showGhc x
+
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.ConDeclField GHC.GhcPs) where
@@ -1338,12 +1418,16 @@ instance Annotate (GHC.ConDeclField GHC.GhcPs) where
       markMaybe mdoc
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
+  markAST _ (GHC.XConDeclField x) = error $ "got XConDeclField for:" ++ showGhc x
+
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.FieldOcc GHC.GhcPs) where
   markAST _ (GHC.FieldOcc _ rn) = do
     markLocated rn
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+
+  markAST _ (GHC.XFieldOcc x) = error $ "got XFieldOcc for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -1437,6 +1521,8 @@ instance Annotate (GHC.Pat GHC.GhcPs) where
       markPat _ GHC.CoPat {} =
         traceM "warning: CoPat introduced after renaming"
 
+      markPat _ (GHC.XPat x) = error $ "got XPat for:" ++ showGhc x
+
 -- ---------------------------------------------------------------------
 
 hsLit2String :: GHC.HsLit GHC.GhcPs -> String
@@ -1457,6 +1543,7 @@ hsLit2String lit =
     GHC.HsRat        _ (GHC.FL src _ v) _ -> toSourceTextWithSuffix src v ""
     GHC.HsFloatPrim  _ (GHC.FL src _ v)   -> toSourceTextWithSuffix src v "#"
     GHC.HsDoublePrim _ (GHC.FL src _ v)   -> toSourceTextWithSuffix src v "##"
+    (GHC.XLit x) -> error $ "got XLit for:" ++ showGhc x
 
 toSourceTextWithSuffix :: (Show a) => GHC.SourceText -> a -> String -> String
 toSourceTextWithSuffix (GHC.NoSourceText)    alt suffix = show alt ++ suffix
@@ -1491,6 +1578,7 @@ markHsConDeclDetails isDeprecated inGadt lns dets = do
   case dets of
     GHC.PrefixCon args ->
       setContext (Set.singleton PrefixOp) $ mapM_ markLocated args
+    -- GHC.RecCon fs -> markLocated fs
     GHC.RecCon fs -> do
       mark GHC.AnnOpenC
       if inGadt
@@ -1535,6 +1623,7 @@ instance (Annotate arg)
     => Annotate (GHC.HsImplicitBndrs GHC.GhcPs (GHC.Located arg)) where
   markAST _ (GHC.HsIB _ thing) = do
     markLocated thing
+  markAST _ (GHC.XHsImplicitBndrs x) = error $ "got XHsImplicitBndrs for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -1634,6 +1723,8 @@ instance (Annotate body) => Annotate (GHC.Stmt GHC.GhcPs (GHC.Located body)) whe
     inContext (Set.singleton Intercalate) $ mark GHC.AnnComma
     markTrailingSemi
 
+  markAST _ (GHC.XStmtLR x) = error $ "got XStmtLR for:" ++ showGhc x
+
 -- ---------------------------------------------------------------------
 
 -- Note: We never have a located ParStmtBlock, so have nothing to hang the
@@ -1641,6 +1732,7 @@ instance (Annotate body) => Annotate (GHC.Stmt GHC.GhcPs (GHC.Located body)) whe
 instance Annotate (GHC.ParStmtBlock GHC.GhcPs GHC.GhcPs) where
   markAST _ (GHC.ParStmtBlock _ stmts _ns _) = do
     markListIntercalate stmts
+  markAST _ (GHC.XParStmtBlock x) = error $ "got XParStmtBlock for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -1658,6 +1750,10 @@ markHsLocalBinds (GHC.HsValBinds _ (GHC.ValBinds _ binds sigs)) =
 markHsLocalBinds (GHC.HsIPBinds _ (GHC.IPBinds _ binds)) = markListWithLayout binds
 markHsLocalBinds GHC.EmptyLocalBinds{}                   = return ()
 
+markHsLocalBinds (GHC.HsValBinds _ (GHC.XValBindsLR _)) = error "markHsLocalBinds:got extension"
+markHsLocalBinds (GHC.HsIPBinds _ (GHC.XHsIPBinds _))   = error "markHsLocalBinds:got extension"
+markHsLocalBinds (GHC.XHsLocalBindsLR _)                = error "markHsLocalBinds:got extension"
+
 -- ---------------------------------------------------------------------
 
 markMatchGroup :: (Annotate body)
@@ -1665,6 +1761,7 @@ markMatchGroup :: (Annotate body)
                    -> Annotated ()
 markMatchGroup _ (GHC.MG _ (GHC.L _ matches) _)
   = setContextLevel (Set.singleton AdvanceLine) 2 $ markListWithLayout matches
+markMatchGroup _ (GHC.XMatchGroup x) = error $ "got XMatchGroup for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -2044,12 +2141,15 @@ instance Annotate (GHC.HsExpr GHC.GhcPs) where
       markExpr _ (GHC.HsConLikeOut{}) =
         traceM "warning: HsConLikeOut introduced after type checking"
 
+      markExpr _ (GHC.HsBracket _ (GHC.XBracket _)) = error "markExpr got extension"
+      markExpr _ (GHC.XExpr _)                      = error "markExpr got extension"
 
 -- ---------------------------------------------------------------------
 
 markLHsWcType :: GHC.LHsWcType GHC.GhcPs -> Annotated ()
 markLHsWcType (GHC.HsWC _ ty) = do
   markLocated ty
+markLHsWcType (GHC.XHsWildCardBndrs x) = error $ "markLHsWcType got :" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -2069,6 +2169,7 @@ instance Annotate (GHC.HsRecUpdField GHC.GhcPs) where
 instance Annotate (GHC.AmbiguousFieldOcc GHC.GhcPs) where
   markAST _ (GHC.Unambiguous _ n) = markLocated n
   markAST _ (GHC.Ambiguous   _ n) = markLocated n
+  markAST _ (GHC.XAmbiguousFieldOcc x) = error $ "got XAmbiguousFieldOcc for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -2087,10 +2188,13 @@ instance Annotate (GHC.HsTupArg GHC.GhcPs) where
   markAST _ (GHC.Missing _) = do
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
+  markAST _ (GHC.XTupArg x) = error $ "got XTupArg got:" ++ showGhc x
+
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.HsCmdTop GHC.GhcPs) where
   markAST _ (GHC.HsCmdTop _ cmd) = markLocated cmd
+  markAST _ (GHC.XCmdTop x) = error $ "got XCmdTop for:" ++ showGhc x
 
 instance Annotate (GHC.HsCmd GHC.GhcPs) where
   markAST _ (GHC.HsCmdArrApp _ e1 e2 o isRightToLeft) = do
@@ -2173,9 +2277,10 @@ instance Annotate (GHC.HsCmd GHC.GhcPs) where
     markListWithLayout es
     markOptional GHC.AnnCloseC
 
-
   markAST _ (GHC.HsCmdWrap {}) =
     traceM "warning: HsCmdWrap introduced after renaming"
+
+  markAST _ (GHC.XCmd x) = error $ "got XCmd for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -2270,6 +2375,17 @@ instance Annotate (GHC.TyClDecl GHC.GhcPs) where
 
 -}
 
+  markAST _ (GHC.SynDecl _ _ (GHC.XLHsQTyVars _) _ _)
+    = error "extension hit for TyClDecl"
+  markAST _ (GHC.DataDecl _ _ (GHC.HsQTvs _ _) _ (GHC.XHsDataDefn _))
+    = error "extension hit for TyClDecl"
+  markAST _ (GHC.DataDecl _ _ (GHC.XLHsQTyVars _) _ _)
+    = error "extension hit for TyClDecl"
+  markAST _ (GHC.ClassDecl _ _ _ (GHC.XLHsQTyVars _) _ _ _ _ _ _ _)
+    = error "extension hit for TyClDecl"
+  markAST _ (GHC.XTyClDecl _)
+    = error "extension hit for TyClDecl"
+  
 -- ---------------------------------------------------------------------
 
 markTyClass :: (Annotate a, Annotate ast,GHC.HasOccName a)
@@ -2311,17 +2427,20 @@ instance Annotate [GHC.LHsDerivingClause GHC.GhcPs] where
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.HsDerivingClause GHC.GhcPs) where
-  markAST _ (GHC.HsDerivingClause _ mstrategy (GHC.L _ typs)) = do
-    let needsParens = case typs of
-          [(GHC.HsIB _ (GHC.L _ (GHC.HsTyVar {})))] -> False
-          _                           -> True
+  markAST _ (GHC.HsDerivingClause _ mstrategy typs) = do
+    -- let needsParens = case typs of
+    --       [(GHC.HsIB _ (GHC.L _ (GHC.HsTyVar {})))] -> False
+    --       _                           -> True
     mark GHC.AnnDeriving
     markMaybe mstrategy
-    if needsParens then mark         GHC.AnnOpenP
-                   else markOptional GHC.AnnOpenP
-    markListIntercalateWithFunLevel markLHsSigType 2 typs
-    if needsParens then mark         GHC.AnnCloseP
-                   else markOptional GHC.AnnCloseP
+    markLocated typs
+    -- if needsParens then mark         GHC.AnnOpenP
+    --                else markOptional GHC.AnnOpenP
+    -- markListIntercalateWithFunLevel markLHsSigType 2 typs
+    -- if needsParens then mark         GHC.AnnCloseP
+    --                else markOptional GHC.AnnCloseP
+
+  markAST _ (GHC.XHsDerivingClause x) = error $ "got XHsDerivingClause for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -2342,6 +2461,7 @@ instance Annotate (GHC.FamilyDecl GHC.GhcPs) where
       GHC.TyVarSig _ _ -> do
         mark GHC.AnnEqual
         markLocated rsig
+      (GHC.XFamilyResultSig x) -> error $ "FamilyDecl:got XFamilyResultSig for:" ++ showGhc x
     case minj of
       Nothing -> return ()
       Just inj -> do
@@ -2361,12 +2481,18 @@ instance Annotate (GHC.FamilyDecl GHC.GhcPs) where
       _ -> return ()
     markTrailingSemi
 
+  markAST _ (GHC.FamilyDecl _ _ _ (GHC.XLHsQTyVars _) _ _ _)
+    = error "got extension for FamilyDecl"
+  markAST _ (GHC.XFamilyDecl _)
+    = error "got extension for FamilyDecl"
+
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.FamilyResultSig GHC.GhcPs) where
   markAST _ (GHC.NoSig _)        = return ()
   markAST _ (GHC.KindSig _ k)    = markLocated k
   markAST _ (GHC.TyVarSig _ ltv) = markLocated ltv
+  markAST _ (GHC.XFamilyResultSig x) = error $ "got XFamilyResultSig for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -2383,6 +2509,7 @@ instance Annotate (GHC.TyFamInstEqn GHC.GhcPs) where
   markAST _ (GHC.HsIB _ eqn) = do
     markFamEqn eqn
     markTrailingSemi
+  markAST _ (GHC.XHsImplicitBndrs x) = error $ "got XHsImplicitBndrs for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -2394,6 +2521,11 @@ instance Annotate (GHC.TyFamDefltEqn GHC.GhcPs) where
     markTyClass fixity ln bndrs
     mark GHC.AnnEqual
     markLocated typ
+
+  markAST _ (GHC.FamEqn _ _ (GHC.XLHsQTyVars _) _ _)
+    = error "TyFamDefltEqn hit extension point"
+  markAST _ (GHC.XFamEqn _)
+    = error "TyFamDefltEqn hit extension point"
 
 -- ---------------------------------------------------------------------
 
@@ -2427,6 +2559,7 @@ markDataDefn _ (GHC.HsDataDefn _ _ ctx typ _mk cons derivs) = do
     then markListWithLayout cons
     else markListIntercalateWithFunLevel markLocated 2 cons
   setContext (Set.singleton Deriving) $ markLocated derivs
+markDataDefn _ (GHC.XHsDataDefn x) = error $ "got XHsDataDefn for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -2474,7 +2607,7 @@ instance Annotate [GHC.LHsType GHC.GhcPs] where
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.ConDecl GHC.GhcPs) where
-  markAST _ (GHC.ConDeclH98 _ ln fa mqtvs mctx
+  markAST _ (GHC.ConDeclH98 _ ln _fa mqtvs mctx
                          dets _) = do
     case mqtvs of
       [] -> return ()
@@ -2515,9 +2648,12 @@ instance Annotate (GHC.ConDecl GHC.GhcPs) where
       }
 
 -}
-  markAST _ (GHC.ConDeclGADT _ lns forall qvars mbCxt args typ _) = do
+  markAST _ (GHC.ConDeclGADT _ lns (GHC.L _ forall) (GHC.HsQTvs _ qvars) _mbCxt args typ _) = do
     setContext (Set.singleton PrefixOp) $ markListIntercalate lns
     mark GHC.AnnDcolon
+    when forall $ mark GHC.AnnForall
+    mapM_ markLocated qvars
+    markHsConDeclDetails False True lns args
     markLocated typ
     markTrailingSemi
 {-
@@ -2527,7 +2663,7 @@ instance Annotate (GHC.ConDecl GHC.GhcPs) where
 
       -- The next four fields describe the type after the '::'
       -- See Note [GADT abstract syntax]
-      , con_forall  :: Bool              -- ^ True <=> explicit forall
+      , con_forall  :: Located Bool              -- ^ True <=> explicit forall
                                          --   False => hsq_explicit is empty
       , con_qvars   :: LHsQTyVars pass
                        -- Whether or not there is an /explicit/ forall, we still
@@ -2543,6 +2679,10 @@ instance Annotate (GHC.ConDecl GHC.GhcPs) where
 
 -}
 
+  markAST _ (GHC.ConDeclGADT _ _ (GHC.L _ _) (GHC.XLHsQTyVars _) _ _ _ _)
+    = error "hit extension point in ConDecl"
+  markAST _ (GHC.XConDecl _)
+    = error "hit extension point in ConDecl"
 
 -- ResTyGADT has a SrcSpan for the original sigtype, we need to create
 -- a type for exactPC and annotatePC

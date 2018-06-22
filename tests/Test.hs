@@ -49,10 +49,10 @@ ghcVersion =
 testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
-    GHC710 -> ["ghc710-only","ghc710"]
-    GHC80  -> ["ghc710", "ghc80"]
-    GHC82  -> ["ghc710", "ghc80", "ghc82"]
-    GHC84  -> ["ghc710", "ghc80", "ghc82", "ghc84" ]
+    GHC710 -> ["ghc710-only","ghc710", "vect"]
+    GHC80  -> ["ghc710", "ghc80", "vect"]
+    GHC82  -> ["ghc710", "ghc80", "ghc82", "vect"]
+    GHC84  -> ["ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
     GHC86  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
     -- GHC86  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc84-copied"]
     -- GHC86  -> ["ghc86-copied"]
@@ -138,12 +138,12 @@ mkTests = do
   return $ TestList [
                       internalTests,
                       roundTripTests
-                    ,
-                      transformTests
-                    , failingTests
-                    , noAnnotationTests
-                    ,
-                      prettyRoundTripTests
+                    -- ,
+                    --   transformTests
+                    -- , failingTests
+                    -- , noAnnotationTests
+                    -- ,
+                      -- prettyRoundTripTests
                     ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -203,7 +203,9 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
       -- mkPrettyRoundtrip "ghc82" "TensorTests.hs"
 
-   --    mkParserTest      "ghc84" "Main.hs"
+      mkParserTest      "ghc710" "GADTContext.hs"
+    , mkParserTest      "ghc710" "GADTREcords2.hs"
+    , mkParserTest      "ghc710" "RdrNames.hs"
       -- mkParserTest      "ghc84" "Types.hs"
     -- , mkPrettyRoundtrip "ghc80" "BundleExport.hs"
     -- , mkPrettyRoundtrip "ghc80" "ExportSyntax.hs"
@@ -214,8 +216,8 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkPrettyRoundtrip "ghc84" "Main.hs"
       -- mkPrettyRoundtrip "ghc84" "Types.hs"
 
-      mkPrettyRoundtrip "ghc80" "Vta1.hs"
-    , mkPrettyRoundtrip "ghc80" "Vta2.hs"
+    --   mkPrettyRoundtrip "ghc80" "Vta1.hs"
+    -- , mkPrettyRoundtrip "ghc80" "Vta2.hs"
 
       -- mkParserTest      "ghc80" "BundleExport.hs"
 
