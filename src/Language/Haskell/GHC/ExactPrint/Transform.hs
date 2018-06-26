@@ -944,6 +944,8 @@ instance HasDecls (GHC.LStmt GhcPs (GHC.LHsExpr GhcPs)) where
     orderedDecls ls decls
 #if __GLASGOW_HASKELL__ > 804
   hsDecls (GHC.L _ (GHC.LastStmt _ e _ _))    = hsDecls e
+#elif __GLASGOW_HASKELL__ >= 804
+  hsDecls (GHC.L _ (GHC.LastStmt e _ _))      = hsDecls e
 #elif __GLASGOW_HASKELL__ > 710
   hsDecls (GHC.L _ (GHC.LastStmt e _))        = hsDecls e
 #else

@@ -385,6 +385,8 @@ changeLetIn1 ans parsed
          in (GHC.HsLet (GHC.HsValBinds (GHC.ValBindsIn bagDecls' sigs)) expr)
 #elif __GLASGOW_HASKELL__ <= 802
          in (GHC.HsLet (GHC.L lb (GHC.HsValBinds (GHC.ValBindsIn bagDecls' sigs))) expr)
+#elif __GLASGOW_HASKELL__ <= 804
+         in (GHC.HsLet (GHC.L lb (GHC.HsValBinds (GHC.ValBindsIn bagDecls' sigs))) expr)
 #else
          in (GHC.HsLet GHC.noExt (GHC.L lb (GHC.HsValBinds x (GHC.ValBinds xv bagDecls' sigs))) expr)
 #endif

@@ -21,7 +21,16 @@ data MaybeDefault v where
     SetTo :: forall v . ( Eq v, Show v ) => !v -> MaybeDefault v
     SetTo4 :: forall v a. (( Eq v, Show v ) => v -> MaybeDefault v
                                             -> a -> MaybeDefault [a])
-    TestParens :: (forall v . (Eq v) -> MaybeDefault v)
+    TestParens  :: (forall v . (Eq v) => MaybeDefault v)
+    TestParens2 :: (forall v . ((Eq v)) => MaybeDefault v)
+    TestParens3 :: (forall v . (((Eq v)) => (MaybeDefault v)))
+    TestParens4 :: (forall v . (((Eq v)) => (MaybeDefault v -> MaybeDefault v)))
+
+data T a where
+  K1 :: forall a. Ord a => { x :: [a], y :: Int } -> T a
+  K2 :: forall a. ((Ord a)) => { x :: ([a]), y :: ((Int)) } -> T a
+  K3 :: forall a. ((Ord a)) => { x :: ([a]), y :: ((Int)) } -> (T a)
+  K4 :: (forall a. Ord a => { x :: [a], y :: Int } -> T a)
 
 [t| Map.Map T.Text $tc |]
 

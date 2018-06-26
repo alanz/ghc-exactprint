@@ -338,6 +338,7 @@ instance Annotate GHC.RdrName where
                        (markOptional pa)
                 else markOptional pa
 
+        markOptional GHC.AnnSimpleQuote
         markParen GHC.AnnOpenP
         unless isSym $ inContext (Set.fromList [InfixOp]) $ markOffset GHC.AnnBackquote 0
         cnt  <- countAnns GHC.AnnVal
@@ -371,7 +372,7 @@ instance Annotate GHC.RdrName where
          "[::]" -> do
            markWithString GHC.AnnOpen  "[:" -- '[:'
            markWithString GHC.AnnClose ":]" -- ':]'
-         "(->)" -> do
+         "->" -> do
            mark GHC.AnnOpenP -- '('
            mark GHC.AnnRarrow
            mark GHC.AnnCloseP -- ')'
@@ -981,7 +982,8 @@ instance Annotate (GHC.IPBind GHC.GhcPs) where
     markLocated e
     markTrailingSemi
 
-  markAST _ (GHC.XCIPBind x) = error $ "got XIPBind for:" ++ showGhc x
+  -- markAST _ (GHC.XCIPBind x) = error $ "got XIPBind for:" ++ showGhc x
+  markAST _ (GHC.XIPBind x) = error $ "got XIPBind for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -1241,6 +1243,7 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
     markType _ (GHC.HsTyVar _ promoted name) = do
       when (promoted == GHC.Promoted) $ mark GHC.AnnSimpleQuote
       markLocated name
+      markOptional GHC.AnnVbar -- In HsSumTy
 
     markType _ (GHC.HsAppTy _ t1 t2) = do
       setContext (Set.singleton PrefixOp) $ markLocated t1
@@ -1250,6 +1253,7 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
       markLocated t1
       mark GHC.AnnRarrow
       markLocated t2
+      -- markManyOptional GHC.AnnCloseP -- For trailing parens after res_ty in ConDeclGADT
 
     markType _ (GHC.HsListTy _ t) = do
       mark GHC.AnnOpenS -- '['
@@ -2566,10 +2570,10 @@ markDataDefn _ (GHC.XHsDataDefn x) = error $ "got XHsDataDefn for:" ++ showGhc x
 -- Note: GHC.HsContext name aliases to here too
 instance Annotate [GHC.LHsType GHC.GhcPs] where
   markAST l ts = do
-    -- Mote: A single item in parens in a deriving clause is parsed as a
-    -- HsSigType, which is always a HsForAllTy. Without parens it is always a
-    -- HsVar. So for round trip pretty printing we need to take this into
-    -- account.
+    -- Note: A single item in parens in a standalone deriving clause
+    -- is parsed as a HsSigType, which is always a HsForAllTy or
+    -- HsQualTy. Without parens it is always a HsVar. So for round
+    -- trip pretty printing we need to take this into account.
     let
       parenIfNeeded' pa =
         case ts of
@@ -2577,11 +2581,12 @@ instance Annotate [GHC.LHsType GHC.GhcPs] where
             then markManyOptional pa
             else markMany pa
           [GHC.L _ GHC.HsForAllTy{}] -> markMany pa
+          [GHC.L _ GHC.HsQualTy{}] -> markMany pa
           [_] -> markManyOptional pa
           _   -> markMany         pa
 
       parenIfNeeded'' pa =
-        ifInContext (Set.singleton Parens)
+        ifInContext (Set.singleton Parens) -- AZ:TODO: this is never set?
           (markMany pa)
           (parenIfNeeded' pa)
 
@@ -2648,13 +2653,16 @@ instance Annotate (GHC.ConDecl GHC.GhcPs) where
       }
 
 -}
-  markAST _ (GHC.ConDeclGADT _ lns (GHC.L _ forall) (GHC.HsQTvs _ qvars) _mbCxt args typ _) = do
+  markAST _ (GHC.ConDeclGADT _ lns (GHC.L l forall) (GHC.HsQTvs _ qvars) mbCxt args typ _) = do
     setContext (Set.singleton PrefixOp) $ markListIntercalate lns
     mark GHC.AnnDcolon
-    when forall $ mark GHC.AnnForall
-    mapM_ markLocated qvars
+    annotationsToComments [GHC.AnnOpenP]
+    -- markManyOptional GHC.AnnOpenP
+    markLocated (GHC.L l qvars)
+    markMaybe mbCxt
     markHsConDeclDetails False True lns args
     markLocated typ
+    markManyOptional GHC.AnnCloseP
     markTrailingSemi
 {-
   = ConDeclGADT
@@ -2663,7 +2671,7 @@ instance Annotate (GHC.ConDecl GHC.GhcPs) where
 
       -- The next four fields describe the type after the '::'
       -- See Note [GADT abstract syntax]
-      , con_forall  :: Located Bool              -- ^ True <=> explicit forall
+      , con_forall  :: Located Bool      -- ^ True <=> explicit forall
                                          --   False => hsq_explicit is empty
       , con_qvars   :: LHsQTyVars pass
                        -- Whether or not there is an /explicit/ forall, we still
@@ -2714,6 +2722,13 @@ instance Annotate WildCardAnon where
 --       mark GHC.AnnForall
 --       mapM_ markLocated bndrs
 --       mark GHC.AnnDot
+
+
+instance Annotate [GHC.LHsTyVarBndr GHC.GhcPs] where
+  markAST _ qvars = do
+    mark GHC.AnnForall
+    mapM_ markLocated qvars
+    mark GHC.AnnDot
 
 -- ---------------------------------------------------------------------
 
