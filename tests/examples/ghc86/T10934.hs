@@ -23,11 +23,11 @@ missing = rpure missingField
     missingField :: forall x. (WithKeyValueError :. f) x
     missingField = Compose $ AccFailure [MissingValue]
 
-data Rec :: (u -> *) -> [u] -> * where
+data Rec :: (u -> Type) -> [u] -> Type where
   RNil :: Rec f '[]
   (:&) :: !(f r) -> !(Rec f rs) -> Rec f (r ': rs)
 
-newtype Compose (f :: l -> *) (g :: k -> l) (x :: k)
+newtype Compose (f :: l -> Type) (g :: k -> l) (x :: k)
   = Compose { getCompose :: f (g x) }
 
 type (:.) f g = Compose f g

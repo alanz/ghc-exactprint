@@ -4,6 +4,6 @@ module BadTelescope where
 
 import Data.Kind
 
-data SameKind :: k -> k -> *
+data SameKind :: k -> k -> Type
 
 data X a k (b :: k) (c :: SameKind a b)

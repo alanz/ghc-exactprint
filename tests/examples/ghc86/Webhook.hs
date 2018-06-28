@@ -142,8 +142,8 @@ import Servant.Server.Internal
 data GitHubSignedReqBody''
   (proxy :: KProxy k)
   (key :: k)
-  (list :: [*])
-  (result :: *) where
+  (list :: [Type])
+  (result :: Type) where
 
 -- | Convenient synonym for 'GitHubSignedReqBody''' that computes its first
 -- type argument given just the second one.

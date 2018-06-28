@@ -121,7 +121,7 @@ gcast x = do  Refl <- eqT  (typeRep :: TypeRep a)
                            (typeRep :: TypeRep b)
               return x
 
-data SameKind :: k -> k -> *
+data SameKind :: k -> k -> Type
 type CheckAppResult = SameKind AppResult AppResultNoKind
   --  not the most thorough check
 foo :: AppResult x -> AppResultNoKind x
@@ -170,7 +170,7 @@ dynFst (Dyn (rpab :: TypeRep pab) (x :: pab))
             --  introduces kind |k1|, and types |p :: k1 -> k2 -> *|, |a :: k1|
 
         Refl       <- eqT rp (typeRep :: TypeRep (,))
-            --  introduces |p ~ (,)| and |(k1 -> k2 -> *) ~ (* -> * -> *)|
+            --  introduces |p ~ (,)| and |(k1 -> k2 -> Type) ~ (Type -> Type -> Type)|
 
         return (Dyn ra (fst x))
 
@@ -319,7 +319,7 @@ dynApplyOld (DynOld trf f) (DynOld trx x) =
 data DynamicClosed where
   DynClosed :: TypeRepClosed a -> a -> DynamicClosed
 
-data TypeRepClosed (a :: *) where
+data TypeRepClosed (a :: Type) where
   TBool  :: TypeRepClosed Bool
   TFun   :: TypeRepClosed a -> TypeRepClosed b -> TypeRepClosed (a -> b)
   TProd  :: TypeRepClosed a -> TypeRepClosed b -> TypeRepClosed (a, b)

@@ -4,7 +4,7 @@ module T11142 where
 
 import Data.Kind
 
-data SameKind :: k -> k -> *
+data SameKind :: k -> k -> Type
 
 foo :: forall b. (forall k (a :: k). SameKind a b) -> ()
 foo = undefined

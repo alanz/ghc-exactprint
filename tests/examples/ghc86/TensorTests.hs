@@ -36,6 +36,6 @@ tremParams = Proxy
 
 type NormParams = ( '(,) <$> '[RT]) <*> (Filter Liftable MRCombos)
 
-data Liftable :: TyFun (Factored, *) Bool -> *
+data Liftable :: TyFun (Factored, Type) Bool -> Type
 type instance Apply Liftable '(m,zq) = Int64 :== (LiftOf zq)
 

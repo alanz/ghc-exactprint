@@ -1226,6 +1226,7 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
   markAST loc ty = do
     markType loc ty
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+    markOptional GHC.AnnVbar -- In HsSumTy
    where
 
     -- markType :: GHC.SrcSpan -> ast -> Annotated ()
@@ -1243,7 +1244,6 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
     markType _ (GHC.HsTyVar _ promoted name) = do
       when (promoted == GHC.Promoted) $ mark GHC.AnnSimpleQuote
       markLocated name
-      markOptional GHC.AnnVbar -- In HsSumTy
 
     markType _ (GHC.HsAppTy _ t1 t2) = do
       setContext (Set.singleton PrefixOp) $ markLocated t1
@@ -2436,15 +2436,36 @@ instance Annotate (GHC.HsDerivingClause GHC.GhcPs) where
     --       [(GHC.HsIB _ (GHC.L _ (GHC.HsTyVar {})))] -> False
     --       _                           -> True
     mark GHC.AnnDeriving
-    markMaybe mstrategy
+    case mstrategy of
+      Nothing -> return ()
+      Just (GHC.L _ (GHC.ViaStrategy{})) -> return ()
+      Just s -> markLocated s
+    -- markMaybe mstrategy
     markLocated typs
-    -- if needsParens then mark         GHC.AnnOpenP
-    --                else markOptional GHC.AnnOpenP
-    -- markListIntercalateWithFunLevel markLHsSigType 2 typs
-    -- if needsParens then mark         GHC.AnnCloseP
-    --                else markOptional GHC.AnnCloseP
+    case mstrategy of
+      Just s@(GHC.L _ (GHC.ViaStrategy{})) -> markLocated s
+      _ -> return ()
 
   markAST _ (GHC.XHsDerivingClause x) = error $ "got XHsDerivingClause for:" ++ showGhc x
+
+{-
+  = HsDerivingClause
+    { deriv_clause_ext :: XCHsDerivingClause pass
+    , deriv_clause_strategy :: Maybe (LDerivStrategy pass)
+      -- ^ The user-specified strategy (if any) to use when deriving
+      -- 'deriv_clause_tys'.
+    , deriv_clause_tys :: Located [LHsSigType pass]
+      -- ^ The types to derive.
+      --
+      -- It uses 'LHsSigType's because, with @-XGeneralizedNewtypeDeriving@,
+      -- we can mention type variables that aren't bound by the datatype, e.g.
+      --
+      -- > data T b = ... deriving (C [a])
+      --
+      -- should produce a derived instance for @C [a] (T b)@.
+    }
+
+-}
 
 -- ---------------------------------------------------------------------
 

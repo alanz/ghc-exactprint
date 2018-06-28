@@ -4,7 +4,7 @@ module BadTelescope4 where
 import Data.Proxy
 import Data.Kind
 
-data SameKind :: k -> k -> *
+data SameKind :: k -> k -> Type
 
 data Bad a (c :: Proxy b) (d :: Proxy a) (x :: SameKind b d)
 

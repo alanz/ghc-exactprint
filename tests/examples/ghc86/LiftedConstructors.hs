@@ -10,7 +10,7 @@ pfail = is (const False)
 (/\) :: Pattern vs1 a -> Pattern vs2 a -> Pattern (vs1 :++: vs2) a
 (/\) = mk2 (\a -> Just (a,a))
 
-data Pattern :: [*] -> * where
+data Pattern :: [Type] -> Type where
   Nil :: Pattern '[]
   Cons :: Maybe h -> Pattern t -> Pattern (h ': t)
 

@@ -237,7 +237,7 @@ data Recorder fr ch (r ∷ ★ → ★)
 -- from ghc-prim
 
 -- | A backward-compatible (pre-GHC 8.0) synonym for 'Type'
-type * = TYPE 'PtrRepLifted
+-- type * = TYPE 'PtrRepLifted
 
 -- | A unicode backward-compatible (pre-GHC 8.0) synonym for 'Type'
-type ★ = TYPE 'PtrRepLifted
+-- type ★ = TYPE 'PtrRepLifted

@@ -2,4 +2,4 @@
 
 module RenamingStar where
 
-data Foo :: *
+data Foo :: Type
