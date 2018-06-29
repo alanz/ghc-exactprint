@@ -210,7 +210,9 @@ addPrettyAnnotation ann = do
     dp = case ann of
            (G GHC.AnnAs)           -> tellKd (ann,DP (0,1))
            (G GHC.AnnAt)           -> tellKd (ann,DP (0,0))
+#if __GLASGOW_HASKELL__ >= 806
            (G GHC.AnnAnyclass)     -> tellKd (ann,DP (0,1))
+#endif
            (G GHC.AnnBackquote)    -> tellKd (ann,DP (0,1))
            (G GHC.AnnBang)         -> tellKd (ann,DP (0,1))
            (G GHC.AnnBy)           -> tellKd (ann,DP (0,1))
@@ -218,7 +220,9 @@ addPrettyAnnotation ann = do
            (G GHC.AnnClass)        -> tellKd (ann,DP (0,1))
            (G GHC.AnnClose)        -> tellKd (ann,DP (0,1))
            (G GHC.AnnCloseC)       -> tellKd (ann,DP (0,0))
+#if __GLASGOW_HASKELL__ >= 802
            (G GHC.AnnCloseQ)       -> tellKd (ann,DP (0,1))
+#endif
            (G GHC.AnnDcolon)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnDeriving)     -> tellKd (ann,DP (0,1))
            (G GHC.AnnDo)           -> tellKd (ann,DP (0,1))
@@ -245,7 +249,9 @@ addPrettyAnnotation ann = do
            (G GHC.AnnRarrow)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnRole)         -> tellKd (ann,DP (0,1))
            (G GHC.AnnSafe)         -> tellKd (ann,DP (0,1))
+#if __GLASGOW_HASKELL__ >= 806
            (G GHC.AnnStock)        -> tellKd (ann,DP (0,1))
+#endif
            (G GHC.AnnSimpleQuote)  -> tellKd (ann,DP (0,1))
            (G GHC.AnnThIdSplice)   -> tellKd (ann,DP (0,1))
            (G GHC.AnnThIdTySplice) -> tellKd (ann,DP (0,1))
@@ -257,7 +263,9 @@ addPrettyAnnotation ann = do
            (G GHC.AnnVal)          -> tellKd (ann,DP (0,1))
            (G GHC.AnnValStr)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnVbar)         -> tellKd (ann,DP (0,1))
+#if __GLASGOW_HASKELL__ >= 806
            (G GHC.AnnVia)          -> tellKd (ann,DP (0,1))
+#endif
            (G GHC.AnnWhere)        -> tellKd (ann,DP (1,2))
 #if __GLASGOW_HASKELL__ >= 800
            AnnTypeApp              -> tellKd (ann,DP (0,1))
