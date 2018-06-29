@@ -44,7 +44,7 @@ import qualified GHC            as GHC
 --  import qualified HsDoc          as GHC
 import qualified Name           as GHC
 import qualified RdrName        as GHC
--- import qualified Outputable     as GHC
+import qualified Outputable     as GHC
 
 import Control.Monad.Identity
 import Data.Data
@@ -354,7 +354,10 @@ instance Annotate GHC.RdrName where
       GHC.Qual _ _ -> doNormalRdrName
       GHC.Orig _ _ -> if str == "~"
                         then doNormalRdrName
+                        -- then error $ "GHC.orig:(isSym,canParen)=" ++ show (isSym,canParen)
                         else markExternal l GHC.AnnVal str
+      -- GHC.Orig _ _ -> markExternal l GHC.AnnVal str
+      -- GHC.Orig _ _ -> error $ "GHC.orig:str=[" ++ str ++ "]"
       GHC.Exact n'  -> do
        case str of
          -- Special handling for Exact RdrNames, which are built-in Names
@@ -1178,13 +1181,19 @@ markLHsSigType (GHC.XHsImplicitBndrs x) = error $ "got XHsImplicitBndrs for:" ++
 
 instance Annotate [GHC.LHsSigType GHC.GhcPs] where
   markAST _ ls = do
-    mark GHC.AnnDeriving
+    -- mark GHC.AnnDeriving
     -- Mote: a single item in parens is parsed as a HsAppsTy. Without parens it
     -- is a HsTyVar. So for round trip pretty printing we need to take this into
     -- account.
-    markManyOptional GHC.AnnOpenP
+    let marker = case ls of
+          []  -> markManyOptional
+          [GHC.HsIB _ t] -> if GHC.hsTypeNeedsParens GHC.appPrec (GHC.unLoc t)
+                           then markMany
+                           else markManyOptional
+          _   -> markMany -- Need parens if more than one entry
+    marker GHC.AnnOpenP
     markListIntercalateWithFun markLHsSigType ls
-    markManyOptional GHC.AnnCloseP
+    marker GHC.AnnCloseP
 
 -- --------------------------------------------------------------------
 
@@ -1226,7 +1235,7 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
   markAST loc ty = do
     markType loc ty
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
-    markOptional GHC.AnnVbar -- In HsSumTy
+    (inContext (Set.singleton AddVbar) $ mark GHC.AnnVbar)
    where
 
     -- markType :: GHC.SrcSpan -> ast -> Annotated ()
@@ -1243,7 +1252,7 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
 
     markType _ (GHC.HsTyVar _ promoted name) = do
       when (promoted == GHC.Promoted) $ mark GHC.AnnSimpleQuote
-      markLocated name
+      unsetContext InfixOp $ setContext (Set.singleton PrefixOp) $ markLocated name
 
     markType _ (GHC.HsAppTy _ t1 t2) = do
       setContext (Set.singleton PrefixOp) $ markLocated t1
@@ -2432,15 +2441,11 @@ instance Annotate [GHC.LHsDerivingClause GHC.GhcPs] where
 
 instance Annotate (GHC.HsDerivingClause GHC.GhcPs) where
   markAST _ (GHC.HsDerivingClause _ mstrategy typs) = do
-    -- let needsParens = case typs of
-    --       [(GHC.HsIB _ (GHC.L _ (GHC.HsTyVar {})))] -> False
-    --       _                           -> True
     mark GHC.AnnDeriving
     case mstrategy of
       Nothing -> return ()
       Just (GHC.L _ (GHC.ViaStrategy{})) -> return ()
       Just s -> markLocated s
-    -- markMaybe mstrategy
     markLocated typs
     case mstrategy of
       Just s@(GHC.L _ (GHC.ViaStrategy{})) -> markLocated s
@@ -2678,8 +2683,7 @@ instance Annotate (GHC.ConDecl GHC.GhcPs) where
     setContext (Set.singleton PrefixOp) $ markListIntercalate lns
     mark GHC.AnnDcolon
     annotationsToComments [GHC.AnnOpenP]
-    -- markManyOptional GHC.AnnOpenP
-    markLocated (GHC.L l qvars)
+    markLocated (GHC.L l (ResTyGADTHook forall qvars))
     markMaybe mbCxt
     markHsConDeclDetails False True lns args
     markLocated typ
@@ -2715,13 +2719,12 @@ instance Annotate (GHC.ConDecl GHC.GhcPs) where
 
 -- ResTyGADT has a SrcSpan for the original sigtype, we need to create
 -- a type for exactPC and annotatePC
--- data ResTyGADTHook = ResTyGADTHook [GHC.LHsTyVarBndr GHC.GhcPs]
---                    deriving (Typeable)
--- deriving instance Data (ResTyGADTHook GHC.GhcPs)
--- deriving instance (Show (GHC.LHsTyVarBndr GHC.GhcPs)) => Show (ResTyGADTHook GHC.GhcPs)
+data ResTyGADTHook = ResTyGADTHook Bool [GHC.LHsTyVarBndr GHC.GhcPs]
+                   deriving (Typeable)
+deriving instance Data (ResTyGADTHook)
 
--- instance GHC.Outputable (ResTyGADTHook GHC.GhcPs) where
---   ppr (ResTyGADTHook bs) = GHC.text "ResTyGADTHook" GHC.<+> GHC.ppr bs
+instance GHC.Outputable ResTyGADTHook where
+  ppr (ResTyGADTHook b bs) = GHC.text "ResTyGADTHook" GHC.<+> GHC.ppr b GHC.<+> GHC.ppr bs
 
 
 -- WildCardAnon exists because the GHC anonymous wildcard type is defined as
@@ -2737,19 +2740,12 @@ instance Annotate WildCardAnon where
 
 -- ---------------------------------------------------------------------
 
--- instance Annotate (ResTyGADTHook GHC.GhcPs) where
---   markAST _ (ResTyGADTHook bndrs) = do
---     unless (null bndrs) $ do
---       mark GHC.AnnForall
---       mapM_ markLocated bndrs
---       mark GHC.AnnDot
-
-
-instance Annotate [GHC.LHsTyVarBndr GHC.GhcPs] where
-  markAST _ qvars = do
-    mark GHC.AnnForall
-    mapM_ markLocated qvars
-    mark GHC.AnnDot
+instance Annotate ResTyGADTHook where
+  markAST _ (ResTyGADTHook forall bndrs) = do
+    unless (null bndrs) $ do
+      when forall $ mark GHC.AnnForall
+      mapM_ markLocated bndrs
+      when forall $ mark GHC.AnnDot
 
 -- ---------------------------------------------------------------------
 

@@ -53,11 +53,11 @@ testDirs =
     GHC80  -> ["pre-ghc86", "ghc710", "ghc80", "vect"]
     GHC82  -> ["pre-ghc86", "ghc710", "ghc80", "ghc82", "vect"]
     GHC84  -> ["pre-ghc86", "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
-    -- GHC86  -> [             "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
+    GHC86  -> [             "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
 
     -- GHC86  -> [             "ghc710", "ghc80", "ghc82", "ghc84"]
     -- GHC86  -> ["ghc86-copied"]
-    GHC86  -> ["ghc86"]
+    -- GHC86  -> ["ghc86"]
 
 -- ---------------------------------------------------------------------
 
@@ -142,9 +142,9 @@ mkTests = do
                     ,
                       transformTests
                     , failingTests
-                    -- , noAnnotationTests
-                    -- ,
-                    --   prettyRoundTripTests
+                    , noAnnotationTests
+                    ,
+                      prettyRoundTripTests
                     ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -200,9 +200,10 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
       -- mkPrettyRoundtrip "ghc82" "TensorTests.hs"
 
-    --   mkParserTest      "ghc710" "OveridingPrimitives.hs"
-    -- , mkParserTest      "ghc710" "TypeFamilies2.hs"
-      mkParserTest      "ghc86" "deriving-via-compile.hs"
+      -- mkParserTest      "ghc710" "GADTContext.hs"
+
+      -- mkParserTest      "ghc86" "deriving-via-compile.hs"
+      mkPrettyRoundtrip "ghc86" "deriving-via-compile.hs"
 
       -- mkParserTest      "ghc84" "Types.hs"
     -- , mkPrettyRoundtrip "ghc80" "export-type.hs"
