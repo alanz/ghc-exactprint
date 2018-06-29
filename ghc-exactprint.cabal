@@ -38,6 +38,10 @@ extra-source-files:  ChangeLog
                      tests/examples/ghc80/*.hs
                      tests/examples/ghc82/*.hs
                      tests/examples/ghc84/*.hs
+                     tests/examples/ghc86/*.hs
+                     tests/examples/ghc86/*.hs
+                     tests/examples/pre-ghc86/*.hs
+                     tests/examples/vect/*.hs
                      tests/examples/transform/*.hs
                      tests/examples/failing/*.hs.bad
                      tests/examples/transform/*.hs.expected
