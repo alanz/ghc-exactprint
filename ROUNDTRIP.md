@@ -14,6 +14,11 @@ This will generate three additional executables
 
 1. ./dist/build/prepare-hackage/prepare-hackage
 
+  ```
+  mkdir hackage-roundtrip-work
+  cabal new-exec prepare-hackage
+  ```
+
   This will manage the `cabal` programme to call `cabal get` for each package on
   hackage, into `./hackage-roundtrip-work`. It also untabifies each haskell file,
   and deletes trailing whitespace.
@@ -31,6 +36,14 @@ This will generate three additional executables
   This actually runs the roundtrip test
 
   Invoke it as one of
+
+  ```
+  cabal new-exec roundtrip -- clean
+  cabal new-exec roundtrip -- ./hackage-roundtrip-work/* +RTS -N2
+  cabal new-exec roundtrip -- failures
+  ```
+
+  Or, old cabal
 
   ```
   ./dist/build/roundtrip/roundtrip ./hackage-roundtrip-work/* +RTS -N2
@@ -77,3 +90,8 @@ This will generate three additional executables
 3. ./dist/build/static/static
 
   Executable that can build a static web site to view the failures.
+
+Cleaning up msdos file endings:
+
+    cd roundtrip-work
+    find . -iname "*.hs" | grep -v "'" | xargs fromdos -b -d
