@@ -64,3 +64,4 @@
 ./hackage-roundtrip-work/wxcore-0.92.3.0/src/haskell/Graphics/UI/WXCore/WxcClassesMZ.hs
 ./hackage-roundtrip-work/fltkhs-0.5.4.3/src/Graphics/UI/FLTK/LowLevel/FLTKHS.hs
 ./hackage-roundtrip-work/fltkhs-0.5.4.3/src/Graphics/UI/FLTK/LowLevel/Dispatch.hs
+./hackage-roundtrip-work/Agda-2.5.4/dist/build/Agda/Syntax/Parser/Lexer.hs

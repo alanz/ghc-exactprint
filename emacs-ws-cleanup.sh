@@ -9,6 +9,8 @@ for file in `find . -name "*.hs"`; do
         --eval '(untabify (point-min) (point-max))' \
         --eval '(perform-replace " " " " nil nil nil)' \
         --eval '(perform-replace "" "" nil nil nil)' \
+        --eval '(perform-replace "　" " " nil nil nil)' \
+        --eval '(perform-replace " " " " nil nil nil)' \
         -f 'save-buffer'
     fromdos $file
     # Make sure there is a newline at the end of the file
