@@ -1,7 +1,7 @@
 packages: .
           -- ../../ekmett/free
           -- ../Haskell-Turtle-Library
-          ../../hvr/packages/hashable-1.2.7.0
+          -- ../../hvr/packages/hashable-1.2.7.0
 repository head.hackage
   url: http://head.hackage.haskell.org/
   secure: True
@@ -11,7 +11,7 @@ repository head.hackage
   key-threshold: 3
 
 -- https://github.com/hvr/head.hackage#as-locally-patched-packages
-optional-packages: packages/*/*.cabal
+-- optional-packages: packages/*/*.cabal
 -- $ cd packages
 -- $ cabal unpack --pristine $PKGID
 -- $ cd $PKGID/
