@@ -49,11 +49,11 @@ ghcVersion =
 testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
-    GHC710 -> ["pre-ghc86", "ghc710-only","ghc710", "vect"]
-    GHC80  -> ["pre-ghc86", "ghc710", "ghc80", "vect"]
-    GHC82  -> ["pre-ghc86", "ghc710", "ghc80", "ghc82", "vect"]
-    GHC84  -> ["pre-ghc86", "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
-    GHC86  -> [             "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
+    GHC710 -> ["ghc710-only","ghc710", "vect"]
+    GHC80  -> [              "ghc710", "ghc80", "vect"]
+    GHC82  -> ["pre-ghc86",  "ghc710", "ghc80", "ghc82", "vect"]
+    GHC84  -> ["pre-ghc86",  "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
+    GHC86  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
 
     -- GHC86  -> [             "ghc710", "ghc80", "ghc82", "ghc84"]
     -- GHC86  -> ["ghc86-copied"]
@@ -203,7 +203,9 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkParserTest      "ghc710" "GADTContext.hs"
 
       -- mkParserTest      "ghc86" "deriving-via-compile.hs"
-      mkParserTest "ghc86" "BinDU.hs"
+      mkParserTest "pre-ghc86" "TensorTests.hs"
+    , mkParserTest "pre-ghc86" "Webhook.hs"
+    , mkParserTest "ghc710" "RdrNames.hs"
 
     --   mkPrettyRoundtrip "ghc86" "BinDU.hs"
     -- , mkPrettyRoundtrip "ghc86" "Dial.hs"

@@ -25,6 +25,8 @@ import Data.Singletons.TypeRepStar ()
 
 import qualified Test.Framework as TF
 
+type TMRParams = ( '( ,  ,) <$> Tensors <*> Tensors) <*> MRCombos
+
 type TMRParams = ( '(,) <$> Tensors) <*> MRCombos
 tmrParams :: Proxy TMRParams
 tmrParams = Proxy
