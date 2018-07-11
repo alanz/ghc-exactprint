@@ -1,3 +1,5 @@
+2018-07-11 v0.5.7.0
+	* Include support for GHC 8.6.1 alpha 1
 2018-03-11 v0.5.6.1
 	* Relax base constraints so tests can configure with GHC 8.4.1
 2018-01-27 v0.5.6.0

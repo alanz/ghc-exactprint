@@ -1,4 +1,4 @@
-resolver: nightly-2017-11-24
+resolver: nightly-2017-11-24 # last GHC 8.2.1
 packages:
 - '.'
 # extra-deps:

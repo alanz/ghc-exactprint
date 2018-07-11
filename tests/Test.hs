@@ -203,7 +203,10 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkParserTest      "ghc710" "GADTContext.hs"
 
       -- mkParserTest      "ghc86" "deriving-via-compile.hs"
-      mkPrettyRoundtrip "ghc86" "deriving-via-compile.hs"
+      mkParserTest "ghc86" "BinDU.hs"
+
+    --   mkPrettyRoundtrip "ghc86" "BinDU.hs"
+    -- , mkPrettyRoundtrip "ghc86" "Dial.hs"
 
       -- mkParserTest      "ghc84" "Types.hs"
     -- , mkPrettyRoundtrip "ghc80" "export-type.hs"
