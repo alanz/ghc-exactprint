@@ -200,12 +200,12 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
       -- mkPrettyRoundtrip "ghc82" "TensorTests.hs"
 
-      -- mkParserTest      "ghc710" "GADTContext.hs"
+      mkParserTest      "ghc710" "GADTContext.hs"
 
       -- mkParserTest      "ghc86" "deriving-via-compile.hs"
-      mkParserTest "pre-ghc86" "TensorTests.hs"
-    , mkParserTest "pre-ghc86" "Webhook.hs"
-    , mkParserTest "ghc710" "RdrNames.hs"
+    --   mkParserTest "pre-ghc86" "TensorTests.hs"
+    -- , mkParserTest "pre-ghc86" "Webhook.hs"
+    -- , mkParserTest "ghc710" "RdrNames.hs"
 
     --   mkPrettyRoundtrip "ghc86" "BinDU.hs"
     -- , mkPrettyRoundtrip "ghc86" "Dial.hs"

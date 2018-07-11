@@ -2503,6 +2503,7 @@ instance (GHC.OutputableBndr name) => GHC.Outputable (ResTyGADTHook name) where
 instance (GHC.DataId name,GHC.OutputableBndr name,GHC.HasOccName name,Annotate name)
   => Annotate (ResTyGADTHook name) where
   markAST _ (ResTyGADTHook bndrs) = do
+    markManyOptional GHC.AnnOpenP
     unless (null bndrs) $ do
       mark GHC.AnnForall
       mapM_ markLocated bndrs
