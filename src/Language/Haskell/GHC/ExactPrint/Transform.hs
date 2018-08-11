@@ -92,7 +92,9 @@ module Language.Haskell.GHC.ExactPrint.Transform
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
+#if __GLASGOW_HASKELL__ > 804
 import Control.Monad.Fail
+#endif
 import Control.Monad.RWS
 
 
@@ -109,7 +111,6 @@ import Data.Maybe
 import qualified Data.Map as Map
 
 import Data.Functor.Identity
--- import Control.Monad.Identity
 import Control.Monad.State
 import Control.Monad.Writer
 
@@ -129,11 +130,15 @@ newtype TransformT m a = TransformT { runTransformT :: RWST () [String] (Anns,In
                          ,MonadWriter [String]
                          ,MonadState (Anns,Int)
                          ,MonadTrans
+#if __GLASGOW_HASKELL__ > 804
                          ,MonadFail
+#endif
                          )
 
+#if __GLASGOW_HASKELL__ > 804
 instance MonadFail Identity where
   fail x = Control.Monad.Fail.fail x
+#endif
 
 -- | Run a transformation in the 'Transform' monad, returning the updated
 -- annotations and any logging generated via 'logTr'
