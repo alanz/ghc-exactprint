@@ -172,6 +172,8 @@ executable roundtrip
   main-is: Roundtrip.hs
   hs-source-dirs: tests
   other-modules: Test.Common
+                 Test.CommonUtils
+                 Test.Consistency
   default-language:    Haskell2010
   if impl (ghc >= 7.10.2) && flag (roundtrip)
     build-depends:

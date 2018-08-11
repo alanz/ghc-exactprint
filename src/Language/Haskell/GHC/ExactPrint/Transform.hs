@@ -92,6 +92,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
+import Control.Monad.Fail
 import Control.Monad.RWS
 
 
@@ -128,9 +129,11 @@ newtype TransformT m a = TransformT { runTransformT :: RWST () [String] (Anns,In
                          ,MonadWriter [String]
                          ,MonadState (Anns,Int)
                          ,MonadTrans
+                         ,MonadFail
                          )
 
-
+instance MonadFail Identity where
+  fail x = Control.Monad.Fail.fail x
 
 -- | Run a transformation in the 'Transform' monad, returning the updated
 -- annotations and any logging generated via 'logTr'
