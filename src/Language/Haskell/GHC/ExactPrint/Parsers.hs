@@ -277,7 +277,7 @@ parseModuleApiAnnsWithCppInternal cppOptions dflags file = do
       GHC.POk (mkApiAnns -> apianns) pmod  ->
         Right $ (apianns, injectedComments, dflags', pmod)
 
--- | Internal function. Exposed if you want to much with DynFlags
+-- | Internal function. Exposed if you want to muck with DynFlags
 -- before parsing. Or after parsing.
 postParseTransform
   :: Either a (GHC.ApiAnns, [Comment], GHC.DynFlags, GHC.ParsedSource)
@@ -289,6 +289,11 @@ postParseTransform parseRes opts = either Left mkAnns parseRes
       Right (relativiseApiAnnsWithOptions opts cs m apianns, m)
 
 -- | Internal function. Initializes DynFlags value for parsing.
+--
+-- Passes "-hide-all-packages" to the GHC API to prevent parsing of
+-- package environment files. However this only works if there is no
+-- invocation of `setSessionDynFlags` before calling `initDynFlags`.
+-- See ghc tickets #15513, #15541.
 initDynFlags :: GHC.GhcMonad m => FilePath -> m GHC.DynFlags
 initDynFlags file = do
   dflags0         <- GHC.getSessionDynFlags
@@ -296,13 +301,22 @@ initDynFlags file = do
   (dflags1, _, _) <- GHC.parseDynamicFilePragma dflags0 src_opts
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
-  void $ GHC.setSessionDynFlags dflags2
-  return dflags2
+  -- Prevent parsing of .ghc.environment.* "package environment files"
+  (dflags3, [], []) <- GHC.parseDynamicFlagsCmdLine
+    dflags2
+    [GHC.noLoc "-hide-all-packages"]
+  _ <- GHC.setSessionDynFlags dflags3
+  return dflags3
 
 -- | Requires GhcMonad constraint because there is
 -- no pure variant of `parseDynamicFilePragma`. Yet, in constrast to
 -- `initDynFlags`, it does not (try to) read the file at filepath, but
 -- solely depends on the module source in the input string.
+--
+-- Passes "-hide-all-packages" to the GHC API to prevent parsing of
+-- package environment files. However this only works if there is no
+-- invocation of `setSessionDynFlags` before calling `initDynFlagsPure`.
+-- See ghc tickets #15513, #15541.
 initDynFlagsPure :: GHC.GhcMonad m => FilePath -> String -> m GHC.DynFlags
 initDynFlagsPure fp s = do
   -- I was told we could get away with using the unsafeGlobalDynFlags.
@@ -313,8 +327,12 @@ initDynFlagsPure fp s = do
   (dflags1, _, _) <- GHC.parseDynamicFilePragma dflags0 pragmaInfo
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
-  void $ GHC.setSessionDynFlags dflags2
-  return dflags2
+  -- Prevent parsing of .ghc.environment.* "package environment files"
+  (dflags3, [], []) <- GHC.parseDynamicFlagsCmdLine
+    dflags2
+    [GHC.noLoc "-hide-all-packages"]
+  _ <- GHC.setSessionDynFlags dflags3
+  return dflags3
 
 -- ---------------------------------------------------------------------
 
