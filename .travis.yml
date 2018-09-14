@@ -7,6 +7,10 @@
 language: c
 sudo: false
 
+os:
+  - linux
+  - osx
+
 git:
   submodules: false  # whether to recursively clone submodules
 
