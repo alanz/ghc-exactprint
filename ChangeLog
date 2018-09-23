@@ -1,3 +1,5 @@
+2018-09-23 v0.5.8.1
+	* Sort out MonadFail usage for GHC 8.6.1
 2018-09-12 v0.5.8.0
 	* Disable use of .ghc.env files when parsing. By @lspitzner
 2018-08-11 v0.5.7.0
