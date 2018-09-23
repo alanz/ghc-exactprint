@@ -302,7 +302,7 @@ initDynFlags file = do
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
   -- Prevent parsing of .ghc.environment.* "package environment files"
-  (dflags3, [], []) <- GHC.parseDynamicFlagsCmdLine
+  (dflags3, _, _) <- GHC.parseDynamicFlagsCmdLine
     dflags2
     [GHC.noLoc "-hide-all-packages"]
   _ <- GHC.setSessionDynFlags dflags3
@@ -328,7 +328,7 @@ initDynFlagsPure fp s = do
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
   -- Prevent parsing of .ghc.environment.* "package environment files"
-  (dflags3, [], []) <- GHC.parseDynamicFlagsCmdLine
+  (dflags3, _, _) <- GHC.parseDynamicFlagsCmdLine
     dflags2
     [GHC.noLoc "-hide-all-packages"]
   _ <- GHC.setSessionDynFlags dflags3

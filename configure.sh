@@ -18,11 +18,16 @@
 # cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=/opt/ghc/8.6.0.20180712/bin/ghc --allow-newer
 # cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=/opt/ghc/8.6.0.20180714/bin/ghc --allow-newer
 # cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=/opt/ghc/8.6.0.20180810/bin/ghc --allow-newer
-cabal-2.4 new-configure -froundtrip -fdev --enable-tests --with-compiler=/opt/ghc/8.6.0.20180810/bin/ghc --allow-newer
+# cabal-2.4 new-configure -froundtrip -fdev --enable-tests --with-compiler=/opt/ghc/8.6.0.20180810/bin/ghc --allow-newer
 
 # cabal new-configure -froundtrip --enable-tests --with-compiler=/opt/ghc/8.5.20180617/bin/ghc --allow-newer
 
-# cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-8.4.3
-# cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-8.2.2
-# cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-8.0.2
+# cabal new-configure -froundtrip --enable-tests --with-compiler=/opt/ghc/8.6.1/bin/ghc
+# cabal new-configure --with-compiler=ghc-8.6.1 --allow-newer
+# cabal new-configure --with-compiler=ghc-8.6.1
+
 # cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-7.10.3
+# cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-8.0.2
+# cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-8.2.2
+# cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-8.4.3
+cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-8.6.1
