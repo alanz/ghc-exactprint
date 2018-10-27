@@ -17,5 +17,5 @@ packages: .
 -- $ cp ${WhereThisGitHubRepoIsCloned}/patches/$PKGID.cabal ./*.cabal
 -- $ cd ../..
 
-allow-newer:foldl-1.4.4:containers
-allow-newer:turtle-1.5.11:containers
+-- allow-newer:foldl-1.4.4:containers
+-- allow-newer:turtle-1.5.11:containers

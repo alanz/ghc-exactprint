@@ -1,3 +1,5 @@
+2018-10-27 v0.5.8.2
+	* Support GHC 8.4.4 by selecting correct source directory
 2018-09-23 v0.5.8.1
 	* Sort out MonadFail usage for GHC 8.6.1
 2018-09-12 v0.5.8.0
