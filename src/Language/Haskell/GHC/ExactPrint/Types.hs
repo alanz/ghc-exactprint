@@ -7,6 +7,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE ViewPatterns #-}
 module Language.Haskell.GHC.ExactPrint.Types
   ( -- * Core Types
    Anns
@@ -156,8 +157,9 @@ data AnnKey   = AnnKey GHC.SrcSpan AnnConName
 instance Show AnnKey where
   show (AnnKey ss cn) = "AnnKey " ++ showGhc ss ++ " " ++ show cn
 
-mkAnnKeyPrim :: (Data a) => GHC.Located a -> AnnKey
-mkAnnKeyPrim (GHC.L l a) = AnnKey l (annGetConstr a)
+mkAnnKeyPrim :: (Data a,Data (GHC.SrcSpanLess a),GHC.HasSrcSpan a)
+             => a -> AnnKey
+mkAnnKeyPrim (GHC.dL->GHC.L l a) = AnnKey l (annGetConstr a)
 
 
 #if __GLASGOW_HASKELL__ <= 802
@@ -171,7 +173,7 @@ type GhcTc = GHC.GhcTc
 #endif
 
 -- |Make an unwrapped @AnnKey@ for the @LHsDecl@ case, a normal one otherwise.
-mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
+mkAnnKey :: (Data a,Data (GHC.SrcSpanLess a),GHC.HasSrcSpan a) => a -> AnnKey
 mkAnnKey ld =
   case cast ld :: Maybe (GHC.LHsDecl GhcPs) of
     Just d -> declFun mkAnnKeyPrim d

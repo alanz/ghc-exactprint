@@ -10,6 +10,8 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-} -- Needed for the DataId constraint on ResTyGADTHook
+{-# LANGUAGE ViewPatterns      #-}
+
 -- | 'annotate' is a function which given a GHC AST fragment, constructs
 -- a syntax tree which indicates which annotations belong to each specific
 -- part of the fragment.
@@ -116,8 +118,10 @@ data AnnotationF next where
   MarkManyOptional :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   MarkOffsetPrim   :: GHC.AnnKeywordId -> Int -> Maybe String              -> next -> AnnotationF next
   MarkOffsetPrimOptional :: GHC.AnnKeywordId -> Int -> Maybe String        -> next -> AnnotationF next
-  WithAST          :: Data a => GHC.Located a
-                             -> Annotated b                                -> next -> AnnotationF next
+  -- WithAST          :: Data a => GHC.Located a
+  --                            -> Annotated b                                -> next -> AnnotationF next
+  WithAST         :: (Data a,Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a) =>
+                           a -> Annotated b                                -> next -> AnnotationF next
   CountAnns        :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
   WithSortKey      :: [(GHC.SrcSpan, Annotated ())]                        -> next -> AnnotationF next
 
@@ -211,7 +215,11 @@ workOutString l kw f = do
 -- ---------------------------------------------------------------------
 
 -- |Main driver point for annotations.
-withAST :: Data a => GHC.Located a -> Annotated () -> Annotated ()
+-- withAST :: Data a => GHC.Located a -> Annotated () -> Annotated ()
+-- withAST lss action = liftF (WithAST lss action ())
+
+-- |Main driver point for annotations.
+-- withAST :: (Data a,GHC.HasSrcSpan a) => a -> Annotated () -> Annotated ()
 withAST lss action = liftF (WithAST lss action ())
 
 -- ---------------------------------------------------------------------
@@ -243,11 +251,11 @@ markTrailingSemi = markOutside GHC.AnnSemi AnnSemiSep
 
 -- ---------------------------------------------------------------------
 
-withLocated :: Data a
-            => GHC.Located a
-            -> (GHC.SrcSpan -> a -> Annotated ())
+withLocated :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
+            => a
+            -> (GHC.SrcSpan -> GHC.SrcSpanLess a -> Annotated ())
             -> Annotated ()
-withLocated a@(GHC.L l ast) action =
+withLocated a@(GHC.dL->GHC.L l ast) action =
   withAST a (action l ast)
 
 -- ---------------------------------------------------------------------

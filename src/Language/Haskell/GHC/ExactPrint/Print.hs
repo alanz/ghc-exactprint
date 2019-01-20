@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
@@ -73,7 +74,7 @@ exactPrintWithOptions r ast as =
 data PrintOptions m a = PrintOptions
             {
               epAnn :: !Annotation
-            , epAstPrint :: forall ast . Data ast => GHC.Located ast -> a -> m a
+            , epAstPrint :: forall ast . (Data ast, GHC.HasSrcSpan ast) => ast -> a -> m a
             , epTokenPrint :: String -> m a
             , epWhitespacePrint :: String -> m a
             , epRigidity :: Rigidity
@@ -82,7 +83,7 @@ data PrintOptions m a = PrintOptions
 
 -- | Helper to create a 'PrintOptions'
 printOptions ::
-      (forall ast . Data ast => GHC.Located ast -> a -> m a)
+      (forall ast . (Data ast, GHC.HasSrcSpan ast) => ast -> a -> m a)
       -> (String -> m a)
       -> (String -> m a)
       -> Rigidity
@@ -150,7 +151,8 @@ defaultEPState as = EPState
 
 -- ---------------------------------------------------------------------
 
-printInterpret :: forall w m a . (Monad m, Monoid w) => Annotated a -> EP w m a
+printInterpret :: forall w m a . (Monad m, Monoid w)
+               => Annotated a -> EP w m a
 printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
   where
     go :: AnnotationF (EP w m a) -> EP w m a
@@ -278,7 +280,10 @@ allAnns kwid = printStringAtMaybeAnnAll (G kwid) Nothing
 
 -------------------------------------------------------------------------
 -- |First move to the given location, then call exactP
-exactPC :: (Data ast, Monad m, Monoid w) => GHC.Located ast -> EP w m a -> EP w m a
+-- exactPC :: (Data ast, Monad m, Monoid w) => GHC.Located ast -> EP w m a -> EP w m a
+-- exactPC :: (Data ast, Data (GHC.SrcSpanLess ast), GHC.HasSrcSpan ast, Monad m, Monoid w)
+exactPC :: (Data ast, Data (GHC.SrcSpanLess ast), GHC.HasSrcSpan ast, Monad m, Monoid w)
+        => ast -> EP w m a -> EP w m a
 exactPC ast action =
     do
       return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
@@ -311,7 +316,8 @@ advance cl = do
   colOffset <- getLayoutOffset
   printWhitespace (undelta p cl colOffset)
 
-getAndRemoveAnnotation :: (Monad m, Monoid w, Data a) => GHC.Located a -> EP w m (Maybe Annotation)
+getAndRemoveAnnotation :: (Monad m, Monoid w, Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
+                       => a -> EP w m (Maybe Annotation)
 getAndRemoveAnnotation a = gets (getAnnotationEP a . epAnns)
 
 markPrim :: (Monad m, Monoid w) => KeywordId -> Maybe String -> EP w m ()

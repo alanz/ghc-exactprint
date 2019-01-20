@@ -30,4 +30,10 @@
 # cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-8.0.2
 # cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-8.2.2
 # cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-8.4.3
-cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-8.6.1
+# cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-8.6.1
+# cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-8.6.3
+
+rm -fr dist*
+rm .ghc.env*
+# cabal new-configure -froundtrip --enable-tests --with-compiler=/opt/ghc/8.7.20190116/bin/ghc --allow-newer
+cabal new-configure  --with-compiler=/opt/ghc/8.7.20190118/bin/ghc --allow-newer

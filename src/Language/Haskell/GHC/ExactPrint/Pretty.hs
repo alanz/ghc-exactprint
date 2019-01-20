@@ -1,7 +1,9 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -309,8 +311,8 @@ putUnallocatedComments cs = modify (\s -> s { apComments = cs } )
 
 -- ---------------------------------------------------------------------
 
-withSrcSpanPretty :: Data a => GHC.Located a -> Pretty b -> Pretty b
-withSrcSpanPretty (GHC.L l a) action = do
+withSrcSpanPretty :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a) => a -> Pretty b -> Pretty b
+withSrcSpanPretty (GHC.dL->GHC.L l a) action = do
   -- peek into the current state of the output, to extract the layout context
   -- flags passed up from subelements of the AST.
   (_,w) <- listen (return () :: Pretty ())
@@ -327,10 +329,10 @@ withSrcSpanPretty (GHC.L l a) action = do
 -- ---------------------------------------------------------------------
 
 -- | Enter a new AST element. Maintain SrcSpan stack
-withAST :: Data a
-        => GHC.Located a
+withAST :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
+        => a
         -> Pretty b -> Pretty b
-withAST lss@(GHC.L ss t) action = do
+withAST lss@(GHC.dL->GHC.L ss t) action = do
   return () `debug` ("Pretty.withAST:enter 1:(ss)=" ++ showGhc (ss,showConstr (toConstr t)))
   -- Calculate offset required to get to the start of the SrcSPan
   -- off <- gets apLayoutStart

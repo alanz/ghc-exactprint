@@ -1,5 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ViewPatterns #-}
+
 -- |  This module converts 'GHC.ApiAnns' into 'Anns' by traversing a
 -- structure created by the "Annotate" module.
 --
@@ -427,8 +429,8 @@ getSrcSpanForKw _ kw = do
 getSrcSpan :: Delta GHC.SrcSpan
 getSrcSpan = asks curSrcSpan
 
-withSrcSpanDelta :: Data a => GHC.Located a -> Delta b -> Delta b
-withSrcSpanDelta (GHC.L l a) =
+withSrcSpanDelta :: (Data a, GHC.HasSrcSpan a) => a -> Delta b -> Delta b
+withSrcSpanDelta (GHC.dL->GHC.L l a) =
   local (\s -> s { curSrcSpan = l
                  , annConName = annGetConstr a
                  , drContext = pushAcs (drContext s)
@@ -561,10 +563,10 @@ addAnnDeltaPos kw dp = tellKd (kw, dp)
 -- -------------------------------------
 
 -- | Enter a new AST element. Maintain SrcSpan stack
-withAST :: Data a
-        => GHC.Located a
+withAST :: (Data a, GHC.HasSrcSpan a)
+        => a
         -> Delta b -> Delta b
-withAST lss@(GHC.L ss _) action = do
+withAST lss@(GHC.dL->GHC.L ss _) action = do
   -- Calculate offset required to get to the start of the SrcSPan
   off <- gets apLayoutStart
   (resetAnns .  withSrcSpanDelta lss) (do
