@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -153,8 +154,8 @@ import qualified Data.Set as Set
 -- ---------------------------------------------------------------------
 -- | Transform concrete annotations into relative annotations which are
 -- more useful when transforming an AST.
-relativiseApiAnns :: Annotate ast
-                  => GHC.Located ast
+relativiseApiAnns :: (Data (GHC.SrcSpanLess ast), Annotate ast, GHC.HasSrcSpan ast)
+                  => ast
                   -> GHC.ApiAnns
                   -> Anns
 relativiseApiAnns = relativiseApiAnnsWithComments []
@@ -164,19 +165,19 @@ relativiseApiAnns = relativiseApiAnnsWithComments []
 -- by e.g. CPP, and the parts stripped out of the original source are re-added
 -- as comments so they are not lost for round tripping.
 relativiseApiAnnsWithComments ::
-                     Annotate ast
+                     (Data (GHC.SrcSpanLess ast), Annotate ast, GHC.HasSrcSpan ast)
                   => [Comment]
-                  -> GHC.Located ast
+                  -> ast
                   -> GHC.ApiAnns
                   -> Anns
 relativiseApiAnnsWithComments =
     relativiseApiAnnsWithOptions normalLayout
 
 relativiseApiAnnsWithOptions ::
-                     Annotate ast
+                     (Data (GHC.SrcSpanLess ast), Annotate ast, GHC.HasSrcSpan ast)
                   => DeltaOptions
                   -> [Comment]
-                  -> GHC.Located ast
+                  -> ast
                   -> GHC.ApiAnns
                   -> Anns
 relativiseApiAnnsWithOptions opts cs modu ghcAnns
@@ -429,7 +430,7 @@ getSrcSpanForKw _ kw = do
 getSrcSpan :: Delta GHC.SrcSpan
 getSrcSpan = asks curSrcSpan
 
-withSrcSpanDelta :: (Data a, GHC.HasSrcSpan a) => a -> Delta b -> Delta b
+withSrcSpanDelta :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a) => a -> Delta b -> Delta b
 withSrcSpanDelta (GHC.dL->GHC.L l a) =
   local (\s -> s { curSrcSpan = l
                  , annConName = annGetConstr a
@@ -563,7 +564,7 @@ addAnnDeltaPos kw dp = tellKd (kw, dp)
 -- -------------------------------------
 
 -- | Enter a new AST element. Maintain SrcSpan stack
-withAST :: (Data a, GHC.HasSrcSpan a)
+withAST :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
         => a
         -> Delta b -> Delta b
 withAST lss@(GHC.dL->GHC.L ss _) action = do
@@ -829,7 +830,7 @@ addDeltaAnnotationExt s ann = addAnnotationWorker (G ann) s
 addEofAnnotation :: Delta ()
 addEofAnnotation = do
   pe <- getPriorEnd
-  (ma,_kw) <- withSrcSpanDelta (GHC.noLoc ()) (getAnnotationDelta GHC.AnnEofPos)
+  (ma,_kw) <- withSrcSpanDelta (GHC.noLoc () :: GHC.GenLocated GHC.SrcSpan ()) (getAnnotationDelta GHC.AnnEofPos)
   case ma of
     [] -> return ()
     (pa:pss) -> do

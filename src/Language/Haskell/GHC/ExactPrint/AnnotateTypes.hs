@@ -253,10 +253,10 @@ markTrailingSemi = markOutside GHC.AnnSemi AnnSemiSep
 
 withLocated :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
             => a
-            -> (GHC.SrcSpan -> GHC.SrcSpanLess a -> Annotated ())
+            -> (GHC.SrcSpan -> a -> Annotated ())
             -> Annotated ()
-withLocated a@(GHC.dL->GHC.L l ast) action =
-  withAST a (action l ast)
+withLocated a@(GHC.dL->GHC.L l _) action =
+  withAST a (action l a)
 
 -- ---------------------------------------------------------------------
 

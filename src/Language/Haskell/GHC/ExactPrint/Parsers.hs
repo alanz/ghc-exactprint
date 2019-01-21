@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ViewPatterns #-}
 -----------------------------------------------------------------------------
 -- |
@@ -49,6 +50,7 @@ import Language.Haskell.GHC.ExactPrint.Preprocess
 import Language.Haskell.GHC.ExactPrint.Types
 
 import Control.Monad.RWS
+import Data.Data (Data)
 
 import GHC.Paths (libdir)
 
@@ -79,12 +81,12 @@ import qualified Data.Map as Map
 
 -- | Wrapper function which returns Annotations along with the parsed
 -- element.
-parseWith :: Annotate w
+parseWith :: (Data (GHC.SrcSpanLess w), Annotate w, GHC.HasSrcSpan w)
           => GHC.DynFlags
           -> FilePath
-          -> GHC.P (GHC.Located w)
+          -> GHC.P w
           -> String
-          -> Either (GHC.SrcSpan, String) (Anns, GHC.Located w)
+          -> Either (GHC.SrcSpan, String) (Anns, w)
 parseWith dflags fileName parser s =
   case runParser parser dflags fileName s of
 #if __GLASGOW_HASKELL__ >= 804

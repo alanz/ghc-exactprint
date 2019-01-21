@@ -68,7 +68,7 @@ class Data ast => Annotate ast where
 
 -- | Construct a syntax tree which represent which KeywordIds must appear
 -- where.
-annotate :: (Annotate ast, Annotate (GHC.SrcSpanLess ast), GHC.HasSrcSpan ast) => ast -> Annotated ()
+annotate :: (Annotate ast, Data (GHC.SrcSpanLess ast), GHC.HasSrcSpan ast) => ast -> Annotated ()
 annotate = markLocated
 
 -- instance Annotate (GHC.SrcSpanLess ast) where
@@ -88,7 +88,7 @@ instance (Data ast, Annotate ast) => Annotate (GHC.Located ast) where
 
 -- | Constructs a syntax tree which contains information about which
 -- annotations are required by each element.
-markLocated :: (Annotate ast, Annotate (GHC.SrcSpanLess ast), GHC.HasSrcSpan ast)
+markLocated :: (Data (GHC.SrcSpanLess ast), Annotate ast,  GHC.HasSrcSpan ast)
              => ast -> Annotated ()
 markLocated ast =
   case cast ast :: Maybe (GHC.LHsDecl GHC.GhcPs) of
@@ -98,7 +98,8 @@ markLocated ast =
 -- ---------------------------------------------------------------------
 
 -- |When adding missing annotations, do not put a preceding space in front of a list
-markListNoPrecedingSpace :: (Annotate ast, Annotate (GHC.SrcSpanLess ast), GHC.HasSrcSpan ast) => Bool -> [ast] -> Annotated ()
+markListNoPrecedingSpace :: (Data (GHC.SrcSpanLess ast), Annotate ast, GHC.HasSrcSpan ast)
+                         => Bool -> [ast] -> Annotated ()
 markListNoPrecedingSpace intercal ls =
     case ls of
       [] -> return ()
@@ -117,12 +118,14 @@ markListNoPrecedingSpace intercal ls =
 
 
 -- |Mark a list, with the given keyword as a list item separator
-markListIntercalate :: (Annotate ast, Annotate (GHC.SrcSpanLess ast), GHC.HasSrcSpan ast) => [ast] -> Annotated ()
+markListIntercalate :: (Data (GHC.SrcSpanLess ast), Annotate ast, GHC.HasSrcSpan ast)
+                    => [ast] -> Annotated ()
 markListIntercalate ls = markListIntercalateWithFun markLocated ls
 
 -- ---------------------------------------------------------------------
 
-markListWithContexts :: Annotate ast => Set.Set AstContext -> Set.Set AstContext -> [GHC.Located ast] -> Annotated ()
+markListWithContexts :: Annotate ast
+  => Set.Set AstContext -> Set.Set AstContext -> [GHC.Located ast] -> Annotated ()
 markListWithContexts ctxInitial ctxRest ls =
   case ls of
     [] -> return ()
@@ -2493,15 +2496,12 @@ markTyClassArgs mbndrs fixity ln tyVars = do
   markTyClassWorker cvt mbndrs fixity ln tyVars
 
 
-markTyClass :: (Annotate a, GHC.HasOccName a, Annotate ast,Annotate (GHC.SrcSpanLess ast),GHC.HasSrcSpan ast)
+-- TODO:AZ: simplify
+markTyClass :: (Data (GHC.SrcSpanLess ast), Annotate a, GHC.HasOccName a, Annotate ast,GHC.HasSrcSpan ast)
             => Maybe [GHC.LHsTyVarBndr GhcPs] -> GHC.LexicalFixity
             -> GHC.Located a -> [ast] -> Annotated ()
 markTyClass = markTyClassWorker markLocated
 
--- markTyClass :: (Annotate a, Annotate ast,GHC.HasOccName a)
---             => Maybe [GHC.LHsTyVarBndr GhcPs] -> GHC.LexicalFixity
---             -> GHC.Located a -> [GHC.Located ast] -> Annotated ()
--- markTyClass :: (Annotate a, Annotate ast, Annotate (GHC.SrcSpanLess ast),GHC.HasOccName a,GHC.HasSrcSpan ast)
 markTyClassWorker :: (Annotate a, GHC.HasOccName a)
             => (b -> Annotated ()) -> Maybe [GHC.LHsTyVarBndr GhcPs] -> GHC.LexicalFixity
             -- -> GHC.Located a -> [ast] -> Annotated ()
