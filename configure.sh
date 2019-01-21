@@ -36,4 +36,6 @@
 rm -fr dist*
 rm .ghc.env*
 # cabal new-configure -froundtrip --enable-tests --with-compiler=/opt/ghc/8.7.20190116/bin/ghc --allow-newer
-cabal new-configure  --with-compiler=/opt/ghc/8.7.20190118/bin/ghc --allow-newer
+# cabal new-configure  --with-compiler=/opt/ghc/8.7.20190118/bin/ghc --allow-newer
+# cabal new-configure --enable-tests --with-compiler=/opt/ghc/8.7.20190118/bin/ghc --allow-newer
+cabal new-configure -fdev --enable-tests --with-compiler=/opt/ghc/8.7.20190118/bin/ghc --allow-newer

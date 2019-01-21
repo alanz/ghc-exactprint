@@ -28,12 +28,14 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-data GHCVersion = GHC710 | GHC80 | GHC82 | GHC84 | GHC86
+data GHCVersion = GHC710 | GHC80 | GHC82 | GHC84 | GHC86 | GHC88
      deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
 ghcVersion =
-#if __GLASGOW_HASKELL__ > 804
+#if __GLASGOW_HASKELL__ > 806
+  GHC88
+#elif __GLASGOW_HASKELL__ > 804
   GHC86
 #elif __GLASGOW_HASKELL__ > 802
   GHC84
@@ -54,6 +56,8 @@ testDirs =
     GHC82  -> ["pre-ghc86",  "ghc710", "ghc80", "ghc82", "vect"]
     GHC84  -> ["pre-ghc86",  "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
     GHC86  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
+    -- GHC88  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" "ghc88" ]
+    GHC88  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
 
     -- GHC86  -> [             "ghc710", "ghc80", "ghc82", "ghc84"]
     -- GHC86  -> ["ghc86-copied"]
@@ -139,12 +143,12 @@ mkTests = do
   return $ TestList [
                       internalTests,
                       roundTripTests
-                    ,
-                      transformTests
-                    , failingTests
-                    , noAnnotationTests
-                    ,
-                      prettyRoundTripTests
+                    -- ,
+                    --   transformTests
+                    -- , failingTests
+                    -- , noAnnotationTests
+                    -- ,
+                    --   prettyRoundTripTests
                     ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -200,9 +204,12 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
       -- mkPrettyRoundtrip "ghc82" "TensorTests.hs"
 
-      mkParserTest      "ghc710" "GADTContext.hs"
+      mkParserTest      "ghc710" "RankNTypes.hs"
 
       -- mkParserTest      "ghc86" "deriving-via-compile.hs"
+      -- mkParserTest      "ghc88" "ClassParens.hs"
+
+
     --   mkParserTest "pre-ghc86" "TensorTests.hs"
     -- , mkParserTest "pre-ghc86" "Webhook.hs"
     -- , mkParserTest "ghc710" "RdrNames.hs"

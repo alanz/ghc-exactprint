@@ -80,14 +80,6 @@ instance (Data ast, Annotate ast) => Annotate (GHC.Located ast) where
 
 -- | Constructs a syntax tree which contains information about which
 -- annotations are required by each element.
--- markLocated :: (Annotate ast) => GHC.Located ast -> Annotated ()
--- markLocated ast =
---   case cast ast :: Maybe (GHC.LHsDecl GHC.GhcPs) of
---     Just d  -> markLHsDecl d
---     Nothing -> withLocated ast markAST
-
--- | Constructs a syntax tree which contains information about which
--- annotations are required by each element.
 markLocated :: (Data (GHC.SrcSpanLess ast), Annotate ast,  GHC.HasSrcSpan ast)
              => ast -> Annotated ()
 markLocated ast =
@@ -401,6 +393,8 @@ instance Annotate GHC.RdrName where
          --   mark GHC.AnnOpenP -- '('
          --   mark GHC.AnnTildehsh
          --   mark GHC.AnnCloseP
+         "~"  -> do
+           markExternal l GHC.AnnVal str
          "*"  -> do
            markExternal l GHC.AnnVal str
          "★"  -> do -- Note: unicode star
@@ -1331,6 +1325,10 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
       setContext (Set.singleton PrefixOp) $ markLocated t1
       markLocated t2
 
+    markType _ (GHC.HsAppKindTy _ t k) = do
+      setContext (Set.singleton PrefixOp) $ markLocated t
+      markLocated k
+
     markType _ (GHC.HsFunTy _ t1 t2) = do
       markLocated t1
       mark GHC.AnnRarrow
@@ -1487,7 +1485,8 @@ instance Annotate (GHC.HsSplice GHC.GhcPs) where
         markLocated b
         when (hasParens == GHC.HasParens) $ mark GHC.AnnCloseP
 
-      GHC.HsSpliced{} -> error "HsSpliced only exists between renamer and typechecker in GHC"
+      GHC.HsSpliced{}  -> error "HsSpliced only exists between renamer and typechecker in GHC"
+      GHC.HsSplicedT{} -> error "HsSplicedT only exists between renamer and typechecker in GHC"
 
       -- -------------------------------
 
@@ -1536,6 +1535,7 @@ instance Annotate (GHC.Pat GHC.GhcPs) where
         let pun_RDR = "pun-right-hand-side"
         when (showGhc n /= pun_RDR) $
           unsetContext Intercalate $ setContext (Set.singleton PrefixOp) $ markAST l (GHC.unLoc n)
+          -- unsetContext Intercalate $ setContext (Set.singleton PrefixOp) $ markLocated n
       markPat _ (GHC.LazyPat _ p) = do
         mark GHC.AnnTilde
         markLocated p
@@ -1607,7 +1607,9 @@ instance Annotate (GHC.Pat GHC.GhcPs) where
       markPat _ GHC.CoPat {} =
         traceM "warning: CoPat introduced after renaming"
 
-      markPat _ (GHC.XPat x) = error $ "got XPat for:" ++ showGhc x
+      -- markPat _ (GHC.XPat (GHC.L _ _)) = return () -- Used for TTG locations
+      markPat _ (GHC.XPat (GHC.L l p)) = markAST l p
+      -- markPat _ (GHC.XPat x) = error $ "got XPat for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 

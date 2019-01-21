@@ -215,11 +215,8 @@ workOutString l kw f = do
 -- ---------------------------------------------------------------------
 
 -- |Main driver point for annotations.
--- withAST :: Data a => GHC.Located a -> Annotated () -> Annotated ()
--- withAST lss action = liftF (WithAST lss action ())
-
--- |Main driver point for annotations.
--- withAST :: (Data a,GHC.HasSrcSpan a) => a -> Annotated () -> Annotated ()
+withAST :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
+        => a -> Annotated () -> Annotated ()
 withAST lss action = liftF (WithAST lss action ())
 
 -- ---------------------------------------------------------------------
