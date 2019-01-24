@@ -35,3 +35,4 @@ dist-newstyle
 /.ghc.environment.x86_64-linux-8.5.20180614
 /stack.yaml
 /.ghc.environment.*
+packages

@@ -1,15 +1,33 @@
 ## Bringing tests over for a new version of GHC
 
-### Copy the raw files over
+### New streamlined approach
+
+#### Copy the changed files over
+
+Change to the current GHC git repository
 
     $ mkdir /tmp/ghc-tests
-    $ cp -r ~/mysrc/git.haskell.org/ghc/testsuite/tests/ /tmp/ghc-tests/
+    $ export DESTINATION=/tmp/ghc-tests
+    $ export PREVIOUS=ghc-8.6
+
+Sanity check
+
+    git diff --name-only $PREVIOUS | grep testsuite/tests | grep "\.hs"
+
+Do it
+
+    cp -pv --parents `git diff --name-only $PREVIOUS | grep testsuite/tests | grep "\.hs"` $DESTINATION
+
+### Clean up
 
 Edit the directories in /tmp/ghc-tests to remove the parse fail etc
 tests. Generally remove any `should_fail` directory.
 
-    $ mkdir tests/examples/ghc86-copied
-    $ find /tmp/ghc-tests -iname "*.hs"  | xargs cp  --backup=numbered -t ./tests/examples/ghc86-copied/
+    find /tmp/ghc-tests/ -iname "should_fail" | xargs rm -fr
+
+
+    $ mkdir tests/examples/ghc88-copied
+    $ find /tmp/ghc-tests -iname "*.hs"  | xargs cp  --backup=numbered -t ./tests/examples/ghc88-copied/
 
 Note: there is a pathological file `parsing001.hs`, which should be deleted
 

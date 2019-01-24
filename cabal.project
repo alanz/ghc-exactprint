@@ -10,7 +10,7 @@ repository head.hackage
 
 -- https://github.com/hvr/head.hackage#as-locally-patched-packages
 
--- optional-packages: packages/*/*.cabal
+optional-packages: packages/*/*.cabal
 
 -- $ cd packages
 -- $ cabal unpack --pristine $PKGID
