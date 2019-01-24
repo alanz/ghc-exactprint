@@ -50,7 +50,9 @@ import Language.Haskell.GHC.ExactPrint.Preprocess
 import Language.Haskell.GHC.ExactPrint.Types
 
 import Control.Monad.RWS
+#if __GLASGOW_HASKELL__ > 806
 import Data.Data (Data)
+#endif
 
 import GHC.Paths (libdir)
 
@@ -81,12 +83,21 @@ import qualified Data.Map as Map
 
 -- | Wrapper function which returns Annotations along with the parsed
 -- element.
+#if __GLASGOW_HASKELL__ > 806
 parseWith :: (Data (GHC.SrcSpanLess w), Annotate w, GHC.HasSrcSpan w)
           => GHC.DynFlags
           -> FilePath
           -> GHC.P w
           -> String
           -> Either (GHC.SrcSpan, String) (Anns, w)
+#else
+parseWith :: Annotate w
+          => GHC.DynFlags
+          -> FilePath
+          -> GHC.P (GHC.Located w)
+          -> String
+          -> Either (GHC.SrcSpan, String) (Anns, GHC.Located w)
+#endif
 parseWith dflags fileName parser s =
   case runParser parser dflags fileName s of
 #if __GLASGOW_HASKELL__ >= 804

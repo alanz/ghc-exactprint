@@ -1,5 +1,8 @@
 #!/bin/sh
 
+rm -fr dist*
+rm .ghc.env*
+
 # For GHC-8/master
 # cabal install --allow-newer turtle Diff
 # cabal configure -froundtrip --enable-tests --allow-newer
@@ -31,13 +34,11 @@
 # cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-8.2.2
 # cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-8.4.3
 # cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-8.6.1
-# cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-8.6.3
+cabal new-configure -froundtrip --enable-tests --with-compiler=ghc-8.6.3
 
-rm -fr dist*
-rm .ghc.env*
 # cabal new-configure -froundtrip --enable-tests --with-compiler=/opt/ghc/8.7.20190116/bin/ghc --allow-newer
 # cabal new-configure  --with-compiler=/opt/ghc/8.7.20190118/bin/ghc --allow-newer
 # cabal new-configure --enable-tests --with-compiler=/opt/ghc/8.7.20190118/bin/ghc --allow-newer
 # cabal new-configure -fdev --enable-tests --with-compiler=/opt/ghc/8.7.20190118/bin/ghc --allow-newer
 
-cabal new-configure -fdev --enable-tests --with-compiler=/opt/ghc/8.7.20190122/bin/ghc --allow-newer
+# cabal new-configure -fdev --enable-tests --with-compiler=/opt/ghc/8.7.20190122/bin/ghc --allow-newer

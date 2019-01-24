@@ -157,10 +157,15 @@ data AnnKey   = AnnKey GHC.SrcSpan AnnConName
 instance Show AnnKey where
   show (AnnKey ss cn) = "AnnKey " ++ showGhc ss ++ " " ++ show cn
 
+
+#if __GLASGOW_HASKELL__ > 806
 mkAnnKeyPrim :: (Data a,Data (GHC.SrcSpanLess a),GHC.HasSrcSpan a)
              => a -> AnnKey
 mkAnnKeyPrim (GHC.dL->GHC.L l a) = AnnKey l (annGetConstr a)
-
+#else
+mkAnnKeyPrim :: (Data a) => GHC.Located a -> AnnKey
+mkAnnKeyPrim (GHC.L l a) = AnnKey l (annGetConstr a)
+#endif
 
 #if __GLASGOW_HASKELL__ <= 802
 type GhcPs = GHC.RdrName
@@ -173,7 +178,11 @@ type GhcTc = GHC.GhcTc
 #endif
 
 -- |Make an unwrapped @AnnKey@ for the @LHsDecl@ case, a normal one otherwise.
+#if __GLASGOW_HASKELL__ > 806
 mkAnnKey :: (Data a,Data (GHC.SrcSpanLess a),GHC.HasSrcSpan a) => a -> AnnKey
+#else
+mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
+#endif
 mkAnnKey ld =
   case cast ld :: Maybe (GHC.LHsDecl GhcPs) of
     Just d -> declFun mkAnnKeyPrim d
