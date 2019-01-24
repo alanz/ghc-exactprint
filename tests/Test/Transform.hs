@@ -344,7 +344,7 @@ rename newNameStr spans a
     replacePat :: GHC.LPat GhcPs -> GHC.LPat GhcPs
     replacePat (GHC.L ln (GHC.VarPat {}))
         | cond ln = GHC.L ln (GHC.VarPat (GHC.L ln newName))
-#elif __GLASGOW_HASKELL__ > 800
+#elif __GLASGOW_HASKELL__ >= 800
     replacePat (GHC.L ln (GHC.VarPat {}))
         | cond ln = GHC.L ln (GHC.VarPat (GHC.L ln newName))
 #else
