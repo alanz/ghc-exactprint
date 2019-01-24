@@ -394,7 +394,7 @@ instance Annotate GHC.RdrName where
          --   mark GHC.AnnTildehsh
          --   mark GHC.AnnCloseP
          "~"  -> do
-           markExternal l GHC.AnnVal str
+           doNormalRdrName
          "*"  -> do
            markExternal l GHC.AnnVal str
          "★"  -> do -- Note: unicode star
@@ -1380,11 +1380,11 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
         else markExternal l GHC.AnnVal "*"
 
     markType _ (GHC.HsKindSig _ t k) = do
-      mark GHC.AnnOpenP  -- '('
+      markOptional GHC.AnnOpenP  -- '('
       markLocated t
       mark GHC.AnnDcolon -- '::'
       markLocated k
-      mark GHC.AnnCloseP -- ')'
+      markOptional GHC.AnnCloseP -- ')'
 
     markType l (GHC.HsSpliceTy _ s) = do
       markAST l s
@@ -1607,8 +1607,7 @@ instance Annotate (GHC.Pat GHC.GhcPs) where
       markPat _ GHC.CoPat {} =
         traceM "warning: CoPat introduced after renaming"
 
-      -- markPat _ (GHC.XPat (GHC.L _ _)) = return () -- Used for TTG locations
-      markPat _ (GHC.XPat (GHC.L l p)) = markAST l p
+      markPat _ (GHC.XPat (GHC.L l p)) = markPat l p
       -- markPat _ (GHC.XPat x) = error $ "got XPat for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------

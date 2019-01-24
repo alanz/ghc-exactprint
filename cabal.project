@@ -9,7 +9,9 @@ repository head.hackage
   key-threshold: 3
 
 -- https://github.com/hvr/head.hackage#as-locally-patched-packages
+
 optional-packages: packages/*/*.cabal
+
 -- $ cd packages
 -- $ cabal unpack --pristine $PKGID
 -- $ cd $PKGID/

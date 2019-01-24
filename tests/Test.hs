@@ -143,12 +143,12 @@ mkTests = do
   return $ TestList [
                       internalTests,
                       roundTripTests
-                    -- ,
-                    --   transformTests
-                    -- , failingTests
-                    -- , noAnnotationTests
-                    -- ,
-                    --   prettyRoundTripTests
+                    ,
+                      transformTests
+                    , failingTests
+                    , noAnnotationTests
+                    ,
+                      prettyRoundTripTests
                     ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -202,9 +202,17 @@ tt' :: IO (Counts,Int)
 tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
 
-      -- mkPrettyRoundtrip "ghc82" "TensorTests.hs"
+      -- mkPrettyRoundtrip "ghc86" "dynamic-paper.hs"
+      mkPrettyRoundtrip "ghc86" "mdo.hs"
 
-      mkParserTest      "ghc710" "RankNTypes.hs"
+      -- mkParserTest      "ghc710" "RdrNames.hs"
+
+      -- ---------------------------------------------------------------
+      -- mkParserTest "ghc710" "Roles.hs"
+      -- ---------------------------------------------------------------
+
+
+
 
       -- mkParserTest      "ghc86" "deriving-via-compile.hs"
       -- mkParserTest      "ghc88" "ClassParens.hs"
