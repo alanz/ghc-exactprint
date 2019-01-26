@@ -341,6 +341,7 @@ data AstContext = LambdaExpr
                 | InClassDecl
                 | InSpliceDecl
                 | LeftMost -- Is this the leftmost operator in a chain of OpApps?
+                | InTypeApp -- HsTyVar in a TYPEAPP context. Has AnnAt
 
                 -- Next four used to identify current list context
                 | CtxOnly

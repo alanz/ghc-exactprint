@@ -864,31 +864,6 @@ type FamInstEqn pass rhs
 
 -- ---------------------------------------------------------------------
 
--- instance GHC.HasSrcSpan (GHC.LHsTypeArg GHC.GhcPs) where
---   -- composeSrcSpan   :: Located (SrcSpanLess a) -> a
-
---   composeSrcSpan (GHC.HsValArg  (GHC.L _ v)) = v
---   composeSrcSpan (GHC.HsTypeArg (GHC.L _ v)) = v
---   composeSrcSpan (GHC.HsArgPar ss) = ss
-
--- ---------------------------------------------------------------------
-
-instance Annotate (GHC.LHsTypeArg GHC.GhcPs) where
-  markAST l (GHC.HsValArg  val) = markAST l val
-  markAST l (GHC.HsTypeArg typ) = markAST l typ
-  markAST _ (GHC.HsArgPar _ss) = undefined
-    {-
-type LHsTypeArg p = HsArg (LHsType p) (LHsKind p)
-
-data HsArg tm ty
-  = HsValArg tm   -- Argument is an ordinary expression     (f arg)
-  | HsTypeArg  ty -- Argument is a visible type application (f @ty)
-  | HsArgPar SrcSpan -- See Note [HsArgPar]
-
--}
-
--- ---------------------------------------------------------------------
-
 -- markFamEqn :: (GHC.HasOccName (GHC.IdP pass),
 --                Annotate (GHC.IdP pass), Annotate ast1, Annotate ast2)
 --            => GHC.FamEqn pass [GHC.Located ast1] (GHC.Located ast2)
@@ -1300,6 +1275,7 @@ instance Annotate (GHC.HsTyVarBndr GHC.GhcPs) where
 
 instance Annotate (GHC.HsType GHC.GhcPs) where
   markAST loc ty = do
+    inContext (Set.fromList [InTypeApp]) $ mark GHC.AnnAt
     markType loc ty
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
     (inContext (Set.singleton AddVbar) $ mark GHC.AnnVbar)
@@ -1326,8 +1302,8 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
       markLocated t2
 
     markType _ (GHC.HsAppKindTy _ t k) = do
-      setContext (Set.singleton PrefixOp) $ markLocated t
-      markLocated k
+      setContext (Set.singleton PrefixOp)  $ markLocated t
+      setContext (Set.singleton InTypeApp) $ markLocated k
 
     markType _ (GHC.HsFunTy _ t1 t2) = do
       markLocated t1
@@ -2492,10 +2468,17 @@ markTyClassArgs :: (Annotate a, GHC.HasOccName a)
 markTyClassArgs mbndrs fixity ln tyVars = do
   let
     cvt (GHC.HsValArg  val) = markLocated val
-    cvt (GHC.HsTypeArg typ) = markLocated typ
+    cvt (GHC.HsTypeArg typ) = setContext (Set.singleton InTypeApp) $ markLocated typ
     cvt (GHC.HsArgPar _ss) = undefined
   markTyClassWorker cvt mbndrs fixity ln tyVars
+    {-
+type LHsTypeArg p = HsArg (LHsType p) (LHsKind p)
 
+data HsArg tm ty
+  = HsValArg tm   -- Argument is an ordinary expression     (f arg)
+  | HsTypeArg  ty -- Argument is a visible type application (f @ty)
+  | HsArgPar SrcSpan -- See Note [HsArgPar]
+-}
 
 -- TODO:AZ: simplify
 markTyClass :: (Data (GHC.SrcSpanLess ast), Annotate a, GHC.HasOccName a, Annotate ast,GHC.HasSrcSpan ast)
