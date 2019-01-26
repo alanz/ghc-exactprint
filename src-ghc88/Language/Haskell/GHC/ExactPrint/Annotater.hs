@@ -46,6 +46,7 @@ import qualified GHC            as GHC
 import qualified Name           as GHC
 import qualified RdrName        as GHC
 import qualified Outputable     as GHC
+import qualified SrcLoc         as GHC
 
 import Control.Monad.Identity
 import Data.Data
@@ -1301,9 +1302,10 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
       setContext (Set.singleton PrefixOp) $ markLocated t1
       markLocated t2
 
-    markType _ (GHC.HsAppKindTy _ t k) = do
+    markType _ (GHC.HsAppKindTy l t k) = do
       setContext (Set.singleton PrefixOp)  $ markLocated t
-      setContext (Set.singleton InTypeApp) $ markLocated k
+      markTypeApp l
+      markLocated k
 
     markType _ (GHC.HsFunTy _ t1 t2) = do
       markLocated t1
@@ -2460,6 +2462,12 @@ instance Annotate (GHC.TyClDecl GHC.GhcPs) where
 
 -- ---------------------------------------------------------------------
 
+markTypeApp :: GHC.SrcSpan -> Annotated ()
+markTypeApp loc = do
+  let l = GHC.srcSpanFirstCharacter loc
+  markExternal l GHC.AnnVal "@"
+
+-- ---------------------------------------------------------------------
 
 markTyClassArgs :: (Annotate a, GHC.HasOccName a)
             => Maybe [GHC.LHsTyVarBndr GhcPs] -> GHC.LexicalFixity
@@ -2468,7 +2476,11 @@ markTyClassArgs :: (Annotate a, GHC.HasOccName a)
 markTyClassArgs mbndrs fixity ln tyVars = do
   let
     cvt (GHC.HsValArg  val) = markLocated val
-    cvt (GHC.HsTypeArg typ) = setContext (Set.singleton InTypeApp) $ markLocated typ
+    cvt (GHC.HsTypeArg loc typ) = do
+      markTypeApp loc
+      -- let l = GHC.srcSpanFirstCharacter loc
+      -- markExternal l GHC.AnnVal "@"
+      markLocated typ
     cvt (GHC.HsArgPar _ss) = undefined
   markTyClassWorker cvt mbndrs fixity ln tyVars
     {-

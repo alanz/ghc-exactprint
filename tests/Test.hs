@@ -56,11 +56,11 @@ testDirs =
     GHC82  -> ["pre-ghc86",  "ghc710", "ghc80", "ghc82", "vect"]
     GHC84  -> ["pre-ghc86",  "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
     GHC86  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
-    -- GHC88  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" "ghc88" ]
+    GHC88  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
     -- GHC88  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
 
     -- GHC86  -> [             "ghc710", "ghc80", "ghc82", "ghc84"]
-    GHC88  -> ["ghc88"]
+    -- GHC88  -> ["ghc88"]
     -- GHC88  -> ["ghc88-copied"]
 
 -- ---------------------------------------------------------------------
