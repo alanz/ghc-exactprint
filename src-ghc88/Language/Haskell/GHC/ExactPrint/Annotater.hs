@@ -537,10 +537,9 @@ instance Annotate (GHC.RuleDecl GHC.GhcPs) where
         mapM_ markLocated bndrs
         mark GHC.AnnDot
 
-    unless (null termbndrs) $ do
-      mark GHC.AnnForall
-      mapM_ markLocated termbndrs
-      mark GHC.AnnDot
+    mark GHC.AnnForall
+    mapM_ markLocated termbndrs
+    mark GHC.AnnDot
 
     markLocated lhs
     mark GHC.AnnEqual

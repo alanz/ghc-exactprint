@@ -6,8 +6,8 @@ on the most recent version of all packages in hackage.
 ### Preparations
 
 ```
-cabal configure -froundtrip --enable-tests
-cabal build
+cabal new-configure -froundtrip --enable-tests
+cabal new-build
 ```
 
 This will generate three additional executables
@@ -30,6 +30,14 @@ This will generate three additional executables
   which it iso8859-1 encoded, having the euro symbol and various others like that
   in it in the comments. The whitespace cleanup cannot write the updated file, it
   gets encoding issues.
+
+  Not all whitespace gets cleaned up via the `prepare-hackage` script,
+  so do the rest by
+
+  ```
+  cd hackage-roundtrip-work/
+  ../emacs-ws-cleanup.sh
+  ```
 
 2. ./dist/build/roundtrip/roundtrip
 

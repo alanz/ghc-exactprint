@@ -57,9 +57,7 @@ testDirs =
     GHC84  -> ["pre-ghc86",  "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
     GHC86  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
     GHC88  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
-    -- GHC88  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
 
-    -- GHC86  -> [             "ghc710", "ghc80", "ghc82", "ghc84"]
     -- GHC88  -> ["ghc88"]
     -- GHC88  -> ["ghc88-copied"]
 
@@ -143,12 +141,12 @@ mkTests = do
   return $ TestList [
                       internalTests,
                       roundTripTests
-                    -- ,
-                    --   transformTests
-                    -- , failingTests
-                    -- , noAnnotationTests
-                    -- ,
-                    --   prettyRoundTripTests
+                    ,
+                      transformTests
+                    , failingTests
+                    , noAnnotationTests
+                    ,
+                      prettyRoundTripTests
                     ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -205,8 +203,8 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkPrettyRoundtrip "ghc86" "dynamic-paper.hs"
       -- mkPrettyRoundtrip "ghc86" "mdo.hs"
 
-      mkParserTest      "ghc88" "DumpParsedast.hs"
-      -- mkParserTest      "ghc88" "T13087.hs"
+      -- mkParserTest      "ghc88" "DumpParsedast.hs"
+      mkParserTest      "ghc88" "T13087.hs"
 
       -- ---------------------------------------------------------------
       -- mkParserTest "ghc710" "Roles.hs"
