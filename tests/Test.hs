@@ -56,10 +56,10 @@ testDirs =
     GHC82  -> ["pre-ghc86",  "ghc710", "ghc80", "ghc82", "vect"]
     GHC84  -> ["pre-ghc86",  "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
     GHC86  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
-    GHC88  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
+    -- GHC88  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
 
     -- GHC88  -> ["ghc88"]
-    -- GHC88  -> ["ghc88-copied"]
+    GHC88  -> ["ghc88-copied"]
 
 -- ---------------------------------------------------------------------
 
@@ -204,7 +204,18 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkPrettyRoundtrip "ghc86" "mdo.hs"
 
       -- mkParserTest      "ghc88" "DumpParsedast.hs"
-      mkParserTest      "ghc88" "T13087.hs"
+      -- mkParserTest      "ghc88-copied" "T15365.hs"
+      -- mkPrettyRoundtrip  "ghc88-copied" "T15365.hs"
+      -- mkParserTest      "ghc88-copied" "T4437.hs"
+
+      -- mkParserTest      "ghc88-copied" "TH_recover_warns.hs"
+      -- mkPrettyRoundtrip  "ghc88-copied" "TH_recover_warns.hs"
+
+      -- mkParserTest      "ghc88-copied" "TH_recursiveDoImport.hs"
+      -- mkPrettyRoundtrip  "ghc88-copied" "TH_recursiveDoImport.hs"
+
+      mkParserTest      "ghc88-copied" "dsrun010.hs"
+      -- mkPrettyRoundtrip  "ghc88-copied" "dsrun010.hs"
 
       -- ---------------------------------------------------------------
       -- mkParserTest "ghc710" "Roles.hs"

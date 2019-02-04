@@ -228,6 +228,7 @@ addPrettyAnnotation ann = do
            (G GHC.AnnDcolon)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnDeriving)     -> tellKd (ann,DP (0,1))
            (G GHC.AnnDo)           -> tellKd (ann,DP (0,1))
+           (G GHC.AnnDotdot)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnElse)         -> tellKd (ann,DP (1,2))
            (G GHC.AnnEqual)        -> tellKd (ann,DP (0,1))
            (G GHC.AnnExport)       -> tellKd (ann,DP (0,1))
@@ -240,6 +241,7 @@ addPrettyAnnotation ann = do
            (G GHC.AnnIn)           -> tellKd (ann,DP (1,0))
            (G GHC.AnnInstance)     -> tellKd (ann,DP (0,1))
            (G GHC.AnnLam)          -> tellKd (ann,DP (0,1))
+           (G GHC.AnnLet)          -> tellKd (ann,DP (0,1))
            (G GHC.AnnMinus)        -> tellKd (ann,DP (0,1)) -- need to separate from preceding operator
            (G GHC.AnnModule)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnNewtype)      -> tellKd (ann,DP (0,1))

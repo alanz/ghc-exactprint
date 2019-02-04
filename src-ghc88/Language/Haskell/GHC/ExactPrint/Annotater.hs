@@ -329,7 +329,6 @@ instance Annotate GHC.RdrName where
     let
       str = rdrName2String n
       isSym = isSymRdr n
-      canParen = isSym
       doNormalRdrName = do
         let str' = case str of
               -- TODO: unicode support?
@@ -339,15 +338,11 @@ instance Annotate GHC.RdrName where
         let
           markParen :: GHC.AnnKeywordId -> Annotated ()
           markParen pa = do
-            if canParen
-              then ifInContext (Set.singleton PrefixOp)
+            if isSym
+              then ifInContext (Set.fromList [PrefixOp,PrefixOpDollar])
                                        (mark         pa) -- '('
                                        (markOptional pa)
-              else if isSym
-                then ifInContext (Set.singleton PrefixOpDollar)
-                       (mark pa)
-                       (markOptional pa)
-                else markOptional pa
+              else markOptional pa
 
         markOptional GHC.AnnSimpleQuote
         markParen GHC.AnnOpenP
@@ -493,7 +488,7 @@ instance Annotate (GHC.RoleAnnotDecl GHC.GhcPs) where
   markAST _ (GHC.RoleAnnotDecl _ ln mr) = do
     mark GHC.AnnType
     mark GHC.AnnRole
-    markLocated ln
+    setContext (Set.singleton PrefixOp) $ markLocated ln
     mapM_ markLocated mr
   markAST _ (GHC.XRoleAnnotDecl x) = error $ "got XRoleAnnotDecl for:" ++ showGhc x
 
@@ -910,7 +905,7 @@ instance Annotate (GHC.DataFamInstDecl GHC.GhcPs) where
       Nothing -> return ()
     if isGadt $ GHC.dd_cons defn
       then mark GHC.AnnWhere
-      else mark GHC.AnnEqual
+      else unless (null cons) $ mark GHC.AnnEqual
     markDataDefn l (GHC.HsDataDefn GHC.noExt nd (GHC.noLoc []) typ _mk cons mderivs)
     markTrailingSemi
 
@@ -982,7 +977,7 @@ instance Annotate (GHC.HsBind GHC.GhcPs) where
         setContext (Set.singleton InfixOp) $ markLocated ln
         markLocated lb
       GHC.PrefixCon ns -> do
-        markLocated ln
+        setContext (Set.singleton PrefixOp) $ markLocated ln
         mapM_ markLocated ns
       GHC.RecCon fs -> do
         markLocated ln
@@ -1131,7 +1126,7 @@ instance Annotate (GHC.Sig GHC.GhcPs) where
 
   markAST _ (GHC.PatSynSig _ lns (GHC.HsIB _ typ)) = do
     mark GHC.AnnPattern
-    markListIntercalate lns
+    setContext (Set.singleton PrefixOp) $ markListIntercalate lns
     mark GHC.AnnDcolon
     markLocated typ
     markTrailingSemi
@@ -1781,7 +1776,7 @@ instance (Annotate body) => Annotate (GHC.Stmt GHC.GhcPs (GHC.Located body)) whe
     mark GHC.AnnRec
     markOptional GHC.AnnOpenC
     markInside GHC.AnnSemi
-    mapM_ markLocated stmts
+    markListWithLayout stmts
     markOptional GHC.AnnCloseC
     inContext (Set.singleton AddVbar)     $ mark GHC.AnnVbar
     inContext (Set.singleton Intercalate) $ mark GHC.AnnComma
@@ -1880,6 +1875,8 @@ instance Annotate (GHC.HsExpr GHC.GhcPs) where
         setContext (Set.singleton PrefixOp) $ markLocated e1
         setContext (Set.singleton PrefixOp) $ markLocated e2
 
+      -- -------------------------------
+
       markExpr _ (GHC.OpApp _ e1 e2 e3) = do
         let
           isInfix = case e2 of
@@ -1902,6 +1899,8 @@ instance Annotate (GHC.HsExpr GHC.GhcPs) where
         if isInfix
           then setContextLevel (Set.singleton PrefixOp) 2 $ markLocated e3
           else markLocated e3
+
+      -- -------------------------------
 
       markExpr _ (GHC.NegApp _ e _) = do
         mark GHC.AnnMinus
