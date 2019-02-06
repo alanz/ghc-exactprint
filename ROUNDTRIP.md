@@ -39,6 +39,16 @@ This will generate three additional executables
   ../emacs-ws-cleanup.sh
   ```
 
+Remove files with a `#define` or `#include` in them
+
+    find  . -iname "*.hs" -print0 | xargs -0 grep  "#define"   --files-with-matches | xargs rm
+    find  . -iname "*.hs" -print0 | xargs -0 grep  "#include"  --files-with-matches | xargs rm
+    find  . -iname "*.hs" -print0 | xargs -0 grep  "happyFail" --files-with-matches | xargs rm
+    find  . -iname "*.hs" -print0 | xargs -0 grep  "{-# LINE" --files-with-matches | xargs rm
+
+
+
+
 2. ./dist/build/roundtrip/roundtrip
 
   This actually runs the roundtrip test
@@ -95,7 +105,9 @@ This will generate three additional executables
   `./roundtrip-work/failures` - A directory containing an entry for each processed
   file which failed, giving the ghc-exactprint output and annotated parse tree.
 
-3. ./dist/build/static/static
+    `cabal new-exec static`
+
+    `./dist/build/static/static` (old cabal)
 
   Executable that can build a static web site to view the failures.
 
