@@ -214,8 +214,11 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkParserTest      "ghc88-copied" "TH_recursiveDoImport.hs"
       -- mkPrettyRoundtrip  "ghc88-copied" "TH_recursiveDoImport.hs"
 
-      mkParserTest      "ghc88-copied" "dsrun010.hs"
+      -- mkParserTest      "ghc88-copied" "dsrun010.hs"
       -- mkPrettyRoundtrip  "ghc88-copied" "dsrun010.hs"
+
+        -- mkParserTest      "ghc88" "Internal.hs"
+        mkParserTest      "ghc88" "PersistUniqueTest.hs"
 
       -- ---------------------------------------------------------------
       -- mkParserTest "ghc710" "Roles.hs"

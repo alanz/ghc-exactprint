@@ -1866,6 +1866,7 @@ instance Annotate (GHC.HsExpr GHC.GhcPs) where
       markExpr l (GHC.HsLamCase _ match) = do
         mark GHC.AnnLam
         mark GHC.AnnCase
+        markOptional GHC.AnnSemi
         markOptional GHC.AnnOpenC
         setContext (Set.singleton CaseAlt) $ do
           markMatchGroup l match
