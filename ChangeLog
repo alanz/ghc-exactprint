@@ -1,3 +1,9 @@
+2018-xx-xx v0.6
+        * Remove orphan MonadFail Identity instance
+	* MonadFail TransformT instance is defined unconditionally
+	* Generalise HasTransform (TransformT Identity) to
+	Monad m => HasTransform (TransformT m)
+	* Add hoistTransform function
 2018-10-27 v0.5.8.2
 	* Support GHC 8.4.4 by selecting correct source directory
 2018-09-23 v0.5.8.1
