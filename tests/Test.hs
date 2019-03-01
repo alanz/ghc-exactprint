@@ -218,6 +218,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkPrettyRoundtrip  "ghc88-copied" "dsrun010.hs"
 
         -- mkParserTest      "ghc88" "Internal.hs"
+        -- mkParserTest      "ghc88" "Main.hs"
         mkParserTest      "ghc88" "PersistUniqueTest.hs"
 
       -- ---------------------------------------------------------------
