@@ -461,7 +461,7 @@ addLocaLDecl1 ans lp = do
           return ((newDecl : d),Nothing)
         replaceDecls lp [d1', d2]
 
-  let (lp',(ans',_),_w) = runTransform (mergeAnns ans declAnns') doAddLocal
+  (lp',(ans',_),_w) <- runTransformT (mergeAnns ans declAnns') doAddLocal
   -- putStrLn $ "log:\n" ++ intercalate "\n" _w
   return (ans',lp')
 
@@ -549,7 +549,7 @@ addLocaLDecl5 ans lp = do
            return ([d2],Nothing)
          replaceDecls lp [s1,d1',d3]
 
-  let (lp',(ans',_),_w) = runTransform ans doAddLocal
+  (lp',(ans',_),_w) <- runTransformT ans doAddLocal
   -- putStrLn $ "log\n" ++ intercalate "\n" _w
   return (ans',lp')
 
@@ -576,7 +576,7 @@ addLocaLDecl6 ans lp = do
            return ((newDecl : decls),Nothing)
         replaceDecls lp [d1', d2]
 
-  let (lp',(ans',_),_w) = runTransform (mergeAnns ans declAnns') doAddLocal
+  (lp',(ans',_),_w) <- runTransformT (mergeAnns ans declAnns') doAddLocal
   -- putStrLn $ "log:\n" ++ intercalate "\n" _w
   return (ans',lp')
 -- ---------------------------------------------------------------------
@@ -602,7 +602,7 @@ rmDecl1 ans lp = do
          transferEntryDPT s1' (head ds')  -- required in HaRe.
          replaceDecls lp (d1':ds')
 
-  let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  (lp',(ans',_),_w) <- runTransformT ans doRmDecl
   return (ans',lp')
 
 -- ---------------------------------------------------------------------
@@ -639,7 +639,7 @@ rmDecl3 ans lp = do
 
          replaceDecls lp [d1',sd1,d2]
 
-  let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  (lp',(ans',_),_w) <- runTransformT ans doRmDecl
   -- putStrLn $ "log:\n" ++ intercalate "\n" _w
   return (ans',lp')
 
@@ -661,7 +661,7 @@ rmDecl4 ans lp = do
 
          replaceDecls lp [d1',sd1]
 
-  let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  (lp',(ans',_),_w) <- runTransformT ans doRmDecl
   return (ans',lp')
 
 -- ---------------------------------------------------------------------
@@ -714,7 +714,7 @@ rmDecl6 ans lp = do
 
          replaceDecls lp [d1']
 
-  let (lp',(ans',_),_w) = runTransform ans doRmDecl
+  (lp',(ans',_),_w) <- runTransformT ans doRmDecl
   -- putStrLn $ "log:" ++ intercalate "\n" _w
   return (ans',lp')
 

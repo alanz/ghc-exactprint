@@ -1,5 +1,5 @@
 name:                ghc-exactprint
-version:             0.5.8.2
+version:             0.6
 synopsis:            ExactPrint for GHC
 description:         Using the API Annotations available from GHC 7.10.2, this
                      library provides a means to round trip any code that can
@@ -37,6 +37,8 @@ tested-with:         GHC == 7.10.3
                    , GHC == 8.4.3
                    , GHC == 8.4.4
                    , GHC == 8.6.1
+                   , GHC == 8.6.2
+                   , GHC == 8.6.3
 extra-source-files:  ChangeLog
                      src-ghc710/Language/Haskell/GHC/ExactPrint/*.hs
                      tests/examples/failing/*.hs
@@ -91,7 +93,7 @@ library
   -- other-modules:
   -- other-extensions:
   GHC-Options:         -Wall
-  build-depends:       base >=4.7 && <4.13
+  build-depends:       base >=4.8 && <4.13
                      , bytestring >= 0.10.6
                      , containers >= 0.5
                      , directory >= 1.2
@@ -101,6 +103,11 @@ library
                      , mtl       >= 2.2.1
                      , syb       >= 0.5
                      , free      >= 4.12
+
+  if !impl (ghc >= 8.0)
+    build-depends:
+      fail >= 4.9 && <4.10
+
   if impl (ghc >= 7.11)
       build-depends: ghc-boot
   hs-source-dirs:      src
@@ -174,6 +181,9 @@ Test-Suite test
                      , silently   >= 1.2
                      , filemanip  >= 0.3
                      -- for the lib only
+  if !impl (ghc >= 8.0)
+    build-depends:
+      fail >= 4.9 && <4.10
   if flag (dev)
       build-depends: free
   else

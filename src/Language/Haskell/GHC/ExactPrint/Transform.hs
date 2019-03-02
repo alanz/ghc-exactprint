@@ -23,7 +23,9 @@ module Language.Haskell.GHC.ExactPrint.Transform
         -- * The Transform Monad
           Transform
         , TransformT(..)
+        , hoistTransform
         , runTransform
+        , runTransformT
         , runTransformFrom
         , runTransformFromT
 
@@ -92,11 +94,8 @@ module Language.Haskell.GHC.ExactPrint.Transform
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
-#if __GLASGOW_HASKELL__ > 804
-import Control.Monad.Fail
-#endif
 import Control.Monad.RWS
-
+import qualified Control.Monad.Fail as Fail
 
 import qualified Bag           as GHC
 import qualified FastString    as GHC
@@ -124,36 +123,38 @@ import Control.Monad.Writer
 type Transform = TransformT Identity
 
 -- |Monad transformer version of 'Transform' monad
-newtype TransformT m a = TransformT { runTransformT :: RWST () [String] (Anns,Int) m a }
+newtype TransformT m a = TransformT { unTransformT :: RWST () [String] (Anns,Int) m a }
                 deriving (Monad,Applicative,Functor
                          ,MonadReader ()
                          ,MonadWriter [String]
                          ,MonadState (Anns,Int)
                          ,MonadTrans
-#if __GLASGOW_HASKELL__ > 804
-                         ,MonadFail
-#endif
                          )
 
-#if __GLASGOW_HASKELL__ > 804
-instance MonadFail Identity where
-  fail x = Control.Monad.Fail.fail x
-#endif
+instance Fail.MonadFail m => Fail.MonadFail (TransformT m) where
+    fail msg = TransformT $ RWST $ \_ _ -> Fail.fail msg
 
 -- | Run a transformation in the 'Transform' monad, returning the updated
 -- annotations and any logging generated via 'logTr'
 runTransform :: Anns -> Transform a -> (a,(Anns,Int),[String])
 runTransform ans f = runTransformFrom 0 ans f
 
+runTransformT :: Anns -> TransformT m a -> m (a,(Anns,Int),[String])
+runTransformT ans f = runTransformFromT 0 ans f
+
 -- | Run a transformation in the 'Transform' monad, returning the updated
 -- annotations and any logging generated via 'logTr', allocating any new
 -- SrcSpans from the provided initial value.
 runTransformFrom :: Int -> Anns -> Transform a -> (a,(Anns,Int),[String])
-runTransformFrom seed ans f = runRWS (runTransformT f) () (ans,seed)
+runTransformFrom seed ans f = runRWS (unTransformT f) () (ans,seed)
 
 -- |Run a monad transformer stack for the 'TransformT' monad transformer
 runTransformFromT :: Int -> Anns -> TransformT m a -> m (a,(Anns,Int),[String])
-runTransformFromT seed ans f = runRWST (runTransformT f) () (ans,seed)
+runTransformFromT seed ans f = runRWST (unTransformT f) () (ans,seed)
+
+-- | Change inner monad of 'TransformT'.
+hoistTransform :: (forall x. m x -> n x) -> TransformT m a -> TransformT n a
+hoistTransform nt (TransformT m) = TransformT (mapRWST nt m)
 
 -- |Log a string to the output of the Monad
 logTr :: (Monad m) => String -> TransformT m ()
@@ -1296,8 +1297,8 @@ modifyValD p ast f = do
 class (Monad m) => (HasTransform m) where
   liftT :: Transform a -> m a
 
-instance HasTransform (TransformT Identity) where
-  liftT = id
+instance Monad m => HasTransform (TransformT m) where
+  liftT = hoistTransform (return . runIdentity)
 
 -- ---------------------------------------------------------------------
 
