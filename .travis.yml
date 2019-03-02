@@ -124,6 +124,7 @@ script:
   # build & run tests, build benchmarks
   - ${CABAL} new-build -w ${HC} ${TEST} ${BENCH} all
   - if [ "x$TEST" = "x--enable-tests" ]; then ${CABAL} new-test -w ${HC} ${TEST} ${BENCH} all; fi
+  - find . -name '*.hspp' | xargs cat; find . -name '*.incons' | xargs cat;
 
   # cabal check
   - (cd ghc-exactprint-* && ${CABAL} check)
