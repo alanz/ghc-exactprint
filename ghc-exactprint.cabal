@@ -38,7 +38,7 @@ tested-with:         GHC == 7.10.3
                    , GHC == 8.4.4
                    , GHC == 8.6.1
                    , GHC == 8.6.2
-                   , GHC == 8.6.3
+                   , GHC == 8.6.4
 extra-source-files:  ChangeLog
                      src-ghc710/Language/Haskell/GHC/ExactPrint/*.hs
                      tests/examples/failing/*.hs
@@ -93,7 +93,7 @@ library
   -- other-modules:
   -- other-extensions:
   GHC-Options:         -Wall
-  build-depends:       base >=4.8 && <4.13
+  build-depends:       base >=4.8 && <4.14
                      , bytestring >= 0.10.6
                      , containers >= 0.5
                      , directory >= 1.2
@@ -168,7 +168,7 @@ Test-Suite test
   if impl (ghc < 7.10.2)
       buildable: False
   Build-depends:       HUnit >= 1.2
-                     , base < 4.13
+                     , base < 4.14
                      , bytestring
                      , containers >= 0.5
                      , Diff

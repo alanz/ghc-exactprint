@@ -301,7 +301,12 @@ wrapDecl (GHC.L l s) = GHC.L l (GHC.ValD s)
 
 -- |Create a simple 'Annotation' without comments, and attach it to the first
 -- parameter.
-addSimpleAnnT :: (Data a,Monad m) => GHC.Located a -> DeltaPos -> [(KeywordId, DeltaPos)] -> TransformT m ()
+addSimpleAnnT :: (Constraints a,Monad m)
+#if __GLASGOW_HASKELL__ >= 808
+              => a -> DeltaPos -> [(KeywordId, DeltaPos)] -> TransformT m ()
+#else
+              => GHC.Located a -> DeltaPos -> [(KeywordId, DeltaPos)] -> TransformT m ()
+#endif
 addSimpleAnnT ast dp kds = do
   let ann = annNone { annEntryDelta = dp
                     , annsDP = kds
@@ -325,7 +330,11 @@ removeTrailingCommaT ast = do
 -- ---------------------------------------------------------------------
 
 -- |'Transform' monad version of 'getEntryDP'
+#if __GLASGOW_HASKELL__ >= 808
+getEntryDPT :: (Constraints a,Monad m) => a -> TransformT m DeltaPos
+#else
 getEntryDPT :: (Data a,Monad m) => GHC.Located a -> TransformT m DeltaPos
+#endif
 getEntryDPT ast = do
   anns <- getAnnsT
   return (getEntryDP anns ast)
@@ -333,7 +342,11 @@ getEntryDPT ast = do
 -- ---------------------------------------------------------------------
 
 -- |'Transform' monad version of 'getEntryDP'
+#if __GLASGOW_HASKELL__ >= 808
+setEntryDPT :: (Constraints a,Monad m) => a -> DeltaPos -> TransformT m ()
+#else
 setEntryDPT :: (Data a,Monad m) => GHC.Located a -> DeltaPos -> TransformT m ()
+#endif
 setEntryDPT ast dp = do
   modifyAnnsT (setEntryDP ast dp)
 
@@ -387,7 +400,11 @@ setPrecedingLines ast n c anne = setEntryDP ast (DP (n,c)) anne
 
 -- |Return the true entry 'DeltaPos' from the annotation for a given AST
 -- element. This is the 'DeltaPos' ignoring any comments.
+#if __GLASGOW_HASKELL__ >= 808
+getEntryDP :: (Constraints a) => Anns -> a -> DeltaPos
+#else
 getEntryDP :: (Data a) => Anns -> GHC.Located a -> DeltaPos
+#endif
 getEntryDP anns ast =
   case Map.lookup (mkAnnKey ast) anns of
     Nothing  -> DP (0,0)
@@ -397,7 +414,11 @@ getEntryDP anns ast =
 
 -- |Set the true entry 'DeltaPos' from the annotation for a given AST
 -- element. This is the 'DeltaPos' ignoring any comments.
+#if __GLASGOW_HASKELL__ >= 808
+setEntryDP :: (Constraints a) => a -> DeltaPos -> Anns -> Anns
+#else
 setEntryDP :: (Data a) => GHC.Located a -> DeltaPos -> Anns -> Anns
+#endif
 setEntryDP ast dp anns =
   case Map.lookup (mkAnnKey ast) anns of
     Nothing  -> Map.insert (mkAnnKey ast) (annNone { annEntryDelta = dp}) anns

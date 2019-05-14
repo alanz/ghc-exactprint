@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -34,6 +35,9 @@ module Language.Haskell.GHC.ExactPrint.Types
   , ACS'(..)
   , ListContexts(..)
 
+  -- * For managing compatibility
+  , Constraints
+
   -- * GHC version compatibility
   , GhcPs
   , GhcRn
@@ -46,6 +50,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   ) where
 
 import Data.Data (Data, Typeable, toConstr,cast)
+-- import Data.Generics
 
 import qualified DynFlags      as GHC
 import qualified GHC
@@ -53,6 +58,14 @@ import qualified Outputable    as GHC
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+
+-- ---------------------------------------------------------------------
+
+#if __GLASGOW_HASKELL__ >= 808
+type Constraints a = (Data a,Data (GHC.SrcSpanLess a),GHC.HasSrcSpan a)
+#else
+type Constraints a = (Data a)
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -159,7 +172,7 @@ instance Show AnnKey where
 
 
 #if __GLASGOW_HASKELL__ > 806
-mkAnnKeyPrim :: (Data a,Data (GHC.SrcSpanLess a),GHC.HasSrcSpan a)
+mkAnnKeyPrim :: (Constraints a)
              => a -> AnnKey
 mkAnnKeyPrim (GHC.dL->GHC.L l a) = AnnKey l (annGetConstr a)
 #else
@@ -179,7 +192,7 @@ type GhcTc = GHC.GhcTc
 
 -- |Make an unwrapped @AnnKey@ for the @LHsDecl@ case, a normal one otherwise.
 #if __GLASGOW_HASKELL__ > 806
-mkAnnKey :: (Data a,Data (GHC.SrcSpanLess a),GHC.HasSrcSpan a) => a -> AnnKey
+mkAnnKey :: (Constraints a) => a -> AnnKey
 #else
 mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
 #endif

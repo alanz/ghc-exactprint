@@ -51,4 +51,11 @@ rm .ghc.env*
 # cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=/opt/ghc/8.7.20190207/bin/ghc --allow-newer
 #cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=/opt/ghc/8.7.20190208/bin/ghc --allow-newer
 #cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=/opt/ghc/8.7.20190216/bin/ghc --allow-newer
-cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=/opt/ghc/8.7.20190226/bin/ghc --allow-newer
+# cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=/opt/ghc/8.7.20190226/bin/ghc --allow-newer
+
+# cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=/opt/ghc/8.8.20190402/bin/ghc --allow-newer
+# cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=/opt/ghc/8.8.20190405/bin/ghc --allow-newer --constraint=exceptions==0.10.0
+
+# cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=/opt/ghc/8.8.20190419/bin/ghc --allow-newer --constraint=exceptions==0.10.0
+# cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=/opt/ghc/8.8.20190419/bin/ghc
+cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=/opt/ghc/8.8.0.20190424/bin/ghc --allow-newer
