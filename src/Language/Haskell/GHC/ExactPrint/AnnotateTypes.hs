@@ -10,6 +10,8 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-} -- Needed for the DataId constraint on ResTyGADTHook
+{-# LANGUAGE ViewPatterns      #-}
+
 -- | 'annotate' is a function which given a GHC AST fragment, constructs
 -- a syntax tree which indicates which annotations belong to each specific
 -- part of the fragment.
@@ -116,8 +118,13 @@ data AnnotationF next where
   MarkManyOptional :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   MarkOffsetPrim   :: GHC.AnnKeywordId -> Int -> Maybe String              -> next -> AnnotationF next
   MarkOffsetPrimOptional :: GHC.AnnKeywordId -> Int -> Maybe String        -> next -> AnnotationF next
+#if __GLASGOW_HASKELL__ > 806
+  WithAST         :: (Data a,Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a) =>
+                           a -> Annotated b                                -> next -> AnnotationF next
+#else
   WithAST          :: Data a => GHC.Located a
                              -> Annotated b                                -> next -> AnnotationF next
+#endif
   CountAnns        :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
   WithSortKey      :: [(GHC.SrcSpan, Annotated ())]                        -> next -> AnnotationF next
 
@@ -211,7 +218,12 @@ workOutString l kw f = do
 -- ---------------------------------------------------------------------
 
 -- |Main driver point for annotations.
+#if __GLASGOW_HASKELL__ > 806
+withAST :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
+        => a -> Annotated () -> Annotated ()
+#else
 withAST :: Data a => GHC.Located a -> Annotated () -> Annotated ()
+#endif
 withAST lss action = liftF (WithAST lss action ())
 
 -- ---------------------------------------------------------------------
@@ -243,12 +255,21 @@ markTrailingSemi = markOutside GHC.AnnSemi AnnSemiSep
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ > 806
+withLocated :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
+            => a
+            -> (GHC.SrcSpan -> a -> Annotated ())
+            -> Annotated ()
+withLocated a@(GHC.dL->GHC.L l _) action =
+  withAST a (action l a)
+#else
 withLocated :: Data a
             => GHC.Located a
             -> (GHC.SrcSpan -> a -> Annotated ())
             -> Annotated ()
-withLocated a@(GHC.L l ast) action =
-  withAST a (action l ast)
+withLocated a@(GHC.L l t) action =
+  withAST a (action l t)
+#endif
 
 -- ---------------------------------------------------------------------
 

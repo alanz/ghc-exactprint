@@ -28,12 +28,14 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-data GHCVersion = GHC710 | GHC80 | GHC82 | GHC84 | GHC86
+data GHCVersion = GHC710 | GHC80 | GHC82 | GHC84 | GHC86 | GHC88
      deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
 ghcVersion =
-#if __GLASGOW_HASKELL__ > 804
+#if __GLASGOW_HASKELL__ > 806
+  GHC88
+#elif __GLASGOW_HASKELL__ > 804
   GHC86
 #elif __GLASGOW_HASKELL__ > 802
   GHC84
@@ -54,10 +56,10 @@ testDirs =
     GHC82  -> ["pre-ghc86",  "ghc710", "ghc80", "ghc82", "vect"]
     GHC84  -> ["pre-ghc86",  "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
     GHC86  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
+    GHC88  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
 
-    -- GHC86  -> [             "ghc710", "ghc80", "ghc82", "ghc84"]
-    -- GHC86  -> ["ghc86-copied"]
-    -- GHC86  -> ["ghc86"]
+    -- GHC88  -> ["ghc88"]
+    -- GHC88  -> ["ghc88-copied"]
 
 -- ---------------------------------------------------------------------
 
@@ -198,11 +200,38 @@ tt' :: IO (Counts,Int)
 tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
 
-      -- mkPrettyRoundtrip "ghc82" "TensorTests.hs"
+      -- mkPrettyRoundtrip "ghc86" "dynamic-paper.hs"
+      -- mkPrettyRoundtrip "ghc86" "mdo.hs"
 
-      mkParserTest      "ghc710" "GADTContext.hs"
+      -- mkParserTest      "ghc88" "DumpParsedast.hs"
+      -- mkParserTest      "ghc88-copied" "T15365.hs"
+      -- mkPrettyRoundtrip  "ghc88-copied" "T15365.hs"
+      -- mkParserTest      "ghc88-copied" "T4437.hs"
+
+      -- mkParserTest      "ghc88-copied" "TH_recover_warns.hs"
+      -- mkPrettyRoundtrip  "ghc88-copied" "TH_recover_warns.hs"
+
+      -- mkParserTest      "ghc88-copied" "TH_recursiveDoImport.hs"
+      -- mkPrettyRoundtrip  "ghc88-copied" "TH_recursiveDoImport.hs"
+
+      -- mkParserTest      "ghc88-copied" "dsrun010.hs"
+      -- mkPrettyRoundtrip  "ghc88-copied" "dsrun010.hs"
+
+        -- mkParserTest      "ghc88" "Internal.hs"
+        -- mkParserTest      "ghc88" "Main.hs"
+        mkParserTest      "ghc88" "PersistUniqueTest.hs"
+
+      -- ---------------------------------------------------------------
+      -- mkParserTest "ghc710" "Roles.hs"
+      -- ---------------------------------------------------------------
+
+
+
 
       -- mkParserTest      "ghc86" "deriving-via-compile.hs"
+      -- mkParserTest      "ghc88" "ClassParens.hs"
+
+
     --   mkParserTest "pre-ghc86" "TensorTests.hs"
     -- , mkParserTest "pre-ghc86" "Webhook.hs"
     -- , mkParserTest "ghc710" "RdrNames.hs"

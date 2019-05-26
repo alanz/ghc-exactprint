@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
@@ -73,7 +74,11 @@ exactPrintWithOptions r ast as =
 data PrintOptions m a = PrintOptions
             {
               epAnn :: !Annotation
+#if __GLASGOW_HASKELL__ > 806
+            , epAstPrint :: forall ast . (Data ast, GHC.HasSrcSpan ast) => ast -> a -> m a
+#else
             , epAstPrint :: forall ast . Data ast => GHC.Located ast -> a -> m a
+#endif
             , epTokenPrint :: String -> m a
             , epWhitespacePrint :: String -> m a
             , epRigidity :: Rigidity
@@ -82,7 +87,11 @@ data PrintOptions m a = PrintOptions
 
 -- | Helper to create a 'PrintOptions'
 printOptions ::
+#if __GLASGOW_HASKELL__ > 806
+      (forall ast . (Data ast, GHC.HasSrcSpan ast) => ast -> a -> m a)
+#else
       (forall ast . Data ast => GHC.Located ast -> a -> m a)
+#endif
       -> (String -> m a)
       -> (String -> m a)
       -> Rigidity
@@ -150,7 +159,8 @@ defaultEPState as = EPState
 
 -- ---------------------------------------------------------------------
 
-printInterpret :: forall w m a . (Monad m, Monoid w) => Annotated a -> EP w m a
+printInterpret :: forall w m a . (Monad m, Monoid w)
+               => Annotated a -> EP w m a
 printInterpret m = iterTM go (hoistFreeT (return . runIdentity) m)
   where
     go :: AnnotationF (EP w m a) -> EP w m a
@@ -278,7 +288,14 @@ allAnns kwid = printStringAtMaybeAnnAll (G kwid) Nothing
 
 -------------------------------------------------------------------------
 -- |First move to the given location, then call exactP
+-- exactPC :: (Data ast, Monad m, Monoid w) => GHC.Located ast -> EP w m a -> EP w m a
+-- exactPC :: (Data ast, Data (GHC.SrcSpanLess ast), GHC.HasSrcSpan ast, Monad m, Monoid w)
+#if __GLASGOW_HASKELL__ > 806
+exactPC :: (Data ast, Data (GHC.SrcSpanLess ast), GHC.HasSrcSpan ast, Monad m, Monoid w)
+        => ast -> EP w m a -> EP w m a
+#else
 exactPC :: (Data ast, Monad m, Monoid w) => GHC.Located ast -> EP w m a -> EP w m a
+#endif
 exactPC ast action =
     do
       return () `debug` ("exactPC entered for:" ++ show (mkAnnKey ast))
@@ -311,7 +328,12 @@ advance cl = do
   colOffset <- getLayoutOffset
   printWhitespace (undelta p cl colOffset)
 
+#if __GLASGOW_HASKELL__ > 806
+getAndRemoveAnnotation :: (Monad m, Monoid w, Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
+                       => a -> EP w m (Maybe Annotation)
+#else
 getAndRemoveAnnotation :: (Monad m, Monoid w, Data a) => GHC.Located a -> EP w m (Maybe Annotation)
+#endif
 getAndRemoveAnnotation a = gets (getAnnotationEP a . epAnns)
 
 markPrim :: (Monad m, Monoid w) => KeywordId -> Maybe String -> EP w m ()

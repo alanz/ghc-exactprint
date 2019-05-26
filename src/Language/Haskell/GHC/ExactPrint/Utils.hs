@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -325,7 +326,12 @@ extractComments (_,cm)
   -- cm has type :: Map SrcSpan [Located AnnotationComment]
   = map tokComment . GHC.sortLocated . concat $ Map.elems cm
 
+#if __GLASGOW_HASKELL__ > 806
+getAnnotationEP :: (Data a,Data (GHC.SrcSpanLess a),GHC.HasSrcSpan a)
+                => a -> Anns -> Maybe Annotation
+#else
 getAnnotationEP :: (Data a) =>  GHC.Located a  -> Anns -> Maybe Annotation
+#endif
 getAnnotationEP  la as =
   Map.lookup (mkAnnKey la) as
 

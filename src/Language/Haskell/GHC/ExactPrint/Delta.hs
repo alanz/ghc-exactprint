@@ -1,5 +1,8 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ViewPatterns #-}
+
 -- |  This module converts 'GHC.ApiAnns' into 'Anns' by traversing a
 -- structure created by the "Annotate" module.
 --
@@ -151,8 +154,13 @@ import qualified Data.Set as Set
 -- ---------------------------------------------------------------------
 -- | Transform concrete annotations into relative annotations which are
 -- more useful when transforming an AST.
+#if __GLASGOW_HASKELL__ > 806
+relativiseApiAnns :: (Data (GHC.SrcSpanLess ast), Annotate ast, GHC.HasSrcSpan ast)
+                  => ast
+#else
 relativiseApiAnns :: Annotate ast
                   => GHC.Located ast
+#endif
                   -> GHC.ApiAnns
                   -> Anns
 relativiseApiAnns = relativiseApiAnnsWithComments []
@@ -162,19 +170,32 @@ relativiseApiAnns = relativiseApiAnnsWithComments []
 -- by e.g. CPP, and the parts stripped out of the original source are re-added
 -- as comments so they are not lost for round tripping.
 relativiseApiAnnsWithComments ::
+#if __GLASGOW_HASKELL__ > 806
+                     (Data (GHC.SrcSpanLess ast), Annotate ast, GHC.HasSrcSpan ast)
+                  => [Comment]
+                  -> ast
+#else
                      Annotate ast
                   => [Comment]
                   -> GHC.Located ast
+#endif
                   -> GHC.ApiAnns
                   -> Anns
 relativiseApiAnnsWithComments =
     relativiseApiAnnsWithOptions normalLayout
 
 relativiseApiAnnsWithOptions ::
+#if __GLASGOW_HASKELL__ > 806
+                     (Data (GHC.SrcSpanLess ast), Annotate ast, GHC.HasSrcSpan ast)
+                  => DeltaOptions
+                  -> [Comment]
+                  -> ast
+#else
                      Annotate ast
                   => DeltaOptions
                   -> [Comment]
                   -> GHC.Located ast
+#endif
                   -> GHC.ApiAnns
                   -> Anns
 relativiseApiAnnsWithOptions opts cs modu ghcAnns
@@ -427,8 +448,13 @@ getSrcSpanForKw _ kw = do
 getSrcSpan :: Delta GHC.SrcSpan
 getSrcSpan = asks curSrcSpan
 
+#if __GLASGOW_HASKELL__ > 806
+withSrcSpanDelta :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a) => a -> Delta b -> Delta b
+withSrcSpanDelta (GHC.dL->GHC.L l a) =
+#else
 withSrcSpanDelta :: Data a => GHC.Located a -> Delta b -> Delta b
 withSrcSpanDelta (GHC.L l a) =
+#endif
   local (\s -> s { curSrcSpan = l
                  , annConName = annGetConstr a
                  , drContext = pushAcs (drContext s)
@@ -561,10 +587,17 @@ addAnnDeltaPos kw dp = tellKd (kw, dp)
 -- -------------------------------------
 
 -- | Enter a new AST element. Maintain SrcSpan stack
+#if __GLASGOW_HASKELL__ > 806
+withAST :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
+        => a
+        -> Delta b -> Delta b
+withAST lss@(GHC.dL->GHC.L ss _) action = do
+#else
 withAST :: Data a
         => GHC.Located a
         -> Delta b -> Delta b
 withAST lss@(GHC.L ss _) action = do
+#endif
   -- Calculate offset required to get to the start of the SrcSPan
   off <- gets apLayoutStart
   (resetAnns .  withSrcSpanDelta lss) (do
@@ -827,7 +860,7 @@ addDeltaAnnotationExt s ann = addAnnotationWorker (G ann) s
 addEofAnnotation :: Delta ()
 addEofAnnotation = do
   pe <- getPriorEnd
-  (ma,_kw) <- withSrcSpanDelta (GHC.noLoc ()) (getAnnotationDelta GHC.AnnEofPos)
+  (ma,_kw) <- withSrcSpanDelta (GHC.noLoc () :: GHC.GenLocated GHC.SrcSpan ()) (getAnnotationDelta GHC.AnnEofPos)
   case ma of
     [] -> return ()
     (pa:pss) -> do

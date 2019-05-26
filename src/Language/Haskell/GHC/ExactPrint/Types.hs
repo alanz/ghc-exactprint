@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -7,6 +8,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE ViewPatterns #-}
 module Language.Haskell.GHC.ExactPrint.Types
   ( -- * Core Types
    Anns
@@ -33,6 +35,9 @@ module Language.Haskell.GHC.ExactPrint.Types
   , ACS'(..)
   , ListContexts(..)
 
+  -- * For managing compatibility
+  , Constraints
+
   -- * GHC version compatibility
   , GhcPs
   , GhcRn
@@ -45,6 +50,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   ) where
 
 import Data.Data (Data, Typeable, toConstr,cast)
+-- import Data.Generics
 
 import qualified DynFlags      as GHC
 import qualified GHC
@@ -52,6 +58,14 @@ import qualified Outputable    as GHC
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+
+-- ---------------------------------------------------------------------
+
+#if __GLASGOW_HASKELL__ >= 808
+type Constraints a = (Data a,Data (GHC.SrcSpanLess a),GHC.HasSrcSpan a)
+#else
+type Constraints a = (Data a)
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -156,9 +170,15 @@ data AnnKey   = AnnKey GHC.SrcSpan AnnConName
 instance Show AnnKey where
   show (AnnKey ss cn) = "AnnKey " ++ showGhc ss ++ " " ++ show cn
 
+
+#if __GLASGOW_HASKELL__ > 806
+mkAnnKeyPrim :: (Constraints a)
+             => a -> AnnKey
+mkAnnKeyPrim (GHC.dL->GHC.L l a) = AnnKey l (annGetConstr a)
+#else
 mkAnnKeyPrim :: (Data a) => GHC.Located a -> AnnKey
 mkAnnKeyPrim (GHC.L l a) = AnnKey l (annGetConstr a)
-
+#endif
 
 #if __GLASGOW_HASKELL__ <= 802
 type GhcPs = GHC.RdrName
@@ -171,7 +191,11 @@ type GhcTc = GHC.GhcTc
 #endif
 
 -- |Make an unwrapped @AnnKey@ for the @LHsDecl@ case, a normal one otherwise.
+#if __GLASGOW_HASKELL__ > 806
+mkAnnKey :: (Constraints a) => a -> AnnKey
+#else
 mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
+#endif
 mkAnnKey ld =
   case cast ld :: Maybe (GHC.LHsDecl GhcPs) of
     Just d -> declFun mkAnnKeyPrim d
@@ -330,6 +354,8 @@ data AstContext = LambdaExpr
                 | InClassDecl
                 | InSpliceDecl
                 | LeftMost -- Is this the leftmost operator in a chain of OpApps?
+                | InTypeApp -- HsTyVar in a TYPEAPP context. Has AnnAt
+                          -- TODO:AZ: do we actually need this?
 
                 -- Next four used to identify current list context
                 | CtxOnly

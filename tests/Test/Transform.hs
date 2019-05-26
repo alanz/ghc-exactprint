@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
 module Test.Transform where
 
 import Language.Haskell.GHC.ExactPrint
@@ -329,18 +330,43 @@ rename newNameStr spans a
 #endif
     replaceHsVar x = x
 
-#if __GLASGOW_HASKELL__ > 802
+
+
+#if __GLASGOW_HASKELL__ > 806
     replacePat :: GHC.LPat GhcPs -> GHC.LPat GhcPs
-#endif
+    replacePat (GHC.dL->GHC.L ln (GHC.VarPat {}))
+        | cond ln = GHC.cL ln (GHC.VarPat GHC.noExt (GHC.cL ln newName))
+#elif __GLASGOW_HASKELL__ > 804
+    replacePat :: GHC.LPat GhcPs -> GHC.LPat GhcPs
     replacePat (GHC.L ln (GHC.VarPat {}))
-#if __GLASGOW_HASKELL__ <= 710
-        | cond ln = GHC.L ln (GHC.VarPat newName)
-#elif __GLASGOW_HASKELL__ <= 804
+        | cond ln = GHC.L ln (GHC.VarPat GHC.noExt (GHC.L ln newName))
+#elif __GLASGOW_HASKELL__ > 802
+    replacePat :: GHC.LPat GhcPs -> GHC.LPat GhcPs
+    replacePat (GHC.L ln (GHC.VarPat {}))
+        | cond ln = GHC.L ln (GHC.VarPat (GHC.L ln newName))
+#elif __GLASGOW_HASKELL__ >= 800
+    replacePat (GHC.L ln (GHC.VarPat {}))
         | cond ln = GHC.L ln (GHC.VarPat (GHC.L ln newName))
 #else
-        | cond ln = GHC.L ln (GHC.VarPat GHC.noExt (GHC.L ln newName))
+    replacePat (GHC.L ln (GHC.VarPat {}))
+        | cond ln = GHC.L ln (GHC.VarPat newName)
 #endif
     replacePat x = x
+
+
+
+-- #if __GLASGOW_HASKELL__ > 802
+--     replacePat :: GHC.LPat GhcPs -> GHC.LPat GhcPs
+-- #endif
+--     replacePat (GHC.L ln (GHC.VarPat {}))
+-- #if __GLASGOW_HASKELL__ <= 710
+--         | cond ln = GHC.L ln (GHC.VarPat newName)
+-- #elif __GLASGOW_HASKELL__ <= 804
+--         | cond ln = GHC.L ln (GHC.VarPat (GHC.L ln newName))
+-- #else
+--         | cond ln = GHC.L ln (GHC.VarPat GHC.noExt (GHC.L ln newName))
+-- #endif
+--     replacePat x = x
 
 
 

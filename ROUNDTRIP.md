@@ -6,8 +6,8 @@ on the most recent version of all packages in hackage.
 ### Preparations
 
 ```
-cabal configure -froundtrip --enable-tests
-cabal build
+cabal new-configure -froundtrip --enable-tests
+cabal new-build
 ```
 
 This will generate three additional executables
@@ -30,6 +30,31 @@ This will generate three additional executables
   which it iso8859-1 encoded, having the euro symbol and various others like that
   in it in the comments. The whitespace cleanup cannot write the updated file, it
   gets encoding issues.
+
+  Not all whitespace gets cleaned up via the `prepare-hackage` script,
+  so do the rest by
+
+  ```
+  cd hackage-roundtrip-work/
+  ../emacs-ws-cleanup.sh
+  ```
+
+Remove files with a `#define` or `#include` in them
+
+TODO: change it to # *define
+
+    find  . -iname "*.hs" -print0 | xargs -0 grep  '^# *define'  --files-with-matches | xargs rm
+    find  . -iname "*.hs" -print0 | xargs -0 grep  '^# *include' --files-with-matches | xargs rm
+    find  . -iname "*.hs" -print0 | xargs -0 grep  'happyFail'   --files-with-matches | xargs rm
+    find  . -iname "*.hs" -print0 | xargs -0 grep  '^{-# LINE'   --files-with-matches | xargs rm
+    find  . -iname "*.hs" -print0 | xargs -0 grep  '^#! */'      --files-with-matches | xargs rm
+    find  . -iname "*.hs" -print0 | xargs -0 grep  '__FILE__'    --files-with-matches | xargs rm
+    find  . -iname "*.hs" -print0 | xargs -0 grep  '__LINE__'    --files-with-matches | xargs rm
+    find  . -iname "*.hs" -print0 | xargs -0 grep  '__TIME__'    --files-with-matches | xargs rm
+    find  . -iname "*.hs" -print0 | xargs -0 grep  '__DATE__'    --files-with-matches | xargs rm
+
+
+
 
 2. ./dist/build/roundtrip/roundtrip
 
@@ -87,7 +112,9 @@ This will generate three additional executables
   `./roundtrip-work/failures` - A directory containing an entry for each processed
   file which failed, giving the ghc-exactprint output and annotated parse tree.
 
-3. ./dist/build/static/static
+    `cabal new-exec static`
+
+    `./dist/build/static/static` (old cabal)
 
   Executable that can build a static web site to view the failures.
 

@@ -9,7 +9,9 @@ packages: .
 --   key-threshold: 3
 
 -- https://github.com/hvr/head.hackage#as-locally-patched-packages
+
 -- optional-packages: packages/*/*.cabal
+
 -- $ cd packages
 -- $ cabal unpack --pristine $PKGID
 -- $ cd $PKGID/
@@ -19,3 +21,12 @@ packages: .
 
 -- allow-newer:foldl-1.4.4:containers
 -- allow-newer:turtle-1.5.11:containers
+ -- constraint=exceptions==0.10.0
+
+-- allow-newer:cabal-doctest-1.0.6:base
+-- allow-newer:hashable-1.2.7.0:base
+-- allow-newer:unix-2.7.2.2:base
+-- allow-newer:turtle-1.5.14:base
+-- allow-newer:turtle-1.5.14:time
+-- allow-newer:stm-2.5.0.0:base
+-- allow-newer:async-2.2.1:base
