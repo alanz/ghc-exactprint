@@ -218,11 +218,27 @@ getPreprocessedSrcDirectPrim cppOptions src_fn = do
   hsc_env <- GHC.getSession
   let dfs = GHC.hsc_dflags hsc_env
       new_env = hsc_env { GHC.hsc_dflags = injectCppOptions cppOptions dfs }
+#if __GLASGOW_HASKELL__ >= 808
+  -- (dflags', hspp_fn) <-
+  r <- GHC.liftIO $ GHC.preprocess new_env src_fn Nothing (Just (GHC.Cpp GHC.HsSrcFile))
+  case r of
+    Left err -> error $ showErrorMessages err
+    Right (dflags', hspp_fn) -> do
+      buf <- GHC.liftIO $ GHC.hGetStringBuffer hspp_fn
+      txt <- GHC.liftIO $ readFileGhc hspp_fn
+      return (txt, buf, dflags')
+#else
   (dflags', hspp_fn) <-
       GHC.liftIO $ GHC.preprocess new_env (src_fn, Just (GHC.Cpp GHC.HsSrcFile))
   buf <- GHC.liftIO $ GHC.hGetStringBuffer hspp_fn
   txt <- GHC.liftIO $ readFileGhc hspp_fn
   return (txt, buf, dflags')
+#endif
+
+#if __GLASGOW_HASKELL__ >= 808
+showErrorMessages :: GHC.ErrorMessages -> String
+showErrorMessages msgs = intercalate "\n" $ map show $ GHC.bagToList msgs
+#endif
 
 injectCppOptions :: CppOptions -> GHC.DynFlags -> GHC.DynFlags
 injectCppOptions CppOptions{..} dflags =
