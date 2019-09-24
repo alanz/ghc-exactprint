@@ -43,6 +43,10 @@ module Language.Haskell.GHC.ExactPrint.Types
   , GhcRn
   , GhcTc
 
+#if __GLASGOW_HASKELL__ >= 808
+  , noExt
+#endif
+
   -- * Internal Types
   , LayoutStartCol(..)
   , declFun
@@ -188,6 +192,14 @@ type GhcTc = GHC.Id
 type GhcPs = GHC.GhcPs
 type GhcRn = GHC.GhcRn
 type GhcTc = GHC.GhcTc
+#endif
+
+
+#if __GLASGOW_HASKELL__ > 808
+noExt :: GHC.NoExtField
+noExt = GHC.NoExtField
+#elif __GLASGOW_HASKELL__ > 804
+noExt = GHC.noExt
 #endif
 
 -- |Make an unwrapped @AnnKey@ for the @LHsDecl@ case, a normal one otherwise.

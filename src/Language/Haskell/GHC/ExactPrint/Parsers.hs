@@ -12,6 +12,7 @@
 module Language.Haskell.GHC.ExactPrint.Parsers (
         -- * Utility
           Parser
+        , ParseResult
         , withDynFlags
         , CppOptions(..)
         , defaultCppOptions
@@ -58,6 +59,9 @@ import GHC.Paths (libdir)
 
 import qualified ApiAnnotation as GHC
 import qualified DynFlags      as GHC
+#if __GLASGOW_HASKELL__ > 808
+import qualified ErrUtils      as GHC
+#endif
 import qualified FastString    as GHC
 import qualified GHC           as GHC hiding (parseModule)
 import qualified HeaderInfo    as GHC
@@ -65,6 +69,9 @@ import qualified Lexer         as GHC
 import qualified MonadUtils    as GHC
 import qualified Outputable    as GHC
 import qualified Parser        as GHC
+#if __GLASGOW_HASKELL__ > 808
+import qualified RdrHsSyn      as GHC
+#endif
 import qualified SrcLoc        as GHC
 import qualified StringBuffer  as GHC
 
@@ -89,24 +96,42 @@ parseWith :: (Data (GHC.SrcSpanLess w), Annotate w, GHC.HasSrcSpan w)
           -> FilePath
           -> GHC.P w
           -> String
-          -> Either (GHC.SrcSpan, String) (Anns, w)
+          -> ParseResult w
 #else
 parseWith :: Annotate w
           => GHC.DynFlags
           -> FilePath
           -> GHC.P (GHC.Located w)
           -> String
-          -> Either (GHC.SrcSpan, String) (Anns, GHC.Located w)
+          -> ParseResult (GHC.Located w)
 #endif
 parseWith dflags fileName parser s =
   case runParser parser dflags fileName s of
-#if __GLASGOW_HASKELL__ >= 804
+#if __GLASGOW_HASKELL__ >= 808
+    GHC.PFailed pst                       -> Left (GHC.getErrorMessages pst dflags)
+#elif __GLASGOW_HASKELL__ >= 804
     GHC.PFailed _ ss m                    -> Left (ss, GHC.showSDoc dflags m)
 #else
     GHC.PFailed ss m                    -> Left (ss, GHC.showSDoc dflags m)
 #endif
     GHC.POk (mkApiAnns -> apianns) pmod -> Right (as, pmod)
       where as = relativiseApiAnns pmod apianns
+
+
+#if __GLASGOW_HASKELL__ > 808
+parseWithECP :: (Data (GHC.SrcSpanLess w), Annotate w, GHC.HasSrcSpan w)
+          => GHC.DynFlags
+          -> FilePath
+          -> GHC.P GHC.ECP
+          -> String
+          -> ParseResult w
+parseWithECP dflags fileName parser s =
+  undefined
+  -- case runParser parser dflags fileName s of
+  --   GHC.PFailed pst                       -> Left (GHC.getErrorMessages pst dflags)
+  --   GHC.POk (mkApiAnns -> apianns) pmod -> Right (as, pmod)
+  --     where as = relativiseApiAnns pmod apianns
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -138,12 +163,21 @@ parseFile = runParser GHC.parseModule
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ > 808
+type ParseResult a = Either GHC.ErrorMessages (Anns, a)
+#else
+type ParseResult a = Either (GHC.SrcSpan, String) (Anns, a)
+#endif
+
 type Parser a = GHC.DynFlags -> FilePath -> String
-                -> Either (GHC.SrcSpan, String)
-                          (Anns, a)
+                -> ParseResult a
 
 parseExpr :: Parser (GHC.LHsExpr GhcPs)
+#if __GLASGOW_HASKELL__ >= 808
+parseExpr df fp = parseWithECP df fp GHC.parseExpression
+#else
 parseExpr df fp = parseWith df fp GHC.parseExpression
+#endif
 
 parseImport :: Parser (GHC.LImportDecl GhcPs)
 parseImport df fp = parseWith df fp GHC.parseImport
@@ -176,8 +210,7 @@ parsePattern df fp = parseWith df fp GHC.parsePattern
 -- @
 --
 -- Note: 'GHC.ParsedSource' is a synonym for 'GHC.Located' ('GHC.HsModule' 'GhcPs')
-parseModule
-  :: FilePath -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource))
+parseModule :: FilePath -> IO (ParseResult GHC.ParsedSource)
 parseModule = parseModuleWithCpp defaultCppOptions normalLayout
 
 
@@ -189,32 +222,29 @@ parseModule = parseModuleWithCpp defaultCppOptions normalLayout
 parseModuleFromString
   :: FilePath
   -> String
-  -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource))
+  -> IO (ParseResult GHC.ParsedSource)
 parseModuleFromString fp s = ghcWrapper $ do
   dflags <- initDynFlagsPure fp s
   return $ parseModuleFromStringInternal dflags fp s
 
 -- | Internal part of 'parseModuleFromString'.
-parseModuleFromStringInternal
-  :: GHC.DynFlags
-  -> FilePath
-  -> String
-  -> Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource)
+parseModuleFromStringInternal :: Parser GHC.ParsedSource
 parseModuleFromStringInternal dflags fileName str =
   let (str1, lp) = stripLinePragmas str
       res        = case runParser GHC.parseModule dflags fileName str1 of
-#if __GLASGOW_HASKELL__ >= 804
+#if __GLASGOW_HASKELL__ >= 808
+        GHC.PFailed pst     -> Left (GHC.getErrorMessages pst dflags)
+#elif __GLASGOW_HASKELL__ >= 804
         GHC.PFailed _ ss m  -> Left (ss, GHC.showSDoc dflags m)
 #else
         GHC.PFailed ss m    -> Left (ss, GHC.showSDoc dflags m)
 #endif
-        GHC.POk     x  pmod -> Right $ (mkApiAnns x, lp, dflags, pmod)
+        GHC.POk     x  pmod -> Right (mkApiAnns x, lp, dflags, pmod)
   in  postParseTransform res normalLayout
 
 parseModuleWithOptions :: DeltaOptions
                        -> FilePath
-                       -> IO (Either (GHC.SrcSpan, String)
-                                     (Anns, GHC.ParsedSource))
+                       -> IO (ParseResult GHC.ParsedSource)
 parseModuleWithOptions opts fp =
   parseModuleWithCpp defaultCppOptions opts fp
 
@@ -224,7 +254,7 @@ parseModuleWithCpp
   :: CppOptions
   -> DeltaOptions
   -> FilePath
-  -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource))
+  -> IO (ParseResult GHC.ParsedSource)
 parseModuleWithCpp cpp opts fp = do
   res <- parseModuleApiAnnsWithCpp cpp fp
   return $ postParseTransform res opts
@@ -239,7 +269,11 @@ parseModuleApiAnnsWithCpp
   -> FilePath
   -> IO
        ( Either
+#if __GLASGOW_HASKELL__ > 808
+           GHC.ErrorMessages
+#else
            (GHC.SrcSpan, String)
+#endif
            (GHC.ApiAnns, [Comment], GHC.DynFlags, GHC.ParsedSource)
        )
 parseModuleApiAnnsWithCpp cppOptions file = ghcWrapper $ do
@@ -261,7 +295,11 @@ parseModuleApiAnnsWithCppInternal
   -> FilePath
   -> m
        ( Either
+#if __GLASGOW_HASKELL__ > 808
+           GHC.ErrorMessages
+#else
            (GHC.SrcSpan, String)
+#endif
            (GHC.ApiAnns, [Comment], GHC.DynFlags, GHC.ParsedSource)
        )
 parseModuleApiAnnsWithCppInternal cppOptions dflags file = do
@@ -282,7 +320,9 @@ parseModuleApiAnnsWithCppInternal cppOptions dflags file = do
         return (contents1,lp,dflags)
   return $
     case parseFile dflags' file fileContents of
-#if __GLASGOW_HASKELL__ >= 804
+#if __GLASGOW_HASKELL__ >= 808
+      GHC.PFailed pst -> Left (GHC.getErrorMessages pst dflags)
+#elif __GLASGOW_HASKELL__ >= 804
       GHC.PFailed _ ss m -> Left $ (ss, (GHC.showSDoc dflags m))
 #else
       GHC.PFailed ss m -> Left $ (ss, (GHC.showSDoc dflags m))

@@ -72,7 +72,7 @@ mkTestMod suffix dir f fp =
       expected       = basename <.> suffix
       writeFailure   = writeFile (basename <.> "out")
   in
-    TestCase (do r <- either (\(ParseFailure _ s) -> error (s ++ basename)) id
+    TestCase (do r <- either (\(ParseFailure s) -> error (s ++ basename)) id
                         <$> genTest f basename expected
                  writeFailure (debugTxt r)
                  assertBool fp (status r == Success))
@@ -141,7 +141,7 @@ changeLocalDecls2 ans (GHC.L l p) = do
         -- logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)
         modifyAnnsT (captureOrderAnnKey newAnnKey decls)
 #if __GLASGOW_HASKELL__ > 804
-        let binds = (GHC.HsValBinds GHC.noExt (GHC.ValBinds GHC.noExt (GHC.listToBag $ [GHC.L ld decl])
+        let binds = (GHC.HsValBinds noExt (GHC.ValBinds noExt (GHC.listToBag $ [GHC.L ld decl])
                                     [GHC.L ls sig]))
 #else
         let binds = (GHC.HsValBinds (GHC.ValBindsIn (GHC.listToBag $ [GHC.L ld decl])
@@ -157,7 +157,7 @@ changeLocalDecls2 ans (GHC.L l p) = do
         return (GHC.L lm (GHC.Match mln pats (GHC.GRHSs rhs (GHC.L bindSpan binds))))
 #else
         bindSpan <- uniqueSrcSpanT
-        return (GHC.L lm (GHC.Match GHC.noExt mln pats (GHC.GRHSs GHC.noExt rhs (GHC.L bindSpan binds))))
+        return (GHC.L lm (GHC.Match noExt mln pats (GHC.GRHSs noExt rhs (GHC.L bindSpan binds))))
 #endif
       replaceLocalBinds x = return x
   -- putStrLn $ "log:" ++ intercalate "\n" w
@@ -205,8 +205,8 @@ changeLocalDecls ans (GHC.L l p) = do
         -- logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)
         modifyAnnsT (captureOrder m decls)
 #if __GLASGOW_HASKELL__ > 804
-        let binds' = (GHC.HsValBinds GHC.noExt
-                          (GHC.ValBinds GHC.noExt (GHC.listToBag $ (GHC.L ld decl):GHC.bagToList binds)
+        let binds' = (GHC.HsValBinds noExt
+                          (GHC.ValBinds noExt (GHC.listToBag $ (GHC.L ld decl):GHC.bagToList binds)
                                           (GHC.L ls sig:sigs)))
 #else
         let binds' = (GHC.HsValBinds
@@ -220,7 +220,7 @@ changeLocalDecls ans (GHC.L l p) = do
 #elif __GLASGOW_HASKELL__ <= 804
         return (GHC.L lm (GHC.Match mln pats (GHC.GRHSs rhs (GHC.L lb binds'))))
 #else
-        return (GHC.L lm (GHC.Match GHC.noExt mln pats (GHC.GRHSs GHC.noExt rhs (GHC.L lb binds'))))
+        return (GHC.L lm (GHC.Match noExt mln pats (GHC.GRHSs noExt rhs (GHC.L lb binds'))))
 #endif
       replaceLocalBinds x = return x
   -- putStrLn $ "log:" ++ intercalate "\n" w
@@ -326,7 +326,7 @@ rename newNameStr spans a
 #elif __GLASGOW_HASKELL__ <= 804
         | cond ln = GHC.L ln (GHC.HsVar (GHC.L ln newName))
 #else
-        | cond ln = GHC.L ln (GHC.HsVar GHC.noExt (GHC.L ln newName))
+        | cond ln = GHC.L ln (GHC.HsVar noExt (GHC.L ln newName))
 #endif
     replaceHsVar x = x
 
@@ -335,11 +335,11 @@ rename newNameStr spans a
 #if __GLASGOW_HASKELL__ > 806
     replacePat :: GHC.LPat GhcPs -> GHC.LPat GhcPs
     replacePat (GHC.dL->GHC.L ln (GHC.VarPat {}))
-        | cond ln = GHC.cL ln (GHC.VarPat GHC.noExt (GHC.cL ln newName))
+        | cond ln = GHC.cL ln (GHC.VarPat noExt (GHC.cL ln newName))
 #elif __GLASGOW_HASKELL__ > 804
     replacePat :: GHC.LPat GhcPs -> GHC.LPat GhcPs
     replacePat (GHC.L ln (GHC.VarPat {}))
-        | cond ln = GHC.L ln (GHC.VarPat GHC.noExt (GHC.L ln newName))
+        | cond ln = GHC.L ln (GHC.VarPat noExt (GHC.L ln newName))
 #elif __GLASGOW_HASKELL__ > 802
     replacePat :: GHC.LPat GhcPs -> GHC.LPat GhcPs
     replacePat (GHC.L ln (GHC.VarPat {}))
@@ -364,7 +364,7 @@ rename newNameStr spans a
 -- #elif __GLASGOW_HASKELL__ <= 804
 --         | cond ln = GHC.L ln (GHC.VarPat (GHC.L ln newName))
 -- #else
---         | cond ln = GHC.L ln (GHC.VarPat GHC.noExt (GHC.L ln newName))
+--         | cond ln = GHC.L ln (GHC.VarPat noExt (GHC.L ln newName))
 -- #endif
 --     replacePat x = x
 
@@ -414,7 +414,7 @@ changeLetIn1 ans parsed
 #elif __GLASGOW_HASKELL__ <= 804
          in (GHC.HsLet (GHC.L lb (GHC.HsValBinds (GHC.ValBindsIn bagDecls' sigs))) expr)
 #else
-         in (GHC.HsLet GHC.noExt (GHC.L lb (GHC.HsValBinds x (GHC.ValBinds xv bagDecls' sigs))) expr)
+         in (GHC.HsLet noExt (GHC.L lb (GHC.HsValBinds x (GHC.ValBinds xv bagDecls' sigs))) expr)
 #endif
 
     replace x = x
@@ -688,7 +688,7 @@ rmDecl5 ans lp = do
 #elif __GLASGOW_HASKELL__ <= 804
             return (GHC.HsLet (GHC.L l lb') expr)
 #else
-            return (GHC.HsLet GHC.noExt (GHC.L l lb') expr)
+            return (GHC.HsLet noExt (GHC.L l lb') expr)
 #endif
           go x = return x
 
@@ -790,8 +790,8 @@ addHiding1 ans (GHC.L l p) = do
           n1 = GHC.L l1 (GHC.mkVarUnqual (GHC.mkFastString "n1"))
           n2 = GHC.L l2 (GHC.mkVarUnqual (GHC.mkFastString "n2"))
 #if __GLASGOW_HASKELL__ > 804
-          v1 = GHC.L l1 (GHC.IEVar GHC.noExt (GHC.L l1 (GHC.IEName n1)))
-          v2 = GHC.L l2 (GHC.IEVar GHC.noExt (GHC.L l2 (GHC.IEName n2)))
+          v1 = GHC.L l1 (GHC.IEVar noExt (GHC.L l1 (GHC.IEName n1)))
+          v2 = GHC.L l2 (GHC.IEVar noExt (GHC.L l2 (GHC.IEName n2)))
 #elif __GLASGOW_HASKELL__ > 800
           v1 = GHC.L l1 (GHC.IEVar (GHC.L l1 (GHC.IEName n1)))
           v2 = GHC.L l2 (GHC.IEVar (GHC.L l2 (GHC.IEName n2)))
@@ -824,8 +824,8 @@ addHiding2 ans (GHC.L l p) = do
           n1 = GHC.L l1 (GHC.mkVarUnqual (GHC.mkFastString "n1"))
           n2 = GHC.L l2 (GHC.mkVarUnqual (GHC.mkFastString "n2"))
 #if __GLASGOW_HASKELL__ > 804
-          v1 = GHC.L l1 (GHC.IEVar GHC.noExt (GHC.L l1 (GHC.IEName n1)))
-          v2 = GHC.L l2 (GHC.IEVar GHC.noExt (GHC.L l2 (GHC.IEName n2)))
+          v1 = GHC.L l1 (GHC.IEVar noExt (GHC.L l1 (GHC.IEName n1)))
+          v2 = GHC.L l2 (GHC.IEVar noExt (GHC.L l2 (GHC.IEName n2)))
 #elif __GLASGOW_HASKELL__ > 800
           v1 = GHC.L l1 (GHC.IEVar (GHC.L l1 (GHC.IEName n1)))
           v2 = GHC.L l2 (GHC.IEVar (GHC.L l2 (GHC.IEName n2)))

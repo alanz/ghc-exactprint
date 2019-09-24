@@ -281,7 +281,9 @@ decl2Sig _                      = []
 
 -- |Convert a 'GHC.LSig' into a 'GHC.LHsDecl'
 wrapSig :: GHC.LSig GhcPs -> GHC.LHsDecl GhcPs
-#if __GLASGOW_HASKELL__ > 804
+#if __GLASGOW_HASKELL__ > 808
+wrapSig (GHC.L l s) = GHC.L l (GHC.SigD GHC.NoExtField s)
+#elif __GLASGOW_HASKELL__ > 804
 wrapSig (GHC.L l s) = GHC.L l (GHC.SigD GHC.noExt s)
 #else
 wrapSig (GHC.L l s) = GHC.L l (GHC.SigD s)
@@ -291,7 +293,9 @@ wrapSig (GHC.L l s) = GHC.L l (GHC.SigD s)
 
 -- |Convert a 'GHC.LHsBind' into a 'GHC.LHsDecl'
 wrapDecl :: GHC.LHsBind GhcPs -> GHC.LHsDecl GhcPs
-#if __GLASGOW_HASKELL__ > 804
+#if __GLASGOW_HASKELL__ > 808
+wrapDecl (GHC.L l s) = GHC.L l (GHC.ValD GHC.NoExtField s)
+#elif __GLASGOW_HASKELL__ > 804
 wrapDecl (GHC.L l s) = GHC.L l (GHC.ValD GHC.noExt s)
 #else
 wrapDecl (GHC.L l s) = GHC.L l (GHC.ValD s)
@@ -1230,7 +1234,9 @@ replaceDeclsValbinds :: (Monad m)
                      => GHC.HsLocalBinds GhcPs -> [GHC.LHsDecl GhcPs]
                      -> TransformT m (GHC.HsLocalBinds GhcPs)
 replaceDeclsValbinds _ [] = do
-#if __GLASGOW_HASKELL__ > 804
+#if __GLASGOW_HASKELL__ > 808
+  return (GHC.EmptyLocalBinds GHC.NoExtField)
+#elif __GLASGOW_HASKELL__ > 804
   return (GHC.EmptyLocalBinds GHC.noExt)
 #else
   return (GHC.EmptyLocalBinds)
@@ -1244,7 +1250,9 @@ replaceDeclsValbinds (GHC.HsValBinds _b) new
         logTr "replaceDecls HsLocalBinds"
         let decs = GHC.listToBag $ concatMap decl2Bind new
         let sigs = concatMap decl2Sig new
-#if __GLASGOW_HASKELL__ > 804
+#if __GLASGOW_HASKELL__ > 808
+        return (GHC.HsValBinds GHC.NoExtField (GHC.ValBinds GHC.NoExtField decs sigs))
+#elif __GLASGOW_HASKELL__ > 804
         return (GHC.HsValBinds GHC.noExt (GHC.ValBinds GHC.noExt decs sigs))
 #else
         return (GHC.HsValBinds (GHC.ValBindsIn decs sigs))
@@ -1261,7 +1269,9 @@ replaceDeclsValbinds (GHC.EmptyLocalBinds) new
             newSigs  = map decl2Sig  new
         let decs = GHC.listToBag $ concat newBinds
         let sigs = concat newSigs
-#if __GLASGOW_HASKELL__ > 804
+#if __GLASGOW_HASKELL__ > 808
+        return (GHC.HsValBinds GHC.NoExtField (GHC.ValBinds GHC.NoExtField decs sigs))
+#elif __GLASGOW_HASKELL__ > 804
         return (GHC.HsValBinds GHC.noExt (GHC.ValBinds GHC.noExt decs sigs))
 #else
         return (GHC.HsValBinds (GHC.ValBindsIn decs sigs))

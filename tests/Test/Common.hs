@@ -21,6 +21,9 @@ module Test.Common (
               , genTest
               , noChange
               , mkDebugOutput
+#if __GLASGOW_HASKELL__ > 808
+              , showErrorMessages
+#endif
               ) where
 
 
@@ -34,13 +37,12 @@ import Language.Haskell.GHC.ExactPrint.Types
 
 import qualified ApiAnnotation as GHC
 import qualified DynFlags      as GHC
--- import qualified FastString    as GHC
+#if __GLASGOW_HASKELL__ > 808
+import qualified Bag           as GHC
+import qualified ErrUtils      as GHC
+#endif
 import qualified GHC           as GHC hiding (parseModule)
--- import qualified Lexer         as GHC
 import qualified MonadUtils    as GHC
--- import qualified Parser        as GHC
--- import qualified SrcLoc        as GHC
--- import qualified StringBuffer  as GHC
 
 #if __GLASGOW_HASKELL__ <= 710
 #else
@@ -79,7 +81,7 @@ data RoundtripReport =
    , inconsistent :: Maybe [(GHC.SrcSpan, (GHC.AnnKeywordId, [GHC.SrcSpan]))]
    }
 
-data ParseFailure = ParseFailure GHC.SrcSpan String
+data ParseFailure = ParseFailure String
 
 data ReportType =
    Success
@@ -115,7 +117,7 @@ mkParsingTest tester dir fp =
       writeHsPP      = writeFile (basename <.> "hspp")
       writeIncons s  = writeFile (basename <.> "incons") (showGhc s)
   in
-    TestCase (do r <- either (\(ParseFailure _ s) -> error (s ++ basename)) id
+    TestCase (do r <- either (\(ParseFailure s) -> error (s ++ basename)) id
                         <$> tester basename
                  writeFailure (debugTxt r)
                  forM_ (inconsistent r) writeIncons
@@ -137,7 +139,11 @@ genTest f origFile expectedFile  = do
       let pristine = expected
 
       case res of
-        Left (ss, m) -> return . Left $ ParseFailure ss m
+#if __GLASGOW_HASKELL__ > 808
+        Left m -> return . Left $ ParseFailure (showErrorMessages m)
+#else
+        Left (_ss, m) -> return . Left $ ParseFailure m
+#endif
         Right (apianns, injectedComments, dflags, pmod)  -> do
           (printed', anns, pmod') <- GHC.liftIO (runRoundTrip f apianns pmod injectedComments)
 #if __GLASGOW_HASKELL__ <= 710
@@ -221,3 +227,9 @@ getModSummaryForFile fileName = do
    [] -> return Nothing
    fs -> return (Just (snd $ head fs))
 
+-- ---------------------------------------------------------------------
+
+#if __GLASGOW_HASKELL__ > 808
+showErrorMessages :: GHC.ErrorMessages -> String
+showErrorMessages m = show $ GHC.bagToList m
+#endif
