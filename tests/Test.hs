@@ -199,48 +199,12 @@ tr = hSilence [stderr] $ do
 tt' :: IO (Counts,Int)
 tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
+    --   mkParserTest      "ghc80" "T10267.hs"
+    -- , mkParserTest      "ghc80" "T10946.hs"
+      -- mkParserTest      "ghc82" "T13050.hs"
+      mkParserTest      "ghc84" "arrowfail003.hs"
 
       -- mkPrettyRoundtrip "ghc86" "dynamic-paper.hs"
-      -- mkPrettyRoundtrip "ghc86" "mdo.hs"
-
-      -- mkParserTest      "ghc88" "DumpParsedast.hs"
-      -- mkParserTest      "ghc88-copied" "T15365.hs"
-      -- mkPrettyRoundtrip  "ghc88-copied" "T15365.hs"
-      -- mkParserTest      "ghc88-copied" "T4437.hs"
-
-      -- mkParserTest      "ghc88-copied" "TH_recover_warns.hs"
-      -- mkPrettyRoundtrip  "ghc88-copied" "TH_recover_warns.hs"
-
-      -- mkParserTest      "ghc88-copied" "TH_recursiveDoImport.hs"
-      -- mkPrettyRoundtrip  "ghc88-copied" "TH_recursiveDoImport.hs"
-
-      -- mkParserTest      "ghc88-copied" "dsrun010.hs"
-      -- mkPrettyRoundtrip  "ghc88-copied" "dsrun010.hs"
-
-        -- mkParserTest      "ghc88" "Internal.hs"
-        -- mkParserTest      "ghc88" "Main.hs"
-        mkParserTest      "ghc88" "PersistUniqueTest.hs"
-
-      -- ---------------------------------------------------------------
-      -- mkParserTest "ghc710" "Roles.hs"
-      -- ---------------------------------------------------------------
-
-
-
-
-      -- mkParserTest      "ghc86" "deriving-via-compile.hs"
-      -- mkParserTest      "ghc88" "ClassParens.hs"
-
-
-    --   mkParserTest "pre-ghc86" "TensorTests.hs"
-    -- , mkParserTest "pre-ghc86" "Webhook.hs"
-    -- , mkParserTest "ghc710" "RdrNames.hs"
-
-    --   mkPrettyRoundtrip "ghc86" "BinDU.hs"
-    -- , mkPrettyRoundtrip "ghc86" "Dial.hs"
-
-      -- mkParserTest      "ghc84" "Types.hs"
-    -- , mkPrettyRoundtrip "ghc80" "export-type.hs"
 
    -- Needs GHC changes
         -- mkParserTest "failing" "CtorOp.hs"

@@ -1853,6 +1853,13 @@ instance Annotate (GHC.HsExpr GHC.GhcPs) where
             (markLocated n)
             )
 
+      markExpr l (GHC.HsUnboundVar {}) = do
+        ifInContext (Set.fromList [InfixOp])
+          (do  mark GHC.AnnBackquote
+               markWithString GHC.AnnVal "_"
+               mark GHC.AnnBackquote)
+          (markExternal l GHC.AnnVal "_")
+
       markExpr l (GHC.HsRecFld _ f) = markAST l f
 
       markExpr l (GHC.HsOverLabel _ _ fs)
@@ -2179,13 +2186,6 @@ instance Annotate (GHC.HsExpr GHC.GhcPs) where
         markWithString   GHC.AnnClose  "#-}"
         markLocated e
 
-      -- markExpr l (GHC.EWildPat _) = do
-      --   ifInContext (Set.fromList [InfixOp])
-      --     (do  mark GHC.AnnBackquote
-      --          markWithString GHC.AnnVal "_"
-      --          mark GHC.AnnBackquote)
-      --     (markExternal l GHC.AnnVal "_")
-
       -- markExpr _ (GHC.EAsPat _ ln e) = do
       --   markLocated ln
       --   mark GHC.AnnAt
@@ -2207,8 +2207,6 @@ instance Annotate (GHC.HsExpr GHC.GhcPs) where
 
       markExpr _ (GHC.HsWrap {}) =
         traceM "warning: HsWrap introduced after renaming"
-      markExpr _ (GHC.HsUnboundVar {}) =
-        traceM "warning: HsUnboundVar introduced after renaming"
 
       markExpr _ (GHC.HsConLikeOut{}) =
         traceM "warning: HsConLikeOut introduced after type checking"
