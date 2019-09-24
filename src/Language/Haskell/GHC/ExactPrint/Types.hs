@@ -43,7 +43,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , GhcRn
   , GhcTc
 
-#if __GLASGOW_HASKELL__ >= 808
+#if __GLASGOW_HASKELL__ > 804
   , noExt
 #endif
 
@@ -199,6 +199,7 @@ type GhcTc = GHC.GhcTc
 noExt :: GHC.NoExtField
 noExt = GHC.NoExtField
 #elif __GLASGOW_HASKELL__ > 804
+noExt :: GHC.NoExt
 noExt = GHC.noExt
 #endif
 
