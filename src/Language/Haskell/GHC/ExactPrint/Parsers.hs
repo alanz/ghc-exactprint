@@ -67,7 +67,9 @@ import qualified GHC           as GHC hiding (parseModule)
 import qualified HeaderInfo    as GHC
 import qualified Lexer         as GHC
 import qualified MonadUtils    as GHC
+#if __GLASGOW_HASKELL__ <= 808
 import qualified Outputable    as GHC
+#endif
 import qualified Parser        as GHC
 #if __GLASGOW_HASKELL__ > 808
 import qualified RdrHsSyn      as GHC
@@ -119,18 +121,18 @@ parseWith dflags fileName parser s =
 
 
 #if __GLASGOW_HASKELL__ > 808
-parseWithECP :: (Data (GHC.SrcSpanLess w), Annotate w, GHC.HasSrcSpan w)
+parseWithECP :: (GHC.DisambECP w, Annotate (GHC.Body w GHC.GhcPs))
           => GHC.DynFlags
           -> FilePath
           -> GHC.P GHC.ECP
           -> String
-          -> ParseResult w
+          -> ParseResult (GHC.Located w)
 parseWithECP dflags fileName parser s =
-  undefined
-  -- case runParser parser dflags fileName s of
-  --   GHC.PFailed pst                       -> Left (GHC.getErrorMessages pst dflags)
-  --   GHC.POk (mkApiAnns -> apianns) pmod -> Right (as, pmod)
-  --     where as = relativiseApiAnns pmod apianns
+    -- case runParser ff dflags fileName s of
+    case runParser (parser >>= \p -> GHC.runECP_P p) dflags fileName s of
+      GHC.PFailed pst                      -> Left (GHC.getErrorMessages pst dflags)
+      GHC.POk (mkApiAnns -> apianns) pmod -> Right (as, pmod)
+        where as = relativiseApiAnns pmod apianns
 #endif
 
 -- ---------------------------------------------------------------------

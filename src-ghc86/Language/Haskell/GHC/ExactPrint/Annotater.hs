@@ -819,8 +819,7 @@ instance Annotate (GHC.TyFamInstDecl GHC.GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-markFamEqn :: (GHC.HasOccName (GHC.IdP pass),
-               Annotate (GHC.IdP pass), Annotate ast1, Annotate ast2)
+markFamEqn :: (Annotate (GHC.IdP pass), Annotate ast1, Annotate ast2)
            => GHC.FamEqn pass [GHC.Located ast1] (GHC.Located ast2)
                     -> Annotated ()
 markFamEqn (GHC.FamEqn _ ln pats fixity rhs) = do
@@ -2398,10 +2397,10 @@ instance Annotate (GHC.TyClDecl GHC.GhcPs) where
     = error "extension hit for TyClDecl"
   markAST _ (GHC.XTyClDecl _)
     = error "extension hit for TyClDecl"
-  
+
 -- ---------------------------------------------------------------------
 
-markTyClass :: (Annotate a, Annotate ast,GHC.HasOccName a)
+markTyClass :: (Annotate a, Annotate ast)
                 => GHC.LexicalFixity -> GHC.Located a -> [GHC.Located ast] -> Annotated ()
 markTyClass fixity ln tyVars = do
     -- There may be arbitrary parens around parts of the constructor

@@ -93,7 +93,7 @@ library
 
   -- other-modules:
   -- other-extensions:
-  GHC-Options:         -Wall
+  GHC-Options:         -Wall -Wredundant-constraints
   -- GHC-Options:         -Weverything
   build-depends:       base >=4.8 && <4.14
                      , bytestring >= 0.10.6
@@ -171,7 +171,7 @@ Test-Suite test
                      , Test.Consistency
                      , Test.NoAnnotations
                      , Test.Transform
-  GHC-Options:         -threaded -Wall
+  GHC-Options:         -threaded -Wall -Wredundant-constraints
   Default-language:    Haskell2010
   if impl (ghc < 7.10.2)
       buildable: False
@@ -227,7 +227,7 @@ executable roundtrip
   else
     buildable: False
   ghc-options:
-    -threaded -Wall
+    -threaded -Wall -Wredundant-constraints
 
 executable static
   main-is: Static.hs
@@ -246,7 +246,7 @@ executable static
   else
     buildable: False
   ghc-options:
-    -threaded -Wall
+    -threaded -Wall -Wredundant-constraints
 
 executable prepare-hackage
   main-is: PrepareHackage.hs

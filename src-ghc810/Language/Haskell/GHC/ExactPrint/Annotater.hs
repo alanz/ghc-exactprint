@@ -2474,7 +2474,7 @@ markTypeApp loc = do
 
 -- ---------------------------------------------------------------------
 
-markTyClassArgs :: (Annotate a, GHC.HasOccName a)
+markTyClassArgs :: (Annotate a)
             => Maybe [GHC.LHsTyVarBndr GhcPs] -> GHC.LexicalFixity
             -- -> GHC.Located a -> [ast] -> Annotated ()
             -> GHC.Located a -> [GHC.LHsTypeArg GhcPs] -> Annotated ()
@@ -2498,12 +2498,12 @@ data HsArg tm ty
 -}
 
 -- TODO:AZ: simplify
-markTyClass :: (Data (GHC.SrcSpanLess ast), Annotate a, GHC.HasOccName a, Annotate ast,GHC.HasSrcSpan ast)
+markTyClass :: (Data (GHC.SrcSpanLess ast), Annotate a, Annotate ast,GHC.HasSrcSpan ast)
             => Maybe [GHC.LHsTyVarBndr GhcPs] -> GHC.LexicalFixity
             -> GHC.Located a -> [ast] -> Annotated ()
 markTyClass = markTyClassWorker markLocated
 
-markTyClassWorker :: (Annotate a, GHC.HasOccName a)
+markTyClassWorker :: (Annotate a)
             => (b -> Annotated ()) -> Maybe [GHC.LHsTyVarBndr GhcPs] -> GHC.LexicalFixity
             -- -> GHC.Located a -> [ast] -> Annotated ()
             -> GHC.Located a -> [b] -> Annotated ()
