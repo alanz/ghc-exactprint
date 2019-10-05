@@ -476,6 +476,7 @@ markLHsDecl (GHC.L l decl) =
       GHC.DerivD _ d      -> markLocated (GHC.L l d)
       GHC.ValD _ d        -> markLocated (GHC.L l d)
       GHC.SigD _ d        -> markLocated (GHC.L l d)
+      GHC.KindSigD _ d    -> markLocated (GHC.L l d)
       GHC.DefD _ d        -> markLocated (GHC.L l d)
       GHC.ForD _ d        -> markLocated (GHC.L l d)
       GHC.WarningD _ d    -> markLocated (GHC.L l d)
@@ -1217,6 +1218,20 @@ instance Annotate (GHC.Sig GHC.GhcPs) where
     = error "hit extension for Sig"
   markAST _ (GHC.XSig _)
     = error "hit extension for Sig"
+
+-- ---------------------------------------------------------------------
+
+instance Annotate (GHC.StandaloneKindSig GHC.GhcPs) where
+
+  markAST _ (GHC.StandaloneKindSig _ ln st)  = do
+    setContext (Set.singleton PrefixOp) $ markLocated ln
+    mark GHC.AnnDcolon
+    markLHsSigType st
+    markTrailingSemi
+    tellContext (Set.singleton FollowingLine)
+
+  markAST _ (GHC.XStandaloneKindSig _)
+    = error "hit extension for StandaloneKindSig"
 
 -- --------------------------------------------------------------------
 

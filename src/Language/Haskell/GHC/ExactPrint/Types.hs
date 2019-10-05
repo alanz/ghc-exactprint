@@ -403,6 +403,9 @@ declFun f (GHC.L l de) =
       GHC.DerivD _ d      -> f (GHC.L l d)
       GHC.ValD _ d        -> f (GHC.L l d)
       GHC.SigD _ d        -> f (GHC.L l d)
+#if __GLASGOW_HASKELL__ > 804
+      GHC.KindSigD _ d    -> f (GHC.L l d)
+#endif
       GHC.DefD _ d        -> f (GHC.L l d)
       GHC.ForD _ d        -> f (GHC.L l d)
       GHC.WarningD _ d    -> f (GHC.L l d)
