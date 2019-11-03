@@ -1602,8 +1602,8 @@ instance Annotate (GHC.Pat GHC.GhcPs) where
       markPat _ GHC.CoPat {} =
         traceM "warning: CoPat introduced after renaming"
 
-      markPat _ (GHC.XPat (GHC.L l p)) = markPat l p
-      -- markPat _ (GHC.XPat x) = error $ "got XPat for:" ++ showGhc x
+      -- markPat _ (GHC.XPat (GHC.L l p)) = markPat l p
+      markPat _ (GHC.XPat x) = error $ "got XPat for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
@@ -2886,13 +2886,22 @@ instance Annotate ResTyGADTHook where
 
 -- ---------------------------------------------------------------------
 
-instance Annotate (GHC.HsRecField GHC.GhcPs (GHC.LPat GHC.GhcPs)) where
+instance Annotate (GHC.HsRecField GHC.GhcPs (GHC.Located (GHC.Pat GHC.GhcPs))) where
   markAST _ (GHC.HsRecField n e punFlag) = do
     unsetContext Intercalate $ markLocated n
     unless punFlag $ do
       mark GHC.AnnEqual
       unsetContext Intercalate $ markLocated e
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
+
+
+-- instance Annotate (GHC.HsRecField GHC.GhcPs (GHC.LPat GHC.GhcPs)) where
+--   markAST _ (GHC.HsRecField n e punFlag) = do
+--     unsetContext Intercalate $ markLocated n
+--     unless punFlag $ do
+--       mark GHC.AnnEqual
+--       unsetContext Intercalate $ markLocated e
+--     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 
 instance Annotate (GHC.HsRecField GHC.GhcPs (GHC.LHsExpr GHC.GhcPs)) where
