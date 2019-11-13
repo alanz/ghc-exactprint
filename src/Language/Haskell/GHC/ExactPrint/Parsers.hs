@@ -109,7 +109,7 @@ parseWith :: Annotate w
 #endif
 parseWith dflags fileName parser s =
   case runParser parser dflags fileName s of
-#if __GLASGOW_HASKELL__ >= 808
+#if __GLASGOW_HASKELL__ > 808
     GHC.PFailed pst                       -> Left (GHC.getErrorMessages pst dflags)
 #elif __GLASGOW_HASKELL__ >= 804
     GHC.PFailed _ ss m                    -> Left (ss, GHC.showSDoc dflags m)
@@ -175,7 +175,7 @@ type Parser a = GHC.DynFlags -> FilePath -> String
                 -> ParseResult a
 
 parseExpr :: Parser (GHC.LHsExpr GhcPs)
-#if __GLASGOW_HASKELL__ >= 808
+#if __GLASGOW_HASKELL__ > 808
 parseExpr df fp = parseWithECP df fp GHC.parseExpression
 #else
 parseExpr df fp = parseWith df fp GHC.parseExpression
@@ -234,7 +234,7 @@ parseModuleFromStringInternal :: Parser GHC.ParsedSource
 parseModuleFromStringInternal dflags fileName str =
   let (str1, lp) = stripLinePragmas str
       res        = case runParser GHC.parseModule dflags fileName str1 of
-#if __GLASGOW_HASKELL__ >= 808
+#if __GLASGOW_HASKELL__ > 808
         GHC.PFailed pst     -> Left (GHC.getErrorMessages pst dflags)
 #elif __GLASGOW_HASKELL__ >= 804
         GHC.PFailed _ ss m  -> Left (ss, GHC.showSDoc dflags m)
@@ -322,7 +322,7 @@ parseModuleApiAnnsWithCppInternal cppOptions dflags file = do
         return (contents1,lp,dflags)
   return $
     case parseFile dflags' file fileContents of
-#if __GLASGOW_HASKELL__ >= 808
+#if __GLASGOW_HASKELL__ > 808
       GHC.PFailed pst -> Left (GHC.getErrorMessages pst dflags)
 #elif __GLASGOW_HASKELL__ >= 804
       GHC.PFailed _ ss m -> Left $ (ss, (GHC.showSDoc dflags m))

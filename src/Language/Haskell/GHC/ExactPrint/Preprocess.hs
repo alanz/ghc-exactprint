@@ -26,7 +26,7 @@ import qualified Lexer          as GHC
 import qualified MonadUtils     as GHC
 import qualified SrcLoc         as GHC
 import qualified StringBuffer   as GHC
-#if __GLASGOW_HASKELL__ >= 808
+#if __GLASGOW_HASKELL__ > 808
 import qualified Fingerprint    as GHC
 import qualified ToolSettings   as GHC
 #endif
@@ -34,7 +34,7 @@ import qualified ToolSettings   as GHC
 import SrcLoc (mkSrcSpan, mkSrcLoc)
 import FastString (mkFastString)
 
-#if __GLASGOW_HASKELL__ >= 808
+#if __GLASGOW_HASKELL__ > 808
 #else
 import Control.Exception
 #endif
@@ -128,7 +128,7 @@ getCppTokensAsComments cppOptions sourceFile = do
 #else
                          $  map (tokComment . commentToAnnotation . fst) cppCommentToks
 #endif
-#if __GLASGOW_HASKELL__ >= 808
+#if __GLASGOW_HASKELL__ > 808
         GHC.PFailed pst -> parseError flags2 pst
 #elif __GLASGOW_HASKELL__ >= 804
         GHC.PFailed _ sspan err -> parseError flags2 sspan err
@@ -189,7 +189,7 @@ tokeniseOriginalSrc startLoc flags buf = do
   let src = stripPreprocessorDirectives buf
   case GHC.lexTokenStream src startLoc flags of
     GHC.POk _ ts -> return $ GHC.addSourceToTokens startLoc src ts
-#if __GLASGOW_HASKELL__ >= 808
+#if __GLASGOW_HASKELL__ > 808
     GHC.PFailed pst -> parseError flags pst
 #elif __GLASGOW_HASKELL__ >= 804
     GHC.PFailed _ sspan err -> parseError flags sspan err
@@ -260,7 +260,7 @@ injectCppOptions CppOptions{..} dflags =
     mkInclude = ("-include" ++)
 
 
-#if __GLASGOW_HASKELL__ >= 808
+#if __GLASGOW_HASKELL__ > 808
 addOptP :: String -> GHC.DynFlags -> GHC.DynFlags
 addOptP   f = alterToolSettings $ \s -> s
           { GHC.toolSettings_opt_P   = f : GHC.toolSettings_opt_P s
@@ -307,7 +307,6 @@ parseError dflags pst = do
        -- (warns,errs) = GHC.getMessages pst dflags
      -- throw $ GHC.mkSrcErr (GHC.unitBag $ GHC.mkPlainErrMsg dflags sspan err)
      GHC.throwErrors (GHC.getErrorMessages pst dflags)
-
 #else
 parseError :: GHC.DynFlags -> GHC.SrcSpan -> GHC.MsgDoc -> m b
 parseError dflags sspan err = do

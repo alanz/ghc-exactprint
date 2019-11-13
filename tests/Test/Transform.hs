@@ -563,7 +563,7 @@ addLocaLDecl6 ans lp = do
         [d1,d2] <- hsDecls lp
         balanceComments d1 d2
 
-#if __GLASGOW_HASKELL__ > 806
+#if __GLASGOW_HASKELL__ > 808
         let GHC.L _ (GHC.ValD _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ [m1,m2]) _) _)) = d1
 #elif __GLASGOW_HASKELL__ > 804
         let GHC.L _ (GHC.ValD _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ [m1,m2]) _) _ _)) = d1
