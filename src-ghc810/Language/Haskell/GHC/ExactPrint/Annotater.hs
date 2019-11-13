@@ -930,7 +930,7 @@ instance Annotate (GHC.DataFamInstDecl GHC.GhcPs) where
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.HsBind GHC.GhcPs) where
-  markAST _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _ _) = do
+  markAST _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _) = do
     -- Note: from a layout perspective a FunBind should not exist, so the
     -- current context is passed through unchanged to the matches.
     -- TODO: perhaps bring the edp from the first match up to the annotation for
@@ -1011,7 +1011,7 @@ instance Annotate (GHC.HsBind GHC.GhcPs) where
 
   -- -----------------------------------
 
-  markAST _ (GHC.FunBind _ _ (GHC.XMatchGroup _) _ _)
+  markAST _ (GHC.FunBind _ _ (GHC.XMatchGroup _) _)
     = error "extension hit for HsBind"
   markAST _ (GHC.PatBind _ _ (GHC.XGRHSs _) _)
     = error "extension hit for HsBind"
@@ -2220,8 +2220,8 @@ instance Annotate (GHC.HsExpr GHC.GhcPs) where
         markInstead GHC.AnnAt AnnTypeApp
         markLHsWcType ty
 
-      markExpr _ (GHC.HsWrap {}) =
-        traceM "warning: HsWrap introduced after renaming"
+      -- markExpr _ (GHC.HsWrap {}) =
+      --   traceM "warning: HsWrap introduced after renaming"
 
       markExpr _ (GHC.HsConLikeOut{}) =
         traceM "warning: HsConLikeOut introduced after type checking"
@@ -2362,8 +2362,8 @@ instance Annotate (GHC.HsCmd GHC.GhcPs) where
     markListWithLayout es
     markOptional GHC.AnnCloseC
 
-  markAST _ (GHC.HsCmdWrap {}) =
-    traceM "warning: HsCmdWrap introduced after renaming"
+  -- markAST _ (GHC.HsCmdWrap {}) =
+  --   traceM "warning: HsCmdWrap introduced after renaming"
 
   markAST _ (GHC.XCmd x) = error $ "got XCmd for:" ++ showGhc x
 

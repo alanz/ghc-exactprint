@@ -547,7 +547,9 @@ balanceComments' first second = do
 -- 'GHC.FunBind', these need to be pushed down from the top level to the last
 -- 'GHC.Match' if that 'GHC.Match' needs to be manipulated.
 balanceCommentsFB :: (Data b,Monad m) => GHC.LHsBind GhcPs -> GHC.Located b -> TransformT m ()
-#if __GLASGOW_HASKELL__ > 804
+#if __GLASGOW_HASKELL__ > 806
+balanceCommentsFB (GHC.L _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _)) second = do
+#elif __GLASGOW_HASKELL__ > 804
 balanceCommentsFB (GHC.L _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _ _)) second = do
 #elif __GLASGOW_HASKELL__ > 710
 balanceCommentsFB (GHC.L _ (GHC.FunBind _ (GHC.MG (GHC.L _ matches) _ _ _) _ _ _)) second = do
@@ -1149,7 +1151,9 @@ hsDeclsGeneric t = q t
     -- ---------------------------------
 
     lhsbind :: (Monad m) => GHC.LHsBind GhcPs -> TransformT m [GHC.LHsDecl GhcPs]
-#if __GLASGOW_HASKELL__ > 804
+#if __GLASGOW_HASKELL__ > 806
+    lhsbind (GHC.L _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _)) = do
+#elif __GLASGOW_HASKELL__ > 804
     lhsbind (GHC.L _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _ _)) = do
 #elif __GLASGOW_HASKELL__ > 710
     lhsbind (GHC.L _ (GHC.FunBind _ (GHC.MG (GHC.L _ matches) _ _ _) _ _ _)) = do
