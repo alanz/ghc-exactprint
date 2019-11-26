@@ -431,16 +431,18 @@ instance Annotate (GHC.ImportDecl GHC.GhcPs) where
    case qualFlag of
      GHC.QualifiedPre  -- ^ 'qualified' appears in prepositive position.
        -> (unsetContext TopLevel $ mark GHC.AnnQualified)
-     GHC.QualifiedPost -- ^ 'qualified' appears in postpositive position.
-       -> (unsetContext TopLevel $ mark GHC.AnnQualified)
-     GHC.NotQualified  -- ^ Not qualified.
-       -> return ()
+     _ -> return ()
    case mpkg of
     Just (GHC.StringLiteral (GHC.SourceText srcPkg) _) ->
       markWithString GHC.AnnPackageName srcPkg
     _ -> return ()
 
    markLocated modname
+
+   case qualFlag of
+     GHC.QualifiedPost -- ^ 'qualified' appears in postpositive position.
+       -> (unsetContext TopLevel $ mark GHC.AnnQualified)
+     _ -> return ()
 
    case GHC.ideclAs imp of
       Nothing -> return ()
@@ -791,7 +793,7 @@ instance Annotate (GHC.DefaultDecl GHC.GhcPs) where
 instance Annotate (GHC.InstDecl GHC.GhcPs) where
 
   markAST l (GHC.ClsInstD     _  cid) = markAST l  cid
-  markAST l (GHC.DataFamInstD _ dfid) = markAST l dfid
+  markAST l (GHC.DataFamInstD _ dfid) = markAST l dfid >> mark GHC.AnnWhere
   markAST l (GHC.TyFamInstD   _ tfid) = markAST l tfid
   markAST _ (GHC.XInstDecl x) = error $ "got XInstDecl for:" ++ showGhc x
 
@@ -930,7 +932,7 @@ instance Annotate (GHC.DataFamInstDecl GHC.GhcPs) where
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.HsBind GHC.GhcPs) where
-  markAST _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _) = do
+  markAST _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _ _) = do
     -- Note: from a layout perspective a FunBind should not exist, so the
     -- current context is passed through unchanged to the matches.
     -- TODO: perhaps bring the edp from the first match up to the annotation for
@@ -1011,7 +1013,7 @@ instance Annotate (GHC.HsBind GHC.GhcPs) where
 
   -- -----------------------------------
 
-  markAST _ (GHC.FunBind _ _ (GHC.XMatchGroup _) _)
+  markAST _ (GHC.FunBind _ _ (GHC.XMatchGroup _) _ _)
     = error "extension hit for HsBind"
   markAST _ (GHC.PatBind _ _ (GHC.XGRHSs _) _)
     = error "extension hit for HsBind"
@@ -1224,6 +1226,7 @@ instance Annotate (GHC.Sig GHC.GhcPs) where
 instance Annotate (GHC.StandaloneKindSig GHC.GhcPs) where
 
   markAST _ (GHC.StandaloneKindSig _ ln st)  = do
+    mark GHC.AnnType
     setContext (Set.singleton PrefixOp) $ markLocated ln
     mark GHC.AnnDcolon
     markLHsSigType st
@@ -1305,6 +1308,7 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
       mark GHC.AnnForall
       mapM_ markLocated tvs
       mark GHC.AnnDot
+      mark GHC.AnnRarrow
       markLocated typ
 
     markType _ (GHC.HsQualTy _ cxt typ) = do
@@ -2220,8 +2224,8 @@ instance Annotate (GHC.HsExpr GHC.GhcPs) where
         markInstead GHC.AnnAt AnnTypeApp
         markLHsWcType ty
 
-      -- markExpr _ (GHC.HsWrap {}) =
-      --   traceM "warning: HsWrap introduced after renaming"
+      markExpr _ (GHC.HsWrap {}) =
+        traceM "warning: HsWrap introduced after renaming"
 
       markExpr _ (GHC.HsConLikeOut{}) =
         traceM "warning: HsConLikeOut introduced after type checking"
@@ -2362,8 +2366,8 @@ instance Annotate (GHC.HsCmd GHC.GhcPs) where
     markListWithLayout es
     markOptional GHC.AnnCloseC
 
-  -- markAST _ (GHC.HsCmdWrap {}) =
-  --   traceM "warning: HsCmdWrap introduced after renaming"
+  markAST _ (GHC.HsCmdWrap {}) =
+    traceM "warning: HsCmdWrap introduced after renaming"
 
   markAST _ (GHC.XCmd x) = error $ "got XCmd for:" ++ showGhc x
 

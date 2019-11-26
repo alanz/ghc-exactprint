@@ -548,7 +548,7 @@ balanceComments' first second = do
 -- 'GHC.Match' if that 'GHC.Match' needs to be manipulated.
 balanceCommentsFB :: (Data b,Monad m) => GHC.LHsBind GhcPs -> GHC.Located b -> TransformT m ()
 #if __GLASGOW_HASKELL__ > 808
-balanceCommentsFB (GHC.L _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _)) second = do
+balanceCommentsFB (GHC.L _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _ _)) second = do
 #elif __GLASGOW_HASKELL__ > 804
 balanceCommentsFB (GHC.L _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _ _)) second = do
 #elif __GLASGOW_HASKELL__ > 710
@@ -1152,7 +1152,7 @@ hsDeclsGeneric t = q t
 
     lhsbind :: (Monad m) => GHC.LHsBind GhcPs -> TransformT m [GHC.LHsDecl GhcPs]
 #if __GLASGOW_HASKELL__ > 808
-    lhsbind (GHC.L _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _)) = do
+    lhsbind (GHC.L _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _ _)) = do
 #elif __GLASGOW_HASKELL__ > 804
     lhsbind (GHC.L _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _ _)) = do
 #elif __GLASGOW_HASKELL__ > 710

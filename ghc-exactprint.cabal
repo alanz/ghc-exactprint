@@ -99,7 +99,7 @@ library
   else
     GHC-Options:         -Wall
   -- GHC-Options:         -Weverything
-  build-depends:       base >=4.8 && <4.14
+  build-depends:       base >=4.8 && <4.16
                      , bytestring >= 0.10.6
                      , containers >= 0.5
                      , directory >= 1.2
@@ -183,7 +183,7 @@ Test-Suite test
   if impl (ghc < 7.10.2)
       buildable: False
   Build-depends:       HUnit >= 1.2
-                     , base < 4.14
+                     , base < 4.16
                      , bytestring
                      , containers >= 0.5
                      , Diff

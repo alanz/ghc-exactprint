@@ -28,12 +28,14 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-data GHCVersion = GHC710 | GHC80 | GHC82 | GHC84 | GHC86 | GHC88
+data GHCVersion = GHC710 | GHC80 | GHC82 | GHC84 | GHC86 | GHC88 | GHC810
      deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
 ghcVersion =
-#if __GLASGOW_HASKELL__ > 806
+#if __GLASGOW_HASKELL__ > 808
+  GHC810
+#elif __GLASGOW_HASKELL__ > 806
   GHC88
 #elif __GLASGOW_HASKELL__ > 804
   GHC86
@@ -57,9 +59,10 @@ testDirs =
     GHC84  -> ["pre-ghc86",  "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
     GHC86  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
     GHC88  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
+    -- GHC810 -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
 
-    -- GHC88  -> ["ghc88"]
-    -- GHC88  -> ["ghc88-copied"]
+    GHC810  -> ["ghc810"]
+    -- GHC810  -> ["ghc810-copied"]
 
 -- ---------------------------------------------------------------------
 
@@ -144,9 +147,9 @@ mkTests = do
                     ,
                       transformTests
                     , failingTests
-                    , noAnnotationTests
-                    ,
-                      prettyRoundTripTests
+                    -- , noAnnotationTests
+                    -- ,
+                    --   prettyRoundTripTests
                     ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
