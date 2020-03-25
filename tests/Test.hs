@@ -56,12 +56,12 @@ testDirs =
     GHC710 -> ["ghc710-only","ghc710", "vect"]
     GHC80  -> [              "ghc710", "ghc80", "vect"]
     GHC82  -> ["pre-ghc86",  "ghc710", "ghc80", "ghc82", "vect"]
-    GHC84  -> ["pre-ghc86",  "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
-    GHC86  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
-    GHC88  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
-    -- GHC810 -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
+    GHC84  -> ["pre-ghc86", "pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
+    GHC86  -> ["pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
+    GHC88  -> ["pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
+    GHC810 -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
 
-    GHC810  -> ["ghc810"]
+    -- GHC810  -> ["ghc810"]
     -- GHC810  -> ["ghc810-copied"]
 
 -- ---------------------------------------------------------------------
@@ -147,9 +147,9 @@ mkTests = do
                     ,
                       transformTests
                     , failingTests
-                    -- , noAnnotationTests
-                    -- ,
-                    --   prettyRoundTripTests
+                    , noAnnotationTests
+                    ,
+                      prettyRoundTripTests
                     ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a

@@ -41,16 +41,21 @@ tested-with:         GHC == 7.10.3
                    , GHC == 8.6.4
                    , GHC == 8.6.5
                    , GHC == 8.8.1
+                   , GHC == 8.8.2
+                   , GHC == 8.8.3
+                   , GHC == 8.10.1
 extra-source-files:  ChangeLog
                      src-ghc710/Language/Haskell/GHC/ExactPrint/*.hs
                      tests/examples/failing/*.hs
-                     tests/examples/ghc710/*.hs
                      tests/examples/ghc710-only/*.hs
+                     tests/examples/ghc710/*.hs
                      tests/examples/ghc80/*.hs
+                     tests/examples/ghc810/*.hs
                      tests/examples/ghc82/*.hs
                      tests/examples/ghc84/*.hs
                      tests/examples/ghc86/*.hs
                      tests/examples/ghc88/*.hs
+                     tests/examples/pre-ghc810/*.hs
                      tests/examples/pre-ghc86/*.hs
                      tests/examples/vect/*.hs
                      tests/examples/transform/*.hs
@@ -172,6 +177,7 @@ Test-Suite test
 
   main-is:             Test.hs
   other-modules:       Test.Common
+                     , Test.CommonUtils
                      , Test.Consistency
                      , Test.NoAnnotations
                      , Test.Transform
