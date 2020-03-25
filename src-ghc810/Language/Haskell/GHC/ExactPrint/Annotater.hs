@@ -793,7 +793,7 @@ instance Annotate (GHC.DefaultDecl GHC.GhcPs) where
 instance Annotate (GHC.InstDecl GHC.GhcPs) where
 
   markAST l (GHC.ClsInstD     _  cid) = markAST l  cid
-  markAST l (GHC.DataFamInstD _ dfid) = markAST l dfid >> mark GHC.AnnWhere
+  markAST l (GHC.DataFamInstD _ dfid) = markAST l dfid
   markAST l (GHC.TyFamInstD   _ tfid) = markAST l tfid
   markAST _ (GHC.XInstDecl x) = error $ "got XInstDecl for:" ++ showGhc x
 
@@ -918,6 +918,7 @@ instance Annotate (GHC.DataFamInstDecl GHC.GhcPs) where
       then mark GHC.AnnWhere
       else unless (null cons) $ mark GHC.AnnEqual
     markDataDefn l (GHC.HsDataDefn GHC.NoExtField nd (GHC.noLoc []) typ _mk cons mderivs)
+    markOptional GHC.AnnWhere
     markTrailingSemi
 
   markAST _
@@ -1304,11 +1305,13 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
 
     -- markType :: GHC.SrcSpan -> ast -> Annotated ()
     markType :: GHC.SrcSpan -> (GHC.HsType GHC.GhcPs) -> Annotated ()
-    markType _ (GHC.HsForAllTy _ _fvf tvs typ) = do
+    markType _ (GHC.HsForAllTy _ fvf tvs typ) = do
       mark GHC.AnnForall
       mapM_ markLocated tvs
       mark GHC.AnnDot
-      mark GHC.AnnRarrow
+      case fvf of
+        GHC.ForallInvis -> return ()
+        GHC.ForallVis   -> mark GHC.AnnRarrow
       markLocated typ
 
     markType _ (GHC.HsQualTy _ cxt typ) = do

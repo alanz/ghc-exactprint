@@ -202,11 +202,15 @@ tr = hSilence [stderr] $ do
 tt' :: IO (Counts,Int)
 tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
-      mkParserTest      "ghc80" "C.hs"
+      -- mkParserTest      "ghc80" "C.hs"
     --   mkParserTest      "ghc80" "T10267.hs"
     -- , mkParserTest      "ghc80" "T10946.hs"
       -- mkParserTest      "ghc82" "T13050.hs"
       -- mkParserTest      "ghc84" "arrowfail003.hs"
+      -- mkParserTest      "ghc810" "T17296.hs"
+
+      mkPrettyRoundtrip "ghc810" "T16326_Compile1.hs"
+      -- mkPrettyRoundtrip "ghc810" "saks029.hs"
 
       -- mkPrettyRoundtrip "ghc86" "dynamic-paper.hs"
 
