@@ -440,7 +440,7 @@ instance Annotate (GHC.ImportDecl GHC.GhcPs) where
    markLocated modname
 
    case qualFlag of
-     GHC.QualifiedPost -- ^ 'qualified' appears in postpositive position.
+     GHC.QualifiedPost -- 'qualified' appears in postpositive position.
        -> (unsetContext TopLevel $ mark GHC.AnnQualified)
      _ -> return ()
 
