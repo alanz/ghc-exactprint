@@ -82,11 +82,19 @@ prettyRoundtripTest :: FilePath -> IO Report
 prettyRoundtripTest origFile = do
       res <- parseModuleApiAnnsWithCpp defaultCppOptions origFile
       case res of
-        Left (ss, m) -> return . Left $ ParseFailure ss m
+#if __GLASGOW_HASKELL__ > 808
+        Left m -> return . Left $ ParseFailure (showErrorMessages m)
+#else
+        Left (_ss, m) -> return . Left $ ParseFailure m
+#endif
         Right (apianns, injectedComments, _dflags, parsed)  -> do
           res2 <- GHC.liftIO (runPrettyRoundTrip origFile apianns parsed injectedComments)
           case res2 of
-            Left (ss, m) -> return . Left $ ParseFailure ss m
+#if __GLASGOW_HASKELL__ > 808
+            Left m -> return . Left $ ParseFailure (showErrorMessages m)
+#else
+            Left (_ss, m) -> return . Left $ ParseFailure m
+#endif
             Right (_anns', parsed') -> do
               let
                 originalStructure  = astStructure parsed []
@@ -110,7 +118,7 @@ prettyRoundtripTest origFile = do
 
 runPrettyRoundTrip :: FilePath -> GHC.ApiAnns -> GHC.ParsedSource
                    -> [Comment]
-                   -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource))
+                   -> IO (ParseResult GHC.ParsedSource)
 runPrettyRoundTrip origFile !anns !parsedOrig _cs = do
   let !newAnns = addAnnotationsForPretty [] parsedOrig mempty
   let comments = case Map.lookup GHC.noSrcSpan (snd anns) of
@@ -126,7 +134,7 @@ runPrettyRoundTrip origFile !anns !parsedOrig _cs = do
 
 
 parseString :: FilePath -> String -> Anns -> GHC.ParsedSource
-            -> IO (Either (GHC.SrcSpan, String) (Anns, GHC.ParsedSource))
+            -> IO (ParseResult GHC.ParsedSource)
 parseString origFile src newAnns origParsed = do
   tmpDir <- getTemporaryDirectory
   let workDir = tmpDir </> "ghc-exactprint" </> "noannotations"

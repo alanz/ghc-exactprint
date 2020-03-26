@@ -40,16 +40,22 @@ tested-with:         GHC == 7.10.3
                    , GHC == 8.6.2
                    , GHC == 8.6.4
                    , GHC == 8.6.5
+                   , GHC == 8.8.1
+                   , GHC == 8.8.2
+                   , GHC == 8.8.3
+                   , GHC == 8.10.1
 extra-source-files:  ChangeLog
                      src-ghc710/Language/Haskell/GHC/ExactPrint/*.hs
                      tests/examples/failing/*.hs
-                     tests/examples/ghc710/*.hs
                      tests/examples/ghc710-only/*.hs
+                     tests/examples/ghc710/*.hs
                      tests/examples/ghc80/*.hs
+                     tests/examples/ghc810/*.hs
                      tests/examples/ghc82/*.hs
                      tests/examples/ghc84/*.hs
                      tests/examples/ghc86/*.hs
                      tests/examples/ghc88/*.hs
+                     tests/examples/pre-ghc810/*.hs
                      tests/examples/pre-ghc86/*.hs
                      tests/examples/vect/*.hs
                      tests/examples/transform/*.hs
@@ -93,8 +99,12 @@ library
 
   -- other-modules:
   -- other-extensions:
-  GHC-Options:         -Wall
-  build-depends:       base >=4.8 && <4.14
+  if impl (ghc >= 8.0.1)
+    GHC-Options:         -Wall -Wredundant-constraints
+  else
+    GHC-Options:         -Wall
+  -- GHC-Options:         -Weverything
+  build-depends:       base >=4.8 && <4.16
                      , bytestring >= 0.10.6
                      , containers >= 0.5
                      , directory >= 1.2
@@ -113,22 +123,25 @@ library
       build-depends: ghc-boot
   hs-source-dirs:      src
 
-  if impl (ghc > 8.6.5)
-      hs-source-dirs: src-ghc88
+  if impl (ghc > 8.8.3)
+      hs-source-dirs: src-ghc810
   else
-    if impl (ghc > 8.4.4)
-        hs-source-dirs: src-ghc86
+    if impl (ghc > 8.6.5)
+        hs-source-dirs: src-ghc88
     else
-      if impl (ghc > 8.2.2)
-          hs-source-dirs: src-ghc84
+      if impl (ghc > 8.4.4)
+          hs-source-dirs: src-ghc86
       else
-        if impl (ghc > 8.0.3)
-            hs-source-dirs: src-ghc82
+        if impl (ghc > 8.2.2)
+            hs-source-dirs: src-ghc84
         else
-          if impl (ghc > 7.10.3)
-              hs-source-dirs: src-ghc80
+          if impl (ghc > 8.0.3)
+              hs-source-dirs: src-ghc82
           else
-              hs-source-dirs: src-ghc710
+            if impl (ghc > 7.10.3)
+                hs-source-dirs: src-ghc80
+            else
+                hs-source-dirs: src-ghc710
 
   default-language:    Haskell2010
   if impl (ghc < 7.10.2)
@@ -142,34 +155,41 @@ Test-Suite test
   else
     hs-source-dirs:      tests
 
-  if impl (ghc > 8.6.5)
-      hs-source-dirs: src-ghc88
+  if impl (ghc > 8.8.3)
+      hs-source-dirs: src-ghc810
   else
-    if impl (ghc > 8.4.4)
-        hs-source-dirs: src-ghc86
+    if impl (ghc > 8.6.5)
+        hs-source-dirs: src-ghc88
     else
-      if impl (ghc > 8.2.2)
-          hs-source-dirs: src-ghc84
+      if impl (ghc > 8.4.4)
+          hs-source-dirs: src-ghc86
       else
-        if impl (ghc > 8.0.3)
-            hs-source-dirs: src-ghc82
+        if impl (ghc > 8.2.2)
+            hs-source-dirs: src-ghc84
         else
-          if impl (ghc > 7.10.3)
-              hs-source-dirs: src-ghc80
+          if impl (ghc > 8.0.3)
+              hs-source-dirs: src-ghc82
           else
-              hs-source-dirs: src-ghc710
+            if impl (ghc > 7.10.3)
+                hs-source-dirs: src-ghc80
+            else
+                hs-source-dirs: src-ghc710
 
   main-is:             Test.hs
   other-modules:       Test.Common
+                     , Test.CommonUtils
                      , Test.Consistency
                      , Test.NoAnnotations
                      , Test.Transform
-  GHC-Options:         -threaded -Wall
+  if impl (ghc >= 8.0.1)
+    GHC-Options:         -threaded -Wall -Wredundant-constraints
+  else
+    GHC-Options:         -threaded -Wall
   Default-language:    Haskell2010
   if impl (ghc < 7.10.2)
       buildable: False
   Build-depends:       HUnit >= 1.2
-                     , base < 4.14
+                     , base < 4.16
                      , bytestring
                      , containers >= 0.5
                      , Diff
@@ -219,8 +239,10 @@ executable roundtrip
     buildable: True
   else
     buildable: False
-  ghc-options:
-    -threaded -Wall
+  if impl (ghc >= 8.0.1)
+    GHC-Options:         -threaded -Wall -Wredundant-constraints
+  else
+    GHC-Options:         -threaded -Wall
 
 executable static
   main-is: Static.hs
@@ -238,8 +260,10 @@ executable static
         build-depends: ghc-boot
   else
     buildable: False
-  ghc-options:
-    -threaded -Wall
+  if impl (ghc >= 8.0.1)
+    GHC-Options:         -threaded -Wall -Wredundant-constraints
+  else
+    GHC-Options:         -threaded -Wall
 
 executable prepare-hackage
   main-is: PrepareHackage.hs
@@ -261,4 +285,7 @@ executable prepare-hackage
         build-depends: ghc-boot
   else
     buildable: False
-  GHC-Options:         -threaded
+  if impl (ghc >= 8.0.1)
+    GHC-Options:         -threaded -Wall -Wredundant-constraints
+  else
+    GHC-Options:         -threaded -Wall

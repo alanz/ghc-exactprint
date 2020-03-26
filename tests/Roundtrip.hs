@@ -143,7 +143,7 @@ mkParserTest fp =
                    writeError fp
                    throwIO e
                  case r1 of
-                   Left (ParseFailure _ s) -> do
+                   Left (ParseFailure s) -> do
                      writeParseFail fp s
                      exitFailure
                    Right r -> do

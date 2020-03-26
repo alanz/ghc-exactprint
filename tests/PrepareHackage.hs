@@ -1,17 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}  --
 
 import Data.Char
-import Data.Monoid
+-- import Data.Monoid
 import System.Directory
 import System.FilePath.Posix
-import System.IO
+-- import System.IO
 import Test.CommonUtils
 import Turtle hiding (FilePath,(<.>))
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
-import qualified GHC.IO.Handle.Text as GHC
+-- import qualified GHC.IO.Handle.Text as GHC
 
 import Test.HUnit
 
@@ -75,15 +75,15 @@ cleanPackage dir = do
 -- ---------------------------------------------------------------------
 -- | The computation 'writeFile' @file str@ function writes the string @str@,
 -- to the file @file@.
-writeFileUtf8 :: FilePath -> String -> IO ()
-writeFileUtf8 ff txt = withFile ff WriteMode (\ hdl -> hSetEncoding hdl utf8 >> GHC.hPutStr hdl txt)
+-- writeFileUtf8 :: FilePath -> String -> IO ()
+-- writeFileUtf8 ff txt = withFile ff WriteMode (\ hdl -> hSetEncoding hdl utf8 >> GHC.hPutStr hdl txt)
 
 -- ---------------------------------------------------------------------
 
-allCabalPackagesTest :: IO [Text]
-allCabalPackagesTest
-  = return ["3d-graphics-examples","3dmodels","4Blocks","AAI","ABList"]
-  -- = return ["airship"]
+-- allCabalPackagesTest :: IO [Text]
+-- allCabalPackagesTest
+--   = return ["3d-graphics-examples","3dmodels","4Blocks","AAI","ABList"]
+--   -- = return ["airship"]
 
 
 allCabalPackages :: IO [Text]
@@ -107,8 +107,8 @@ cleanupWhiteSpace file = do
 tabWidth :: Int
 tabWidth = 8
 
-nonBreakingSpace :: Char
-nonBreakingSpace = '\xa0'
+-- nonBreakingSpace :: Char
+-- nonBreakingSpace = '\xa0'
 
 cleanupOneLine :: String -> String
 cleanupOneLine str = str'

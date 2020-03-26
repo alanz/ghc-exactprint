@@ -36,3 +36,4 @@ dist-newstyle
 /stack.yaml
 /.ghc.environment.*
 packages
+*.yaml.lock

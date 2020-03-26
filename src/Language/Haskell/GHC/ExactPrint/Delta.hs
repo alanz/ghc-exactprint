@@ -449,7 +449,7 @@ getSrcSpan :: Delta GHC.SrcSpan
 getSrcSpan = asks curSrcSpan
 
 #if __GLASGOW_HASKELL__ > 806
-withSrcSpanDelta :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a) => a -> Delta b -> Delta b
+withSrcSpanDelta :: (Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a) => a -> Delta b -> Delta b
 withSrcSpanDelta (GHC.dL->GHC.L l a) =
 #else
 withSrcSpanDelta :: Data a => GHC.Located a -> Delta b -> Delta b

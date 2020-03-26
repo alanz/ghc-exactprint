@@ -314,7 +314,7 @@ putUnallocatedComments cs = modify (\s -> s { apComments = cs } )
 -- ---------------------------------------------------------------------
 
 #if __GLASGOW_HASKELL__ > 806
-withSrcSpanPretty :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a) => a -> Pretty b -> Pretty b
+withSrcSpanPretty :: (Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a) => a -> Pretty b -> Pretty b
 withSrcSpanPretty (GHC.dL->GHC.L l a) action = do
 #else
 withSrcSpanPretty :: Data a => GHC.Located a -> Pretty b -> Pretty b

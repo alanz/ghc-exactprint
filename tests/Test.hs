@@ -28,12 +28,14 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-data GHCVersion = GHC710 | GHC80 | GHC82 | GHC84 | GHC86 | GHC88
+data GHCVersion = GHC710 | GHC80 | GHC82 | GHC84 | GHC86 | GHC88 | GHC810
      deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
 ghcVersion =
-#if __GLASGOW_HASKELL__ > 806
+#if __GLASGOW_HASKELL__ > 808
+  GHC810
+#elif __GLASGOW_HASKELL__ > 806
   GHC88
 #elif __GLASGOW_HASKELL__ > 804
   GHC86
@@ -54,12 +56,13 @@ testDirs =
     GHC710 -> ["ghc710-only","ghc710", "vect"]
     GHC80  -> [              "ghc710", "ghc80", "vect"]
     GHC82  -> ["pre-ghc86",  "ghc710", "ghc80", "ghc82", "vect"]
-    GHC84  -> ["pre-ghc86",  "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
-    GHC86  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
-    GHC88  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
+    GHC84  -> ["pre-ghc86", "pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
+    GHC86  -> ["pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
+    GHC88  -> ["pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
+    GHC810 -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
 
-    -- GHC88  -> ["ghc88"]
-    -- GHC88  -> ["ghc88-copied"]
+    -- GHC810  -> ["ghc810"]
+    -- GHC810  -> ["ghc810-copied"]
 
 -- ---------------------------------------------------------------------
 
@@ -199,48 +202,17 @@ tr = hSilence [stderr] $ do
 tt' :: IO (Counts,Int)
 tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
+      -- mkParserTest      "ghc80" "C.hs"
+    --   mkParserTest      "ghc80" "T10267.hs"
+    -- , mkParserTest      "ghc80" "T10946.hs"
+      -- mkParserTest      "ghc82" "T13050.hs"
+      -- mkParserTest      "ghc84" "arrowfail003.hs"
+      -- mkParserTest      "ghc810" "T17296.hs"
+
+      mkPrettyRoundtrip "ghc810" "T16326_Compile1.hs"
+      -- mkPrettyRoundtrip "ghc810" "saks029.hs"
 
       -- mkPrettyRoundtrip "ghc86" "dynamic-paper.hs"
-      -- mkPrettyRoundtrip "ghc86" "mdo.hs"
-
-      -- mkParserTest      "ghc88" "DumpParsedast.hs"
-      -- mkParserTest      "ghc88-copied" "T15365.hs"
-      -- mkPrettyRoundtrip  "ghc88-copied" "T15365.hs"
-      -- mkParserTest      "ghc88-copied" "T4437.hs"
-
-      -- mkParserTest      "ghc88-copied" "TH_recover_warns.hs"
-      -- mkPrettyRoundtrip  "ghc88-copied" "TH_recover_warns.hs"
-
-      -- mkParserTest      "ghc88-copied" "TH_recursiveDoImport.hs"
-      -- mkPrettyRoundtrip  "ghc88-copied" "TH_recursiveDoImport.hs"
-
-      -- mkParserTest      "ghc88-copied" "dsrun010.hs"
-      -- mkPrettyRoundtrip  "ghc88-copied" "dsrun010.hs"
-
-        -- mkParserTest      "ghc88" "Internal.hs"
-        -- mkParserTest      "ghc88" "Main.hs"
-        mkParserTest      "ghc88" "PersistUniqueTest.hs"
-
-      -- ---------------------------------------------------------------
-      -- mkParserTest "ghc710" "Roles.hs"
-      -- ---------------------------------------------------------------
-
-
-
-
-      -- mkParserTest      "ghc86" "deriving-via-compile.hs"
-      -- mkParserTest      "ghc88" "ClassParens.hs"
-
-
-    --   mkParserTest "pre-ghc86" "TensorTests.hs"
-    -- , mkParserTest "pre-ghc86" "Webhook.hs"
-    -- , mkParserTest "ghc710" "RdrNames.hs"
-
-    --   mkPrettyRoundtrip "ghc86" "BinDU.hs"
-    -- , mkPrettyRoundtrip "ghc86" "Dial.hs"
-
-      -- mkParserTest      "ghc84" "Types.hs"
-    -- , mkPrettyRoundtrip "ghc80" "export-type.hs"
 
    -- Needs GHC changes
         -- mkParserTest "failing" "CtorOp.hs"
