@@ -429,7 +429,7 @@ instance Annotate (GHC.ImportDecl GHC.GhcPs) where
      GHC.NoSourceText -> return ()
    when safeflag (mark GHC.AnnSafe)
    case qualFlag of
-     GHC.QualifiedPre  -- ^ 'qualified' appears in prepositive position.
+     GHC.QualifiedPre  -- 'qualified' appears in prepositive position.
        -> (unsetContext TopLevel $ mark GHC.AnnQualified)
      _ -> return ()
    case mpkg of
