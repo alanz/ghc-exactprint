@@ -1308,9 +1308,8 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
     markType _ (GHC.HsForAllTy _ fvf tvs typ) = do
       mark GHC.AnnForall
       mapM_ markLocated tvs
-      mark GHC.AnnDot
       case fvf of
-        GHC.ForallInvis -> return ()
+        GHC.ForallInvis -> mark GHC.AnnDot
         GHC.ForallVis   -> mark GHC.AnnRarrow
       markLocated typ
 
