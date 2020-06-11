@@ -2560,7 +2560,7 @@ instance Annotate (GHC.ConDecl GHC.RdrName) where
     case mctx of
       Just ctx -> do
         setContext (Set.fromList [NoDarrow]) $ markLocated ctx
-        mark GHC.AnnDarrow
+        unless (null $ GHC.unLoc ctx) $ mark GHC.AnnDarrow
       Nothing -> return ()
 
     case dets of
