@@ -2654,7 +2654,7 @@ instance (GHC.DataId name,Annotate name,GHC.OutputableBndr name,GHC.HasOccName n
     case mctx of
       Just ctx -> do
         setContext (Set.fromList [NoDarrow]) $ markLocated ctx
-        unless (null $ GHC.unLoc ctx) $ mark GHC.AnnDarrow
+        mark GHC.AnnDarrow
       Nothing -> return ()
 
     case dets of

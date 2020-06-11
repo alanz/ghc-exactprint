@@ -2506,7 +2506,7 @@ instance Annotate (GHC.ConDecl GHC.GhcPs) where
     case mctx of
       Just ctx -> do
         setContext (Set.fromList [NoDarrow]) $ markLocated ctx
-        unless (null $ GHC.unLoc ctx) $ mark GHC.AnnDarrow
+        mark GHC.AnnDarrow
       Nothing -> return ()
 
     case dets of
