@@ -1,3 +1,5 @@
+2020-06-13 v0.6.3.1
+	* Always print "=>" in ConDecl (for GHC >= 8.6) by @zliu41
 2020-03-26 v0.6.3
         * Support GHC 8.8.1, 8.8.2, 8.8.3, 8.10.1
 2019-08-28 v0.6.2
