@@ -40,7 +40,9 @@ import Data.List ( sortBy )
 
 import Language.Haskell.GHC.ExactPrint.Types
 
-#if __GLASGOW_HASKELL__ > 800
+#if __GLASGOW_HASKELL__ >= 900
+import qualified GHC.Types.Basic as GHC
+#elif __GLASGOW_HASKELL__ > 800
 import qualified BasicTypes     as GHC
 #endif
 import qualified GHC            as GHC
@@ -118,7 +120,7 @@ data AnnotationF next where
   MarkManyOptional :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   MarkOffsetPrim   :: GHC.AnnKeywordId -> Int -> Maybe String              -> next -> AnnotationF next
   MarkOffsetPrimOptional :: GHC.AnnKeywordId -> Int -> Maybe String        -> next -> AnnotationF next
-#if __GLASGOW_HASKELL__ > 806
+#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
   WithAST         :: (Data a,Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a) =>
                            a -> Annotated b                                -> next -> AnnotationF next
 #else
@@ -126,7 +128,7 @@ data AnnotationF next where
                              -> Annotated b                                -> next -> AnnotationF next
 #endif
   CountAnns        :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
-  WithSortKey      :: [(GHC.SrcSpan, Annotated ())]                        -> next -> AnnotationF next
+  WithSortKey      :: [(AnnSpan, Annotated ())]                            -> next -> AnnotationF next
 
   SetLayoutFlag    ::  Rigidity -> Annotated ()                            -> next -> AnnotationF next
   MarkAnnBeforeAnn :: GHC.AnnKeywordId -> GHC.AnnKeywordId                 -> next -> AnnotationF next
@@ -149,7 +151,7 @@ data AnnotationF next where
   UnsetContext    ::         AstContext        -> Annotated () -> next -> AnnotationF next
   -- Query the context while in a child element
   IfInContext  :: Set.Set AstContext -> Annotated () -> Annotated ()   -> next -> AnnotationF next
-  WithSortKeyContexts :: ListContexts -> [(GHC.SrcSpan, Annotated ())] -> next -> AnnotationF next
+  WithSortKeyContexts :: ListContexts -> [(AnnSpan, Annotated ())]     -> next -> AnnotationF next
   --
   TellContext :: Set.Set AstContext -> next -> AnnotationF next
 
@@ -218,7 +220,7 @@ workOutString l kw f = do
 -- ---------------------------------------------------------------------
 
 -- |Main driver point for annotations.
-#if __GLASGOW_HASKELL__ > 806
+#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
 withAST :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
         => a -> Annotated () -> Annotated ()
 #else
@@ -255,7 +257,7 @@ markTrailingSemi = markOutside GHC.AnnSemi AnnSemiSep
 
 -- ---------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ > 806
+#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
 withLocated :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
             => a
             -> (GHC.SrcSpan -> a -> Annotated ())
@@ -314,7 +316,7 @@ markListWithContextsFunction (LC ctxOnly ctxInitial ctxMiddle ctxLast) f ls =
 
 
 -- Expects the kws to be ordered already
-withSortKeyContextsHelper :: (Monad m) => (Annotated () -> m ()) -> ListContexts -> [(GHC.SrcSpan, Annotated ())] -> m ()
+withSortKeyContextsHelper :: (Monad m) => (Annotated () -> m ()) -> ListContexts -> [(AnnSpan, Annotated ())] -> m ()
 withSortKeyContextsHelper interpret (LC ctxOnly ctxInitial ctxMiddle ctxLast) kws = do
   case kws of
     [] -> return ()
@@ -334,10 +336,10 @@ withSortKeyContextsHelper interpret (LC ctxOnly ctxInitial ctxMiddle ctxLast) kw
 -- Managing lists which have been separated, e.g. Sigs and Binds
 
 
-applyListAnnotations :: [(GHC.SrcSpan, Annotated ())] -> Annotated ()
+applyListAnnotations :: [(AnnSpan, Annotated ())] -> Annotated ()
 applyListAnnotations ls = withSortKey ls
 
-applyListAnnotationsContexts :: ListContexts -> [(GHC.SrcSpan, Annotated ())] -> Annotated ()
+applyListAnnotationsContexts :: ListContexts -> [(AnnSpan, Annotated ())] -> Annotated ()
 applyListAnnotationsContexts ctxt ls = withSortKeyContexts ctxt ls
 
 #if __GLASGOW_HASKELL__ <= 710
@@ -345,7 +347,7 @@ lexicalSortLocated :: [GHC.Located a] -> [GHC.Located a]
 lexicalSortLocated = sortBy (comparing GHC.getLoc)
 #endif
 
-applyListAnnotationsLayout :: [(GHC.SrcSpan, Annotated ())] -> Annotated ()
+applyListAnnotationsLayout :: [(AnnSpan, Annotated ())] -> Annotated ()
 applyListAnnotationsLayout ls = setLayoutFlag $ setContext (Set.singleton NoPrecedingSpace)
                                               $ withSortKeyContexts listContexts ls
 

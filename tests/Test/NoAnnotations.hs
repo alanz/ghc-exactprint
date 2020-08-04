@@ -16,42 +16,50 @@ import Data.List
 import qualified Data.ByteString as B
 
 import Language.Haskell.GHC.ExactPrint
--- import Language.Haskell.GHC.ExactPrint.Annotate
 import Language.Haskell.GHC.ExactPrint.Parsers
--- import Language.Haskell.GHC.ExactPrint.Pretty
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
+#if __GLASGOW_HASKELL__ >= 900
+import qualified Control.Monad.IO.Class as GHC
+import qualified GHC            as GHC hiding (parseModule)
+import qualified GHC.Data.Bag          as GHC
+import qualified GHC.Data.FastString   as GHC
+-- import qualified GHC.Data.StringBuffer as GHC
+-- import qualified GHC.Driver.Phases     as GHC
+-- import qualified GHC.Driver.Pipeline   as GHC
+-- import qualified GHC.Driver.Session    as GHC
+-- import qualified GHC.Driver.Types      as GHC
+-- import qualified GHC.Fingerprint.Type  as GHC
+-- import qualified GHC.Utils.Fingerprint as GHC
+-- import qualified GHC.Parser.Lexer      as GHC
+-- import qualified GHC.Settings          as GHC
+import qualified GHC.Types.SrcLoc      as GHC
+-- import qualified GHC.Utils.Error       as GHC
+import qualified GHC.Utils.Outputable  as GHC
+import qualified GHC.Types.Name.Occurrence as OccName (occNameString)
+import qualified GHC.Types.Var         as GHC
+import qualified GHC.Types.Name.Set    as GHC
+#else
 import qualified ApiAnnotation as GHC
 import qualified Bag           as GHC
--- import qualified DynFlags      as GHC
 import qualified FastString    as GHC
 import qualified GHC           as GHC hiding (parseModule)
--- import qualified Lexer         as GHC
 import qualified MonadUtils    as GHC
--- import qualified Name          as GHC
 import qualified NameSet       as GHC
--- import qualified OccName       as GHC
 import qualified Outputable    as GHC
--- import qualified Parser        as GHC
--- import qualified RdrName       as GHC
 import qualified SrcLoc        as GHC
--- import qualified StringBuffer  as GHC
 import qualified Var           as GHC
 
 import qualified OccName(occNameString)
+#endif
 
--- import qualified Data.Generics as SYB
--- import qualified GHC.SYB.Utils as SYB
+
 
 
 import System.Directory
 import System.FilePath
--- import System.FilePath.Posix
--- import System.IO
 import qualified Data.Map as Map
--- import Data.List
--- import Data.Maybe
 
 import Test.Common
 
@@ -121,9 +129,13 @@ runPrettyRoundTrip :: FilePath -> GHC.ApiAnns -> GHC.ParsedSource
                    -> IO (ParseResult GHC.ParsedSource)
 runPrettyRoundTrip origFile !anns !parsedOrig _cs = do
   let !newAnns = addAnnotationsForPretty [] parsedOrig mempty
+#if __GLASGOW_HASKELL__ >= 900
+  let comments = map tokComment $ GHC.sortRealLocated (GHC.apiAnnRogueComments anns)
+#else
   let comments = case Map.lookup GHC.noSrcSpan (snd anns) of
         Nothing -> []
         Just cl -> map tokComment $ GHC.sortLocated cl
+#endif
   let pragmas = filter (\(Comment c _ _) -> isPrefixOf "{-#" c ) comments
   let pragmaStr = intercalate "\n" $ map commentContents pragmas
 

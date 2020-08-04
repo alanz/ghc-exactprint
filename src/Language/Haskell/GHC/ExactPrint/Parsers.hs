@@ -61,6 +61,19 @@ import GHC.Paths (libdir)
 
 import System.Environment (lookupEnv)
 
+import qualified GHC hiding (parseModule)
+#if __GLASGOW_HASKELL__ >= 900
+import qualified Control.Monad.IO.Class as GHC
+import qualified GHC.Data.FastString    as GHC
+import qualified GHC.Data.StringBuffer  as GHC
+import qualified GHC.Driver.Session     as GHC
+import qualified GHC.Parser             as GHC
+import qualified GHC.Parser.Header      as GHC
+import qualified GHC.Parser.Lexer       as GHC
+import qualified GHC.Parser.PostProcess as GHC
+import qualified GHC.Types.SrcLoc       as GHC
+import qualified GHC.Utils.Error        as GHC
+#else
 import qualified ApiAnnotation as GHC
 import qualified DynFlags      as GHC
 #if __GLASGOW_HASKELL__ > 808
@@ -80,6 +93,7 @@ import qualified RdrHsSyn      as GHC
 #endif
 import qualified SrcLoc        as GHC
 import qualified StringBuffer  as GHC
+#endif
 
 #if __GLASGOW_HASKELL__ <= 710
 import qualified OrdList as OL
@@ -97,7 +111,7 @@ import qualified Data.Map as Map
 
 -- | Wrapper function which returns Annotations along with the parsed
 -- element.
-#if __GLASGOW_HASKELL__ > 806
+#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
 parseWith :: (Data (GHC.SrcSpanLess w), Annotate w, GHC.HasSrcSpan w)
           => GHC.DynFlags
           -> FilePath
@@ -165,7 +179,11 @@ withDynFlags action = ghcWrapper $ do
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ >= 900
+parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located GHC.HsModule)
+#else
 parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located (GHC.HsModule GhcPs))
+#endif
 parseFile = runParser GHC.parseModule
 
 -- ---------------------------------------------------------------------
@@ -400,6 +418,17 @@ initDynFlagsPure fp s = do
 -- ---------------------------------------------------------------------
 
 mkApiAnns :: GHC.PState -> GHC.ApiAnns
+
+#if __GLASGOW_HASKELL__ >= 900
+mkApiAnns pstate
+  = GHC.ApiAnns {
+        GHC.apiAnnItems = Map.fromListWith (++) $ GHC.annotations pstate,
+        GHC.apiAnnEofPos = GHC.eof_pos pstate,
+        GHC.apiAnnComments = Map.fromList (GHC.annotations_comments pstate),
+        GHC.apiAnnRogueComments = GHC.comment_q pstate
+     }
+#else
 mkApiAnns pstate
   = ( Map.fromListWith (++) . GHC.annotations $ pstate
     , Map.fromList ((GHC.noSrcSpan, GHC.comment_q pstate) : GHC.annotations_comments pstate))
+#endif

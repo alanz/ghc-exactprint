@@ -96,7 +96,7 @@ data PrettyWriter = PrettyWriter
          -- | Used locally to pass Keywords, delta pairs relevant to a specific
          -- subtree to the parent.
        , annKds          :: ![(KeywordId, DeltaPos)]
-       , sortKeys        :: !(Maybe [GHC.SrcSpan])
+       , sortKeys        :: !(Maybe [AnnSpan])
        , dwCapturedSpan  :: !(First AnnKey)
        , prLayoutContext :: !(ACS' AstContext)
        }
@@ -199,7 +199,11 @@ prettyInterpret = iterTM go
 
 addEofAnnotation :: Pretty ()
 addEofAnnotation = do
+#if __GLASGOW_HASKELL__ >= 900
+  tellKd (AnnEofPos, DP (1,0))
+#else
   tellKd (G GHC.AnnEofPos, DP (1,0))
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -247,8 +251,8 @@ addPrettyAnnotation ann = do
            (G GHC.AnnNewtype)      -> tellKd (ann,DP (0,1))
            (G GHC.AnnOf)           -> tellKd (ann,DP (0,1))
            (G GHC.AnnOpenC)        -> tellKd (ann,DP (0,0))
-           (G GHC.AnnOpenPE)       -> tellKd (ann,DP (0,1))
-           (G GHC.AnnOpenPTE)      -> tellKd (ann,DP (0,1))
+           -- (G GHC.AnnOpenPE)       -> tellKd (ann,DP (0,1))
+           -- (G GHC.AnnOpenPTE)      -> tellKd (ann,DP (0,1))
            (G GHC.AnnQualified)    -> tellKd (ann,DP (0,1))
            (G GHC.AnnRarrow)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnRole)         -> tellKd (ann,DP (0,1))
@@ -257,8 +261,8 @@ addPrettyAnnotation ann = do
            (G GHC.AnnStock)        -> tellKd (ann,DP (0,1))
 #endif
            (G GHC.AnnSimpleQuote)  -> tellKd (ann,DP (0,1))
-           (G GHC.AnnThIdSplice)   -> tellKd (ann,DP (0,1))
-           (G GHC.AnnThIdTySplice) -> tellKd (ann,DP (0,1))
+           -- (G GHC.AnnThIdSplice)   -> tellKd (ann,DP (0,1))
+           -- (G GHC.AnnThIdTySplice) -> tellKd (ann,DP (0,1))
            (G GHC.AnnThTyQuote)    -> tellKd (ann,DP (0,1))
            (G GHC.AnnThen)         -> tellKd (ann,DP (1,2))
            (G GHC.AnnTilde)        -> tellKd (ann,DP (0,1))
@@ -313,7 +317,7 @@ putUnallocatedComments cs = modify (\s -> s { apComments = cs } )
 
 -- ---------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ > 806
+#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
 withSrcSpanPretty :: (Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a) => a -> Pretty b -> Pretty b
 withSrcSpanPretty (GHC.dL->GHC.L l a) action = do
 #else
@@ -336,7 +340,7 @@ withSrcSpanPretty (GHC.L l a) action = do
 -- ---------------------------------------------------------------------
 
 -- | Enter a new AST element. Maintain SrcSpan stack
-#if __GLASGOW_HASKELL__ > 806
+#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
 withAST :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
         => a
         -> Pretty b -> Pretty b
@@ -463,7 +467,7 @@ addAnnotationsPretty ann = do
 
 getAnnKey :: PrettyOptions -> AnnKey
 getAnnKey PrettyOptions {curSrcSpan, annConName}
-  = AnnKey curSrcSpan annConName
+  = AnnKey (rs curSrcSpan) annConName
 
 -- ---------------------------------------------------------------------
 
@@ -472,14 +476,14 @@ countAnnsPretty _ann = return 0
 
 -- ---------------------------------------------------------------------
 
-withSortKey :: [(GHC.SrcSpan, Annotated b)] -> Pretty ()
+withSortKey :: [(AnnSpan, Annotated b)] -> Pretty ()
 withSortKey kws =
   let order = sortBy (comparing fst) kws
   in do
     tellSortKey (map fst order)
     mapM_ (prettyInterpret . snd) order
 
-withSortKeyContexts :: ListContexts -> [(GHC.SrcSpan, Annotated ())] -> Pretty ()
+withSortKeyContexts :: ListContexts -> [(AnnSpan, Annotated ())] -> Pretty ()
 withSortKeyContexts ctxts kws =
   let order = sortBy (comparing fst) kws
   in do
@@ -619,7 +623,7 @@ tellCapturedSpan key = tell ( mempty { dwCapturedSpan = First $ Just key })
 tellKd :: (KeywordId, DeltaPos) -> Pretty ()
 tellKd kd = tell (mempty { annKds = [kd] })
 
-tellSortKey :: [GHC.SrcSpan] -> Pretty ()
+tellSortKey :: [AnnSpan] -> Pretty ()
 tellSortKey xs = tell (mempty { sortKeys = Just xs } )
 
 tellContext :: Set.Set AstContext -> Pretty ()
