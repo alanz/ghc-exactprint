@@ -28,12 +28,14 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-data GHCVersion = GHC710 | GHC80 | GHC82 | GHC84 | GHC86 | GHC88 | GHC810
+data GHCVersion = GHC710 | GHC80 | GHC82 | GHC84 | GHC86 | GHC88 | GHC810 | GHC90
      deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
 ghcVersion =
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 900
+  GHC90
+#elif __GLASGOW_HASKELL__ > 808
   GHC810
 #elif __GLASGOW_HASKELL__ > 806
   GHC88
@@ -60,8 +62,9 @@ testDirs =
     GHC86  -> ["pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
     GHC88  -> ["pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
     GHC810 -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
+    -- GHC90  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
 
-    -- GHC810  -> ["ghc810"]
+    GHC90  -> ["ghc88"]
     -- GHC810  -> ["ghc810-copied"]
 
 -- ---------------------------------------------------------------------
@@ -144,12 +147,12 @@ mkTests = do
   return $ TestList [
                       internalTests,
                       roundTripTests
-                    ,
-                      transformTests
-                    , failingTests
-                    , noAnnotationTests
-                    ,
-                      prettyRoundTripTests
+                    -- ,
+                    --   transformTests
+                    -- , failingTests
+                    -- , noAnnotationTests
+                    -- ,
+                    --   prettyRoundTripTests
                     ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -208,8 +211,9 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
       -- mkParserTest      "ghc82" "T13050.hs"
       -- mkParserTest      "ghc84" "arrowfail003.hs"
       -- mkParserTest      "ghc810" "T17296.hs"
+      mkParserTest      "ghc88" "EmptyCase008.hs"
 
-      mkPrettyRoundtrip "ghc810" "T16326_Compile1.hs"
+      -- mkPrettyRoundtrip "ghc810" "T16326_Compile1.hs"
       -- mkPrettyRoundtrip "ghc810" "saks029.hs"
 
       -- mkPrettyRoundtrip "ghc86" "dynamic-paper.hs"

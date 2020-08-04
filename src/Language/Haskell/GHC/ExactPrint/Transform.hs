@@ -97,9 +97,14 @@ import Language.Haskell.GHC.ExactPrint.Utils
 import Control.Monad.RWS
 import qualified Control.Monad.Fail as Fail
 
+import qualified GHC           as GHC hiding (parseModule)
+#if __GLASGOW_HASKELL__ >= 900
+import qualified GHC.Data.Bag          as GHC
+import qualified GHC.Data.FastString   as GHC
+#else
 import qualified Bag           as GHC
 import qualified FastString    as GHC
-import qualified GHC           as GHC hiding (parseModule)
+#endif
 
 import qualified Data.Generics as SYB
 
@@ -249,7 +254,7 @@ captureOrder parent ls ans = captureOrderAnnKey (mkAnnKey parent) ls ans
 captureOrderAnnKey :: AnnKey -> [GHC.Located b] -> Anns -> Anns
 captureOrderAnnKey parentKey ls ans = ans'
   where
-    newList = map GHC.getLoc ls
+    newList = map (rs . GHC.getLoc) ls
     reList = Map.adjust (\an -> an {annSortKey = Just newList }) parentKey
     ans' = reList ans
 
@@ -306,7 +311,7 @@ wrapDecl (GHC.L l s) = GHC.L l (GHC.ValD s)
 -- |Create a simple 'Annotation' without comments, and attach it to the first
 -- parameter.
 addSimpleAnnT :: (Constraints a,Monad m)
-#if __GLASGOW_HASKELL__ >= 808
+#if (__GLASGOW_HASKELL__ >= 808) && (__GLASGOW_HASKELL__ < 900)
               => a -> DeltaPos -> [(KeywordId, DeltaPos)] -> TransformT m ()
 #else
               => GHC.Located a -> DeltaPos -> [(KeywordId, DeltaPos)] -> TransformT m ()
@@ -334,7 +339,7 @@ removeTrailingCommaT ast = do
 -- ---------------------------------------------------------------------
 
 -- |'Transform' monad version of 'getEntryDP'
-#if __GLASGOW_HASKELL__ >= 808
+#if (__GLASGOW_HASKELL__ >= 808) && (__GLASGOW_HASKELL__ < 900)
 getEntryDPT :: (Constraints a,Monad m) => a -> TransformT m DeltaPos
 #else
 getEntryDPT :: (Data a,Monad m) => GHC.Located a -> TransformT m DeltaPos
@@ -346,7 +351,7 @@ getEntryDPT ast = do
 -- ---------------------------------------------------------------------
 
 -- |'Transform' monad version of 'getEntryDP'
-#if __GLASGOW_HASKELL__ >= 808
+#if (__GLASGOW_HASKELL__ >= 808) && (__GLASGOW_HASKELL__ < 900)
 setEntryDPT :: (Constraints a,Monad m) => a -> DeltaPos -> TransformT m ()
 #else
 setEntryDPT :: (Data a,Monad m) => GHC.Located a -> DeltaPos -> TransformT m ()
@@ -404,7 +409,7 @@ setPrecedingLines ast n c anne = setEntryDP ast (DP (n,c)) anne
 
 -- |Return the true entry 'DeltaPos' from the annotation for a given AST
 -- element. This is the 'DeltaPos' ignoring any comments.
-#if __GLASGOW_HASKELL__ >= 808
+#if (__GLASGOW_HASKELL__ >= 808) && (__GLASGOW_HASKELL__ < 900)
 getEntryDP :: (Constraints a) => Anns -> a -> DeltaPos
 #else
 getEntryDP :: (Data a) => Anns -> GHC.Located a -> DeltaPos
@@ -418,7 +423,7 @@ getEntryDP anns ast =
 
 -- |Set the true entry 'DeltaPos' from the annotation for a given AST
 -- element. This is the 'DeltaPos' ignoring any comments.
-#if __GLASGOW_HASKELL__ >= 808
+#if (__GLASGOW_HASKELL__ >= 808) && (__GLASGOW_HASKELL__ < 900)
 setEntryDP :: (Constraints a) => a -> DeltaPos -> Anns -> Anns
 #else
 setEntryDP :: (Data a) => GHC.Located a -> DeltaPos -> Anns -> Anns
@@ -547,7 +552,9 @@ balanceComments' first second = do
 -- 'GHC.FunBind', these need to be pushed down from the top level to the last
 -- 'GHC.Match' if that 'GHC.Match' needs to be manipulated.
 balanceCommentsFB :: (Data b,Monad m) => GHC.LHsBind GhcPs -> GHC.Located b -> TransformT m ()
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 900
+balanceCommentsFB (GHC.L _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _)) second = do
+#elif __GLASGOW_HASKELL__ > 808
 balanceCommentsFB (GHC.L _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _ _)) second = do
 #elif __GLASGOW_HASKELL__ > 804
 balanceCommentsFB (GHC.L _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _ _)) second = do
@@ -694,12 +701,21 @@ class (Data t) => HasDecls t where
 -- ---------------------------------------------------------------------
 
 instance HasDecls GHC.ParsedSource where
+#if __GLASGOW_HASKELL__ >= 900
+  hsDecls (GHC.L _ (GHC.HsModule _lo _mn _exps _imps decls _ _)) = return decls
+  replaceDecls m@(GHC.L l (GHC.HsModule lo mn exps imps _decls deps haddocks)) decls
+    = do
+        logTr "replaceDecls LHsModule"
+        modifyAnnsT (captureOrder m decls)
+        return (GHC.L l (GHC.HsModule lo mn exps imps decls deps haddocks))
+#else
   hsDecls (GHC.L _ (GHC.HsModule _mn _exps _imps decls _ _)) = return decls
   replaceDecls m@(GHC.L l (GHC.HsModule mn exps imps _decls deps haddocks)) decls
     = do
         logTr "replaceDecls LHsModule"
         modifyAnnsT (captureOrder m decls)
         return (GHC.L l (GHC.HsModule mn exps imps decls deps haddocks))
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -989,7 +1005,9 @@ instance HasDecls (GHC.LStmt GhcPs (GHC.LHsExpr GhcPs)) where
 #else
   hsDecls (GHC.L _ (GHC.LastStmt e _))        = hsDecls e
 #endif
-#if __GLASGOW_HASKELL__ > 804
+#if __GLASGOW_HASKELL__ >= 900
+  hsDecls (GHC.L _ (GHC.BindStmt _ _pat e))     = hsDecls e
+#elif __GLASGOW_HASKELL__ > 804
   hsDecls (GHC.L _ (GHC.BindStmt _ _pat e _ _)) = hsDecls e
 #elif __GLASGOW_HASKELL__ > 710
   hsDecls (GHC.L _ (GHC.BindStmt _pat e _ _ _)) = hsDecls e
@@ -1037,7 +1055,12 @@ instance HasDecls (GHC.LStmt GhcPs (GHC.LHsExpr GhcPs)) where
         e' <- replaceDecls e newDecls
         return (GHC.L l (GHC.LastStmt e' se))
 #endif
-#if __GLASGOW_HASKELL__ > 804
+#if __GLASGOW_HASKELL__ >= 900
+  replaceDecls (GHC.L l (GHC.BindStmt x pat e)) newDecls
+    = do
+      e' <- replaceDecls e newDecls
+      return (GHC.L l (GHC.BindStmt x pat e'))
+#elif __GLASGOW_HASKELL__ > 804
   replaceDecls (GHC.L l (GHC.BindStmt x pat e a b)) newDecls
     = do
       e' <- replaceDecls e newDecls
@@ -1151,7 +1174,9 @@ hsDeclsGeneric t = q t
     -- ---------------------------------
 
     lhsbind :: (Monad m) => GHC.LHsBind GhcPs -> TransformT m [GHC.LHsDecl GhcPs]
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 900
+    lhsbind (GHC.L _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _)) = do
+#elif __GLASGOW_HASKELL__ > 808
     lhsbind (GHC.L _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _ _)) = do
 #elif __GLASGOW_HASKELL__ > 804
     lhsbind (GHC.L _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ matches) _) _ _)) = do
@@ -1197,7 +1222,7 @@ orderedDecls parent decls = do
       Nothing -> do
         return decls
       Just keys -> do
-        let ds = map (\s -> (GHC.getLoc s,s)) decls
+        let ds = map (\s -> (rs $ GHC.getLoc s,s)) decls
             ordered = map snd $ orderByKey ds keys
         return ordered
 

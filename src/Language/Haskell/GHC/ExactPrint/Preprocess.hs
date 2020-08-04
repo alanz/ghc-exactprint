@@ -14,25 +14,46 @@ module Language.Haskell.GHC.ExactPrint.Preprocess
    , defaultCppOptions
    ) where
 
+import qualified GHC            as GHC hiding (parseModule)
+
+#if __GLASGOW_HASKELL__ >= 900
+import qualified Control.Monad.IO.Class as GHC
+import qualified GHC.Data.Bag          as GHC
+import qualified GHC.Data.FastString   as GHC
+import qualified GHC.Data.StringBuffer as GHC
+import qualified GHC.Driver.Phases     as GHC
+import qualified GHC.Driver.Pipeline   as GHC
+-- import qualified GHC.Driver.Session    as GHC
+import qualified GHC.Driver.Types      as GHC
+import qualified GHC.Fingerprint.Type  as GHC
+import qualified GHC.Utils.Fingerprint as GHC
+import qualified GHC.Parser.Lexer      as GHC
+import qualified GHC.Settings          as GHC
+import qualified GHC.Types.SrcLoc      as GHC
+import qualified GHC.Utils.Error       as GHC
+import GHC.Types.SrcLoc (mkSrcSpan, mkSrcLoc)
+import GHC.Data.FastString (mkFastString)
+#else
 import qualified Bag            as GHC
 import qualified DriverPhases   as GHC
 import qualified DriverPipeline as GHC
 import qualified DynFlags       as GHC
 import qualified ErrUtils       as GHC
 import qualified FastString     as GHC
-import qualified GHC            as GHC hiding (parseModule)
 import qualified HscTypes       as GHC
 import qualified Lexer          as GHC
 import qualified MonadUtils     as GHC
 import qualified SrcLoc         as GHC
 import qualified StringBuffer   as GHC
-#if __GLASGOW_HASKELL__ > 808
+import SrcLoc (mkSrcSpan, mkSrcLoc)
+import FastString (mkFastString)
+#endif
+
+#if (__GLASGOW_HASKELL__ > 808) && (__GLASGOW_HASKELL__ < 900)
 import qualified Fingerprint    as GHC
 import qualified ToolSettings   as GHC
 #endif
 
-import SrcLoc (mkSrcSpan, mkSrcLoc)
-import FastString (mkFastString)
 
 #if __GLASGOW_HASKELL__ > 808
 #else
@@ -82,14 +103,14 @@ checkLine line s
            size   = length pragma
            mSrcLoc = mkSrcLoc (mkFastString "LINE")
            ss     = mkSrcSpan (mSrcLoc line 1) (mSrcLoc line (size+1))
-       in (res, Just $ mkComment pragma ss)
+       in (res, Just $ mkComment pragma (rs ss))
   -- Deal with shebang/cpp directives too
   -- x |  "#" `isPrefixOf` s = ("",Just $ Comment ((line, 1), (line, length s)) s)
   |  "#!" `isPrefixOf` s =
     let mSrcLoc = mkSrcLoc (mkFastString "SHEBANG")
         ss = mkSrcSpan (mSrcLoc line 1) (mSrcLoc line (length s))
     in
-    ("",Just $ mkComment s ss)
+    ("",Just $ mkComment s (rs ss))
   | otherwise = (s, Nothing)
 
 getPragma :: String -> (String, String)
@@ -123,7 +144,9 @@ getCppTokensAsComments cppOptions sourceFile = do
                   let toks = GHC.addSourceToTokens startLoc source ts
                       cppCommentToks = getCppTokens directiveToks nonDirectiveToks toks
                   return $ filter goodComment
-#if __GLASGOW_HASKELL__ > 800
+#if __GLASGOW_HASKELL__ >= 900
+                         $  map (tokComment . GHC.commentToAnnotation . toRealLocated . fst) cppCommentToks
+#elif __GLASGOW_HASKELL__ > 800
                          $  map (tokComment . GHC.commentToAnnotation . fst) cppCommentToks
 #else
                          $  map (tokComment . commentToAnnotation . fst) cppCommentToks
@@ -139,6 +162,13 @@ getCppTokensAsComments cppOptions sourceFile = do
 goodComment :: Comment -> Bool
 goodComment (Comment "" _ _) = False
 goodComment _              = True
+
+
+#if __GLASGOW_HASKELL__ >= 900
+toRealLocated :: GHC.Located a -> GHC.RealLocated a
+toRealLocated (GHC.L (GHC.RealSrcSpan s _) x) = GHC.L s              x
+toRealLocated (GHC.L _ x)                     = GHC.L badRealSrcSpan x
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -159,18 +189,18 @@ getCppTokens ::
   -> [(GHC.Located GHC.Token, String)]
 getCppTokens directiveToks origSrcToks postCppToks = toks
   where
-    locFn (GHC.L l1 _,_) (GHC.L l2 _,_) = compare l1 l2
+    locFn (GHC.L l1 _,_) (GHC.L l2 _,_) = compare (rs l1) (rs l2)
     m1Toks = mergeBy locFn postCppToks directiveToks
 
     -- We must now find the set of tokens that are in origSrcToks, but
     -- not in m1Toks
 
     -- GHC.Token does not have Ord, can't use a set directly
-    origSpans = map (\(GHC.L l _,_) -> l) origSrcToks
-    m1Spans = map (\(GHC.L l _,_) -> l) m1Toks
+    origSpans = map (\(GHC.L l _,_) -> rs l) origSrcToks
+    m1Spans = map (\(GHC.L l _,_) -> rs l) m1Toks
     missingSpans = Set.fromList origSpans Set.\\ Set.fromList m1Spans
 
-    missingToks = filter (\(GHC.L l _,_) -> Set.member l missingSpans) origSrcToks
+    missingToks = filter (\(GHC.L l _,_) -> Set.member (rs l) missingSpans) origSrcToks
 
     missingAsComments = map mkCommentTok missingToks
       where

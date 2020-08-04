@@ -6,6 +6,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Test.Common (
                 RoundtripReport (..)
               , Report
@@ -35,6 +36,14 @@ import Language.Haskell.GHC.ExactPrint.Preprocess
 import Language.Haskell.GHC.ExactPrint.Types
 
 
+#if __GLASGOW_HASKELL__ >= 900
+import qualified Control.Monad.IO.Class as GHC
+import qualified GHC           as GHC hiding (parseModule)
+import qualified GHC.Data.Bag          as GHC
+import qualified GHC.Driver.Session    as GHC
+import qualified GHC.Utils.Error       as GHC
+import qualified GHC.Utils.Outputable  as GHC
+#else
 import qualified ApiAnnotation as GHC
 import qualified DynFlags      as GHC
 #if __GLASGOW_HASKELL__ > 808
@@ -43,6 +52,7 @@ import qualified ErrUtils      as GHC
 #endif
 import qualified GHC           as GHC hiding (parseModule)
 import qualified MonadUtils    as GHC
+#endif
 
 #if __GLASGOW_HASKELL__ <= 710
 #else
@@ -78,7 +88,7 @@ data RoundtripReport =
    { debugTxt     :: String
    , status       :: ReportType
    , cppStatus    :: Maybe String -- Result of CPP if invoked
-   , inconsistent :: Maybe [(GHC.SrcSpan, (GHC.AnnKeywordId, [GHC.SrcSpan]))]
+   , inconsistent :: Maybe [(AnnSpan, (GHC.AnnKeywordId, [AnnSpan]))]
    }
 
 data ParseFailure = ParseFailure String
@@ -184,7 +194,11 @@ mkDebugOutput filename printed original apianns anns parsed =
 
 
 runRoundTrip :: Changer
+#if __GLASGOW_HASKELL__ >= 900
+             -> GHC.ApiAnns -> GHC.Located GHC.HsModule
+#else
              -> GHC.ApiAnns -> GHC.Located (GHC.HsModule GhcPs)
+#endif
              -> [Comment]
              -> IO (String, Anns, GHC.ParsedSource)
 runRoundTrip f !anns !parsedOrig cs = do
@@ -233,3 +247,16 @@ getModSummaryForFile fileName = do
 showErrorMessages :: GHC.ErrorMessages -> String
 showErrorMessages m = show $ GHC.bagToList m
 #endif
+
+-- ---------------------------------------------------------------------
+
+#if __GLASGOW_HASKELL__ >= 900
+instance GHC.Outputable GHC.ApiAnns where
+  ppr (GHC.ApiAnns items eof comments rogueComments)
+    = GHC.text "ApiAnns" GHC.<+> GHC.ppr items
+                         GHC.<+> GHC.ppr eof
+                         GHC.<+> GHC.ppr comments
+                         GHC.<+> GHC.ppr rogueComments
+#endif
+
+-- ---------------------------------------------------------------------

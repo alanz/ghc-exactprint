@@ -86,6 +86,10 @@ keywordToString kw =
       (G GHC.AnnLam      ) -> "\\"
       (G GHC.AnnLarrow   ) -> "<-"
       (G GHC.AnnLet      ) -> "let"
+#if __GLASGOW_HASKELL__ >= 900
+      (G GHC.AnnLolly    ) -> "#->"
+      (G GHC.AnnLollyU    ) -> "⊸"
+#endif
       (G GHC.AnnMdo      ) -> "mdo"
       (G GHC.AnnMinus    ) -> "-"
       (G GHC.AnnModule   ) -> "module"
@@ -104,8 +108,10 @@ keywordToString kw =
       (G GHC.AnnOpenEQU  ) ->  "⟦"
 #endif
       (G GHC.AnnOpenP    ) -> "("
+#if __GLASGOW_HASKELL__ < 900
       (G GHC.AnnOpenPE   ) -> "$("
       (G GHC.AnnOpenPTE  ) -> "$$("
+#endif
       (G GHC.AnnOpenS    ) -> "["
       (G GHC.AnnPattern  ) -> "pattern"
       (G GHC.AnnProc     ) -> "proc"
@@ -136,9 +142,16 @@ keywordToString kw =
       (G GHC.AnnRarrowtail ) -> ">>-"
       (G GHC.AnnSimpleQuote ) -> "'"
       (G GHC.AnnThTyQuote   ) -> "''"
+#if __GLASGOW_HASKELL__ >= 900
+      (G GHC.AnnDollar       ) -> "$"
+      (G GHC.AnnDollarDollar ) -> "$$"
+#else
       (G GHC.AnnThIdSplice  ) -> "$"
       (G GHC.AnnThIdTySplice ) -> "$$"
+#endif
+#if __GLASGOW_HASKELL__ < 900
       (G GHC.AnnEofPos       ) -> ""
+#endif
 #if __GLASGOW_HASKELL__ > 710
       (G GHC.AnnDarrowU) -> "⇒"
       (G GHC.AnnDcolonU) -> "∷"
