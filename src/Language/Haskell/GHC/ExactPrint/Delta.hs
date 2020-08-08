@@ -174,7 +174,7 @@ relativiseApiAnns = relativiseApiAnnsWithComments []
 -- by e.g. CPP, and the parts stripped out of the original source are re-added
 -- as comments so they are not lost for round tripping.
 relativiseApiAnnsWithComments ::
-#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ > 900)
+#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
                      (Data (GHC.SrcSpanLess ast), Annotate ast, GHC.HasSrcSpan ast)
                   => [Comment]
                   -> ast
@@ -568,14 +568,7 @@ getAndRemoveOneAnnotationDelta sp an = do
                     Just []     -> ([], (Map.delete (sp,an)    anns,cs),an)
                     Just (s:ss) -> ([s],(Map.insert (sp,an) ss anns,cs),an)
 #else
-    let getKw :: GHC.AnnKeywordId
-                      -> ([GHC.RealSrcSpan],
-                          (Map.Map GHC.ApiAnnKey [GHC.RealSrcSpan],
-                           Map.Map
-                             GHC.RealSrcSpan
-                             [GHC.RealLocated GHC.AnnotationComment]),
-                          GHC.AnnKeywordId)
-        getKw kw =
+    let getKw kw =
           case Map.lookup (rs sp,kw) anns of
             Nothing -> ([],(anns,cs),kw)
             Just []     -> ([], (Map.delete (rs sp,kw)    anns,cs),kw)
