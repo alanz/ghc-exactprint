@@ -62,9 +62,9 @@ testDirs =
     GHC86  -> ["pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
     GHC88  -> ["pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
     GHC810 -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
-    -- GHC90  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
+    GHC90  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
 
-    GHC90  -> ["ghc88"]
+    -- GHC90  -> ["ghc82"]
     -- GHC810  -> ["ghc810-copied"]
 
 -- ---------------------------------------------------------------------
@@ -147,12 +147,12 @@ mkTests = do
   return $ TestList [
                       internalTests,
                       roundTripTests
-                    -- ,
-                    --   transformTests
-                    -- , failingTests
-                    -- , noAnnotationTests
-                    -- ,
-                    --   prettyRoundTripTests
+                    ,
+                      transformTests
+                    , failingTests
+                    , noAnnotationTests
+                    ,
+                      prettyRoundTripTests
                     ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -205,23 +205,14 @@ tr = hSilence [stderr] $ do
 tt' :: IO (Counts,Int)
 tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
-      -- mkParserTest      "ghc80" "C.hs"
-    --   mkParserTest      "ghc80" "T10267.hs"
-    -- , mkParserTest      "ghc80" "T10946.hs"
-      -- mkParserTest      "ghc82" "T13050.hs"
-      -- mkParserTest      "ghc84" "arrowfail003.hs"
-      -- mkParserTest      "ghc810" "T17296.hs"
-      mkParserTest      "ghc88" "EmptyCase008.hs"
+    -- mkTestModChange changeRenameCase1 "RenameCase1.hs"
 
-      -- mkPrettyRoundtrip "ghc810" "T16326_Compile1.hs"
-      -- mkPrettyRoundtrip "ghc810" "saks029.hs"
+    -- mkParserTest      "ghc710" "Control.hs"
 
-      -- mkPrettyRoundtrip "ghc86" "dynamic-paper.hs"
+      mkPrettyRoundtrip "ghc88" "DumpParsedAst.hs"
+      -- mkParserTest "ghc88" "DumpParsedAst.hs"
 
    -- Needs GHC changes
-        -- mkParserTest "failing" "CtorOp.hs"
-        -- mkParserTest "failing" "InfixOperator.hs"
-
 
 
     ]

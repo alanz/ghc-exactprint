@@ -189,6 +189,9 @@ showAstData n =
           `extQ` name `extQ` occName `extQ` moduleName `extQ` var `extQ` dataCon
           `extQ` overLit
           `extQ` bagName `extQ` bagRdrName `extQ` bagVar `extQ` nameSet
+#if __GLASGOW_HASKELL__ >= 900
+          `extQ` layoutInfo
+#endif
           `extQ` fixity
           `ext2Q` located
   where generic :: Data a => a -> String
@@ -230,6 +233,10 @@ showAstData n =
 #endif
 
         fixity = ("{Fixity: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Fixity -> String
+
+#if __GLASGOW_HASKELL__ >= 900
+        layoutInfo = const "{LayoutInfo: blanked }" :: GHC.LayoutInfo -> String
+#endif
 
         located :: (Data b,Data loc) => GHC.GenLocated loc b -> String
         located (GHC.L ss a) =

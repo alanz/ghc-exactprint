@@ -8,6 +8,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
    -- * Manipulating Positons
     ss2pos
   , ss2posEnd
+  , ss2range
   , undelta
   , isPointSrcSpan
   , pos2delta
@@ -235,6 +236,9 @@ ss2pos ss = (srcSpanStartLine ss,srcSpanStartColumn ss)
 ss2posEnd :: GHC.SrcSpan -> Pos
 ss2posEnd ss = (srcSpanEndLine ss,srcSpanEndColumn ss)
 
+ss2range :: GHC.SrcSpan -> (Pos,Pos)
+ss2range ss = (ss2pos ss, ss2posEnd ss)
+
 srcSpanEndColumn :: GHC.SrcSpan -> Int
 #if __GLASGOW_HASKELL__ >= 900
 srcSpanEndColumn (GHC.RealSrcSpan s _) = GHC.srcSpanEndCol s
@@ -317,6 +321,7 @@ isListComp cts = case cts of
 isGadt :: [GHC.LConDecl name] -> Bool
 isGadt [] = False
 #if __GLASGOW_HASKELL__ >= 900
+isGadt ((GHC.L _ (GHC.ConDeclGADT{})):_) = True
 isGadt ((GHC.L _ (GHC.XConDecl{})):_) = True
 #elif __GLASGOW_HASKELL__ > 710
 isGadt ((GHC.L _ (GHC.ConDeclGADT{})):_) = True

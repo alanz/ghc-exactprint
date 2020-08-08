@@ -181,6 +181,11 @@ markMaybe Nothing    = return ()
 markMaybe (Just ast) = markLocated ast
 
 -- ---------------------------------------------------------------------
+
+markTightPrefix :: Annotated () -> Annotated ()
+markTightPrefix action = setContext (Set.singleton InTypeApp) action
+
+-- ---------------------------------------------------------------------
 -- Managing lists which have been separated, e.g. Sigs and Binds
 
 prepareListAnnotation :: Annotate a => [GHC.Located a] -> [(GHC.RealSrcSpan,Annotated ())]
@@ -189,53 +194,6 @@ prepareListAnnotation ls = map (\b -> (rs $ GHC.getLoc b,markLocated b)) ls
 -- ---------------------------------------------------------------------
 
 instance Annotate GHC.HsModule where
-{-
-data HsModule
-  = HsModule {
-      hsmodLayout :: LayoutInfo,
-        -- ^ Layout info for the module.
-        -- For incomplete modules (e.g. the output of parseHeader), it is NoLayoutInfo.
-      hsmodName :: Maybe (Located ModuleName),
-        -- ^ @Nothing@: \"module X where\" is omitted (in which case the next
-        --     field is Nothing too)
-      hsmodExports :: Maybe (Located [LIE GhcPs]),
-        -- ^ Export list
-        --
-        --  - @Nothing@: export list omitted, so export everything
-        --
-        --  - @Just []@: export /nothing/
-        --
-        --  - @Just [...]@: as you would expect...
-        --
-        --
-        --  - 'GHC.Parser.Annotation.AnnKeywordId's : 'GHC.Parser.Annotation.AnnOpen'
-        --                                   ,'GHC.Parser.Annotation.AnnClose'
-
-        -- For details on above see note [Api annotations] in GHC.Parser.Annotation
-      hsmodImports :: [LImportDecl GhcPs],
-        -- ^ We snaffle interesting stuff out of the imported interfaces early
-        -- on, adding that info to TyDecls/etc; so this list is often empty,
-        -- downstream.
-      hsmodDecls :: [LHsDecl GhcPs],
-        -- ^ Type, class, value, and interface signature decls
-      hsmodDeprecMessage :: Maybe (Located WarningTxt),
-        -- ^ reason\/explanation for warning/deprecation of this module
-        --
-        --  - 'GHC.Parser.Annotation.AnnKeywordId's : 'GHC.Parser.Annotation.AnnOpen'
-        --                                   ,'GHC.Parser.Annotation.AnnClose'
-        --
-
-        -- For details on above see note [Api annotations] in GHC.Parser.Annotation
-      hsmodHaddockModHeader :: Maybe LHsDocString
-        -- ^ Haddock module info and description, unparsed
-        --
-        --  - 'GHC.Parser.Annotation.AnnKeywordId's : 'GHC.Parser.Annotation.AnnOpen'
-        --                                   ,'GHC.Parser.Annotation.AnnClose'
-
-        -- For details on above see note [Api annotations] in GHC.Parser.Annotation
-   }
-
--}
   markAST _ (GHC.HsModule _lo mmn mexp imps decs mdepr _haddock) = do
 
     case mmn of
@@ -298,6 +256,7 @@ instance Annotate [GHC.LIE GHC.GhcPs] where
      -- Can't use markListIntercalate, there can be trailing commas, but only in imports.
      markListIntercalateWithFunLevel markLocated 2 ls
 
+     markOptional GHC.AnnComma
      mark GHC.AnnCloseP -- ')'
 
 instance Annotate (GHC.IE GHC.GhcPs) where
@@ -407,8 +366,6 @@ instance Annotate GHC.RdrName where
                         then doNormalRdrName
                         -- then error $ "GHC.orig:(isSym,canParen)=" ++ show (isSym,canParen)
                         else markExternal l GHC.AnnVal str
-      -- GHC.Orig _ _ -> markExternal l GHC.AnnVal str
-      -- GHC.Orig _ _ -> error $ "GHC.orig:str=[" ++ str ++ "]"
       GHC.Exact n'  -> do
        case str of
          -- Special handling for Exact RdrNames, which are built-in Names
@@ -430,10 +387,6 @@ instance Annotate GHC.RdrName where
            mark GHC.AnnOpenP -- '('
            mark GHC.AnnRarrow
            mark GHC.AnnCloseP -- ')'
-         -- "~#"  -> do
-         --   mark GHC.AnnOpenP -- '('
-         --   mark GHC.AnnTildehsh
-         --   mark GHC.AnnCloseP
          "~"  -> do
            doNormalRdrName
          "*"  -> do
@@ -1032,7 +985,7 @@ instance Annotate GHC.HsIPName where
 instance (Annotate body)
   => Annotate (GHC.Match GHC.GhcPs (GHC.Located body)) where
 
-  markAST _ (GHC.Match _ mln pats (GHC.GRHSs _ grhs (GHC.L _ lb))) = do
+  markAST l (GHC.Match _ mln pats (GHC.GRHSs _ grhs (GHC.L _ lb))) = do
     let
       get_infix (GHC.FunRhs _ f _) = f
       get_infix _                  = GHC.Prefix
@@ -1059,8 +1012,11 @@ instance (Annotate body)
         case mln of
           GHC.FunRhs n _ s -> do
             setContext (Set.fromList [NoPrecedingSpace,PrefixOp]) $ do
-              when (s == GHC.SrcStrict) $ mark GHC.AnnBang
-              markLocated n
+              if (s == GHC.SrcStrict)
+                then do
+                  markExternal (GHC.srcSpanFirstCharacter l) GHC.AnnBang "!"
+                  markTightPrefix $ markLocated n
+                else markLocated n
             mapM_ markLocated pats
           _  -> markListNoPrecedingSpace False pats
 
@@ -1257,7 +1213,6 @@ instance (Data flag) => Annotate (GHC.HsTyVarBndr flag GHC.GhcPs) where
 
 instance Annotate (GHC.HsType GHC.GhcPs) where
   markAST loc ty = do
-    inContext (Set.fromList [InTypeApp]) $ mark GHC.AnnAt
     markType loc ty
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
     (inContext (Set.singleton AddVbar) $ mark GHC.AnnVbar)
@@ -1291,7 +1246,7 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
     markType _ (GHC.HsAppKindTy l t k) = do
       setContext (Set.singleton PrefixOp)  $ markLocated t
       markTypeApp l
-      markLocated k
+      markTightPrefix $ markLocated k
 
     markType _ (GHC.HsFunTy _ arrow t1 t2) = do
       markLocated t1
@@ -1367,11 +1322,14 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
           markWithString GHC.AnnOpen src
           markWithString GHC.AnnClose "#-}"
       case str of
-        GHC.SrcLazy     -> mark GHC.AnnTilde
-        GHC.SrcStrict   -> mark GHC.AnnBang
-        GHC.NoSrcStrict -> return ()
+        GHC.SrcLazy     -> do
+          mark GHC.AnnTilde
+          markTightPrefix $ markLocated t
+        GHC.SrcStrict   -> do
+          mark GHC.AnnBang
+          markTightPrefix $ markLocated t
+        GHC.NoSrcStrict -> markLocated t
 
-      markLocated t
 
     markType _ (GHC.HsRecTy _ cons) = do
       mark GHC.AnnOpenC  -- '{'
@@ -1423,13 +1381,19 @@ instance Annotate (GHC.HsSplice GHC.GhcPs) where
               -- Note: Lexer.x does not provide unicode alternative. 2017-02-26
               ("[" ++ (showGhc n) ++ "|" ++ (GHC.unpackFS fs) ++ "|]")
 
-      GHC.HsTypedSplice _ _decoration _n b  -> do
-        mark GHC.AnnDollarDollar
-        markLocated b
+      GHC.HsTypedSplice _ decoration _n b  -> do
+        if (decoration == GHC.DollarSplice)
+          then do
+            mark GHC.AnnDollarDollar
+            markTightPrefix $ markLocated b
+          else markLocated b
 
-      GHC.HsUntypedSplice _ _decoration _n b  -> do
-        mark GHC.AnnDollar
-        markLocated b
+      GHC.HsUntypedSplice _ decoration _n b  -> do
+        if (decoration == GHC.DollarSplice)
+          then do
+            mark GHC.AnnDollar
+            markTightPrefix $ markLocated b
+          else markLocated b
 
       GHC.HsSpliced{}  -> error "HsSpliced only exists between renamer and typechecker in GHC"
 
@@ -1475,12 +1439,12 @@ instance Annotate (GHC.Pat GHC.GhcPs) where
           -- unsetContext Intercalate $ setContext (Set.singleton PrefixOp) $ markLocated n
       markPat _ (GHC.LazyPat _ p) = do
         mark GHC.AnnTilde
-        markLocated p
+        markTightPrefix $ markLocated p
 
       markPat _ (GHC.AsPat _ ln p) = do
         markLocated ln
         mark GHC.AnnAt
-        markLocated p
+        markTightPrefix $ markLocated p
 
       markPat _ (GHC.ParPat _ p) = do
         mark GHC.AnnOpenP
@@ -1489,7 +1453,7 @@ instance Annotate (GHC.Pat GHC.GhcPs) where
 
       markPat _ (GHC.BangPat _ p) = do
         mark GHC.AnnBang
-        markLocated p
+        markTightPrefix $ markLocated p
 
       markPat _ (GHC.ListPat _ ps) = do
         mark GHC.AnnOpenS
@@ -2012,13 +1976,6 @@ instance Annotate (GHC.HsExpr GHC.GhcPs) where
               markLocated e3
         mark GHC.AnnCloseS -- ']'
 
-      -- markExpr _ (GHC.HsSCC _ src csFStr e) = do
-      --   markAnnOpen src "{-# SCC"
-      --   let txt = sourceTextToString (GHC.sl_st csFStr) (GHC.unpackFS $ GHC.sl_fs csFStr)
-      --   markWithStringOptional GHC.AnnVal    txt
-      --   markWithString         GHC.AnnValStr txt
-      --   markWithString GHC.AnnClose "#-}"
-      --   markLocated e
 
       -- markExpr _ (GHC.HsCoreAnn _ src csFStr e) = do
       --   -- markWithString GHC.AnnOpen src -- "{-# CORE"
@@ -2107,50 +2064,48 @@ instance Annotate (GHC.HsExpr GHC.GhcPs) where
 
       markExpr _ (GHC.HsTick {}) = return ()
       markExpr _ (GHC.HsBinTick {}) = return ()
+      markExpr _ (GHC.HsPragE _ prag e) = do
+        case prag of
+          (GHC.HsPragSCC _ src csFStr) -> do
+            markAnnOpen src "{-# SCC"
+            let txt = sourceTextToString (GHC.sl_st csFStr) (GHC.unpackFS $ GHC.sl_fs csFStr)
+            markWithStringOptional GHC.AnnVal    txt
+            markWithString         GHC.AnnValStr txt
+            markWithString GHC.AnnClose "#-}"
+            markLocated e
 
-      -- markExpr _ (GHC.HsTickPragma _ src (str,(v1,v2),(v3,v4)) ((s1,s2),(s3,s4)) e) = do
-      --   -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
-      --   markAnnOpen src  "{-# GENERATED"
-      --   markOffsetWithString GHC.AnnVal 0 (stringLiteralToString str) -- STRING
+          (GHC.HsPragTick _ src (str,(v1,v2),(v3,v4)) ((s1,s2),(s3,s4))) -> do
+            -- '{-# GENERATED' STRING INTEGER ':' INTEGER '-' INTEGER ':' INTEGER '#-}'
+            markAnnOpen src  "{-# GENERATED"
+            markOffsetWithString GHC.AnnVal 0 (stringLiteralToString str) -- STRING
 
-      --   let
-      --     markOne n  v GHC.NoSourceText   = markOffsetWithString GHC.AnnVal n (show v)
-      --     markOne n _v (GHC.SourceText s) = markOffsetWithString GHC.AnnVal n s
+            let
+              markOne n  v GHC.NoSourceText   = markOffsetWithString GHC.AnnVal n (show v)
+              markOne n _v (GHC.SourceText s) = markOffsetWithString GHC.AnnVal n s
 
-      --   markOne  1 v1 s1 -- INTEGER
-      --   markOffset GHC.AnnColon 0 -- ':'
-      --   markOne  2 v2 s2 -- INTEGER
-      --   mark   GHC.AnnMinus   -- '-'
-      --   markOne  3 v3 s3 -- INTEGER
-      --   markOffset GHC.AnnColon 1 -- ':'
-      --   markOne  4 v4 s4 -- INTEGER
-      --   markWithString   GHC.AnnClose  "#-}"
-      --   markLocated e
-
-      -- markExpr _ (GHC.EAsPat _ ln e) = do
-      --   markLocated ln
-      --   mark GHC.AnnAt
-      --   markLocated e
-
-      -- markExpr _ (GHC.EViewPat _ e1 e2) = do
-      --   markLocated e1
-      --   mark GHC.AnnRarrow
-      --   markLocated e2
-
-      -- markExpr _ (GHC.ELazyPat _ e) = do
-      --   mark GHC.AnnTilde
-      --   markLocated e
+            markOne  1 v1 s1 -- INTEGER
+            markOffset GHC.AnnColon 0 -- ':'
+            markOne  2 v2 s2 -- INTEGER
+            mark   GHC.AnnMinus   -- '-'
+            markOne  3 v3 s3 -- INTEGER
+            markOffset GHC.AnnColon 1 -- ':'
+            markOne  4 v4 s4 -- INTEGER
+            markWithString   GHC.AnnClose  "#-}"
+            markLocated e
 
       markExpr _ (GHC.HsAppType _ e ty) = do
         markLocated e
         markInstead GHC.AnnAt AnnTypeApp
-        markLHsWcType ty
+        markTightPrefix $ markLHsWcType ty
 
       -- markExpr _ (GHC.HsWrap {}) =
       --   traceM "warning: HsWrap introduced after renaming"
 
       markExpr _ (GHC.HsConLikeOut{}) =
         traceM "warning: HsConLikeOut introduced after type checking"
+
+      markExpr _ x =
+        error $ "markExpr: not matched for " ++ showAnnData mempty 0 x
 
 -- ---------------------------------------------------------------------
 
@@ -2404,9 +2359,7 @@ markTyClassArgs mbndrs fixity ln tyVars = do
     cvt (GHC.HsValArg  val) = markLocated val
     cvt (GHC.HsTypeArg loc typ) = do
       markTypeApp loc
-      -- let l = GHC.srcSpanFirstCharacter loc
-      -- markExternal l GHC.AnnVal "@"
-      markLocated typ
+      markTightPrefix $ markLocated typ
     cvt (GHC.HsArgPar _ss) = undefined
   markTyClassWorker cvt mbndrs fixity ln tyVars
     {-
@@ -2673,24 +2626,7 @@ instance Annotate (GHC.ConDecl GHC.GhcPs) where
 
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnVbar
     markTrailingSemi
-{-
-  | ConDeclH98
-      { con_ext     :: XConDeclH98 pass
-      , con_name    :: Located (IdP pass)
 
-      , con_forall  :: Bool   -- ^ True <=> explicit user-written forall
-                              --     e.g. data T a = forall b. MkT b (b->a)
-                              --     con_ex_tvs = {b}
-                              -- False => con_ex_tvs is empty
-      , con_ex_tvs :: [LHsTyVarBndr pass]      -- ^ Existentials only
-      , con_mb_cxt :: Maybe (LHsContext pass)  -- ^ User-written context (if any)
-      , con_args   :: HsConDeclDetails pass    -- ^ Arguments; can be InfixCon
-
-      , con_doc       :: Maybe LHsDocString
-          -- ^ A possible Haddock comment.
-      }
-
--}
   markAST _ (GHC.ConDeclGADT _ lns (GHC.L l forall) qvars mbCxt args typ _) = do
     setContext (Set.singleton PrefixOp) $ markListIntercalate lns
     mark GHC.AnnDcolon
@@ -2701,36 +2637,14 @@ instance Annotate (GHC.ConDecl GHC.GhcPs) where
     markLocated typ
     markManyOptional GHC.AnnCloseP
     markTrailingSemi
-{-
-  = ConDeclGADT
-      { con_g_ext   :: XConDeclGADT pass
-      , con_names   :: [Located (IdP pass)]
 
-      -- The next four fields describe the type after the '::'
-      -- See Note [GADT abstract syntax]
-      -- The following field is Located to anchor API Annotations,
-      -- AnnForall and AnnDot.
-      , con_forall  :: Located Bool      -- ^ True <=> explicit forall
-                                         --   False => hsq_explicit is empty
-      , con_qvars   :: [LHsTyVarBndr Specificity pass]
-                       -- Whether or not there is an /explicit/ forall, we still
-                       -- need to capture the implicitly-bound type/kind variables
-
-      , con_mb_cxt  :: Maybe (LHsContext pass) -- ^ User-written context (if any)
-      , con_args    :: HsConDeclDetails pass   -- ^ Arguments; never InfixCon
-      , con_res_ty  :: LHsType pass            -- ^ Result type
-
-      , con_doc     :: Maybe LHsDocString
-          -- ^ A possible Haddock comment.
-      }
--}
-
-  -- markAST _ (GHC.ConDeclGADT _ _ (GHC.L _ _) (GHC.XLHsQTyVars _) _ _ _ _)
-  --   = error "hit extension point in ConDecl"
   markAST _ (GHC.XConDecl (GHC.ConDeclGADTPrefixPs names (GHC.HsIB _ ty) docs )) = do
-    mapM_ markLocated names
+    setContext (Set.singleton PrefixOp) $ markListIntercalate names
     mark GHC.AnnDcolon
     markLocated ty
+    markTrailingSemi
+
+-- ---------------------------------------------------------------------
 
 -- ResTyGADT has a SrcSpan for the original sigtype, we need to create
 -- a type for exactPC and annotatePC
@@ -2817,10 +2731,10 @@ instance Annotate GHC.CType where
 
 -- ---------------------------------------------------------------------
 
--- stringLiteralToString :: GHC.StringLiteral -> String
--- stringLiteralToString (GHC.StringLiteral st fs) =
---   case st of
---     GHC.NoSourceText   -> GHC.unpackFS fs
---     GHC.SourceText src -> src
+stringLiteralToString :: GHC.StringLiteral -> String
+stringLiteralToString (GHC.StringLiteral st fs) =
+  case st of
+    GHC.NoSourceText   -> GHC.unpackFS fs
+    GHC.SourceText src -> src
 
 -- ---------------------------------------------------------------------

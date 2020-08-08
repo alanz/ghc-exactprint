@@ -281,6 +281,7 @@ changeWhereIn3 declIndex ans p = return (ans',p')
 
 changeRenameCase1 :: Changer
 changeRenameCase1 ans parsed = return (ans,rename "bazLonger" [((3,15),(3,18))] parsed)
+-- changeRenameCase1 ans parsed = return (ans,rename "bazLonger" [((3,15),(3,17))] parsed)
 
 changeRenameCase2 :: Changer
 changeRenameCase2 ans parsed = return (ans,rename "fooLonger" [((3,1),(3,4))] parsed)
@@ -324,12 +325,7 @@ rename newNameStr spans a
     newName = GHC.mkRdrUnqual (GHC.mkVarOcc newNameStr)
 
     cond :: GHC.SrcSpan -> Bool
-    cond ln = ln `elem` srcSpans
-      where
-        srcSpans  = map (\(start, end) -> GHC.mkSrcSpan (f start) (f end)) spans
-        fname = fromMaybe (GHC.mkFastString "f") (GHC.srcSpanFileName_maybe ln)
-        f = uncurry (GHC.mkSrcLoc fname)
-
+    cond ln = ss2range ln `elem` spans
 
     replaceRdr :: GHC.Located GHC.RdrName -> GHC.Located GHC.RdrName
     replaceRdr (GHC.L ln _)
@@ -395,11 +391,7 @@ changeWhereIn4 ans parsed
   where
     replace :: GHC.Located GHC.RdrName -> GHC.Located GHC.RdrName
     replace (GHC.L ln _n)
-      | ln == (g (12,16) (12,17)) = GHC.L ln (GHC.mkRdrUnqual (GHC.mkVarOcc "p_2"))
-      where
-        g start end = GHC.mkSrcSpan (f start) (f end)
-        fname = fromMaybe (GHC.mkFastString "f") (GHC.srcSpanFileName_maybe ln)
-        f = uncurry (GHC.mkSrcLoc fname)
+      | ss2range ln == ((12,16),(12,17)) = GHC.L ln (GHC.mkRdrUnqual (GHC.mkVarOcc "p_2"))
     replace x = x
 
 -- ---------------------------------------------------------------------
