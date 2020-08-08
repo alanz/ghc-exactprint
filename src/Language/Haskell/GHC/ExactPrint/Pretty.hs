@@ -232,6 +232,10 @@ addPrettyAnnotation ann = do
            (G GHC.AnnDcolon)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnDeriving)     -> tellKd (ann,DP (0,1))
            (G GHC.AnnDo)           -> tellKd (ann,DP (0,1))
+#if __GLASGOW_HASKELL__ >= 900
+           (G GHC.AnnDollar)       -> tellKd (ann,DP (0,1))
+           (G GHC.AnnDollarDollar) -> tellKd (ann,DP (0,1))
+#endif
            (G GHC.AnnDotdot)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnElse)         -> tellKd (ann,DP (1,2))
            (G GHC.AnnEqual)        -> tellKd (ann,DP (0,1))
@@ -251,6 +255,8 @@ addPrettyAnnotation ann = do
            (G GHC.AnnNewtype)      -> tellKd (ann,DP (0,1))
            (G GHC.AnnOf)           -> tellKd (ann,DP (0,1))
            (G GHC.AnnOpenC)        -> tellKd (ann,DP (0,0))
+           (G GHC.AnnOpenP)        -> tellKd (ann,DP (0,1))
+           (G GHC.AnnOpenS)        -> tellKd (ann,DP (0,1))
            -- (G GHC.AnnOpenPE)       -> tellKd (ann,DP (0,1))
            -- (G GHC.AnnOpenPTE)      -> tellKd (ann,DP (0,1))
            (G GHC.AnnQualified)    -> tellKd (ann,DP (0,1))
@@ -383,7 +389,8 @@ withAST lss@(GHC.L ss t) action = do
     -- edp <- entryDpFor ctx t
 
     let ctx1 = debugP ("Pretty.withAST:edp:(ss,constr,edp)=" ++ showGhc (ss,showConstr (toConstr t),edp)) ctx
-    (res, w) <- if inAcs (Set.fromList [ListItem,TopLevel]) ctx1
+    -- (res, w) <- if inAcs (Set.fromList [ListItem,TopLevel]) ctx1
+    (res, w) <- if inAcs (Set.fromList [ListItem,TopLevel,InTypeApp]) ctx1
       then
            -- debugP ("Pretty.withAST:setNoPrecedingSpace") $
              censor maskWriter (listen (setNoPrecedingSpace action))
@@ -419,7 +426,8 @@ entryDpFor ctx a = (def `extQ` grhs) a
     def _ =
       debugP ("entryDpFor:(topLevel,listStart,inList,noAdvanceLine,ctx)=" ++ show (topLevel,listStart,inList,noAdvanceLine,ctx)) $
         if noAdvanceLine
-          then return (DP (0,1))
+          then (if inTypeApp then return (DP (0,0)) else return (DP (0,1)))
+          -- then (if inTypeApp then error "inTypeAp" else return (DP (0,1)))
           else
             if listStart
               then return (DP (1,2))
@@ -432,6 +440,7 @@ entryDpFor ctx a = (def `extQ` grhs) a
               && not (inAcs (Set.singleton TopLevel) ctx)
     inList = inAcs (Set.singleton ListItem) ctx
     inLambda = inAcs (Set.singleton LambdaExpr) ctx
+    inTypeApp = inAcs (Set.singleton InTypeApp) ctx
 
     grhs :: GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> Pretty DeltaPos
     grhs _ = do
