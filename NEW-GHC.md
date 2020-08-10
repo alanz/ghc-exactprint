@@ -8,7 +8,7 @@ Change to the current GHC git repository (for the new version of GHC)
 
     $ mkdir /tmp/ghc-tests
     $ export DESTINATION=/tmp/ghc-tests
-    $ export PREVIOUS=ghc-8.8
+    $ export PREVIOUS=ghc-8.10
 
 Sanity check
 
@@ -26,8 +26,8 @@ tests. Generally remove any `should_fail` directory.
     find /tmp/ghc-tests/ -iname "should_fail" | xargs rm -fr
 
 
-    $ mkdir tests/examples/ghc810-copied
-    $ find /tmp/ghc-tests -iname "*.hs"  | xargs cp  --backup=numbered -t ./tests/examples/ghc810-copied/
+    $ mkdir tests/examples/ghc90-copied
+    $ find /tmp/ghc-tests -iname "*.hs"  | xargs cp  --backup=numbered -t ./tests/examples/ghc90-copied/
 
 Note: there is a pathological file `parsing001.hs`, which should be deleted
 
@@ -39,12 +39,12 @@ extension.
 You may need to do `apt-get install mmv` first.
 See http://manpages.ubuntu.com/manpages/zesty/en/man1/mmv.1.html
 
-    $ cd tests/examples/ghc810-copied
+    $ cd tests/examples/ghc90-copied
     $ mmv "*.hs.~*~" "#1.#2.hs"
 
 ### cleanup whitespace in the files
 
-    $ cd tests/examples/ghc810-copied
+    $ cd tests/examples/ghc90-copied
     $ ../../../emacs-ws-cleanup.sh
 
 
@@ -70,4 +70,4 @@ Also comment out the running of the `noAnnotationTests` and
 will not be useful.
 
 Run the tests, and move the failing test files over to the
-`tests/examples/ghc810` directory
+`tests/examples/ghc90` directory

@@ -57,6 +57,7 @@ extra-source-files:  ChangeLog
                      tests/examples/ghc84/*.hs
                      tests/examples/ghc86/*.hs
                      tests/examples/ghc88/*.hs
+                     tests/examples/ghc90/*.hs
                      tests/examples/pre-ghc810/*.hs
                      tests/examples/pre-ghc86/*.hs
                      tests/examples/vect/*.hs

@@ -62,10 +62,10 @@ testDirs =
     GHC86  -> ["pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
     GHC88  -> ["pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
     GHC810 -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
-    GHC90  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
+    -- GHC90  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
 
-    -- GHC90  -> ["ghc82"]
-    -- GHC810  -> ["ghc810-copied"]
+    -- GHC90  -> ["ghc90-copied"]
+    GHC90  -> ["ghc90"]
 
 -- ---------------------------------------------------------------------
 
@@ -150,9 +150,9 @@ mkTests = do
                     ,
                       transformTests
                     , failingTests
-                    , noAnnotationTests
-                    ,
-                      prettyRoundTripTests
+                    -- , noAnnotationTests
+                    -- ,
+                    --   prettyRoundTripTests
                     ]
 
 -- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
@@ -209,8 +209,8 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
     -- mkParserTest      "ghc710" "Control.hs"
 
-      mkPrettyRoundtrip "ghc710" "Splice.hs"
-      -- mkParserTest "ghc710" "Splice.hs"
+      -- mkPrettyRoundtrip "ghc90" "Splice.hs"
+      mkParserTest "ghc90" "cgrun079.hs"
 
    -- Needs GHC changes
 
