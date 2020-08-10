@@ -1200,7 +1200,9 @@ instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) wh
 
 instance (Data flag) => Annotate (GHC.HsTyVarBndr flag GHC.GhcPs) where
   markAST _l (GHC.UserTyVar _ _f n) = do
+    mark GHC.AnnOpenC  -- '{'
     markLocated n
+    mark GHC.AnnCloseC  -- '}'
 
   markAST _ (GHC.KindedTyVar _ _f n ty) = do
     mark GHC.AnnOpenP  -- '('
@@ -1902,8 +1904,12 @@ instance Annotate (GHC.HsExpr GHC.GhcPs) where
 
       markExpr _ (GHC.HsDo _ cts (GHC.L _ es)) = do
         case cts of
-          GHC.DoExpr  _ -> mark GHC.AnnDo
-          GHC.MDoExpr _ -> mark GHC.AnnMdo
+          GHC.DoExpr  Nothing   -> mark GHC.AnnDo
+          GHC.DoExpr  (Just mn) ->
+            markWithString GHC.AnnDo ((GHC.moduleNameString mn) ++ ".do")
+          GHC.MDoExpr Nothing -> mark GHC.AnnMdo
+          GHC.MDoExpr (Just mn) ->
+            markWithString GHC.AnnMdo ((GHC.moduleNameString mn) ++ ".mdo")
           _             -> return ()
         let (ostr,cstr) =
               if isListComp cts
@@ -2211,6 +2217,14 @@ instance Annotate (GHC.HsCmd GHC.GhcPs) where
       markMatchGroup l matches
     markOptional GHC.AnnCloseC
 
+  markAST l (GHC.HsCmdLamCase _ matches) = do
+    mark GHC.AnnLam
+    mark GHC.AnnCase
+    markOptional GHC.AnnOpenC
+    setContext (Set.singleton CaseAlt) $ do
+      markMatchGroup l matches
+    markOptional GHC.AnnCloseC
+
   markAST _ (GHC.HsCmdIf _ _ e1 e2 e3) = do
     mark GHC.AnnIf
     markLocated e1
@@ -2238,7 +2252,7 @@ instance Annotate (GHC.HsCmd GHC.GhcPs) where
   -- markAST _ (GHC.HsCmdWrap {}) =
   --   traceM "warning: HsCmdWrap introduced after renaming"
 
-  -- markAST _ (GHC.XCmd x) = error $ "got XCmd for:" ++ showGhc x
+  markAST _ x = error $ "got HsCmd for:" ++ showAnnData mempty 0 x
 
 -- ---------------------------------------------------------------------
 
