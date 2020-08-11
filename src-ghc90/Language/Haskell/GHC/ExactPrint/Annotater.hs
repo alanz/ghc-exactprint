@@ -1199,17 +1199,24 @@ instance  (Annotate name) => Annotate (GHC.BooleanFormula (GHC.Located name)) wh
 -- ---------------------------------------------------------------------
 
 instance (Data flag) => Annotate (GHC.HsTyVarBndr flag GHC.GhcPs) where
-  markAST _l (GHC.UserTyVar _ _f n) = do
-    mark GHC.AnnOpenC  -- '{'
+  markAST _l (GHC.UserTyVar _ f n) = do
+    markInferred f GHC.AnnOpenC  Nothing -- '{'
     markLocated n
-    mark GHC.AnnCloseC  -- '}'
+    markInferred f GHC.AnnCloseC Nothing -- '}'
 
-  markAST _ (GHC.KindedTyVar _ _f n ty) = do
-    mark GHC.AnnOpenP  -- '('
+  markAST _ (GHC.KindedTyVar _ f n ty) = do
+    markInferred f GHC.AnnOpenC (Just GHC.AnnOpenP)
     markLocated n
     mark GHC.AnnDcolon -- '::'
     markLocated ty
-    mark GHC.AnnCloseP -- '('
+    markInferred f GHC.AnnCloseC (Just GHC.AnnCloseP)
+
+markInferred :: Typeable a
+             => a -> GHC.AnnKeywordId -> (Maybe GHC.AnnKeywordId) -> Annotated ()
+markInferred flag kw kw2 =
+  case (cast flag :: Maybe GHC.Specificity) of
+    (Just GHC.InferredSpec) -> mark kw
+    _ -> mapM_ mark kw2
 
 -- ---------------------------------------------------------------------
 
@@ -2110,8 +2117,8 @@ instance Annotate (GHC.HsExpr GHC.GhcPs) where
       markExpr _ (GHC.HsConLikeOut{}) =
         traceM "warning: HsConLikeOut introduced after type checking"
 
-      markExpr _ x =
-        error $ "markExpr: not matched for " ++ showAnnData mempty 0 x
+      -- markExpr _ x =
+      --   error $ "markExpr: not matched for " ++ showAnnData mempty 0 x
 
 -- ---------------------------------------------------------------------
 
@@ -2252,7 +2259,7 @@ instance Annotate (GHC.HsCmd GHC.GhcPs) where
   -- markAST _ (GHC.HsCmdWrap {}) =
   --   traceM "warning: HsCmdWrap introduced after renaming"
 
-  markAST _ x = error $ "got HsCmd for:" ++ showAnnData mempty 0 x
+  -- markAST _ x = error $ "got HsCmd for:" ++ showAnnData mempty 0 x
 
 -- ---------------------------------------------------------------------
 
@@ -2652,7 +2659,7 @@ instance Annotate (GHC.ConDecl GHC.GhcPs) where
     markManyOptional GHC.AnnCloseP
     markTrailingSemi
 
-  markAST _ (GHC.XConDecl (GHC.ConDeclGADTPrefixPs names (GHC.HsIB _ ty) docs )) = do
+  markAST _ (GHC.XConDecl (GHC.ConDeclGADTPrefixPs names (GHC.HsIB _ ty) _docs )) = do
     setContext (Set.singleton PrefixOp) $ markListIntercalate names
     mark GHC.AnnDcolon
     markLocated ty
