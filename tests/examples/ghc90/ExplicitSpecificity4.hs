@@ -8,3 +8,5 @@ class C a where
   default f :: forall {z}. z -> a -> a
   f _ x = x
 
+  g         :: forall z. z -> a -> a
+  g _ x = x
