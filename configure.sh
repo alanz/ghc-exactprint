@@ -86,4 +86,7 @@ rm .ghc.env*
 #--------------------------------------------------------------------
 # cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=/opt/ghc/9.0.0.20200728/bin/ghc --allow-newer
 # cabal new-configure -fdev --with-compiler=/opt/ghc/9.0.0.20200808/bin/ghc --allow-newer
-cabal new-configure -fdev --enable-tests --with-compiler=/opt/ghc/9.0.0.20200808/bin/ghc --allow-newer
+# cabal new-configure -fdev --enable-tests --with-compiler=/opt/ghc/9.0.0.20200808/bin/ghc --allow-newer
+# cabal new-configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.0.0.20200808/bin/ghc --allow-newer
+
+cabal new-configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.0.0.20200820/bin/ghc --allow-newer

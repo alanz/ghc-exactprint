@@ -66,6 +66,7 @@ TODO: change it to # *define
   cabal new-exec roundtrip -- clean
   cabal new-exec roundtrip -- ./hackage-roundtrip-work/* +RTS -N2
   cabal new-exec roundtrip -- failures
+  cabal new-exec static
   ```
 
   Or, old cabal

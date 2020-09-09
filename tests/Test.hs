@@ -62,10 +62,10 @@ testDirs =
     GHC86  -> ["pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
     GHC88  -> ["pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
     GHC810 -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
-    GHC90  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90"]
+    -- GHC90  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90"]
 
     -- GHC90  -> ["ghc90-copied"]
-    -- GHC90  -> ["ghc90"]
+    GHC90  -> ["ghc90"]
 
 -- ---------------------------------------------------------------------
 
@@ -209,8 +209,11 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
     -- mkParserTest      "ghc710" "Control.hs"
 
-      mkPrettyRoundtrip "ghc90" "ExplicitSpecificity4.hs"
-      -- mkParserTest "ghc90" "ExplicitSpecificity4.hs"
+      -- mkPrettyRoundtrip "ghc90" "Memoize.hs"
+      mkParserTest "ghc90" "Memoize.hs"
+
+      -- mkPrettyRoundtrip "ghc90" "T17544_kw.hs"
+      -- mkParserTest "ghc90" "T17544_kw.hs"
 
    -- Needs GHC changes
 
