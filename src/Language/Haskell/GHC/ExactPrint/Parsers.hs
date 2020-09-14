@@ -338,10 +338,10 @@ postParseTransform
   :: Either a (GHC.ApiAnns, [Comment], GHC.DynFlags, GHC.ParsedSource)
   -> DeltaOptions
   -> Either a (Anns, GHC.ParsedSource)
-postParseTransform parseRes opts = either Left mkAnns parseRes
+postParseTransform parseRes opts = fmap mkAnns parseRes
   where
     mkAnns (apianns, cs, _, m) =
-      Right (relativiseApiAnnsWithOptions opts cs m apianns, m)
+      (relativiseApiAnnsWithOptions opts cs m apianns, m)
 
 -- | Internal function. Initializes DynFlags value for parsing.
 --

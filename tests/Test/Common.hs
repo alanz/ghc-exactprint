@@ -63,7 +63,7 @@ import System.FilePath
 
 -- import Debug.Trace
 testPrefix :: FilePath
-testPrefix = "tests" </> "examples"
+testPrefix = "." </> "tests" </> "examples"
 
 testList :: String -> [Test] -> Test
 testList s ts = TestLabel s (TestList ts)

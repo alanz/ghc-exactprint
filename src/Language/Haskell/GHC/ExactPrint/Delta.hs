@@ -129,7 +129,7 @@ import Control.Monad.RWS
 import Control.Monad.Trans.Free
 
 import Data.Data (Data)
-import Data.List (sort, nub, partition, sortBy)
+import Data.List (sort, nub, partition, sortBy, sortOn)
 
 import Data.Ord
 
@@ -746,8 +746,15 @@ commentAllocation p k = do
   cs <- getUnallocatedComments
   let (allocated,cs') = allocateComments p cs
   putUnallocatedComments cs'
-  k =<< mapM makeDeltaComment (sortBy (comparing commentIdentifier) allocated)
-
+  k =<< mapM makeDeltaComment (sortOn (unpack . commentIdentifier) allocated)
+  where
+    -- unpack a RealSrcSpan into ((start line, start col), (end line, end col)).
+    -- The file name is ignored.
+    unpack :: GHC.SrcSpan -> Maybe ((Int, Int), (Int, Int))
+    unpack (GHC.RealSrcSpan x) =
+       Just ( (GHC.srcSpanStartLine x, GHC.srcSpanStartCol x)
+            , (GHC.srcSpanEndLine x, GHC.srcSpanEndCol x) )
+    unpack _ = Nothing
 
 makeDeltaComment :: Comment -> Delta (Comment, DeltaPos)
 makeDeltaComment c = do
@@ -875,4 +882,3 @@ countAnnsDelta :: GHC.AnnKeywordId -> Delta Int
 countAnnsDelta ann = do
   ma <- peekAnnotationDelta ann
   return (length ma)
-
