@@ -2,17 +2,11 @@
 
 import OverloadedLabelsRun04_A
 
-
-
+-- Who knew that there were so many ways that a line could start with
+-- a # sign in Haskell? None of these are overloaded labels:
 
 
 #!notashellscript
 
 -- But this one is:
--- a # sign in Haskell? None of these are overloaded labels:
-
-
-
-
-
 #foo
