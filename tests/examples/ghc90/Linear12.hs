@@ -10,6 +10,8 @@ consume x k = k x
 
 data N' a where N :: N a ⊸ N' a
 
+data M' a where M :: M a -> M' a
+
 consume' :: a ⊸ N' a ⊸ ()
 consume' x (N k) = k x
 

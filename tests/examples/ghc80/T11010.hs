@@ -1,9 +1,13 @@
 {-# LANGUAGE PatternSynonyms, ExistentialQuantification, GADTSyntax #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module T11010 where
 
 data Expr a where
   Fun :: String -> (a -> b) -> (Expr a -> Expr b)
+
+ggFun :: String -> (a -> b) -> (Expr a -> Expr b)
+ggFun = undefined
 
 pattern IntFun :: (a ~ Int) => String -> (a -> b) -> (Expr a -> Expr b)
 pattern IntFun str f x = Fun str f x
