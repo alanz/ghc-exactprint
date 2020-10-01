@@ -30,7 +30,7 @@ import qualified Data.Generics as SYB
 import System.FilePath
 import qualified Data.Map as Map
 -- import Data.List
-import Data.Maybe
+-- import Data.Maybe
 
 import Test.Common
 
