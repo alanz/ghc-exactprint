@@ -1225,6 +1225,9 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
     markType loc ty
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
     (inContext (Set.singleton AddVbar) $ mark GHC.AnnVbar)
+    inContext (Set.singleton InGadt) $ do
+      mark GHC.AnnRarrow
+      markOptional GHC.AnnLolly
    where
 
     -- markType :: GHC.SrcSpan -> ast -> Annotated ()
@@ -1261,10 +1264,9 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
       markLocated t1
       case arrow of
         GHC.HsUnrestrictedArrow -> mark GHC.AnnRarrow -- a -> b
-        GHC.HsLinearArrow -> mark GHC.AnnLolly -- a #-> b
-        GHC.HsExplicitMult _ -> mark GHC.AnnLolly -- a #-> b
+        GHC.HsLinearArrow       -> mark GHC.AnnLolly  -- a #-> b
+        GHC.HsExplicitMult _    -> mark GHC.AnnLolly  -- a #-> b
       markLocated t2
-      -- markManyOptional GHC.AnnCloseP -- For trailing parens after res_ty in ConDeclGADT
 
     markType _ (GHC.HsListTy _ t) = do
       mark GHC.AnnOpenS -- '['
@@ -1566,23 +1568,42 @@ markHsConDeclDetails ::
 markHsConDeclDetails isDeprecated inGadt lns dets = do
   case dets of
     GHC.PrefixCon args ->
-      setContext (Set.singleton PrefixOp) $ mapM_ (markLocated . GHC.hsScaledThing) args
-    -- GHC.RecCon fs -> markLocated fs
+      if inGadt
+        then setContextLevel (Set.fromList [InGadt,PrefixOp]) 2 $
+             mapM_ markScaled args
+        else setContextLevel (Set.singleton PrefixOp        ) 2 $
+             mapM_ markScaled args
     GHC.RecCon fs -> do
       mark GHC.AnnOpenC
       if inGadt
         then do
           if isDeprecated
-            then setContext (Set.fromList [InGadt]) $ markLocated fs
-            else setContext (Set.fromList [InGadt,InRecCon]) $ markLocated fs
+            then setContextLevel (Set.fromList [InGadt]) 2 $ markLocated fs
+            else setContextLevel (Set.fromList [InGadt,InRecCon]) 2 $ markLocated fs
         else do
           if isDeprecated
             then markLocated fs
-            else setContext (Set.fromList [InRecCon]) $ markLocated fs
+            else setContextLevel (Set.fromList [InRecCon]) 2 $ markLocated fs
     GHC.InfixCon a1 a2 -> do
-      markLocated (GHC.hsScaledThing a1)
+      markScaled a1
       setContext (Set.singleton InfixOp) $ mapM_ markLocated lns
-      markLocated (GHC.hsScaledThing a2)
+      markScaled a2
+
+-- ---------------------------------------------------------------------
+
+-- markScaled :: (GHC.HsScaled GHC.GhcPs (GHC.Located a)) -> Annotated ()
+markScaled :: (GHC.HsScaled GHC.GhcPs (GHC.LBangType GHC.GhcPs)) -> Annotated ()
+markScaled a@(GHC.HsScaled arr (GHC.L l _)) = markLocated (GHC.L l a)
+
+instance Annotate (GHC.HsScaled GHC.GhcPs (GHC.LBangType GHC.GhcPs)) where
+  markAST _  (GHC.HsScaled arrow a) = do
+    markLocated a
+    inContext (Set.singleton InGadt) $ do
+      case arrow of
+        GHC.HsUnrestrictedArrow -> mark GHC.AnnRarrow -- a -> b
+        GHC.HsLinearArrow       -> mark GHC.AnnLolly  -- a #-> b
+        GHC.HsExplicitMult _    -> mark GHC.AnnLolly  -- a #-> b
+      markOptional GHC.AnnRarrow -- See https://gitlab.haskell.org/ghc/ghc/-/commit/7f418acf61e#note_304011
 
 -- ---------------------------------------------------------------------
 
@@ -1592,6 +1613,8 @@ instance Annotate [GHC.LConDeclField GHC.GhcPs] where
        markListIntercalate fs
        markOptional GHC.AnnDotdot
        inContext (Set.singleton InRecCon) $ mark GHC.AnnCloseC -- '}'
+       -- inContext (Set.singleton InRecCon) $ do
+       --   mark GHC.AnnRarrow
        inContext (Set.singleton InGadt) $ do
          mark GHC.AnnRarrow
 
@@ -2049,31 +2072,6 @@ instance Annotate (GHC.HsExpr GHC.GhcPs) where
       markExpr _ (GHC.HsStatic _ e) = do
         mark GHC.AnnStatic
         markLocated e
-
-      -- markExpr _ (GHC.HsArrApp _ e1 e2  o isRightToLeft) = do
-      --       -- isRightToLeft True  => right-to-left (f -< arg)
-      --       --               False => left-to-right (arg >- f)
-      --   if isRightToLeft
-      --     then do
-      --       markLocated e1
-      --       case o of
-      --         GHC.HsFirstOrderApp  -> mark GHC.Annlarrowtail
-      --         GHC.HsHigherOrderApp -> mark GHC.AnnLarrowtail
-      --     else do
-      --       markLocated e2
-      --       case o of
-      --         GHC.HsFirstOrderApp  -> mark GHC.Annrarrowtail
-      --         GHC.HsHigherOrderApp -> mark GHC.AnnRarrowtail
-
-      --   if isRightToLeft
-      --     then markLocated e2
-      --     else markLocated e1
-
-      -- markExpr _ (GHC.HsArrForm _ e _ cs) = do
-      --   markWithString GHC.AnnOpenB "(|"
-      --   markLocated e
-      --   mapM_ markLocated cs
-      --   markWithString GHC.AnnCloseB "|)"
 
       markExpr _ (GHC.HsTick {}) = return ()
       markExpr _ (GHC.HsBinTick {}) = return ()
@@ -2659,12 +2657,6 @@ instance Annotate (GHC.ConDecl GHC.GhcPs) where
     markManyOptional GHC.AnnCloseP
     markTrailingSemi
 
-  markAST _ (GHC.XConDecl (GHC.ConDeclGADTPrefixPs names (GHC.HsIB _ ty) _docs )) = do
-    setContext (Set.singleton PrefixOp) $ markListIntercalate names
-    mark GHC.AnnDcolon
-    markLocated ty
-    markTrailingSemi
-
 -- ---------------------------------------------------------------------
 
 -- ResTyGADT has a SrcSpan for the original sigtype, we need to create
@@ -2692,10 +2684,12 @@ instance Annotate WildCardAnon where
 
 instance Annotate ResTyGADTHook where
   markAST _ (ResTyGADTHook forall bndrs) = do
+    markManyOptional GHC.AnnOpenP
     unless (null bndrs) $ do
       when forall $ mark GHC.AnnForall
       mapM_ markLocated bndrs
       when forall $ mark GHC.AnnDot
+    -- markManyOptional GHC.AnnCloseP
 
 -- ---------------------------------------------------------------------
 

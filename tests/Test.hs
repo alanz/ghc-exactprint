@@ -55,17 +55,17 @@ ghcVersion =
 testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
-    GHC710 -> ["ghc710-only","ghc710", "vect"]
-    GHC80  -> [              "ghc710", "ghc80", "vect"]
-    GHC82  -> ["pre-ghc86",  "ghc710", "ghc80", "ghc82", "vect"]
-    GHC84  -> ["pre-ghc86", "pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
-    GHC86  -> ["pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
-    GHC88  -> ["pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
-    GHC810 -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
-    -- GHC90  -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90"]
+    GHC710 -> ["ghc710-only",                           "ghc710", "vect"]
+    GHC80  -> [                            "pre-ghc90", "ghc710", "ghc80", "vect"]
+    GHC82  -> ["pre-ghc86",                "pre-ghc90", "ghc710", "ghc80", "ghc82", "vect"]
+    GHC84  -> ["pre-ghc86",  "pre-ghc810", "pre-ghc90", "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
+    GHC86  -> ["pre-ghc810", "pre-ghc810", "pre-ghc90", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
+    GHC88  -> ["pre-ghc810", "pre-ghc810", "pre-ghc90", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
+    GHC810 -> [              "pre-ghc810", "pre-ghc90", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
+    GHC90  -> [                                         "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90"]
 
     -- GHC90  -> ["ghc90-copied"]
-    GHC90  -> ["ghc90"]
+    -- GHC90  -> ["ghc90"]
 
 -- ---------------------------------------------------------------------
 
@@ -207,13 +207,41 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
     -- mkTestModChange changeRenameCase1 "RenameCase1.hs"
 
+    mkParserTest      "ghc710" "Associated.hs"
+
+    -- mkParserTest      "ghc710" "BracesSemiDataDecl.hs"
+    -- mkParserTest      "ghc710" "GADTRecords.hs"
+    -- mkParserTest      "ghc710" "RdrNames.hs"
+    -- mkParserTest      "ghc710" "RdrNames1.hs"
+
+    -- mkParserTest      "ghc80" "T11010.hs"
+    -- mkParserTest      "ghc80" "Test10399.hs"
+    -- mkParserTest      "ghc90" "Linear12.hs"
+    -- mkParserTest      "ghc90" "T17544_kw.hs"
+
     -- mkParserTest      "ghc710" "Control.hs"
+    -- mkParserTest      "ghc710" "StaticPointers.hs"
+    -- mkParserTest      "ghc80" "PSQ.hs"
+    -- mkParserTest      "ghc80" "T10767.hs"
+    -- mkParserTest      "ghc86" "Parser.hs"
+    -- mkParserTest      "ghc86" "T14650.hs"
 
       -- mkPrettyRoundtrip "ghc90" "Memoize.hs"
-      mkParserTest "ghc90" "Memoize.hs"
 
       -- mkPrettyRoundtrip "ghc90" "T17544_kw.hs"
       -- mkParserTest "ghc90" "T17544_kw.hs"
+
+    -- mkParserTest       "ghc710" "DataDecl.hs"
+    -- mkPrettyRoundtrip  "ghc710" "DataDecl.hs"
+
+    -- mkParserTest       "ghc710" "BracesSemiDataDecl.hs"
+    -- mkPrettyRoundtrip  "ghc710" "BracesSemiDataDecl.hs"
+
+    -- mkParserTest       "ghc80" "Test10399.hs"
+    -- mkPrettyRoundtrip  "ghc80" "Test10399.hs"
+
+    -- mkParserTest      "ghc90" "Linear12.hs"
+    -- mkPrettyRoundtrip "ghc90" "Linear12.hs"
 
    -- Needs GHC changes
 

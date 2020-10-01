@@ -250,6 +250,10 @@ addPrettyAnnotation ann = do
            (G GHC.AnnInstance)     -> tellKd (ann,DP (0,1))
            (G GHC.AnnLam)          -> tellKd (ann,DP (0,1))
            (G GHC.AnnLet)          -> tellKd (ann,DP (0,1))
+#if __GLASGOW_HASKELL__ >= 900
+           (G GHC.AnnLolly)        -> tellKd (ann,DP (0,1))
+           (G GHC.AnnLollyU)       -> tellKd (ann,DP (0,1))
+#endif
            (G GHC.AnnMinus)        -> tellKd (ann,DP (0,1)) -- need to separate from preceding operator
            (G GHC.AnnModule)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnNewtype)      -> tellKd (ann,DP (0,1))
