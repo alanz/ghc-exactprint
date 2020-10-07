@@ -79,7 +79,7 @@ rm .ghc.env*
 
 # cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=/opt/ghc/8.10.1/bin/ghc --allow-newer
 # cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=/opt/ghc/8.10.1/bin/ghc
-cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=ghc-8.8.4
+# cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=ghc-8.8.4
 # cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=ghc-8.10.1
 # cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=ghc-8.10.2
 
@@ -96,3 +96,6 @@ cabal new-configure -froundtrip -fdev --enable-tests --with-compiler=ghc-8.8.4
 # cabal new-configure -fdev -froundtrip --enable-tests --with-compiler=ghc-9.0 --allow-newer
 
 # cabal new-configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.0.0.20200929/bin/ghc --allow-newer
+# cabal new-configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.0.0.20201001/bin/ghc --allow-newer
+# cabal new-configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.0.0.20201004/bin/ghc --allow-newer
+cabal new-configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.0.0.20201006/bin/ghc --allow-newer
