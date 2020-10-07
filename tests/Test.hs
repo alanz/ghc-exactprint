@@ -207,7 +207,7 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
     -- mkTestModChange changeRenameCase1 "RenameCase1.hs"
 
-    mkParserTest      "ghc710" "Associated.hs"
+    -- mkParserTest      "ghc710" "Associated.hs"
 
     -- mkParserTest      "ghc710" "BracesSemiDataDecl.hs"
     -- mkParserTest      "ghc710" "GADTRecords.hs"
@@ -218,6 +218,12 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- mkParserTest      "ghc80" "Test10399.hs"
     -- mkParserTest      "ghc90" "Linear12.hs"
     -- mkParserTest      "ghc90" "T17544_kw.hs"
+
+    -- mkParserTest      "ghc90" "FromManual.hs"
+    -- mkPrettyRoundtrip  "ghc90" "FromManual.hs"
+
+    -- mkParserTest       "ghc90" "Linear1Rule.hs"
+    mkPrettyRoundtrip  "ghc90" "Linear1Rule.hs"
 
     -- mkParserTest      "ghc710" "Control.hs"
     -- mkParserTest      "ghc710" "StaticPointers.hs"

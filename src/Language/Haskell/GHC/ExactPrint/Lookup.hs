@@ -87,12 +87,16 @@ keywordToString kw =
       (G GHC.AnnLarrow   ) -> "<-"
       (G GHC.AnnLet      ) -> "let"
 #if __GLASGOW_HASKELL__ >= 900
-      (G GHC.AnnLolly    ) -> "#->"
+      -- (G GHC.AnnLolly    ) -> "#->"
       (G GHC.AnnLollyU    ) -> "⊸"
 #endif
       (G GHC.AnnMdo      ) -> "mdo"
       (G GHC.AnnMinus    ) -> "-"
       (G GHC.AnnModule   ) -> "module"
+#if __GLASGOW_HASKELL__ >= 900
+      (G GHC.AnnMult     ) -> "%1"
+      (G GHC.AnnPercent  ) -> "%"
+#endif
       (G GHC.AnnNewtype  ) -> "newtype"
       (G GHC.AnnOf       ) -> "of"
 #if __GLASGOW_HASKELL__ >= 801

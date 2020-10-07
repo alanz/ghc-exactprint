@@ -40,7 +40,7 @@ import qualified GHC.Core.Coercion.Axiom as GHC
 import qualified GHC.Data.Bag            as GHC
 import qualified GHC.Data.BooleanFormula as GHC
 import qualified GHC.Data.FastString     as GHC
--- import qualified GHC.Hs.Type             as GHC
+import qualified GHC.Parser.Annotation   as GHC
 import qualified GHC.Types.Basic         as GHC
 import qualified GHC.Types.ForeignCall   as GHC
 import qualified GHC.Types.Name          as GHC
@@ -1227,7 +1227,7 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
     (inContext (Set.singleton AddVbar) $ mark GHC.AnnVbar)
     inContext (Set.singleton InGadt) $ do
       mark GHC.AnnRarrow
-      markOptional GHC.AnnLolly
+      -- markOptional GHC.AnnLolly
    where
 
     -- markType :: GHC.SrcSpan -> ast -> Annotated ()
@@ -1260,12 +1260,28 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
       markTypeApp l
       markTightPrefix $ markLocated k
 
-    markType _ (GHC.HsFunTy _ arrow t1 t2) = do
+    markType _ (GHC.HsFunTy u arrow t1 t2) = do
       markLocated t1
-      case arrow of
-        GHC.HsUnrestrictedArrow -> mark GHC.AnnRarrow -- a -> b
-        GHC.HsLinearArrow       -> mark GHC.AnnLolly  -- a #-> b
-        GHC.HsExplicitMult _    -> mark GHC.AnnLolly  -- a #-> b
+      markArrow u arrow
+      -- case arrow of
+      --   GHC.HsLinearArrow       -> do
+      --     case u of
+      --       GHC.NormalSyntax -> do
+      --         mark GHC.AnnMult -- "%1"
+      --         mark GHC.AnnRarrow
+      --       GHC.UnicodeSyntax -> mark GHC.AnnLollyU
+      --   GHC.HsUnrestrictedArrow -> mark GHC.AnnRarrow -- a -> b
+      --   GHC.HsExplicitMult _    -> do
+      --     mark GHC.AnnMult -- "%1"
+      --     mark GHC.AnnRarrow
+        -- arr = case mult of
+        --   HsLinearArrow -> lollipop
+        --   HsUnrestrictedArrow -> arrow
+        --   HsExplicitMult p -> mulArrow (ppr p)
+-- lollipop   = unicodeSyntax (char '⊸') (docToSDoc $ Pretty.text "%1 ->")
+-- mulArrow d = text "%" <> d <+> arrow
+
+
       markLocated t2
 
     markType _ (GHC.HsListTy _ t) = do
@@ -1593,17 +1609,42 @@ markHsConDeclDetails isDeprecated inGadt lns dets = do
 
 -- markScaled :: (GHC.HsScaled GHC.GhcPs (GHC.Located a)) -> Annotated ()
 markScaled :: (GHC.HsScaled GHC.GhcPs (GHC.LBangType GHC.GhcPs)) -> Annotated ()
-markScaled a@(GHC.HsScaled arr (GHC.L l _)) = markLocated (GHC.L l a)
+markScaled a@(GHC.HsScaled _ _rr (GHC.L l _)) = markLocated (GHC.L l a)
 
 instance Annotate (GHC.HsScaled GHC.GhcPs (GHC.LBangType GHC.GhcPs)) where
-  markAST _  (GHC.HsScaled arrow a) = do
+  markAST _  (GHC.HsScaled u arrow a) = do
     markLocated a
     inContext (Set.singleton InGadt) $ do
-      case arrow of
-        GHC.HsUnrestrictedArrow -> mark GHC.AnnRarrow -- a -> b
-        GHC.HsLinearArrow       -> mark GHC.AnnLolly  -- a #-> b
-        GHC.HsExplicitMult _    -> mark GHC.AnnLolly  -- a #-> b
-      markOptional GHC.AnnRarrow -- See https://gitlab.haskell.org/ghc/ghc/-/commit/7f418acf61e#note_304011
+      markArrow u arrow
+      -- -- AZ:TODO: fix this, with the new syntax
+      -- case arrow of
+      --   GHC.HsUnrestrictedArrow -> mark GHC.AnnRarrow -- a -> b
+      --   GHC.HsLinearArrow       -> mark GHC.AnnLollyU  -- a #-> b
+      --   GHC.HsExplicitMult _    -> mark GHC.AnnLollyU  -- a #-> b
+      -- markOptional GHC.AnnRarrow -- See https://gitlab.haskell.org/ghc/ghc/-/commit/7f418acf61e#note_304011
+-- ---------------------------------------------------------------------
+
+markArrow :: GHC.IsUnicodeSyntax -> GHC.HsArrow GhcPs -> Annotated ()
+markArrow u arrow = do
+  case arrow of
+    GHC.HsLinearArrow       -> do
+      case u of
+        GHC.NormalSyntax -> do
+          mark GHC.AnnMult -- "%1"
+          mark GHC.AnnRarrow
+        GHC.UnicodeSyntax -> mark GHC.AnnLollyU
+    GHC.HsUnrestrictedArrow -> mark GHC.AnnRarrow -- a -> b
+    GHC.HsExplicitMult t    -> do
+      mark GHC.AnnPercent
+      setContextLevel (Set.fromList [NoPrecedingSpace, InTypeApp]) 2 $ markLocated t
+      mark GHC.AnnRarrow
+    -- arr = case mult of
+    --   HsLinearArrow -> lollipop
+    --   HsUnrestrictedArrow -> arrow
+    --   HsExplicitMult p -> mulArrow (ppr p)
+-- lollipop   = unicodeSyntax (char '⊸') (docToSDoc $ Pretty.text "%1 ->")
+-- mulArrow d = text "%" <> d <+> arrow
+
 
 -- ---------------------------------------------------------------------
 
