@@ -223,31 +223,13 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- mkPrettyRoundtrip  "ghc90" "FromManual.hs"
 
     -- mkParserTest       "ghc90" "Linear1Rule.hs"
-    mkPrettyRoundtrip  "ghc90" "Linear1Rule.hs"
+    -- mkPrettyRoundtrip  "ghc90" "Linear1Rule.hs"
 
-    -- mkParserTest      "ghc710" "Control.hs"
-    -- mkParserTest      "ghc710" "StaticPointers.hs"
-    -- mkParserTest      "ghc80" "PSQ.hs"
-    -- mkParserTest      "ghc80" "T10767.hs"
-    -- mkParserTest      "ghc86" "Parser.hs"
-    -- mkParserTest      "ghc86" "T14650.hs"
+    -- mkParserTest       "ghc80" "Test11018.hs"
+    -- mkPrettyRoundtrip  "ghc80" "Test11018.hs"
 
-      -- mkPrettyRoundtrip "ghc90" "Memoize.hs"
-
-      -- mkPrettyRoundtrip "ghc90" "T17544_kw.hs"
-      -- mkParserTest "ghc90" "T17544_kw.hs"
-
-    -- mkParserTest       "ghc710" "DataDecl.hs"
-    -- mkPrettyRoundtrip  "ghc710" "DataDecl.hs"
-
-    -- mkParserTest       "ghc710" "BracesSemiDataDecl.hs"
-    -- mkPrettyRoundtrip  "ghc710" "BracesSemiDataDecl.hs"
-
-    -- mkParserTest       "ghc80" "Test10399.hs"
-    -- mkPrettyRoundtrip  "ghc80" "Test10399.hs"
-
-    -- mkParserTest      "ghc90" "Linear12.hs"
-    -- mkPrettyRoundtrip "ghc90" "Linear12.hs"
+    -- mkParserTest       "ghc86" "UnicodeSyntax.hs"
+    mkPrettyRoundtrip  "ghc86" "UnicodeSyntax.hs"
 
    -- Needs GHC changes
 
