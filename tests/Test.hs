@@ -229,8 +229,9 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- mkPrettyRoundtrip  "ghc80" "Test11018.hs"
 
     -- mkParserTest       "ghc86" "UnicodeSyntax.hs"
-    mkPrettyRoundtrip  "ghc86" "UnicodeSyntax.hs"
+    -- mkPrettyRoundtrip  "ghc86" "UnicodeSyntax.hs"
 
+    mkParserTest       "ghc86" "empty-foralls.hs"
    -- Needs GHC changes
 
 
