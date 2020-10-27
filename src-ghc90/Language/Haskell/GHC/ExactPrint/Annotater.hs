@@ -1260,9 +1260,9 @@ instance Annotate (GHC.HsType GHC.GhcPs) where
       markTypeApp l
       markTightPrefix $ markLocated k
 
-    markType _ (GHC.HsFunTy u arrow t1 t2) = do
+    markType _ (GHC.HsFunTy _ arrow t1 t2) = do
       markLocated t1
-      markArrow u arrow
+      markArrow arrow
       -- case arrow of
       --   GHC.HsLinearArrow       -> do
       --     case u of
@@ -1609,13 +1609,13 @@ markHsConDeclDetails isDeprecated inGadt lns dets = do
 
 -- markScaled :: (GHC.HsScaled GHC.GhcPs (GHC.Located a)) -> Annotated ()
 markScaled :: (GHC.HsScaled GHC.GhcPs (GHC.LBangType GHC.GhcPs)) -> Annotated ()
-markScaled a@(GHC.HsScaled _ _rr (GHC.L l _)) = markLocated (GHC.L l a)
+markScaled a@(GHC.HsScaled _rr (GHC.L l _)) = markLocated (GHC.L l a)
 
 instance Annotate (GHC.HsScaled GHC.GhcPs (GHC.LBangType GHC.GhcPs)) where
-  markAST _  (GHC.HsScaled u arrow a) = do
+  markAST _  (GHC.HsScaled arrow a) = do
     markLocated a
     inContext (Set.singleton InGadt) $ do
-      markArrow u arrow
+      markArrow arrow
       -- -- AZ:TODO: fix this, with the new syntax
       -- case arrow of
       --   GHC.HsUnrestrictedArrow -> mark GHC.AnnRarrow -- a -> b
@@ -1624,26 +1624,33 @@ instance Annotate (GHC.HsScaled GHC.GhcPs (GHC.LBangType GHC.GhcPs)) where
       -- markOptional GHC.AnnRarrow -- See https://gitlab.haskell.org/ghc/ghc/-/commit/7f418acf61e#note_304011
 -- ---------------------------------------------------------------------
 
-markArrow :: GHC.IsUnicodeSyntax -> GHC.HsArrow GhcPs -> Annotated ()
-markArrow u arrow = do
+markArrow :: GHC.HsArrow GhcPs -> Annotated ()
+markArrow arrow = do
   case arrow of
-    GHC.HsLinearArrow       -> do
+    GHC.HsLinearArrow u     -> do
       case u of
         GHC.NormalSyntax -> do
-          mark GHC.AnnMult -- "%1"
+          mark GHC.AnnPercentOne -- "%1"
           mark GHC.AnnRarrow
         GHC.UnicodeSyntax -> mark GHC.AnnLollyU
-    GHC.HsUnrestrictedArrow -> mark GHC.AnnRarrow -- a -> b
-    GHC.HsExplicitMult t    -> do
+    GHC.HsUnrestrictedArrow u ->
+      case u of
+        GHC.NormalSyntax  -> mark GHC.AnnRarrow  -- a -> b
+        GHC.UnicodeSyntax -> mark GHC.AnnRarrowU -- a ⊸ b
+    GHC.HsExplicitMult u t  -> do
       mark GHC.AnnPercent
       setContextLevel (Set.fromList [NoPrecedingSpace, InTypeApp]) 2 $ markLocated t
-      mark GHC.AnnRarrow
-    -- arr = case mult of
-    --   HsLinearArrow -> lollipop
-    --   HsUnrestrictedArrow -> arrow
-    --   HsExplicitMult p -> mulArrow (ppr p)
--- lollipop   = unicodeSyntax (char '⊸') (docToSDoc $ Pretty.text "%1 ->")
--- mulArrow d = text "%" <> d <+> arrow
+      case u of
+        GHC.NormalSyntax  -> mark GHC.AnnRarrow  -- ->
+        GHC.UnicodeSyntax -> mark GHC.AnnRarrowU -- ⊸
+
+-- data HsArrow pass
+--   = HsUnrestrictedArrow IsUnicodeSyntax
+--     -- ^ a -> b or a → b
+--   | HsLinearArrow IsUnicodeSyntax
+--     -- ^ a %1 -> b or a %1 → b, or a ⊸ b
+--   | HsExplicitMult IsUnicodeSyntax (LHsType pass)
+--     -- ^ a %m -> b or a %m → b (very much including `a %Many -> b`!
 
 
 -- ---------------------------------------------------------------------

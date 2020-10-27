@@ -253,7 +253,7 @@ addPrettyAnnotation ann = do
 #if __GLASGOW_HASKELL__ >= 900
            -- (G GHC.AnnLolly)        -> tellKd (ann,DP (0,1))
            (G GHC.AnnLollyU)       -> tellKd (ann,DP (0,1))
-           (G GHC.AnnMult)         -> tellKd (ann,DP (0,1))
+           (G GHC.AnnPercentOne)   -> tellKd (ann,DP (0,1))
            (G GHC.AnnPercent)      -> tellKd (ann,DP (0,1))
 #endif
            (G GHC.AnnMinus)        -> tellKd (ann,DP (0,1)) -- need to separate from preceding operator
@@ -269,6 +269,9 @@ addPrettyAnnotation ann = do
 #endif
            (G GHC.AnnQualified)    -> tellKd (ann,DP (0,1))
            (G GHC.AnnRarrow)       -> tellKd (ann,DP (0,1))
+#if __GLASGOW_HASKELL__ > 710
+           (G GHC.AnnRarrowU)      -> tellKd (ann,DP (0,1))
+#endif
            (G GHC.AnnRole)         -> tellKd (ann,DP (0,1))
            (G GHC.AnnSafe)         -> tellKd (ann,DP (0,1))
 #if __GLASGOW_HASKELL__ >= 806

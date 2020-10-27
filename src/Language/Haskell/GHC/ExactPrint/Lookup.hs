@@ -26,6 +26,9 @@ keywordToString kw =
       -- warnings if new constructors are added.
       AnnComment _      -> mkErr kw
       AnnString _       -> mkErr kw
+#if __GLASGOW_HASKELL__ >= 900
+      (AnnEofPos       ) -> mkErr kw
+#endif
 #if __GLASGOW_HASKELL__ <= 710
       AnnUnicode kw'    -> keywordToString (G kw')
 #endif
@@ -94,8 +97,8 @@ keywordToString kw =
       (G GHC.AnnMinus    ) -> "-"
       (G GHC.AnnModule   ) -> "module"
 #if __GLASGOW_HASKELL__ >= 900
-      (G GHC.AnnMult     ) -> "%1"
-      (G GHC.AnnPercent  ) -> "%"
+      (G GHC.AnnPercent   ) -> "%"
+      (G GHC.AnnPercentOne) -> "%1"
 #endif
       (G GHC.AnnNewtype  ) -> "newtype"
       (G GHC.AnnOf       ) -> "of"

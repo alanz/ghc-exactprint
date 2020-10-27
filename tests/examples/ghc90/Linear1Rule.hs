@@ -5,6 +5,9 @@ module Linear1Rule where
 f :: a %1 -> b
 f = f
 
+-- f1 :: a %001 -> b
+-- f1 = f1
+
 g :: a %p -> b
 g x = f x
 
