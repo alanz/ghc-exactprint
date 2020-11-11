@@ -1,3 +1,5 @@
+2020-11-11 v0.6.3.3
+	* Sort comments properly, ignoring SrcSpan's file by @zliu41
 2020-07-16 v0.6.3.2
 	* Add support for GHC 8.8.4
 2020-06-13 v0.6.3.1
