@@ -319,7 +319,7 @@ isListComp cts = case cts of
 -- ---------------------------------------------------------------------
 
 isGadt :: [GHC.LConDecl name] -> Bool
-isGadt [] = False
+isGadt [] = True
 #if __GLASGOW_HASKELL__ >= 900
 isGadt ((GHC.L _ (GHC.ConDeclGADT{})):_) = True
 isGadt ((GHC.L _ (GHC.XConDecl{})):_) = True

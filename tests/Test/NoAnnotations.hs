@@ -59,7 +59,10 @@ import qualified OccName(occNameString)
 
 import System.Directory
 import System.FilePath
+
+#if __GLASGOW_HASKELL__ < 900
 import qualified Data.Map as Map
+#endif
 
 import Test.Common
 
