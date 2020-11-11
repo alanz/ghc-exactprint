@@ -2355,7 +2355,7 @@ instance Annotate (GHC.TyClDecl GHC.GhcPs) where
     if isGadt cons
       then mark GHC.AnnWhere
       else unless (null cons) $ mark GHC.AnnEqual
-    markOptional GHC.AnnWhere
+    -- markOptional GHC.AnnWhere
     markOptional GHC.AnnOpenC
     setLayoutFlag $ setContext (Set.singleton NoPrecedingSpace)
                   $ markListWithContexts' listContexts cons
@@ -2696,6 +2696,9 @@ instance Annotate (GHC.ConDecl GHC.GhcPs) where
     setContext (Set.singleton PrefixOp) $ markListIntercalate lns
     mark GHC.AnnDcolon
     annotationsToComments [GHC.AnnOpenP]
+    if forall
+      then return ()
+      else mark
     markLocated (GHC.L l (ResTyGADTHook forall qvars))
     markMaybe mbCxt
     markHsConDeclDetails False True lns args
@@ -2730,7 +2733,7 @@ instance Annotate WildCardAnon where
 
 instance Annotate ResTyGADTHook where
   markAST _ (ResTyGADTHook forall bndrs) = do
-    markManyOptional GHC.AnnOpenP
+    -- markManyOptional GHC.AnnOpenP
     when forall $ mark GHC.AnnForall
     mapM_ markLocated bndrs
     when forall $ mark GHC.AnnDot

@@ -51,9 +51,11 @@ import Language.Haskell.GHC.ExactPrint.Preprocess
 import Language.Haskell.GHC.ExactPrint.Types
 
 import Control.Monad.RWS
-#if __GLASGOW_HASKELL__ > 806
+#if __GLASGOW_HASKELL__ >= 900
+#elif __GLASGOW_HASKELL__ > 806
 import Data.Data (Data)
 #endif
+
 
 import GHC.Paths (libdir)
 
