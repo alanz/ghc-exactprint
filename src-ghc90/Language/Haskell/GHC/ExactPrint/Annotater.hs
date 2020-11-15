@@ -2693,17 +2693,27 @@ instance Annotate (GHC.ConDecl GHC.GhcPs) where
     markTrailingSemi
 
   markAST _ (GHC.ConDeclGADT _ lns (GHC.L l forall) qvars mbCxt args typ _) = do
+    let
+      surroundParens
+        = case args of
+            GHC.PrefixCon [] -> null qvars && not (isJust mbCxt)
+            _ -> False
+
+        -- null qvars &&
+        -- mbCxt == Nothing &&
     setContext (Set.singleton PrefixOp) $ markListIntercalate lns
     mark GHC.AnnDcolon
     annotationsToComments [GHC.AnnOpenP]
-    if forall
-      then return ()
-      else mark
+    if surroundParens
+      then mark GHC.AnnOpenP
+      else return ()
     markLocated (GHC.L l (ResTyGADTHook forall qvars))
     markMaybe mbCxt
     markHsConDeclDetails False True lns args
     markLocated typ
-    markManyOptional GHC.AnnCloseP
+    if surroundParens
+      then mark GHC.AnnCloseP
+      else markManyOptional GHC.AnnCloseP
     markTrailingSemi
 
 -- ---------------------------------------------------------------------

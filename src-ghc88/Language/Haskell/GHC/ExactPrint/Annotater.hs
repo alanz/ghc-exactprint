@@ -2468,7 +2468,7 @@ markTypeApp loc = do
 
 -- ---------------------------------------------------------------------
 
-markTyClassArgs :: (Annotate a, GHC.HasOccName a)
+markTyClassArgs :: (Annotate a)
             => Maybe [GHC.LHsTyVarBndr GhcPs] -> GHC.LexicalFixity
             -- -> GHC.Located a -> [ast] -> Annotated ()
             -> GHC.Located a -> [GHC.LHsTypeArg GhcPs] -> Annotated ()
@@ -2492,12 +2492,12 @@ data HsArg tm ty
 -}
 
 -- TODO:AZ: simplify
-markTyClass :: (Data (GHC.SrcSpanLess ast), Annotate a, GHC.HasOccName a, Annotate ast,GHC.HasSrcSpan ast)
+markTyClass :: (Data (GHC.SrcSpanLess ast), Annotate a, Annotate ast,GHC.HasSrcSpan ast)
             => Maybe [GHC.LHsTyVarBndr GhcPs] -> GHC.LexicalFixity
             -> GHC.Located a -> [ast] -> Annotated ()
 markTyClass = markTyClassWorker markLocated
 
-markTyClassWorker :: (Annotate a, GHC.HasOccName a)
+markTyClassWorker :: (Annotate a)
             => (b -> Annotated ()) -> Maybe [GHC.LHsTyVarBndr GhcPs] -> GHC.LexicalFixity
             -- -> GHC.Located a -> [ast] -> Annotated ()
             -> GHC.Located a -> [b] -> Annotated ()
@@ -2776,14 +2776,12 @@ instance Annotate [GHC.LHsType GHC.GhcPs] where
 -- ---------------------------------------------------------------------
 
 instance Annotate (GHC.ConDecl GHC.GhcPs) where
-  markAST _ (GHC.ConDeclH98 _ ln _fa mqtvs mctx
+  markAST _ (GHC.ConDeclH98 _ ln (GHC.L _ fa) mqtvs mctx
                          dets _) = do
-    case mqtvs of
-      [] -> return ()
-      bndrs -> do
-        mark GHC.AnnForall
-        mapM_ markLocated bndrs
-        mark GHC.AnnDot
+    when fa $ do
+      mark GHC.AnnForall
+      mapM_ markLocated mqtvs
+      mark GHC.AnnDot
 
     case mctx of
       Just ctx -> do
@@ -2880,10 +2878,9 @@ instance Annotate WildCardAnon where
 
 instance Annotate ResTyGADTHook where
   markAST _ (ResTyGADTHook forall bndrs) = do
-    unless (null bndrs) $ do
-      when forall $ mark GHC.AnnForall
-      mapM_ markLocated bndrs
-      when forall $ mark GHC.AnnDot
+    when forall $ mark GHC.AnnForall
+    mapM_ markLocated bndrs
+    when forall $ mark GHC.AnnDot
 
 -- ---------------------------------------------------------------------
 
@@ -2908,10 +2905,10 @@ instance Annotate (GHC.HsRecField GHC.GhcPs (GHC.LHsExpr GHC.GhcPs)) where
 
 instance Annotate (GHC.FunDep (GHC.Located GHC.RdrName)) where
 
-  markAST _ (ls,rs) = do
+  markAST _ (ls,rs') = do
     mapM_ markLocated ls
     mark GHC.AnnRarrow
-    mapM_ markLocated rs
+    mapM_ markLocated rs'
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 -- ---------------------------------------------------------------------

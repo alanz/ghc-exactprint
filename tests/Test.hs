@@ -231,14 +231,24 @@ tt' = runTestText (putTextToHandle stdout True) $ TestList [
     -- mkParserTest       "ghc86" "UnicodeSyntax.hs"
     -- mkPrettyRoundtrip  "ghc86" "UnicodeSyntax.hs"
 
-    -- mkParserTest       "ghc86" "empty-foralls.hs"
+    mkParserTest       "ghc86" "empty-foralls.hs"
+    -- mkPrettyRoundtrip  "ghc86" "empty-foralls.hs"
+
+    -- mkParserTest       "ghc710" "PatSynBind.hs"
+    -- mkPrettyRoundtrip  "ghc710" "PatSynBind.hs"
 
     -- ---------------------------------------------
 
     -- mkParserTest       "ghc86" "Webhook.hs"
 
+    -- mkParserTest       "ghc710" "TypeBrackets2.hs"
+    -- mkPrettyRoundtrip  "ghc710" "TypeBrackets2.hs"
+
+    -- mkParserTest       "ghc710" "DataDecl.hs"
+    -- mkPrettyRoundtrip  "ghc710" "DataDecl.hs"
+
     -- mkParserTest      "ghc90" "BaseDescriptor.hs"
-    mkPrettyRoundtrip "ghc90" "BaseDescriptor.hs"
+    -- mkPrettyRoundtrip "ghc90" "BaseDescriptor.hs"
 
     -- mkParserTest      "ghc90" "BaseDescriptors2.hs"
     -- mkPrettyRoundtrip "ghc90" "BaseDescriptors2.hs"
