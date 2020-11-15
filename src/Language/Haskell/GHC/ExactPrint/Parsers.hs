@@ -72,13 +72,13 @@ import qualified GHC.Parser.PostProcess as GHC
 import qualified GHC.Types.SrcLoc       as GHC
 import qualified GHC.Utils.Error        as GHC
 #else
-import qualified ApiAnnotation as GHC
+-- import qualified ApiAnnotation as GHC
 import qualified DynFlags      as GHC
 #if __GLASGOW_HASKELL__ > 808
 import qualified ErrUtils      as GHC
 #endif
 import qualified FastString    as GHC
-import qualified GHC           as GHC hiding (parseModule)
+-- import qualified GHC           as GHC hiding (parseModule)
 import qualified HeaderInfo    as GHC
 import qualified Lexer         as GHC
 import qualified MonadUtils    as GHC

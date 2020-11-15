@@ -770,8 +770,13 @@ commentAllocation p k = do
   where
     -- unpack a RealSrcSpan into ((start line, start col), (end line, end col)).
     -- The file name is ignored.
+#if __GLASGOW_HASKELL__ >= 900
+    unpack :: GHC.RealSrcSpan -> Maybe ((Int, Int), (Int, Int))
+    unpack x =
+#else
     unpack :: GHC.SrcSpan -> Maybe ((Int, Int), (Int, Int))
     unpack (GHC.RealSrcSpan x) =
+#endif
        Just ( (GHC.srcSpanStartLine x, GHC.srcSpanStartCol x)
             , (GHC.srcSpanEndLine x, GHC.srcSpanEndCol x) )
     unpack _ = Nothing

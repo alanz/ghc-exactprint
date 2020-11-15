@@ -60,6 +60,7 @@ extra-source-files:  ChangeLog
                      tests/examples/ghc90/*.hs
                      tests/examples/pre-ghc810/*.hs
                      tests/examples/pre-ghc86/*.hs
+                     tests/examples/pre-ghc90/*.hs
                      tests/examples/vect/*.hs
                      tests/examples/transform/*.hs
                      tests/examples/failing/*.hs.bad
@@ -117,6 +118,11 @@ library
                      , mtl       >= 2.2.1
                      , syb       >= 0.5
                      , free      >= 4.12
+
+  -- temporary
+  if impl (ghc >= 9.0)
+    build-depends:
+      Cabal == 3.2.0.0
 
   if !impl (ghc >= 8.0)
     build-depends:
