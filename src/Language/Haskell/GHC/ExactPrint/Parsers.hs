@@ -50,12 +50,16 @@ import Language.Haskell.GHC.ExactPrint.Delta
 import Language.Haskell.GHC.ExactPrint.Preprocess
 import Language.Haskell.GHC.ExactPrint.Types
 
+import Control.Exception (IOException, catch)
 import Control.Monad.RWS
 #if __GLASGOW_HASKELL__ > 806
 import Data.Data (Data)
 #endif
+import Data.Maybe (fromMaybe)
 
 import GHC.Paths (libdir)
+
+import System.Environment (lookupEnv)
 
 import qualified ApiAnnotation as GHC
 import qualified DynFlags      as GHC
@@ -84,6 +88,7 @@ import qualified GHC.LanguageExtensions as LangExt
 #endif
 
 import qualified Data.Map as Map
+
 
 {-# ANN module "HLint: ignore Eta reduce" #-}
 {-# ANN module "HLint: ignore Redundant do" #-}
@@ -284,9 +289,12 @@ parseModuleApiAnnsWithCpp cppOptions file = ghcWrapper $ do
 
 -- | Internal function. Default runner of GHC.Ghc action in IO.
 ghcWrapper :: GHC.Ghc a -> IO a
-ghcWrapper =
+ghcWrapper ghc = do
+  let handler = return . const Nothing :: IOException -> IO (Maybe String)
+  rtLibdir <- liftIO $ lookupEnv "GHC_EXACTPRINT_GHC_LIBDIR" `catch` handler
+  let libdir' = fromMaybe libdir rtLibdir
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut
-    . GHC.runGhc (Just libdir)
+    . GHC.runGhc (Just libdir') $ ghc
 
 -- | Internal function. Exposed if you want to muck with DynFlags
 -- before parsing.
