@@ -119,11 +119,6 @@ library
                      , syb       >= 0.5
                      , free      >= 4.12
 
-  -- temporary
-  if impl (ghc >= 9.0)
-    build-depends:
-      Cabal == 3.2.0.0
-
   if !impl (ghc >= 8.0)
     build-depends:
       fail >= 4.9 && <4.10

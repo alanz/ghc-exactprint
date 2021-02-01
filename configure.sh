@@ -102,4 +102,8 @@ rm .ghc.env*
 
 # cabal new-configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.0.0.20201024/bin/ghc --allow-newer --constraint=Cabal==3.2.0.0
 
-cabal new-configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.0.0.20201110/bin/ghc --allow-newer --constraint=Cabal==3.2.0.0
+# cabal new-configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.0.0.20201110/bin/ghc --allow-newer --constraint=Cabal==3.2.0.0
+# cabal configure -fdev -froundtrip --enable-tests --with-compiler=ghc-9.0.0.20201227 --allow-newer --constraint=Cabal==3.2.0.0
+# cabal configure -fdev -froundtrip --enable-tests --with-compiler=ghc-9.0.0.20201227 --allow-newer --constraint=Cabal==3.2.0.0
+# cabal configure -fdev -froundtrip --enable-tests --with-compiler=ghc-9.0.0.20201227 --allow-newer --constraint=Cabal==3.4.0.0
+cabal configure -fdev -froundtrip --enable-tests --with-compiler=ghc-9.0.0.20201227 --allow-newer
