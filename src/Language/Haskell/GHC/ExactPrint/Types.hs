@@ -23,10 +23,14 @@ module Language.Haskell.GHC.ExactPrint.Types
   , DeltaPos(..)
   , deltaRow, deltaColumn
   -- * AnnKey
+  , AnnSpan
   , AnnKey(..)
   , mkAnnKey
   , AnnConName(..)
   , annGetConstr
+#if __GLASGOW_HASKELL__ >= 900
+  , badRealSrcSpan
+#endif
 
   -- * Other
 
@@ -56,16 +60,23 @@ module Language.Haskell.GHC.ExactPrint.Types
 import Data.Data (Data, Typeable, toConstr,cast)
 -- import Data.Generics
 
-import qualified DynFlags      as GHC
 import qualified GHC
+#if __GLASGOW_HASKELL__ >= 900
+import GHC.Data.FastString     as GHC
+import GHC.Driver.Session      as GHC
+import GHC.Types.SrcLoc        as GHC
+import GHC.Utils.Outputable    as GHC
+#else
+import qualified DynFlags      as GHC
 import qualified Outputable    as GHC
+#endif
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 -- ---------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ >= 808
+#if (__GLASGOW_HASKELL__ >= 808) && (__GLASGOW_HASKELL__ < 900)
 type Constraints a = (Data a,Data (GHC.SrcSpanLess a),GHC.HasSrcSpan a)
 #else
 type Constraints a = (Data a)
@@ -83,7 +94,7 @@ data Comment = Comment
     -- AZ:TODO: commentIdentifier is a misnomer, should be commentSrcSpan, it is
     -- the thing we use to decide where in the output stream the comment should
     -- go.
-    , commentIdentifier :: !GHC.SrcSpan -- ^ Needed to uniquely identify two comments with the same contents
+    , commentIdentifier :: !AnnSpan -- ^ Needed to uniquely identify two comments with the same contents
     , commentOrigin     :: !(Maybe GHC.AnnKeywordId) -- ^ We sometimes turn syntax into comments in order to process them properly.
     }
   deriving (Eq,Typeable,Data,Ord)
@@ -133,7 +144,11 @@ data Annotation = Ann
   -- The next three fields relate to interacing down into the AST
   , annsDP             :: ![(KeywordId, DeltaPos)]
     -- ^ Annotations associated with this element.
+#if __GLASGOW_HASKELL__ >= 900
+  , annSortKey         :: !(Maybe [GHC.RealSrcSpan])
+#else
   , annSortKey         :: !(Maybe [GHC.SrcSpan])
+#endif
     -- ^ Captures the sort order of sub elements. This is needed when the
     -- sub-elements have been split (as in a HsLocalBind which holds separate
     -- binds and sigs) or for infix patterns where the order has been
@@ -167,21 +182,41 @@ emptyAnns = Map.empty
 -- | For every @Located a@, use the @SrcSpan@ and constructor name of
 -- a as the key, to store the standard annotation.
 -- These are used to maintain context in the AP and EP monads
-data AnnKey   = AnnKey GHC.SrcSpan AnnConName
+data AnnKey   = AnnKey AnnSpan AnnConName
                   deriving (Eq, Ord, Data)
+
+-- | From GHC 9.0 the ParsedSource uses RealSrcSpan instead of SrcSpan.
+--   Compatibility type
+#if __GLASGOW_HASKELL__ >= 900
+type AnnSpan = GHC.RealSrcSpan
+#else
+type AnnSpan = GHC.SrcSpan
+#endif
 
 -- More compact Show instance
 instance Show AnnKey where
   show (AnnKey ss cn) = "AnnKey " ++ showGhc ss ++ " " ++ show cn
 
 
-#if __GLASGOW_HASKELL__ > 806
+#if __GLASGOW_HASKELL__ >= 900
+mkAnnKeyPrim :: (Data a) => GHC.Located a -> AnnKey
+mkAnnKeyPrim (GHC.L (GHC.RealSrcSpan l _) a) = AnnKey l (annGetConstr a)
+mkAnnKeyPrim (GHC.L _ a) = AnnKey badRealSrcSpan (annGetConstr a)
+#elif __GLASGOW_HASKELL__ > 806
 mkAnnKeyPrim :: (Constraints a)
              => a -> AnnKey
 mkAnnKeyPrim (GHC.dL->GHC.L l a) = AnnKey l (annGetConstr a)
 #else
 mkAnnKeyPrim :: (Data a) => GHC.Located a -> AnnKey
 mkAnnKeyPrim (GHC.L l a) = AnnKey l (annGetConstr a)
+#endif
+
+
+#if __GLASGOW_HASKELL__ >= 900
+badRealSrcSpan :: GHC.RealSrcSpan
+badRealSrcSpan = GHC.mkRealSrcSpan bad bad
+  where
+    bad = GHC.mkRealSrcLoc (GHC.fsLit "ghc-exactprint-nospan") 0 0
 #endif
 
 #if __GLASGOW_HASKELL__ <= 802
@@ -204,7 +239,7 @@ noExt = GHC.noExt
 #endif
 
 -- |Make an unwrapped @AnnKey@ for the @LHsDecl@ case, a normal one otherwise.
-#if __GLASGOW_HASKELL__ > 806
+#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
 mkAnnKey :: (Constraints a) => a -> AnnKey
 #else
 mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
@@ -229,6 +264,9 @@ annGetConstr a = CN (show $ toConstr a)
 -- AST.
 data KeywordId = G GHC.AnnKeywordId  -- ^ A normal keyword
                | AnnSemiSep          -- ^ A separating comma
+#if __GLASGOW_HASKELL__ >= 900
+               | AnnEofPos
+#endif
 #if __GLASGOW_HASKELL__ >= 800
                | AnnTypeApp          -- ^ Visible type application annotation
 #endif
@@ -245,6 +283,9 @@ data KeywordId = G GHC.AnnKeywordId  -- ^ A normal keyword
 instance Show KeywordId where
   show (G gc)          = "(G " ++ show gc ++ ")"
   show AnnSemiSep      = "AnnSemiSep"
+#if __GLASGOW_HASKELL__ >= 900
+  show AnnEofPos       = "AnnEofPos"
+#endif
 #if __GLASGOW_HASKELL__ >= 800
   show AnnTypeApp      = "AnnTypeApp"
 #endif
@@ -369,6 +410,7 @@ data AstContext = LambdaExpr
                 | LeftMost -- Is this the leftmost operator in a chain of OpApps?
                 | InTypeApp -- HsTyVar in a TYPEAPP context. Has AnnAt
                           -- TODO:AZ: do we actually need this?
+                          -- TODO:AZ this is actually tight prefix
 
                 -- Next four used to identify current list context
                 | CtxOnly

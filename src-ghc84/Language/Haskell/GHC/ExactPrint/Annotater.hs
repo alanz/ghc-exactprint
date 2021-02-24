@@ -781,8 +781,7 @@ instance Annotate (GHC.TyFamInstDecl GHC.GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-markFamEqn :: (GHC.HasOccName (GHC.IdP pass),
-               Annotate (GHC.IdP pass), Annotate ast1, Annotate ast2)
+markFamEqn :: (Annotate (GHC.IdP pass), Annotate ast1, Annotate ast2)
            => GHC.FamEqn pass [GHC.Located ast1] (GHC.Located ast2)
                     -> Annotated ()
 markFamEqn (GHC.FamEqn ln pats fixity rhs) = do
@@ -2300,7 +2299,7 @@ instance Annotate (GHC.TyClDecl GHC.GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-markTyClass :: (Annotate a, Annotate ast,GHC.HasOccName a)
+markTyClass :: (Annotate a, Annotate ast)
                 => GHC.LexicalFixity -> GHC.Located a -> [GHC.Located ast] -> Annotated ()
 markTyClass fixity ln tyVars = do
     -- There may be arbitrary parens around parts of the constructor
@@ -2577,10 +2576,10 @@ instance Annotate (GHC.HsRecField GHC.GhcPs (GHC.LHsExpr GHC.GhcPs)) where
 
 instance Annotate (GHC.FunDep (GHC.Located GHC.RdrName)) where
 
-  markAST _ (ls,rs) = do
+  markAST _ (ls,rs') = do
     mapM_ markLocated ls
     mark GHC.AnnRarrow
-    mapM_ markLocated rs
+    mapM_ markLocated rs'
     inContext (Set.fromList [Intercalate]) $ mark GHC.AnnComma
 
 -- ---------------------------------------------------------------------

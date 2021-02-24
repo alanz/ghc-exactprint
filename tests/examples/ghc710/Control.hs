@@ -53,7 +53,7 @@ import Foreign.C.Error (eAGAIN, eWOULDBLOCK, getErrno, throwErrno)
 #endif
 
 data ControlMessage = CMsgWakeup
-                    | CMsgDie
+                    | CMsgDie !Foo
                     | CMsgSignal {-# UNPACK #-} !(ForeignPtr Word8)
                                  {-# UNPACK #-} !Signal
     deriving (Eq, Show)

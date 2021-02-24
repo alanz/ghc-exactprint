@@ -96,7 +96,7 @@ data PrettyWriter = PrettyWriter
          -- | Used locally to pass Keywords, delta pairs relevant to a specific
          -- subtree to the parent.
        , annKds          :: ![(KeywordId, DeltaPos)]
-       , sortKeys        :: !(Maybe [GHC.SrcSpan])
+       , sortKeys        :: !(Maybe [AnnSpan])
        , dwCapturedSpan  :: !(First AnnKey)
        , prLayoutContext :: !(ACS' AstContext)
        }
@@ -199,7 +199,11 @@ prettyInterpret = iterTM go
 
 addEofAnnotation :: Pretty ()
 addEofAnnotation = do
+#if __GLASGOW_HASKELL__ >= 900
+  tellKd (AnnEofPos, DP (1,0))
+#else
   tellKd (G GHC.AnnEofPos, DP (1,0))
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -228,6 +232,10 @@ addPrettyAnnotation ann = do
            (G GHC.AnnDcolon)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnDeriving)     -> tellKd (ann,DP (0,1))
            (G GHC.AnnDo)           -> tellKd (ann,DP (0,1))
+#if __GLASGOW_HASKELL__ >= 900
+           (G GHC.AnnDollar)       -> tellKd (ann,DP (0,1))
+           (G GHC.AnnDollarDollar) -> tellKd (ann,DP (0,1))
+#endif
            (G GHC.AnnDotdot)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnElse)         -> tellKd (ann,DP (1,2))
            (G GHC.AnnEqual)        -> tellKd (ann,DP (0,1))
@@ -242,23 +250,38 @@ addPrettyAnnotation ann = do
            (G GHC.AnnInstance)     -> tellKd (ann,DP (0,1))
            (G GHC.AnnLam)          -> tellKd (ann,DP (0,1))
            (G GHC.AnnLet)          -> tellKd (ann,DP (0,1))
+#if __GLASGOW_HASKELL__ >= 900
+           -- (G GHC.AnnLolly)        -> tellKd (ann,DP (0,1))
+           (G GHC.AnnLollyU)       -> tellKd (ann,DP (0,1))
+           (G GHC.AnnPercentOne)   -> tellKd (ann,DP (0,1))
+           (G GHC.AnnPercent)      -> tellKd (ann,DP (0,1))
+#endif
            (G GHC.AnnMinus)        -> tellKd (ann,DP (0,1)) -- need to separate from preceding operator
            (G GHC.AnnModule)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnNewtype)      -> tellKd (ann,DP (0,1))
            (G GHC.AnnOf)           -> tellKd (ann,DP (0,1))
            (G GHC.AnnOpenC)        -> tellKd (ann,DP (0,0))
+           (G GHC.AnnOpenP)        -> tellKd (ann,DP (0,1))
+           (G GHC.AnnOpenS)        -> tellKd (ann,DP (0,1))
+#if __GLASGOW_HASKELL__ < 900
            (G GHC.AnnOpenPE)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnOpenPTE)      -> tellKd (ann,DP (0,1))
+#endif
            (G GHC.AnnQualified)    -> tellKd (ann,DP (0,1))
            (G GHC.AnnRarrow)       -> tellKd (ann,DP (0,1))
+#if __GLASGOW_HASKELL__ > 710
+           (G GHC.AnnRarrowU)      -> tellKd (ann,DP (0,1))
+#endif
            (G GHC.AnnRole)         -> tellKd (ann,DP (0,1))
            (G GHC.AnnSafe)         -> tellKd (ann,DP (0,1))
 #if __GLASGOW_HASKELL__ >= 806
            (G GHC.AnnStock)        -> tellKd (ann,DP (0,1))
 #endif
            (G GHC.AnnSimpleQuote)  -> tellKd (ann,DP (0,1))
+#if __GLASGOW_HASKELL__ < 900
            (G GHC.AnnThIdSplice)   -> tellKd (ann,DP (0,1))
            (G GHC.AnnThIdTySplice) -> tellKd (ann,DP (0,1))
+#endif
            (G GHC.AnnThTyQuote)    -> tellKd (ann,DP (0,1))
            (G GHC.AnnThen)         -> tellKd (ann,DP (1,2))
            (G GHC.AnnTilde)        -> tellKd (ann,DP (0,1))
@@ -313,7 +336,7 @@ putUnallocatedComments cs = modify (\s -> s { apComments = cs } )
 
 -- ---------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ > 806
+#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
 withSrcSpanPretty :: (Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a) => a -> Pretty b -> Pretty b
 withSrcSpanPretty (GHC.dL->GHC.L l a) action = do
 #else
@@ -336,7 +359,7 @@ withSrcSpanPretty (GHC.L l a) action = do
 -- ---------------------------------------------------------------------
 
 -- | Enter a new AST element. Maintain SrcSpan stack
-#if __GLASGOW_HASKELL__ > 806
+#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
 withAST :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
         => a
         -> Pretty b -> Pretty b
@@ -379,7 +402,8 @@ withAST lss@(GHC.L ss t) action = do
     -- edp <- entryDpFor ctx t
 
     let ctx1 = debugP ("Pretty.withAST:edp:(ss,constr,edp)=" ++ showGhc (ss,showConstr (toConstr t),edp)) ctx
-    (res, w) <- if inAcs (Set.fromList [ListItem,TopLevel]) ctx1
+    -- (res, w) <- if inAcs (Set.fromList [ListItem,TopLevel]) ctx1
+    (res, w) <- if inAcs (Set.fromList [ListItem,TopLevel,InTypeApp]) ctx1
       then
            -- debugP ("Pretty.withAST:setNoPrecedingSpace") $
              censor maskWriter (listen (setNoPrecedingSpace action))
@@ -415,7 +439,8 @@ entryDpFor ctx a = (def `extQ` grhs) a
     def _ =
       debugP ("entryDpFor:(topLevel,listStart,inList,noAdvanceLine,ctx)=" ++ show (topLevel,listStart,inList,noAdvanceLine,ctx)) $
         if noAdvanceLine
-          then return (DP (0,1))
+          then (if inTypeApp then return (DP (0,0)) else return (DP (0,1)))
+          -- then (if inTypeApp then error "inTypeAp" else return (DP (0,1)))
           else
             if listStart
               then return (DP (1,2))
@@ -428,6 +453,7 @@ entryDpFor ctx a = (def `extQ` grhs) a
               && not (inAcs (Set.singleton TopLevel) ctx)
     inList = inAcs (Set.singleton ListItem) ctx
     inLambda = inAcs (Set.singleton LambdaExpr) ctx
+    inTypeApp = inAcs (Set.singleton InTypeApp) ctx
 
     grhs :: GHC.GRHS GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> Pretty DeltaPos
     grhs _ = do
@@ -463,7 +489,7 @@ addAnnotationsPretty ann = do
 
 getAnnKey :: PrettyOptions -> AnnKey
 getAnnKey PrettyOptions {curSrcSpan, annConName}
-  = AnnKey curSrcSpan annConName
+  = AnnKey (rs curSrcSpan) annConName
 
 -- ---------------------------------------------------------------------
 
@@ -472,14 +498,14 @@ countAnnsPretty _ann = return 0
 
 -- ---------------------------------------------------------------------
 
-withSortKey :: [(GHC.SrcSpan, Annotated b)] -> Pretty ()
+withSortKey :: [(AnnSpan, Annotated b)] -> Pretty ()
 withSortKey kws =
   let order = sortBy (comparing fst) kws
   in do
     tellSortKey (map fst order)
     mapM_ (prettyInterpret . snd) order
 
-withSortKeyContexts :: ListContexts -> [(GHC.SrcSpan, Annotated ())] -> Pretty ()
+withSortKeyContexts :: ListContexts -> [(AnnSpan, Annotated ())] -> Pretty ()
 withSortKeyContexts ctxts kws =
   let order = sortBy (comparing fst) kws
   in do
@@ -619,7 +645,7 @@ tellCapturedSpan key = tell ( mempty { dwCapturedSpan = First $ Just key })
 tellKd :: (KeywordId, DeltaPos) -> Pretty ()
 tellKd kd = tell (mempty { annKds = [kd] })
 
-tellSortKey :: [GHC.SrcSpan] -> Pretty ()
+tellSortKey :: [AnnSpan] -> Pretty ()
 tellSortKey xs = tell (mempty { sortKeys = Just xs } )
 
 tellContext :: Set.Set AstContext -> Pretty ()

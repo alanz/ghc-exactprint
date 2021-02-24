@@ -141,6 +141,10 @@ import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Annotate
 
 import qualified GHC
+#if __GLASGOW_HASKELL__ >= 900
+-- import qualified GHC.Parser.Annotation as GHC
+-- import qualified GHC.Types.SrcLoc      as GHC
+#endif
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -154,7 +158,7 @@ import qualified Data.Set as Set
 -- ---------------------------------------------------------------------
 -- | Transform concrete annotations into relative annotations which are
 -- more useful when transforming an AST.
-#if __GLASGOW_HASKELL__ > 806
+#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
 relativiseApiAnns :: (Data (GHC.SrcSpanLess ast), Annotate ast, GHC.HasSrcSpan ast)
                   => ast
 #else
@@ -170,7 +174,7 @@ relativiseApiAnns = relativiseApiAnnsWithComments []
 -- by e.g. CPP, and the parts stripped out of the original source are re-added
 -- as comments so they are not lost for round tripping.
 relativiseApiAnnsWithComments ::
-#if __GLASGOW_HASKELL__ > 806
+#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
                      (Data (GHC.SrcSpanLess ast), Annotate ast, GHC.HasSrcSpan ast)
                   => [Comment]
                   -> ast
@@ -185,7 +189,7 @@ relativiseApiAnnsWithComments =
     relativiseApiAnnsWithOptions normalLayout
 
 relativiseApiAnnsWithOptions ::
-#if __GLASGOW_HASKELL__ > 806
+#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
                      (Data (GHC.SrcSpanLess ast), Annotate ast, GHC.HasSrcSpan ast)
                   => DeltaOptions
                   -> [Comment]
@@ -245,7 +249,7 @@ data DeltaWriter = DeltaWriter
          -- | Used locally to pass Keywords, delta pairs relevant to a specific
          -- subtree to the parent.
        , annKds         :: ![(KeywordId, DeltaPos)]
-       , sortKeys       :: !(Maybe [GHC.SrcSpan])
+       , sortKeys       :: !(Maybe [AnnSpan])
        , dwCapturedSpan :: !(First AnnKey)
        }
 
@@ -299,7 +303,7 @@ tellFinalAnn (k, v) =
   -- tell (mempty { dwAnns = Endo (Map.insertWith (<>) k v) })
   tell (mempty { dwAnns = Endo (Map.insert k v) })
 
-tellSortKey :: [GHC.SrcSpan] -> Delta ()
+tellSortKey :: [AnnSpan] -> Delta ()
 tellSortKey xs = tell (mempty { sortKeys = Just xs } )
 
 tellCapturedSpan :: AnnKey -> Delta ()
@@ -344,7 +348,7 @@ deltaInterpret = iterTM go
       (if r <= rigidity then setLayoutFlag else id) (deltaInterpret action)
       next
     go (MarkAnnBeforeAnn ann1 ann2 next) = deltaMarkAnnBeforeAnn ann1 ann2 >> next
-    go (MarkExternal ss akwid _ next)    = addDeltaAnnotationExt ss akwid >> next
+    go (MarkExternal ss akwid _ next)    = addDeltaAnnotationExt (rs ss) akwid >> next
     go (StoreOriginalSrcSpan _ key next) = storeOriginalSrcSpanDelta key >>= next
     go (GetSrcSpanForKw ss kw next)      = getSrcSpanForKw ss kw >>= next
 #if __GLASGOW_HASKELL__ <= 710
@@ -363,7 +367,7 @@ deltaInterpret = iterTM go
     go (IfInContext    ctxt ifAction elseAction next) = ifInContextDelta ctxt ifAction elseAction >> next
     go (TellContext _ next)                  = next
 
-withSortKey :: [(GHC.SrcSpan, Annotated b)] -> Delta ()
+withSortKey :: [(AnnSpan, Annotated b)] -> Delta ()
 withSortKey kws =
   let order = sortBy (comparing fst) kws
   in do
@@ -371,7 +375,7 @@ withSortKey kws =
     mapM_ (deltaInterpret . snd) order
 
 
-withSortKeyContexts :: ListContexts -> [(GHC.SrcSpan, Annotated ())] -> Delta ()
+withSortKeyContexts :: ListContexts -> [(AnnSpan, Annotated ())] -> Delta ()
 withSortKeyContexts ctxts kws = do
   tellSortKey (map fst order)
   withSortKeyContextsHelper deltaInterpret ctxts order
@@ -426,7 +430,7 @@ annotationsToCommentsDelta kws = do
     doOne :: GHC.AnnKeywordId -> Delta [Comment]
     doOne kw = do
       (spans,_) <- getAndRemoveAnnotationDelta ss kw
-      return $ map (mkKWComment kw) spans
+      return $ map (mkKWComment kw . sr) spans
     -- TODO:AZ make sure these are sorted/merged properly when the invariant for
     -- allocateComments is re-established.
   newComments <- mapM doOne kws
@@ -439,16 +443,20 @@ getSrcSpanForKw :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta GHC.SrcSpan
 getSrcSpanForKw _ kw = do
     ga <- gets apAnns
     ss <- getSrcSpan
-    case GHC.getAnnotation ga ss kw of
+    case GHC.getAnnotation ga (rs ss) kw of
       []     -> return GHC.noSrcSpan
+#if __GLASGOW_HASKELL__ >= 900
+      (sp:_) -> return (GHC.RealSrcSpan sp Nothing)
+#else
       (sp:_) -> return sp
+#endif
 
 -- ---------------------------------------------------------------------
 
 getSrcSpan :: Delta GHC.SrcSpan
 getSrcSpan = asks curSrcSpan
 
-#if __GLASGOW_HASKELL__ > 806
+#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
 withSrcSpanDelta :: (Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a) => a -> Delta b -> Delta b
 withSrcSpanDelta (GHC.dL->GHC.L l a) =
 #else
@@ -488,10 +496,10 @@ setPriorEnd :: Pos -> Delta ()
 setPriorEnd pe =
   modify (\s -> s { priorEndPosition = pe })
 
-setPriorEndAST :: GHC.SrcSpan -> Delta ()
+setPriorEndAST :: AnnSpan -> Delta ()
 setPriorEndAST pe = do
-  setLayoutStart (snd (ss2pos pe))
-  modify (\s -> s { priorEndPosition    = ss2posEnd pe } )
+  setLayoutStart (snd (ss2pos (sr pe)))
+  modify (\s -> s { priorEndPosition    = ss2posEnd (sr pe) } )
 
 setLayoutStart :: Int -> Delta ()
 setLayoutStart p = do
@@ -503,7 +511,7 @@ setLayoutStart p = do
 
 -- -------------------------------------
 
-peekAnnotationDelta :: GHC.AnnKeywordId -> Delta [GHC.SrcSpan]
+peekAnnotationDelta :: GHC.AnnKeywordId -> Delta [AnnSpan]
 peekAnnotationDelta an = do
     ga <- gets apAnns
     ss <- getSrcSpan
@@ -512,41 +520,48 @@ peekAnnotationDelta an = do
 #else
     let unicodeAnns = case unicodeEquivalent an of
           [] -> []
-          [kw] -> GHC.getAnnotation ga ss kw
-          (kw:_) -> GHC.getAnnotation ga ss kw -- Keep exhaustiveness checker happy
-    return $ unicodeAnns ++ GHC.getAnnotation ga ss an
+          [kw] -> GHC.getAnnotation ga (rs ss) kw
+          (kw:_) -> GHC.getAnnotation ga (rs ss) kw -- Keep exhaustiveness checker happy
+    return $ unicodeAnns ++ GHC.getAnnotation ga (rs ss) an
 #endif
 
-getAnnotationDelta :: GHC.AnnKeywordId -> Delta ([GHC.SrcSpan],GHC.AnnKeywordId)
+getAnnotationDelta :: GHC.AnnKeywordId -> Delta ([AnnSpan],GHC.AnnKeywordId)
 getAnnotationDelta an = do
     ss <- getSrcSpan
     getAndRemoveAnnotationDelta ss an
 
-getAndRemoveAnnotationDelta :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta ([GHC.SrcSpan],GHC.AnnKeywordId)
+getAndRemoveAnnotationDelta :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta ([AnnSpan],GHC.AnnKeywordId)
 getAndRemoveAnnotationDelta sp an = do
     ga <- gets apAnns
 #if __GLASGOW_HASKELL__ <= 710
     let (r,ga') = GHC.getAndRemoveAnnotation ga sp an
         kw = an
 #else
-    let (r,ga',kw) = case GHC.getAndRemoveAnnotation ga sp an of
+    let (r,ga',kw) = case GHC.getAndRemoveAnnotation ga (rs sp) an of
                     ([],_) -> (ss,g,k)
                       where
                         k = GHC.unicodeAnn an
-                        (ss,g) = GHC.getAndRemoveAnnotation ga sp k
+                        (ss,g) = GHC.getAndRemoveAnnotation ga (rs sp) k
                     (ss,g)  -> (ss,g,an)
 #endif
     modify (\s -> s { apAnns = ga' })
     return (r,kw)
 
-getOneAnnotationDelta :: GHC.AnnKeywordId -> Delta ([GHC.SrcSpan],GHC.AnnKeywordId)
+getOneAnnotationDelta :: GHC.AnnKeywordId -> Delta ([AnnSpan],GHC.AnnKeywordId)
 getOneAnnotationDelta an = do
     ss <- getSrcSpan
     getAndRemoveOneAnnotationDelta ss an
 
-getAndRemoveOneAnnotationDelta :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta ([GHC.SrcSpan],GHC.AnnKeywordId)
+getAndRemoveOneAnnotationDelta :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta ([AnnSpan],GHC.AnnKeywordId)
 getAndRemoveOneAnnotationDelta sp an = do
+#if __GLASGOW_HASKELL__ >= 900
+    ann <- gets apAnns
+    let anns = GHC.apiAnnItems ann
+    let cs = GHC.apiAnnComments ann -- TODO:AZ: what about apiAnnRogueComments?
+#else
     (anns,cs) <- gets apAnns
+#endif
+
 #if __GLASGOW_HASKELL__ <= 710
     let (r,ga',kw) = case Map.lookup (sp,an) anns of
                     Nothing -> ([],(anns,cs),an)
@@ -554,15 +569,20 @@ getAndRemoveOneAnnotationDelta sp an = do
                     Just (s:ss) -> ([s],(Map.insert (sp,an) ss anns,cs),an)
 #else
     let getKw kw =
-          case Map.lookup (sp,kw) anns of
+          case Map.lookup (rs sp,kw) anns of
             Nothing -> ([],(anns,cs),kw)
-            Just []     -> ([], (Map.delete (sp,kw)    anns,cs),kw)
-            Just (s:ss) -> ([s],(Map.insert (sp,kw) ss anns,cs),kw)
+            Just []     -> ([], (Map.delete (rs sp,kw)    anns,cs),kw)
+            Just (s:ss) -> ([s],(Map.insert (rs sp,kw) ss anns,cs),kw)
 
-    let (r,ga',kw) =
+    let (r,(a',c'),kw) =
           case getKw an of
             ([],_,_) -> getKw (GHC.unicodeAnn an)
             v        -> v
+#if __GLASGOW_HASKELL__ >= 900
+    let ga' = ann {  GHC.apiAnnItems = a', GHC.apiAnnComments = c' }
+#else
+    let ga' = (a',c')
+#endif
 #endif
     modify (\s -> s { apAnns = ga' })
     return (r,kw)
@@ -577,7 +597,7 @@ addAnnotationsDelta ann = do
 
 getAnnKey :: DeltaOptions -> AnnKey
 getAnnKey DeltaOptions {curSrcSpan, annConName}
-  = AnnKey curSrcSpan annConName
+  = AnnKey (rs curSrcSpan) annConName
 
 -- -------------------------------------
 
@@ -587,7 +607,7 @@ addAnnDeltaPos kw dp = tellKd (kw, dp)
 -- -------------------------------------
 
 -- | Enter a new AST element. Maintain SrcSpan stack
-#if __GLASGOW_HASKELL__ > 806
+#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
 withAST :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
         => a
         -> Delta b -> Delta b
@@ -650,7 +670,7 @@ resetAnns action = do
 -- |Split the ordered list of comments into ones that occur prior to
 -- the give SrcSpan and the rest
 priorComment :: Pos -> Comment -> Bool
-priorComment start c = (ss2pos . commentIdentifier $ c) < start
+priorComment start c = (ss2pos . sr . commentIdentifier $ c) < start
 
 -- TODO:AZ: We scan the entire comment list here. It may be better to impose an
 -- invariant that the comments are sorted, and consume them as the pos
@@ -661,7 +681,7 @@ allocateComments = partition
 
 -- ---------------------------------------------------------------------
 
-addAnnotationWorker :: KeywordId -> GHC.SrcSpan -> Delta ()
+addAnnotationWorker :: KeywordId -> AnnSpan -> Delta ()
 addAnnotationWorker ann pa =
   -- Zero-width source spans are injected by the GHC Lexer when it puts virtual
   -- '{', ';' and '}' tokens in for layout
@@ -669,7 +689,7 @@ addAnnotationWorker ann pa =
     do
       pe <- getPriorEnd
       ss <- getSrcSpan
-      let p = ss2delta pe pa
+      let p = ss2delta pe (sr pa)
       case (ann,isGoodDelta p) of
         (G GHC.AnnComma,False) -> return ()
         (G GHC.AnnSemi, False) -> return ()
@@ -677,7 +697,7 @@ addAnnotationWorker ann pa =
         (G GHC.AnnClose,False) -> return ()
         _ -> do
           p' <- adjustDeltaForOffsetM p
-          commentAllocation (priorComment (ss2pos pa)) (mapM_ (uncurry addDeltaComment))
+          commentAllocation (priorComment (ss2pos (sr pa))) (mapM_ (uncurry addDeltaComment))
 #if __GLASGOW_HASKELL__ <= 710
           addAnnDeltaPos (checkUnicode ann pa) p'
 #else
@@ -750,8 +770,13 @@ commentAllocation p k = do
   where
     -- unpack a RealSrcSpan into ((start line, start col), (end line, end col)).
     -- The file name is ignored.
+#if __GLASGOW_HASKELL__ >= 900
+    unpack :: GHC.RealSrcSpan -> Maybe ((Int, Int), (Int, Int))
+    unpack x =
+#else
     unpack :: GHC.SrcSpan -> Maybe ((Int, Int), (Int, Int))
     unpack (GHC.RealSrcSpan x) =
+#endif
        Just ( (GHC.srcSpanStartLine x, GHC.srcSpanStartCol x)
             , (GHC.srcSpanEndLine x, GHC.srcSpanEndCol x) )
     unpack _ = Nothing
@@ -760,9 +785,9 @@ makeDeltaComment :: Comment -> Delta (Comment, DeltaPos)
 makeDeltaComment c = do
   let pa = commentIdentifier c
   pe <- getPriorEnd
-  let p = ss2delta pe pa
+  let p = ss2delta pe (sr pa)
   p' <- adjustDeltaForOffsetM p
-  setPriorEnd (ss2posEnd pa)
+  setPriorEnd (ss2posEnd (sr pa))
   return (c, p')
 
 addDeltaComment :: Comment -> DeltaPos -> Delta ()
@@ -778,8 +803,8 @@ deltaMarkAnnBeforeAnn annBefore annAfter = do
   mb <- peekAnnotationDelta annBefore
   ma <- peekAnnotationDelta annAfter
   let
-    before = sort $ filter (\s -> GHC.isSubspanOf s ss) mb
-    after  = sort $ filter (\s -> GHC.isSubspanOf s ss) ma
+    before = sort $ filter (\s -> GHC.isSubspanOf (sr s) ss) mb
+    after  = sort $ filter (\s -> GHC.isSubspanOf (sr s) ss) ma
   case (before,after) of
     (b:_, a:_) -> when (b < a) $ addDeltaAnnotation annBefore
     _ -> return ()
@@ -803,7 +828,7 @@ addDeltaAnnotationLs :: GHC.AnnKeywordId -> Int -> Delta ()
 addDeltaAnnotationLs ann off = do
   ss <- getSrcSpan
   ma <- peekAnnotationDelta ann
-  let ma' = filter (\s -> GHC.isSubspanOf s ss) ma
+  let ma' = filter (\s -> GHC.isSubspanOf (sr s) ss) ma
   case drop off ma' of
     [] -> return ()
         `debug` ("addDeltaAnnotationLs:missed:(off,ann,ma)=" ++ showGhc (off,ss,ann))
@@ -827,7 +852,7 @@ addDeltaAnnotationsInside ann = do
   ma <- peekAnnotationDelta ann
   let do_one ap' = addAnnotationWorker (G ann) ap'
                     -- `debug` ("addDeltaAnnotations:do_one:(ap',ann)=" ++ showGhc (ap',ann))
-  let filtered = sort $ filter (\s -> GHC.isSubspanOf s ss) ma
+  let filtered = sort $ filter (\s -> GHC.isSubspanOf (sr s) ss) ma
   mapM_ do_one filtered
 
 -- ---------------------------------------------------------------------
@@ -857,17 +882,28 @@ addDeltaAnnotationsOutside gann ann = do
   let do_one ap' = if ann == AnnSemiSep
                      then addAnnotationWorker ann    ap'
                      else addAnnotationWorker (G kw) ap'
-  mapM_ do_one (sort $ filter (\s -> not (GHC.isSubspanOf s ss)) ma)
+  mapM_ do_one (sort $ filter (\s -> not (GHC.isSubspanOf (sr s) ss)) ma)
 
 -- | Add a Delta annotation at the current position, and advance the
 -- position to the end of the annotation
-addDeltaAnnotationExt :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta ()
+addDeltaAnnotationExt :: AnnSpan -> GHC.AnnKeywordId -> Delta ()
 addDeltaAnnotationExt s ann = addAnnotationWorker (G ann) s
 
 addEofAnnotation :: Delta ()
+#if __GLASGOW_HASKELL__ >= 900
 addEofAnnotation = do
   pe <- getPriorEnd
-  (ma,_kw) <- withSrcSpanDelta (GHC.noLoc () :: GHC.GenLocated GHC.SrcSpan ()) (getAnnotationDelta GHC.AnnEofPos)
+  ga <- gets apAnns
+  let Just pa = GHC.apiAnnEofPos ga
+  commentAllocation (const True) (mapM_ (uncurry addDeltaComment))
+  let DP (r,c) = ss2delta pe (sr pa)
+  addAnnDeltaPos AnnEofPos (DP (r, c - 1))
+  setPriorEndAST pa
+#else
+addEofAnnotation = do
+  pe <- getPriorEnd
+  (ma,_kw) <- withSrcSpanDelta (GHC.noLoc () :: GHC.GenLocated GHC.SrcSpan ())
+                               (getAnnotationDelta GHC.AnnEofPos)
   case ma of
     [] -> return ()
     (pa:pss) -> do
@@ -875,6 +911,7 @@ addEofAnnotation = do
       let DP (r,c) = ss2delta pe pa
       addAnnDeltaPos (G GHC.AnnEofPos) (DP (r, c - 1))
       setPriorEndAST pa `warn` ("Trailing annotations after Eof: " ++ showGhc pss)
+#endif
 
 -- ---------------------------------------------------------------------
 

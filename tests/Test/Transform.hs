@@ -7,21 +7,30 @@ module Test.Transform where
 import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Parsers
+import Language.Haskell.GHC.ExactPrint.Utils
 
+#if __GLASGOW_HASKELL__ >= 900
+import qualified GHC                       as GHC
+import qualified GHC.Data.Bag              as GHC
+import qualified GHC.Data.FastString       as GHC
+import qualified GHC.Types.Name.Occurrence as GHC
+import qualified GHC.Types.Name.Reader     as GHC
+import qualified GHC.Types.SrcLoc          as GHC
+#else
 import qualified Bag            as GHC
 import qualified GHC            as GHC
 import qualified OccName        as GHC
 import qualified RdrName        as GHC
 import qualified SrcLoc         as GHC
 import qualified FastString     as GHC
+#endif
 
 import qualified Data.Generics as SYB
--- import qualified GHC.SYB.Utils as SYB
 
 import System.FilePath
 import qualified Data.Map as Map
 -- import Data.List
-import Data.Maybe
+-- import Data.Maybe
 
 import Test.Common
 
@@ -123,7 +132,7 @@ changeLocalDecls2 ans (GHC.L l p) = do
 #endif
         newSpan <- uniqueSrcSpanT
         let
-          newAnnKey = AnnKey newSpan (CN "HsValBinds")
+          newAnnKey = AnnKey (rs newSpan) (CN "HsValBinds")
           addWhere mkds =
             case Map.lookup (mkAnnKey m) mkds of
               Nothing -> error "wtf"
@@ -131,7 +140,7 @@ changeLocalDecls2 ans (GHC.L l p) = do
                 where
                   ann1 = ann { annsDP = annsDP ann ++ [(G GHC.AnnWhere,DP (1,2))]
                              , annCapturedSpan = Just newAnnKey
-                             , annSortKey = Just [ls, ld]
+                             , annSortKey = Just [rs ls, rs ld]
                              }
                   mkds2 = Map.insert (mkAnnKey m) ann1 mkds
                   ann2 = annNone
@@ -251,19 +260,28 @@ changeWhereIn3 declIndex ans p = return (ans',p')
     (p',(ans',_),_) = runTransform ans doTransform
     doTransform = doRmDecl p
 
-    doRmDecl (GHC.L l (GHC.HsModule mmn mexp imps decls mdepr haddock)) = do
+#if __GLASGOW_HASKELL__ >= 900
+    doRmDecl (GHC.L l (GHC.HsModule lo mmn mexp imps decls mdepr haddock)) = do
+#else
+    doRmDecl (GHC.L l (GHC.HsModule    mmn mexp imps decls mdepr haddock)) = do
+#endif
       let
         -- declIndex = 2 -- zero based
         decls1 = take declIndex decls
         decls2 = drop (declIndex + 1) decls
         decls' = decls1 ++ decls2
-      return (GHC.L l (GHC.HsModule mmn mexp imps decls' mdepr haddock))
+#if __GLASGOW_HASKELL__ >= 900
+      return (GHC.L l (GHC.HsModule lo mmn mexp imps decls' mdepr haddock))
+#else
+      return (GHC.L l (GHC.HsModule    mmn mexp imps decls' mdepr haddock))
+#endif
       -- error $ "doRmDecl:decls2=" ++ showGhc (length decls,decls1,decls2)
 
 -- ---------------------------------------------------------------------
 
 changeRenameCase1 :: Changer
 changeRenameCase1 ans parsed = return (ans,rename "bazLonger" [((3,15),(3,18))] parsed)
+-- changeRenameCase1 ans parsed = return (ans,rename "bazLonger" [((3,15),(3,17))] parsed)
 
 changeRenameCase2 :: Changer
 changeRenameCase2 ans parsed = return (ans,rename "fooLonger" [((3,1),(3,4))] parsed)
@@ -307,12 +325,7 @@ rename newNameStr spans a
     newName = GHC.mkRdrUnqual (GHC.mkVarOcc newNameStr)
 
     cond :: GHC.SrcSpan -> Bool
-    cond ln = ln `elem` srcSpans
-      where
-        srcSpans  = map (\(start, end) -> GHC.mkSrcSpan (f start) (f end)) spans
-        fname = fromMaybe (GHC.mkFastString "f") (GHC.srcSpanFileName_maybe ln)
-        f = uncurry (GHC.mkSrcLoc fname)
-
+    cond ln = ss2range ln `elem` spans
 
     replaceRdr :: GHC.Located GHC.RdrName -> GHC.Located GHC.RdrName
     replaceRdr (GHC.L ln _)
@@ -332,7 +345,7 @@ rename newNameStr spans a
 
 
 
-#if __GLASGOW_HASKELL__ > 806
+#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
     replacePat :: GHC.LPat GhcPs -> GHC.LPat GhcPs
     replacePat (GHC.dL->GHC.L ln (GHC.VarPat {}))
         | cond ln = GHC.cL ln (GHC.VarPat noExt (GHC.cL ln newName))
@@ -378,11 +391,7 @@ changeWhereIn4 ans parsed
   where
     replace :: GHC.Located GHC.RdrName -> GHC.Located GHC.RdrName
     replace (GHC.L ln _n)
-      | ln == (g (12,16) (12,17)) = GHC.L ln (GHC.mkRdrUnqual (GHC.mkVarOcc "p_2"))
-      where
-        g start end = GHC.mkSrcSpan (f start) (f end)
-        fname = fromMaybe (GHC.mkFastString "f") (GHC.srcSpanFileName_maybe ln)
-        f = uncurry (GHC.mkSrcLoc fname)
+      | ss2range ln == ((12,16),(12,17)) = GHC.L ln (GHC.mkRdrUnqual (GHC.mkVarOcc "p_2"))
     replace x = x
 
 -- ---------------------------------------------------------------------
@@ -563,7 +572,9 @@ addLocaLDecl6 ans lp = do
         [d1,d2] <- hsDecls lp
         balanceComments d1 d2
 
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 900
+        let GHC.L _ (GHC.ValD _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ [m1,m2]) _) _)) = d1
+#elif __GLASGOW_HASKELL__ > 808
         let GHC.L _ (GHC.ValD _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ [m1,m2]) _) _ _)) = d1
 #elif __GLASGOW_HASKELL__ > 804
         let GHC.L _ (GHC.ValD _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ [m1,m2]) _) _ _)) = d1

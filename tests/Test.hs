@@ -28,12 +28,14 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-data GHCVersion = GHC710 | GHC80 | GHC82 | GHC84 | GHC86 | GHC88 | GHC810
+data GHCVersion = GHC710 | GHC80 | GHC82 | GHC84 | GHC86 | GHC88 | GHC810 | GHC90
      deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
 ghcVersion =
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 900
+  GHC90
+#elif __GLASGOW_HASKELL__ > 808
   GHC810
 #elif __GLASGOW_HASKELL__ > 806
   GHC88
@@ -53,16 +55,17 @@ ghcVersion =
 testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
-    GHC710 -> ["ghc710-only","ghc710", "vect"]
-    GHC80  -> [              "ghc710", "ghc80", "vect"]
-    GHC82  -> ["pre-ghc86",  "ghc710", "ghc80", "ghc82", "vect"]
-    GHC84  -> ["pre-ghc86", "pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
-    GHC86  -> ["pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
-    GHC88  -> ["pre-ghc810", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
-    GHC810 -> [              "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
+    GHC710 -> ["ghc710-only",                           "ghc710", "vect"]
+    GHC80  -> [                            "pre-ghc90", "ghc710", "ghc80", "vect"]
+    GHC82  -> ["pre-ghc86",                "pre-ghc90", "ghc710", "ghc80", "ghc82", "vect"]
+    GHC84  -> ["pre-ghc86",  "pre-ghc810", "pre-ghc90", "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
+    GHC86  -> ["pre-ghc810", "pre-ghc810", "pre-ghc90", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
+    GHC88  -> ["pre-ghc810", "pre-ghc810", "pre-ghc90", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
+    GHC810 -> [                            "pre-ghc90", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
+    GHC90  -> [                                         "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90"]
 
-    -- GHC810  -> ["ghc810"]
-    -- GHC810  -> ["ghc810-copied"]
+    -- GHC90  -> ["ghc90-copied"]
+    -- GHC90  -> ["ghc90"]
 
 -- ---------------------------------------------------------------------
 
@@ -202,22 +205,55 @@ tr = hSilence [stderr] $ do
 tt' :: IO (Counts,Int)
 tt' = runTestText (putTextToHandle stdout True) $ TestList [
 
-      -- mkParserTest      "ghc80" "C.hs"
-    --   mkParserTest      "ghc80" "T10267.hs"
-    -- , mkParserTest      "ghc80" "T10946.hs"
-      -- mkParserTest      "ghc82" "T13050.hs"
-      -- mkParserTest      "ghc84" "arrowfail003.hs"
-      -- mkParserTest      "ghc810" "T17296.hs"
+    -- mkTestModChange changeRenameCase1 "RenameCase1.hs"
 
-      mkPrettyRoundtrip "ghc810" "T16326_Compile1.hs"
-      -- mkPrettyRoundtrip "ghc810" "saks029.hs"
+    -- mkParserTest      "ghc710" "Associated.hs"
 
-      -- mkPrettyRoundtrip "ghc86" "dynamic-paper.hs"
+    -- mkParserTest      "ghc710" "BracesSemiDataDecl.hs"
+    -- mkParserTest      "ghc710" "GADTRecords.hs"
+    -- mkParserTest      "ghc710" "RdrNames.hs"
+    -- mkParserTest      "ghc710" "RdrNames1.hs"
+
+    -- mkParserTest      "ghc80" "T11010.hs"
+    -- mkParserTest      "ghc80" "Test10399.hs"
+    -- mkParserTest      "ghc90" "Linear12.hs"
+    -- mkParserTest      "ghc90" "T17544_kw.hs"
+
+    -- mkParserTest      "ghc90" "FromManual.hs"
+    -- mkPrettyRoundtrip  "ghc90" "FromManual.hs"
+
+    -- mkParserTest       "ghc90" "Linear1Rule.hs"
+    -- mkPrettyRoundtrip  "ghc90" "Linear1Rule.hs"
+
+    -- mkParserTest       "ghc80" "Test11018.hs"
+    -- mkPrettyRoundtrip  "ghc80" "Test11018.hs"
+
+    -- mkParserTest       "ghc86" "UnicodeSyntax.hs"
+    -- mkPrettyRoundtrip  "ghc86" "UnicodeSyntax.hs"
+
+    mkParserTest       "ghc86" "empty-foralls.hs"
+    -- mkPrettyRoundtrip  "ghc86" "empty-foralls.hs"
+
+    -- mkParserTest       "ghc710" "PatSynBind.hs"
+    -- mkPrettyRoundtrip  "ghc710" "PatSynBind.hs"
+
+    -- ---------------------------------------------
+
+    -- mkParserTest       "ghc86" "Webhook.hs"
+
+    -- mkParserTest       "ghc710" "TypeBrackets2.hs"
+    -- mkPrettyRoundtrip  "ghc710" "TypeBrackets2.hs"
+
+    -- mkParserTest       "ghc710" "DataDecl.hs"
+    -- mkPrettyRoundtrip  "ghc710" "DataDecl.hs"
+
+    -- mkParserTest      "ghc90" "BaseDescriptor.hs"
+    -- mkPrettyRoundtrip "ghc90" "BaseDescriptor.hs"
+
+    -- mkParserTest      "ghc90" "BaseDescriptors2.hs"
+    -- mkPrettyRoundtrip "ghc90" "BaseDescriptors2.hs"
 
    -- Needs GHC changes
-        -- mkParserTest "failing" "CtorOp.hs"
-        -- mkParserTest "failing" "InfixOperator.hs"
-
 
 
     ]

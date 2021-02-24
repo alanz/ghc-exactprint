@@ -8,6 +8,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
    -- * Manipulating Positons
     ss2pos
   , ss2posEnd
+  , ss2range
   , undelta
   , isPointSrcSpan
   , pos2delta
@@ -15,6 +16,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , addDP
   , spanLength
   , isGoodDelta
+  , rs, sr
 
   -- * Manipulating Comments
   , mkComment
@@ -82,21 +84,34 @@ import Data.Ord (comparing)
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Lookup
 
-import qualified Bag            as GHC
 #if __GLASGOW_HASKELL__ <= 710
 import qualified BooleanFormula as GHC
 #endif
+import qualified GHC
+#if __GLASGOW_HASKELL__ >= 900
+import qualified GHC.Data.Bag          as GHC
+import qualified GHC.Driver.Session    as GHC
+import qualified GHC.Data.FastString   as GHC
+import qualified GHC.Types.Name        as GHC
+import qualified GHC.Types.Name.Set    as GHC
+import qualified GHC.Utils.Outputable  as GHC
+import qualified GHC.Types.Name.Reader as GHC
+import qualified GHC.Types.SrcLoc      as GHC
+import qualified GHC.Types.Var         as GHC
+import qualified GHC.Types.Name.Occurrence as OccName (OccName(..),occNameString,pprNameSpaceBrief)
+#else
+import qualified Bag            as GHC
 import qualified DynFlags       as GHC
 import qualified FastString     as GHC
-import qualified GHC
 import qualified Name           as GHC
 import qualified NameSet        as GHC
 import qualified Outputable     as GHC
 import qualified RdrName        as GHC
 import qualified SrcLoc         as GHC
 import qualified Var            as GHC
-
 import qualified OccName(OccName(..),occNameString,pprNameSpaceBrief)
+#endif
+
 
 import Control.Arrow
 
@@ -221,20 +236,39 @@ ss2pos ss = (srcSpanStartLine ss,srcSpanStartColumn ss)
 ss2posEnd :: GHC.SrcSpan -> Pos
 ss2posEnd ss = (srcSpanEndLine ss,srcSpanEndColumn ss)
 
+ss2range :: GHC.SrcSpan -> (Pos,Pos)
+ss2range ss = (ss2pos ss, ss2posEnd ss)
+
 srcSpanEndColumn :: GHC.SrcSpan -> Int
+#if __GLASGOW_HASKELL__ >= 900
+srcSpanEndColumn (GHC.RealSrcSpan s _) = GHC.srcSpanEndCol s
+#else
 srcSpanEndColumn (GHC.RealSrcSpan s) = GHC.srcSpanEndCol s
+#endif
 srcSpanEndColumn _ = 0
 
 srcSpanStartColumn :: GHC.SrcSpan -> Int
+#if __GLASGOW_HASKELL__ >= 900
+srcSpanStartColumn (GHC.RealSrcSpan s _) = GHC.srcSpanStartCol s
+#else
 srcSpanStartColumn (GHC.RealSrcSpan s) = GHC.srcSpanStartCol s
+#endif
 srcSpanStartColumn _ = 0
 
 srcSpanEndLine :: GHC.SrcSpan -> Int
+#if __GLASGOW_HASKELL__ >= 900
+srcSpanEndLine (GHC.RealSrcSpan s _) = GHC.srcSpanEndLine s
+#else
 srcSpanEndLine (GHC.RealSrcSpan s) = GHC.srcSpanEndLine s
+#endif
 srcSpanEndLine _ = 0
 
 srcSpanStartLine :: GHC.SrcSpan -> Int
+#if __GLASGOW_HASKELL__ >= 900
+srcSpanStartLine (GHC.RealSrcSpan s _) = GHC.srcSpanStartLine s
+#else
 srcSpanStartLine (GHC.RealSrcSpan s) = GHC.srcSpanStartLine s
+#endif
 srcSpanStartLine _ = 0
 
 spanLength :: GHC.SrcSpan -> Int
@@ -242,15 +276,15 @@ spanLength = (-) <$> srcSpanEndColumn <*> srcSpanStartColumn
 
 -- ---------------------------------------------------------------------
 -- | Checks whether a SrcSpan has zero length.
-isPointSrcSpan :: GHC.SrcSpan -> Bool
-isPointSrcSpan ss = spanLength ss == 0
-                  && srcSpanStartLine ss == srcSpanEndLine ss
+isPointSrcSpan :: AnnSpan -> Bool
+isPointSrcSpan ss = spanLength (sr ss) == 0
+                  && srcSpanStartLine (sr ss) == srcSpanEndLine (sr ss)
 
 -- ---------------------------------------------------------------------
 
 -- |Given a list of items and a list of keys, returns a list of items
 -- ordered by their position in the list of keys.
-orderByKey :: [(GHC.SrcSpan,a)] -> [GHC.SrcSpan] -> [(GHC.SrcSpan,a)]
+orderByKey :: (Eq o) => [(o,a)] -> [o] -> [(o,a)]
 orderByKey keys order
     -- AZ:TODO: if performance becomes a problem, consider a Map of the order
     -- SrcSpan to an index, and do a lookup instead of elemIndex.
@@ -268,8 +302,13 @@ isListComp cts = case cts of
           GHC.PArrComp  -> True
 #endif
 
+#if __GLASGOW_HASKELL__ >= 900
+          GHC.DoExpr {}    -> False
+          GHC.MDoExpr {}   -> False
+#else
           GHC.DoExpr       -> False
           GHC.MDoExpr      -> False
+#endif
           GHC.ArrowExpr    -> False
           GHC.GhciStmtCtxt -> False
 
@@ -280,13 +319,30 @@ isListComp cts = case cts of
 -- ---------------------------------------------------------------------
 
 isGadt :: [GHC.LConDecl name] -> Bool
-isGadt [] = False
-#if __GLASGOW_HASKELL__ <= 710
-isGadt (GHC.L _ GHC.ConDecl{GHC.con_res=GHC.ResTyGADT _ _}:_) = True
+#if __GLASGOW_HASKELL__ >= 880
+isGadt [] = True
 #else
+isGadt [] = False
+#endif
+#if __GLASGOW_HASKELL__ >= 900
 isGadt ((GHC.L _ (GHC.ConDeclGADT{})):_) = True
+isGadt ((GHC.L _ (GHC.XConDecl{})):_) = True
+#elif __GLASGOW_HASKELL__ > 710
+isGadt ((GHC.L _ (GHC.ConDeclGADT{})):_) = True
+#else
+isGadt (GHC.L _ GHC.ConDecl{GHC.con_res=GHC.ResTyGADT _ _}:_) = True
 #endif
 isGadt _ = False
+
+-- isGadt :: [GHC.LConDecl name] -> Bool
+-- isGadt [] = False
+-- #if __GLASGOW_HASKELL__ <= 710
+-- isGadt (GHC.L _ GHC.ConDecl{GHC.con_res=GHC.ResTyGADT _ _}:_) = True
+-- #else
+-- isGadt ((GHC.L _ (GHC.ConDeclGADT{})):_) = True
+-- #endif
+-- isGadt _ = False
+
 
 -- ---------------------------------------------------------------------
 
@@ -296,7 +352,30 @@ isExactName = False `mkQ` GHC.isExact
 
 -- ---------------------------------------------------------------------
 
+rs :: GHC.SrcSpan -> AnnSpan
+#if __GLASGOW_HASKELL__ >= 900
+-- rs :: GHC.SrcSpan -> GHC.RealSrcSpan
+rs (GHC.RealSrcSpan s _) = s
+rs _ = badRealSrcSpan
+#else
+-- rs :: GHC.SrcSpan -> GHC.SrcSpan
+rs = id
+#endif
+
+#if __GLASGOW_HASKELL__ >= 900
+sr :: GHC.RealSrcSpan -> GHC.SrcSpan
+sr s = GHC.RealSrcSpan s Nothing
+#else
+sr :: GHC.SrcSpan -> GHC.SrcSpan
+sr = id
+#endif
+-- ---------------------------------------------------------------------
+
+#if __GLASGOW_HASKELL__ >= 900
+ghcCommentText :: GHC.RealLocated GHC.AnnotationComment -> String
+#else
 ghcCommentText :: GHC.Located GHC.AnnotationComment -> String
+#endif
 ghcCommentText (GHC.L _ (GHC.AnnDocCommentNext s))  = s
 ghcCommentText (GHC.L _ (GHC.AnnDocCommentPrev s))  = s
 ghcCommentText (GHC.L _ (GHC.AnnDocCommentNamed s)) = s
@@ -308,25 +387,58 @@ ghcCommentText (GHC.L _ (GHC.AnnDocOptionsOld s))   = s
 ghcCommentText (GHC.L _ (GHC.AnnLineComment s))     = s
 ghcCommentText (GHC.L _ (GHC.AnnBlockComment s))    = s
 
+#if __GLASGOW_HASKELL__ >= 900
+tokComment :: GHC.RealLocated GHC.AnnotationComment -> Comment
+tokComment t@(GHC.L lt _) = mkComment (ghcCommentText t) lt
+#else
 tokComment :: GHC.Located GHC.AnnotationComment -> Comment
 tokComment t@(GHC.L lt _) = mkComment (ghcCommentText t) lt
+#endif
 
-mkComment :: String -> GHC.SrcSpan -> Comment
+#if __GLASGOW_HASKELL__ >= 900
+mkComment :: String -> GHC.RealSrcSpan -> Comment
 mkComment c ss = Comment c ss Nothing
+#else
+mkComment :: String -> GHC.SrcSpan -> Comment
+mkComment c ss = Comment c (rs ss) Nothing
+#endif
 
 -- | Makes a comment which originates from a specific keyword.
 mkKWComment :: GHC.AnnKeywordId -> GHC.SrcSpan -> Comment
-mkKWComment kw ss = Comment (keywordToString $ G kw) ss (Just kw)
+mkKWComment kw ss = Comment (keywordToString $ G kw) (rs ss) (Just kw)
 
 comment2dp :: (Comment,  DeltaPos) -> (KeywordId, DeltaPos)
 comment2dp = first AnnComment
 
+-- ---------------------------------------------------------------------
+{-
+
+GHC 9.0 version
+
+data ApiAnns =
+  ApiAnns
+    { apiAnnItems :: Map.Map ApiAnnKey [RealSrcSpan],
+      apiAnnEofPos :: Maybe RealSrcSpan,
+      apiAnnComments :: Map.Map RealSrcSpan [RealLocated AnnotationComment],
+      apiAnnRogueComments :: [RealLocated AnnotationComment]
+    }
+
+-}
+
+
 extractComments :: GHC.ApiAnns -> [Comment]
+#if __GLASGOW_HASKELL__ >= 900
+extractComments anns
+  -- cm has type :: Map SrcSpan [Located AnnotationComment]
+  = map tokComment $ GHC.sortRealLocated $ ((concat
+    $ Map.elems (GHC.apiAnnComments anns)) ++ GHC.apiAnnRogueComments anns)
+#else
 extractComments (_,cm)
   -- cm has type :: Map SrcSpan [Located AnnotationComment]
   = map tokComment . GHC.sortLocated . concat $ Map.elems cm
+#endif
 
-#if __GLASGOW_HASKELL__ > 806
+#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
 getAnnotationEP :: (Data a,Data (GHC.SrcSpanLess a),GHC.HasSrcSpan a)
                 => a -> Anns -> Maybe Annotation
 #else
