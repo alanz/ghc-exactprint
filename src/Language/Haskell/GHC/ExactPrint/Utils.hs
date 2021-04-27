@@ -1,129 +1,48 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+
 module Language.Haskell.GHC.ExactPrint.Utils
-  (
-   -- * Manipulating Positons
-    ss2pos
-  , ss2posEnd
-  , ss2range
-  , undelta
-  , isPointSrcSpan
-  , pos2delta
-  , ss2delta
-  , addDP
-  , spanLength
-  , isGoodDelta
-  , rs, sr
-
-  -- * Manipulating Comments
-  , mkComment
-  , mkKWComment
-  , dpFromString
-  , comment2dp
-  , extractComments
-
-    -- * GHC Functions
-  , srcSpanStartLine
-  , srcSpanEndLine
-  , srcSpanStartColumn
-  , srcSpanEndColumn
-  , rdrName2String
-  , isSymbolRdrName
-  , tokComment
-  , isListComp
-  , isGadt
-  , isExactName
-
-
-  -- * Manipulating Annotations
-  , getAnnotationEP
-  , annTrueEntryDelta
-  , annCommentEntryDelta
-  , annLeadingCommentEntryDelta
-
-  -- * General Utility
-  , orderByKey
-
-
-  -- * AST Context management
-  , setAcs, setAcsWithLevel
-  , unsetAcs
-  , inAcs
-  , pushAcs
-  , bumpAcs
-
-#if __GLASGOW_HASKELL__ <= 710
-  -- * for boolean formulas in GHC 7.10.3
-  -- ,LBooleanFormula, BooleanFormula(..)
-  , makeBooleanFormulaAnns
-#endif
-
-  -- * For tests
-  , debug
-  , debugP
-  , debugM
-  , warn
-  , showGhc
-  , showAnnData
-  , occAttributes
-
-  , showSDoc_,  showSDocDebug_
-  -- AZ's baggage
-  , ghead,glast,gtail,gfromJust
-  ) where
-
-
+  -- (
+  --  -- * Manipulating Positons
+  --   ss2pos
+  -- , ss2posEnd
+  -- , undelta
+  -- , isPointSrcSpan
+  -- , pos2delta
+  -- , ss2delta
+  -- , addDP
+  -- , spanLength
+  -- , isGoodDelta
+  -- ) where
+  where
 import Control.Monad.State
-import qualified Data.ByteString as B
-import Data.Generics
+import Data.Function
 import Data.Ord (comparing)
 
-import Language.Haskell.GHC.ExactPrint.Types
+import GHC.Hs.Dump
 import Language.Haskell.GHC.ExactPrint.Lookup
 
-#if __GLASGOW_HASKELL__ <= 710
-import qualified BooleanFormula as GHC
-#endif
+import GHC hiding (EpaComment)
 import qualified GHC
-#if __GLASGOW_HASKELL__ >= 900
-import qualified GHC.Data.Bag          as GHC
-import qualified GHC.Driver.Session    as GHC
-import qualified GHC.Data.FastString   as GHC
-import qualified GHC.Types.Name        as GHC
-import qualified GHC.Types.Name.Set    as GHC
-import qualified GHC.Utils.Outputable  as GHC
-import qualified GHC.Types.Name.Reader as GHC
-import qualified GHC.Types.SrcLoc      as GHC
-import qualified GHC.Types.Var         as GHC
-import qualified GHC.Types.Name.Occurrence as OccName (OccName(..),occNameString,pprNameSpaceBrief)
-#else
-import qualified Bag            as GHC
-import qualified DynFlags       as GHC
-import qualified FastString     as GHC
-import qualified Name           as GHC
-import qualified NameSet        as GHC
-import qualified Outputable     as GHC
-import qualified RdrName        as GHC
-import qualified SrcLoc         as GHC
-import qualified Var            as GHC
-import qualified OccName(OccName(..),occNameString,pprNameSpaceBrief)
-#endif
+import GHC.Types.Name
+import GHC.Types.Name.Reader
+import GHC.Types.SrcLoc
+import GHC.Driver.Ppr
+import GHC.Data.FastString
 
+import qualified GHC.Types.Name.Occurrence as OccName (OccName(..),pprNameSpaceBrief)
 
 import Control.Arrow
 
 import qualified Data.Map as Map
-import qualified Data.Set as Set
-import Data.List
+import Data.Data hiding ( Fixity )
+import Data.List (sortBy, elemIndex)
 
 import Debug.Trace
+import Language.Haskell.GHC.ExactPrint.Types
 
-{-# ANN module "HLint: ignore Eta reduce" #-}
-{-# ANN module "HLint: ignore Redundant do" #-}
-{-# ANN module "HLint: ignore Reduce duplication" #-}
 -- ---------------------------------------------------------------------
 
 -- |Global switch to enable debug tracing in ghc-exactprint Delta / Print
@@ -133,8 +52,8 @@ debugEnabledFlag = False
 
 -- |Global switch to enable debug tracing in ghc-exactprint Pretty
 debugPEnabledFlag :: Bool
--- debugPEnabledFlag = True
-debugPEnabledFlag = False
+debugPEnabledFlag = True
+-- debugPEnabledFlag = False
 
 -- |Provide a version of trace that comes at the end of the line, so it can
 -- easily be commented out when debugging different things.
@@ -153,9 +72,6 @@ debugP s c = if debugPEnabledFlag
 debugM :: Monad m => String -> m ()
 debugM s = when debugEnabledFlag $ traceM s
 
--- | Show a GHC.Outputable structure
-showGhc :: (GHC.Outputable a) => a -> String
-showGhc = GHC.showPpr GHC.unsafeGlobalDynFlags
 
 -- ---------------------------------------------------------------------
 
@@ -165,18 +81,43 @@ warn c _ = c
 
 -- | A good delta has no negative values.
 isGoodDelta :: DeltaPos -> Bool
-isGoodDelta (DP (ro,co)) = ro >= 0 && co >= 0
+isGoodDelta (SameLine co) = co >= 0
+isGoodDelta (DifferentLine ro co) = ro > 0 && co >= 0
+  -- Note: DifferentLine invariant is ro is nonzero and positive
 
 
 -- | Create a delta from the current position to the start of the given
 -- @SrcSpan@.
-ss2delta :: Pos -> GHC.SrcSpan -> DeltaPos
+ss2delta :: Pos -> RealSrcSpan -> DeltaPos
 ss2delta ref ss = pos2delta ref (ss2pos ss)
+
+-- | create a delta from the end of a current span.  The +1 is because
+-- the stored position ends up one past the span, this is prior to
+-- that adjustment
+ss2deltaEnd :: RealSrcSpan -> RealSrcSpan -> DeltaPos
+ss2deltaEnd rrs ss = ss2delta ref ss
+  where
+    (r,c) = ss2posEnd rrs
+    ref = if r == 0
+             then (r,c+1)
+             else (r,c)
+
+-- | create a delta from the start of a current span.  The +1 is
+-- because the stored position ends up one past the span, this is
+-- prior to that adjustment
+ss2deltaStart :: RealSrcSpan -> RealSrcSpan -> DeltaPos
+ss2deltaStart rrs ss = ss2delta ref ss
+  where
+    (r,c) = ss2pos rrs
+    ref = if r == 0
+             -- then (r,c+1)
+             then (r,c)
+             else (r,c)
 
 -- | Convert the start of the second @Pos@ to be an offset from the
 -- first. The assumption is the reference starts before the second @Pos@
 pos2delta :: Pos -> Pos -> DeltaPos
-pos2delta (refl,refc) (l,c) = DP (lo,co)
+pos2delta (refl,refc) (l,c) = deltaPos lo co
   where
     lo = l - refl
     co = if lo == 0 then c - refc
@@ -185,11 +126,19 @@ pos2delta (refl,refc) (l,c) = DP (lo,co)
 -- | Apply the delta to the current position, taking into account the
 -- current column offset if advancing to a new line
 undelta :: Pos -> DeltaPos -> LayoutStartCol -> Pos
-undelta (l,c) (DP (dl,dc)) (LayoutStartCol co) = (fl,fc)
+undelta (l,c) (SameLine dc)         (LayoutStartCol _co) = (l, c + dc)
+undelta (l,_) (DifferentLine dl dc) (LayoutStartCol co) = (fl,fc)
   where
+    -- Note: invariant: dl > 0
     fl = l + dl
-    fc = if dl == 0 then c  + dc
-                    else co + dc
+    fc = co + dc
+
+undeltaSpan :: RealSrcSpan -> AnnKeywordId -> DeltaPos -> AddEpAnn
+undeltaSpan anchor kw dp = AddEpAnn kw (EpaSpan sp)
+  where
+    (l,c) = undelta (ss2pos anchor) dp (LayoutStartCol 0)
+    len = length (keywordToString (G kw))
+    sp = range2rs ((l,c),(l,c+len))
 
 -- | Add together two @DeltaPos@ taking into account newlines
 --
@@ -197,94 +146,59 @@ undelta (l,c) (DP (dl,dc)) (LayoutStartCol co) = (fl,fc)
 -- > DP (0, 9) `addDP` DP (1, 5) == DP (1, 5)
 -- > DP (1, 4) `addDP` DP (1, 3) == DP (2, 3)
 addDP :: DeltaPos -> DeltaPos -> DeltaPos
-addDP (DP (a, b)) (DP (c, d)) =
-  if c >= 1 then DP (a+c, d)
-            else DP (a,   b+d)
-
--- | "Subtract" two @DeltaPos@ from each other, in the sense of calculating the
--- remaining delta for the second after the first has been applied.
--- invariant : if c = a `addDP` b
---             then a `stepDP` c == b
---
--- Cases where first DP is <= than second
--- > DP (0, 1) `addDP` DP (0, 2) == DP (0, 1)
--- > DP (1, 1) `addDP` DP (2, 0) == DP (1, 0)
--- > DP (1, 3) `addDP` DP (1, 4) == DP (0, 1)
--- > DP (1, 4) `addDP` DP (1, 4) == DP (1, 4)
---
--- Cases where first DP is > than second
--- > DP (0,  3) `addDP` DP (0, 2) == DP (0,1)  -- advance one at least
--- > DP (3,  3) `addDP` DP (2, 4) == DP (1, 4) -- go one line forward and to expected col
--- > DP (3,  3) `addDP` DP (0, 4) == DP (0, 1) -- maintain col delta at least
--- > DP (1, 21) `addDP` DP (1, 4) == DP (1, 4) -- go one line forward and to expected col
-stepDP :: DeltaPos -> DeltaPos -> DeltaPos
-stepDP (DP (a,b)) (DP (c,d))
-  | (a,b) == (c,d) = DP (a,b)
-  | a == c = if b < d then DP (0,d - b)
-                      else if d == 0
-                             then DP (1,0)
-                             -- else DP (0,1)
-                             else DP (c,d)
-  | a < c = DP (c - a,d)
-  | otherwise = DP (1,d)
+addDP dp (DifferentLine c d) = DifferentLine (getDeltaLine dp+c) d
+addDP (DifferentLine a b) (SameLine  d) = DifferentLine a (b+d)
+addDP (SameLine b)        (SameLine  d) = SameLine (b+d)
 
 -- ---------------------------------------------------------------------
 
-ss2pos :: GHC.SrcSpan -> Pos
-ss2pos ss = (srcSpanStartLine ss,srcSpanStartColumn ss)
+adjustDeltaForOffset :: Int -> LayoutStartCol -> DeltaPos -> DeltaPos
+adjustDeltaForOffset _ _colOffset                      dp@(SameLine _) = dp
+adjustDeltaForOffset d (LayoutStartCol colOffset) (DifferentLine l c)
+  = DifferentLine l (c - colOffset - d)
 
-ss2posEnd :: GHC.SrcSpan -> Pos
-ss2posEnd ss = (srcSpanEndLine ss,srcSpanEndColumn ss)
+-- ---------------------------------------------------------------------
 
-ss2range :: GHC.SrcSpan -> (Pos,Pos)
-ss2range ss = (ss2pos ss, ss2posEnd ss)
+ss2pos :: RealSrcSpan -> Pos
+ss2pos ss = (srcSpanStartLine ss,srcSpanStartCol ss)
 
-srcSpanEndColumn :: GHC.SrcSpan -> Int
-#if __GLASGOW_HASKELL__ >= 900
-srcSpanEndColumn (GHC.RealSrcSpan s _) = GHC.srcSpanEndCol s
-#else
-srcSpanEndColumn (GHC.RealSrcSpan s) = GHC.srcSpanEndCol s
-#endif
-srcSpanEndColumn _ = 0
+ss2posEnd :: RealSrcSpan -> Pos
+ss2posEnd ss = (srcSpanEndLine ss,srcSpanEndCol ss)
 
-srcSpanStartColumn :: GHC.SrcSpan -> Int
-#if __GLASGOW_HASKELL__ >= 900
-srcSpanStartColumn (GHC.RealSrcSpan s _) = GHC.srcSpanStartCol s
-#else
-srcSpanStartColumn (GHC.RealSrcSpan s) = GHC.srcSpanStartCol s
-#endif
-srcSpanStartColumn _ = 0
+ss2range :: SrcSpan -> (Pos,Pos)
+ss2range ss = (ss2pos $ rs ss, ss2posEnd $ rs ss)
 
-srcSpanEndLine :: GHC.SrcSpan -> Int
-#if __GLASGOW_HASKELL__ >= 900
-srcSpanEndLine (GHC.RealSrcSpan s _) = GHC.srcSpanEndLine s
-#else
-srcSpanEndLine (GHC.RealSrcSpan s) = GHC.srcSpanEndLine s
-#endif
-srcSpanEndLine _ = 0
+rs2range :: RealSrcSpan -> (Pos,Pos)
+rs2range ss = (ss2pos ss, ss2posEnd ss)
 
-srcSpanStartLine :: GHC.SrcSpan -> Int
-#if __GLASGOW_HASKELL__ >= 900
-srcSpanStartLine (GHC.RealSrcSpan s _) = GHC.srcSpanStartLine s
-#else
-srcSpanStartLine (GHC.RealSrcSpan s) = GHC.srcSpanStartLine s
-#endif
-srcSpanStartLine _ = 0
+rs :: SrcSpan -> RealSrcSpan
+rs (RealSrcSpan s _) = s
+rs _ = badRealSrcSpan
 
-spanLength :: GHC.SrcSpan -> Int
-spanLength = (-) <$> srcSpanEndColumn <*> srcSpanStartColumn
+range2rs :: (Pos,Pos) -> RealSrcSpan
+range2rs (s,e) = mkRealSrcSpan (mkLoc s) (mkLoc e)
+  where
+    mkLoc (l,c) = mkRealSrcLoc (fsLit "ghc-exactprint") l c
+
+badRealSrcSpan :: RealSrcSpan
+badRealSrcSpan = mkRealSrcSpan bad bad
+  where
+    bad = mkRealSrcLoc (fsLit "ghc-exactprint-nospan") 0 0
+
+spanLength :: RealSrcSpan -> Int
+spanLength = (-) <$> srcSpanEndCol <*> srcSpanStartCol
 
 -- ---------------------------------------------------------------------
 -- | Checks whether a SrcSpan has zero length.
-isPointSrcSpan :: AnnSpan -> Bool
-isPointSrcSpan ss = spanLength (sr ss) == 0
-                  && srcSpanStartLine (sr ss) == srcSpanEndLine (sr ss)
+isPointSrcSpan :: RealSrcSpan -> Bool
+isPointSrcSpan ss = spanLength ss == 0
+                  && srcSpanStartLine ss == srcSpanEndLine ss
 
 -- ---------------------------------------------------------------------
 
 -- |Given a list of items and a list of keys, returns a list of items
 -- ordered by their position in the list of keys.
-orderByKey :: (Eq o) => [(o,a)] -> [o] -> [(o,a)]
+orderByKey :: [(RealSrcSpan,a)] -> [RealSrcSpan] -> [(RealSrcSpan,a)]
 orderByKey keys order
     -- AZ:TODO: if performance becomes a problem, consider a Map of the order
     -- SrcSpan to an index, and do a lookup instead of elemIndex.
@@ -294,156 +208,72 @@ orderByKey keys order
 
 -- ---------------------------------------------------------------------
 
-isListComp :: GHC.HsStmtContext name -> Bool
+isListComp :: HsStmtContext name -> Bool
 isListComp cts = case cts of
-          GHC.ListComp  -> True
-          GHC.MonadComp -> True
-#if __GLASGOW_HASKELL__ <= 804
-          GHC.PArrComp  -> True
-#endif
+          ListComp  -> True
+          MonadComp -> True
 
-#if __GLASGOW_HASKELL__ >= 900
-          GHC.DoExpr {}    -> False
-          GHC.MDoExpr {}   -> False
-#else
-          GHC.DoExpr       -> False
-          GHC.MDoExpr      -> False
-#endif
-          GHC.ArrowExpr    -> False
-          GHC.GhciStmtCtxt -> False
+          DoExpr {}    -> False
+          MDoExpr {}   -> False
+          ArrowExpr    -> False
+          GhciStmtCtxt -> False
 
-          GHC.PatGuard {}      -> False
-          GHC.ParStmtCtxt {}   -> False
-          GHC.TransStmtCtxt {} -> False
+          PatGuard {}      -> False
+          ParStmtCtxt {}   -> False
+          TransStmtCtxt {} -> False
 
 -- ---------------------------------------------------------------------
 
-isGadt :: [GHC.LConDecl name] -> Bool
-#if __GLASGOW_HASKELL__ >= 880
-isGadt [] = True
-#else
+isGadt :: [LConDecl (GhcPass p)] -> Bool
 isGadt [] = False
-#endif
-#if __GLASGOW_HASKELL__ >= 900
-isGadt ((GHC.L _ (GHC.ConDeclGADT{})):_) = True
-isGadt ((GHC.L _ (GHC.XConDecl{})):_) = True
-#elif __GLASGOW_HASKELL__ > 710
-isGadt ((GHC.L _ (GHC.ConDeclGADT{})):_) = True
-#else
-isGadt (GHC.L _ GHC.ConDecl{GHC.con_res=GHC.ResTyGADT _ _}:_) = True
-#endif
+isGadt ((L _ (ConDeclGADT{})):_) = True
 isGadt _ = False
-
--- isGadt :: [GHC.LConDecl name] -> Bool
--- isGadt [] = False
--- #if __GLASGOW_HASKELL__ <= 710
--- isGadt (GHC.L _ GHC.ConDecl{GHC.con_res=GHC.ResTyGADT _ _}:_) = True
--- #else
--- isGadt ((GHC.L _ (GHC.ConDeclGADT{})):_) = True
--- #endif
--- isGadt _ = False
-
 
 -- ---------------------------------------------------------------------
 
 -- Is a RdrName of type Exact? SYB query, so can be extended to other types too
 isExactName :: (Data name) => name -> Bool
-isExactName = False `mkQ` GHC.isExact
+isExactName = False `mkQ` isExact
 
 -- ---------------------------------------------------------------------
 
-rs :: GHC.SrcSpan -> AnnSpan
-#if __GLASGOW_HASKELL__ >= 900
--- rs :: GHC.SrcSpan -> GHC.RealSrcSpan
-rs (GHC.RealSrcSpan s _) = s
-rs _ = badRealSrcSpan
-#else
--- rs :: GHC.SrcSpan -> GHC.SrcSpan
-rs = id
-#endif
+ghcCommentText :: LEpaComment -> String
+ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentNext s) _))  = s
+ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentPrev s) _))  = s
+ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentNamed s) _)) = s
+ghcCommentText (L _ (GHC.EpaComment (EpaDocSection _ s) _))    = s
+ghcCommentText (L _ (GHC.EpaComment (EpaDocOptions s) _))      = s
+ghcCommentText (L _ (GHC.EpaComment (EpaLineComment s) _))     = s
+ghcCommentText (L _ (GHC.EpaComment (EpaBlockComment s) _))    = s
+ghcCommentText (L _ (GHC.EpaComment (EpaEofComment) _))        = ""
 
-#if __GLASGOW_HASKELL__ >= 900
-sr :: GHC.RealSrcSpan -> GHC.SrcSpan
-sr s = GHC.RealSrcSpan s Nothing
-#else
-sr :: GHC.SrcSpan -> GHC.SrcSpan
-sr = id
-#endif
--- ---------------------------------------------------------------------
+tokComment :: LEpaComment -> Comment
+tokComment t@(L lt _) = mkComment (normaliseCommentText $ ghcCommentText t) lt
 
-#if __GLASGOW_HASKELL__ >= 900
-ghcCommentText :: GHC.RealLocated GHC.AnnotationComment -> String
-#else
-ghcCommentText :: GHC.Located GHC.AnnotationComment -> String
-#endif
-ghcCommentText (GHC.L _ (GHC.AnnDocCommentNext s))  = s
-ghcCommentText (GHC.L _ (GHC.AnnDocCommentPrev s))  = s
-ghcCommentText (GHC.L _ (GHC.AnnDocCommentNamed s)) = s
-ghcCommentText (GHC.L _ (GHC.AnnDocSection _ s))    = s
-ghcCommentText (GHC.L _ (GHC.AnnDocOptions s))      = s
-#if __GLASGOW_HASKELL__ < 801
-ghcCommentText (GHC.L _ (GHC.AnnDocOptionsOld s))   = s
-#endif
-ghcCommentText (GHC.L _ (GHC.AnnLineComment s))     = s
-ghcCommentText (GHC.L _ (GHC.AnnBlockComment s))    = s
+mkComment :: String -> Anchor -> Comment
+mkComment c anc = Comment c anc Nothing
 
-#if __GLASGOW_HASKELL__ >= 900
-tokComment :: GHC.RealLocated GHC.AnnotationComment -> Comment
-tokComment t@(GHC.L lt _) = mkComment (ghcCommentText t) lt
-#else
-tokComment :: GHC.Located GHC.AnnotationComment -> Comment
-tokComment t@(GHC.L lt _) = mkComment (ghcCommentText t) lt
-#endif
-
-#if __GLASGOW_HASKELL__ >= 900
-mkComment :: String -> GHC.RealSrcSpan -> Comment
-mkComment c ss = Comment c ss Nothing
-#else
-mkComment :: String -> GHC.SrcSpan -> Comment
-mkComment c ss = Comment c (rs ss) Nothing
-#endif
+-- Windows comments include \r in them from the lexer.
+normaliseCommentText :: String -> String
+normaliseCommentText [] = []
+normaliseCommentText ('\r':xs) = normaliseCommentText xs
+normaliseCommentText (x:xs) = x:normaliseCommentText xs
 
 -- | Makes a comment which originates from a specific keyword.
-mkKWComment :: GHC.AnnKeywordId -> GHC.SrcSpan -> Comment
-mkKWComment kw ss = Comment (keywordToString $ G kw) (rs ss) (Just kw)
+mkKWComment :: AnnKeywordId -> EpaLocation -> Comment
+mkKWComment kw (EpaSpan ss)
+  = Comment (keywordToString $ G kw) (Anchor ss UnchangedAnchor) (Just kw)
+mkKWComment kw (EpaDelta dp)
+  = Comment (keywordToString $ G kw) (Anchor placeholderRealSpan (MovedAnchor dp)) (Just kw)
 
 comment2dp :: (Comment,  DeltaPos) -> (KeywordId, DeltaPos)
 comment2dp = first AnnComment
 
--- ---------------------------------------------------------------------
-{-
-
-GHC 9.0 version
-
-data ApiAnns =
-  ApiAnns
-    { apiAnnItems :: Map.Map ApiAnnKey [RealSrcSpan],
-      apiAnnEofPos :: Maybe RealSrcSpan,
-      apiAnnComments :: Map.Map RealSrcSpan [RealLocated AnnotationComment],
-      apiAnnRogueComments :: [RealLocated AnnotationComment]
-    }
-
--}
+sortAnchorLocated :: [GenLocated Anchor a] -> [GenLocated Anchor a]
+sortAnchorLocated = sortBy (compare `on` (anchor . getLoc))
 
 
-extractComments :: GHC.ApiAnns -> [Comment]
-#if __GLASGOW_HASKELL__ >= 900
-extractComments anns
-  -- cm has type :: Map SrcSpan [Located AnnotationComment]
-  = map tokComment $ GHC.sortRealLocated $ ((concat
-    $ Map.elems (GHC.apiAnnComments anns)) ++ GHC.apiAnnRogueComments anns)
-#else
-extractComments (_,cm)
-  -- cm has type :: Map SrcSpan [Located AnnotationComment]
-  = map tokComment . GHC.sortLocated . concat $ Map.elems cm
-#endif
-
-#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
-getAnnotationEP :: (Data a,Data (GHC.SrcSpanLess a),GHC.HasSrcSpan a)
-                => a -> Anns -> Maybe Annotation
-#else
-getAnnotationEP :: (Data a) =>  GHC.Located a  -> Anns -> Maybe Annotation
-#endif
+getAnnotationEP :: (Data a) =>  Located a  -> Anns -> Maybe Annotation
 getAnnotationEP  la as =
   Map.lookup (mkAnnKey la) as
 
@@ -451,17 +281,8 @@ getAnnotationEP  la as =
 -- start of the current element.
 annTrueEntryDelta :: Annotation -> DeltaPos
 annTrueEntryDelta Ann{annEntryDelta, annPriorComments} =
-  foldr addDP (DP (0,0)) (map (\(a, b) -> addDP b (dpFromString $ commentContents a)) annPriorComments )
+  foldr addDP (SameLine 0) (map (\(a, b) -> addDP b (dpFromString $ commentContents a)) annPriorComments )
     `addDP` annEntryDelta
-
--- | Take an annotation and a required "true entry" and calculate an equivalent
--- one relative to the last comment in the annPriorComments.
-annCommentEntryDelta :: Annotation -> DeltaPos -> DeltaPos
-annCommentEntryDelta Ann{annPriorComments} trueDP = dp
-  where
-    commentDP =
-      foldr addDP (DP (0,0)) (map (\(a, b) -> addDP b (dpFromString $ commentContents a)) annPriorComments )
-    dp = stepDP commentDP trueDP
 
 -- | Return the DP of the first item that generates output, either a comment or the entry DP
 annLeadingCommentEntryDelta :: Annotation -> DeltaPos
@@ -476,251 +297,60 @@ annLeadingCommentEntryDelta Ann{annPriorComments,annEntryDelta} = dp
 dpFromString ::  String -> DeltaPos
 dpFromString xs = dpFromString' xs 0 0
   where
-    dpFromString' "" line col = DP (line, col)
+    dpFromString' "" line col =
+      if line == 0
+        then SameLine col
+        else DifferentLine line col
     dpFromString' ('\n': cs) line _   = dpFromString' cs (line + 1) 0
     dpFromString' (_:cs)     line col = dpFromString' cs line       (col + 1)
 
 -- ---------------------------------------------------------------------
 
-isSymbolRdrName :: GHC.RdrName -> Bool
-isSymbolRdrName n = GHC.isSymOcc $ GHC.rdrNameOcc n
+isSymbolRdrName :: RdrName -> Bool
+isSymbolRdrName n = isSymOcc $ rdrNameOcc n
 
-rdrName2String :: GHC.RdrName -> String
+rdrName2String :: RdrName -> String
 rdrName2String r =
-  case GHC.isExact_maybe r of
+  case isExact_maybe r of
     Just n  -> name2String n
     Nothing ->
       case r of
-        GHC.Unqual occ       -> GHC.occNameString occ
-        GHC.Qual modname occ -> GHC.moduleNameString modname ++ "."
-                                ++ GHC.occNameString occ
-        GHC.Orig _ occ       -> GHC.occNameString occ
-        GHC.Exact n          -> GHC.getOccString n
+        Unqual occ       -> occNameString occ
+        Qual modname occ -> moduleNameString modname ++ "."
+                                ++ occNameString occ
+        Orig _ occ       -> occNameString occ
+        Exact n          -> getOccString n
 
-name2String :: GHC.Name -> String
-name2String = showGhc
-
--- ---------------------------------------------------------------------
-
--- | Put the provided context elements into the existing set with fresh level
--- counts
-setAcs :: Set.Set AstContext -> AstContextSet -> AstContextSet
-setAcs ctxt acs = setAcsWithLevel ctxt 3 acs
-
--- | Put the provided context elements into the existing set with given level
--- counts
--- setAcsWithLevel :: Set.Set AstContext -> Int -> AstContextSet -> AstContextSet
--- setAcsWithLevel ctxt level (ACS a) = ACS a'
---   where
---     upd s (k,v) = Map.insert k v s
---     a' = foldl' upd a $ zip (Set.toList ctxt) (repeat level)
-setAcsWithLevel :: (Ord a) => Set.Set a -> Int -> ACS' a -> ACS' a
-setAcsWithLevel ctxt level (ACS a) = ACS a'
-  where
-    upd s (k,v) = Map.insert k v s
-    a' = foldl' upd a $ zip (Set.toList ctxt) (repeat level)
+name2String :: Name -> String
+name2String = showPprUnsafe
 
 -- ---------------------------------------------------------------------
--- | Remove the provided context element from the existing set
--- unsetAcs :: AstContext -> AstContextSet -> AstContextSet
-unsetAcs :: (Ord a) => a -> ACS' a -> ACS' a
-unsetAcs ctxt (ACS a) = ACS $ Map.delete ctxt a
-
--- ---------------------------------------------------------------------
-
--- | Are any of the contexts currently active?
--- inAcs :: Set.Set AstContext -> AstContextSet -> Bool
-inAcs :: (Ord a) => Set.Set a -> ACS' a -> Bool
-inAcs ctxt (ACS a) = not $ Set.null $ Set.intersection ctxt (Set.fromList $ Map.keys a)
-
--- | propagate the ACS down a level, dropping all values which hit zero
--- pushAcs :: AstContextSet -> AstContextSet
-pushAcs :: ACS' a -> ACS' a
-pushAcs (ACS a) = ACS $ Map.mapMaybe f a
-  where
-    f n
-      | n <= 1    = Nothing
-      | otherwise = Just (n - 1)
-
--- |Sometimes we have to pass the context down unchanged. Bump each count up by
--- one so that it is unchanged after a @pushAcs@ call.
--- bumpAcs :: AstContextSet -> AstContextSet
-bumpAcs :: ACS' a -> ACS' a
-bumpAcs (ACS a) = ACS $ Map.mapMaybe f a
-  where
-    f n = Just (n + 1)
-
--- ---------------------------------------------------------------------
-
-#if __GLASGOW_HASKELL__ <= 710
-
-  -- to be called in annotationsToCommentsBF by the pretty printer
-makeBooleanFormulaAnns :: (GHC.Outputable a)
-                       => GHC.BooleanFormula (GHC.Located a) -> [(GHC.AnnKeywordId,GHC.SrcSpan)]
-makeBooleanFormulaAnns bf = go 1 bf
-  where
-    go :: (GHC.Outputable a)
-       => Int -> GHC.BooleanFormula (GHC.Located a) -> [(GHC.AnnKeywordId,GHC.SrcSpan)]
-    go _ (GHC.Var _) = []
-    go l v@(GHC.And [a,b]) =
-      go 3 a ++
-      go 3 b ++
-      (if l > 3 then addParensIfNeeded v else []) ++
-      [(GHC.AnnComma, ssAfter (getBoolSrcSpan a))]
-    go l v@(GHC.Or  [a,b]) =
-      go 2 a ++
-      go 2 b ++
-      (if l > 2 then addParensIfNeeded v else []) ++
-      [(GHC.AnnVbar,  ssAfter (getBoolSrcSpan a) )]
-    go _ x = error $ "makeBooleanFormulaAnns: unexpected case:" ++ showGhc x
-
-
-addParensIfNeeded :: GHC.Outputable a
-                  => GHC.BooleanFormula (GHC.Located a)
-                  -> [(GHC.AnnKeywordId, GHC.SrcSpan)]
-addParensIfNeeded (GHC.Var _) = []
-addParensIfNeeded a = [(GHC.AnnOpenP,opp),(GHC.AnnCloseP,cpp)]
-  where
-    ss = getBoolSrcSpan a
-    opp = ssBefore ss
-    cpp = ssAfter ss
-
-
--- ssFor a b = GHC.combineSrcSpans (getBoolSrcSpan a) (getBoolSrcSpan b)
-
--- | Generate a SrcSpan of single char length before the given one
-ssBefore :: GHC.SrcSpan -> GHC.SrcSpan
-ssBefore a = GHC.mkSrcSpan (GHC.RealSrcLoc s) (GHC.RealSrcLoc e)
-  where
-    GHC.RealSrcLoc as = GHC.srcSpanStart a
-    s = GHC.mkRealSrcLoc (GHC.srcLocFile as) (GHC.srcLocLine as) (GHC.srcLocCol as - 2)
-    e = GHC.mkRealSrcLoc (GHC.srcLocFile as) (GHC.srcLocLine as) (GHC.srcLocCol as - 1)
-
--- | Generate a SrcSpan of single char length after the given one
-ssAfter :: GHC.SrcSpan -> GHC.SrcSpan
-ssAfter a = GHC.mkSrcSpan (GHC.RealSrcLoc s) (GHC.RealSrcLoc e)
-  where
-    GHC.RealSrcLoc ae = GHC.srcSpanEnd a
-    s = ae
-    e = GHC.advanceSrcLoc s  ' '
-
-
-getBoolSrcSpan :: (GHC.Outputable a) => GHC.BooleanFormula (GHC.Located a) -> GHC.SrcSpan
-getBoolSrcSpan (GHC.Var (GHC.L ss _)) = ss
-getBoolSrcSpan (GHC.And [a,b]) = GHC.combineSrcSpans (getBoolSrcSpan a) (getBoolSrcSpan b)
-getBoolSrcSpan (GHC.Or  [a,b]) = GHC.combineSrcSpans (getBoolSrcSpan a) (getBoolSrcSpan b)
-getBoolSrcSpan x = error $ "getBoolSrcSpan: unexpected case:" ++ showGhc x
-
-#endif
-
--- ---------------------------------------------------------------------
-
--- | Show a GHC AST with interleaved Annotation information.
-showAnnData :: Data a => Anns -> Int -> a -> String
-showAnnData anns n =
-  generic -- `ext1Q` located
-          `ext1Q` list
-          `extQ` string `extQ` fastString `extQ` srcSpan
-          `extQ` bytestring
-          `extQ` name `extQ` occName `extQ` moduleName `extQ` var `extQ` dataCon
-          -- `extQ` overLit
-          `extQ` bagName `extQ` bagRdrName `extQ` bagVar `extQ` nameSet
-          `extQ` fixity
-          `ext2Q` located
-  where generic :: Data a => a -> String
-        generic t = indent n ++ "(" ++ showConstr (toConstr t)
-                 ++ space (unwords (gmapQ (showAnnData anns (n+1)) t)) ++ ")"
-        space "" = ""
-        space s  = ' ':s
-        indent i = "\n" ++ replicate i ' '
-        string     = show :: String -> String
-        fastString = ("{FastString: "++) . (++"}") . show :: GHC.FastString -> String
-        bytestring = show :: B.ByteString -> String
-        list l     = indent n ++ "["
-                              ++ intercalate "," (map (showAnnData anns (n+1)) l) ++ "]"
-
-        name       = ("{Name: "++) . (++"}") . showSDocDebug_ . GHC.ppr :: GHC.Name -> String
-        -- occName    = ("{OccName: "++) . (++"}") .  OccName.occNameString
-        occName o   = "{OccName: "++ OccName.occNameString o ++ " " ++ occAttributes o ++ "}"
-        moduleName = ("{ModuleName: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.ModuleName -> String
-
-        -- srcSpan    = ("{"++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.SrcSpan -> String
-        srcSpan :: GHC.SrcSpan -> String
-        srcSpan ss = "{ "++ showSDoc_ (GHC.hang (GHC.ppr ss) (n+2)
-                                                 -- (GHC.ppr (Map.lookup ss anns)
-                                                 (GHC.text "")
-                                                 )
-                      ++"}"
-
-        var        = ("{Var: "++) . (++"}") . showSDocDebug_ . GHC.ppr :: GHC.Var -> String
-        dataCon    = ("{DataCon: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.DataCon -> String
-
-        -- overLit :: GHC.HsOverLit GHC.RdrName -> String
-        -- overLit    = ("{HsOverLit:"++) . (++"}") . showSDoc_ . GHC.ppr
-
-        bagRdrName:: GHC.Bag (GHC.Located (GHC.HsBind GhcPs)) -> String
-        bagRdrName = ("{Bag(Located (HsBind RdrName)): "++) . (++"}") . list . GHC.bagToList
-        bagName   :: GHC.Bag (GHC.Located (GHC.HsBind GhcRn)) -> String
-        bagName    = ("{Bag(Located (HsBind Name)): "++) . (++"}") . list . GHC.bagToList
-        bagVar    :: GHC.Bag (GHC.Located (GHC.HsBind GhcTc)) -> String
-        bagVar     = ("{Bag(Located (HsBind Var)): "++) . (++"}") . list . GHC.bagToList
-
-#if __GLASGOW_HASKELL__ > 800
-        nameSet = ("{NameSet: "++) . (++"}") . list . GHC.nameSetElemsStable
-#else
-        nameSet = ("{NameSet: "++) . (++"}") . list . GHC.nameSetElems
-#endif
-
-        fixity = ("{Fixity: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Fixity -> String
-
-        located :: (Data b,Data loc) => GHC.GenLocated loc b -> String
-        -- located la = show (getAnnotationEP la anns)
-        located (GHC.L ss a) =
-          indent n ++ "("
-            ++ case cast ss of
-                    Just (s :: GHC.SrcSpan) ->
-                      srcSpan s
-                      ++ indent (n + 1) ++
-                      show (getAnnotationEP (GHC.L s a) anns)
-                      -- ++ case showWrappedDeclAnns (GHC.L s a) of
-                      --   Nothing -> ""
-                      --   Just annStr  -> indent (n + 1) ++ annStr
-                    Nothing -> "nnnnnnnn"
-                  ++ showAnnData anns (n+1) a
-                  ++ ")"
-
 
 occAttributes :: OccName.OccName -> String
 occAttributes o = "(" ++ ns ++ vo ++ tv ++ tc ++ d ++ ds ++ s ++ v ++ ")"
   where
-    ns = (GHC.showSDocUnsafe $ OccName.pprNameSpaceBrief $ GHC.occNameSpace o) ++ ", "
-    vo = if GHC.isVarOcc     o then "Var "     else ""
-    tv = if GHC.isTvOcc      o then "Tv "      else ""
-    tc = if GHC.isTcOcc      o then "Tc "      else ""
-    d  = if GHC.isDataOcc    o then "Data "    else ""
-    ds = if GHC.isDataSymOcc o then "DataSym " else ""
-    s  = if GHC.isSymOcc     o then "Sym "     else ""
-    v  = if GHC.isValOcc     o then "Val "     else ""
-
-{-
-data NameSpace = VarName        -- Variables, including "real" data constructors
-               | DataName       -- "Source" data constructors
-               | TvName         -- Type variables
-               | TcClsName      -- Type constructors and classes; Haskell has them
-                                -- in the same name space for now.
--}
+    -- ns = (showSDocUnsafe $ OccName.pprNameSpaceBrief $ occNameSpace o) ++ ", "
+    ns = (showSDocUnsafe $ OccName.pprNameSpaceBrief $ occNameSpace o) ++ ", "
+    vo = if isVarOcc     o then "Var "     else ""
+    tv = if isTvOcc      o then "Tv "      else ""
+    tc = if isTcOcc      o then "Tc "      else ""
+    d  = if isDataOcc    o then "Data "    else ""
+    ds = if isDataSymOcc o then "DataSym " else ""
+    s  = if isSymOcc     o then "Sym "     else ""
+    v  = if isValOcc     o then "Val "     else ""
 
  -- ---------------------------------------------------------------------
 
-showSDoc_ :: GHC.SDoc -> String
-showSDoc_ = GHC.showSDoc GHC.unsafeGlobalDynFlags
+locatedAnAnchor :: LocatedAn a t -> RealSrcSpan
+locatedAnAnchor (L (SrcSpanAnn EpAnnNotUsed l) _) = realSrcSpan l
+locatedAnAnchor (L (SrcSpanAnn (EpAnn a _ _) _) _) = anchor a
 
-showSDocDebug_ :: GHC.SDoc -> String
-#if __GLASGOW_HASKELL__ <= 710
-showSDocDebug_ = GHC.showSDoc GHC.unsafeGlobalDynFlags
-#else
-showSDocDebug_ = GHC.showSDocDebug GHC.unsafeGlobalDynFlags
-#endif
+ -- ---------------------------------------------------------------------
+
+showAst :: (Data a) => a -> String
+showAst ast
+  = showSDocUnsafe
+    $ showAstData NoBlankSrcSpan NoBlankEpAnnotations ast
 
 -- ---------------------------------------------------------------------
 -- Putting these here for the time being, to avoid import loops
@@ -740,3 +370,98 @@ gtail _info h    = tail h
 gfromJust :: String -> Maybe a -> a
 gfromJust _info (Just h) = h
 gfromJust  info Nothing = error $ "gfromJust " ++ info ++ " Nothing"
+
+-- ---------------------------------------------------------------------
+
+-- Copied from syb for the test
+
+
+-- | Generic queries of type \"r\",
+--   i.e., take any \"a\" and return an \"r\"
+--
+type GenericQ r = forall a. Data a => a -> r
+
+
+-- | Make a generic query;
+--   start from a type-specific case;
+--   return a constant otherwise
+--
+mkQ :: ( Typeable a
+       , Typeable b
+       )
+    => r
+    -> (b -> r)
+    -> a
+    -> r
+(r `mkQ` br) a = case cast a of
+                        Just b  -> br b
+                        Nothing -> r
+
+-- | Make a generic monadic transformation;
+--   start from a type-specific case;
+--   resort to return otherwise
+--
+mkM :: ( Monad m
+       , Typeable a
+       , Typeable b
+       )
+    => (b -> m b)
+    -> a
+    -> m a
+mkM = extM return
+
+-- | Flexible type extension
+ext0 :: (Typeable a, Typeable b) => c a -> c b -> c a
+ext0 def ext = maybe def id (gcast ext)
+
+
+-- | Extend a generic query by a type-specific case
+extQ :: ( Typeable a
+        , Typeable b
+        )
+     => (a -> q)
+     -> (b -> q)
+     -> a
+     -> q
+extQ f g a = maybe (f a) g (cast a)
+
+-- | Flexible type extension
+ext2 :: (Data a, Typeable t)
+     => c a
+     -> (forall d1 d2. (Data d1, Data d2) => c (t d1 d2))
+     -> c a
+ext2 def ext = maybe def id (dataCast2 ext)
+
+
+-- | Extend a generic monadic transformation by a type-specific case
+extM :: ( Typeable a
+        , Typeable b
+        )
+     => (a -> m a) -> (b -> m b) -> a -> m a
+extM def ext = unM ((M def) `ext0` (M ext))
+
+-- | Type extension of monadic transformations for type constructors
+ext2M :: (Data d, Typeable t)
+      => (forall e. Data e => e -> m e)
+      -> (forall d1 d2. (Data d1, Data d2) => t d1 d2 -> m (t d1 d2))
+      -> d -> m d
+ext2M def ext = unM ((M def) `ext2` (M ext))
+
+-- | The type constructor for transformations
+newtype M m x = M { unM :: x -> m x }
+
+-- | Generic monadic transformations,
+--   i.e., take an \"a\" and compute an \"a\"
+--
+type GenericM m = forall a. Data a => a -> m a
+
+-- | Monadic variation on everywhere
+everywhereM :: forall m. Monad m => GenericM m -> GenericM m
+
+-- Bottom-up order is also reflected in order of do-actions
+everywhereM f = go
+  where
+    go :: GenericM m
+    go x = do
+      x' <- gmapM go x
+      f x'
