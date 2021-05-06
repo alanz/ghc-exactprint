@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -22,42 +21,27 @@ module Test.Common (
               , genTest
               , noChange
               , mkDebugOutput
-#if __GLASGOW_HASKELL__ > 808
               , showErrorMessages
-#endif
+              , LibDir
               ) where
 
 
 
 import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Utils
-import Language.Haskell.GHC.ExactPrint.Parsers (parseModuleApiAnnsWithCpp)
+import Language.Haskell.GHC.ExactPrint.Parsers
 import Language.Haskell.GHC.ExactPrint.Preprocess
-import Language.Haskell.GHC.ExactPrint.Types
+-- import Language.Haskell.GHC.ExactPrint.Types
 
-
-#if __GLASGOW_HASKELL__ >= 900
 import qualified Control.Monad.IO.Class as GHC
 import qualified GHC           as GHC hiding (parseModule)
 import qualified GHC.Data.Bag          as GHC
 import qualified GHC.Driver.Session    as GHC
 import qualified GHC.Utils.Error       as GHC
-import qualified GHC.Utils.Outputable  as GHC
-#else
-import qualified ApiAnnotation as GHC
-import qualified DynFlags      as GHC
-#if __GLASGOW_HASKELL__ > 808
-import qualified Bag           as GHC
-import qualified ErrUtils      as GHC
-#endif
-import qualified GHC           as GHC hiding (parseModule)
-import qualified MonadUtils    as GHC
-#endif
+-- import qualified GHC.Utils.Outputable  as GHC
+-- import qualified GHC.Hs.Dump           as GHC
 
-#if __GLASGOW_HASKELL__ <= 710
-#else
 import qualified GHC.LanguageExtensions as LangExt
-#endif
 
 -- import qualified Data.Map as Map
 
@@ -66,7 +50,7 @@ import Data.List hiding (find)
 
 import System.Directory
 
-import Test.Consistency
+-- import Test.Consistency
 
 import Test.HUnit
 import System.FilePath
@@ -88,7 +72,7 @@ data RoundtripReport =
    { debugTxt     :: String
    , status       :: ReportType
    , cppStatus    :: Maybe String -- Result of CPP if invoked
-   , inconsistent :: Maybe [(AnnSpan, (GHC.AnnKeywordId, [AnnSpan]))]
+   -- , inconsistent :: Maybe [(AnnSpan, (GHC.AnnKeywordId, [AnnSpan]))]
    }
 
 data ParseFailure = ParseFailure String
@@ -116,8 +100,8 @@ removeSpaces :: String -> String
 removeSpaces = map (\case {'\160' -> ' '; s -> s})
 -}
 
-roundTripTest :: FilePath -> IO Report
-roundTripTest f = genTest noChange f f
+roundTripTest :: LibDir -> FilePath -> IO Report
+roundTripTest libdir f = genTest libdir noChange f f
 
 
 mkParsingTest :: (FilePath -> IO Report) -> FilePath -> FilePath -> Test
@@ -125,42 +109,38 @@ mkParsingTest tester dir fp =
   let basename       = testPrefix </> dir </> fp
       writeFailure   = writeFile (basename <.> "out")
       writeHsPP      = writeFile (basename <.> "hspp")
-      writeIncons s  = writeFile (basename <.> "incons") (showGhc s)
+      -- writeIncons s  = writeFile (basename <.> "incons") (showGhc s)
   in
     TestCase (do r <- either (\(ParseFailure s) -> error (s ++ basename)) id
                         <$> tester basename
                  writeFailure (debugTxt r)
-                 forM_ (inconsistent r) writeIncons
+                 -- forM_ (inconsistent r) writeIncons
                  forM_ (cppStatus r) writeHsPP
                  assertBool fp (status r == Success))
 
 
-type Changer = (Anns -> GHC.ParsedSource -> IO (Anns,GHC.ParsedSource))
+-- type Changer = (Anns -> GHC.ParsedSource -> IO (Anns,GHC.ParsedSource))
+-- First param is libdir
+type Changer = LibDir -> (GHC.ParsedSource -> IO GHC.ParsedSource)
 
 noChange :: Changer
-noChange ans parsed = return (ans,parsed)
+noChange _libdir parsed = return parsed
 
-genTest :: Changer -> FilePath -> FilePath -> IO Report
-genTest f origFile expectedFile  = do
-      res <- parseModuleApiAnnsWithCpp defaultCppOptions origFile
+genTest :: LibDir -> Changer -> FilePath -> FilePath -> IO Report
+genTest libdir f origFile expectedFile  = do
+      -- res <- parseModuleApiAnnsWithCpp defaultCppOptions origFile
+      res <- parseModuleEpAnnsWithCpp libdir defaultCppOptions origFile
+      -- res <- parseModuleWithCpp libdir defaultCppOptions origFile
       expected <- GHC.liftIO $ readFileGhc expectedFile
       orig <- GHC.liftIO $ readFileGhc origFile
       -- let pristine = removeSpaces expected
       let pristine = expected
 
       case res of
-#if __GLASGOW_HASKELL__ > 808
         Left m -> return . Left $ ParseFailure (showErrorMessages m)
-#else
-        Left (_ss, m) -> return . Left $ ParseFailure m
-#endif
-        Right (apianns, injectedComments, dflags, pmod)  -> do
-          (printed', anns, pmod') <- GHC.liftIO (runRoundTrip f apianns pmod injectedComments)
-#if __GLASGOW_HASKELL__ <= 710
-          let useCpp = GHC.xopt GHC.Opt_Cpp dflags
-#else
+        Right (injectedComments, dflags, pmod)  -> do
+          (printed', pmod') <- GHC.liftIO (runRoundTrip libdir f pmod injectedComments)
           let useCpp = GHC.xopt LangExt.Cpp dflags
-#endif
               printed = trimPrinted printed'
           -- let (printed, anns) = first trimPrinted $ runRoundTrip apianns pmod injectedComments
               -- Clang cpp adds an extra newline character
@@ -168,45 +148,41 @@ genTest f origFile expectedFile  = do
               trimPrinted p = if useCpp
                                 then unlines $ take (length (lines pristine)) (lines p)
                                 else p
-              debugTxt = mkDebugOutput origFile printed pristine apianns anns pmod'
-              consistency = checkConsistency apianns pmod
-              inconsistent = if null consistency then Nothing else Just consistency
+              debugTxt = mkDebugOutput origFile printed pristine pmod'
+              -- consistency = checkConsistency apianns pmod
+              -- inconsistent = if null consistency then Nothing else Just consistency
               status = if printed == pristine then Success else RoundTripFailure
               cppStatus = if useCpp then Just orig else Nothing
           return $ Right Report {..}
 
 
 mkDebugOutput :: FilePath -> String -> String
-              -> GHC.ApiAnns
-              -> Anns
               -> GHC.ParsedSource -> String
-mkDebugOutput filename printed original apianns anns parsed =
+mkDebugOutput filename printed original parsed =
   intercalate sep [ printed
                  , filename
                  , "lengths:" ++ show (length printed,length original) ++ "\n"
-                 , showAnnData anns 0 parsed
-                 , showGhc anns
-                 , showGhc apianns
+                 -- , showAnnData anns 0 parsed
+                 , showAst parsed
+                 -- , showGhc anns
                 ]
   where
     sep = "\n==============\n"
 
 
 
-runRoundTrip :: Changer
-#if __GLASGOW_HASKELL__ >= 900
-             -> GHC.ApiAnns -> GHC.Located GHC.HsModule
-#else
-             -> GHC.ApiAnns -> GHC.Located (GHC.HsModule GhcPs)
-#endif
-             -> [Comment]
-             -> IO (String, Anns, GHC.ParsedSource)
-runRoundTrip f !anns !parsedOrig cs = do
-  let !relAnns = relativiseApiAnnsWithComments cs parsedOrig anns
-  (annsMod, pmod) <- f relAnns parsedOrig
-  let !printed = exactPrint pmod annsMod
+runRoundTrip :: LibDir
+             -> Changer
+             -> GHC.Located GHC.HsModule
+             -> [GHC.LEpaComment]
+             -> IO (String, GHC.ParsedSource)
+runRoundTrip libdir f !parsedOrig cs = do
+  -- let !relAnns = relativiseApiAnnsWithComments cs parsedOrig anns
+  let !parsedOrigWithComments = insertCppComments parsedOrig cs
+  pmod <- f libdir parsedOrigWithComments
+  let !printed = exactPrint pmod
   -- return (printed,  relAnns, pmod)
-  return (printed,  annsMod, pmod)
+  return (printed, pmod)
 
 -- ---------------------------------------------------------------------`
 
@@ -230,11 +206,7 @@ getModSummaryForFile fileName = do
   cfileName <- GHC.liftIO $ canonicalizePath fileName
 
   graph <- GHC.getModuleGraph
-#if __GLASGOW_HASKELL__ >= 804
   cgraph <- GHC.liftIO $ canonicalizeGraph (GHC.mgModSummaries graph)
-#else
-  cgraph <- GHC.liftIO $ canonicalizeGraph graph
-#endif
 
   let mm = filter (\(mfn,_ms) -> mfn == Just cfileName) cgraph
   case mm of
@@ -243,20 +215,16 @@ getModSummaryForFile fileName = do
 
 -- ---------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ > 808
 showErrorMessages :: GHC.ErrorMessages -> String
 showErrorMessages m = show $ GHC.bagToList m
-#endif
 
 -- ---------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ >= 900
-instance GHC.Outputable GHC.ApiAnns where
-  ppr (GHC.ApiAnns items eof comments rogueComments)
-    = GHC.text "ApiAnns" GHC.<+> GHC.ppr items
-                         GHC.<+> GHC.ppr eof
-                         GHC.<+> GHC.ppr comments
-                         GHC.<+> GHC.ppr rogueComments
-#endif
+-- instance GHC.Outputable GHC.ApiAnns where
+--   ppr (GHC.ApiAnns items eof comments rogueComments)
+--     = GHC.text "ApiAnns" GHC.<+> GHC.ppr items
+--                          GHC.<+> GHC.ppr eof
+--                          GHC.<+> GHC.ppr comments
+--                          GHC.<+> GHC.ppr rogueComments
 
 -- ---------------------------------------------------------------------

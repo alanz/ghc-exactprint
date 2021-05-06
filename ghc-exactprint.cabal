@@ -112,7 +112,6 @@ Test-Suite test
   main-is:             Test.hs
   other-modules:       Test.Common
                      , Test.CommonUtils
-                     , Test.Consistency
                      , Test.NoAnnotations
                      , Test.Transform
   GHC-Options:         -threaded -Wall -Wredundant-constraints

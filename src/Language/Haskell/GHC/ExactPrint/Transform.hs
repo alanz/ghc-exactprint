@@ -118,7 +118,8 @@ import GHC  hiding (parseModule, parsedSource)
 import GHC.Data.Bag
 import GHC.Data.FastString
 
-import Data.Data
+import Data.Generics
+-- import Data.Data
 import Data.List (sort, sortBy, find)
 import Data.Maybe
 
@@ -550,15 +551,6 @@ transferEntryDP' la lb = do
   (L l2 b) <- transferEntryDP la lb
   return (L l2 (pushDeclDP b (SameLine 0)))
 
--- There is an off-by-one in DPs. I *think* it has to do wether we
--- calculate the final position when applying it against the stored
--- final pos or against another RealSrcSpan.  Must get to the bottom
--- of it and come up with a canonical DP.  This function adjusts a
--- "comment space" DP to a "enterAnn" space one
-kludgeAnchor :: Anchor -> Anchor
-kludgeAnchor a@(Anchor _ (MovedAnchor (SameLine _))) = a
-kludgeAnchor (Anchor a (MovedAnchor (DifferentLine r c))) = (Anchor a (MovedAnchor (deltaPos r (c - 1))))
-kludgeAnchor a = a
 
 pushDeclDP :: HsDecl GhcPs -> DeltaPos -> HsDecl GhcPs
 pushDeclDP (ValD x (FunBind a b (MG c (L d  ms ) e) f)) dp

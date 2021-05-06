@@ -21,6 +21,8 @@ import Control.Monad.State
 import Data.Function
 import Data.Ord (comparing)
 
+import Data.Generics
+
 import GHC.Hs.Dump
 import Language.Haskell.GHC.ExactPrint.Lookup
 
@@ -37,7 +39,7 @@ import qualified GHC.Types.Name.Occurrence as OccName (OccName(..),pprNameSpaceB
 import Control.Arrow
 
 import qualified Data.Map as Map
-import Data.Data hiding ( Fixity )
+-- import Data.Data hiding ( Fixity )
 import Data.List (sortBy, elemIndex)
 
 import Debug.Trace
@@ -47,8 +49,8 @@ import Language.Haskell.GHC.ExactPrint.Types
 
 -- |Global switch to enable debug tracing in ghc-exactprint Delta / Print
 debugEnabledFlag :: Bool
--- debugEnabledFlag = True
-debugEnabledFlag = False
+debugEnabledFlag = True
+-- debugEnabledFlag = False
 
 -- |Global switch to enable debug tracing in ghc-exactprint Pretty
 debugPEnabledFlag :: Bool
@@ -237,6 +239,17 @@ isExactName = False `mkQ` isExact
 
 -- ---------------------------------------------------------------------
 
+insertCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
+insertCppComments (L l p) cs = L l p'
+  where
+    ncs = EpaComments cs
+    an' = case GHC.hsmodAnn p of
+      (EpAnn a an ocs) -> EpAnn a an (ocs <> ncs)
+      unused -> unused
+    p' = p { GHC.hsmodAnn = an' }
+
+-- ---------------------------------------------------------------------
+
 ghcCommentText :: LEpaComment -> String
 ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentNext s) _))  = s
 ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentPrev s) _))  = s
@@ -249,6 +262,10 @@ ghcCommentText (L _ (GHC.EpaComment (EpaEofComment) _))        = ""
 
 tokComment :: LEpaComment -> Comment
 tokComment t@(L lt _) = mkComment (normaliseCommentText $ ghcCommentText t) lt
+
+mkLEpaComment :: String -> Anchor -> LEpaComment
+-- Note: fudging the ac_prior_tok value, hope it does not cause a problem
+mkLEpaComment s anc = (L anc (GHC.EpaComment (EpaLineComment s) (anchor anc)))
 
 mkComment :: String -> Anchor -> Comment
 mkComment c anc = Comment c anc Nothing
@@ -271,6 +288,20 @@ comment2dp = first AnnComment
 
 sortAnchorLocated :: [GenLocated Anchor a] -> [GenLocated Anchor a]
 sortAnchorLocated = sortBy (compare `on` (anchor . getLoc))
+
+-- TODO: There is an off-by-one in DPs. I *think* it has to do wether we
+-- calculate the final position when applying it against the stored
+-- final pos or against another RealSrcSpan.  Must get to the bottom
+-- of it and come up with a canonical DP.  This function adjusts a
+-- "comment space" DP to a "enterAnn" space one
+kludgeAnchor :: Anchor -> Anchor
+kludgeAnchor a@(Anchor _ (MovedAnchor (SameLine _))) = a
+kludgeAnchor (Anchor a (MovedAnchor (DifferentLine r c))) = (Anchor a (MovedAnchor (deltaPos r (c - 1))))
+kludgeAnchor a = a
+
+kludgeDP :: DeltaPos -> DeltaPos
+kludgeDP (SameLine l) = SameLine l
+kludgeDP (DifferentLine r c) = DifferentLine r (c - 1)
 
 
 getAnnotationEP :: (Data a) =>  Located a  -> Anns -> Maybe Annotation
@@ -373,95 +404,95 @@ gfromJust  info Nothing = error $ "gfromJust " ++ info ++ " Nothing"
 
 -- ---------------------------------------------------------------------
 
--- Copied from syb for the test
+-- -- Copied from syb for the test
 
 
--- | Generic queries of type \"r\",
---   i.e., take any \"a\" and return an \"r\"
---
-type GenericQ r = forall a. Data a => a -> r
+-- -- | Generic queries of type \"r\",
+-- --   i.e., take any \"a\" and return an \"r\"
+-- --
+-- type GenericQ r = forall a. Data a => a -> r
 
 
--- | Make a generic query;
---   start from a type-specific case;
---   return a constant otherwise
---
-mkQ :: ( Typeable a
-       , Typeable b
-       )
-    => r
-    -> (b -> r)
-    -> a
-    -> r
-(r `mkQ` br) a = case cast a of
-                        Just b  -> br b
-                        Nothing -> r
+-- -- | Make a generic query;
+-- --   start from a type-specific case;
+-- --   return a constant otherwise
+-- --
+-- mkQ :: ( Typeable a
+--        , Typeable b
+--        )
+--     => r
+--     -> (b -> r)
+--     -> a
+--     -> r
+-- (r `mkQ` br) a = case cast a of
+--                         Just b  -> br b
+--                         Nothing -> r
 
--- | Make a generic monadic transformation;
---   start from a type-specific case;
---   resort to return otherwise
---
-mkM :: ( Monad m
-       , Typeable a
-       , Typeable b
-       )
-    => (b -> m b)
-    -> a
-    -> m a
-mkM = extM return
+-- -- | Make a generic monadic transformation;
+-- --   start from a type-specific case;
+-- --   resort to return otherwise
+-- --
+-- mkM :: ( Monad m
+--        , Typeable a
+--        , Typeable b
+--        )
+--     => (b -> m b)
+--     -> a
+--     -> m a
+-- mkM = extM return
 
--- | Flexible type extension
-ext0 :: (Typeable a, Typeable b) => c a -> c b -> c a
-ext0 def ext = maybe def id (gcast ext)
-
-
--- | Extend a generic query by a type-specific case
-extQ :: ( Typeable a
-        , Typeable b
-        )
-     => (a -> q)
-     -> (b -> q)
-     -> a
-     -> q
-extQ f g a = maybe (f a) g (cast a)
-
--- | Flexible type extension
-ext2 :: (Data a, Typeable t)
-     => c a
-     -> (forall d1 d2. (Data d1, Data d2) => c (t d1 d2))
-     -> c a
-ext2 def ext = maybe def id (dataCast2 ext)
+-- -- | Flexible type extension
+-- ext0 :: (Typeable a, Typeable b) => c a -> c b -> c a
+-- ext0 def ext = maybe def id (gcast ext)
 
 
--- | Extend a generic monadic transformation by a type-specific case
-extM :: ( Typeable a
-        , Typeable b
-        )
-     => (a -> m a) -> (b -> m b) -> a -> m a
-extM def ext = unM ((M def) `ext0` (M ext))
+-- -- | Extend a generic query by a type-specific case
+-- extQ :: ( Typeable a
+--         , Typeable b
+--         )
+--      => (a -> q)
+--      -> (b -> q)
+--      -> a
+--      -> q
+-- extQ f g a = maybe (f a) g (cast a)
 
--- | Type extension of monadic transformations for type constructors
-ext2M :: (Data d, Typeable t)
-      => (forall e. Data e => e -> m e)
-      -> (forall d1 d2. (Data d1, Data d2) => t d1 d2 -> m (t d1 d2))
-      -> d -> m d
-ext2M def ext = unM ((M def) `ext2` (M ext))
+-- -- | Flexible type extension
+-- ext2 :: (Data a, Typeable t)
+--      => c a
+--      -> (forall d1 d2. (Data d1, Data d2) => c (t d1 d2))
+--      -> c a
+-- ext2 def ext = maybe def id (dataCast2 ext)
 
--- | The type constructor for transformations
-newtype M m x = M { unM :: x -> m x }
 
--- | Generic monadic transformations,
---   i.e., take an \"a\" and compute an \"a\"
---
-type GenericM m = forall a. Data a => a -> m a
+-- -- | Extend a generic monadic transformation by a type-specific case
+-- extM :: ( Typeable a
+--         , Typeable b
+--         )
+--      => (a -> m a) -> (b -> m b) -> a -> m a
+-- extM def ext = unM ((M def) `ext0` (M ext))
 
--- | Monadic variation on everywhere
-everywhereM :: forall m. Monad m => GenericM m -> GenericM m
+-- -- | Type extension of monadic transformations for type constructors
+-- ext2M :: (Data d, Typeable t)
+--       => (forall e. Data e => e -> m e)
+--       -> (forall d1 d2. (Data d1, Data d2) => t d1 d2 -> m (t d1 d2))
+--       -> d -> m d
+-- ext2M def ext = unM ((M def) `ext2` (M ext))
 
--- Bottom-up order is also reflected in order of do-actions
-everywhereM f = go
-  where
-    go :: GenericM m
-    go x = do
-      x' <- gmapM go x
-      f x'
+-- -- | The type constructor for transformations
+-- newtype M m x = M { unM :: x -> m x }
+
+-- -- | Generic monadic transformations,
+-- --   i.e., take an \"a\" and compute an \"a\"
+-- --
+-- type GenericM m = forall a. Data a => a -> m a
+
+-- -- | Monadic variation on everywhere
+-- everywhereM :: forall m. Monad m => GenericM m -> GenericM m
+
+-- -- Bottom-up order is also reflected in order of do-actions
+-- everywhereM f = go
+--   where
+--     go :: GenericM m
+--     go x = do
+--       x' <- gmapM go x
+--       f x'

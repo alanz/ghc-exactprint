@@ -15,6 +15,7 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
         , withDynFlags
         , CppOptions(..)
         , defaultCppOptions
+        , LibDir
 
         -- * Module Parsers
         , parseModule
@@ -46,6 +47,7 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
 
 import Language.Haskell.GHC.ExactPrint.Preprocess
 import Language.Haskell.GHC.ExactPrint.Types
+import Language.Haskell.GHC.ExactPrint.Utils
 
 import Control.Monad.RWS
 
@@ -124,6 +126,8 @@ parseFile = runParser GHC.parseModule
 
 -- ---------------------------------------------------------------------
 
+type LibDir = FilePath
+
 type ParseResult a = Either GHC.ErrorMessages a
 
 type Parser a = GHC.DynFlags -> FilePath -> String
@@ -159,7 +163,7 @@ parsePattern df fp = parseWith df fp GHC.parsePattern
 -- @
 --
 -- Note: 'GHC.ParsedSource' is a synonym for 'GHC.Located' ('GHC.HsModule' 'GhcPs')
-parseModule :: FilePath -> FilePath -> IO (ParseResult GHC.ParsedSource)
+parseModule :: LibDir -> FilePath -> IO (ParseResult GHC.ParsedSource)
 parseModule libdir file = parseModuleWithCpp libdir defaultCppOptions file
 
 
@@ -215,7 +219,7 @@ parseModuleEpAnnsWithCpp
   -> IO
        ( Either
            GHC.ErrorMessages
-           ([Comment], GHC.DynFlags, GHC.ParsedSource)
+           ([GHC.LEpaComment], GHC.DynFlags, GHC.ParsedSource)
        )
 parseModuleEpAnnsWithCpp libdir cppOptions file = ghcWrapper libdir $ do
   dflags <- initDynFlags file
@@ -237,7 +241,7 @@ parseModuleEpAnnsWithCppInternal
   -> m
        ( Either
            GHC.ErrorMessages
-           ([Comment], GHC.DynFlags, GHC.ParsedSource)
+           ([GHC.LEpaComment], GHC.DynFlags, GHC.ParsedSource)
        )
 parseModuleEpAnnsWithCppInternal cppOptions dflags file = do
   let useCpp = GHC.xopt LangExt.Cpp dflags
@@ -255,16 +259,40 @@ parseModuleEpAnnsWithCppInternal cppOptions dflags file = do
     case parseFile dflags' file fileContents of
       GHC.PFailed pst -> Left (fmap GHC.pprError $ GHC.getErrorMessages pst)
       GHC.POk _ pmod  ->
-        Right $ (injectedComments, dflags', pmod)
+        Right $ (injectedComments, dflags', fixModuleTrailingComments pmod)
 
 -- | Internal function. Exposed if you want to muck with DynFlags
 -- before parsing. Or after parsing.
 postParseTransform
-  :: Either a ([Comment], GHC.DynFlags, GHC.ParsedSource)
+  :: Either a ([GHC.LEpaComment], GHC.DynFlags, GHC.ParsedSource)
   -> Either a (GHC.ParsedSource)
 postParseTransform parseRes = fmap mkAnns parseRes
   where
-    mkAnns (_cs, _, m) = m
+    -- TODO:AZ perhaps inject the comments into the parsedsource here already
+    mkAnns (_cs, _, m) = fixModuleTrailingComments m
+
+fixModuleTrailingComments :: GHC.ParsedSource -> GHC.ParsedSource
+fixModuleTrailingComments (GHC.L l p) = GHC.L l p'
+  where
+    an' = case GHC.hsmodAnn p of
+      (GHC.EpAnn a an ocs) -> GHC.EpAnn a an (rebalance (GHC.am_decls an) ocs)
+      unused -> unused
+    p' = p { GHC.hsmodAnn = an' }
+    -- p'  = error $ "fixModuleTrailingComments: an'=" ++ showAst an'
+
+    rebalance :: GHC.AnnList -> GHC.EpAnnComments -> GHC.EpAnnComments
+    rebalance al cs = cs'
+      where
+        cs' = case GHC.al_close al of
+          Just (GHC.AddEpAnn _ (GHC.EpaSpan ss)) ->
+            let
+              pc = GHC.priorComments cs
+              fc = GHC.getFollowingComments cs
+              bf (GHC.L anc _) = GHC.anchor anc > ss
+              (p,f) = break bf fc
+              cs' = GHC.EpaCommentsBalanced (pc <> p) f
+            in cs'
+          _ -> cs
 
 -- | Internal function. Initializes DynFlags value for parsing.
 --
