@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 module Test.CommonUtils
   (
     findSrcFiles
@@ -25,11 +24,7 @@ module Test.CommonUtils
 import Data.List hiding (find)
 import System.FilePath
 import System.FilePath.Find
-#if __GLASGOW_HASKELL__ >= 900
 import qualified GHC.Data.StringBuffer as GHC
-#else
-import qualified StringBuffer as GHC
-#endif
 
 -- ---------------------------------------------------------------------
 
