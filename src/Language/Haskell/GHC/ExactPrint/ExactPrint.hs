@@ -317,6 +317,9 @@ annotationsToComments ans kws = do
   newComments <- mapM doOne kws
   addComments (concat newComments)
 
+annotationsToCommentsA :: EpAnn [AddEpAnn] -> [AnnKeywordId] -> EPP ()
+annotationsToCommentsA EpAnnNotUsed _ = return ()
+annotationsToCommentsA an kws = annotationsToComments (anns an) kws
 
 -- ---------------------------------------------------------------------
 
@@ -1409,6 +1412,7 @@ exactMatch (Match an mctxt pats grhss) = do
         _ -> pure ()
       case fixity of
         Prefix -> do
+          annotationsToCommentsA an [AnnOpenP,AnnCloseP]
           markAnnotated fun
           markAnnotated pats
         Infix ->
@@ -1930,11 +1934,13 @@ instance ExactPrint (HsExpr GhcPs) where
 
   -- exact x@(HsCase EpAnnNotUsed   _ _) = withPpr x
   exact (HsIf an e1 e2 e3) = do
-    markEpAnn an AnnIf
+    markAnnKw an aiIf AnnIf
     markAnnotated e1
-    markEpAnn an AnnThen
+    markAnnKwM an aiThenSemi AnnSemi
+    markAnnKw an aiThen AnnThen
     markAnnotated e2
-    markEpAnn an AnnElse
+    markAnnKwM an aiElseSemi AnnSemi
+    markAnnKw an aiElse AnnElse
     markAnnotated e3
 
   exact (HsMultiIf an mg) = do
@@ -2421,6 +2427,16 @@ instance ExactPrint (HsCmd GhcPs) where
 --     markOffset GHC.AnnSemi 1
 --     mark GHC.AnnElse
 --     markLocated e3
+
+  exact (HsCmdIf an _ e1 e2 e3) = do
+    markAnnKw an aiIf AnnIf
+    markAnnotated e1
+    markAnnKwM an aiThenSemi AnnSemi
+    markAnnKw an aiThen AnnThen
+    markAnnotated e2
+    markAnnKwM an aiElseSemi AnnSemi
+    markAnnKw an aiElse AnnElse
+    markAnnotated e3
 
 --   markAST _ (GHC.HsCmdLet _ (GHC.L _ binds) e) = do
 --     mark GHC.AnnLet
@@ -4090,6 +4106,7 @@ printString layout str = do
 printStringAdvance :: String -> EPP ()
 printStringAdvance str = do
   ss <- getAnchorU
+  debugM $ "printStringAdvance: (ss,str)" ++ show (ss2pos ss, str)
   printStringAtKw' ss str
 
 --------------------------------------------------------
