@@ -177,7 +177,14 @@ tt' = do
     -- mkParserTest libdir      "ghc710" "TypeBrackets4.hs"
     -- mkParserTest libdir      "ghc710" "TypeSynParens.hs"
     -- mkParserTest libdir      "ghc710" "UnicodeSyntaxFailure.hs"
-    mkParserTest libdir      "ghc80" "Class.hs"
+    -- mkParserTest libdir      "ghc80" "Class.hs"
+    -- mkParserTest libdir      "ghc80" "Decision.hs"
+    -- mkParserTest libdir      "ghc80" "MonadFailErrors.hs"
+    -- mkParserTest libdir      "ghc80" "ParenFunBind.hs"
+    -- mkParserTest libdir      "ghc80" "RandomPGC.hs"
+    -- mkParserTest libdir      "ghc80" "SemicolonIf.hs"
+    mkParserTest libdir      "ghc80" "T10670.hs"
+
 
 -- ### Failure in: 1:Round-trip tests:0:ghc710:20:Control.hs
 -- ### Failure in: 1:Round-trip tests:0:ghc710:21:CoreIr.hs
