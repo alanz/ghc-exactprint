@@ -46,8 +46,8 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Preprocess
-import Language.Haskell.GHC.ExactPrint.Types
-import Language.Haskell.GHC.ExactPrint.Utils
+-- import Language.Haskell.GHC.ExactPrint.Types
+-- import Language.Haskell.GHC.ExactPrint.Utils
 
 import Control.Monad.RWS
 
@@ -289,9 +289,9 @@ fixModuleTrailingComments (GHC.L l p) = GHC.L l p'
               pc = GHC.priorComments cs
               fc = GHC.getFollowingComments cs
               bf (GHC.L anc _) = GHC.anchor anc > ss
-              (p,f) = break bf fc
-              cs' = GHC.EpaCommentsBalanced (pc <> p) f
-            in cs'
+              (prior,f) = break bf fc
+              cs'' = GHC.EpaCommentsBalanced (pc <> prior) f
+            in cs''
           _ -> cs
 
 -- | Internal function. Initializes DynFlags value for parsing.

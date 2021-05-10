@@ -163,7 +163,6 @@ tt' = do
     -- mkParserTest libdir      "ghc710" "Jon.hs"
     -- mkParserTest libdir      "ghc92" "MatchSemis.hs"
     -- mkParserTest libdir      "ghc710" "LinePragma.hs"
-    -- mkParserTest libdir      "ghc710" "Move1.hs"
     -- mkParserTest libdir      "ghc92" "BlockComment.hs"
     -- mkParserTest libdir      "ghc710" "Cpp.hs"
     -- mkParserTest libdir      "ghc710" "MultiLineCommentWithPragmas.hs"
@@ -178,12 +177,25 @@ tt' = do
     -- mkParserTest libdir      "ghc710" "TypeSynParens.hs"
     -- mkParserTest libdir      "ghc710" "UnicodeSyntaxFailure.hs"
     -- mkParserTest libdir      "ghc80" "Class.hs"
-    -- mkParserTest libdir      "ghc80" "Decision.hs"
     -- mkParserTest libdir      "ghc80" "MonadFailErrors.hs"
     -- mkParserTest libdir      "ghc80" "ParenFunBind.hs"
-    -- mkParserTest libdir      "ghc80" "RandomPGC.hs"
     -- mkParserTest libdir      "ghc80" "SemicolonIf.hs"
-    mkParserTest libdir      "ghc80" "T10670.hs"
+    -- mkParserTest libdir      "ghc80" "T10670.hs"
+    -- mkParserTest libdir      "ghc80" "T10734.hs"
+    -- mkParserTest libdir      "ghc80" "T10836.hs"
+    -- mkParserTest libdir      "ghc80" "T11010.hs"
+    -- mkParserTest libdir      "ghc80" "T6018failclosed.hs"
+    -- mkParserTest libdir      "ghc80" "T8970.hs"
+    -- mkParserTest libdir      "ghc80" "TH_abstractFamily.hs"
+    -- mkParserTest libdir      "ghc80" "overloadedlabelsfail01.hs"
+    mkParserTest libdir      "ghc80" "overloadedrecfldsrun05.hs"
+
+
+    -- comment problem
+    -- mkParserTest libdir      "ghc710" "Move1.hs"
+    -- mkParserTest libdir      "ghc80" "Decision.hs"
+    -- mkParserTest libdir      "ghc80" "RandomPGC.hs"
+
 
 
 -- ### Failure in: 1:Round-trip tests:0:ghc710:20:Control.hs
