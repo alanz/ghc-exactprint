@@ -1,7 +1,7 @@
 -- Test purpose:
 -- Break properly if MonadFail is live
 
-{-# LANGUAGE MonadFailDesugaring #-}
+{- # LANGUAGE MonadFailDesugaring # -}
 
 module MonadFailWarnings where
 

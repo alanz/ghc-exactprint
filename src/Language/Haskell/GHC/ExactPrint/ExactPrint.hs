@@ -914,7 +914,7 @@ instance ExactPrint ForeignExport where
 
 instance ExactPrint CExportSpec where
   getAnnotationEntry = const NoEntryVal
-  exact (CExportStatic st lbl cconv) = do
+  exact (CExportStatic _st _lbl cconv) = do
     debugM $ "CExportStatic starting"
     markAnnotated cconv
 
@@ -1345,7 +1345,7 @@ instance ExactPrint (RecordPatSynField GhcPs) where
 instance ExactPrint (Match GhcPs (LocatedA (HsCmd GhcPs))) where
   getAnnotationEntry (Match ann _ _ _) = fromAnn ann
 
-  exact match@(Match EpAnnNotUsed _ _ _) = withPpr match
+  -- exact match@(Match EpAnnNotUsed _ _ _) = withPpr match
   exact (Match an mctxt pats grhss) = do
     exactMatch (Match an mctxt pats grhss)
 
@@ -1354,7 +1354,7 @@ instance ExactPrint (Match GhcPs (LocatedA (HsCmd GhcPs))) where
 instance ExactPrint (Match GhcPs (LocatedA (HsExpr GhcPs))) where
   getAnnotationEntry (Match ann _ _ _) = fromAnn ann
 
-  exact match@(Match EpAnnNotUsed _ _ _) = withPpr match
+  -- exact match@(Match EpAnnNotUsed _ _ _) = withPpr match
   exact (Match an mctxt pats grhss) = do
     exactMatch (Match an mctxt pats grhss)
   -- -- Based on Expr.pprMatch
@@ -1842,7 +1842,8 @@ instance ExactPrint (HsExpr GhcPs) where
         printStringAtAA cb "`"
   -- exact x@(HsConLikeOut{})             = withPpr x
   -- exact x@(HsRecFld{})                 = withPpr x
-  -- exact x@(HsOverLabel ann _ _)        = withPpr x
+  exact x@(HsOverLabel _ _) = withPpr x
+
   exact (HsIPVar _ (HsIPName n))
     = printStringAdvance ("?" ++ unpackFS n)
 
@@ -1882,9 +1883,9 @@ instance ExactPrint (HsExpr GhcPs) where
     printStringAtSs ss "@"
     markAnnotated arg
   exact (OpApp _an e1 e2 e3) = do
-    exact e1
-    exact e2
-    exact e3
+    markAnnotated e1
+    markAnnotated e2
+    markAnnotated e3
 
   exact (NegApp an e _) = do
     markEpAnn an AnnMinus
@@ -2228,8 +2229,8 @@ instance (ExactPrint body)
 -- ---------------------------------------------------------------------
 
 -- instance ExactPrint (HsRecUpdField GhcPs ) where
-instance (ExactPrint body)
-    => ExactPrint (HsRecField' (AmbiguousFieldOcc GhcPs) body) where
+instance (ExactPrint (LocatedA body))
+    => ExactPrint (HsRecField' (AmbiguousFieldOcc GhcPs) (LocatedA body)) where
 -- instance (ExactPrint body)
     -- => ExactPrint (HsRecField' (AmbiguousFieldOcc GhcPs) body) where
   getAnnotationEntry x = fromAnn (hsRecFieldAnn x)
@@ -2238,7 +2239,7 @@ instance (ExactPrint body)
     markAnnotated f
     if isPun then return ()
              else markEpAnn an AnnEqual
-    markAnnotated arg
+    unless ((locA $ getLoc arg) == noSrcSpan ) $ markAnnotated arg
 
 -- ---------------------------------------------------------------------
 -- instance (ExactPrint body)
@@ -2657,7 +2658,7 @@ instance ExactPrint (TyClDecl GhcPs) where
     -- There may be arbitrary parens around parts of the constructor that are
     -- infix.
     -- Turn these into comments so that they feed into the right place automatically
-    annotationsToComments (epAnnAnns an) [AnnOpenP,AnnCloseP]
+    -- annotationsToComments (epAnnAnns an) [AnnOpenP,AnnCloseP]
     markEpAnn an AnnType
 
     -- markTyClass Nothing fixity ln tyvars
@@ -2821,20 +2822,29 @@ instance ExactPrint (FamilyDecl GhcPs) where
     exact_top_level
     exactVanillaDeclHead an ltycon tyvars fixity Nothing
     exact_kind
-    mapM_ markAnnotated mb_inj
+    case mb_inj of
+      Nothing -> return ()
+      Just inj -> do
+        markEpAnn an AnnVbar
+        markAnnotated inj
     case info of
       ClosedTypeFamily mb_eqns -> do
         markEpAnn an AnnWhere
         markEpAnn an AnnOpenC
         case mb_eqns of
-          Nothing -> printStringAdvance ".."
+          Nothing -> markEpAnn an AnnDotdot
           Just eqns -> markAnnotated eqns
         markEpAnn an AnnCloseC
       _ -> return ()
     where
       exact_top_level = case top_level of
                           TopLevel    -> markEpAnn an AnnFamily
-                          NotTopLevel -> return ()
+                          NotTopLevel -> do
+                            -- It seems that in some kind of legacy
+                            -- mode the 'family' keyword is still
+                            -- accepted.
+                            markEpAnn an AnnFamily
+                            return ()
 
       exact_kind = case result of
                      NoSig    _         -> return ()
@@ -2884,7 +2894,7 @@ exactDataDefn an exactHdr
     Just kind -> do
       markEpAnn an AnnDcolon
       markAnnotated kind
-  when (isGadt condecls) $ markEpAnn an AnnWhere
+  when (isGadt condecls) $ markEpAnn an2 AnnWhere
   markEpAnn an AnnOpenC
   exact_condecls an2 condecls
   markEpAnn an AnnCloseC
@@ -3051,9 +3061,9 @@ instance ExactPrint (HsType GhcPs) where
         then printStringAdvance "\x2605" -- Unicode star
         else printStringAdvance "*"
   exact (HsKindSig an ty k) = do
-    exact ty
+    markAnnotated ty
     markEpAnn an AnnDcolon
-    exact k
+    markAnnotated k
   exact (HsSpliceTy _ splice) = do
     markAnnotated splice
   -- exact x@(HsDocTy an _ _)          = withPpr x
@@ -3508,7 +3518,9 @@ instance ExactPrint (LocatedL [LocatedA (IE GhcPs)]) where
     debugM $ "LocatedL [LIE:p=" ++ showPprUnsafe p
     markAnnList True ann (markAnnotated ies)
 
-instance (ExactPrint (LocatedA body), (ExactPrint (Match GhcPs (LocatedA body)))) => ExactPrint (LocatedL [LocatedA (Match GhcPs (LocatedA body))]) where
+-- instance (ExactPrint (LocatedA body), (ExactPrint (Match GhcPs (LocatedA body)))) => ExactPrint (LocatedL [LocatedA (Match GhcPs (LocatedA body))]) where
+instance (ExactPrint (Match GhcPs (LocatedA body)))
+   => ExactPrint (LocatedL [LocatedA (Match GhcPs (LocatedA body))]) where
   getAnnotationEntry = entryFromLocatedA
   exact (L la a) = do
     debugM $ "LocatedL [LMatch"
@@ -4106,7 +4118,6 @@ printString layout str = do
 printStringAdvance :: String -> EPP ()
 printStringAdvance str = do
   ss <- getAnchorU
-  debugM $ "printStringAdvance: (ss,str)" ++ show (ss2pos ss, str)
   printStringAtKw' ss str
 
 --------------------------------------------------------
