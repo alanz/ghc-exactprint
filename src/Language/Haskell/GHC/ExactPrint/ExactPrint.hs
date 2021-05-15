@@ -27,6 +27,7 @@ import GHC.Types.Basic hiding (EP)
 import GHC.Types.Fixity
 import GHC.Types.ForeignCall
 import GHC.Types.SourceText
+import GHC.Types.Var
 import GHC.Utils.Outputable hiding ( (<>) )
 import GHC.Driver.Ppr
 import GHC.Unit.Module.Warnings
@@ -508,8 +509,19 @@ markLocatedAALS (EpAnn _ a _) f kw (Just str) = go (f a)
 -- ---------------------------------------------------------------------
 
 markArrow :: EpAnn TrailingAnn -> HsArrow GhcPs -> EPP ()
-markArrow EpAnnNotUsed _ = pure ()
-markArrow an _mult = markKwT (anns an)
+markArrow an arr = do
+  case arr of
+    HsUnrestrictedArrow u ->
+      return ()
+    HsLinearArrow _u ma -> do
+      mapM_ markAddEpAnn ma
+    HsExplicitMult u_ ma t  -> do
+      mapM_ markAddEpAnn ma
+      markAnnotated t
+
+  case an of
+    EpAnnNotUsed -> pure ()
+    _ -> markKwT (anns an)
 
 -- ---------------------------------------------------------------------
 
@@ -595,6 +607,8 @@ markKwT (AddCommaAnn ss)   = markKwA AnnComma ss
 markKwT (AddVbarAnn ss)    = markKwA AnnVbar ss
 markKwT (AddRarrowAnn ss)  = markKwA AnnRarrow ss
 markKwT (AddRarrowAnnU ss) = markKwA AnnRarrowU ss
+markKwT (AddRarrowAnnU ss) = markKwA AnnRarrowU ss
+markKwT (AddLollyAnnU ss)  = markKwA AnnLollyU ss
 
 markKw :: AddEpAnn -> EPP ()
 markKw (AddEpAnn kw ss) = markKwA kw ss
@@ -824,12 +838,13 @@ instance ExactPrint (InstDecl GhcPs) where
 
 exactDataFamInstDecl :: EpAnn [AddEpAnn] -> TopLevelFlag -> (DataFamInstDecl GhcPs) -> EPP ()
 exactDataFamInstDecl an top_lvl
-  (DataFamInstDecl ( FamEqn { feqn_tycon  = tycon
+  (DataFamInstDecl ( FamEqn { feqn_ext = an2
+                            , feqn_tycon  = tycon
                             , feqn_bndrs  = bndrs
                             , feqn_pats   = pats
                             , feqn_fixity = fixity
                             , feqn_rhs    = defn }))
-  = exactDataDefn an pp_hdr defn
+  = exactDataDefn an2 pp_hdr defn
   where
     pp_hdr mctxt = do
       case top_lvl of
@@ -1528,6 +1543,9 @@ prepareListAnnotationA :: ExactPrint (LocatedAn an a)
   => [LocatedAn an a] -> [(RealSrcSpan,EPP ())]
 prepareListAnnotationA ls = map (\b -> (realSrcSpan $ getLocA b,markAnnotated b)) ls
 
+prepareListAnnotation :: ExactPrint (Located a)
+  => [Located a] -> [(RealSrcSpan,EPP ())]
+prepareListAnnotation ls = map (\b -> (realSrcSpan $ getLoc b,markAnnotated b)) ls
 
 -- applyListAnnotations :: [(RealSrcSpan, EPP ())] -> EPP ()
 -- applyListAnnotations ls = withSortKey ls
@@ -1641,6 +1659,18 @@ instance ExactPrint (Sig GhcPs) where
     markAnnotated ln
     markAnnotated ml
     markLocatedAALS an id AnnClose (Just "#-}")
+
+  exact (CompleteMatchSig an src cs mty) = do
+    markAnnOpen an src "{-# COMPLETE"
+    markAnnotated cs
+    case mty of
+      Nothing -> return ()
+      Just ty -> do
+        markEpAnn an AnnDcolon
+        markAnnotated ty
+    markLocatedAALS an id AnnClose (Just "#-}")
+
+
 
 --   markAST _ (CompleteMatchSig _ src (L _ ns) mlns) = do
 --     markAnnOpen src "{-# COMPLETE"
@@ -2316,14 +2346,6 @@ instance ExactPrint (HsCmd GhcPs) where
   getAnnotationEntry (HsCmdDo an _)             = fromAnn an
 
 
--- ppr_cmd (HsCmdArrApp _ arrow arg HsFirstOrderApp True)
---   = hsep [ppr_lexpr arrow, larrowt, ppr_lexpr arg]
--- ppr_cmd (HsCmdArrApp _ arrow arg HsFirstOrderApp False)
---   = hsep [ppr_lexpr arg, arrowt, ppr_lexpr arrow]
--- ppr_cmd (HsCmdArrApp _ arrow arg HsHigherOrderApp True)
---   = hsep [ppr_lexpr arrow, larrowtt, ppr_lexpr arg]
--- ppr_cmd (HsCmdArrApp _ arrow arg HsHigherOrderApp False)
---   = hsep [ppr_lexpr arg, arrowtt, ppr_lexpr arrow]
 
   exact (HsCmdArrApp an arr arg _o isRightToLeft) = do
     if isRightToLeft
@@ -2335,56 +2357,22 @@ instance ExactPrint (HsCmd GhcPs) where
         markAnnotated arg
         markKw (anns an)
         markAnnotated arr
---   markAST _ (GHC.HsCmdArrApp _ e1 e2 o isRightToLeft) = do
---         -- isRightToLeft True  => right-to-left (f -< arg)
---         --               False => left-to-right (arg >- f)
---     if isRightToLeft
---       then do
---         markLocated e1
---         case o of
---           GHC.HsFirstOrderApp  -> mark GHC.Annlarrowtail
---           GHC.HsHigherOrderApp -> mark GHC.AnnLarrowtail
---       else do
---         markLocated e2
---         case o of
---           GHC.HsFirstOrderApp  -> mark GHC.Annrarrowtail
---           GHC.HsHigherOrderApp -> mark GHC.AnnRarrowtail
 
---     if isRightToLeft
---       then markLocated e2
---       else markLocated e1
-
-  exact (HsCmdArrForm an e fixity _mf [arg1,arg2]) = do
+  exact (HsCmdArrForm an e fixity _mf cs) = do
     markLocatedMAA an al_open
-    case fixity of
-      Infix -> do
+    case (fixity, cs) of
+      (Infix, (arg1:argrest)) -> do
         markAnnotated arg1
         markAnnotated e
-        markAnnotated arg2
-      Prefix -> do
+        markAnnotated argrest
+      (Prefix, _) -> do
         markAnnotated e
-        markAnnotated arg1
-        markAnnotated arg2
+        markAnnotated cs
     markLocatedMAA an al_close
---   markAST _ (GHC.HsCmdArrForm _ e fixity _mf cs) = do
---     -- The AnnOpen should be marked for a prefix usage, not for a postfix one,
---     -- due to the way checkCmd maps both HsArrForm and OpApp to HsCmdArrForm
 
---     let isPrefixOp = case fixity of
---           GHC.Infix  -> False
---           GHC.Prefix -> True
---     when isPrefixOp $ mark GHC.AnnOpenB -- "(|"
-
---     -- This may be an infix operation
---     applyListAnnotationsContexts (LC (Set.singleton PrefixOp) (Set.singleton PrefixOp)
---                                      (Set.singleton InfixOp) (Set.singleton InfixOp))
---                        (prepareListAnnotation [e]
---                          ++ prepareListAnnotation cs)
---     when isPrefixOp $ mark GHC.AnnCloseB -- "|)"
-
---   markAST _ (GHC.HsCmdApp _ e1 e2) = do
---     markLocated e1
---     markLocated e2
+  exact (HsCmdApp _an e1 e2) = do
+    markAnnotated e1
+    markAnnotated e2
 
   exact (HsCmdLam _ match) = markAnnotated match
 --   markAST l (GHC.HsCmdLam _ match) = do
@@ -2403,21 +2391,11 @@ instance ExactPrint (HsCmd GhcPs) where
     markEpAnnAll an hsCaseAnnsRest AnnSemi
     markAnnotated alts
     markEpAnn' an hsCaseAnnsRest AnnCloseC
-    -- markEpAnn an AnnCase
-    -- markAnnotated e1
-    -- markEpAnn an AnnOf
-    -- markEpAnn an AnnOpenC
-    -- markAnnotated matches
-    -- markEpAnn an AnnCloseC
 
---   markAST l (GHC.HsCmdCase _ e1 matches) = do
---     mark GHC.AnnCase
---     markLocated e1
---     mark GHC.AnnOf
---     markOptional GHC.AnnOpenC
---     setContext (Set.singleton CaseAlt) $ do
---       markMatchGroup l matches
---     markOptional GHC.AnnCloseC
+  exact (HsCmdLamCase an matches) = do
+    markEpAnn an AnnLam
+    markEpAnn an AnnCase
+    markAnnotated matches
 
 --   markAST _ (GHC.HsCmdIf _ _ e1 e2 e3) = do
 --     mark GHC.AnnIf
@@ -2658,7 +2636,7 @@ instance ExactPrint (TyClDecl GhcPs) where
     -- There may be arbitrary parens around parts of the constructor that are
     -- infix.
     -- Turn these into comments so that they feed into the right place automatically
-    -- annotationsToComments (epAnnAnns an) [AnnOpenP,AnnCloseP]
+    annotationsToComments (epAnnAnns an) [AnnOpenP,AnnCloseP]
     markEpAnn an AnnType
 
     -- markTyClass Nothing fixity ln tyvars
@@ -2708,7 +2686,10 @@ instance ExactPrint (TyClDecl GhcPs) where
                     tcdDocs = _docs})
       -- TODO: add a test that demonstrates tcdDocs
       | null sigs && isEmptyBag methods && null ats && null at_defs -- No "where" part
-      = top_matter
+      = do
+          top_matter
+          markEpAnn an AnnOpenC
+          markEpAnn an AnnCloseC
 
       | otherwise       -- Laid out
       = do
@@ -2820,6 +2801,7 @@ instance ExactPrint (FamilyDecl GhcPs) where
     --        , nest 2 $ pp_eqns ]
     exactFlavour an info
     exact_top_level
+    annotationsToCommentsA an [AnnOpenP,AnnCloseP]
     exactVanillaDeclHead an ltycon tyvars fixity Nothing
     exact_kind
     case mb_inj of
@@ -2878,15 +2860,15 @@ exactDataDefn :: EpAnn [AddEpAnn]
               -> HsDataDefn GhcPs
               -> EPP ()
 exactDataDefn an exactHdr
-                 (HsDataDefn { dd_ext = an2
-                             , dd_ND = new_or_data, dd_ctxt = context
+                 (HsDataDefn { dd_ND = new_or_data, dd_ctxt = context
                              , dd_cType = mb_ct
                              , dd_kindSig = mb_sig
                              , dd_cons = condecls, dd_derivs = derivings }) = do
-  annotationsToComments (epAnnAnns an2) [AnnOpenP, AnnCloseP]
+  annotationsToComments (epAnnAnns an) [AnnOpenP, AnnCloseP]
   if new_or_data == DataType
-    then markEpAnn an2 AnnData
-    else markEpAnn an2 AnnNewtype
+    then markEpAnn an AnnData
+    else markEpAnn an AnnNewtype
+  markEpAnn an AnnInstance -- optional
   mapM_ markAnnotated mb_ct
   exactHdr context
   case mb_sig of
@@ -2894,9 +2876,9 @@ exactDataDefn an exactHdr
     Just kind -> do
       markEpAnn an AnnDcolon
       markAnnotated kind
-  when (isGadt condecls) $ markEpAnn an2 AnnWhere
+  when (isGadt condecls) $ markEpAnn an AnnWhere
   markEpAnn an AnnOpenC
-  exact_condecls an2 condecls
+  exact_condecls an condecls
   markEpAnn an AnnCloseC
   mapM_ markAnnotated derivings
   return ()
@@ -2915,17 +2897,18 @@ exactVanillaDeclHead an thing (HsQTvs { hsq_explicit = tyvars }) fixity context 
          -- = hsep [char '(',ppr (unLoc varl), pprInfixOcc (unLoc thing)
          --        , (ppr.unLoc) (head varsr), char ')'
          --        , hsep (map (ppr.unLoc) (tail vaprsr))]
-          markEpAnnAll an id AnnOpenP
+          -- annotationsToComments (epAnnAnns an) [AnnOpenP,AnnCloseP]
+          -- markEpAnnAll an id AnnOpenP
           markAnnotated varl
           markAnnotated thing
           markAnnotated (head varsr)
-          markEpAnnAll an id AnnCloseP
+          -- markEpAnnAll an id AnnCloseP
           markAnnotated (tail varsr)
           return ()
       | fixity == Infix = do
          -- = hsep [ppr (unLoc varl), pprInfixOcc (unLoc thing)
          -- , hsep (map (ppr.unLoc) varsr)]
-          annotationsToComments (epAnnAnns an) [AnnOpenP,AnnCloseP]
+          -- annotationsToComments (epAnnAnns an) [AnnOpenP,AnnCloseP]
           markAnnotated varl
           markAnnotated thing
           markAnnotated varsr
@@ -2957,25 +2940,35 @@ instance ExactPrint (InjectivityAnn GhcPs) where
 
 -- ---------------------------------------------------------------------
 
--- instance ExactPrint (HsTyVarBndr () GhcPs) where
---   getAnnotationEntry (UserTyVar an _ _)     = fromAnn an
---   getAnnotationEntry (KindedTyVar an _ _ _) = fromAnn an
---   exact = withPpr
+class Typeable flag => ExactPrintTVFlag flag where
+  exactTVDelimiters :: EpAnn [AddEpAnn] -> flag -> Annotated () -> Annotated ()
 
-instance (Typeable flag) => ExactPrint (HsTyVarBndr flag GhcPs) where
+instance ExactPrintTVFlag () where
+  exactTVDelimiters an _ thing_inside = do
+    markEpAnnAll an id AnnOpenP
+    thing_inside
+    markEpAnnAll an id AnnCloseP
+
+instance ExactPrintTVFlag Specificity where
+  exactTVDelimiters an s thing_inside = do
+    markEpAnnAll an id open
+    thing_inside
+    markEpAnnAll an id close
+    where
+      (open, close) = case s of
+        SpecifiedSpec -> (AnnOpenP, AnnCloseP)
+        InferredSpec  -> (AnnOpenC, AnnCloseC)
+
+instance ExactPrintTVFlag flag => ExactPrint (HsTyVarBndr flag GhcPs) where
   getAnnotationEntry (UserTyVar an _ _)     = fromAnn an
   getAnnotationEntry (KindedTyVar an _ _ _) = fromAnn an
 
-  exact (UserTyVar an _ n)     = do
-    markEpAnnAll an id AnnOpenP
-    markAnnotated n
-    markEpAnnAll an id AnnCloseP
-  exact (KindedTyVar an _ n k) = do
-    markEpAnnAll an id AnnOpenP
+  exact (UserTyVar an flag n) =
+    exactTVDelimiters an flag $ markAnnotated n
+  exact (KindedTyVar an flag n k) = exactTVDelimiters an flag $ do
     markAnnotated n
     markEpAnn an AnnDcolon
     markAnnotated k
-    markEpAnnAll an id AnnCloseP
 
 -- ---------------------------------------------------------------------
 
@@ -3345,7 +3338,7 @@ instance ExactPrint (ConDecl GhcPs) where
     when (isJust mcxt) $ markEpAnn an AnnDarrow
     -- mapM_ markAnnotated args
     case args of
-        (PrefixConGADT args') -> mapM_ markAnnotated args'
+        (PrefixConGADT args') -> mapM_ markScaled args'
         (RecConGADT fields)   -> markAnnotated fields
           -- mapM_ markAnnotated (unLoc fields)
     markAnnotated res_ty
@@ -3404,7 +3397,7 @@ instance ExactPrint Void where
 
 -- ---------------------------------------------------------------------
 
-instance (Typeable flag) => ExactPrint (HsOuterTyVarBndrs flag GhcPs) where
+instance ExactPrintTVFlag flag => ExactPrint (HsOuterTyVarBndrs flag GhcPs) where
   getAnnotationEntry (HsOuterImplicit _) = NoEntryVal
   getAnnotationEntry (HsOuterExplicit an _) = fromAnn an
 
@@ -3440,9 +3433,16 @@ instance ExactPrint (AmbiguousFieldOcc GhcPs) where
 
 -- ---------------------------------------------------------------------
 
+markScaled :: (HsScaled GhcPs (LBangType GhcPs)) -> Annotated ()
+markScaled (HsScaled arr (L l c)) =
+  markAnnotated ((L l (HsScaled arr (L (noAnnSrcSpan $ locA l) c)))
+                 :: LocatedA (HsScaled GhcPs (LBangType GhcPs)))
+
 instance (ExactPrint a) => ExactPrint (HsScaled GhcPs a) where
   getAnnotationEntry = const NoEntryVal
-  exact (HsScaled _arr t) = markAnnotated t
+  exact (HsScaled arr t) = do
+    markAnnotated t
+    markArrow EpAnnNotUsed arr
 
 -- ---------------------------------------------------------------------
 
@@ -3465,19 +3465,6 @@ instance ExactPrint (LocatedP CType) where
          markLocatedAALS an apr_rest AnnHeader (Just (toSourceTextWithSuffix srcH "" ""))
     markLocatedAALS an apr_rest AnnVal (Just (toSourceTextWithSuffix stct (unpackFS ct) ""))
     markAnnCloseP an
-
--- instance Annotate GHC.CType where
---   markAST _ (GHC.CType src mh f) = do
---     -- markWithString GHC.AnnOpen src
---     markAnnOpen src ""
---     case mh of
---       Nothing -> return ()
---       Just (GHC.Header srcH _h) ->
---          -- markWithString GHC.AnnHeader srcH
---          markWithString GHC.AnnHeader (toSourceTextWithSuffix srcH "" "")
---     -- markWithString GHC.AnnVal (fst f)
---     markSourceText  (fst f) (GHC.unpackFS $ snd f)
---     markWithString GHC.AnnClose "#-}"
 
 -- ---------------------------------------------------------------------
 
