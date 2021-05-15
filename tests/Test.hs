@@ -155,6 +155,7 @@ tt' = do
 
     -- mkTestModChange libdir changeRenameCase1 "RenameCase1.hs"
 
+    -- mkParserTest libdir      "ghc710" "Associated.hs"
     -- mkParserTest libdir      "ghc710" "EmptyMostly.hs"
     -- mkParserTest libdir      "ghc710" "EmptyMostlyInst.hs"
     -- mkParserTest libdir      "ghc710" "BracesSemiDataDecl.hs"
@@ -172,7 +173,6 @@ tt' = do
     -- mkParserTest libdir      "ghc710" "Roles.hs"
     -- mkParserTest libdir      "ghc710" "Stmts.hs"
     -- mkParserTest libdir      "ghc710" "TypeBrackets.hs"
-    -- mkParserTest libdir      "ghc710" "TypeBrackets2.hs"
     -- mkParserTest libdir      "ghc710" "TypeBrackets4.hs"
     -- mkParserTest libdir      "ghc710" "TypeSynParens.hs"
     -- mkParserTest libdir      "ghc710" "UnicodeSyntaxFailure.hs"
@@ -188,7 +188,23 @@ tt' = do
     -- mkParserTest libdir      "ghc80" "T8970.hs"
     -- mkParserTest libdir      "ghc80" "TH_abstractFamily.hs"
     -- mkParserTest libdir      "ghc80" "overloadedlabelsfail01.hs"
-    mkParserTest libdir      "ghc80" "overloadedrecfldsrun05.hs"
+    -- mkParserTest libdir      "ghc80" "overloadedrecfldsrun05.hs"
+    -- mkParserTest libdir      "ghc82" "Completesig03A.hs"
+    -- mkParserTest libdir      "ghc82" "brackets.hs"
+    -- mkParserTest libdir      "ghc84" "T13747.hs"
+    -- mkParserTest libdir      "ghc86" "SlidingTypeSyn.hs"
+
+    -- mkParserTest libdir      "ghc710" "TypeOperators.hs"
+    -- mkParserTest libdir      "ghc710" "TypeBrackets.hs"
+    -- mkParserTest libdir      "ghc710" "TypeBrackets2.hs"
+    -- mkParserTest libdir      "ghc80" "TestUtils.hs"
+    -- mkParserTest libdir      "ghc86" "Webhook.hs"
+    -- mkParserTest libdir      "ghc86" "dynamic-paper.hs"
+    -- mkParserTest libdir      "ghc90" "ArrowLambdaCase.hs"
+    -- mkParserTest libdir      "ghc90" "CSETest.hs"
+    -- mkParserTest libdir      "ghc90" "ExplicitSpecificity4.hs"
+    -- mkParserTest libdir      "ghc90" "FromManual.hs"
+    mkParserTest libdir      "ghc90" "Linear1Rule.hs"
 
 
     -- comment problem
