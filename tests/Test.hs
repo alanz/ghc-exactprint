@@ -38,9 +38,9 @@ testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
     GHC90  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90"]
-    GHC92  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90"]
+    -- GHC92  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92"]
 
-    -- GHC92  -> ["ghc92-copied"]
+    GHC92  -> ["ghc92-copied"]
     -- GHC92  -> ["ghc92"]
 
 -- ---------------------------------------------------------------------
@@ -204,13 +204,29 @@ tt' = do
     -- mkParserTest libdir      "ghc90" "CSETest.hs"
     -- mkParserTest libdir      "ghc90" "ExplicitSpecificity4.hs"
     -- mkParserTest libdir      "ghc90" "FromManual.hs"
-    mkParserTest libdir      "ghc90" "Linear1Rule.hs"
+    -- mkParserTest libdir      "ghc90" "Linear1Rule.hs"
+    -- mkParserTest libdir      "ghc80" "T6018failclosed.hs"
+
+    -- mkParserTest libdir      "ghc92-copied" "AddLocalDecl5.expected.hs"
+    -- mkParserTest libdir      "ghc92" "ScopesBug.hs"
+    -- mkParserTest libdir      "ghc92-copied" "T10279.hs"
+    -- mkParserTest libdir      "ghc92-copied" "T10891.hs"
+    -- mkParserTest libdir      "ghc92-copied" "T2632.hs"
+    -- mkParserTest libdir      "ghc92-copied" "T4442.hs"
+    -- mkParserTest libdir      "ghc92-copied" "TH_reifyExplicitForAllFams.hs"
+    -- mkParserTest libdir      "ghc92-copied" "TH_unresolvedInfix.hs"
+    mkParserTest libdir      "ghc92-copied" "regalloc_unit_tests.hs"
+
 
 
     -- comment problem
     -- mkParserTest libdir      "ghc710" "Move1.hs"
     -- mkParserTest libdir      "ghc80" "Decision.hs"
     -- mkParserTest libdir      "ghc80" "RandomPGC.hs"
+    -- mkParserTest libdir      "ghc92-copied" "AddLocalDecl5.expected.hs"
+    -- mkParserTest libdir      "ghc92-copied" "AtomicPrimops.hs"
+    -- mkParserTest libdir      "ghc92-copied" "BinaryLiterals0.hs"
+    -- mkParserTest libdir      "ghc92-copied" "CountDeps.hs"
 
 
 
