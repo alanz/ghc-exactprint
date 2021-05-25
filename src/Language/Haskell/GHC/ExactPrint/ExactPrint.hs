@@ -451,8 +451,8 @@ printStringAtAA (EpaDelta d) s = do
   printStringAtLsDelta d s
   p2@(p2l,p2c) <- getPosP
   debugM $ "printStringAtAA:(pe,p1,p2)=" ++ show (pe,p1,p2)
-  -- setPriorEndASTPD True (p1,p2)
-  setPriorEndASTPD True (p1, (p2l,p2c - 1))
+  setPriorEndASTPD True (p1,p2)
+  -- setPriorEndASTPD True (p1, (p2l,p2c - 1))
 
 -- Based on Delta.addAnnotationWorker
 printStringAtKw' :: RealSrcSpan -> String -> EPP ()
@@ -669,7 +669,6 @@ printOneComment c@(Comment _str loc _mo) = do
         let dp' = ss2delta pe r
         debugM $ "printOneComment:extraDP(dp,pe,anchor loc)=" ++ showGhc (dp',pe,ss2pos r)
         return dp
-  -- let dpk = kludgeDP dp'
   let dpk = dp'
   LayoutStartCol dOff <- gets dLHS
   debugM $ "printOneComment:(dp,dp',dpk,dOff)=" ++ showGhc (dp,dp',dpk,dOff)

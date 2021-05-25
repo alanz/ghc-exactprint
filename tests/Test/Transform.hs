@@ -1105,9 +1105,10 @@ cloneDecl1 :: Changer
 cloneDecl1 _libdir lp = do
   let doChange = do
          tlDecs <- hsDecls lp
-         let (d1:d2:ds) = tlDecs
+         let (d1':d2:ds) = tlDecs
          d2' <- fst <$> cloneT d2
-         replaceDecls lp (d1:d2:d2':ds)
+         let d2'' = setEntryDP' d2' (DifferentLine 2 0)
+         replaceDecls lp (d1':d2:d2'':ds)
 
   let (lp',(_ans',_),_w) = runTransform mempty doChange
   return lp'
