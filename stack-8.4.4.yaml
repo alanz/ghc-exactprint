@@ -1,4 +1,0 @@
-resolver: lts-12.26 # LTS 12.15 is first to support GHC 8.4.4
-packages:
-- '.'
-# extra-deps:
