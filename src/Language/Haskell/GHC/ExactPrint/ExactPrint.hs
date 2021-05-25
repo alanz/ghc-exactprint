@@ -657,7 +657,10 @@ printOneComment c@(Comment _str loc _mo) = do
         debugM $ "printOneComment:(dp,pe,anchor loc)=" ++ showGhc (dp,pe,ss2pos $ anchor loc)
         return dp
   dp'' <- adjustDeltaForOffsetM dp
-  mep <- getExtraDP
+  EPState{dMarkLayout} <- get
+  mep <- if dMarkLayout -- could use pMarkLayout, they get set together
+    then return Nothing
+    else getExtraDP
   dp' <- case mep of
     Nothing -> return dp''
     Just (Anchor _ (MovedAnchor edp)) -> do
