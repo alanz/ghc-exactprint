@@ -120,4 +120,4 @@ rm .ghc.env*
 # cabal configure  --with-compiler=ghc-9.2 --allow-newer
 # cabal configure -fdev --enable-tests --with-compiler=ghc-9.2 --allow-newer
 
-cabal configure -fdev --enable-tests --with-compiler=/opt/ghc/9.2.0.20210516/bin/ghc --allow-newer
+cabal configure -fdev --enable-tests --with-compiler=/opt/ghc/9.2.0.20210522/bin/ghc --allow-newer

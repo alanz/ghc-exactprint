@@ -112,7 +112,6 @@ ss2deltaStart rrs ss = ss2delta ref ss
   where
     (r,c) = ss2pos rrs
     ref = if r == 0
-             -- then (r,c+1)
              then (r,c)
              else (r,c)
 
@@ -299,9 +298,9 @@ kludgeAnchor a@(Anchor _ (MovedAnchor (SameLine _))) = a
 kludgeAnchor (Anchor a (MovedAnchor (DifferentLine r c))) = (Anchor a (MovedAnchor (deltaPos r (c - 1))))
 kludgeAnchor a = a
 
-kludgeDP :: DeltaPos -> DeltaPos
-kludgeDP (SameLine l) = SameLine l
-kludgeDP (DifferentLine r c) = DifferentLine r (c - 1)
+-- kludgeDP :: DeltaPos -> DeltaPos
+-- kludgeDP (SameLine l) = SameLine l
+-- kludgeDP (DifferentLine r c) = DifferentLine r (c - 1)
 
 
 getAnnotationEP :: (Data a) =>  Located a  -> Anns -> Maybe Annotation
