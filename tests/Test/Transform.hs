@@ -28,6 +28,12 @@ import Test.Common
 
 import Test.HUnit
 
+transformTestsTT :: LibDir -> Test
+transformTestsTT libdir = TestLabel "transformTestsTT" $ TestList
+  [
+   mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
+  ]
+
 transformTests :: LibDir -> Test
 transformTests libdir = TestLabel "transformation tests" $ TestList
   [
