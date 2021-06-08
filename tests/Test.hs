@@ -58,7 +58,7 @@ main = hSilence [stderr] $ do
 transform :: IO ()
 transform = hSilence [stderr] $ do
   let libdir = GHC.Paths.libdir
-  cnts <- fst <$> runTestText (putTextToHandle stdout True) (transformTests libdir)
+  cnts <- fst <$> runTestText (putTextToHandle stdout True) (transformTestsTT libdir)
   putStrLn $ show cnts
   if errors cnts > 0 || failures cnts > 0
      then exitFailure
@@ -218,14 +218,28 @@ tt' = do
     -- mkParserTest libdir      "ghc92-copied" "regalloc_unit_tests.hs"
 
 
-    mkParserTest libdir      "ghc92" "CommentPlacement.hs"
+    -- mkParserTest libdir      "ghc92" "LinearArrow.hs"
+    -- mkParserTest libdir      "transform" "AddLocalDecl5.1.hs"
+    -- mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
+
+{-
+Failure in: 1:Round-trip tests:0:ghc710:95:Move1.hs
+Failure in: 1:Round-trip tests:1:ghc80:27:Decision.hs
+Failure in: 1:Round-trip tests:1:ghc80:110:RandomPGC.hs
+Failure in: 1:Round-trip tests:8:ghc92:0:BlockComment.hs
+Failure in: 1:Round-trip tests:8:ghc92:1:CommentPlacement.hs
+Failure in: 3:Failing tests:0
+tests/Test/Transform.hs:86
+InfixOperator.hs
+
+-}
 
     -- comment problem
     -- mkParserTest libdir      "ghc710" "Move1.hs"
     -- mkParserTest libdir      "ghc80" "Decision.hs"
     -- mkParserTest libdir      "ghc80" "RandomPGC.hs"
     -- mkParserTest libdir      "ghc92" "BlockComment.hs"
-    -- mkParserTest libdir      "ghc92" "CommentPlacement.hs"
+    mkParserTest libdir      "ghc92" "CommentPlacement.hs"
 
     -- mkParserTest libdir      "ghc92-copied" "AddLocalDecl5.expected.hs"
     -- mkParserTest libdir      "ghc92-copied" "AtomicPrimops.hs"

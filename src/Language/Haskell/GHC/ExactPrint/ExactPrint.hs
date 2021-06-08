@@ -274,9 +274,6 @@ enterAnn (Entry anchor' cs) a = do
 
 addCommentsA :: [LEpaComment] -> EPP ()
 addCommentsA csNew = addComments (map tokComment csNew)
-  -- cs <- getUnallocatedComments
-  -- -- AZ:TODO: sortedlist?
-  -- putUnallocatedComments (sort $ (map tokComment csNew) ++ cs)
 
 addComments :: [Comment] -> EPP ()
 addComments csNew = do
@@ -658,9 +655,13 @@ printOneComment c@(Comment _str loc _mo) = do
         return dp
   dp'' <- adjustDeltaForOffsetM dp
   EPState{dMarkLayout} <- get
+  debugM $ "printOneComment:dMarkLayout=" ++ showGhc dMarkLayout
   mep <- if dMarkLayout -- could use pMarkLayout, they get set together
-    then return Nothing
-    else getExtraDP
+    then getExtraDP
+    else return Nothing
+    -- then return Nothing
+    -- else getExtraDP
+  debugM $ "printOneComment:mep=" ++ showGhc mep
   dp' <- case mep of
     Nothing -> return dp''
     Just (Anchor _ (MovedAnchor edp)) -> do
@@ -4069,8 +4070,8 @@ printString layout str = do
     else setPosP (undelta p strDP 1)
 
   -- Debug stuff
-  -- pp <- getPosP
-  -- debugM $ "printString: (p,pp,str)" ++ show (p,pp,str)
+  pp <- getPosP
+  debugM $ "printString: (p,pp,str)" ++ show (p,pp,str)
   -- Debug end
 
   --
