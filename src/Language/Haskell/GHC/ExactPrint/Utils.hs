@@ -319,7 +319,7 @@ isListComp cts = case cts of
 -- ---------------------------------------------------------------------
 
 isGadt :: [GHC.LConDecl name] -> Bool
-#if __GLASGOW_HASKELL__ >= 880
+#if __GLASGOW_HASKELL__ >= 810
 isGadt [] = True
 #else
 isGadt [] = False
@@ -334,16 +334,6 @@ isGadt (GHC.L _ GHC.ConDecl{GHC.con_res=GHC.ResTyGADT _ _}:_) = True
 #endif
 isGadt _ = False
 
--- isGadt :: [GHC.LConDecl name] -> Bool
--- isGadt [] = False
--- #if __GLASGOW_HASKELL__ <= 710
--- isGadt (GHC.L _ GHC.ConDecl{GHC.con_res=GHC.ResTyGADT _ _}:_) = True
--- #else
--- isGadt ((GHC.L _ (GHC.ConDeclGADT{})):_) = True
--- #endif
--- isGadt _ = False
-
-
 -- ---------------------------------------------------------------------
 
 -- Is a RdrName of type Exact? SYB query, so can be extended to other types too
@@ -354,11 +344,9 @@ isExactName = False `mkQ` GHC.isExact
 
 rs :: GHC.SrcSpan -> AnnSpan
 #if __GLASGOW_HASKELL__ >= 900
--- rs :: GHC.SrcSpan -> GHC.RealSrcSpan
 rs (GHC.RealSrcSpan s _) = s
 rs _ = badRealSrcSpan
 #else
--- rs :: GHC.SrcSpan -> GHC.SrcSpan
 rs = id
 #endif
 
