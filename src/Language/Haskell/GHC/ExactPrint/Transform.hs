@@ -490,7 +490,7 @@ setEntryDP' (L (SrcSpanAnn (EpAnn (Anchor r _) an cs) l) a) dp
                 col = deltaColumn delta
                 -- TODO: this adjustment by 1 happens all over the place. Generalise it
                 edp' = if line == 0 then SameLine col
-                                    else DifferentLine line (col - 1)
+                                    else DifferentLine line col
                 edp = edp' `debug` ("setEntryDP' :" ++ showGhc (edp', (ss2pos $ anchor $ getLoc lc), r))
 
 -- |Set the true entry 'DeltaPos' from the annotation for a given AST
@@ -535,7 +535,7 @@ transferEntryDP (L (SrcSpanAnn (EpAnn anc1 _an1 cs1) _l1) _) (L (SrcSpanAnn (EpA
     -- TODO: what happens if the receiving side already has comments?
     (L anc _:_) -> do
       logDataWithAnnsTr "transferEntryDP':priorComments anc=" anc
-      return (L (SrcSpanAnn (EpAnn (kludgeAnchor anc) an2 cs2) l2) b)
+      return (L (SrcSpanAnn (EpAnn anc an2 cs2) l2) b)
 transferEntryDP (L (SrcSpanAnn EpAnnNotUsed _l1) _) (L (SrcSpanAnn (EpAnn anc2 an2 cs2) l2) b) = do
   logTr $ "transferEntryDP': EpAnnNotUsed,EpAnn"
   return (L (SrcSpanAnn (EpAnn anc2' an2 cs2) l2) b)
@@ -1420,8 +1420,8 @@ oldWhereAnnotation (EpAnn anc an cs) ww _oldSpan = do
 newWhereAnnotation :: (Monad m) => WithWhere -> TransformT m (EpAnn AnnList)
 newWhereAnnotation ww = do
   newSpan <- uniqueSrcSpanT
-  let anc  = Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 2))
-  let anc2 = Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 4))
+  let anc  = Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 3))
+  let anc2 = Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 5))
   let w = case ww of
         WithWhere -> [AddEpAnn AnnWhere (EpaDelta (SameLine 0))]
         WithoutWhere -> []

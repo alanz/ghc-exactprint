@@ -73,10 +73,10 @@ xx = id
 
 defaultEPState :: EPState
 defaultEPState = EPState
-             { epPos       = (1,1)
-             , dLHS       = 1
+             { epPos      = (1,1)
+             , dLHS       = 0
              , pMarkLayout = False
-             , pLHS = 1
+             , pLHS = 0
              , dMarkLayout = False
              , dPriorEndPosition = (1,1)
              , uAnchorSpan = badRealSrcSpan
@@ -3913,7 +3913,7 @@ setLayoutTopLevelP k = do
   debugM $ "setLayoutTopLevelP entered"
   oldAnchorOffset <- getLayoutOffsetP
   modify (\a -> a { pMarkLayout = False
-                  , pLHS = 1} )
+                  , pLHS = 0} )
   k
   debugM $ "setLayoutTopLevelP:resetting"
   setLayoutOffsetP oldAnchorOffset
