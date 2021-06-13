@@ -185,8 +185,8 @@ changeLocalDecls2 libdir (L l p) = do
                         -> Transform (LMatch GhcPs (LHsExpr GhcPs))
       replaceLocalBinds (L lm (Match ma mln pats (GRHSs _ rhs EmptyLocalBinds{}))) = do
         newSpan <- uniqueSrcSpanT
-        let anc = (Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 2)))
-        let anc2 = (Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 4)))
+        let anc = (Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 3)))
+        let anc2 = (Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 5)))
         let an = EpAnn anc
                         (AnnList (Just anc2) Nothing Nothing
                                  [(undeltaSpan (rs newSpan) AnnWhere (SameLine 0))] [])
@@ -256,7 +256,7 @@ changeLocalDecls libdir (L l p) = do
             os' = setEntryDP' os (DifferentLine 2 0)
         let sortKey = captureOrder decls
         let (EpAnn anc (AnnList (Just (Anchor anc2 _)) a b c dd) cs) = van
-        let van' = (EpAnn anc (AnnList (Just (Anchor anc2 (MovedAnchor (DifferentLine 1 4)))) a b c dd) cs)
+        let van' = (EpAnn anc (AnnList (Just (Anchor anc2 (MovedAnchor (DifferentLine 1 5)))) a b c dd) cs)
         let binds' = (HsValBinds van'
                           (ValBinds sortKey (listToBag $ decl':oldBinds)
                                           (sig':os':oldSigs)))
@@ -462,7 +462,7 @@ transformHighLevelTests libdir =
 addLocaLDecl1 :: Changer
 addLocaLDecl1 libdir lp = do
   Right (L ld (ValD _ decl)) <- withDynFlags libdir (\df -> parseDecl df "decl" "nn = 2")
-  let decl' = setEntryDP' (L ld decl) (DifferentLine 1 4)
+  let decl' = setEntryDP' (L ld decl) (DifferentLine 1 5)
       doAddLocal = do
         (de1:d2:d3:_) <- hsDecls lp
         (de1'',d2') <- balanceComments de1 d2
@@ -590,7 +590,7 @@ addLocaLDecl4 libdir lp = do
          (parent:ds) <- hsDecls lp
 
          let newDecl' = setEntryDP' newDecl (DifferentLine 1 0)
-         let newSig'  = setEntryDP' newSig  (DifferentLine 1 4)
+         let newSig'  = setEntryDP' newSig  (DifferentLine 1 5)
 
          (parent',_) <- modifyValD (getLocA parent) parent $ \_m decls -> do
            return ((decls++[newSig',newDecl']),Nothing)
@@ -663,7 +663,7 @@ addLocaLDecl6 :: Changer
 addLocaLDecl6 libdir lp = do
   Right newDecl <- withDynFlags libdir (\df -> parseDecl df "decl" "x = 3")
   let
-      newDecl' = setEntryDP' newDecl (DifferentLine 1 4)
+      newDecl' = setEntryDP' newDecl (DifferentLine 1 5)
       doAddLocal = do
         decls0 <- hsDecls lp
         [de1'',d2] <- balanceCommentsList decls0

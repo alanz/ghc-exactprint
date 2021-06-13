@@ -288,21 +288,6 @@ comment2dp = first AnnComment
 sortAnchorLocated :: [GenLocated Anchor a] -> [GenLocated Anchor a]
 sortAnchorLocated = sortBy (compare `on` (anchor . getLoc))
 
--- TODO: There is an off-by-one in DPs. I *think* it has to do wether we
--- calculate the final position when applying it against the stored
--- final pos or against another RealSrcSpan.  Must get to the bottom
--- of it and come up with a canonical DP.  This function adjusts a
--- "comment space" DP to a "enterAnn" space one
-kludgeAnchor :: Anchor -> Anchor
-kludgeAnchor a@(Anchor _ (MovedAnchor (SameLine _))) = a
-kludgeAnchor (Anchor a (MovedAnchor (DifferentLine r c))) = (Anchor a (MovedAnchor (deltaPos r (c - 1))))
-kludgeAnchor a = a
-
--- kludgeDP :: DeltaPos -> DeltaPos
--- kludgeDP (SameLine l) = SameLine l
--- kludgeDP (DifferentLine r c) = DifferentLine r (c - 1)
-
-
 getAnnotationEP :: (Data a) =>  Located a  -> Anns -> Maybe Annotation
 getAnnotationEP  la as =
   Map.lookup (mkAnnKey la) as
