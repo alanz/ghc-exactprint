@@ -46,8 +46,6 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Preprocess
--- import Language.Haskell.GHC.ExactPrint.Types
--- import Language.Haskell.GHC.ExactPrint.Utils
 
 import Control.Monad.RWS
 
