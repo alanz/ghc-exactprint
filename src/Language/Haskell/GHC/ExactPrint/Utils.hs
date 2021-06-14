@@ -31,8 +31,9 @@ import qualified GHC
 import GHC.Types.Name
 import GHC.Types.Name.Reader
 import GHC.Types.SrcLoc
-import GHC.Driver.Ppr
+-- import GHC.Driver.Ppr
 import GHC.Data.FastString
+import GHC.Utils.Outputable (showSDocUnsafe, showPprUnsafe)
 
 import qualified GHC.Types.Name.Occurrence as OccName (OccName(..),pprNameSpaceBrief)
 

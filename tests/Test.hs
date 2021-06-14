@@ -206,6 +206,7 @@ tt' = do
     -- mkParserTest libdir      "ghc90" "FromManual.hs"
     -- mkParserTest libdir      "ghc90" "Linear1Rule.hs"
     -- mkParserTest libdir      "ghc80" "T6018failclosed.hs"
+    mkParserTest libdir      "failing" "InfixOperator.hs"
 
     -- mkParserTest libdir      "ghc92-copied" "AddLocalDecl5.expected.hs"
     -- mkParserTest libdir      "ghc92" "ScopesBug.hs"
@@ -217,12 +218,13 @@ tt' = do
     -- mkParserTest libdir      "ghc92-copied" "TH_unresolvedInfix.hs"
     -- mkParserTest libdir      "ghc92-copied" "regalloc_unit_tests.hs"
 
+    -- mkTestModChange libdir rmDecl1  "RmDecl1.hs"
 
     -- mkParserTest libdir      "ghc92" "LinearArrow.hs"
     -- mkParserTest libdir      "transform" "AddLocalDecl5.1.hs"
     -- mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
     -- mkTestModChange libdir changeLocalDecls2  "LocalDecls2.hs"
-    mkTestModChange libdir addLocaLDecl1  "AddLocalDecl1.hs"
+    -- mkTestModChange libdir addLocaLDecl1  "AddLocalDecl1.hs"
     {-
     ### Failure in: 1:Round-trip tests:1:ghc80:27:Decision.hs
     ### Failure in: 2:transformation tests:0:Low level transformations:15
@@ -232,6 +234,7 @@ tt' = do
     AddLocalDecl6.hs
     -}
 
+    -- mkParserTest libdir      "ghc710" "EmptyMostly.hs"
 
     -- comment problem
     -- mkParserTest libdir      "ghc710" "Move1.hs"
@@ -239,6 +242,8 @@ tt' = do
     -- mkParserTest libdir      "ghc80" "RandomPGC.hs"
     -- mkParserTest libdir      "ghc92" "BlockComment.hs"
     -- mkParserTest libdir      "ghc92" "CommentPlacement.hs"
+    -- mkParserTest libdir      "ghc92" "CommentPlacement2.hs"
+    -- mkParserTest libdir      "ghc80" "Decision.hs"
 
     -- mkParserTest libdir      "ghc92-copied" "AddLocalDecl5.expected.hs"
     -- mkParserTest libdir      "ghc92-copied" "AtomicPrimops.hs"

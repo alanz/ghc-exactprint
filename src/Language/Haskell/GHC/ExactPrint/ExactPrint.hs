@@ -353,9 +353,7 @@ instance (ExactPrint a) => ExactPrint (LocatedA a) where
   exact (L la a) = do
     debugM $ "LocatedA a:la loc=" ++ show (ss2range $ locA la)
     markAnnotated a
-    debugM $ "LocatedA b:la loc=" ++ show (ss2range $ locA la)
     markALocatedA (ann la)
-    debugM $ "LocatedA b:done"
 
 instance (ExactPrint a) => ExactPrint [a] where
   getAnnotationEntry = const NoEntryVal
@@ -446,10 +444,9 @@ printStringAtAA (EpaDelta d) s = do
   pe <- getPriorEndD
   p1 <- getPosP
   printStringAtLsDelta d s
-  p2@(p2l,p2c) <- getPosP
+  p2 <- getPosP
   debugM $ "printStringAtAA:(pe,p1,p2)=" ++ show (pe,p1,p2)
   setPriorEndASTPD True (p1,p2)
-  -- setPriorEndASTPD True (p1, (p2l,p2c - 1))
 
 -- Based on Delta.addAnnotationWorker
 printStringAtKw' :: RealSrcSpan -> String -> EPP ()
@@ -508,11 +505,11 @@ markLocatedAALS (EpAnn _ a _) f kw (Just str) = go (f a)
 markArrow :: EpAnn TrailingAnn -> HsArrow GhcPs -> EPP ()
 markArrow an arr = do
   case arr of
-    HsUnrestrictedArrow u ->
+    HsUnrestrictedArrow _u ->
       return ()
     HsLinearArrow _u ma -> do
       mapM_ markAddEpAnn ma
-    HsExplicitMult u_ ma t  -> do
+    HsExplicitMult _u ma t  -> do
       mapM_ markAddEpAnn ma
       markAnnotated t
 
@@ -604,7 +601,6 @@ markKwT (AddCommaAnn ss)   = markKwA AnnComma ss
 markKwT (AddVbarAnn ss)    = markKwA AnnVbar ss
 markKwT (AddRarrowAnn ss)  = markKwA AnnRarrow ss
 markKwT (AddRarrowAnnU ss) = markKwA AnnRarrowU ss
-markKwT (AddRarrowAnnU ss) = markKwA AnnRarrowU ss
 markKwT (AddLollyAnnU ss)  = markKwA AnnLollyU ss
 
 markKw :: AddEpAnn -> EPP ()
@@ -628,7 +624,6 @@ markAnnList' reallyTrail ann action = do
   unless reallyTrail $ markTrailing (al_trailing ann) -- Only makes sense for HsModule.
   markAnnAll (sort $ al_rest ann) AnnSemi
   action
-  -- markLocatedMAA an al_close
   mapM_ markAddEpAnn (al_close ann)
   debugM $ "markAnnList: calling markTrailing with:" ++ showPprUnsafe (al_trailing ann)
   when reallyTrail $ markTrailing (al_trailing ann) -- normal case
@@ -654,30 +649,16 @@ printOneComment c@(Comment _str loc _mo) = do
         debugM $ "printOneComment:(dp,pe,anchor loc)=" ++ showGhc (dp,pe,ss2pos $ anchor loc)
         return dp
   dp'' <- adjustDeltaForOffsetM dp
-  EPState{dMarkLayout} <- get
-  debugM $ "printOneComment:dMarkLayout=" ++ showGhc dMarkLayout
-  mep <- if dMarkLayout -- could use pMarkLayout, they get set together
-    then getExtraDP
-    else return Nothing
-    -- then return Nothing
-    -- else getExtraDP
-  debugM $ "printOneComment:mep=" ++ showGhc mep
+  mep <- getExtraDP
   dp' <- case mep of
-    Nothing -> return dp''
     Just (Anchor _ (MovedAnchor edp)) -> do
-      -- setExtraDP Nothing
       debugM $ "printOneComment:edp=" ++ show edp
       return edp
-    Just (Anchor r _) -> do
-        pe <- getPriorEndD
-        let dp' = ss2delta pe r
-        debugM $ "printOneComment:extraDP(dp,pe,anchor loc)=" ++ showGhc (dp',pe,ss2pos r)
-        return dp
-  let dpk = dp'
+    _ -> return dp''
   LayoutStartCol dOff <- gets dLHS
-  debugM $ "printOneComment:(dp,dp',dpk,dOff)=" ++ showGhc (dp,dp',dpk,dOff)
+  debugM $ "printOneComment:(dp,dp',dp'',dOff)=" ++ showGhc (dp,dp',dp'',dOff)
   setPriorEndD (ss2posEnd (anchor loc))
-  printQueuedComment (anchor loc) c dpk
+  printQueuedComment (anchor loc) c dp'
 
 -- ---------------------------------------------------------------------
 
@@ -823,12 +804,6 @@ instance ExactPrint (InstDecl GhcPs) where
   getAnnotationEntry (DataFamInstD an _) = fromAnn an
   getAnnotationEntry (TyFamInstD   _  _) = NoEntryVal
 
--- instance Annotate (GHC.InstDecl GHC.GhcPs) where
-
---   markAST l (GHC.ClsInstD     _  cid) = markAST l  cid
---   markAST l (GHC.DataFamInstD _ dfid) = markAST l dfid
---   markAST l (GHC.TyFamInstD   _ tfid) = markAST l tfid
---   markAST _ (GHC.XInstDecl x) = error $ "got XInstDecl for:" ++ showPprUnsafe x
 
   exact (ClsInstD     _  cid) = markAnnotated cid
   exact (DataFamInstD an decl) = do
@@ -841,19 +816,32 @@ instance ExactPrint (InstDecl GhcPs) where
 
 exactDataFamInstDecl :: EpAnn [AddEpAnn] -> TopLevelFlag -> (DataFamInstDecl GhcPs) -> EPP ()
 exactDataFamInstDecl an top_lvl
-  (DataFamInstDecl ( FamEqn { feqn_ext = an2
+  (DataFamInstDecl ( FamEqn { feqn_ext    = an2
                             , feqn_tycon  = tycon
                             , feqn_bndrs  = bndrs
                             , feqn_pats   = pats
                             , feqn_fixity = fixity
                             , feqn_rhs    = defn }))
-  = exactDataDefn an2 pp_hdr defn
+  = exactDataDefn an2 pp_hdr defn -- See Note [an and an2 in exactDataFamInstDecl]
   where
     pp_hdr mctxt = do
       case top_lvl of
         TopLevel -> markEpAnn an AnnInstance -- TODO: maybe in toplevel
         NotTopLevel -> return ()
       exactHsFamInstLHS an tycon bndrs pats fixity mctxt
+
+{-
+Note [an and an2 in exactDataFamInstDecl]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The exactDataFamInstDecl function is called to render a
+DataFamInstDecl within its surrounding context. This context is
+rendered via the 'pp_hdr' function, which uses the exact print
+annotations from that context, named 'an'.  The EPAs used for
+rendering the DataDefn are contained in the FamEqn, and are called
+'an2'.
+
+-}
 
 -- ---------------------------------------------------------------------
 
@@ -902,13 +890,10 @@ instance ExactPrint (ForeignDecl GhcPs) where
   exact (ForeignExport an n ty fexport) = do
     markEpAnn an AnnForeign
     markEpAnn an AnnExport
-
     markAnnotated fexport
-
     markAnnotated n
     markEpAnn an AnnDcolon
     markAnnotated ty
-
 
 -- ---------------------------------------------------------------------
 
@@ -1491,6 +1476,7 @@ instance ExactPrint (HsLocalBinds GhcPs) where
       Just anc -> do
         when (not $ isEmptyValBinds valbinds) $ setExtraDP (Just anc)
       _ -> return ()
+
     markAnnList False an $ markAnnotatedWithLayout valbinds
 
   exact (HsIPBinds an bs)
@@ -1545,13 +1531,6 @@ prepareListAnnotationF f ls
 prepareListAnnotationA :: ExactPrint (LocatedAn an a)
   => [LocatedAn an a] -> [(RealSrcSpan,EPP ())]
 prepareListAnnotationA ls = map (\b -> (realSrcSpan $ getLocA b,markAnnotated b)) ls
-
-prepareListAnnotation :: ExactPrint (Located a)
-  => [Located a] -> [(RealSrcSpan,EPP ())]
-prepareListAnnotation ls = map (\b -> (realSrcSpan $ getLoc b,markAnnotated b)) ls
-
--- applyListAnnotations :: [(RealSrcSpan, EPP ())] -> EPP ()
--- applyListAnnotations ls = withSortKey ls
 
 withSortKey :: AnnSortKey -> [(RealSrcSpan, EPP ())] -> EPP ()
 withSortKey annSortKey xs = do
@@ -1672,19 +1651,6 @@ instance ExactPrint (Sig GhcPs) where
         markEpAnn an AnnDcolon
         markAnnotated ty
     markLocatedAALS an id AnnClose (Just "#-}")
-
-
-
---   markAST _ (CompleteMatchSig _ src (L _ ns) mlns) = do
---     markAnnOpen src "{-# COMPLETE"
---     markListIntercalate ns
---     case mlns of
---       Nothing -> return ()
---       Just _ -> do
---         mark AnnDcolon
---         markMaybe mlns
---     markWithString AnnClose "#-}" -- '#-}'
---     markTrailingSemi
 
   exact x = error $ "exact Sig for:" ++ showAst x
 
@@ -2275,24 +2241,7 @@ instance (ExactPrint (LocatedA body))
     unless ((locA $ getLoc arg) == noSrcSpan ) $ markAnnotated arg
 
 -- ---------------------------------------------------------------------
--- instance (ExactPrint body)
---     => ExactPrint (Either (HsRecField' (AmbiguousFieldOcc GhcPs) body)
---                           (HsRecField' (FieldOcc GhcPs) body)) where
---   getAnnotationEntry = const NoEntryVal
---   exact (Left rbinds) = markAnnotated rbinds
---   exact (Right pbinds) = markAnnotated pbinds
-
--- ---------------------------------------------------------------------
--- instance (ExactPrint body)
---     => ExactPrint
---          (Either [LocatedA (HsRecField' (AmbiguousFieldOcc GhcPs) body)]
---                  [LocatedA (HsRecField' (FieldOcc GhcPs) body)]) where
---   getAnnotationEntry = const NoEntryVal
---   exact (Left rbinds) = markAnnotated rbinds
---   exact (Right pbinds) = markAnnotated pbinds
-
--- ---------------------------------------------------------------------
-instance -- (ExactPrint body)
+instance
     (ExactPrint (HsRecField' (a GhcPs) body),
      ExactPrint (HsRecField' (b GhcPs) body))
     => ExactPrint
@@ -2371,6 +2320,7 @@ instance ExactPrint (HsCmd GhcPs) where
       (Prefix, _) -> do
         markAnnotated e
         markAnnotated cs
+      (Infix, []) -> error "Not possible"
     markLocatedMAA an al_close
 
   exact (HsCmdApp _an e1 e2) = do
@@ -2378,8 +2328,6 @@ instance ExactPrint (HsCmd GhcPs) where
     markAnnotated e2
 
   exact (HsCmdLam _ match) = markAnnotated match
---   markAST l (GHC.HsCmdLam _ match) = do
---     setContext (Set.singleton LambdaExpr) $ do markMatchGroup l match
 
   exact (HsCmdPar an e) = do
     markOpeningParen an
@@ -2399,16 +2347,6 @@ instance ExactPrint (HsCmd GhcPs) where
     markEpAnn an AnnLam
     markEpAnn an AnnCase
     markAnnotated matches
-
---   markAST _ (GHC.HsCmdIf _ _ e1 e2 e3) = do
---     mark GHC.AnnIf
---     markLocated e1
---     markOffset GHC.AnnSemi 0
---     mark GHC.AnnThen
---     markLocated e2
---     markOffset GHC.AnnSemi 1
---     mark GHC.AnnElse
---     markLocated e3
 
   exact (HsCmdIf an _ e1 e2 e3) = do
     markAnnKw an aiIf AnnIf
@@ -2454,23 +2392,12 @@ instance ExactPrint (HsCmd GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-{-
-pprStmt :: forall idL idR body . (OutputableBndrId idL,
-                                  OutputableBndrId idR,
-                 Anno (StmtLR (GhcPass idL) (GhcPass idR) body) ~ SrcSpanAnnA,
-                                  Outputable body)
-        => (StmtLR (GhcPass idL) (GhcPass idR) body) -> SDoc
--}
-
-
--- instance ExactPrint (StmtLR GhcPs GhcPs (LHsCmd GhcPs)) where
 instance (
   ExactPrint (LocatedA (body GhcPs)),
                  Anno (StmtLR GhcPs GhcPs (LocatedA (body GhcPs))) ~ SrcSpanAnnA,
            Anno [GenLocated SrcSpanAnnA (StmtLR GhcPs GhcPs (LocatedA (body GhcPs)))] ~ SrcSpanAnnL,
            (ExactPrint (LocatedL [LocatedA (StmtLR GhcPs GhcPs (LocatedA (body GhcPs)))])))
    => ExactPrint (StmtLR GhcPs GhcPs (LocatedA (body GhcPs))) where
--- instance ExactPrint (StmtLR GhcPs GhcPs (LocatedA (HsCmd GhcPs))) where
   getAnnotationEntry (LastStmt _ _ _ _)             = NoEntryVal
   getAnnotationEntry (BindStmt an _ _)              = fromAnn an
   getAnnotationEntry (ApplicativeStmt _ _ _)        = NoEntryVal
@@ -2573,12 +2500,9 @@ instance (
   --   markTrailingSemi
 
   exact (RecStmt an stmts _ _ _ _ _) = do
-    -- TODO: implement RecStmt
     debugM $ "RecStmt"
     markLocatedAAL an al_rest AnnRec
-    -- markAnnotated stmts
     markAnnList True an (markAnnotated stmts)
-    -- withPpr stmts
 
   -- markAST _ (GHC.RecStmt _ stmts _ _ _ _ _) = do
   --   mark GHC.AnnRec
@@ -2643,7 +2567,7 @@ instance ExactPrint (TyClDecl GhcPs) where
     markEpAnn an AnnType
 
     -- markTyClass Nothing fixity ln tyvars
-    exactVanillaDeclHead an ltycon tyvars fixity Nothing
+    exactVanillaDeclHead ltycon tyvars fixity Nothing
     markEpAnn an AnnEqual
     markAnnotated rhs
 
@@ -2676,7 +2600,7 @@ instance ExactPrint (TyClDecl GhcPs) where
 
   exact (DataDecl { tcdDExt = an, tcdLName = ltycon, tcdTyVars = tyvars
                   , tcdFixity = fixity, tcdDataDefn = defn }) =
-    exactDataDefn an (exactVanillaDeclHead an ltycon tyvars fixity) defn
+    exactDataDefn an (exactVanillaDeclHead ltycon tyvars fixity) defn
 
   -- -----------------------------------
 
@@ -2711,69 +2635,11 @@ instance ExactPrint (TyClDecl GhcPs) where
         top_matter = do
           annotationsToComments (epAnnAnns an)  [AnnOpenP, AnnCloseP]
           markEpAnn an AnnClass
-          exactVanillaDeclHead an lclas tyvars fixity context
+          exactVanillaDeclHead lclas tyvars fixity context
           unless (null fds) $ do
             markEpAnn an AnnVbar
             markAnnotated fds
           markEpAnn an AnnWhere
-
---   -- -----------------------------------
-
---   markAST _ (GHC.ClassDecl _ ctx ln (GHC.HsQTvs _ tyVars) fixity fds
---                           sigs meths ats atdefs docs) = do
---     mark GHC.AnnClass
---     markLocated ctx
-
---     markTyClass Nothing fixity ln tyVars
-
---     unless (null fds) $ do
---       mark GHC.AnnVbar
---       markListIntercalateWithFunLevel markLocated 2 fds
---     mark GHC.AnnWhere
---     markOptional GHC.AnnOpenC -- '{'
---     markInside GHC.AnnSemi
---     -- AZ:TODO: we end up with both the tyVars and the following body of the
---     -- class defn in annSortKey for the class. This could cause problems when
---     -- changing things.
---     setContext (Set.singleton InClassDecl) $
---       applyListAnnotationsLayout
---                            (prepareListAnnotation sigs
---                          ++ prepareListAnnotation (GHC.bagToList meths)
---                          ++ prepareListAnnotation ats
---                          ++ prepareListAnnotation atdefs
---                          ++ prepareListAnnotation docs
---                            )
---     markOptional GHC.AnnCloseC -- '}'
---     markTrailingSemi
--- {-
---   | ClassDecl { tcdCExt    :: XClassDecl pass,         -- ^ Post renamer, FVs
---                 tcdCtxt    :: LHsContext pass,         -- ^ Context...
---                 tcdLName   :: Located (IdP pass),      -- ^ Name of the class
---                 tcdTyVars  :: LHsQTyVars pass,         -- ^ Class type variables
---                 tcdFixity  :: LexicalFixity, -- ^ Fixity used in the declaration
---                 tcdFDs     :: [Located (FunDep (Located (IdP pass)))],
---                                                         -- ^ Functional deps
---                 tcdSigs    :: [LSig pass],              -- ^ Methods' signatures
---                 tcdMeths   :: LHsBinds pass,            -- ^ Default methods
---                 tcdATs     :: [LFamilyDecl pass],       -- ^ Associated types;
---                 tcdATDefs  :: [LTyFamDefltEqn pass],
---                                                    -- ^ Associated type defaults
---                 tcdDocs    :: [LDocDecl]                -- ^ Haddock docs
---     }
-
--- -}
-
---   markAST _ (GHC.SynDecl _ _ (GHC.XLHsQTyVars _) _ _)
---     = error "extension hit for TyClDecl"
---   markAST _ (GHC.DataDecl _ _ (GHC.HsQTvs _ _) _ (GHC.XHsDataDefn _))
---     = error "extension hit for TyClDecl"
---   markAST _ (GHC.DataDecl _ _ (GHC.XLHsQTyVars _) _ _)
---     = error "extension hit for TyClDecl"
---   markAST _ (GHC.ClassDecl _ _ _ (GHC.XLHsQTyVars _) _ _ _ _ _ _ _)
---     = error "extension hit for TyClDecl"
---   markAST _ (GHC.XTyClDecl _)
---     = error "extension hit for TyClDecl"
-  -- exact x = error $ "exact TyClDecl for:" ++ showAst x
 
 -- ---------------------------------------------------------------------
 
@@ -2805,7 +2671,7 @@ instance ExactPrint (FamilyDecl GhcPs) where
     exactFlavour an info
     exact_top_level
     annotationsToCommentsA an [AnnOpenP,AnnCloseP]
-    exactVanillaDeclHead an ltycon tyvars fixity Nothing
+    exactVanillaDeclHead ltycon tyvars fixity Nothing
     exact_kind
     case mb_inj of
       Nothing -> return ()
@@ -2886,13 +2752,12 @@ exactDataDefn an exactHdr
   mapM_ markAnnotated derivings
   return ()
 
-exactVanillaDeclHead :: EpAnn [AddEpAnn]
-                     -> LocatedN RdrName
+exactVanillaDeclHead :: LocatedN RdrName
                      -> LHsQTyVars GhcPs
                      -> LexicalFixity
                      -> Maybe (LHsContext GhcPs)
                      -> EPP ()
-exactVanillaDeclHead an thing (HsQTvs { hsq_explicit = tyvars }) fixity context = do
+exactVanillaDeclHead thing (HsQTvs { hsq_explicit = tyvars }) fixity context = do
   let
     exact_tyvars :: [LHsTyVarBndr () GhcPs] -> EPP ()
     exact_tyvars (varl:varsr)
@@ -2900,18 +2765,14 @@ exactVanillaDeclHead an thing (HsQTvs { hsq_explicit = tyvars }) fixity context 
          -- = hsep [char '(',ppr (unLoc varl), pprInfixOcc (unLoc thing)
          --        , (ppr.unLoc) (head varsr), char ')'
          --        , hsep (map (ppr.unLoc) (tail vaprsr))]
-          -- annotationsToComments (epAnnAnns an) [AnnOpenP,AnnCloseP]
-          -- markEpAnnAll an id AnnOpenP
           markAnnotated varl
           markAnnotated thing
           markAnnotated (head varsr)
-          -- markEpAnnAll an id AnnCloseP
           markAnnotated (tail varsr)
           return ()
       | fixity == Infix = do
          -- = hsep [ppr (unLoc varl), pprInfixOcc (unLoc thing)
          -- , hsep (map (ppr.unLoc) varsr)]
-          -- annotationsToComments (epAnnAnns an) [AnnOpenP,AnnCloseP]
           markAnnotated varl
           markAnnotated thing
           markAnnotated varsr
@@ -3583,17 +3444,6 @@ instance ExactPrint (LocatedL (BF.BooleanFormula (LocatedN RdrName))) where
     debugM $ "LocatedL [LBooleanFormula"
     markAnnList True an (markAnnotated bf)
 
--- instance (Anno (StmtLR GhcPs GhcPs (LocatedA body)) ~ SrcSpanAnnA,
---           Anno [LocatedA (StmtLR GhcPs GhcPs (LocatedA body))] ~ SrcSpanAnnL,
---           ExactPrint (LocatedA body)
---           )
---   => ExactPrint (LocatedL [LocatedA (StmtLR GhcPs GhcPs (LocatedA body))]) where
---   getAnnotationEntry = entryFromLocatedA
---   exact (L (SrcSpanAnn an _) stmts) = do
---     debugM $ "LocatedL [LStmtLR"
---     markAnnList True an (markAnnotated stmts)
-    -- markAnnotated stmts
-
 -- ---------------------------------------------------------------------
 -- LocatedL instances end --
 -- =====================================================================
@@ -4044,10 +3894,6 @@ adjustDeltaForOffsetM dp = do
   colOffset <- gets dLHS
   return (adjustDeltaForOffset 0 colOffset dp)
 
--- adjustDeltaForOffset :: Int -> LayoutStartCol -> DeltaPos -> DeltaPos
--- adjustDeltaForOffset _ _colOffset                      dp@(DP (0,_)) = dp -- same line
--- adjustDeltaForOffset d (LayoutStartCol colOffset) (DP (l,c)) = DP (l,c - colOffset - d)
-
 -- ---------------------------------------------------------------------
 -- Printing functions
 
@@ -4070,8 +3916,8 @@ printString layout str = do
     else setPosP (undelta p strDP 1)
 
   -- Debug stuff
-  pp <- getPosP
-  debugM $ "printString: (p,pp,str)" ++ show (p,pp,str)
+  -- pp <- getPosP
+  -- debugM $ "printString: (p,pp,str)" ++ show (p,pp,str)
   -- Debug end
 
   --

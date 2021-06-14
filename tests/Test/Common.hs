@@ -128,9 +128,7 @@ noChange _libdir parsed = return parsed
 
 genTest :: LibDir -> Changer -> FilePath -> FilePath -> IO Report
 genTest libdir f origFile expectedFile  = do
-      -- res <- parseModuleApiAnnsWithCpp defaultCppOptions origFile
       res <- parseModuleEpAnnsWithCpp libdir defaultCppOptions origFile
-      -- res <- parseModuleWithCpp libdir defaultCppOptions origFile
       expected <- GHC.liftIO $ readFileGhc expectedFile
       orig <- GHC.liftIO $ readFileGhc origFile
       -- let pristine = removeSpaces expected
@@ -142,7 +140,6 @@ genTest libdir f origFile expectedFile  = do
           (printed', pmod') <- GHC.liftIO (runRoundTrip libdir f pmod injectedComments)
           let useCpp = GHC.xopt LangExt.Cpp dflags
               printed = trimPrinted printed'
-          -- let (printed, anns) = first trimPrinted $ runRoundTrip apianns pmod injectedComments
               -- Clang cpp adds an extra newline character
               -- Do not remove this line!
               trimPrinted p = if useCpp
@@ -177,11 +174,9 @@ runRoundTrip :: LibDir
              -> [GHC.LEpaComment]
              -> IO (String, GHC.ParsedSource)
 runRoundTrip libdir f !parsedOrig cs = do
-  -- let !relAnns = relativiseApiAnnsWithComments cs parsedOrig anns
   let !parsedOrigWithComments = insertCppComments parsedOrig cs
   pmod <- f libdir parsedOrigWithComments
   let !printed = exactPrint pmod
-  -- return (printed,  relAnns, pmod)
   return (printed, pmod)
 
 -- ---------------------------------------------------------------------`

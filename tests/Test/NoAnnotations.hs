@@ -19,17 +19,11 @@ import Language.Haskell.GHC.ExactPrint.Parsers
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
+import qualified GHC.Utils.Outputable   as GHC
 import qualified Control.Monad.IO.Class as GHC
-import qualified GHC            as GHC hiding (parseModule)
--- import qualified GHC.Data.Bag          as GHC
--- import qualified GHC.Data.FastString   as GHC
-import qualified GHC.Driver.Ppr        as GHC
-import qualified GHC.Hs.Dump           as GHC
--- import qualified GHC.Types.Name.Occurrence as OccName (occNameString)
--- import qualified GHC.Types.Name.Set    as GHC
--- import qualified GHC.Types.SrcLoc      as GHC
--- import qualified GHC.Types.Var         as GHC
--- import qualified GHC.Utils.Outputable  as GHC
+import qualified GHC                    as GHC hiding (parseModule)
+-- import qualified GHC.Driver.Ppr         as GHC
+import qualified GHC.Hs.Dump            as GHC
 
 import System.Directory
 import System.FilePath

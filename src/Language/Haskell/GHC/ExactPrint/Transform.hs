@@ -791,23 +791,7 @@ splitComments p (EpaCommentsBalanced cs ts) = EpaCommentsBalanced cs' ts'
 -- original locations.
 commentOrigDeltas :: [LEpaComment] -> [LEpaComment]
 commentOrigDeltas [] = []
-commentOrigDeltas lcs@(L _ (GHC.EpaComment _ pt):_) = go pt lcs
-  -- TODO:AZ: we now have deltas wrt *all* tokens, not just preceding
-  -- non-comment. Simplify this.
-  where
-    go :: RealSrcSpan -> [LEpaComment] -> [LEpaComment]
-    go _ [] = []
-    go p (L (Anchor la _) (GHC.EpaComment t pp):ls)
-      = L (Anchor la op) (GHC.EpaComment t pp) : go p' ls
-      where
-        p' = p
-        (r,c) = ss2posEnd pp
-        op' = if r == 0
-               then MovedAnchor (ss2delta (r,c+1) la)
-               else MovedAnchor (ss2delta (r,c)   la)
-        op = if t == EpaEofComment && op' == MovedAnchor (SameLine 0)
-               then MovedAnchor (DifferentLine 1 0)
-               else op'
+commentOrigDeltas lcs = map commentOrigDelta lcs
 
 addCommentOrigDeltas :: EpAnnComments -> EpAnnComments
 addCommentOrigDeltas (EpaComments cs) = EpaComments (commentOrigDeltas cs)
@@ -825,6 +809,23 @@ anchorFromLocatedA (L (SrcSpanAnn an loc) _)
   = case an of
       EpAnnNotUsed    -> realSrcSpan loc
       (EpAnn anc _ _) -> anchor anc
+
+-- | A GHC comment includes the span of the preceding token.  Take an
+-- original comment, and convert the 'Anchor to have a have a
+-- `MovedAnchor` operation based on the original location, only if it
+-- does not already have one.
+commentOrigDelta :: LEpaComment -> LEpaComment
+-- commentOrigDelta c@(L (GHC.Anchor _ (GHC.MovedAnchor _)) _) = c
+commentOrigDelta (L (GHC.Anchor la _) (GHC.EpaComment t pp))
+  = (L (GHC.Anchor la op) (GHC.EpaComment t pp))
+  where
+        (r,c) = ss2posEnd pp
+        op' = if r == 0
+               then MovedAnchor (ss2delta (r,c+1) la)
+               else MovedAnchor (ss2delta (r,c)   la)
+        op = if t == EpaEofComment && op' == MovedAnchor (SameLine 0)
+               then MovedAnchor (DifferentLine 1 0)
+               else op'
 
 -- ---------------------------------------------------------------------
 

@@ -258,8 +258,9 @@ changeLocalDecls libdir (L l p) = do
         let (EpAnn anc (AnnList (Just (Anchor anc2 _)) a b c dd) cs) = van
         let van' = (EpAnn anc (AnnList (Just (Anchor anc2 (MovedAnchor (DifferentLine 1 5)))) a b c dd) cs)
         let binds' = (HsValBinds van'
-                          (ValBinds sortKey (listToBag $ decl':oldBinds)
-                                          (sig':os':oldSigs)))
+                          (ValBinds sortKey
+                                    (listToBag $ decl':oldBinds)
+                                    (sig':os':oldSigs)))
         return (L lm (Match an mln pats (GRHSs noExtField rhs binds')))
       replaceLocalBinds x = return x
   return (L l p')
