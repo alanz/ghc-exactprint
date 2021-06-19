@@ -25,7 +25,7 @@ module Test.CommonUtils
 import Data.List hiding (find)
 import System.FilePath
 import System.FilePath.Find
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 import qualified GHC.Data.StringBuffer as GHC
 #else
 import qualified StringBuffer as GHC

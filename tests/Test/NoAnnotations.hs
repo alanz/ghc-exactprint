@@ -20,7 +20,7 @@ import Language.Haskell.GHC.ExactPrint.Parsers
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 import qualified Control.Monad.IO.Class as GHC
 import qualified GHC            as GHC hiding (parseModule)
 import qualified GHC.Data.Bag          as GHC
@@ -60,7 +60,7 @@ import qualified OccName(occNameString)
 import System.Directory
 import System.FilePath
 
-#if __GLASGOW_HASKELL__ < 900
+#if __GLASGOW_HASKELL__ < 808
 import qualified Data.Map as Map
 #endif
 
@@ -93,7 +93,7 @@ prettyRoundtripTest :: FilePath -> IO Report
 prettyRoundtripTest origFile = do
       res <- parseModuleApiAnnsWithCpp defaultCppOptions origFile
       case res of
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
         Left m -> return . Left $ ParseFailure (showErrorMessages m)
 #else
         Left (_ss, m) -> return . Left $ ParseFailure m
@@ -101,7 +101,7 @@ prettyRoundtripTest origFile = do
         Right (apianns, injectedComments, _dflags, parsed)  -> do
           res2 <- GHC.liftIO (runPrettyRoundTrip origFile apianns parsed injectedComments)
           case res2 of
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
             Left m -> return . Left $ ParseFailure (showErrorMessages m)
 #else
             Left (_ss, m) -> return . Left $ ParseFailure m
@@ -132,7 +132,7 @@ runPrettyRoundTrip :: FilePath -> GHC.ApiAnns -> GHC.ParsedSource
                    -> IO (ParseResult GHC.ParsedSource)
 runPrettyRoundTrip origFile !anns !parsedOrig _cs = do
   let !newAnns = addAnnotationsForPretty [] parsedOrig mempty
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
   let comments = map tokComment $ GHC.sortRealLocated (GHC.apiAnnRogueComments anns)
 #else
   let comments = case Map.lookup GHC.noSrcSpan (snd anns) of
@@ -192,7 +192,7 @@ showAstData n =
           `extQ` name `extQ` occName `extQ` moduleName `extQ` var `extQ` dataCon
           `extQ` overLit
           `extQ` bagName `extQ` bagRdrName `extQ` bagVar `extQ` nameSet
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
           `extQ` layoutInfo
 #endif
           `extQ` fixity
@@ -237,7 +237,7 @@ showAstData n =
 
         fixity = ("{Fixity: "++) . (++"}") . showSDoc_ . GHC.ppr :: GHC.Fixity -> String
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
         layoutInfo = const "{LayoutInfo: blanked }" :: GHC.LayoutInfo -> String
 #endif
 

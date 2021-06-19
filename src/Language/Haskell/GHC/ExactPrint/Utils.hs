@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -55,6 +56,9 @@ module Language.Haskell.GHC.ExactPrint.Utils
   , pushAcs
   , bumpAcs
 
+  -- * GHC Wrapper
+  , ghcWrapper
+
 #if __GLASGOW_HASKELL__ <= 710
   -- * for boolean formulas in GHC 7.10.3
   -- ,LBooleanFormula, BooleanFormula(..)
@@ -88,17 +92,30 @@ import Language.Haskell.GHC.ExactPrint.Lookup
 import qualified BooleanFormula as GHC
 #endif
 import qualified GHC
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 import qualified GHC.Data.Bag          as GHC
 import qualified GHC.Driver.Session    as GHC
 import qualified GHC.Data.FastString   as GHC
+import qualified GHC.Driver.Main       as GHC
+import qualified GHC.Driver.Monad      as GHC
+import qualified GHC.Platform          as GHC
+import qualified GHC.Settings          as GHC
 import qualified GHC.Types.Name        as GHC
 import qualified GHC.Types.Name.Set    as GHC
-import qualified GHC.Utils.Outputable  as GHC
 import qualified GHC.Types.Name.Reader as GHC
 import qualified GHC.Types.SrcLoc      as GHC
 import qualified GHC.Types.Var         as GHC
 import qualified GHC.Types.Name.Occurrence as OccName (OccName(..),occNameString,pprNameSpaceBrief)
+import qualified GHC.Settings.Platform as GHC
+import qualified GHC.Settings.Utils    as GHC
+import qualified GHC.SysTools          as GHC
+import qualified GHC.SysTools.BaseDir  as GHC
+import qualified GHC.Utils.Fingerprint as GHC
+import qualified GHC.Utils.Outputable  as GHC
+import qualified GHC.Version           as GHC
+import Data.IORef
+import System.Directory
+import System.FilePath
 #else
 import qualified Bag            as GHC
 import qualified DynFlags       as GHC
@@ -112,12 +129,17 @@ import qualified Var            as GHC
 import qualified OccName(OccName(..),occNameString,pprNameSpaceBrief)
 #endif
 
+import qualified GHC.Paths
 
 import Control.Arrow
+import Control.Exception (IOException, catch)
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
 import Data.List
+import qualified Data.Map as Map
+import Data.Maybe (fromMaybe)
+import qualified Data.Set as Set
+
+import System.Environment (lookupEnv)
 
 import Debug.Trace
 
@@ -240,7 +262,7 @@ ss2range :: GHC.SrcSpan -> (Pos,Pos)
 ss2range ss = (ss2pos ss, ss2posEnd ss)
 
 srcSpanEndColumn :: GHC.SrcSpan -> Int
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 srcSpanEndColumn (GHC.RealSrcSpan s _) = GHC.srcSpanEndCol s
 #else
 srcSpanEndColumn (GHC.RealSrcSpan s) = GHC.srcSpanEndCol s
@@ -248,7 +270,7 @@ srcSpanEndColumn (GHC.RealSrcSpan s) = GHC.srcSpanEndCol s
 srcSpanEndColumn _ = 0
 
 srcSpanStartColumn :: GHC.SrcSpan -> Int
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 srcSpanStartColumn (GHC.RealSrcSpan s _) = GHC.srcSpanStartCol s
 #else
 srcSpanStartColumn (GHC.RealSrcSpan s) = GHC.srcSpanStartCol s
@@ -256,7 +278,7 @@ srcSpanStartColumn (GHC.RealSrcSpan s) = GHC.srcSpanStartCol s
 srcSpanStartColumn _ = 0
 
 srcSpanEndLine :: GHC.SrcSpan -> Int
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 srcSpanEndLine (GHC.RealSrcSpan s _) = GHC.srcSpanEndLine s
 #else
 srcSpanEndLine (GHC.RealSrcSpan s) = GHC.srcSpanEndLine s
@@ -264,7 +286,7 @@ srcSpanEndLine (GHC.RealSrcSpan s) = GHC.srcSpanEndLine s
 srcSpanEndLine _ = 0
 
 srcSpanStartLine :: GHC.SrcSpan -> Int
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 srcSpanStartLine (GHC.RealSrcSpan s _) = GHC.srcSpanStartLine s
 #else
 srcSpanStartLine (GHC.RealSrcSpan s) = GHC.srcSpanStartLine s
@@ -302,7 +324,7 @@ isListComp cts = case cts of
           GHC.PArrComp  -> True
 #endif
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
           GHC.DoExpr {}    -> False
           GHC.MDoExpr {}   -> False
 #else
@@ -319,12 +341,12 @@ isListComp cts = case cts of
 -- ---------------------------------------------------------------------
 
 isGadt :: [GHC.LConDecl name] -> Bool
-#if __GLASGOW_HASKELL__ >= 810
+#if __GLASGOW_HASKELL__ >= 808
 isGadt [] = True
 #else
 isGadt [] = False
 #endif
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 isGadt ((GHC.L _ (GHC.ConDeclGADT{})):_) = True
 isGadt ((GHC.L _ (GHC.XConDecl{})):_) = True
 #elif __GLASGOW_HASKELL__ > 710
@@ -343,14 +365,14 @@ isExactName = False `mkQ` GHC.isExact
 -- ---------------------------------------------------------------------
 
 rs :: GHC.SrcSpan -> AnnSpan
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 rs (GHC.RealSrcSpan s _) = s
 rs _ = badRealSrcSpan
 #else
 rs = id
 #endif
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 sr :: GHC.RealSrcSpan -> GHC.SrcSpan
 sr s = GHC.RealSrcSpan s Nothing
 #else
@@ -359,7 +381,7 @@ sr = id
 #endif
 -- ---------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 ghcCommentText :: GHC.RealLocated GHC.AnnotationComment -> String
 #else
 ghcCommentText :: GHC.Located GHC.AnnotationComment -> String
@@ -375,7 +397,7 @@ ghcCommentText (GHC.L _ (GHC.AnnDocOptionsOld s))   = s
 ghcCommentText (GHC.L _ (GHC.AnnLineComment s))     = s
 ghcCommentText (GHC.L _ (GHC.AnnBlockComment s))    = s
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 tokComment :: GHC.RealLocated GHC.AnnotationComment -> Comment
 tokComment t@(GHC.L lt _) = mkComment (ghcCommentText t) lt
 #else
@@ -383,7 +405,7 @@ tokComment :: GHC.Located GHC.AnnotationComment -> Comment
 tokComment t@(GHC.L lt _) = mkComment (ghcCommentText t) lt
 #endif
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 mkComment :: String -> GHC.RealSrcSpan -> Comment
 mkComment c ss = Comment c ss Nothing
 #else
@@ -415,7 +437,7 @@ data ApiAnns =
 
 
 extractComments :: GHC.ApiAnns -> [Comment]
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 extractComments anns
   -- cm has type :: Map SrcSpan [Located AnnotationComment]
   = map tokComment $ GHC.sortRealLocated $ ((concat
@@ -426,12 +448,7 @@ extractComments (_,cm)
   = map tokComment . GHC.sortLocated . concat $ Map.elems cm
 #endif
 
-#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
-getAnnotationEP :: (Data a,Data (GHC.SrcSpanLess a),GHC.HasSrcSpan a)
-                => a -> Anns -> Maybe Annotation
-#else
 getAnnotationEP :: (Data a) =>  GHC.Located a  -> Anns -> Maybe Annotation
-#endif
 getAnnotationEP  la as =
   Map.lookup (mkAnnKey la) as
 
@@ -681,7 +698,7 @@ showAnnData anns n =
 occAttributes :: OccName.OccName -> String
 occAttributes o = "(" ++ ns ++ vo ++ tv ++ tc ++ d ++ ds ++ s ++ v ++ ")"
   where
-    ns = (GHC.showSDocUnsafe $ OccName.pprNameSpaceBrief $ GHC.occNameSpace o) ++ ", "
+    ns = GHC.showSDocUnsafe (OccName.pprNameSpaceBrief $ GHC.occNameSpace o) ++ ", "
     vo = if GHC.isVarOcc     o then "Var "     else ""
     tv = if GHC.isTvOcc      o then "Tv "      else ""
     tc = if GHC.isTcOcc      o then "Tc "      else ""
@@ -728,3 +745,156 @@ gtail _info h    = tail h
 gfromJust :: String -> Maybe a -> a
 gfromJust _info (Just h) = h
 gfromJust  info Nothing = error $ "gfromJust " ++ info ++ " Nothing"
+
+-- ---------------------------------------------------------------------
+-- GHC wrapper
+
+getLibdir :: IO FilePath
+getLibdir = do
+  let handler = return . const Nothing :: IOException -> IO (Maybe String)
+  fromMaybe GHC.Paths.libdir <$> lookupEnv "GHC_EXACTPRINT_GHC_LIBDIR" `catch` handler
+
+#if __GLASGOW_HASKELL__ < 808
+ghcWrapper :: GHC.Ghc a -> IO a
+ghcWrapper ghc = do
+  libdir <- getLibdir
+  GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
+    GHC.runGhc (Just libdir) ghc
+#else
+-- The following compat code is borrowed with modification from
+-- https://github.com/arybczak/ghc-tags/blob/76a246b654d8d69f18148a1055fa874fb9bca7dc/src/GhcTags/GhcCompat.hs
+ghcWrapper :: GHC.Ghc a -> IO a
+ghcWrapper m = do
+  libdir <- getLibdir
+  env <- do
+    mySettings <- compatInitSettings libdir
+    myLlvmConfig <- GHC.lazyInitLlvmConfig libdir
+    dflags <- threadSafeInitDynFlags (GHC.defaultDynFlags mySettings myLlvmConfig)
+    GHC.newHscEnv dflags
+  ref <- newIORef env
+  GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
+    GHC.unGhc (GHC.withCleanupSession m) (GHC.Session ref)
+
+threadSafeInitDynFlags :: GHC.DynFlags -> IO GHC.DynFlags
+threadSafeInitDynFlags dflags = do
+  refNextTempSuffix <- newIORef 0
+  refFilesToClean <- newIORef GHC.emptyFilesToClean
+  refDirsToClean <- newIORef Map.empty
+  pure
+    dflags
+      { GHC.nextTempSuffix = refNextTempSuffix,
+        GHC.filesToClean = refFilesToClean,
+        GHC.dirsToClean = refDirsToClean
+      }
+
+-- | Stripped version of 'GHC.Settings.IO.initSettings' that ignores the
+-- @platformConstants@ file as it's irrelevant for parsing.
+compatInitSettings :: FilePath -> IO GHC.Settings
+compatInitSettings top_dir = do
+  mtool_dir <- GHC.findToolDir top_dir
+  let installed :: FilePath -> FilePath
+      installed file = top_dir </> file
+      settingsFile = installed "settings"
+
+      readFileSafe :: FilePath -> IO String
+      readFileSafe path =
+        doesFileExist path >>= \case
+          True -> readFile path
+          False -> error $ "Missing file: " ++ path
+
+  settingsStr <- readFileSafe settingsFile
+  settingsList <- case GHC.maybeReadFuzzy settingsStr of
+    Just s -> pure s
+    Nothing -> error $ "Can't parse " ++ show settingsFile
+  let mySettings = Map.fromList settingsList
+  let getSetting key =
+        either error pure $
+          GHC.getFilePathSetting0 top_dir settingsFile mySettings key
+      getToolSetting :: String -> IO String
+      getToolSetting key = GHC.expandToolDir mtool_dir <$> getSetting key
+      getBooleanSetting :: String -> IO Bool
+      getBooleanSetting key =
+        either error pure $
+          GHC.getBooleanSetting0 settingsFile mySettings key
+
+  gccSupportsNoPie <- getBooleanSetting "C compiler supports -no-pie"
+  cpp_prog <- getToolSetting "Haskell CPP command"
+  cpp_args_str <- getSetting "Haskell CPP flags"
+
+  platform <- either error pure $ compatGetTargetPlatform settingsFile mySettings
+  let cpp_args = map GHC.Option (words cpp_args_str)
+  ldSupportsCompactUnwind <- getBooleanSetting "ld supports compact unwind"
+  ldSupportsBuildId <- getBooleanSetting "ld supports build-id"
+  ldSupportsFilelist <- getBooleanSetting "ld supports filelist"
+  ldIsGnuLd <- getBooleanSetting "ld is GNU ld"
+
+  let globalpkgdb_path = installed "package.conf.d"
+
+  pure
+    GHC.Settings
+      { GHC.sGhcNameVersion =
+          GHC.GhcNameVersion
+            { GHC.ghcNameVersion_programName = "ghc",
+              GHC.ghcNameVersion_projectVersion = GHC.cProjectVersion
+            },
+        GHC.sFileSettings =
+          GHC.FileSettings
+            {
+              GHC.fileSettings_tmpDir = mempty,
+              GHC.fileSettings_ghcUsagePath = mempty,
+              GHC.fileSettings_ghciUsagePath = mempty,
+              GHC.fileSettings_toolDir = mempty,
+              GHC.fileSettings_topDir = mempty,
+              GHC.fileSettings_globalPackageDatabase = globalpkgdb_path
+            },
+        -- Lots of uninitialized fields here.
+        GHC.sToolSettings =
+          GHC.ToolSettings
+            { GHC.toolSettings_ldSupportsCompactUnwind = ldSupportsCompactUnwind,
+              GHC.toolSettings_ldSupportsBuildId = ldSupportsBuildId,
+              GHC.toolSettings_ldSupportsFilelist = ldSupportsFilelist,
+              GHC.toolSettings_ldIsGnuLd = ldIsGnuLd,
+              GHC.toolSettings_ccSupportsNoPie = gccSupportsNoPie,
+              GHC.toolSettings_pgm_P = (cpp_prog, cpp_args),
+              GHC.toolSettings_opt_P = mempty,
+              GHC.toolSettings_opt_P_fingerprint = GHC.fingerprint0
+            },
+        GHC.sTargetPlatform = platform,
+        -- Lots of uninitialized fields here.
+        GHC.sPlatformMisc = GHC.PlatformMisc {},
+        -- Lots of uninitialized fields here.
+        GHC.sPlatformConstants = GHC.PlatformConstants {GHC.pc_DYNAMIC_BY_DEFAULT = False},
+        GHC.sRawSettings = settingsList
+      }
+
+-- Stripped version of 'GHC.Settings.Platform.getTargetPlatform'. Arch info is
+-- needed for CPP defines, the rest is irrelevant.
+compatGetTargetPlatform ::
+  FilePath -> GHC.RawSettings -> Either String GHC.Platform
+compatGetTargetPlatform settingsFile mySettings = do
+  let readSetting :: (Show a, Read a) => String -> Either String a
+      readSetting = GHC.readSetting0 settingsFile mySettings
+
+  targetArch <- readSetting "target arch"
+  targetOS <- readSetting "target os"
+  targetWordSize <- readSetting "target word size"
+
+  pure
+    GHC.Platform
+      { GHC.platformMini =
+          GHC.PlatformMini
+            { GHC.platformMini_arch = targetArch,
+              GHC.platformMini_os = targetOS
+            },
+        GHC.platformWordSize = targetWordSize,
+        -- below is irrelevant
+        GHC.platformByteOrder = GHC.LittleEndian,
+        GHC.platformUnregisterised = True,
+        GHC.platformHasGnuNonexecStack = False,
+        GHC.platformHasIdentDirective = False,
+        GHC.platformHasSubsectionsViaSymbols = False,
+        GHC.platformIsCrossCompiling = False,
+        GHC.platformLeadingUnderscore = False,
+        GHC.platformTablesNextToCode = False
+      }
+#endif

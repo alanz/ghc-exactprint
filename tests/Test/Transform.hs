@@ -9,7 +9,7 @@ import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Parsers
 import Language.Haskell.GHC.ExactPrint.Utils
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 import qualified GHC                       as GHC
 import qualified GHC.Data.Bag              as GHC
 import qualified GHC.Data.FastString       as GHC
@@ -260,7 +260,7 @@ changeWhereIn3 declIndex ans p = return (ans',p')
     (p',(ans',_),_) = runTransform ans doTransform
     doTransform = doRmDecl p
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
     doRmDecl (GHC.L l (GHC.HsModule lo mmn mexp imps decls mdepr haddock)) = do
 #else
     doRmDecl (GHC.L l (GHC.HsModule    mmn mexp imps decls mdepr haddock)) = do
@@ -270,7 +270,7 @@ changeWhereIn3 declIndex ans p = return (ans',p')
         decls1 = take declIndex decls
         decls2 = drop (declIndex + 1) decls
         decls' = decls1 ++ decls2
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
       return (GHC.L l (GHC.HsModule lo mmn mexp imps decls' mdepr haddock))
 #else
       return (GHC.L l (GHC.HsModule    mmn mexp imps decls' mdepr haddock))
@@ -343,13 +343,7 @@ rename newNameStr spans a
 #endif
     replaceHsVar x = x
 
-
-
-#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
-    replacePat :: GHC.LPat GhcPs -> GHC.LPat GhcPs
-    replacePat (GHC.dL->GHC.L ln (GHC.VarPat {}))
-        | cond ln = GHC.cL ln (GHC.VarPat noExt (GHC.cL ln newName))
-#elif __GLASGOW_HASKELL__ > 804
+#if __GLASGOW_HASKELL__ > 804
     replacePat :: GHC.LPat GhcPs -> GHC.LPat GhcPs
     replacePat (GHC.L ln (GHC.VarPat {}))
         | cond ln = GHC.L ln (GHC.VarPat noExt (GHC.L ln newName))
@@ -365,23 +359,6 @@ rename newNameStr spans a
         | cond ln = GHC.L ln (GHC.VarPat newName)
 #endif
     replacePat x = x
-
-
-
--- #if __GLASGOW_HASKELL__ > 802
---     replacePat :: GHC.LPat GhcPs -> GHC.LPat GhcPs
--- #endif
---     replacePat (GHC.L ln (GHC.VarPat {}))
--- #if __GLASGOW_HASKELL__ <= 710
---         | cond ln = GHC.L ln (GHC.VarPat newName)
--- #elif __GLASGOW_HASKELL__ <= 804
---         | cond ln = GHC.L ln (GHC.VarPat (GHC.L ln newName))
--- #else
---         | cond ln = GHC.L ln (GHC.VarPat noExt (GHC.L ln newName))
--- #endif
---     replacePat x = x
-
-
 
 -- ---------------------------------------------------------------------
 
@@ -572,10 +549,8 @@ addLocaLDecl6 ans lp = do
         [d1,d2] <- hsDecls lp
         balanceComments d1 d2
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
         let GHC.L _ (GHC.ValD _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ [m1,m2]) _) _)) = d1
-#elif __GLASGOW_HASKELL__ > 808
-        let GHC.L _ (GHC.ValD _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ [m1,m2]) _) _ _)) = d1
 #elif __GLASGOW_HASKELL__ > 804
         let GHC.L _ (GHC.ValD _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ [m1,m2]) _) _ _)) = d1
 #elif __GLASGOW_HASKELL__ > 710

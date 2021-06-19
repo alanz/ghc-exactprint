@@ -28,7 +28,7 @@ module Language.Haskell.GHC.ExactPrint.Types
   , mkAnnKey
   , AnnConName(..)
   , annGetConstr
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
   , badRealSrcSpan
 #endif
 
@@ -58,10 +58,9 @@ module Language.Haskell.GHC.ExactPrint.Types
   ) where
 
 import Data.Data (Data, Typeable, toConstr,cast)
--- import Data.Generics
 
 import qualified GHC
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 import GHC.Data.FastString     as GHC
 import GHC.Driver.Session      as GHC
 import GHC.Types.SrcLoc        as GHC
@@ -76,11 +75,7 @@ import qualified Data.Set as Set
 
 -- ---------------------------------------------------------------------
 
-#if (__GLASGOW_HASKELL__ >= 808) && (__GLASGOW_HASKELL__ < 900)
-type Constraints a = (Data a,Data (GHC.SrcSpanLess a),GHC.HasSrcSpan a)
-#else
 type Constraints a = (Data a)
-#endif
 
 -- ---------------------------------------------------------------------
 
@@ -144,7 +139,7 @@ data Annotation = Ann
   -- The next three fields relate to interacing down into the AST
   , annsDP             :: ![(KeywordId, DeltaPos)]
     -- ^ Annotations associated with this element.
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
   , annSortKey         :: !(Maybe [GHC.RealSrcSpan])
 #else
   , annSortKey         :: !(Maybe [GHC.SrcSpan])
@@ -187,7 +182,7 @@ data AnnKey   = AnnKey AnnSpan AnnConName
 
 -- | From GHC 9.0 the ParsedSource uses RealSrcSpan instead of SrcSpan.
 --   Compatibility type
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 type AnnSpan = GHC.RealSrcSpan
 #else
 type AnnSpan = GHC.SrcSpan
@@ -198,21 +193,17 @@ instance Show AnnKey where
   show (AnnKey ss cn) = "AnnKey " ++ showGhc ss ++ " " ++ show cn
 
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 mkAnnKeyPrim :: (Data a) => GHC.Located a -> AnnKey
 mkAnnKeyPrim (GHC.L (GHC.RealSrcSpan l _) a) = AnnKey l (annGetConstr a)
 mkAnnKeyPrim (GHC.L _ a) = AnnKey badRealSrcSpan (annGetConstr a)
-#elif __GLASGOW_HASKELL__ > 806
-mkAnnKeyPrim :: (Constraints a)
-             => a -> AnnKey
-mkAnnKeyPrim (GHC.dL->GHC.L l a) = AnnKey l (annGetConstr a)
 #else
 mkAnnKeyPrim :: (Data a) => GHC.Located a -> AnnKey
 mkAnnKeyPrim (GHC.L l a) = AnnKey l (annGetConstr a)
 #endif
 
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 badRealSrcSpan :: GHC.RealSrcSpan
 badRealSrcSpan = GHC.mkRealSrcSpan bad bad
   where
@@ -230,7 +221,7 @@ type GhcTc = GHC.GhcTc
 #endif
 
 
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
 noExt :: GHC.NoExtField
 noExt = GHC.NoExtField
 #elif __GLASGOW_HASKELL__ > 804
@@ -239,11 +230,7 @@ noExt = GHC.noExt
 #endif
 
 -- |Make an unwrapped @AnnKey@ for the @LHsDecl@ case, a normal one otherwise.
-#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
-mkAnnKey :: (Constraints a) => a -> AnnKey
-#else
 mkAnnKey :: (Data a) => GHC.Located a -> AnnKey
-#endif
 mkAnnKey ld =
   case cast ld :: Maybe (GHC.LHsDecl GhcPs) of
     Just d -> declFun mkAnnKeyPrim d
@@ -264,7 +251,7 @@ annGetConstr a = CN (show $ toConstr a)
 -- AST.
 data KeywordId = G GHC.AnnKeywordId  -- ^ A normal keyword
                | AnnSemiSep          -- ^ A separating comma
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
                | AnnEofPos
 #endif
 #if __GLASGOW_HASKELL__ >= 800
@@ -283,7 +270,7 @@ data KeywordId = G GHC.AnnKeywordId  -- ^ A normal keyword
 instance Show KeywordId where
   show (G gc)          = "(G " ++ show gc ++ ")"
   show AnnSemiSep      = "AnnSemiSep"
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
   show AnnEofPos       = "AnnEofPos"
 #endif
 #if __GLASGOW_HASKELL__ >= 800
@@ -445,7 +432,7 @@ declFun f (GHC.L l de) =
       GHC.DerivD _ d      -> f (GHC.L l d)
       GHC.ValD _ d        -> f (GHC.L l d)
       GHC.SigD _ d        -> f (GHC.L l d)
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
       GHC.KindSigD _ d    -> f (GHC.L l d)
 #endif
       GHC.DefD _ d        -> f (GHC.L l d)
@@ -486,4 +473,3 @@ showGhc :: (GHC.Outputable a) => a -> String
 showGhc = GHC.showPpr GHC.unsafeGlobalDynFlags
 
 -- ---------------------------------------------------------------------
-

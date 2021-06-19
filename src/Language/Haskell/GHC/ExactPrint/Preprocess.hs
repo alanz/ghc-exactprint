@@ -14,16 +14,15 @@ module Language.Haskell.GHC.ExactPrint.Preprocess
    , defaultCppOptions
    ) where
 
-import qualified GHC            as GHC hiding (parseModule)
+import qualified GHC hiding (parseModule)
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 import qualified Control.Monad.IO.Class as GHC
 import qualified GHC.Data.Bag          as GHC
 import qualified GHC.Data.FastString   as GHC
 import qualified GHC.Data.StringBuffer as GHC
 import qualified GHC.Driver.Phases     as GHC
 import qualified GHC.Driver.Pipeline   as GHC
--- import qualified GHC.Driver.Session    as GHC
 import qualified GHC.Driver.Types      as GHC
 import qualified GHC.Fingerprint.Type  as GHC
 import qualified GHC.Utils.Fingerprint as GHC
@@ -49,14 +48,7 @@ import SrcLoc (mkSrcSpan, mkSrcLoc)
 import FastString (mkFastString)
 #endif
 
-#if (__GLASGOW_HASKELL__ > 808) && (__GLASGOW_HASKELL__ < 900)
-import qualified Fingerprint    as GHC
-import qualified ToolSettings   as GHC
-#endif
-
-
-#if __GLASGOW_HASKELL__ > 808
-#else
+#if __GLASGOW_HASKELL__ < 808
 import Control.Exception
 #endif
 import Data.List hiding (find)
@@ -144,14 +136,14 @@ getCppTokensAsComments cppOptions sourceFile = do
                   let toks = GHC.addSourceToTokens startLoc source ts
                       cppCommentToks = getCppTokens directiveToks nonDirectiveToks toks
                   return $ filter goodComment
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
                          $  map (tokComment . GHC.commentToAnnotation . toRealLocated . fst) cppCommentToks
 #elif __GLASGOW_HASKELL__ > 800
                          $  map (tokComment . GHC.commentToAnnotation . fst) cppCommentToks
 #else
                          $  map (tokComment . commentToAnnotation . fst) cppCommentToks
 #endif
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
         GHC.PFailed pst -> parseError flags2 pst
 #elif __GLASGOW_HASKELL__ >= 804
         GHC.PFailed _ sspan err -> parseError flags2 sspan err
@@ -164,7 +156,7 @@ goodComment (Comment "" _ _) = False
 goodComment _              = True
 
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 toRealLocated :: GHC.Located a -> GHC.RealLocated a
 toRealLocated (GHC.L (GHC.RealSrcSpan s _) x) = GHC.L s              x
 toRealLocated (GHC.L _ x)                     = GHC.L badRealSrcSpan x
@@ -219,7 +211,7 @@ tokeniseOriginalSrc startLoc flags buf = do
   let src = stripPreprocessorDirectives buf
   case GHC.lexTokenStream src startLoc flags of
     GHC.POk _ ts -> return $ GHC.addSourceToTokens startLoc src ts
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
     GHC.PFailed pst -> parseError flags pst
 #elif __GLASGOW_HASKELL__ >= 804
     GHC.PFailed _ sspan err -> parseError flags sspan err
@@ -290,7 +282,7 @@ injectCppOptions CppOptions{..} dflags =
     mkInclude = ("-include" ++)
 
 
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
 addOptP :: String -> GHC.DynFlags -> GHC.DynFlags
 addOptP   f = alterToolSettings $ \s -> s
           { GHC.toolSettings_opt_P   = f : GHC.toolSettings_opt_P s
@@ -330,7 +322,7 @@ getPreprocessorAsComments srcFile = do
 
 -- ---------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
 parseError :: (GHC.MonadIO m) => GHC.DynFlags -> GHC.PState -> m b
 parseError dflags pst = do
      let
@@ -373,4 +365,3 @@ mergeBy cmp (allx@(x:xs)) (ally@(y:ys))
         -- Someone please put this code out of its misery.
     | (x `cmp` y) <= EQ = x : mergeBy cmp xs ally
     | otherwise = y : mergeBy cmp allx ys
-

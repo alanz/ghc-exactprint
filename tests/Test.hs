@@ -55,14 +55,14 @@ ghcVersion =
 testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
-    GHC710 -> ["ghc710-only",                           "ghc710", "vect"]
-    GHC80  -> [                            "pre-ghc90", "ghc710", "ghc80", "vect"]
-    GHC82  -> ["pre-ghc86",                "pre-ghc90", "ghc710", "ghc80", "ghc82", "vect"]
-    GHC84  -> ["pre-ghc86",  "pre-ghc810", "pre-ghc90", "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
-    GHC86  -> ["pre-ghc810", "pre-ghc810", "pre-ghc90", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
-    GHC88  -> ["pre-ghc810", "pre-ghc810", "pre-ghc90", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
-    GHC810 -> [                            "pre-ghc90", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
-    GHC90  -> [                                         "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90"]
+    GHC710 -> ["ghc710-only",             "ghc710", "vect"]
+    GHC80  -> [                           "ghc710", "ghc80", "vect"]
+    GHC82  -> ["pre-ghc86",               "ghc710", "ghc80", "ghc82", "vect"]
+    GHC84  -> ["pre-ghc86",  "pre-ghc88", "ghc710", "ghc80", "ghc82", "ghc84", "vect" ]
+    GHC86  -> [              "pre-ghc88", "ghc710", "ghc80", "ghc82", "ghc84", "ghc86" ]
+    GHC88  -> [                           "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88" ]
+    GHC810 -> [                           "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810" ]
+    GHC90  -> [                           "ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90"]
 
     -- GHC90  -> ["ghc90-copied"]
     -- GHC90  -> ["ghc90"]

@@ -49,22 +49,10 @@ import Language.Haskell.GHC.ExactPrint.Annotate
 import Language.Haskell.GHC.ExactPrint.Delta
 import Language.Haskell.GHC.ExactPrint.Preprocess
 import Language.Haskell.GHC.ExactPrint.Types
-
-import Control.Exception (IOException, catch)
-import Control.Monad.RWS
-#if __GLASGOW_HASKELL__ >= 900
-#elif __GLASGOW_HASKELL__ > 806
-import Data.Data (Data)
-#endif
-import Data.Maybe (fromMaybe)
-
-
-import GHC.Paths (libdir)
-
-import System.Environment (lookupEnv)
+import Language.Haskell.GHC.ExactPrint.Utils (ghcWrapper)
 
 import qualified GHC hiding (parseModule)
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 import qualified Control.Monad.IO.Class as GHC
 import qualified GHC.Data.FastString    as GHC
 import qualified GHC.Data.StringBuffer  as GHC
@@ -76,21 +64,19 @@ import qualified GHC.Parser.PostProcess as GHC
 import qualified GHC.Types.SrcLoc       as GHC
 import qualified GHC.Utils.Error        as GHC
 #else
--- import qualified ApiAnnotation as GHC
 import qualified DynFlags      as GHC
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
 import qualified ErrUtils      as GHC
 #endif
 import qualified FastString    as GHC
--- import qualified GHC           as GHC hiding (parseModule)
 import qualified HeaderInfo    as GHC
 import qualified Lexer         as GHC
 import qualified MonadUtils    as GHC
-#if __GLASGOW_HASKELL__ <= 808
+#if __GLASGOW_HASKELL__ < 808
 import qualified Outputable    as GHC
 #endif
 import qualified Parser        as GHC
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
 import qualified RdrHsSyn      as GHC
 #endif
 import qualified SrcLoc        as GHC
@@ -105,7 +91,6 @@ import qualified GHC.LanguageExtensions as LangExt
 
 import qualified Data.Map as Map
 
-
 {-# ANN module "HLint: ignore Eta reduce" #-}
 {-# ANN module "HLint: ignore Redundant do" #-}
 {-# ANN module "HLint: ignore Reduce duplication" #-}
@@ -113,24 +98,15 @@ import qualified Data.Map as Map
 
 -- | Wrapper function which returns Annotations along with the parsed
 -- element.
-#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
-parseWith :: (Data (GHC.SrcSpanLess w), Annotate w, GHC.HasSrcSpan w)
-          => GHC.DynFlags
-          -> FilePath
-          -> GHC.P w
-          -> String
-          -> ParseResult w
-#else
 parseWith :: Annotate w
           => GHC.DynFlags
           -> FilePath
           -> GHC.P (GHC.Located w)
           -> String
           -> ParseResult (GHC.Located w)
-#endif
 parseWith dflags fileName parser s =
   case runParser parser dflags fileName s of
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
     GHC.PFailed pst                       -> Left (GHC.getErrorMessages pst dflags)
 #elif __GLASGOW_HASKELL__ >= 804
     GHC.PFailed _ ss m                    -> Left (ss, GHC.showSDoc dflags m)
@@ -141,7 +117,7 @@ parseWith dflags fileName parser s =
       where as = relativiseApiAnns pmod apianns
 
 
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
 parseWithECP :: (GHC.DisambECP w, Annotate (GHC.Body w GHC.GhcPs))
           => GHC.DynFlags
           -> FilePath
@@ -176,12 +152,12 @@ runParser parser flags filename str = GHC.unP parser parseState
 withDynFlags :: (GHC.DynFlags -> a) -> IO a
 withDynFlags action = ghcWrapper $ do
   dflags <- GHC.getSessionDynFlags
-  void $ GHC.setSessionDynFlags dflags
+  _ <- GHC.setSessionDynFlags dflags
   return (action dflags)
 
 -- ---------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located GHC.HsModule)
 #else
 parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located (GHC.HsModule GhcPs))
@@ -190,7 +166,7 @@ parseFile = runParser GHC.parseModule
 
 -- ---------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
 type ParseResult a = Either GHC.ErrorMessages (Anns, a)
 #else
 type ParseResult a = Either (GHC.SrcSpan, String) (Anns, a)
@@ -200,7 +176,7 @@ type Parser a = GHC.DynFlags -> FilePath -> String
                 -> ParseResult a
 
 parseExpr :: Parser (GHC.LHsExpr GhcPs)
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
 parseExpr df fp = parseWithECP df fp GHC.parseExpression
 #else
 parseExpr df fp = parseWith df fp GHC.parseExpression
@@ -259,7 +235,7 @@ parseModuleFromStringInternal :: Parser GHC.ParsedSource
 parseModuleFromStringInternal dflags fileName str =
   let (str1, lp) = stripLinePragmas str
       res        = case runParser GHC.parseModule dflags fileName str1 of
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
         GHC.PFailed pst     -> Left (GHC.getErrorMessages pst dflags)
 #elif __GLASGOW_HASKELL__ >= 804
         GHC.PFailed _ ss m  -> Left (ss, GHC.showSDoc dflags m)
@@ -296,7 +272,7 @@ parseModuleApiAnnsWithCpp
   -> FilePath
   -> IO
        ( Either
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
            GHC.ErrorMessages
 #else
            (GHC.SrcSpan, String)
@@ -307,15 +283,6 @@ parseModuleApiAnnsWithCpp cppOptions file = ghcWrapper $ do
   dflags <- initDynFlags file
   parseModuleApiAnnsWithCppInternal cppOptions dflags file
 
--- | Internal function. Default runner of GHC.Ghc action in IO.
-ghcWrapper :: GHC.Ghc a -> IO a
-ghcWrapper ghc = do
-  let handler = return . const Nothing :: IOException -> IO (Maybe String)
-  rtLibdir <- liftIO $ lookupEnv "GHC_EXACTPRINT_GHC_LIBDIR" `catch` handler
-  let libdir' = fromMaybe libdir rtLibdir
-  GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut
-    . GHC.runGhc (Just libdir') $ ghc
-
 -- | Internal function. Exposed if you want to muck with DynFlags
 -- before parsing.
 parseModuleApiAnnsWithCppInternal
@@ -325,7 +292,7 @@ parseModuleApiAnnsWithCppInternal
   -> FilePath
   -> m
        ( Either
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
            GHC.ErrorMessages
 #else
            (GHC.SrcSpan, String)
@@ -350,7 +317,7 @@ parseModuleApiAnnsWithCppInternal cppOptions dflags file = do
         return (contents1,lp,dflags)
   return $
     case parseFile dflags' file fileContents of
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
       GHC.PFailed pst -> Left (GHC.getErrorMessages pst dflags)
 #elif __GLASGOW_HASKELL__ >= 804
       GHC.PFailed _ ss m -> Left $ (ss, (GHC.showSDoc dflags m))
@@ -421,7 +388,7 @@ initDynFlagsPure fp s = do
 
 mkApiAnns :: GHC.PState -> GHC.ApiAnns
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 mkApiAnns pstate
   = GHC.ApiAnns {
         GHC.apiAnnItems = Map.fromListWith (++) $ GHC.annotations pstate,

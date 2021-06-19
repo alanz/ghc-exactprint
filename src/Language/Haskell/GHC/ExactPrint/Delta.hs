@@ -124,7 +124,6 @@ module Language.Haskell.GHC.ExactPrint.Delta
   , normalLayout
   ) where
 
--- import Control.Exception
 import Control.Monad.RWS
 import Control.Monad.Trans.Free
 
@@ -141,15 +140,9 @@ import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Annotate
 
 import qualified GHC
-#if __GLASGOW_HASKELL__ >= 900
--- import qualified GHC.Parser.Annotation as GHC
--- import qualified GHC.Types.SrcLoc      as GHC
-#endif
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-
--- import Debug.Trace
 
 {-# ANN module "HLint: ignore Eta reduce" #-}
 {-# ANN module "HLint: ignore Redundant do" #-}
@@ -158,13 +151,8 @@ import qualified Data.Set as Set
 -- ---------------------------------------------------------------------
 -- | Transform concrete annotations into relative annotations which are
 -- more useful when transforming an AST.
-#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
-relativiseApiAnns :: (Data (GHC.SrcSpanLess ast), Annotate ast, GHC.HasSrcSpan ast)
-                  => ast
-#else
 relativiseApiAnns :: Annotate ast
                   => GHC.Located ast
-#endif
                   -> GHC.ApiAnns
                   -> Anns
 relativiseApiAnns = relativiseApiAnnsWithComments []
@@ -174,32 +162,19 @@ relativiseApiAnns = relativiseApiAnnsWithComments []
 -- by e.g. CPP, and the parts stripped out of the original source are re-added
 -- as comments so they are not lost for round tripping.
 relativiseApiAnnsWithComments ::
-#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
-                     (Data (GHC.SrcSpanLess ast), Annotate ast, GHC.HasSrcSpan ast)
-                  => [Comment]
-                  -> ast
-#else
                      Annotate ast
                   => [Comment]
                   -> GHC.Located ast
-#endif
                   -> GHC.ApiAnns
                   -> Anns
 relativiseApiAnnsWithComments =
     relativiseApiAnnsWithOptions normalLayout
 
 relativiseApiAnnsWithOptions ::
-#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
-                     (Data (GHC.SrcSpanLess ast), Annotate ast, GHC.HasSrcSpan ast)
-                  => DeltaOptions
-                  -> [Comment]
-                  -> ast
-#else
                      Annotate ast
                   => DeltaOptions
                   -> [Comment]
                   -> GHC.Located ast
-#endif
                   -> GHC.ApiAnns
                   -> Anns
 relativiseApiAnnsWithOptions opts cs modu ghcAnns
@@ -445,7 +420,7 @@ getSrcSpanForKw _ kw = do
     ss <- getSrcSpan
     case GHC.getAnnotation ga (rs ss) kw of
       []     -> return GHC.noSrcSpan
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
       (sp:_) -> return (GHC.RealSrcSpan sp Nothing)
 #else
       (sp:_) -> return sp
@@ -456,13 +431,8 @@ getSrcSpanForKw _ kw = do
 getSrcSpan :: Delta GHC.SrcSpan
 getSrcSpan = asks curSrcSpan
 
-#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
-withSrcSpanDelta :: (Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a) => a -> Delta b -> Delta b
-withSrcSpanDelta (GHC.dL->GHC.L l a) =
-#else
 withSrcSpanDelta :: Data a => GHC.Located a -> Delta b -> Delta b
 withSrcSpanDelta (GHC.L l a) =
-#endif
   local (\s -> s { curSrcSpan = l
                  , annConName = annGetConstr a
                  , drContext = pushAcs (drContext s)
@@ -554,7 +524,7 @@ getOneAnnotationDelta an = do
 
 getAndRemoveOneAnnotationDelta :: GHC.SrcSpan -> GHC.AnnKeywordId -> Delta ([AnnSpan],GHC.AnnKeywordId)
 getAndRemoveOneAnnotationDelta sp an = do
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
     ann <- gets apAnns
     let anns = GHC.apiAnnItems ann
     let cs = GHC.apiAnnComments ann -- TODO:AZ: what about apiAnnRogueComments?
@@ -578,7 +548,7 @@ getAndRemoveOneAnnotationDelta sp an = do
           case getKw an of
             ([],_,_) -> getKw (GHC.unicodeAnn an)
             v        -> v
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
     let ga' = ann {  GHC.apiAnnItems = a', GHC.apiAnnComments = c' }
 #else
     let ga' = (a',c')
@@ -607,17 +577,10 @@ addAnnDeltaPos kw dp = tellKd (kw, dp)
 -- -------------------------------------
 
 -- | Enter a new AST element. Maintain SrcSpan stack
-#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
-withAST :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
-        => a
-        -> Delta b -> Delta b
-withAST lss@(GHC.dL->GHC.L ss _) action = do
-#else
 withAST :: Data a
         => GHC.Located a
         -> Delta b -> Delta b
 withAST lss@(GHC.L ss _) action = do
-#endif
   -- Calculate offset required to get to the start of the SrcSPan
   off <- gets apLayoutStart
   (resetAnns .  withSrcSpanDelta lss) (do
@@ -770,7 +733,7 @@ commentAllocation p k = do
   where
     -- unpack a RealSrcSpan into ((start line, start col), (end line, end col)).
     -- The file name is ignored.
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
     unpack :: GHC.RealSrcSpan -> Maybe ((Int, Int), (Int, Int))
     unpack x =
 #else
@@ -890,7 +853,7 @@ addDeltaAnnotationExt :: AnnSpan -> GHC.AnnKeywordId -> Delta ()
 addDeltaAnnotationExt s ann = addAnnotationWorker (G ann) s
 
 addEofAnnotation :: Delta ()
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 addEofAnnotation = do
   pe <- getPriorEnd
   ga <- gets apAnns

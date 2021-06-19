@@ -22,7 +22,7 @@ module Test.Common (
               , genTest
               , noChange
               , mkDebugOutput
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
               , showErrorMessages
 #endif
               ) where
@@ -36,9 +36,9 @@ import Language.Haskell.GHC.ExactPrint.Preprocess
 import Language.Haskell.GHC.ExactPrint.Types
 
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 import qualified Control.Monad.IO.Class as GHC
-import qualified GHC           as GHC hiding (parseModule)
+import qualified GHC hiding (parseModule)
 import qualified GHC.Data.Bag          as GHC
 import qualified GHC.Driver.Session    as GHC
 import qualified GHC.Utils.Error       as GHC
@@ -46,7 +46,7 @@ import qualified GHC.Utils.Outputable  as GHC
 #else
 import qualified ApiAnnotation as GHC
 import qualified DynFlags      as GHC
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
 import qualified Bag           as GHC
 import qualified ErrUtils      as GHC
 #endif
@@ -149,7 +149,7 @@ genTest f origFile expectedFile  = do
       let pristine = expected
 
       case res of
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
         Left m -> return . Left $ ParseFailure (showErrorMessages m)
 #else
         Left (_ss, m) -> return . Left $ ParseFailure m
@@ -194,7 +194,7 @@ mkDebugOutput filename printed original apianns anns parsed =
 
 
 runRoundTrip :: Changer
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
              -> GHC.ApiAnns -> GHC.Located GHC.HsModule
 #else
              -> GHC.ApiAnns -> GHC.Located (GHC.HsModule GhcPs)
@@ -243,14 +243,14 @@ getModSummaryForFile fileName = do
 
 -- ---------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ > 808
+#if __GLASGOW_HASKELL__ >= 808
 showErrorMessages :: GHC.ErrorMessages -> String
 showErrorMessages m = show $ GHC.bagToList m
 #endif
 
 -- ---------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 instance GHC.Outputable GHC.ApiAnns where
   ppr (GHC.ApiAnns items eof comments rogueComments)
     = GHC.text "ApiAnns" GHC.<+> GHC.ppr items

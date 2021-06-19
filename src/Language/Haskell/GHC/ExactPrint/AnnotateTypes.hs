@@ -24,14 +24,7 @@
 -- future versions of GHC these can be simplified by making suitable
 -- modifications to the AST.
 
-module Language.Haskell.GHC.ExactPrint.AnnotateTypes
-       -- (
-       --   AnnotationF(..)
-       -- , Annotated
-       -- , Annotate(..)
-
-       -- )
-      where
+module Language.Haskell.GHC.ExactPrint.AnnotateTypes where
 
 #if __GLASGOW_HASKELL__ <= 710
 import Data.Ord ( comparing )
@@ -40,12 +33,12 @@ import Data.List ( sortBy )
 
 import Language.Haskell.GHC.ExactPrint.Types
 
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 import qualified GHC.Types.Basic as GHC
 #elif __GLASGOW_HASKELL__ > 800
 import qualified BasicTypes     as GHC
 #endif
-import qualified GHC            as GHC
+import qualified GHC
 #if __GLASGOW_HASKELL__ <= 710
 import qualified BooleanFormula as GHC
 import qualified Outputable     as GHC
@@ -57,9 +50,6 @@ import Control.Monad.Identity
 import Data.Data
 
 import qualified Data.Set as Set
-
--- import Debug.Trace
-
 
 {-# ANN module "HLint: ignore Eta reduce" #-}
 {-# ANN module "HLint: ignore Redundant do" #-}
@@ -120,13 +110,8 @@ data AnnotationF next where
   MarkManyOptional :: GHC.AnnKeywordId                                     -> next -> AnnotationF next
   MarkOffsetPrim   :: GHC.AnnKeywordId -> Int -> Maybe String              -> next -> AnnotationF next
   MarkOffsetPrimOptional :: GHC.AnnKeywordId -> Int -> Maybe String        -> next -> AnnotationF next
-#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
-  WithAST         :: (Data a,Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a) =>
-                           a -> Annotated b                                -> next -> AnnotationF next
-#else
   WithAST          :: Data a => GHC.Located a
                              -> Annotated b                                -> next -> AnnotationF next
-#endif
   CountAnns        :: GHC.AnnKeywordId                        -> (Int     -> next) -> AnnotationF next
   WithSortKey      :: [(AnnSpan, Annotated ())]                            -> next -> AnnotationF next
 
@@ -220,12 +205,7 @@ workOutString l kw f = do
 -- ---------------------------------------------------------------------
 
 -- |Main driver point for annotations.
-#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
-withAST :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
-        => a -> Annotated () -> Annotated ()
-#else
 withAST :: Data a => GHC.Located a -> Annotated () -> Annotated ()
-#endif
 withAST lss action = liftF (WithAST lss action ())
 
 -- ---------------------------------------------------------------------
@@ -257,21 +237,12 @@ markTrailingSemi = markOutside GHC.AnnSemi AnnSemiSep
 
 -- ---------------------------------------------------------------------
 
-#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
-withLocated :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
-            => a
-            -> (GHC.SrcSpan -> a -> Annotated ())
-            -> Annotated ()
-withLocated a@(GHC.dL->GHC.L l _) action =
-  withAST a (action l a)
-#else
 withLocated :: Data a
             => GHC.Located a
             -> (GHC.SrcSpan -> a -> Annotated ())
             -> Annotated ()
 withLocated a@(GHC.L l t) action =
   withAST a (action l t)
-#endif
 
 -- ---------------------------------------------------------------------
 

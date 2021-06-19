@@ -19,7 +19,7 @@ checkConsistency anns ast =
   in filter (\s -> not (cons s)) (getAnnSrcSpans anns)
 
 getAnnSrcSpans :: ApiAnns -> [(AnnSpan,(AnnKeywordId,[AnnSpan]))]
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
 getAnnSrcSpans anns = map (\((ss,k),v) -> (ss,(k,v))) $ Map.toList (GHC.apiAnnItems anns)
 #else
 getAnnSrcSpans (anns,_) = map (\((ss,k),v) -> (ss,(k,v))) $ Map.toList anns
@@ -30,4 +30,3 @@ getAllSrcSpans ast = everything (++) ([] `mkQ` getSrcSpan) ast
   where
     getSrcSpan :: SrcSpan -> [SrcSpan]
     getSrcSpan ss = [ss]
-

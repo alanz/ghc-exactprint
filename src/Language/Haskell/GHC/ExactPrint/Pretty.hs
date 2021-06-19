@@ -199,7 +199,7 @@ prettyInterpret = iterTM go
 
 addEofAnnotation :: Pretty ()
 addEofAnnotation = do
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
   tellKd (AnnEofPos, DP (1,0))
 #else
   tellKd (G GHC.AnnEofPos, DP (1,0))
@@ -232,7 +232,7 @@ addPrettyAnnotation ann = do
            (G GHC.AnnDcolon)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnDeriving)     -> tellKd (ann,DP (0,1))
            (G GHC.AnnDo)           -> tellKd (ann,DP (0,1))
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
            (G GHC.AnnDollar)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnDollarDollar) -> tellKd (ann,DP (0,1))
 #endif
@@ -250,7 +250,7 @@ addPrettyAnnotation ann = do
            (G GHC.AnnInstance)     -> tellKd (ann,DP (0,1))
            (G GHC.AnnLam)          -> tellKd (ann,DP (0,1))
            (G GHC.AnnLet)          -> tellKd (ann,DP (0,1))
-#if __GLASGOW_HASKELL__ >= 900
+#if __GLASGOW_HASKELL__ >= 808
            -- (G GHC.AnnLolly)        -> tellKd (ann,DP (0,1))
            (G GHC.AnnLollyU)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnPercentOne)   -> tellKd (ann,DP (0,1))
@@ -263,7 +263,7 @@ addPrettyAnnotation ann = do
            (G GHC.AnnOpenC)        -> tellKd (ann,DP (0,0))
            (G GHC.AnnOpenP)        -> tellKd (ann,DP (0,1))
            (G GHC.AnnOpenS)        -> tellKd (ann,DP (0,1))
-#if __GLASGOW_HASKELL__ < 900
+#if __GLASGOW_HASKELL__ < 808
            (G GHC.AnnOpenPE)       -> tellKd (ann,DP (0,1))
            (G GHC.AnnOpenPTE)      -> tellKd (ann,DP (0,1))
 #endif
@@ -278,7 +278,7 @@ addPrettyAnnotation ann = do
            (G GHC.AnnStock)        -> tellKd (ann,DP (0,1))
 #endif
            (G GHC.AnnSimpleQuote)  -> tellKd (ann,DP (0,1))
-#if __GLASGOW_HASKELL__ < 900
+#if __GLASGOW_HASKELL__ < 808
            (G GHC.AnnThIdSplice)   -> tellKd (ann,DP (0,1))
            (G GHC.AnnThIdTySplice) -> tellKd (ann,DP (0,1))
 #endif
@@ -336,13 +336,8 @@ putUnallocatedComments cs = modify (\s -> s { apComments = cs } )
 
 -- ---------------------------------------------------------------------
 
-#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
-withSrcSpanPretty :: (Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a) => a -> Pretty b -> Pretty b
-withSrcSpanPretty (GHC.dL->GHC.L l a) action = do
-#else
 withSrcSpanPretty :: Data a => GHC.Located a -> Pretty b -> Pretty b
 withSrcSpanPretty (GHC.L l a) action = do
-#endif
   -- peek into the current state of the output, to extract the layout context
   -- flags passed up from subelements of the AST.
   (_,w) <- listen (return () :: Pretty ())
@@ -359,17 +354,10 @@ withSrcSpanPretty (GHC.L l a) action = do
 -- ---------------------------------------------------------------------
 
 -- | Enter a new AST element. Maintain SrcSpan stack
-#if (__GLASGOW_HASKELL__ > 806) && (__GLASGOW_HASKELL__ < 900)
-withAST :: (Data a, Data (GHC.SrcSpanLess a), GHC.HasSrcSpan a)
-        => a
-        -> Pretty b -> Pretty b
-withAST lss@(GHC.dL->GHC.L ss t) action = do
-#else
 withAST :: Data a
         => GHC.Located a
         -> Pretty b -> Pretty b
 withAST lss@(GHC.L ss t) action = do
-#endif
   return () `debug` ("Pretty.withAST:enter 1:(ss)=" ++ showGhc (ss,showConstr (toConstr t)))
   -- Calculate offset required to get to the start of the SrcSPan
   -- off <- gets apLayoutStart

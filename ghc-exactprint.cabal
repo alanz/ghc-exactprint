@@ -58,9 +58,8 @@ extra-source-files:  ChangeLog
                      tests/examples/ghc86/*.hs
                      tests/examples/ghc88/*.hs
                      tests/examples/ghc90/*.hs
-                     tests/examples/pre-ghc810/*.hs
                      tests/examples/pre-ghc86/*.hs
-                     tests/examples/pre-ghc90/*.hs
+                     tests/examples/pre-ghc88/*.hs
                      tests/examples/vect/*.hs
                      tests/examples/transform/*.hs
                      tests/examples/failing/*.hs.bad
@@ -82,6 +81,10 @@ Flag dev {
   Default:     False
 }
 
+Flag ghc-lib {
+  Description: Force dependency on ghc-lib-parser when using GHC 9.0
+  Default:     False
+}
 
 library
   exposed-modules:     Language.Haskell.GHC.ExactPrint
@@ -113,7 +116,6 @@ library
                      , containers >= 0.5
                      , directory >= 1.2
                      , filepath  >= 1.4
-                     , ghc       >= 7.10.2
                      , ghc-paths >= 0.1
                      , mtl       >= 2.2.1
                      , syb       >= 0.5
@@ -123,32 +125,33 @@ library
     build-depends:
       fail >= 4.9 && <4.10
 
-  if impl (ghc >= 7.11)
-      build-depends: ghc-boot
-  hs-source-dirs:      src
-
-  if impl (ghc > 8.10.9)
-      hs-source-dirs: src-ghc90
+  if impl (ghc > 8.6.5) && (impl (ghc < 9.0.0) || flag (ghc-lib))
+      build-depends: ghc-lib >= 9.0.1 && < 9.1
   else
-    if impl (ghc > 8.8.4)
-        hs-source-dirs: src-ghc810
+    if impl (ghc >= 7.11)
+      build-depends:
+            ghc
+          , ghc-boot
     else
-      if impl (ghc > 8.6.5)
-          hs-source-dirs: src-ghc88
+      build-depends: ghc
+
+  hs-source-dirs:      src
+  if impl (ghc > 8.6.5)
+      hs-source-dirs: src-ghc88-810-90
+  else
+    if impl (ghc > 8.4.4)
+        hs-source-dirs: src-ghc86
+    else
+      if impl (ghc > 8.2.2)
+          hs-source-dirs: src-ghc84
       else
-        if impl (ghc > 8.4.4)
-            hs-source-dirs: src-ghc86
+        if impl (ghc > 8.0.3)
+            hs-source-dirs: src-ghc82
         else
-          if impl (ghc > 8.2.2)
-              hs-source-dirs: src-ghc84
+          if impl (ghc > 7.10.3)
+              hs-source-dirs: src-ghc80
           else
-            if impl (ghc > 8.0.3)
-                hs-source-dirs: src-ghc82
-            else
-              if impl (ghc > 7.10.3)
-                  hs-source-dirs: src-ghc80
-              else
-                  hs-source-dirs: src-ghc710
+              hs-source-dirs: src-ghc710
 
   default-language:    Haskell2010
   if impl (ghc < 7.10.2)
@@ -162,28 +165,22 @@ Test-Suite test
   else
     hs-source-dirs:      tests
 
-  if impl (ghc > 8.10.9)
-      hs-source-dirs: src-ghc90
+  if impl (ghc > 8.6.5)
+      hs-source-dirs: src-ghc88-810-90
   else
-    if impl (ghc > 8.8.4)
-        hs-source-dirs: src-ghc810
+    if impl (ghc > 8.4.4)
+        hs-source-dirs: src-ghc86
     else
-      if impl (ghc > 8.6.5)
-          hs-source-dirs: src-ghc88
+      if impl (ghc > 8.2.2)
+          hs-source-dirs: src-ghc84
       else
-        if impl (ghc > 8.4.4)
-            hs-source-dirs: src-ghc86
+        if impl (ghc > 8.0.3)
+            hs-source-dirs: src-ghc82
         else
-          if impl (ghc > 8.2.2)
-              hs-source-dirs: src-ghc84
+          if impl (ghc > 7.10.3)
+              hs-source-dirs: src-ghc80
           else
-            if impl (ghc > 8.0.3)
-                hs-source-dirs: src-ghc82
-            else
-              if impl (ghc > 7.10.3)
-                  hs-source-dirs: src-ghc80
-              else
-                  hs-source-dirs: src-ghc710
+              hs-source-dirs: src-ghc710
 
   main-is:             Test.hs
   other-modules:       Test.Common
@@ -205,7 +202,6 @@ Test-Suite test
                      , Diff
                      , directory >= 1.2
                      , filepath  >= 1.4
-                     , ghc  >= 7.10.2
                      , ghc-paths  >= 0.1
                      , mtl        >= 2.2.1
                      , syb        >= 0.5
@@ -220,8 +216,15 @@ Test-Suite test
   else
       build-depends: ghc-exactprint
 
-  if impl (ghc >= 7.11)
-      build-depends: ghc-boot
+  if impl (ghc > 8.6.5) && (impl (ghc < 9.0.0) || flag (ghc-lib))
+      build-depends: ghc-lib >= 9.0.1 && < 9.1
+  else
+    if impl (ghc >= 7.11)
+      build-depends:
+            ghc
+          , ghc-boot
+    else
+      build-depends: ghc
 
 executable roundtrip
   main-is: Roundtrip.hs
@@ -238,21 +241,28 @@ executable roundtrip
                , directory
                , filemanip
                , filepath
-               , ghc
                , ghc-exactprint
                , ghc-paths
                , syb
                , temporary
                , time
-    if impl (ghc >= 7.11)
-        build-depends: ghc-boot
     buildable: True
+    if impl (ghc >= 8.0.1)
+      GHC-Options:         -threaded -Wall -Wredundant-constraints
+    else
+      GHC-Options:         -threaded -Wall
+    if impl (ghc > 8.6.5) && (impl (ghc < 9.0.0) || flag (ghc-lib))
+        build-depends: ghc-lib >= 9.0.1 && < 9.1
+    else
+      if impl (ghc >= 7.11)
+        build-depends:
+              ghc
+            , ghc-boot
+      else
+        build-depends: ghc
   else
     buildable: False
-  if impl (ghc >= 8.0.1)
-    GHC-Options:         -threaded -Wall -Wredundant-constraints
-  else
-    GHC-Options:         -threaded -Wall
+
 
 executable static
   main-is: Static.hs
@@ -263,11 +273,17 @@ executable static
                  , directory
                  , filemanip
                  , filepath
-                 , ghc
                  , Diff
     buildable: True
-    if impl (ghc >= 7.11)
-        build-depends: ghc-boot
+    if impl (ghc > 8.6.5) && (impl (ghc < 9.0.0) || flag (ghc-lib))
+        build-depends: ghc-lib >= 9.0.1 && < 9.1
+    else
+      if impl (ghc >= 7.11)
+        build-depends:
+              ghc
+            , ghc-boot
+      else
+        build-depends: ghc
   else
     buildable: False
   if impl (ghc >= 8.0.1)
@@ -285,14 +301,20 @@ executable prepare-hackage
                  , directory
                  , filemanip
                  , filepath
-                 , ghc       >= 7.10.2
                  , ghc-paths >= 0.1
                  , HUnit
                  , text   >= 1.2.2
                  , turtle >= 1.3.0
     buildable: True
-    if impl (ghc >= 7.11)
-        build-depends: ghc-boot
+    if impl (ghc > 8.6.5) && (impl (ghc < 9.0.0) || flag (ghc-lib))
+        build-depends: ghc-lib >= 9.0.1 && < 9.1
+    else
+      if impl (ghc >= 7.11)
+        build-depends:
+              ghc
+            , ghc-boot
+      else
+        build-depends: ghc
   else
     buildable: False
   if impl (ghc >= 8.0.1)
