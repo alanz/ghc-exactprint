@@ -45,6 +45,8 @@ tested-with:         GHC == 7.10.3
                    , GHC == 8.8.4
                    , GHC == 8.10.1
                    , GHC == 8.10.2
+                   , GHC == 8.10.3
+                   , GHC == 8.10.4
                    , GHC == 9.0.1
 extra-source-files:  ChangeLog
                      src-ghc710/Language/Haskell/GHC/ExactPrint/*.hs
