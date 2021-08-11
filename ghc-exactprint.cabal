@@ -83,7 +83,7 @@ library
   -- other-extensions:
   GHC-Options:         -Wall -Wredundant-constraints
   -- GHC-Options:         -Weverything
-  build-depends:       base >=4.8 && <4.16
+  build-depends:       base >=4.8 && <4.18
                      , bytestring >= 0.10.6
                      , containers >= 0.5
                      , directory >= 1.2
@@ -119,7 +119,7 @@ Test-Suite test
   if impl (ghc < 9.2)
       buildable: False
   Build-depends:       HUnit >= 1.2
-                     , base < 4.16
+                     , base < 4.18
                      , bytestring
                      , containers >= 0.5
                      , Diff
@@ -144,7 +144,7 @@ executable roundtrip
   hs-source-dirs: tests
   other-modules: Test.Common
                  Test.CommonUtils
-                 Test.Consistency
+                 -- Test.Consistency
   default-language:    Haskell2010
   if impl (ghc >= 7.10.2) && flag (roundtrip)
     build-depends:
@@ -177,9 +177,8 @@ executable static
                  , filepath
                  , ghc
                  , Diff
+                 , ghc-boot
     buildable: True
-    if impl (ghc >= 7.11)
-        build-depends: ghc-boot
   else
     buildable: False
   GHC-Options:         -threaded -Wall -Wredundant-constraints
