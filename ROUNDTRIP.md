@@ -6,8 +6,8 @@ on the most recent version of all packages in hackage.
 ### Preparations
 
 ```
-cabal new-configure -froundtrip --enable-tests
-cabal new-build
+cabal configure -froundtrip --enable-tests
+cabal build
 ```
 
 This will generate three additional executables
@@ -16,7 +16,7 @@ This will generate three additional executables
 
   ```
   mkdir hackage-roundtrip-work
-  cabal new-exec prepare-hackage
+  cabal exec prepare-hackage
   ```
 
   This will manage the `cabal` programme to call `cabal get` for each package on

@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
+import qualified GHC.Paths
 import Control.Exception
 import Control.Monad
 import Data.Time.Clock
@@ -13,7 +14,6 @@ import System.Environment
 import System.Exit
 import System.FilePath
 import System.IO
--- import System.IO.Temp
 import Test.Common
 import Test.CommonUtils
 import Test.HUnit
@@ -74,6 +74,7 @@ readFileIfPresent fileName = do
 
 main :: IO ()
 main = do
+  let libdir = GHC.Paths.libdir
   createDirectoryIfMissing True workDir
   createDirectoryIfMissing True configDir
   createDirectoryIfMissing True failuresDir
@@ -82,7 +83,7 @@ main = do
     [] -> putStrLn "Must enter directory to process"
     ["failures"] -> do
       fs <- lines <$> readFile origFailuresFile
-      () <$ runTests (TestList (map mkParserTest fs))
+      () <$ runTests (TestList (map (mkParserTest libdir) fs))
     ["clean"] -> do
       putStrLn "Cleaning..."
       writeFile processed ""
@@ -101,7 +102,7 @@ main = do
       !cppList       <- lines <$> readFile cppFile
       !parseFailList <- lines <$> readFile parseFailFile
       let done = S.fromList (processedList ++ cppList ++ blackList ++ knownFailures ++ parseFailList)
-      tsts <- TestList <$> mapM (tests done) ds
+      tsts <- TestList <$> mapM (tests libdir done) ds
       _ <- runTests tsts
       return ()
 
@@ -112,34 +113,34 @@ runTests t = do
   putStrLn $ "Verbosity: " ++ show verb
   runTestTT t
 
-tests :: S.Set String ->  FilePath -> IO Test
-tests done dir = do
-  roundTripHackage done dir
+tests :: LibDir -> S.Set String ->  FilePath -> IO Test
+tests libdir done dir = do
+  roundTripHackage libdir done dir
 
 -- Selection:
 
 -- Hackage dir
-roundTripHackage :: S.Set String -> FilePath -> IO Test
-roundTripHackage done hackageDir = do
+roundTripHackage :: LibDir -> S.Set String -> FilePath -> IO Test
+roundTripHackage libdir done hackageDir = do
   packageDirs <- drop 2 <$> getDirectoryContents hackageDir
   when (verb <= Debug) (traceShowM hackageDir)
   when (verb <= Debug) (traceShowM packageDirs)
-  TestList <$> mapM (roundTripPackage done) (zip [0..] (map (hackageDir </>) packageDirs))
+  TestList <$> mapM (roundTripPackage libdir done) (zip [0..] (map (hackageDir </>) packageDirs))
 
 
-roundTripPackage :: S.Set String -> (Int, FilePath) -> IO Test
-roundTripPackage done (n, dir) = do
+roundTripPackage :: LibDir -> S.Set String -> (Int, FilePath) -> IO Test
+roundTripPackage libdir done (n, dir) = do
   putStrLn (show n)
   when (verb <= Status) (traceM dir)
   hsFiles <- filter (flip S.notMember done)  <$> findSrcFiles dir
 
-  return (TestLabel (dropFileName dir) (TestList $ map mkParserTest hsFiles))
+  return (TestLabel (dropFileName dir) (TestList $ map (mkParserTest libdir) hsFiles))
 
-mkParserTest :: FilePath -> Test
-mkParserTest fp =
+mkParserTest :: LibDir -> FilePath -> Test
+mkParserTest libdir fp =
     TestLabel fp $
     TestCase (do writeLog $ "starting:" ++ fp
-                 r1 <- catchAny (roundTripTest fp) $ \e -> do
+                 r1 <- catchAny (roundTripTest libdir fp) $ \e -> do
                    writeError fp
                    throwIO e
                  case r1 of

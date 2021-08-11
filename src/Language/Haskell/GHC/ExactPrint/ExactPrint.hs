@@ -29,7 +29,6 @@ import GHC.Types.ForeignCall
 import GHC.Types.SourceText
 import GHC.Types.Var
 import GHC.Utils.Outputable hiding ( (<>) )
-import GHC.Driver.Ppr
 import GHC.Unit.Module.Warnings
 import GHC.Utils.Misc
 import GHC.Utils.Panic
