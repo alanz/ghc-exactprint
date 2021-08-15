@@ -1,27 +1,13 @@
 name:                ghc-exactprint
-version:             0.6.4
+version:             1.1.0
 synopsis:            ExactPrint for GHC
-description:         Using the API Annotations available from GHC 7.10.2, this
+description:         Using the API Annotations available from GHC 9.2.1, this
                      library provides a means to round trip any code that can
                      be compiled by GHC, currently excluding lhs files.
                      .
-                     It does this with a phased approach
+                     Note: requires GHC 9.2 or later. For GHC versions from
+                           7.10.2 to 9.0.* see this library with versions < 1.1
                      .
-                        * Delta - converts GHC API Annotations into relative
-                          offsets, indexed by SrcSpan
-                     .
-                        * Transform - functions to facilitate changes to
-                          the AST, adjusting the annotations generated in the
-                          Delta phase to suit the changes.
-                     .
-                        * Print - converts an AST and its annotations to
-                          properly formatted source text.
-                     .
-                        * Pretty - adds annotations to an AST (fragment) so that
-                          the output can be parsed back to the same AST.
-                     .
-                     .
-                     Note: requires GHC 7.10.2 or later
 
 license:             BSD3
 license-file:        LICENSE
@@ -30,7 +16,7 @@ maintainer:          alan.zimm@gmail.com
 category:            Development
 build-type:          Simple
 -- tested-with:         GHC == 9.2.1
-tested-with:         GHC == 9.2.0.20210422
+tested-with:         GHC == 9.2.0.20210806
 extra-source-files:  ChangeLog
                      tests/examples/failing/*.hs
                      tests/examples/ghc710-only/*.hs
@@ -84,9 +70,10 @@ library
   -- other-extensions:
   GHC-Options:         -Wall -Wredundant-constraints
   -- GHC-Options:         -Weverything
-  build-depends:       base >=4.8 && <4.18
+  build-depends:       base >=4.16 && <4.18
                      , bytestring >= 0.10.6
                      , containers >= 0.5
+                     , ordered-containers
                      , directory >= 1.2
                      , filepath  >= 1.4
                      , ghc       >= 7.10.2
@@ -94,7 +81,7 @@ library
                      , mtl       >= 2.2.1
                      , syb       >= 0.5
                      , free      >= 4.12
-                     , fail >= 4.9 && <4.10
+                     , fail      >= 4.9 && <4.10
                      , ghc-boot
 
 
@@ -123,6 +110,7 @@ Test-Suite test
                      , base < 4.18
                      , bytestring
                      , containers >= 0.5
+                     , ordered-containers
                      , Diff
                      , directory >= 1.2
                      , filepath  >= 1.4
@@ -147,7 +135,7 @@ executable roundtrip
                  Test.CommonUtils
                  -- Test.Consistency
   default-language:    Haskell2010
-  if impl (ghc >= 7.10.2) && flag (roundtrip)
+  if impl (ghc >= 9.2) && flag (roundtrip)
     build-depends:
                  HUnit
                , base
@@ -194,7 +182,7 @@ executable prepare-hackage
                  , directory
                  , filemanip
                  , filepath
-                 , ghc       >= 7.10.2
+                 , ghc       >= 9.2
                  , ghc-paths >= 0.1
                  , HUnit
                  , text   >= 1.2.2
