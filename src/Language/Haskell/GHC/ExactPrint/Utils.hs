@@ -31,7 +31,6 @@ import qualified GHC
 import GHC.Types.Name
 import GHC.Types.Name.Reader
 import GHC.Types.SrcLoc
--- import GHC.Driver.Ppr
 import GHC.Data.FastString
 import GHC.Utils.Outputable (showSDocUnsafe, showPprUnsafe)
 
@@ -40,7 +39,6 @@ import qualified GHC.Types.Name.Occurrence as OccName (OccName(..),pprNameSpaceB
 import Control.Arrow
 
 import qualified Data.Map as Map
--- import Data.Data hiding ( Fixity )
 import Data.List (sortBy, elemIndex)
 
 import Debug.Trace
@@ -50,8 +48,8 @@ import Language.Haskell.GHC.ExactPrint.Types
 
 -- |Global switch to enable debug tracing in ghc-exactprint Delta / Print
 debugEnabledFlag :: Bool
-debugEnabledFlag = True
--- debugEnabledFlag = False
+-- debugEnabledFlag = True
+debugEnabledFlag = False
 
 -- |Global switch to enable debug tracing in ghc-exactprint Pretty
 debugPEnabledFlag :: Bool

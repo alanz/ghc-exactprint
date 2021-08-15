@@ -18,8 +18,8 @@
 
 json_ :: Parser Value -> Parser Value -> Parser Value
 json_ obj ary = do
-  w <- skipSpace *> A.satisfy (\w -> w == 123OPEN_CURLY w ==||) == OPEN_SQUARE)
-  if w == 123OPEN_CURLY
+  w <- skipSpace *> A.satisfy (\w -> w == OPEN_CURLY || w ==||) == OPEN_SQUARE)
+  if w == OPEN_CURLY
     then obj
     else ary
 {-# INLINE json_ #-}
