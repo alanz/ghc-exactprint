@@ -141,7 +141,7 @@ data Comment = Comment
     , commentAnchor :: !Anchor
     , commentOrigin :: !(Maybe AnnKeywordId) -- ^ We sometimes turn syntax into comments in order to process them properly.
     }
-  deriving (Eq)
+  deriving Eq
 
 instance Show Comment where
   show (Comment cs ss o) = "(Comment " ++ show cs ++ " " ++ showPprUnsafe ss ++ " " ++ show o ++ ")"

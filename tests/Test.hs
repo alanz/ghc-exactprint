@@ -180,7 +180,19 @@ tt' = do
     -- mkParserTest libdir      "ghc92" "Checkpoint.hs"
     -- mkParserTest libdir      "ghc710" "MultiLineCommentWithPragmas.hs"
 
-    mkParserTest libdir      "ghc92" "API.hs"
+    -- mkParserTest libdir      "ghc710" "Process.hs"
+    -- mkParserTest libdir      "ghc92" "PostgreSQL.hs"
+    -- mkParserTest libdir      "ghc92" "Main.hs"
+    -- mkParserTest libdir      "ghc92" "MainHareTest.hs"
+    -- mkParserTest libdir      "ghc92" "TH.hs"
+    -- mkParserTest libdir      "ghc92" "Parse.hs"
+    -- mkParserTest libdir      "ghc92" "proc-lets.hs"
+    -- mkParserTest libdir      "ghc92" "n-plus-k-patterns.hs"
+    mkParserTest libdir      "ghc92" "RList.hs"
+
+    -- Following broken by bringing in OSet for comments. Line changes, screws it up, I guess.
+    -- mkParserTest libdir      "ghc710" "LinePragma.hs"
+
 
     -- mkTestModChange libdir rmDecl1  "RmDecl1.hs"
 

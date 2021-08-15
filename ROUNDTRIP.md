@@ -65,8 +65,8 @@ TODO: change it to # *define
   ```
   cabal exec roundtrip -- clean
   cabal exec roundtrip -- ./hackage-roundtrip-work/* +RTS -N2
-  cabal -exec roundtrip -- failures
-  cabal -exec static
+  cabal exec roundtrip -- failures
+  cabal exec static
   ```
 
   It expects its arguments to be a list of unpacked hackage package directories.
