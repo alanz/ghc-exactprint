@@ -60,21 +60,13 @@ TODO: change it to # *define
 
   This actually runs the roundtrip test
 
-  Invoke it as one of
+  Invoke it as
 
   ```
-  cabal new-exec roundtrip -- clean
-  cabal new-exec roundtrip -- ./hackage-roundtrip-work/* +RTS -N2
-  cabal new-exec roundtrip -- failures
-  cabal new-exec static
-  ```
-
-  Or, old cabal
-
-  ```
-  ./dist/build/roundtrip/roundtrip ./hackage-roundtrip-work/* +RTS -N2
-  ./dist/build/roundtrip/roundtrip clean
-  ./dist/build/roundtrip/roundtrip failures
+  cabal exec roundtrip -- clean
+  cabal exec roundtrip -- ./hackage-roundtrip-work/* +RTS -N2
+  cabal -exec roundtrip -- failures
+  cabal -exec static
   ```
 
   It expects its arguments to be a list of unpacked hackage package directories.
@@ -87,35 +79,36 @@ TODO: change it to # *define
   `./roundtrip-config/blacklist.txt` is a list of files known to cause a segfault,
   which are normally ones generated, particularly by `alex` and `happy`.
 
-  `,.roundtrip-config/knownfailures.txt` is a list of files that fail to
-  roundtrip, but cannot be fixed. Examples of these are ones that use CPP to
-  `#define` a constant which is used in the code. Because of the way
-  `ghc-exactprint` manages CPP, this results in both the defined name and its
-  value to appear in the output.
+  `,.roundtrip-config/knownfailures.txt` is a list of files that fail
+  to roundtrip, but cannot be fixed. Examples of these are ones that
+  use CPP to `#define` a constant which is used in the code. Because
+  of the way `ghc-exactprint` manages CPP, this results in both the
+  defined name and its value to appear in the output.
 
   It generates the following state files and output
 
-  `./roundtrip-work/cpp.txt` - Keeps track of files that fail to parse because of
-  having CPP in them.
+  `./roundtrip-work/cpp.txt` - Keeps track of files that fail to parse
+  because of having CPP in them.
 
-  `./roundtrip-work/pfail.txt` - Keeps track of files that fail to parse for any other reason.
+  `./roundtrip-work/pfail.txt` - Keeps track of files that fail to
+  parse for any other reason.
 
-  `./roundtrip-work/failed.txt` - A list of files that parsed properly but could
-  not be reproduced. It is used to re-run failures once the code is updated to fix
-  the problem.
+  `./roundtrip-work/failed.txt` - A list of files that parsed properly
+  but could not be reproduced. It is used to re-run failures once the
+  code is updated to fix the problem.
 
-  `./roundtrip-work/processed.txt` - Keeps track of files that have already been
-  processed, whether they pass or fail.
+  `./roundtrip-work/processed.txt` - Keeps track of files that have
+  already been processed, whether they pass or fail.
 
-  `./roundtrip-work/roundtrip.log` - A log of files as they are processed. This is
-  written and flushed immediately prior to attempting to process the file.
+  `./roundtrip-work/roundtrip.log` - A log of files as they are
+  processed. This is written and flushed immediately prior to
+  attempting to process the file.
 
-  `./roundtrip-work/failures` - A directory containing an entry for each processed
-  file which failed, giving the ghc-exactprint output and annotated parse tree.
+  `./roundtrip-work/failures` - A directory containing an entry for
+  each processed file which failed, giving the ghc-exactprint output
+  and annotated parse tree.
 
-    `cabal new-exec static`
-
-    `./dist/build/static/static` (old cabal)
+    `cabal exec static`
 
   Executable that can build a static web site to view the failures.
 

@@ -168,16 +168,29 @@ type Annotated a = EP String Identity a
 markAnnotated :: ExactPrint a => a -> Annotated ()
 markAnnotated a = enterAnn (getAnnotationEntry a) a
 
-data Entry = Entry Anchor EpAnnComments
+-- | For HsModule, because we do not have a proper SrcSpan, we must
+-- indicate to flush trailing comments when done.
+data FlushComments = FlushComments
+                   | NoFlushComments
+                   deriving (Eq, Show)
+
+data Entry = Entry Anchor EpAnnComments FlushComments
            | NoEntryVal
 
 instance HasEntry (SrcSpanAnn' (EpAnn an)) where
-  fromAnn (SrcSpanAnn EpAnnNotUsed ss) = Entry (spanAsAnchor ss) emptyComments
+  fromAnn (SrcSpanAnn EpAnnNotUsed ss) = Entry (spanAsAnchor ss) emptyComments NoFlushComments
   fromAnn (SrcSpanAnn an _) = fromAnn an
 
 instance HasEntry (EpAnn a) where
-  fromAnn (EpAnn anchor _ cs) = Entry anchor cs
+  fromAnn (EpAnn anchor _ cs) = Entry anchor cs NoFlushComments
   fromAnn EpAnnNotUsed = NoEntryVal
+
+-- ---------------------------------------------------------------------
+
+fromAnn' :: (HasEntry a) => a -> Entry
+fromAnn' an = case fromAnn an of
+  NoEntryVal -> NoEntryVal
+  Entry a c _ -> Entry a c FlushComments
 
 -- ---------------------------------------------------------------------
 
@@ -196,9 +209,10 @@ enterAnn NoEntryVal a = do
   debugM $ "enterAnn:NO ANN:(p,a) =" ++ show (p, astId a) ++ " starting"
   exact a
   debugM $ "enterAnn:NO ANN:p =" ++ show (p, astId a) ++ " done"
-enterAnn (Entry anchor' cs) a = do
+enterAnn (Entry anchor' cs flush) a = do
   p <- getPosP
   debugM $ "enterAnn:(p,a) =" ++ show (p, astId a) ++ " starting"
+  -- debugM $ "enterAnn:(cs) =" ++ showGhc (cs)
   let curAnchor = anchor anchor' -- As a base for the current AST element
   debugM $ "enterAnn:(curAnchor):=" ++ show (rs2range curAnchor)
   addCommentsA (priorComments cs)
@@ -260,14 +274,20 @@ enterAnn (Entry anchor' cs) a = do
   -- -------------------------------------------------------------------
   -- start of print phase processing
 
+  let mflush = when (flush == FlushComments) $ do
+        debugM $ "flushing comments in enterAnn"
+        flushComments (getFollowingComments cs)
+        -- flushComments []
+
   let
     st = annNone { annEntryDelta = edp }
-  withOffset st (advance edp >> exact a)
+  withOffset st (advance edp >> exact a >> mflush)
 
-  when ((getFollowingComments cs) /= []) $ do
-    -- debugM $ "starting trailing comments:" ++ showAst (getFollowingComments cs)
-    mapM_ printOneComment (map tokComment $ getFollowingComments cs)
-    -- debugM $ "ending trailing comments"
+  when (flush == NoFlushComments) $ do
+    when ((getFollowingComments cs) /= []) $ do
+      debugM $ "starting trailing comments:" ++ showAst (getFollowingComments cs)
+      mapM_ printOneComment (map tokComment $ getFollowingComments cs)
+      debugM $ "ending trailing comments"
 
 -- ---------------------------------------------------------------------
 
@@ -287,12 +307,15 @@ addComments csNew = do
 
 -- | Just before we print out the EOF comments, flush the remaining
 -- ones in the state.
-flushComments :: EPP ()
-flushComments = do
+flushComments :: [LEpaComment] -> EPP ()
+flushComments trailing = do
+  addCommentsA trailing
   cs <- getUnallocatedComments
   -- Must compare without span filenames, for CPP injected comments with fake filename
   let cmp (Comment _ l1 _) (Comment _ l2 _) = compare (ss2pos $ anchor l1) (ss2pos $ anchor l2)
+  debugM $ "flushing comments starting"
   mapM_ printOneComment (sortBy cmp cs)
+  debugM $ "flushing comments done"
 
 -- ---------------------------------------------------------------------
 
@@ -344,7 +367,7 @@ class (Typeable a) => ExactPrint a where
 -- | Bare Located elements are simply stripped off without further
 -- processing.
 instance (ExactPrint a) => ExactPrint (Located a) where
-  getAnnotationEntry (L l _) = Entry (spanAsAnchor l) emptyComments
+  getAnnotationEntry (L l _) = Entry (spanAsAnchor l) emptyComments NoFlushComments
   exact (L _ a) = markAnnotated a
 
 instance (ExactPrint a) => ExactPrint (LocatedA a) where
@@ -367,7 +390,7 @@ instance (ExactPrint a) => ExactPrint (Maybe a) where
 
 -- | 'Located (HsModule GhcPs)' corresponds to 'ParsedSource'
 instance ExactPrint HsModule where
-  getAnnotationEntry hsmod = fromAnn (hsmodAnn hsmod)
+  getAnnotationEntry hsmod = fromAnn' (hsmodAnn hsmod)
 
   exact hsmod@(HsModule EpAnnNotUsed _ _ _ _ _ _ _) = withPpr hsmod
   exact (HsModule an _lo mmn mexports imports decls mdeprec mbDoc) = do
@@ -392,10 +415,6 @@ instance ExactPrint HsModule where
       markTopLevelList imports
       markTopLevelList decls
 
-    -- In the weird case of an empty file with comments, make sure
-    -- they print
-    flushComments
-
 -- ---------------------------------------------------------------------
 
 -- TODO:AZ: do we *need* the following, or can we capture it in the AST?
@@ -405,7 +424,7 @@ data AnnotatedList a = AnnotatedList (Maybe Anchor) a
                      deriving (Eq,Show)
 
 instance (ExactPrint a) => ExactPrint (AnnotatedList a) where
-  getAnnotationEntry (AnnotatedList (Just anc) _) = Entry anc (EpaComments [])
+  getAnnotationEntry (AnnotatedList (Just anc) _) = Entry anc (EpaComments []) NoFlushComments
   getAnnotationEntry (AnnotatedList Nothing    _) = NoEntryVal
 
   exact (AnnotatedList an ls) = do
@@ -632,6 +651,7 @@ markAnnList' reallyTrail ann action = do
 printComments :: RealSrcSpan -> EPP ()
 printComments ss = do
   cs <- commentAllocation ss
+  debugM $ "printComments: (ss): " ++ showPprUnsafe (rs2range ss)
   -- debugM $ "printComments: (ss,comment locations): " ++ showPprUnsafe (rs2range ss,map commentAnchor cs)
   mapM_ printOneComment cs
 
@@ -753,7 +773,7 @@ instance ExactPrint (ImportDecl GhcPs) where
 
     case hiding of
       Nothing -> return ()
-      Just (_isHiding,lie) -> exact lie
+      Just (_isHiding,lie) -> markAnnotated lie
  --   markTrailingSemi
 
 
@@ -1267,7 +1287,7 @@ instance ExactPrint (LocatedP OverlapMode) where
 
 instance ExactPrint (HsBind GhcPs) where
   getAnnotationEntry FunBind{} = NoEntryVal
-  getAnnotationEntry PatBind{} = NoEntryVal
+  getAnnotationEntry PatBind{pat_ext=an} = fromAnn an
   getAnnotationEntry VarBind{} = NoEntryVal
   getAnnotationEntry AbsBinds{} = NoEntryVal
   getAnnotationEntry PatSynBind{} = NoEntryVal
@@ -2158,11 +2178,12 @@ instance ExactPrint (HsSplice GhcPs) where
     -- the colOffset for now.
     -- TODO: use local?
     oldOffset <- getLayoutOffsetP
-    setLayoutOffsetP 0
+    EPState{pMarkLayout} <- get
+    unless pMarkLayout $ setLayoutOffsetP 0
     printStringAdvance
             -- Note: Lexer.x does not provide unicode alternative. 2017-02-26
             ("[" ++ (showPprUnsafe q) ++ "|" ++ (unpackFS fs) ++ "|]")
-    setLayoutOffsetP oldOffset
+    unless pMarkLayout $ setLayoutOffsetP oldOffset
     p <- getPosP
     debugM $ "HsQuasiQuote:after:(p,ss)=" ++ show (p,ss2range ss)
 
@@ -3350,14 +3371,6 @@ instance ExactPrint (SourceText, RuleName) where
 -- applied.
 -- ---------------------------------------------------------------------
 
--- instance (ExactPrint body) => ExactPrint (LocatedL body) where
---   getAnnotationEntry = entryFromLocatedA
---   exact (L (SrcSpanAnn an _) b) = do
---     markLocatedMAA an al_open
---     markEpAnnAll an al_rest AnnSemi
---     markAnnotated b
---     markLocatedMAA an al_close
-
 instance ExactPrint (LocatedL [LocatedA (IE GhcPs)]) where
   getAnnotationEntry = entryFromLocatedA
 
@@ -3774,7 +3787,7 @@ getPosP = gets epPos
 
 setPosP :: (Monad m, Monoid w) => Pos -> EP w m ()
 setPosP l = do
-  debugM $ "setPosP:" ++ show l
+  -- debugM $ "setPosP:" ++ show l
   modify (\s -> s {epPos = l})
 
 getExtraDP :: (Monad m, Monoid w) => EP w m (Maybe Anchor)
@@ -3909,7 +3922,7 @@ printString layout str = do
       cr = getDeltaLine strDP
   p <- getPosP
   colOffset <- getLayoutOffsetP
-  debugM $ "printString:(p,colOffset,strDP,cr)="  ++ show (p,colOffset,strDP,cr)
+  -- debugM $ "printString:(p,colOffset,strDP,cr)="  ++ show (p,colOffset,strDP,cr)
   if cr == 0
     then setPosP (undelta p strDP colOffset)
     else setPosP (undelta p strDP 1)

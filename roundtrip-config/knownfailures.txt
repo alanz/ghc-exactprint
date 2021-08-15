@@ -1,0 +1,8 @@
+./hackage-roundtrip-work/accelerate-cuda-0.17.0.0/Data/Array/Accelerate/CUDA/CodeGen/PrefixSum.hs
+./hackage-roundtrip-work/accelerate-llvm-ptx-1.3.0.0/src/Data/Array/Accelerate/LLVM/PTX/CodeGen/Permute.hs
+./hackage-roundtrip-work/ajhc-0.8.0.10/src/Util/IntBag.hs
+./hackage-roundtrip-work/argon-0.4.1.0/test/data/scopedtypevariables.hs
+./hackage-roundtrip-work/base-4.15.0.0/Foreign/C/String.hs
+./hackage-roundtrip-work/bencoding-0.4.5.2/src/Data/BEncode/BDict.hs
+./hackage-roundtrip-work/bitcoin-hs-0.0.1/Bitcoin/Protocol/Hash.hs
+./hackage-roundtrip-work/Cabal-3.6.0.0/src/Distribution/Compat/Internal/TempFile.hs

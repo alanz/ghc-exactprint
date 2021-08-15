@@ -13,16 +13,11 @@ import GHC.Data.Bag              as GHC
 import GHC.Data.FastString       as GHC
 import GHC.Types.Name.Occurrence as GHC
 import GHC.Types.Name.Reader     as GHC
--- import GHC.Types.SrcLoc          as GHC
 
 import Data.Generics as SYB
 
 import System.FilePath
--- import qualified Data.Map as Map
 import Data.List
--- import Data.Maybe
-
--- import Data.Data
 
 import Test.Common
 

@@ -13,7 +13,6 @@ module Language.Haskell.GHC.ExactPrint.Types
 
 import GHC hiding (EpaComment)
 import GHC.Utils.Outputable hiding ( (<>) )
-import GHC.Driver.Ppr
 import Data.Data (Data, toConstr,cast)
 
 import qualified Data.Map as Map
