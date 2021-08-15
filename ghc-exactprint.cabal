@@ -29,9 +29,9 @@ author:              Alan Zimmerman, Matthew Pickering
 maintainer:          alan.zimm@gmail.com
 category:            Development
 build-type:          Simple
-tested-with:         GHC == 9.2.1
+-- tested-with:         GHC == 9.2.1
+tested-with:         GHC == 9.2.0.20210422
 extra-source-files:  ChangeLog
-                     src-ghc710/Language/Haskell/GHC/ExactPrint/*.hs
                      tests/examples/failing/*.hs
                      tests/examples/ghc710-only/*.hs
                      tests/examples/ghc710/*.hs
