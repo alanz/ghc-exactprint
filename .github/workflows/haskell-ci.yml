@@ -21,7 +21,7 @@ jobs:
     name: Haskell-CI - Linux - ${{ matrix.compiler }}
     runs-on: ubuntu-20.04
     container:
-      image: buildpack-deps:bionic
+      image: buildpack-deps:focal
     continue-on-error: ${{ matrix.allow-failure }}
     strategy:
       matrix:
@@ -37,6 +37,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends gnupg ca-certificates dirmngr curl git software-properties-common libtinfo5
+          apt-get install -y build-essential git autoconf python3 libgmp-dev libncurses-dev
           mkdir -p "$HOME/.ghcup/bin"
           curl -sL https://downloads.haskell.org/ghcup/0.1.16.2/x86_64-linux-ghcup-0.1.16.2 > "$HOME/.ghcup/bin/ghcup"
           chmod a+x "$HOME/.ghcup/bin/ghcup"
