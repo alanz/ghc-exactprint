@@ -19,7 +19,7 @@ on:
 jobs:
   linux:
     name: Haskell-CI - Linux - ${{ matrix.compiler }}
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     container:
       image: buildpack-deps:bionic
     continue-on-error: ${{ matrix.allow-failure }}
@@ -41,7 +41,9 @@ jobs:
           curl -sL https://downloads.haskell.org/ghcup/0.1.16.2/x86_64-linux-ghcup-0.1.16.2 > "$HOME/.ghcup/bin/ghcup"
           chmod a+x "$HOME/.ghcup/bin/ghcup"
           # "$HOME/.ghcup/bin/ghcup" install ghc "$HCVER"
-          "$HOME/.ghcup/bin/ghcup" install ghc -u https://gitlab.haskell.org/ghc/ghc/-/jobs/756283/artifacts/raw/ghc-x86_64-deb10-linux.tar.xz ghc-9.2.0.20210806
+          # "$HOME/.ghcup/bin/ghcup" install ghc -u https://gitlab.haskell.org/ghc/ghc/-/jobs/756283/artifacts/raw/ghc-x86_64-deb10-linux.tar.xz ghc-9.2.0.20210806
+          "$HOME/.ghcup/bin/ghcup" install ghc -u https://gitlab.haskell.org/ghc/ghc/-/jobs/756285/artifacts/raw/ghc-x86_64-ubuntu2004-linux.tar.xz ghc-9.2.0.20210806
+
           "$HOME/.ghcup/bin/ghcup" install cabal 3.4.0.0
         env:
           HCKIND: ${{ matrix.compilerKind }}
