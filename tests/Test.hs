@@ -188,7 +188,7 @@ tt' = do
     -- mkParserTest libdir      "ghc92" "Parse.hs"
     -- mkParserTest libdir      "ghc92" "proc-lets.hs"
     -- mkParserTest libdir      "ghc92" "n-plus-k-patterns.hs"
-    mkParserTest libdir      "ghc92" "RList.hs"
+    mkParserTest libdir      "ghc92" "CommonUI.hs"
 
     -- Following broken by bringing in OSet for comments. Line changes, screws it up, I guess.
     -- mkParserTest libdir      "ghc710" "LinePragma.hs"

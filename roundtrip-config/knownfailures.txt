@@ -97,3 +97,11 @@
 ./hackage-roundtrip-work/yesod-goodies-0.0.5/Yesod/Goodies/Markdown.hs
 ./hackage-roundtrip-work/vulkan-3.12/src/Vulkan/Core10/CommandBufferBuilding.hs
 ./hackage-roundtrip-work/vinyl-0.13.3/Data/Vinyl/Syntax.hs
+./hackage-roundtrip-work/MagicHaskeller-0.9.6.10/MagicHaskeller/ExecuteAPI610.hs
+./hackage-roundtrip-work/twiml-0.2.1.0/src/Text/XML/Twiml/Verbs/Reject.hs
+./hackage-roundtrip-work/twiml-0.2.1.0/src/Text/XML/Twiml/Verbs/Leave.hs
+./hackage-roundtrip-work/twiml-0.2.1.0/src/Text/XML/Twiml/Verbs/End.hs
+./hackage-roundtrip-work/twiml-0.2.1.0/src/Text/XML/Twiml/Verbs/Sms.hs
+./hackage-roundtrip-work/twiml-0.2.1.0/src/Text/XML/Twiml/Verbs/Pause.hs
+./hackage-roundtrip-work/unagi-bloomfilter-0.1.1.2/src/Control/Concurrent/BloomFilter/Internal.hs
+./hackage-roundtrip-work/vector-bytestring-0.0.0.1/Data/Vector/Storable/ByteString/Char8.hs

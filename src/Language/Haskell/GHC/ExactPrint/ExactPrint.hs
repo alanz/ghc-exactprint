@@ -1354,43 +1354,6 @@ instance ExactPrint (Match GhcPs (LocatedA (HsExpr GhcPs))) where
   -- exact match@(Match EpAnnNotUsed _ _ _) = withPpr match
   exact (Match an mctxt pats grhss) = do
     exactMatch (Match an mctxt pats grhss)
-  -- -- Based on Expr.pprMatch
-
-  --   debugM $ "exact Match entered"
-
-  --   -- herald
-  --   case mctxt of
-  --     FunRhs fun fixity strictness -> do
-  --       debugM $ "exact Match FunRhs:" ++ showPprUnsafe fun
-  --       case strictness of
-  --         SrcStrict -> markEpAnn an AnnBang
-  --         _ -> pure ()
-  --       case fixity of
-  --         Prefix -> do
-  --           markAnnotated fun
-  --           mapM_ markAnnotated pats
-  --         Infix ->
-  --           case pats of
-  --             (p1:p2:rest)
-  --               | null rest -> do
-  --                   markAnnotated p1
-  --                   markAnnotated fun
-  --                   markAnnotated p2
-  --               | otherwise -> do
-  --                   markEpAnn an AnnOpenP
-  --                   markAnnotated p1
-  --                   markAnnotated fun
-  --                   markAnnotated p2
-  --                   markEpAnn an AnnCloseP
-  --                   mapM_ markAnnotated rest
-  --     LambdaExpr -> do
-  --       markEpAnn an AnnLam
-  --       mapM_ markAnnotated pats
-  --     GHC.CaseAlt -> do
-  --       mapM_ markAnnotated pats
-  --     _ -> withPpr mctxt
-
-  --   markAnnotated grhss
 
 -- ---------------------------------------------------------------------
 
@@ -1455,12 +1418,27 @@ instance ExactPrint (GRHSs GhcPs (LocatedA (HsCmd GhcPs))) where
 
 -- ---------------------------------------------------------------------
 
+-- Temporary until https://gitlab.haskell.org/ghc/ghc/-/issues/20247
+-- is fixed
+fixValbindsAnn :: EpAnn AnnList -> EpAnn AnnList
+fixValbindsAnn EpAnnNotUsed = EpAnnNotUsed
+fixValbindsAnn (EpAnn anchor (AnnList ma o c r t) cs)
+  = (EpAnn (widenAnchor anchor (map toEpaAnn t)) (AnnList ma o c r t) cs)
+  where
+    toEpaAnn (AddSemiAnn ss)    = AddEpAnn AnnSemi ss
+    toEpaAnn (AddCommaAnn ss)   = AddEpAnn AnnComma ss
+    toEpaAnn (AddVbarAnn ss)    = AddEpAnn AnnVbar ss
+    toEpaAnn (AddRarrowAnn ss)  = AddEpAnn AnnRarrow ss
+    toEpaAnn (AddRarrowAnnU ss) = AddEpAnn AnnRarrowU ss
+    toEpaAnn (AddLollyAnnU ss)  = AddEpAnn AnnLollyU ss
+
 instance ExactPrint (HsLocalBinds GhcPs) where
-  getAnnotationEntry (HsValBinds an _) = fromAnn an
+  getAnnotationEntry (HsValBinds an _) = fromAnn (fixValbindsAnn an)
   getAnnotationEntry (HsIPBinds{}) = NoEntryVal
   getAnnotationEntry (EmptyLocalBinds{}) = NoEntryVal
 
-  exact (HsValBinds an valbinds) = do
+  exact (HsValBinds an' valbinds) = do
+    let an = fixValbindsAnn an'
     markLocatedAAL an al_rest AnnWhere
     let manc = case an of
                  EpAnnNotUsed -> Nothing
