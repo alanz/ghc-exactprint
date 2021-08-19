@@ -1432,6 +1432,18 @@ fixValbindsAnn (EpAnn anchor (AnnList ma o c r t) cs)
     toEpaAnn (AddRarrowAnnU ss) = AddEpAnn AnnRarrowU ss
     toEpaAnn (AddLollyAnnU ss)  = AddEpAnn AnnLollyU ss
 
+-- See https://gitlab.haskell.org/ghc/ghc/-/issues/20256
+fixAnnListAnn :: EpAnn AnnList -> EpAnn AnnList
+fixAnnListAnn EpAnnNotUsed = EpAnnNotUsed
+fixAnnListAnn (EpAnn anchor (AnnList ma o c r t) cs)
+  = (EpAnn (widenAnchor anchor r) (AnnList ma o c r t) cs)
+
+-- See https://gitlab.haskell.org/ghc/ghc/-/issues/20256
+fixSrcAnnL :: SrcSpanAnnL -> SrcSpanAnnL
+fixSrcAnnL (SrcSpanAnn an l) = SrcSpanAnn (fixAnnListAnn an) l
+
+-- ---------------------------------------------------------------------
+
 instance ExactPrint (HsLocalBinds GhcPs) where
   getAnnotationEntry (HsValBinds an _) = fromAnn (fixValbindsAnn an)
   getAnnotationEntry (HsIPBinds{}) = NoEntryVal
@@ -1996,8 +2008,13 @@ instance ExactPrint (HsExpr GhcPs) where
     markAnnotated e
     markEpAnn an AnnCloseQ -- "|]"
   exact (HsBracket an (DecBrL _ e)) = do
+
     markLocatedAALS an id AnnOpen (Just "[d|")
+    -- See https://gitlab.haskell.org/ghc/ghc/-/issues/20257, we need
+    -- to mark braces here for the time being
+    markEpAnn an AnnOpenC -- "{"
     markAnnotated e
+    markEpAnn an AnnCloseC -- "}"
     markEpAnn an AnnCloseQ -- "|]"
   -- -- exact (HsBracket an (DecBrG _ _)) =
   -- --   traceM "warning: DecBrG introduced after renamer"
@@ -2790,11 +2807,6 @@ instance ExactPrintTVFlag flag => ExactPrint (HsTyVarBndr flag GhcPs) where
 
 -- ---------------------------------------------------------------------
 
--- NOTE: this is also an alias for LHsKind
--- instance ExactPrint (LHsType GhcPs) where
---   getAnnotationEntry = entryFromLocatedA
---   exact (L _ a) = markAnnotated a
-
 instance ExactPrint (HsType GhcPs) where
   getAnnotationEntry (HsForAllTy _ _ _)        = NoEntryVal
   getAnnotationEntry (HsQualTy _ _ _)          = NoEntryVal
@@ -3269,7 +3281,6 @@ instance ExactPrint (LocatedL [LocatedA (IE GhcPs)]) where
     debugM $ "LocatedL [LIE:p=" ++ showPprUnsafe p
     markAnnList True ann (markAnnotated ies)
 
--- instance (ExactPrint (LocatedA body), (ExactPrint (Match GhcPs (LocatedA body)))) => ExactPrint (LocatedL [LocatedA (Match GhcPs (LocatedA body))]) where
 instance (ExactPrint (Match GhcPs (LocatedA body)))
    => ExactPrint (LocatedL [LocatedA (Match GhcPs (LocatedA body))]) where
   getAnnotationEntry = entryFromLocatedA
@@ -3282,35 +3293,11 @@ instance (ExactPrint (Match GhcPs (LocatedA body)))
     markAnnotated a
     markLocatedMAA (ann la) al_close
 
-{-
--- AZ:TODO: combine with next instance
-instance ExactPrint (LocatedL [LocatedA (Match GhcPs (LocatedA (HsExpr GhcPs)))]) where
-  getAnnotationEntry = entryFromLocatedA
-  exact (L la a) = do
-    debugM $ "LocatedL [LMatch"
-    -- TODO: markAnnList?
-    markEpAnnAll (ann la) al_rest AnnWhere
-    markLocatedMAA (ann la) al_open
-    markEpAnnAll (ann la) al_rest AnnSemi
-    markAnnotated a
-    markLocatedMAA (ann la) al_close
-
-instance ExactPrint (LocatedL [LocatedA (Match GhcPs (LocatedA (HsCmd GhcPs)))]) where
-  getAnnotationEntry = entryFromLocatedA
-  exact (L la a) = do
-    debugM $ "LocatedL [LMatch"
-    -- TODO: markAnnList?
-    markEpAnnAll (ann la) al_rest AnnWhere
-    markLocatedMAA (ann la) al_open
-    markEpAnnAll (ann la) al_rest AnnSemi
-    markAnnotated a
-    markLocatedMAA (ann la) al_close
--}
-
 -- instance ExactPrint (LocatedL [ExprLStmt GhcPs]) where
 instance ExactPrint (LocatedL [LocatedA (StmtLR GhcPs GhcPs (LocatedA (HsExpr GhcPs)))]) where
-  getAnnotationEntry = entryFromLocatedA
-  exact (L (SrcSpanAnn an _) stmts) = do
+  getAnnotationEntry = entryFromLocatedAFixed
+  exact (L (SrcSpanAnn an' _) stmts) = do
+    let an = fixAnnListAnn an'
     debugM $ "LocatedL [ExprLStmt"
     markAnnList True an $ do
       -- markLocatedMAA an al_open
@@ -3325,8 +3312,9 @@ instance ExactPrint (LocatedL [LocatedA (StmtLR GhcPs GhcPs (LocatedA (HsExpr Gh
 
 -- instance ExactPrint (LocatedL [CmdLStmt GhcPs]) where
 instance ExactPrint (LocatedL [LocatedA (StmtLR GhcPs GhcPs (LocatedA (HsCmd GhcPs)))]) where
-  getAnnotationEntry = entryFromLocatedA
-  exact (L (SrcSpanAnn ann _) es) = do
+  getAnnotationEntry = entryFromLocatedAFixed
+  exact (L (SrcSpanAnn ann' _) es) = do
+    let ann = fixAnnListAnn ann'
     debugM $ "LocatedL [CmdLStmt"
     markLocatedMAA ann al_open
     mapM_ markAnnotated es
@@ -3579,6 +3567,11 @@ exactConArgs (RecCon rpats)   = markAnnotated rpats
 
 entryFromLocatedA :: LocatedAn ann a -> Entry
 entryFromLocatedA (L la _) = fromAnn la
+
+-- See https://gitlab.haskell.org/ghc/ghc/-/issues/20256
+entryFromLocatedAFixed :: LocatedL a -> Entry
+entryFromLocatedAFixed (L la _)
+  = fromAnn (fixSrcAnnL la)
 
 -- =====================================================================
 -- Utility stuff
