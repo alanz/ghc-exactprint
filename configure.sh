@@ -123,4 +123,4 @@ rm .ghc.env*
 # cabal configure -fdev --enable-tests --with-compiler=/opt/ghc/9.2.0.20210622/bin/ghc --allow-newer
 # cabal configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.2.0.20210804/bin/ghc --allow-newer
 # cabal configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.2.0.20210806/bin/ghc --allow-newer
-cabal configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.2.0.20210817/bin/ghc --allow-newer
+cabal configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.2.0.20210818/bin/ghc --allow-newer
