@@ -34,11 +34,8 @@ import GHC.Types.SrcLoc
 import GHC.Data.FastString
 import GHC.Utils.Outputable (showSDocUnsafe, showPprUnsafe)
 
-import qualified GHC.Types.Name.Occurrence as OccName (OccName(..),pprNameSpaceBrief)
-
 import Control.Arrow
 
-import qualified Data.Map as Map
 import Data.List (sortBy, elemIndex)
 
 import Debug.Trace
@@ -140,16 +137,6 @@ undeltaSpan anchor kw dp = AddEpAnn kw (EpaSpan sp)
     len = length (keywordToString (G kw))
     sp = range2rs ((l,c),(l,c+len))
 
--- | Add together two @DeltaPos@ taking into account newlines
---
--- > DP (0, 1) `addDP` DP (0, 2) == DP (0, 3)
--- > DP (0, 9) `addDP` DP (1, 5) == DP (1, 5)
--- > DP (1, 4) `addDP` DP (1, 3) == DP (2, 3)
-addDP :: DeltaPos -> DeltaPos -> DeltaPos
-addDP dp (DifferentLine c d) = DifferentLine (getDeltaLine dp+c) d
-addDP (DifferentLine a b) (SameLine  d) = DifferentLine a (b+d)
-addDP (SameLine b)        (SameLine  d) = SameLine (b+d)
-
 -- ---------------------------------------------------------------------
 
 adjustDeltaForOffset :: Int -> LayoutStartCol -> DeltaPos -> DeltaPos
@@ -208,32 +195,10 @@ orderByKey keys order
 
 -- ---------------------------------------------------------------------
 
-isListComp :: HsStmtContext name -> Bool
-isListComp cts = case cts of
-          ListComp  -> True
-          MonadComp -> True
-
-          DoExpr {}    -> False
-          MDoExpr {}   -> False
-          ArrowExpr    -> False
-          GhciStmtCtxt -> False
-
-          PatGuard {}      -> False
-          ParStmtCtxt {}   -> False
-          TransStmtCtxt {} -> False
-
--- ---------------------------------------------------------------------
-
 isGadt :: [LConDecl (GhcPass p)] -> Bool
 isGadt [] = True
 isGadt ((L _ (ConDeclGADT{})):_) = True
 isGadt _ = False
-
--- ---------------------------------------------------------------------
-
--- Is a RdrName of type Exact? SYB query, so can be extended to other types too
-isExactName :: (Data name) => name -> Bool
-isExactName = False `mkQ` isExact
 
 -- ---------------------------------------------------------------------
 
@@ -287,25 +252,6 @@ comment2dp = first AnnComment
 sortAnchorLocated :: [GenLocated Anchor a] -> [GenLocated Anchor a]
 sortAnchorLocated = sortBy (compare `on` (anchor . getLoc))
 
-getAnnotationEP :: (Data a) =>  Located a  -> Anns -> Maybe Annotation
-getAnnotationEP  la as =
-  Map.lookup (mkAnnKey la) as
-
--- | The "true entry" is the distance from the last concrete element to the
--- start of the current element.
-annTrueEntryDelta :: Annotation -> DeltaPos
-annTrueEntryDelta Ann{annEntryDelta, annPriorComments} =
-  foldr addDP (SameLine 0) (map (\(a, b) -> addDP b (dpFromString $ commentContents a)) annPriorComments )
-    `addDP` annEntryDelta
-
--- | Return the DP of the first item that generates output, either a comment or the entry DP
-annLeadingCommentEntryDelta :: Annotation -> DeltaPos
-annLeadingCommentEntryDelta Ann{annPriorComments,annEntryDelta} = dp
-  where
-    dp = case annPriorComments of
-      [] -> annEntryDelta
-      ((_,ed):_) -> ed
-
 -- | Calculates the distance from the start of a string to the end of
 -- a string.
 dpFromString ::  String -> DeltaPos
@@ -319,9 +265,6 @@ dpFromString xs = dpFromString' xs 0 0
     dpFromString' (_:cs)     line col = dpFromString' cs line       (col + 1)
 
 -- ---------------------------------------------------------------------
-
-isSymbolRdrName :: RdrName -> Bool
-isSymbolRdrName n = isSymOcc $ rdrNameOcc n
 
 rdrName2String :: RdrName -> String
 rdrName2String r =
@@ -340,21 +283,6 @@ name2String = showPprUnsafe
 
 -- ---------------------------------------------------------------------
 
-occAttributes :: OccName.OccName -> String
-occAttributes o = "(" ++ ns ++ vo ++ tv ++ tc ++ d ++ ds ++ s ++ v ++ ")"
-  where
-    -- ns = (showSDocUnsafe $ OccName.pprNameSpaceBrief $ occNameSpace o) ++ ", "
-    ns = (showSDocUnsafe $ OccName.pprNameSpaceBrief $ occNameSpace o) ++ ", "
-    vo = if isVarOcc     o then "Var "     else ""
-    tv = if isTvOcc      o then "Tv "      else ""
-    tc = if isTcOcc      o then "Tc "      else ""
-    d  = if isDataOcc    o then "Data "    else ""
-    ds = if isDataSymOcc o then "DataSym " else ""
-    s  = if isSymOcc     o then "Sym "     else ""
-    v  = if isValOcc     o then "Val "     else ""
-
- -- ---------------------------------------------------------------------
-
 locatedAnAnchor :: LocatedAn a t -> RealSrcSpan
 locatedAnAnchor (L (SrcSpanAnn EpAnnNotUsed l) _) = realSrcSpan l
 locatedAnAnchor (L (SrcSpanAnn (EpAnn a _ _) _) _) = anchor a
@@ -365,117 +293,3 @@ showAst :: (Data a) => a -> String
 showAst ast
   = showSDocUnsafe
     $ showAstData NoBlankSrcSpan NoBlankEpAnnotations ast
-
--- ---------------------------------------------------------------------
--- Putting these here for the time being, to avoid import loops
-
-ghead :: String -> [a] -> a
-ghead  info []    = error $ "ghead "++info++" []"
-ghead _info (h:_) = h
-
-glast :: String -> [a] -> a
-glast  info []    = error $ "glast " ++ info ++ " []"
-glast _info h     = last h
-
-gtail :: String -> [a] -> [a]
-gtail  info []   = error $ "gtail " ++ info ++ " []"
-gtail _info h    = tail h
-
-gfromJust :: String -> Maybe a -> a
-gfromJust _info (Just h) = h
-gfromJust  info Nothing = error $ "gfromJust " ++ info ++ " Nothing"
-
--- ---------------------------------------------------------------------
-
--- -- Copied from syb for the test
-
-
--- -- | Generic queries of type \"r\",
--- --   i.e., take any \"a\" and return an \"r\"
--- --
--- type GenericQ r = forall a. Data a => a -> r
-
-
--- -- | Make a generic query;
--- --   start from a type-specific case;
--- --   return a constant otherwise
--- --
--- mkQ :: ( Typeable a
---        , Typeable b
---        )
---     => r
---     -> (b -> r)
---     -> a
---     -> r
--- (r `mkQ` br) a = case cast a of
---                         Just b  -> br b
---                         Nothing -> r
-
--- -- | Make a generic monadic transformation;
--- --   start from a type-specific case;
--- --   resort to return otherwise
--- --
--- mkM :: ( Monad m
---        , Typeable a
---        , Typeable b
---        )
---     => (b -> m b)
---     -> a
---     -> m a
--- mkM = extM return
-
--- -- | Flexible type extension
--- ext0 :: (Typeable a, Typeable b) => c a -> c b -> c a
--- ext0 def ext = maybe def id (gcast ext)
-
-
--- -- | Extend a generic query by a type-specific case
--- extQ :: ( Typeable a
---         , Typeable b
---         )
---      => (a -> q)
---      -> (b -> q)
---      -> a
---      -> q
--- extQ f g a = maybe (f a) g (cast a)
-
--- -- | Flexible type extension
--- ext2 :: (Data a, Typeable t)
---      => c a
---      -> (forall d1 d2. (Data d1, Data d2) => c (t d1 d2))
---      -> c a
--- ext2 def ext = maybe def id (dataCast2 ext)
-
-
--- -- | Extend a generic monadic transformation by a type-specific case
--- extM :: ( Typeable a
---         , Typeable b
---         )
---      => (a -> m a) -> (b -> m b) -> a -> m a
--- extM def ext = unM ((M def) `ext0` (M ext))
-
--- -- | Type extension of monadic transformations for type constructors
--- ext2M :: (Data d, Typeable t)
---       => (forall e. Data e => e -> m e)
---       -> (forall d1 d2. (Data d1, Data d2) => t d1 d2 -> m (t d1 d2))
---       -> d -> m d
--- ext2M def ext = unM ((M def) `ext2` (M ext))
-
--- -- | The type constructor for transformations
--- newtype M m x = M { unM :: x -> m x }
-
--- -- | Generic monadic transformations,
--- --   i.e., take an \"a\" and compute an \"a\"
--- --
--- type GenericM m = forall a. Data a => a -> m a
-
--- -- | Monadic variation on everywhere
--- everywhereM :: forall m. Monad m => GenericM m -> GenericM m
-
--- -- Bottom-up order is also reflected in order of do-actions
--- everywhereM f = go
---   where
---     go :: GenericM m
---     go x = do
---       x' <- gmapM go x
---       f x'

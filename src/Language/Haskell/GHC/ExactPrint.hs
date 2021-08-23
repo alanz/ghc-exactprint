@@ -1,11 +1,8 @@
 -- | @ghc-exactprint@ is a library to manage manipulating Haskell
 -- source files. There are four components.
 module Language.Haskell.GHC.ExactPrint
-        ( -- * Relativising
-          Anns
-        , Comment
-        , Annotation(..)
-        , AnnKey(..)
+        ( -- * Types
+          Comment
 
         -- * Parsing
         , parseModule
