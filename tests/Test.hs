@@ -117,13 +117,20 @@ mkTests = do
                     --   prettyRoundTripTests
                     ]
 
--- Tests that will fail until https://phabricator.haskell.org/D907 lands in a
--- future GHC
 failingTests :: LibDir -> Test
 failingTests libdir = testList "Failing tests"
   [
   -- Tests requiring future GHC modifications
-    mkTestModBad libdir "InfixOperator.hs"
+
+    -- https://gitlab.haskell.org/ghc/ghc/-/issues/20243
+    mkTestModBad libdir "n-plus-k-patterns.hs"
+
+    -- https://gitlab.haskell.org/ghc/ghc/-/issues/20258
+  , mkTestModBad libdir "TopLevelSemis.hs"
+
+  -- We do not capture EOF location very well any more
+  , mkTestModBad libdir "T10970a.hs"
+
   ]
 
 
@@ -189,10 +196,9 @@ tt' = do
     -- mkParserTest libdir      "ghc92" "proc-lets.hs"
     -- mkParserTest libdir      "ghc92" "n-plus-k-patterns.hs"
     -- mkParserTest libdir      "ghc92" "TopLevelSemis.hs"
-    mkParserTest libdir      "ghc92" "MiniBall.hs"
+    -- mkParserTest libdir      "ghc92" "MiniBall.hs"
 
-    -- Following broken by bringing in OSet for comments. Line changes, screws it up, I guess.
-    -- mkParserTest libdir      "ghc710" "LinePragma.hs"
+    mkParserTest libdir      "ghc80" "T10970a.hs"
 
 
     -- mkTestModChange libdir rmDecl1  "RmDecl1.hs"
