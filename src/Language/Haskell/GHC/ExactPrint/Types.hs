@@ -147,7 +147,12 @@ instance Show Comment where
   show (Comment cs ss o) = "(Comment " ++ show cs ++ " " ++ showPprUnsafe ss ++ " " ++ show o ++ ")"
 
 instance Ord Comment where
-  compare (Comment _ ss1 _) (Comment _ ss2 _) = compare (anchor ss1) (anchor ss2)
+  -- When we have CPP injected comments with a fake filename, or LINE
+  -- pragma, the file name changes, so we need to compare the
+  -- locations only, with out the filename.
+  compare (Comment _ ss1 _) (Comment _ ss2 _) = compare (ss2pos $ anchor ss1) (ss2pos $ anchor ss2)
+    where
+      ss2pos ss = (srcSpanStartLine ss,srcSpanStartCol ss)
 
 instance Outputable Comment where
   ppr x = text (show x)
