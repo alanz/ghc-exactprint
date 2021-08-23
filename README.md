@@ -5,6 +5,9 @@ ghc-exactprint
 [![License BSD3][badge-license]][license]
 [![Build Status][badge-travis]][travis]
 
+![Github Build Status](https://github.com/alanz/ghc-exactprint/actions/workflows/haskell-ci.yml/badge.svg)
+
+
 [badge-travis]: https://travis-ci.org/alanz/ghc-exactprint.png?branch=master
 [travis]: https://travis-ci.org/alanz/ghc-exactprint
 [badge-hackage]: https://img.shields.io/hackage/v/ghc-exactprint.svg?dummy
@@ -14,43 +17,22 @@ ghc-exactprint
 
 GHC version of haskell-src-exts exactPrint
 
-Note: This only works with GHC 7.10.2 and beyond.
-      As of now (2015-06-03) GHC 7.10.2 is not yet released
+master has been updated to use the new [GHC Exact Print Annotations](https://gitlab.haskell.org/ghc/ghc/-/wikis/api-annotations) which landed in GHC 9.2
 
-Building with *stack*
----------------------
+So ghc-exactprint-1.1 and later supports GHC 9.2 and onwards
+ghc-exactprint-0.6.4 supports GHC from 7.10 to 9.0
 
-Requires stack `Version 0.1.1.0, Git revision 91fe70306f51eb3d68667a0d6e09a7d7ebbeb2b6`
-or later
+Links
+-----
 
-## GHC 7.10.2 (rc2 and later)
+[HIW 2021 talk on GHC Exactprint for GHC 9.2](https://alanz.github.io/hiw2021/)
 
-Ensure the right GHC is on your path using https://github.com/spl/multi-ghc
+[HIW 2020 talk on plans for GHC Exactprint for GHC 9.2](https://alanz.github.io/hiw2020/)
 
-    ghc-config 7.10.1.20150619
-
-Build, test
-
-    stack build
-    stack test
-
-## GHC 7.11.20150621 and later
-
-Ensure the right GHC is on your path using https://github.com/spl/multi-ghc
-
-    ghc-config 7.11.20150621
-
-Build, test
-
-    stack --skip-ghc-check --stack-yaml stack-7.11.yaml build
-    stack --skip-ghc-check --stack-yaml stack-7.11.yaml test
+[Blog Post](https://blog.shaynefletcher.org/2021/05/annotations-in-ghc.html) by @shayne-fletcher on experiences converting to use the new annotations.
 
 Current Limitations
 -------------------
 
-* Does not process CPP properly [should be sorted soon]
+* Does not process CPP properly
 * Does not process Lhs files properly
-* Does not properly process multi-line strings in WARNING and DEPRECATED pragmas
-  [ see https://phabricator.haskell.org/D907 which missed the cut for 7.10.2 due to AST change  ]
-* Does not preserve the unicode * character, reducing it to a standard one.
-

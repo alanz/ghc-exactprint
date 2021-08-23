@@ -16,8 +16,8 @@ bar :: forall v . (( Eq v, Show v ) => v -> MaybeDefault v -> a -> [a])
 baz :: (Eq a) => forall v . ( Eq v, Show v ) => !v -> a -> MaybeDefault v
 
 instance Dsp (S n) where
-  data (ASig (S n)) = S_A CVar
-  data (KSig (S n)) = S_K CVar
-  data (INum (S n)) = S_I CVar
+  data   (ASig (S n))   = S_A CVar
+  data  ((KSig (S n)))  = S_K CVar
+  data (((INum (S n)))) = S_I CVar
   getSr    = fst <$> ask
   getKsmps = snd <$> ask

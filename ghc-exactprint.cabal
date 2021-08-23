@@ -1,27 +1,13 @@
 name:                ghc-exactprint
-version:             0.6.4
+version:             1.1.0
 synopsis:            ExactPrint for GHC
-description:         Using the API Annotations available from GHC 7.10.2, this
+description:         Using the API Annotations available from GHC 9.2.1, this
                      library provides a means to round trip any code that can
                      be compiled by GHC, currently excluding lhs files.
                      .
-                     It does this with a phased approach
+                     Note: requires GHC 9.2 or later. For GHC versions from
+                           7.10.2 to 9.0.* see this library with versions < 1.1
                      .
-                        * Delta - converts GHC API Annotations into relative
-                          offsets, indexed by SrcSpan
-                     .
-                        * Transform - functions to facilitate changes to
-                          the AST, adjusting the annotations generated in the
-                          Delta phase to suit the changes.
-                     .
-                        * Print - converts an AST and its annotations to
-                          properly formatted source text.
-                     .
-                        * Pretty - adds annotations to an AST (fragment) so that
-                          the output can be parsed back to the same AST.
-                     .
-                     .
-                     Note: requires GHC 7.10.2 or later
 
 license:             BSD3
 license-file:        LICENSE
@@ -29,27 +15,9 @@ author:              Alan Zimmerman, Matthew Pickering
 maintainer:          alan.zimm@gmail.com
 category:            Development
 build-type:          Simple
-tested-with:         GHC == 7.10.3
-                   , GHC == 8.0.2
-                   , GHC == 8.2.2
-                   , GHC == 8.4.2
-                   , GHC == 8.4.3
-                   , GHC == 8.4.4
-                   , GHC == 8.6.1
-                   , GHC == 8.6.2
-                   , GHC == 8.6.4
-                   , GHC == 8.6.5
-                   , GHC == 8.8.1
-                   , GHC == 8.8.2
-                   , GHC == 8.8.3
-                   , GHC == 8.8.4
-                   , GHC == 8.10.1
-                   , GHC == 8.10.2
-                   , GHC == 8.10.3
-                   , GHC == 8.10.4
-                   , GHC == 9.0.1
+-- tested-with:         GHC == 9.2.1
+tested-with:         GHC == 9.2.0.20210821
 extra-source-files:  ChangeLog
-                     src-ghc710/Language/Haskell/GHC/ExactPrint/*.hs
                      tests/examples/failing/*.hs
                      tests/examples/ghc710-only/*.hs
                      tests/examples/ghc710/*.hs
@@ -60,6 +28,7 @@ extra-source-files:  ChangeLog
                      tests/examples/ghc86/*.hs
                      tests/examples/ghc88/*.hs
                      tests/examples/ghc90/*.hs
+                     tests/examples/ghc92/*.hs
                      tests/examples/pre-ghc810/*.hs
                      tests/examples/pre-ghc86/*.hs
                      tests/examples/pre-ghc90/*.hs
@@ -87,32 +56,24 @@ Flag dev {
 
 library
   exposed-modules:     Language.Haskell.GHC.ExactPrint
-                     , Language.Haskell.GHC.ExactPrint.Annotate
-                     , Language.Haskell.GHC.ExactPrint.AnnotateTypes
-                     , Language.Haskell.GHC.ExactPrint.Annotater
-                     , Language.Haskell.GHC.ExactPrint.Delta
+                     , Language.Haskell.GHC.ExactPrint.ExactPrint
                      , Language.Haskell.GHC.ExactPrint.Lookup
                      , Language.Haskell.GHC.ExactPrint.Parsers
                      , Language.Haskell.GHC.ExactPrint.Preprocess
-                     , Language.Haskell.GHC.ExactPrint.Pretty
-                     , Language.Haskell.GHC.ExactPrint.Print
                      , Language.Haskell.GHC.ExactPrint.Transform
                      , Language.Haskell.GHC.ExactPrint.Types
                      , Language.Haskell.GHC.ExactPrint.Utils
 
-  if impl (ghc <= 8.0.2)
-      exposed-modules: Language.Haskell.GHC.ExactPrint.GhcInterim
 
+  hs-source-dirs:      src
   -- other-modules:
   -- other-extensions:
-  if impl (ghc >= 8.0.1)
-    GHC-Options:         -Wall -Wredundant-constraints
-  else
-    GHC-Options:         -Wall
+  GHC-Options:         -Wall -Wredundant-constraints
   -- GHC-Options:         -Weverything
-  build-depends:       base >=4.8 && <4.16
+  build-depends:       base >=4.16 && <4.18
                      , bytestring >= 0.10.6
                      , containers >= 0.5
+                     , ordered-containers
                      , directory >= 1.2
                      , filepath  >= 1.4
                      , ghc       >= 7.10.2
@@ -120,40 +81,12 @@ library
                      , mtl       >= 2.2.1
                      , syb       >= 0.5
                      , free      >= 4.12
+                     , fail      >= 4.9 && <4.10
+                     , ghc-boot
 
-  if !impl (ghc >= 8.0)
-    build-depends:
-      fail >= 4.9 && <4.10
-
-  if impl (ghc >= 7.11)
-      build-depends: ghc-boot
-  hs-source-dirs:      src
-
-  if impl (ghc > 8.10.9)
-      hs-source-dirs: src-ghc90
-  else
-    if impl (ghc > 8.8.4)
-        hs-source-dirs: src-ghc810
-    else
-      if impl (ghc > 8.6.5)
-          hs-source-dirs: src-ghc88
-      else
-        if impl (ghc > 8.4.4)
-            hs-source-dirs: src-ghc86
-        else
-          if impl (ghc > 8.2.2)
-              hs-source-dirs: src-ghc84
-          else
-            if impl (ghc > 8.0.3)
-                hs-source-dirs: src-ghc82
-            else
-              if impl (ghc > 7.10.3)
-                  hs-source-dirs: src-ghc80
-              else
-                  hs-source-dirs: src-ghc710
 
   default-language:    Haskell2010
-  if impl (ghc < 7.10.2)
+  if impl (ghc < 9.2)
       buildable: False
 
 Test-Suite test
@@ -164,46 +97,20 @@ Test-Suite test
   else
     hs-source-dirs:      tests
 
-  if impl (ghc > 8.10.9)
-      hs-source-dirs: src-ghc90
-  else
-    if impl (ghc > 8.8.4)
-        hs-source-dirs: src-ghc810
-    else
-      if impl (ghc > 8.6.5)
-          hs-source-dirs: src-ghc88
-      else
-        if impl (ghc > 8.4.4)
-            hs-source-dirs: src-ghc86
-        else
-          if impl (ghc > 8.2.2)
-              hs-source-dirs: src-ghc84
-          else
-            if impl (ghc > 8.0.3)
-                hs-source-dirs: src-ghc82
-            else
-              if impl (ghc > 7.10.3)
-                  hs-source-dirs: src-ghc80
-              else
-                  hs-source-dirs: src-ghc710
-
   main-is:             Test.hs
   other-modules:       Test.Common
                      , Test.CommonUtils
-                     , Test.Consistency
                      , Test.NoAnnotations
                      , Test.Transform
-  if impl (ghc >= 8.0.1)
-    GHC-Options:         -threaded -Wall -Wredundant-constraints
-  else
-    GHC-Options:         -threaded -Wall
+  GHC-Options:         -threaded -Wall -Wredundant-constraints
   Default-language:    Haskell2010
-  if impl (ghc < 7.10.2)
+  if impl (ghc < 9.2)
       buildable: False
   Build-depends:       HUnit >= 1.2
-                     , base < 4.16
+                     , base < 4.18
                      , bytestring
                      , containers >= 0.5
+                     , ordered-containers
                      , Diff
                      , directory >= 1.2
                      , filepath  >= 1.4
@@ -214,25 +121,21 @@ Test-Suite test
                      , silently   >= 1.2
                      , filemanip  >= 0.3
                      -- for the lib only
-  if !impl (ghc >= 8.0)
-    build-depends:
-      fail >= 4.9 && <4.10
+                     , fail >= 4.9 && <4.10
+                     , ghc-boot
   if flag (dev)
       build-depends: free
   else
       build-depends: ghc-exactprint
-
-  if impl (ghc >= 7.11)
-      build-depends: ghc-boot
 
 executable roundtrip
   main-is: Roundtrip.hs
   hs-source-dirs: tests
   other-modules: Test.Common
                  Test.CommonUtils
-                 Test.Consistency
+                 -- Test.Consistency
   default-language:    Haskell2010
-  if impl (ghc >= 7.10.2) && flag (roundtrip)
+  if impl (ghc >= 9.2) && flag (roundtrip)
     build-depends:
                  HUnit
                , base
@@ -246,15 +149,11 @@ executable roundtrip
                , syb
                , temporary
                , time
-    if impl (ghc >= 7.11)
-        build-depends: ghc-boot
+               , ghc-boot
     buildable: True
   else
     buildable: False
-  if impl (ghc >= 8.0.1)
-    GHC-Options:         -threaded -Wall -Wredundant-constraints
-  else
-    GHC-Options:         -threaded -Wall
+  GHC-Options:         -threaded -Wall -Wredundant-constraints
 
 executable static
   main-is: Static.hs
@@ -267,15 +166,11 @@ executable static
                  , filepath
                  , ghc
                  , Diff
+                 , ghc-boot
     buildable: True
-    if impl (ghc >= 7.11)
-        build-depends: ghc-boot
   else
     buildable: False
-  if impl (ghc >= 8.0.1)
-    GHC-Options:         -threaded -Wall -Wredundant-constraints
-  else
-    GHC-Options:         -threaded -Wall
+  GHC-Options:         -threaded -Wall -Wredundant-constraints
 
 executable prepare-hackage
   main-is: PrepareHackage.hs
@@ -287,17 +182,13 @@ executable prepare-hackage
                  , directory
                  , filemanip
                  , filepath
-                 , ghc       >= 7.10.2
+                 , ghc       >= 9.2
                  , ghc-paths >= 0.1
                  , HUnit
                  , text   >= 1.2.2
                  , turtle >= 1.3.0
+                 , ghc-boot
     buildable: True
-    if impl (ghc >= 7.11)
-        build-depends: ghc-boot
   else
     buildable: False
-  if impl (ghc >= 8.0.1)
-    GHC-Options:         -threaded -Wall -Wredundant-constraints
-  else
-    GHC-Options:         -threaded -Wall
+  GHC-Options:         -threaded -Wall -Wredundant-constraints

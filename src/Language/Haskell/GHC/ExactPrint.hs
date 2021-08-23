@@ -1,11 +1,8 @@
-{-# LANGUAGE LambdaCase #-}
 -- | @ghc-exactprint@ is a library to manage manipulating Haskell
 -- source files. There are four components.
 module Language.Haskell.GHC.ExactPrint
         ( -- * Relativising
-          relativiseApiAnns
-        , relativiseApiAnnsWithComments
-        , Anns
+          Anns
         , Comment
         , Annotation(..)
         , AnnKey(..)
@@ -16,17 +13,12 @@ module Language.Haskell.GHC.ExactPrint
         -- * Transformation
         , module Language.Haskell.GHC.ExactPrint.Transform
 
-        -- * Adding default annotations
-        , addAnnotationsForPretty
-
         -- * Printing
         , exactPrint
 
         ) where
 
-import Language.Haskell.GHC.ExactPrint.Delta
-import Language.Haskell.GHC.ExactPrint.Pretty
-import Language.Haskell.GHC.ExactPrint.Print
+import Language.Haskell.GHC.ExactPrint.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Transform
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Parsers

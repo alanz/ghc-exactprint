@@ -111,4 +111,19 @@ rm .ghc.env*
 #--------------------------------------------------------------------
 #- GHC 9.0.1 released
 # cabal configure -fdev -froundtrip --enable-tests --with-compiler=ghc-9.0.1 --allow-newer
-cabal configure -fdev -froundtrip --enable-tests --with-compiler=ghc-9.0.1
+# cabal configure -fdev -froundtrip --enable-tests --with-compiler=ghc-9.0.1
+
+#--------------------------------------------------------------------
+#- GHC 9.2. alpha
+
+# cabal configure -fdev -froundtrip --enable-tests --with-compiler=ghc-9.2 --allow-newer
+# cabal configure  --with-compiler=ghc-9.2 --allow-newer
+# cabal configure -fdev --enable-tests --with-compiler=ghc-9.2 --allow-newer
+
+# cabal configure -fdev --enable-tests --with-compiler=/opt/ghc/9.2.0.20210622/bin/ghc --allow-newer
+# cabal configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.2.0.20210804/bin/ghc --allow-newer
+# cabal configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.2.0.20210806/bin/ghc --allow-newer
+# cabal configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.2.0.20210818/bin/ghc --allow-newer
+
+
+cabal configure -fdev -froundtrip --enable-tests --with-compiler=ghc-9.2 --allow-newer
