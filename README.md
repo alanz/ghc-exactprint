@@ -22,6 +22,15 @@ master has been updated to use the new [GHC Exact Print Annotations](https://git
 So ghc-exactprint-1.1 and later supports GHC 9.2 and onwards
 ghc-exactprint-0.6.4 supports GHC from 7.10 to 9.0
 
+Links
+-----
+
+[HIW 2021 talk on GHC Exactprint for GHC 9.2](https://alanz.github.io/hiw2021/)
+
+[HIW 2020 talk on plans for GHC Exactprint for GHC 9.2](https://alanz.github.io/hiw2020/)
+
+[Blog Post](https://blog.shaynefletcher.org/2021/05/annotations-in-ghc.html) by @shayne-fletcher on experiences converting to use the new annotations.
+
 Current Limitations
 -------------------
 
