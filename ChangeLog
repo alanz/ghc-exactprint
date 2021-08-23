@@ -1,3 +1,5 @@
+2021-08-23 v1.2
+	* Remove types and functions from previous version, now obsolete
 2021-08-23 v1.1
 	* Add support for GHC 9.2 rc1, and this version drops support for
 	prior GHC versions.
