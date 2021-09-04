@@ -52,7 +52,7 @@ import Language.Haskell.GHC.ExactPrint.Types
 
 -- ---------------------------------------------------------------------
 
-exactPrint :: ExactPrint ast => Located ast -> String
+exactPrint :: ExactPrint ast => ast -> String
 exactPrint ast = runIdentity (runEP stringOptions (markAnnotated ast))
 
 type EP w m a = RWST (PrintOptions m w) (EPWriter w) EPState m a
@@ -294,6 +294,22 @@ enterAnn (Entry anchor' cs flush) a = do
 addCommentsA :: [LEpaComment] -> EPP ()
 addCommentsA csNew = addComments (map tokComment csNew)
 
+{-
+TODO: When we addComments, some may have an anchor that is no longer
+valid, as it has been moved and has an anchor_op.
+
+Does an Anchor even make sense for a comment, perhaps it should be an
+EpaLocation?
+
+How do we sort them? do we assign a location based on when we add them
+to the list, based on the current output pos?  Except the offset is a
+delta compared to a reference location.  Need to nail the concept of
+the reference location.
+
+By definition it is the current anchor, so work against that. And that
+also means that the first entry comment that has moved should not have
+a line offset.
+-}
 addComments :: [Comment] -> EPP ()
 addComments csNew = do
   debugM $ "addComments:" ++ show csNew
@@ -2059,6 +2075,7 @@ instance (ExactPrint (LocatedA body))
     unless ((locA $ getLoc arg) == noSrcSpan ) $ markAnnotated arg
 
 -- ---------------------------------------------------------------------
+
 instance
     (ExactPrint (HsRecField' (a GhcPs) body),
      ExactPrint (HsRecField' (b GhcPs) body))

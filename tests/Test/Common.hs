@@ -12,6 +12,7 @@ module Test.Common (
               , ParseFailure(..)
               , ReportType(..)
               , roundTripTest
+              , roundTripTestBC
               , mkParsingTest
               , getModSummaryForFile
 
@@ -103,6 +104,8 @@ removeSpaces = map (\case {'\160' -> ' '; s -> s})
 roundTripTest :: LibDir -> FilePath -> IO Report
 roundTripTest libdir f = genTest libdir noChange f f
 
+roundTripTestBC :: LibDir -> FilePath -> IO Report
+roundTripTestBC libdir f = genTest libdir changeBalanceComments f f
 
 mkParsingTest :: (FilePath -> IO Report) -> FilePath -> FilePath -> Test
 mkParsingTest tester dir fp =
@@ -125,6 +128,14 @@ type Changer = LibDir -> (GHC.ParsedSource -> IO GHC.ParsedSource)
 
 noChange :: Changer
 noChange _libdir parsed = return parsed
+
+changeBalanceComments :: Changer
+changeBalanceComments _libdir (GHC.L l p) = do
+  let decls0 = GHC.hsmodDecls p
+      (decls,_,w) = runTransform (balanceCommentsList decls0)
+  let p2 = p { GHC.hsmodDecls = decls}
+  return (GHC.L l p2)
+
 
 genTest :: LibDir -> Changer -> FilePath -> FilePath -> IO Report
 genTest libdir f origFile expectedFile  = do

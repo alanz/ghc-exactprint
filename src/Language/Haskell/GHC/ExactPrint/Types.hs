@@ -55,6 +55,7 @@ instance Outputable Comment where
 
 -- | The different syntactic elements which are not represented in the
 -- AST.
+-- TODO:AZ: check which if these are still in use
 data KeywordId = G AnnKeywordId  -- ^ A normal keyword
                | AnnSemiSep          -- ^ A separating comma
                | AnnTypeApp          -- ^ Visible type application annotation
