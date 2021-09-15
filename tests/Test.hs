@@ -74,6 +74,10 @@ findTestsBC :: LibDir -> IO Test
 findTestsBC libdir
   = testList "Balance comments tests" <$> mapM (findTestsDir id (mkParserTestBC libdir)) testDirs
 
+findTestsMD :: LibDir -> IO Test
+findTestsMD libdir
+  = testList "Make Delta tests" <$> mapM (findTestsDir id (mkParserTestMD libdir)) testDirs
+
 findPrettyTests :: LibDir -> IO Test
 findPrettyTests libdir =
   testList "Default Annotations round-trip tests"
@@ -110,6 +114,7 @@ mkTests = do
   let libdir = GHC.Paths.libdir
   roundTripTests <- findTests libdir
   roundTripBalanceCommentsTests <- findTestsBC libdir
+  roundTripMakeDeltaTests <- findTestsMD libdir
   prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
                     --   internalTests,
@@ -121,7 +126,9 @@ mkTests = do
                     -- -- ,
                     -- --   prettyRoundTripTests
                     -- ,
-                      roundTripBalanceCommentsTests
+                      -- roundTripBalanceCommentsTests
+                    -- ,
+                      roundTripMakeDeltaTests
                     ]
 
 failingTests :: LibDir -> Test
@@ -146,6 +153,9 @@ mkParserTest libdir dir fp = mkParsingTest (roundTripTest libdir) dir fp
 
 mkParserTestBC :: LibDir -> FilePath -> FilePath -> Test
 mkParserTestBC libdir dir fp = mkParsingTest (roundTripTestBC libdir) dir fp
+
+mkParserTestMD :: LibDir -> FilePath -> FilePath -> Test
+mkParserTestMD libdir dir fp = mkParsingTest (roundTripTestMD libdir) dir fp
 
 -- ---------------------------------------------------------------------
 
@@ -183,7 +193,8 @@ tt' = do
     -- mkParserTest libdir      "ghc92-copied" "AddLocalDecl5.expected.hs"
 
     -- mkParserTest libdir      "ghc710" "QuasiQuote.hs"
-    mkParserTestBC libdir      "ghc710" "QuasiQuote.hs"
+    -- mkParserTestBC libdir      "ghc710" "QuasiQuote.hs"
+    mkParserTestMD libdir      "ghc710" "B.hs"
 
     -- mkParserTest libdir      "ghc92" "BalanceComments1.hs"
     -- mkParserTestBC libdir    "ghc92" "BalanceComments1.hs"

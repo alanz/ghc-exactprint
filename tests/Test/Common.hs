@@ -13,6 +13,7 @@ module Test.Common (
               , ReportType(..)
               , roundTripTest
               , roundTripTestBC
+              , roundTripTestMD
               , mkParsingTest
               , getModSummaryForFile
 
@@ -107,6 +108,9 @@ roundTripTest libdir f = genTest libdir noChange f f
 roundTripTestBC :: LibDir -> FilePath -> IO Report
 roundTripTestBC libdir f = genTest libdir changeBalanceComments f f
 
+roundTripTestMD :: LibDir -> FilePath -> IO Report
+roundTripTestMD libdir f = genTest libdir changeMakeDelta f f
+
 mkParsingTest :: (FilePath -> IO Report) -> FilePath -> FilePath -> Test
 mkParsingTest tester dir fp =
   let basename       = testPrefix </> dir </> fp
@@ -136,6 +140,9 @@ changeBalanceComments _libdir (GHC.L l p) = do
   let p2 = p { GHC.hsmodDecls = decls}
   return (GHC.L l p2)
 
+changeMakeDelta :: Changer
+changeMakeDelta _libdir m = do
+  return (makeDeltaAst m)
 
 genTest :: LibDir -> Changer -> FilePath -> FilePath -> IO Report
 genTest libdir f origFile expectedFile  = do
