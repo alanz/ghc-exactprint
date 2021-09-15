@@ -287,9 +287,119 @@ locatedAnAnchor :: LocatedAn a t -> RealSrcSpan
 locatedAnAnchor (L (SrcSpanAnn EpAnnNotUsed l) _) = realSrcSpan l
 locatedAnAnchor (L (SrcSpanAnn (EpAnn a _ _) _) _) = anchor a
 
- -- ---------------------------------------------------------------------
+-- ---------------------------------------------------------------------
 
 showAst :: (Data a) => a -> String
 showAst ast
   = showSDocUnsafe
     $ showAstData NoBlankSrcSpan NoBlankEpAnnotations ast
+
+-- ---------------------------------------------------------------------
+
+setAnchorAn :: (Monoid an) => LocatedAn an a -> Anchor -> LocatedAn an a
+setAnchorAn (L (SrcSpanAnn EpAnnNotUsed l)    a) anc
+  = (L (SrcSpanAnn (EpAnn anc mempty emptyComments) l) a)
+setAnchorAn (L (SrcSpanAnn (EpAnn _ an cs) l) a) anc
+  = (L (SrcSpanAnn (EpAnn anc an cs) l) a)
+
+setAnchorEpa :: (Monoid an) => EpAnn an -> Anchor -> EpAnn an
+setAnchorEpa EpAnnNotUsed    anc = EpAnn anc mempty emptyComments
+setAnchorEpa (EpAnn _ an cs) anc = EpAnn anc an     cs
+
+-- ---------------------------------------------------------------------
+-- Orphan Monoid instances. See https://gitlab.haskell.org/ghc/ghc/-/issues/20372
+
+instance Semigroup AnnPragma where
+  (<>) = error "unimplemented"
+instance Monoid AnnPragma where
+  mempty = error "meaningless"
+
+instance Semigroup EpAnnImportDecl where
+  (<>) = error "unimplemented"
+instance Monoid EpAnnImportDecl where
+  mempty = error "meaningless"
+
+instance Semigroup HsRuleAnn where
+  (<>) = error "unimplemented"
+instance Monoid HsRuleAnn where
+  mempty = error "meaningless"
+
+instance Semigroup AnnSig where
+  (<>) = error "unimplemented"
+instance Monoid AnnSig where
+  mempty = error "meaningless"
+
+instance Semigroup GrhsAnn where
+  (<>) = error "unimplemented"
+instance Monoid GrhsAnn where
+  mempty = error "meaningless"
+
+instance Semigroup EpAnnUnboundVar where
+  (<>) = error "unimplemented"
+instance Monoid EpAnnUnboundVar where
+  mempty = error "meaningless"
+
+instance Semigroup NoEpAnns where
+  (<>) = error "unimplemented"
+instance Monoid NoEpAnns where
+  mempty = error "meaningless"
+
+instance Semigroup AnnParen where
+  (<>) = error "unimplemented"
+instance Monoid AnnParen where
+  mempty = error "meaningless"
+
+instance Semigroup AnnExplicitSum where
+  (<>) = error "unimplemented"
+instance Monoid AnnExplicitSum where
+  mempty = error "meaningless"
+
+instance Semigroup EpAnnHsCase where
+  (<>) = error "unimplemented"
+instance Monoid EpAnnHsCase where
+  mempty = error "meaningless"
+
+instance Semigroup AnnsIf where
+  (<>) = error "unimplemented"
+instance Monoid AnnsIf where
+  mempty = error "meaningless"
+
+instance Semigroup AnnsLet where
+  (<>) = error "unimplemented"
+instance Monoid AnnsLet where
+  mempty = error "meaningless"
+
+instance Semigroup AnnProjection where
+  (<>) = error "unimplemented"
+instance Monoid AnnProjection where
+  mempty = error "meaningless"
+
+instance Semigroup AnnFieldLabel where
+  (<>) = error "unimplemented"
+instance Monoid AnnFieldLabel where
+  mempty = error "meaningless"
+
+instance Semigroup EpaLocation where
+  (<>) = error "unimplemented"
+instance Monoid EpaLocation where
+  mempty = error "meaningless"
+
+instance Semigroup AddEpAnn where
+  (<>) = error "unimplemented"
+instance Monoid AddEpAnn where
+  mempty = error "meaningless"
+
+instance Semigroup TrailingAnn where
+  (<>) = error "unimplemented"
+instance Monoid TrailingAnn where
+  mempty = error "meaningless"
+
+instance Semigroup AnnContext where
+  (<>) = error "unimplemented"
+instance Monoid AnnContext where
+  mempty = error "meaningless"
+
+instance Semigroup EpAnnSumPat where
+  (<>) = error "unimplemented"
+instance Monoid EpAnnSumPat where
+  mempty = error "meaningless"
