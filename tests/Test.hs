@@ -126,7 +126,7 @@ mkTests = do
                     -- -- ,
                     -- --   prettyRoundTripTests
                     -- ,
-                      -- roundTripBalanceCommentsTests
+                    --   roundTripBalanceCommentsTests
                     -- ,
                       roundTripMakeDeltaTests
                     ]
@@ -194,7 +194,8 @@ tt' = do
 
     -- mkParserTest libdir      "ghc710" "QuasiQuote.hs"
     -- mkParserTestBC libdir      "ghc710" "QuasiQuote.hs"
-    mkParserTestMD libdir      "ghc710" "B.hs"
+    -- mkParserTestMD libdir      "ghc92" "DependentStmt.hs"
+    mkParserTestMD libdir      "ghc710" "AddAndOr3.hs"
 
     -- mkParserTest libdir      "ghc92" "BalanceComments1.hs"
     -- mkParserTestBC libdir    "ghc92" "BalanceComments1.hs"

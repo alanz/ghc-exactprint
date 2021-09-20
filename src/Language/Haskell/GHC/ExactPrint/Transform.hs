@@ -21,7 +21,7 @@
 module Language.Haskell.GHC.ExactPrint.Transform
         (
         -- * Delta is still here
-          makeDeltaAst
+          makeDeltaAst'
         -- * The Transform Monad
         , Transform
         , TransformT(..)
@@ -1207,8 +1207,8 @@ type Delta a = RWS () [String] (Maybe Anchor) a
 -- | Generic top-down traversal through the given AST fragment,
 -- converting all ExactPrint Anchor's into ones with an equivalent
 -- MovedAnchor operation.  Initially ignores comments
-makeDeltaAst :: forall a. (Data a) => a -> a
-makeDeltaAst a = fst $ evalRWS (go a) () Nothing
+makeDeltaAst' :: forall a. (Data a) => a -> a
+makeDeltaAst' a = fst $ evalRWS (go a) () Nothing
   where
     go :: a -> Delta a
     go = everywhereM' (mkM   (locatedAnnImpl @AnnListItem) -- LocatedA

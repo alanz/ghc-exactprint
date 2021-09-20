@@ -299,12 +299,18 @@ showAst ast
 setAnchorAn :: (Monoid an) => LocatedAn an a -> Anchor -> LocatedAn an a
 setAnchorAn (L (SrcSpanAnn EpAnnNotUsed l)    a) anc
   = (L (SrcSpanAnn (EpAnn anc mempty emptyComments) l) a)
+     `debug` ("setAnchorAn: anc=" ++ showAst anc)
 setAnchorAn (L (SrcSpanAnn (EpAnn _ an cs) l) a) anc
   = (L (SrcSpanAnn (EpAnn anc an cs) l) a)
+     `debug` ("setAnchorAn: anc=" ++ showAst anc)
 
 setAnchorEpa :: (Monoid an) => EpAnn an -> Anchor -> EpAnn an
 setAnchorEpa EpAnnNotUsed    anc = EpAnn anc mempty emptyComments
 setAnchorEpa (EpAnn _ an cs) anc = EpAnn anc an     cs
+
+setAnchorEpaL :: EpAnn AnnList -> Anchor -> EpAnn AnnList
+setAnchorEpaL EpAnnNotUsed    anc = EpAnn anc mempty emptyComments
+setAnchorEpaL (EpAnn _ an cs) anc = EpAnn anc (an {al_anchor = Nothing}) cs
 
 -- ---------------------------------------------------------------------
 -- Orphan Monoid instances. See https://gitlab.haskell.org/ghc/ghc/-/issues/20372
