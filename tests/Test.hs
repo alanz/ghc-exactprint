@@ -198,7 +198,14 @@ tt' = do
     -- mkParserTestMD libdir      "ghc710" "AddAndOr3.hs"
     -- mkParserTestMD libdir      "ghc92" "Records2.hs"
     -- mkParserTestMD libdir      "ghc92" "AdhocRule.hs"
-    mkParserTestMD libdir      "ghc92" "Observer.hs"
+    -- mkParserTestMD libdir      "ghc92" "Observer.hs"
+    -- mkParserTest libdir      "ghc92" "CommentPlacement.hs"
+    -- mkParserTestMD libdir      "ghc92" "CommentPlacement.hs"
+
+    -- mkParserTest libdir      "ghc92" "CommentPlacement3.hs"
+    -- mkParserTestMD libdir      "ghc92" "CommentPlacement3.hs"
+
+    mkParserTestMD libdir      "ghc92" "proc-do-complex.hs"
 
     -- mkParserTest libdir      "ghc92" "BalanceComments1.hs"
     -- mkParserTestBC libdir    "ghc92" "BalanceComments1.hs"

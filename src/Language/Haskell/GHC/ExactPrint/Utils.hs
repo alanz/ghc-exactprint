@@ -45,8 +45,8 @@ import Language.Haskell.GHC.ExactPrint.Types
 
 -- |Global switch to enable debug tracing in ghc-exactprint Delta / Print
 debugEnabledFlag :: Bool
--- debugEnabledFlag = True
-debugEnabledFlag = False
+debugEnabledFlag = True
+-- debugEnabledFlag = False
 
 -- |Global switch to enable debug tracing in ghc-exactprint Pretty
 debugPEnabledFlag :: Bool
@@ -226,6 +226,14 @@ ghcCommentText (L _ (GHC.EpaComment (EpaEofComment) _))        = ""
 tokComment :: LEpaComment -> Comment
 tokComment t@(L lt _) = mkComment (normaliseCommentText $ ghcCommentText t) lt
 
+mkEpaComments :: [Comment] -> [Comment] -> EpAnnComments
+mkEpaComments priorCs postCs
+  = EpaCommentsBalanced (map comment2LEpaComment priorCs) (map comment2LEpaComment postCs)
+
+comment2LEpaComment :: Comment -> LEpaComment
+comment2LEpaComment (Comment s anc _mk) = mkLEpaComment s anc
+
+
 mkLEpaComment :: String -> Anchor -> LEpaComment
 -- Note: fudging the ac_prior_tok value, hope it does not cause a problem
 mkLEpaComment s anc = (L anc (GHC.EpaComment (EpaLineComment s) (anchor anc)))
@@ -296,21 +304,21 @@ showAst ast
 
 -- ---------------------------------------------------------------------
 
-setAnchorAn :: (Monoid an) => LocatedAn an a -> Anchor -> LocatedAn an a
-setAnchorAn (L (SrcSpanAnn EpAnnNotUsed l)    a) anc
-  = (L (SrcSpanAnn (EpAnn anc mempty emptyComments) l) a)
+setAnchorAn :: (Monoid an) => LocatedAn an a -> Anchor -> EpAnnComments -> LocatedAn an a
+setAnchorAn (L (SrcSpanAnn EpAnnNotUsed l)    a) anc cs
+  = (L (SrcSpanAnn (EpAnn anc mempty cs) l) a)
      `debug` ("setAnchorAn: anc=" ++ showAst anc)
-setAnchorAn (L (SrcSpanAnn (EpAnn _ an cs) l) a) anc
+setAnchorAn (L (SrcSpanAnn (EpAnn _ an _) l) a) anc cs
   = (L (SrcSpanAnn (EpAnn anc an cs) l) a)
      `debug` ("setAnchorAn: anc=" ++ showAst anc)
 
-setAnchorEpa :: (Monoid an) => EpAnn an -> Anchor -> EpAnn an
-setAnchorEpa EpAnnNotUsed    anc = EpAnn anc mempty emptyComments
-setAnchorEpa (EpAnn _ an cs) anc = EpAnn anc an     cs
+setAnchorEpa :: (Monoid an) => EpAnn an -> Anchor -> EpAnnComments -> EpAnn an
+setAnchorEpa EpAnnNotUsed   anc cs = EpAnn anc mempty cs
+setAnchorEpa (EpAnn _ an _) anc cs = EpAnn anc an     cs
 
-setAnchorEpaL :: EpAnn AnnList -> Anchor -> EpAnn AnnList
-setAnchorEpaL EpAnnNotUsed    anc = EpAnn anc mempty emptyComments
-setAnchorEpaL (EpAnn _ an cs) anc = EpAnn anc (an {al_anchor = Nothing}) cs
+setAnchorEpaL :: EpAnn AnnList -> Anchor -> EpAnnComments -> EpAnn AnnList
+setAnchorEpaL EpAnnNotUsed   anc cs = EpAnn anc mempty cs
+setAnchorEpaL (EpAnn _ an _) anc cs = EpAnn anc (an {al_anchor = Nothing}) cs
 
 -- ---------------------------------------------------------------------
 -- Orphan Monoid instances. See https://gitlab.haskell.org/ghc/ghc/-/issues/20372

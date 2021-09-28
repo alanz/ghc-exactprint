@@ -138,6 +138,7 @@ defaultEPState = EPState
              , uAnchorSpan = badRealSrcSpan
              , uExtraDP = Nothing
              , epComments = []
+             , epCommentsApplied = []
              }
 
 
@@ -210,6 +211,7 @@ data EPState = EPState
 
              -- Shared
              , epComments :: ![Comment]
+             , epCommentsApplied :: ![Comment]
              }
 
 -- ---------------------------------------------------------------------
@@ -268,18 +270,20 @@ astId a = show (typeOf a)
 enterAnn :: (ExactPrint a) => Entry -> a -> Annotated a
 enterAnn NoEntryVal a = do
   p <- getPosP
-  debugM $ "enterAnn:NO ANN:(p,a) =" ++ show (p, astId a) ++ " starting"
+  debugM $ "enterAnn:starting:NO ANN:(p,a) =" ++ show (p, astId a)
   r <- exact a
-  debugM $ "enterAnn:NO ANN:p =" ++ show (p, astId a) ++ " done"
+  debugM $ "enterAnn:done:NO ANN:p =" ++ show (p, astId a)
   return r
 enterAnn (Entry anchor' cs flush) a = do
   p <- getPosP
-  debugM $ "enterAnn:(p,a) =" ++ show (p, astId a) ++ " starting"
+  debugM $ "enterAnn:starting:(p,a) =" ++ show (p, astId a)
   -- debugM $ "enterAnn:(cs) =" ++ showGhc (cs)
   let curAnchor = anchor anchor' -- As a base for the current AST element
   debugM $ "enterAnn:(curAnchor):=" ++ show (rs2range curAnchor)
   addCommentsA (priorComments cs)
+  debugM $ "enterAnn:Added comments"
   printComments curAnchor
+  priorCs <- takeAppliedComments
   -- -------------------------
   case anchor_op anchor' of
     MovedAnchor dp -> do
@@ -340,27 +344,36 @@ enterAnn (Entry anchor' cs flush) a = do
   let mflush = when (flush == FlushComments) $ do
         debugM $ "flushing comments in enterAnn"
         flushComments (getFollowingComments cs)
-        -- flushComments []
 
   -- let
   --   st = annNone
   -- withOffset st (advance edp >> exact a >> mflush)
+-- local :: (r -> r) -> RWST r w s m a -> RWST r w s m a
   advance edp
   a' <- exact a
   mflush
 
+  postCs <- takeAppliedComments
   when (flush == NoFlushComments) $ do
     when ((getFollowingComments cs) /= []) $ do
       debugM $ "starting trailing comments:" ++ showAst (getFollowingComments cs)
       mapM_ printOneComment (map tokComment $ getFollowingComments cs)
       debugM $ "ending trailing comments"
 
+  -- postCs <- takeAppliedComments
   let newAchor = anchor' { anchor_op = MovedAnchor edp }
-  -- let newAchor = anchor' { anchor_op = MovedAnchor (SameLine 9) }
-  let r = (setAnnotationAnchor a' newAchor)
-  debugM $ "calling setAnnotationAnchor:newAchor=" ++ showAst newAchor
+  let r = (setAnnotationAnchor a' newAchor (mkEpaComments priorCs postCs))
+  pure () -- monadic action to flush debugM
+  debugM $ "calling setAnnotationAnchor:(newAchor,priorCs,postCs)=" ++ showAst (newAchor, priorCs, postCs)
+  debugM $ "enterAnn:done:(p,a) =" ++ show (p, astId a')
   return r
-  -- return (setAnnotationAnchor a' newAchor)
+
+-- ---------------------------------------------------------------------
+
+-- withComments :: (Monad m, Monoid w) => Annotation -> (EP w m a -> EP w m a)
+-- withComments a =
+--   local (\s -> s { epAnn = a, epContext = pushAcs (epContext s) })
+
 
 -- ---------------------------------------------------------------------
 
@@ -443,7 +456,6 @@ withPpr a = do
   return a
 
 -- ---------------------------------------------------------------------
--- Modeled on Outputable
 
 -- | An AST fragment with an annotation must be able to return the
 -- requirements for nesting another one, captured in an 'Entry', and
@@ -452,7 +464,7 @@ withPpr a = do
 -- 'ppr'.
 class (Typeable a) => ExactPrint a where
   getAnnotationEntry :: a -> Entry
-  setAnnotationAnchor :: a -> Anchor -> a
+  setAnnotationAnchor :: a -> Anchor -> EpAnnComments -> a
   exact :: a -> Annotated a
 
 -- ---------------------------------------------------------------------
@@ -463,13 +475,13 @@ instance (ExactPrint a) => ExactPrint (Located a) where
   getAnnotationEntry (L l _) = Entry (spanAsAnchor l) emptyComments NoFlushComments
 
   -- We cannot set a proper anchor for just a SrcSpan
-  setAnnotationAnchor la _ = la
+  setAnnotationAnchor la _ _ = la
 
   exact (L l a) = L l <$> markAnnotated a
 
 instance (ExactPrint a) => ExactPrint (LocatedA a) where
   getAnnotationEntry = entryFromLocatedA
-  setAnnotationAnchor la anc = setAnchorAn la anc
+  setAnnotationAnchor la cs anc = setAnchorAn la cs anc
   -- setAnnotationAnchor la anc = error $ "LocatedA:setAnnotationAnchor (la,anc)=" ++ showAst (getLoc la,anc)
   exact (L la a) = do
     debugM $ "LocatedA a:la loc=" ++ show (ss2range $ locA la)
@@ -479,12 +491,12 @@ instance (ExactPrint a) => ExactPrint (LocatedA a) where
 
 instance (ExactPrint a) => ExactPrint [a] where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor ls _ = ls
+  setAnnotationAnchor ls _ _ = ls
   exact ls = mapM markAnnotated ls
 
 instance (ExactPrint a) => ExactPrint (Maybe a) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor ma _ = ma
+  setAnnotationAnchor ma _ _ = ma
   exact ma = mapM markAnnotated ma
 
 -- ---------------------------------------------------------------------
@@ -493,7 +505,7 @@ instance (ExactPrint a) => ExactPrint (Maybe a) where
 instance ExactPrint HsModule where
   getAnnotationEntry hsmod = fromAnn' (hsmodAnn hsmod)
   -- A bit pointless actually changing anything here
-  setAnnotationAnchor hsmod _ = hsmod
+  setAnnotationAnchor hsmod _ _ = hsmod
                    `debug` ("setAnnotationAnchor hsmod called")
 
   exact hsmod@(HsModule EpAnnNotUsed _ _ _ _ _ _ _) = withPpr hsmod >> return hsmod
@@ -527,19 +539,19 @@ instance ExactPrint HsModule where
 -- TODO:AZ: do we *need* the following, or can we capture it in the AST?
 -- | We can have a list with its own entry point defined. Create a
 -- data structure to capture this, for defining an ExactPrint instance
-data AnnotatedList a = AnnotatedList (Maybe Anchor) a
-                     deriving (Eq,Show)
+-- data AnnotatedList a = AnnotatedList (Maybe Anchor) a
+--                      deriving (Eq,Show)
 
-instance (ExactPrint a) => ExactPrint (AnnotatedList a) where
-  getAnnotationEntry (AnnotatedList (Just anc) _) = Entry anc (EpaComments []) NoFlushComments
-  getAnnotationEntry (AnnotatedList Nothing    _) = NoEntryVal
+-- instance (ExactPrint a) => ExactPrint (AnnotatedList a) where
+--   getAnnotationEntry (AnnotatedList (Just anc) _) = Entry anc (EpaComments []) NoFlushComments
+--   getAnnotationEntry (AnnotatedList Nothing    _) = NoEntryVal
 
-  setAnnotationAnchor (AnnotatedList _ a) anc = (AnnotatedList (Just anc) a)
+--   setAnnotationAnchor (AnnotatedList _ a) anc cs = (AnnotatedList (Just anc) a)
 
-  exact a@(AnnotatedList an ls) = do
-    debugM $ "AnnotatedList:an=" ++ show an
-    markAnnotatedWithLayout ls
-    return a
+--   exact a@(AnnotatedList an ls) = do
+--     debugM $ "AnnotatedList:an=" ++ show an
+--     markAnnotatedWithLayout ls
+--     return a
 
 
 -- ---------------------------------------------------------------------
@@ -778,18 +790,19 @@ printOneComment c@(Comment _str loc _mo) = do
     _ -> do
         pe <- getPriorEndD
         let dp = ss2delta pe (anchor loc)
-        debugM $ "printOneComment:(dp,pe,anchor loc)=" ++ showGhc (dp,pe,ss2pos $ anchor loc)
+        -- debugM $ "printOneComment:(dp,pe,anchor loc)=" ++ showGhc (dp,pe,ss2pos $ anchor loc)
         return dp
   dp'' <- adjustDeltaForOffsetM dp
   mep <- getExtraDP
   dp' <- case mep of
     Just (Anchor _ (MovedAnchor edp)) -> do
-      debugM $ "printOneComment:edp=" ++ show edp
+      -- debugM $ "printOneComment:edp=" ++ show edp
       return edp
     _ -> return dp''
   LayoutStartCol dOff <- gets dLHS
-  debugM $ "printOneComment:(dp,dp',dp'',dOff)=" ++ showGhc (dp,dp',dp'',dOff)
+  -- debugM $ "printOneComment:(dp,dp',dp'',dOff)=" ++ showGhc (dp,dp',dp'',dOff)
   setPriorEndD (ss2posEnd (anchor loc))
+  applyComment c
   printQueuedComment (anchor loc) c dp'
 
 -- ---------------------------------------------------------------------
@@ -808,7 +821,6 @@ commentAllocation ss = do
 
 -- ---------------------------------------------------------------------
 
-
 markAnnotatedWithLayout :: ExactPrint ast => ast -> EPP ast
 markAnnotatedWithLayout a = setLayoutBoth $ markAnnotated a
 
@@ -821,7 +833,7 @@ markTopLevelList ls = mapM (\a -> setLayoutTopLevelP $ markAnnotated a) ls
 
 instance ExactPrint ModuleName where
   getAnnotationEntry _ = NoEntryVal
-  setAnnotationAnchor n _ = n
+  setAnnotationAnchor n _ _ = n
   exact n = do
     debugM $ "ModuleName: " ++ showPprUnsafe n
     withPpr n
@@ -853,7 +865,7 @@ instance ExactPrint (LocatedP WarningTxt) where
 
 instance ExactPrint (ImportDecl GhcPs) where
   getAnnotationEntry idecl = fromAnn (ideclExt idecl)
-  setAnnotationAnchor idecl anc = idecl { ideclExt = setAnchorEpa (ideclExt idecl) anc }
+  setAnnotationAnchor idecl anc cs = idecl { ideclExt = setAnchorEpa (ideclExt idecl) anc cs }
   exact x@(ImportDecl EpAnnNotUsed _ _ _ _ _ _ _ _ _) = withPpr x
   exact id@(ImportDecl ann@(EpAnn _ an _) msrc (L lm modname) mpkg _src safeflag qualFlag _impl mAs hiding) = do
 
@@ -902,7 +914,7 @@ instance ExactPrint (ImportDecl GhcPs) where
 
 instance ExactPrint HsDocString where
   getAnnotationEntry _ = NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact = withPpr -- TODO:AZ use annotations
 
 -- ---------------------------------------------------------------------
@@ -925,7 +937,7 @@ instance ExactPrint (HsDecl GhcPs) where
 
   -- We do not recurse, the generic traversal using this feature
   -- should do that for us.
-  setAnnotationAnchor d _ = d
+  setAnnotationAnchor d _ _ = d
 
   exact (TyClD       x d) = TyClD       x <$> markAnnotated d
   exact (InstD       x d) = InstD       x <$> markAnnotated d
@@ -949,8 +961,8 @@ instance ExactPrint (InstDecl GhcPs) where
   getAnnotationEntry (DataFamInstD an _) = fromAnn an
   getAnnotationEntry (TyFamInstD   _  _) = NoEntryVal
 
-  setAnnotationAnchor (DataFamInstD an d) anc = DataFamInstD (setAnchorEpa an anc) d
-  setAnnotationAnchor d _ = d
+  setAnnotationAnchor (DataFamInstD an d) anc cs = DataFamInstD (setAnchorEpa an anc cs) d
+  setAnnotationAnchor d _ _ = d
 
 
   exact a@(ClsInstD     _  cid) = markAnnotated cid >> return a
@@ -1006,7 +1018,7 @@ rendering the DataDefn are contained in the FamEqn, and are called
 
 instance ExactPrint (DerivDecl GhcPs) where
   getAnnotationEntry (DerivDecl {deriv_ext = an} ) = fromAnn an
-  setAnnotationAnchor dd anc = dd { deriv_ext = setAnchorEpa (deriv_ext dd) anc }
+  setAnnotationAnchor dd anc cs = dd { deriv_ext = setAnchorEpa (deriv_ext dd) anc cs }
   exact dd@(DerivDecl an typ ms mov) = do
     markEpAnn an AnnDeriving
     mapM_ markAnnotated ms
@@ -1021,8 +1033,8 @@ instance ExactPrint (ForeignDecl GhcPs) where
   getAnnotationEntry (ForeignImport an _ _  _) = fromAnn an
   getAnnotationEntry (ForeignExport an _ _  _) = fromAnn an
 
-  setAnnotationAnchor (ForeignImport an a b c) anc = ForeignImport (setAnchorEpa an anc) a b c
-  setAnnotationAnchor (ForeignExport an a b c) anc = ForeignExport (setAnchorEpa an anc) a b c
+  setAnnotationAnchor (ForeignImport an a b c) anc cs = ForeignImport (setAnchorEpa an anc cs) a b c
+  setAnnotationAnchor (ForeignExport an a b c) anc cs = ForeignExport (setAnchorEpa an anc cs) a b c
 
   exact f@(ForeignImport an n ty fimport) = do
     markEpAnn an AnnForeign
@@ -1048,7 +1060,7 @@ instance ExactPrint (ForeignDecl GhcPs) where
 
 instance ExactPrint ForeignImport where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact i@(CImport cconv safety@(L ll _) _mh _imp (L ls src)) = do
     markAnnotated cconv
     unless (ll == noSrcSpan) $ markAnnotated safety >> return ()
@@ -1059,7 +1071,7 @@ instance ExactPrint ForeignImport where
 
 instance ExactPrint ForeignExport where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact i@(CExport spec (L ls src)) = do
     debugM $ "CExport starting"
     markAnnotated spec
@@ -1070,7 +1082,7 @@ instance ExactPrint ForeignExport where
 
 instance ExactPrint CExportSpec where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact e@(CExportStatic _st _lbl cconv) = do
     debugM $ "CExportStatic starting"
     markAnnotated cconv
@@ -1080,21 +1092,21 @@ instance ExactPrint CExportSpec where
 
 instance ExactPrint Safety where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact = withPpr
 
 -- ---------------------------------------------------------------------
 
 instance ExactPrint CCallConv where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact = withPpr
 
 -- ---------------------------------------------------------------------
 
 instance ExactPrint (WarnDecls GhcPs) where
   getAnnotationEntry (Warnings an _ _) = fromAnn an
-  setAnnotationAnchor (Warnings an a b) anc = Warnings (setAnchorEpa an anc) a b
+  setAnnotationAnchor (Warnings an a b) anc cs = Warnings (setAnchorEpa an anc cs) a b
 
   exact w@(Warnings an src warns) = do
     markAnnOpen an src "{-# WARNING" -- Note: might be {-# DEPRECATED
@@ -1106,7 +1118,7 @@ instance ExactPrint (WarnDecls GhcPs) where
 
 instance ExactPrint (WarnDecl GhcPs) where
   getAnnotationEntry (Warning an _ _) = fromAnn an
-  setAnnotationAnchor (Warning an a b) anc = Warning (setAnchorEpa an anc) a b
+  setAnnotationAnchor (Warning an a b) anc cs = Warning (setAnchorEpa an anc cs) a b
 
   exact w@(Warning an lns txt) = do
     markAnnotated lns
@@ -1121,7 +1133,7 @@ instance ExactPrint (WarnDecl GhcPs) where
 
 instance ExactPrint StringLiteral where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   exact l@(StringLiteral src fs mcomma) = do
     printSourceText src (show (unpackFS fs))
@@ -1132,7 +1144,7 @@ instance ExactPrint StringLiteral where
 
 instance ExactPrint FastString where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   -- TODO: https://ghc.haskell.org/trac/ghc/ticket/10313 applies.
   -- exact fs = printStringAdvance (show (unpackFS fs))
@@ -1143,7 +1155,7 @@ instance ExactPrint FastString where
 
 instance ExactPrint (RuleDecls GhcPs) where
   getAnnotationEntry (HsRules an _ _) = fromAnn an
-  setAnnotationAnchor (HsRules an a b) anc = HsRules (setAnchorEpa an anc) a b
+  setAnnotationAnchor (HsRules an a b) anc cs = HsRules (setAnchorEpa an anc cs) a b
   exact (HsRules an src rules) = do
     case src of
       NoSourceText      -> markLocatedAALS an id AnnOpen  (Just "{-# RULES")
@@ -1156,7 +1168,7 @@ instance ExactPrint (RuleDecls GhcPs) where
 
 instance ExactPrint (RuleDecl GhcPs) where
   getAnnotationEntry (HsRule {rd_ext = an}) = fromAnn an
-  setAnnotationAnchor r anc = r { rd_ext = setAnchorEpa (rd_ext r) anc}
+  setAnnotationAnchor r anc cs = r { rd_ext = setAnchorEpa (rd_ext r) anc cs}
   exact (HsRule an ln act mtybndrs termbndrs lhs rhs) = do
     debugM "HsRule entered"
     ln' <- markAnnotated ln
@@ -1202,7 +1214,7 @@ markActivation an fn act = do
 
 instance ExactPrint (SpliceDecl GhcPs) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   exact s@(SpliceDecl _ splice _flag) = do
     markAnnotated splice
@@ -1212,7 +1224,7 @@ instance ExactPrint (SpliceDecl GhcPs) where
 
 instance ExactPrint DocDecl where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   exact v =
     let str =
@@ -1228,7 +1240,7 @@ instance ExactPrint DocDecl where
 
 instance ExactPrint (RoleAnnotDecl GhcPs) where
   getAnnotationEntry (RoleAnnotDecl an _ _) = fromAnn an
-  setAnnotationAnchor (RoleAnnotDecl an a b) anc = RoleAnnotDecl (setAnchorEpa an anc) a b
+  setAnnotationAnchor (RoleAnnotDecl an a b) anc cs = RoleAnnotDecl (setAnchorEpa an anc cs) a b
   exact r@(RoleAnnotDecl an ltycon roles) = do
     markEpAnn an AnnType
     markEpAnn an AnnRole
@@ -1242,14 +1254,14 @@ instance ExactPrint (RoleAnnotDecl GhcPs) where
 
 instance ExactPrint Role where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact = withPpr
 
 -- ---------------------------------------------------------------------
 
 instance ExactPrint (RuleBndr GhcPs) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   exact (RuleBndr x ln) = do
     ln' <- markAnnotated ln
@@ -1266,7 +1278,7 @@ instance ExactPrint (RuleBndr GhcPs) where
 
 instance (ExactPrint body) => ExactPrint (FamEqn GhcPs body) where
   getAnnotationEntry (FamEqn { feqn_ext = an}) = fromAnn an
-  setAnnotationAnchor fe anc = fe {feqn_ext = setAnchorEpa (feqn_ext fe) anc }
+  setAnnotationAnchor fe anc cs = fe {feqn_ext = setAnchorEpa (feqn_ext fe) anc cs}
   exact e@(FamEqn { feqn_ext = an
                   , feqn_tycon  = tycon
                   , feqn_bndrs  = bndrs
@@ -1326,7 +1338,7 @@ exactHsFamInstLHS an thing bndrs typats fixity mb_ctxt = do
 instance (ExactPrint tm, ExactPrint ty, Outputable tm, Outputable ty)
      =>  ExactPrint (HsArg tm ty) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   exact a@(HsValArg tm)    = markAnnotated tm >> return a
   exact a@(HsTypeArg ss ty) = printStringAtSs ss "@" >> markAnnotated ty >> return a
@@ -1336,7 +1348,8 @@ instance (ExactPrint tm, ExactPrint ty, Outputable tm, Outputable ty)
 
 instance ExactPrint (ClsInstDecl GhcPs) where
   getAnnotationEntry cid = fromAnn (fst $ cid_ext cid)
-  setAnnotationAnchor cid anc = cid { cid_ext = (setAnchorEpa (fst $ cid_ext cid) anc, (snd $ cid_ext cid)) }
+  setAnnotationAnchor cid anc cs
+    = cid { cid_ext = (setAnchorEpa (fst $ cid_ext cid) anc cs, (snd $ cid_ext cid)) }
 
   exact c@(ClsInstDecl { cid_ext = (an, sortKey)
                        , cid_poly_ty = inst_ty, cid_binds = binds
@@ -1368,7 +1381,7 @@ instance ExactPrint (ClsInstDecl GhcPs) where
 
 instance ExactPrint (TyFamInstDecl GhcPs) where
   getAnnotationEntry (TyFamInstDecl an _) = fromAnn an
-  setAnnotationAnchor (TyFamInstDecl an a) anc = TyFamInstDecl (setAnchorEpa an anc) a
+  setAnnotationAnchor (TyFamInstDecl an a) anc cs = TyFamInstDecl (setAnchorEpa an anc cs) a
 
   exact d@(TyFamInstDecl { tfid_xtn = an, tfid_eqn = eqn }) = do
     markEpAnn an AnnType
@@ -1417,8 +1430,8 @@ instance ExactPrint (HsBind GhcPs) where
   getAnnotationEntry AbsBinds{} = NoEntryVal
   getAnnotationEntry PatSynBind{} = NoEntryVal
 
-  setAnnotationAnchor pb@PatBind{} anc = pb { pat_ext = setAnchorEpa (pat_ext pb) anc}
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor pb@PatBind{} anc cs = pb { pat_ext = setAnchorEpa (pat_ext pb) anc cs}
+  setAnnotationAnchor a _ _ = a
 
   exact b@(FunBind _ _ matches _) = do
     matches' <- markAnnotated matches
@@ -1437,7 +1450,7 @@ instance ExactPrint (HsBind GhcPs) where
 
 instance ExactPrint (PatSynBind GhcPs GhcPs) where
   getAnnotationEntry (PSB { psb_ext = an}) = fromAnn an
-  setAnnotationAnchor p anc = p { psb_ext = setAnchorEpa (psb_ext p) anc}
+  setAnnotationAnchor p anc cs = p { psb_ext = setAnchorEpa (psb_ext p) anc cs}
 
   exact p@(PSB{ psb_ext = an
               , psb_id = psyn, psb_args = details
@@ -1485,7 +1498,7 @@ instance ExactPrint (PatSynBind GhcPs GhcPs) where
 
 instance ExactPrint (RecordPatSynField GhcPs) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact r@(RecordPatSynField { recordPatSynField = v }) = markAnnotated v
         >> return r
 
@@ -1493,7 +1506,7 @@ instance ExactPrint (RecordPatSynField GhcPs) where
 
 instance ExactPrint (Match GhcPs (LocatedA (HsCmd GhcPs))) where
   getAnnotationEntry (Match ann _ _ _) = fromAnn ann
-  setAnnotationAnchor (Match an a b c) anc = Match (setAnchorEpa an anc) a b c
+  setAnnotationAnchor (Match an a b c) anc cs = Match (setAnchorEpa an anc cs) a b c
 
   exact (Match an mctxt pats grhss) =
     exactMatch (Match an mctxt pats grhss)
@@ -1502,7 +1515,7 @@ instance ExactPrint (Match GhcPs (LocatedA (HsCmd GhcPs))) where
 
 instance ExactPrint (Match GhcPs (LocatedA (HsExpr GhcPs))) where
   getAnnotationEntry (Match ann _ _ _) = fromAnn ann
-  setAnnotationAnchor (Match an a b c) anc = Match (setAnchorEpa an anc) a b c
+  setAnnotationAnchor (Match an a b c) anc cs = Match (setAnchorEpa an anc cs) a b c
 
   exact (Match an mctxt pats grhss) =
     exactMatch (Match an mctxt pats grhss)
@@ -1563,7 +1576,7 @@ exactMatch m@(Match an mctxt pats grhss) = do
 
 instance ExactPrint (GRHSs GhcPs (LocatedA (HsExpr GhcPs))) where
   getAnnotationEntry (GRHSs _ _ _) = NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   exact (GRHSs an grhss binds) = do
     grhss' <- markAnnotated grhss
@@ -1573,7 +1586,7 @@ instance ExactPrint (GRHSs GhcPs (LocatedA (HsExpr GhcPs))) where
 
 instance ExactPrint (GRHSs GhcPs (LocatedA (HsCmd GhcPs))) where
   getAnnotationEntry (GRHSs _ _ _) = NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   exact (GRHSs an grhss binds) = do
     grhss' <- markAnnotated grhss
@@ -1613,8 +1626,8 @@ instance ExactPrint (HsLocalBinds GhcPs) where
   getAnnotationEntry (HsIPBinds{}) = NoEntryVal
   getAnnotationEntry (EmptyLocalBinds{}) = NoEntryVal
 
-  setAnnotationAnchor (HsValBinds an a) anc = HsValBinds (setAnchorEpaL an anc) a
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor (HsValBinds an a) anc cs = HsValBinds (setAnchorEpaL an anc cs) a
+  setAnnotationAnchor a _ _ = a
 
   exact (HsValBinds an' valbinds) = do
     let an = fixValbindsAnn an'
@@ -1641,7 +1654,7 @@ instance ExactPrint (HsLocalBinds GhcPs) where
 -- ---------------------------------------------------------------------
 instance ExactPrint (HsValBindsLR GhcPs GhcPs) where
   getAnnotationEntry _ = NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   exact (ValBinds sortKey binds sigs) = do
     ds <- setLayoutBoth $ withSortKey sortKey
@@ -1661,7 +1674,7 @@ undynamic ds = mapMaybe fromDynamic ds
 
 instance ExactPrint (HsIPBinds GhcPs) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   exact b@(IPBinds _ binds) = setLayoutBoth $ markAnnotated binds >> return b
 
@@ -1669,7 +1682,7 @@ instance ExactPrint (HsIPBinds GhcPs) where
 
 instance ExactPrint (IPBind GhcPs) where
   getAnnotationEntry (IPBind an _ _) = fromAnn an
-  setAnnotationAnchor (IPBind an a b) anc = IPBind (setAnchorEpa an anc) a b
+  setAnnotationAnchor (IPBind an a b) anc cs = IPBind (setAnchorEpa an anc cs) a b
 
   exact b@(IPBind an (Left lr) rhs) = do
     markAnnotated lr
@@ -1683,7 +1696,7 @@ instance ExactPrint (IPBind GhcPs) where
 
 instance ExactPrint HsIPName where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   exact i@(HsIPName fs) = printStringAdvance ("?" ++ (unpackFS fs)) >> return i
 
@@ -1738,17 +1751,17 @@ instance ExactPrint (Sig GhcPs) where
   getAnnotationEntry (SCCFunSig a _ _ _) = fromAnn a
   getAnnotationEntry (CompleteMatchSig a _ _ _) = fromAnn a
 
-  setAnnotationAnchor (TypeSig a x y)  anc           = (TypeSig (setAnchorEpa a anc) x y)
-  setAnnotationAnchor (PatSynSig a x y) anc          = (PatSynSig (setAnchorEpa a anc) x y)
-  setAnnotationAnchor (ClassOpSig a x y z) anc       = (ClassOpSig (setAnchorEpa a anc) x y z)
-  setAnnotationAnchor i@(IdSig {}) _ = i
-  setAnnotationAnchor (FixSig a x) anc               = (FixSig (setAnchorEpa a anc) x)
-  setAnnotationAnchor (InlineSig a x y) anc          = (InlineSig (setAnchorEpa a anc) x y)
-  setAnnotationAnchor (SpecSig a x y z) anc          = (SpecSig (setAnchorEpa a anc) x y z)
-  setAnnotationAnchor (SpecInstSig a x y) anc        = (SpecInstSig (setAnchorEpa a anc) x y)
-  setAnnotationAnchor (MinimalSig a x y) anc         = (MinimalSig (setAnchorEpa a anc) x y)
-  setAnnotationAnchor (SCCFunSig a x y z) anc        = (SCCFunSig (setAnchorEpa a anc) x y z)
-  setAnnotationAnchor (CompleteMatchSig a x y z) anc = (CompleteMatchSig (setAnchorEpa a anc) x y z)
+  setAnnotationAnchor (TypeSig a x y)  anc           cs = (TypeSig (setAnchorEpa a anc cs) x y)
+  setAnnotationAnchor (PatSynSig a x y) anc          cs = (PatSynSig (setAnchorEpa a anc cs) x y)
+  setAnnotationAnchor (ClassOpSig a x y z) anc       cs = (ClassOpSig (setAnchorEpa a anc cs) x y z)
+  setAnnotationAnchor i@(IdSig {}) _ _s = i
+  setAnnotationAnchor (FixSig a x) anc               cs = (FixSig (setAnchorEpa a anc cs) x)
+  setAnnotationAnchor (InlineSig a x y) anc          cs = (InlineSig (setAnchorEpa a anc cs) x y)
+  setAnnotationAnchor (SpecSig a x y z) anc          cs = (SpecSig (setAnchorEpa a anc cs) x y z)
+  setAnnotationAnchor (SpecInstSig a x y) anc        cs = (SpecInstSig (setAnchorEpa a anc cs) x y)
+  setAnnotationAnchor (MinimalSig a x y) anc         cs = (MinimalSig (setAnchorEpa a anc cs) x y)
+  setAnnotationAnchor (SCCFunSig a x y z) anc        cs = (SCCFunSig (setAnchorEpa a anc cs) x y z)
+  setAnnotationAnchor (CompleteMatchSig a x y z) anc cs = (CompleteMatchSig (setAnchorEpa a anc cs) x y z)
 
   exact s@(TypeSig an vars ty)  = exactVarSig an vars ty >> return s
 
@@ -1842,7 +1855,7 @@ exactVarSig an vars ty = do
 
 instance ExactPrint (StandaloneKindSig GhcPs) where
   getAnnotationEntry (StandaloneKindSig an _ _) = fromAnn an
-  setAnnotationAnchor (StandaloneKindSig an a b) anc = StandaloneKindSig (setAnchorEpa an anc) a b
+  setAnnotationAnchor (StandaloneKindSig an a b) anc cs = StandaloneKindSig (setAnchorEpa an anc cs) a b
 
   exact s@(StandaloneKindSig an vars sig) = do
     markEpAnn an AnnType
@@ -1855,7 +1868,7 @@ instance ExactPrint (StandaloneKindSig GhcPs) where
 
 instance ExactPrint (DefaultDecl GhcPs) where
   getAnnotationEntry (DefaultDecl an _) = fromAnn an
-  setAnnotationAnchor (DefaultDecl an a) anc = DefaultDecl (setAnchorEpa an anc) a
+  setAnnotationAnchor (DefaultDecl an a) anc cs = DefaultDecl (setAnchorEpa an anc cs) a
 
   exact d@(DefaultDecl an tys) = do
     markEpAnn an AnnDefault
@@ -1868,7 +1881,7 @@ instance ExactPrint (DefaultDecl GhcPs) where
 
 instance ExactPrint (AnnDecl GhcPs) where
   getAnnotationEntry (HsAnnotation an _ _ _) = fromAnn an
-  setAnnotationAnchor (HsAnnotation an a b c) anc = HsAnnotation (setAnchorEpa an anc) a b c
+  setAnnotationAnchor (HsAnnotation an a b c) anc cs = HsAnnotation (setAnchorEpa an anc cs) a b c
 
   exact a@(HsAnnotation an src prov e) = do
     markAnnOpenP an src "{-# ANN"
@@ -1888,7 +1901,7 @@ instance ExactPrint (AnnDecl GhcPs) where
 
 instance ExactPrint (BF.BooleanFormula (LocatedN RdrName)) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   exact f@(BF.Var x)  = do
     markAnnotated x
@@ -1907,14 +1920,14 @@ instance ExactPrint (BF.BooleanFormula (LocatedN RdrName)) where
 
 instance (ExactPrint body) => ExactPrint (HsWildCardBndrs GhcPs body) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact w@(HsWC _ ty) = markAnnotated ty >> return w
 
 -- ---------------------------------------------------------------------
 
 instance ExactPrint (GRHS GhcPs (LocatedA (HsExpr GhcPs))) where
   getAnnotationEntry (GRHS an _ _) = fromAnn an
-  setAnnotationAnchor (GRHS an a b) anc = GRHS (setAnchorEpa an anc) a b
+  setAnnotationAnchor (GRHS an a b) anc cs = GRHS (setAnchorEpa an anc cs) a b
 
   exact (GRHS an guards expr) = do
     debugM $ "GRHS comments:" ++ showGhc (comments an)
@@ -1928,7 +1941,7 @@ instance ExactPrint (GRHS GhcPs (LocatedA (HsExpr GhcPs))) where
 
 instance ExactPrint (GRHS GhcPs (LocatedA (HsCmd GhcPs))) where
   getAnnotationEntry (GRHS ann _ _) = fromAnn ann
-  setAnnotationAnchor (GRHS an a b) anc = GRHS (setAnchorEpa an anc) a b
+  setAnnotationAnchor (GRHS an a b) anc cs = GRHS (setAnchorEpa an anc cs) a b
 
   exact (GRHS an guards expr) = do
     markAnnKwM an ga_vbar AnnVbar
@@ -1981,46 +1994,46 @@ instance ExactPrint (HsExpr GhcPs) where
   getAnnotationEntry (HsBinTick {})               = NoEntryVal
   getAnnotationEntry (HsPragE{})                  = NoEntryVal
 
-  setAnnotationAnchor a@(HsVar{})              _ = a
-  setAnnotationAnchor (HsUnboundVar an a)    anc = (HsUnboundVar (setAnchorEpa an anc) a)
-  setAnnotationAnchor a@(HsConLikeOut{})       _ = a
-  setAnnotationAnchor a@(HsRecFld{})           _ = a
-  setAnnotationAnchor (HsOverLabel an a)     anc = (HsOverLabel (setAnchorEpa an anc) a)
-  setAnnotationAnchor (HsIPVar an a)         anc = (HsIPVar (setAnchorEpa an anc) a)
-  setAnnotationAnchor (HsOverLit an a)       anc = (HsOverLit (setAnchorEpa an anc) a)
-  setAnnotationAnchor (HsLit an a)           anc = (HsLit (setAnchorEpa an anc) a)
-  setAnnotationAnchor a@(HsLam _ _)            _ = a
-  setAnnotationAnchor (HsLamCase an a)       anc = (HsLamCase (setAnchorEpa an anc) a)
-  setAnnotationAnchor (HsApp an a b)         anc = (HsApp (setAnchorEpa an anc) a b)
-  setAnnotationAnchor a@(HsAppType _ _ _)      _ = a
-  setAnnotationAnchor (OpApp an a b c)       anc = (OpApp (setAnchorEpa an anc) a b c)
-  setAnnotationAnchor (NegApp an a b)        anc = (NegApp (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (HsPar an a)           anc = (HsPar (setAnchorEpa an anc) a)
-  setAnnotationAnchor (SectionL an a b)      anc = (SectionL (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (SectionR an a b)      anc = (SectionR (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (ExplicitTuple an a b) anc = (ExplicitTuple (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (ExplicitSum an a b c) anc = (ExplicitSum (setAnchorEpa an anc) a b c)
-  setAnnotationAnchor (HsCase an a b)        anc = (HsCase (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (HsIf an a b c)        anc = (HsIf (setAnchorEpa an anc) a b c)
-  setAnnotationAnchor (HsMultiIf an a)       anc = (HsMultiIf (setAnchorEpa an anc) a)
-  setAnnotationAnchor (HsLet an a b)         anc = (HsLet (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (HsDo an a b)          anc = (HsDo (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (ExplicitList an a)    anc = (ExplicitList (setAnchorEpa an anc) a)
-  setAnnotationAnchor (RecordCon an a b)     anc = (RecordCon (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (RecordUpd an a b)     anc = (RecordUpd (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (HsGetField an a b)    anc = (HsGetField (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (HsProjection an a)    anc = (HsProjection (setAnchorEpa an anc) a)
-  setAnnotationAnchor (ExprWithTySig an a b) anc = (ExprWithTySig (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (ArithSeq an a b)      anc = (ArithSeq (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (HsBracket an a)       anc = (HsBracket (setAnchorEpa an anc) a)
-  setAnnotationAnchor a@(HsRnBracketOut{})     _ = a
-  setAnnotationAnchor a@(HsTcBracketOut{})     _ = a
-  setAnnotationAnchor (HsSpliceE an a)       anc = (HsSpliceE (setAnchorEpa an anc) a)
-  setAnnotationAnchor (HsProc an a b)        anc = (HsProc (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (HsStatic an a)        anc = (HsStatic (setAnchorEpa an anc) a)
-  setAnnotationAnchor a@(HsTick {})            _ = a
-  setAnnotationAnchor a@(HsBinTick {})         _ = a
-  setAnnotationAnchor a@(HsPragE{})            _ = a
+  setAnnotationAnchor a@(HsVar{})              _ _s = a
+  setAnnotationAnchor (HsUnboundVar an a)    anc cs = (HsUnboundVar (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor a@(HsConLikeOut{})       _ _s = a
+  setAnnotationAnchor a@(HsRecFld{})           _ _s = a
+  setAnnotationAnchor (HsOverLabel an a)     anc cs = (HsOverLabel (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (HsIPVar an a)         anc cs = (HsIPVar (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (HsOverLit an a)       anc cs = (HsOverLit (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (HsLit an a)           anc cs = (HsLit (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor a@(HsLam _ _)            _ _s = a
+  setAnnotationAnchor (HsLamCase an a)       anc cs = (HsLamCase (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (HsApp an a b)         anc cs = (HsApp (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor a@(HsAppType _ _ _)      _ _s = a
+  setAnnotationAnchor (OpApp an a b c)       anc cs = (OpApp (setAnchorEpa an anc cs) a b c)
+  setAnnotationAnchor (NegApp an a b)        anc cs = (NegApp (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (HsPar an a)           anc cs = (HsPar (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (SectionL an a b)      anc cs = (SectionL (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (SectionR an a b)      anc cs = (SectionR (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (ExplicitTuple an a b) anc cs = (ExplicitTuple (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (ExplicitSum an a b c) anc cs = (ExplicitSum (setAnchorEpa an anc cs) a b c)
+  setAnnotationAnchor (HsCase an a b)        anc cs = (HsCase (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (HsIf an a b c)        anc cs = (HsIf (setAnchorEpa an anc cs) a b c)
+  setAnnotationAnchor (HsMultiIf an a)       anc cs = (HsMultiIf (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (HsLet an a b)         anc cs = (HsLet (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (HsDo an a b)          anc cs = (HsDo (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (ExplicitList an a)    anc cs = (ExplicitList (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (RecordCon an a b)     anc cs = (RecordCon (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (RecordUpd an a b)     anc cs = (RecordUpd (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (HsGetField an a b)    anc cs = (HsGetField (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (HsProjection an a)    anc cs = (HsProjection (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (ExprWithTySig an a b) anc cs = (ExprWithTySig (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (ArithSeq an a b)      anc cs = (ArithSeq (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (HsBracket an a)       anc cs = (HsBracket (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor a@(HsRnBracketOut{})     _ _s = a
+  setAnnotationAnchor a@(HsTcBracketOut{})     _ _s = a
+  setAnnotationAnchor (HsSpliceE an a)       anc cs = (HsSpliceE (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (HsProc an a b)        anc cs = (HsProc (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (HsStatic an a)        anc cs = (HsStatic (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor a@(HsTick {})            _ _s = a
+  setAnnotationAnchor a@(HsBinTick {})         _ _s = a
+  setAnnotationAnchor a@(HsPragE{})            _ _s = a
 
   exact (HsVar x n) = do
     n' <- markAnnotated n
@@ -2324,7 +2337,7 @@ exactMdo an (Just module_name) kw = markLocatedAALS an al_rest kw (Just n)
 -- ---------------------------------------------------------------------
 instance ExactPrint (HsPragE GhcPs) where
   getAnnotationEntry HsPragSCC{}  = NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   exact p@(HsPragSCC an st sl) = do
     markAnnOpenP an st "{-# SCC"
@@ -2343,10 +2356,10 @@ instance ExactPrint (HsSplice GhcPs) where
   getAnnotationEntry (HsQuasiQuote _ _ _ _ _)   = NoEntryVal
   getAnnotationEntry (HsSpliced _ _ _)          = NoEntryVal
 
-  setAnnotationAnchor (HsTypedSplice an a b c)   anc = (HsTypedSplice (setAnchorEpa an anc) a b c)
-  setAnnotationAnchor (HsUntypedSplice an a b c) anc = (HsUntypedSplice (setAnchorEpa an anc) a b c)
-  setAnnotationAnchor a@(HsQuasiQuote _ _ _ _ _) _ = a
-  setAnnotationAnchor a@(HsSpliced _ _ _)        _ = a
+  setAnnotationAnchor (HsTypedSplice an a b c)   anc cs = (HsTypedSplice (setAnchorEpa an anc cs) a b c)
+  setAnnotationAnchor (HsUntypedSplice an a b c) anc cs = (HsUntypedSplice (setAnchorEpa an anc cs) a b c)
+  setAnnotationAnchor a@(HsQuasiQuote _ _ _ _ _) _ _ = a
+  setAnnotationAnchor a@(HsSpliced _ _ _)        _ _ = a
 
   exact s@(HsTypedSplice an DollarSplice _n e) = do
     markEpAnn an AnnDollarDollar
@@ -2380,7 +2393,7 @@ instance ExactPrint (HsSplice GhcPs) where
 -- TODO:AZ: combine these instances
 instance ExactPrint (MatchGroup GhcPs (LocatedA (HsExpr GhcPs))) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact (MG x matches o) = do
     -- TODO:AZ use SortKey, in MG ann.
     matches' <- markAnnotated matches
@@ -2388,7 +2401,7 @@ instance ExactPrint (MatchGroup GhcPs (LocatedA (HsExpr GhcPs))) where
 
 instance ExactPrint (MatchGroup GhcPs (LocatedA (HsCmd GhcPs))) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact (MG x matches o) = do
     -- TODO:AZ use SortKey, in MG ann.
     matches' <- markAnnotated matches
@@ -2398,7 +2411,7 @@ instance ExactPrint (MatchGroup GhcPs (LocatedA (HsCmd GhcPs))) where
 
 instance (ExactPrint body) => ExactPrint (HsRecFields GhcPs body) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact (HsRecFields fields mdot) = do
     fields' <- markAnnotated fields
     case mdot of
@@ -2413,7 +2426,7 @@ instance (ExactPrint body) => ExactPrint (HsRecFields GhcPs body) where
 instance (ExactPrint body)
     => ExactPrint (HsRecField' (FieldOcc GhcPs) body) where
   getAnnotationEntry x = fromAnn (hsRecFieldAnn x)
-  setAnnotationAnchor x anc = x { hsRecFieldAnn = setAnchorEpa (hsRecFieldAnn x) anc }
+  setAnnotationAnchor x anc cs = x { hsRecFieldAnn = setAnchorEpa (hsRecFieldAnn x) anc cs}
   exact (HsRecField an f arg isPun) = do
     debugM $ "HsRecField"
     f' <- markAnnotated f
@@ -2429,7 +2442,7 @@ instance (ExactPrint body)
 instance (ExactPrint body)
     => ExactPrint (HsRecField' (FieldLabelStrings GhcPs) body) where
   getAnnotationEntry x = fromAnn (hsRecFieldAnn x)
-  setAnnotationAnchor x anc = x { hsRecFieldAnn = setAnchorEpa (hsRecFieldAnn x) anc }
+  setAnnotationAnchor x anc cs = x { hsRecFieldAnn = setAnchorEpa (hsRecFieldAnn x) anc cs}
   exact (HsRecField an f arg isPun) = do
     debugM $ "HsRecField FieldLabelStrings"
     f' <- markAnnotated f
@@ -2445,7 +2458,7 @@ instance (ExactPrint body)
 instance (ExactPrint (LocatedA body))
     => ExactPrint (HsRecField' (AmbiguousFieldOcc GhcPs) (LocatedA body)) where
   getAnnotationEntry x = fromAnn (hsRecFieldAnn x)
-  setAnnotationAnchor x anc = x { hsRecFieldAnn = setAnchorEpa (hsRecFieldAnn x) anc }
+  setAnnotationAnchor x anc cs = x { hsRecFieldAnn = setAnchorEpa (hsRecFieldAnn x) anc cs}
   exact (HsRecField an f arg isPun) = do
     debugM $ "HsRecUpdField"
     f' <- markAnnotated f
@@ -2465,7 +2478,7 @@ instance
          (Either [LocatedA (HsRecField' (a GhcPs) body)]
                  [LocatedA (HsRecField' (b GhcPs) body)]) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact (Left rbinds) = do
     rbinds' <- markAnnotated rbinds
     return (Left rbinds')
@@ -2477,14 +2490,14 @@ instance
 
 instance ExactPrint (FieldLabelStrings GhcPs) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact (FieldLabelStrings fs) = FieldLabelStrings <$> markAnnotated fs
 
 -- ---------------------------------------------------------------------
 
 instance ExactPrint (HsFieldLabel GhcPs) where
   getAnnotationEntry (HsFieldLabel an _) = fromAnn an
-  setAnnotationAnchor (HsFieldLabel an a) anc = HsFieldLabel (setAnchorEpa an anc) a
+  setAnnotationAnchor (HsFieldLabel an a) anc cs = HsFieldLabel (setAnchorEpa an anc cs) a
 
   exact (HsFieldLabel an fs) = do
     markAnnKwM an afDot  AnnDot
@@ -2497,8 +2510,8 @@ instance ExactPrint (HsTupArg GhcPs) where
   getAnnotationEntry (Present an _) = fromAnn an
   getAnnotationEntry (Missing an)   = fromAnn an
 
-  setAnnotationAnchor (Present an a) anc = Present (setAnchorEpa an anc) a
-  setAnnotationAnchor (Missing an)   anc = Missing (setAnchorEpa an anc)
+  setAnnotationAnchor (Present an a) anc cs = Present (setAnchorEpa an anc cs) a
+  setAnnotationAnchor (Missing an)   anc cs = Missing (setAnchorEpa an anc cs)
 
   exact (Present a e) = Present a <$> markAnnotated e
 
@@ -2509,7 +2522,7 @@ instance ExactPrint (HsTupArg GhcPs) where
 
 instance ExactPrint (HsCmdTop GhcPs) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact (HsCmdTop a cmd) = HsCmdTop a <$> markAnnotated cmd
 
 -- ---------------------------------------------------------------------
@@ -2526,16 +2539,16 @@ instance ExactPrint (HsCmd GhcPs) where
   getAnnotationEntry (HsCmdLet an _ _)          = fromAnn an
   getAnnotationEntry (HsCmdDo an _)             = fromAnn an
 
-  setAnnotationAnchor (HsCmdArrApp an a b c d)   anc = (HsCmdArrApp (setAnchorEpa an anc) a b c d)
-  setAnnotationAnchor (HsCmdArrForm an a b c d ) anc = (HsCmdArrForm (setAnchorEpa an anc) a b c d )
-  setAnnotationAnchor (HsCmdApp an a b )         anc = (HsCmdApp (setAnchorEpa an anc) a b )
-  setAnnotationAnchor a@(HsCmdLam {})              _ = a
-  setAnnotationAnchor (HsCmdPar an a)            anc = (HsCmdPar (setAnchorEpa an anc) a)
-  setAnnotationAnchor (HsCmdCase an a b)         anc = (HsCmdCase (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (HsCmdLamCase an a)        anc = (HsCmdLamCase (setAnchorEpa an anc) a)
-  setAnnotationAnchor (HsCmdIf an a b c d)       anc = (HsCmdIf (setAnchorEpa an anc) a b c d)
-  setAnnotationAnchor (HsCmdLet an a b)          anc = (HsCmdLet (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (HsCmdDo an a)             anc = (HsCmdDo (setAnchorEpa an anc) a)
+  setAnnotationAnchor (HsCmdArrApp an a b c d)   anc cs = (HsCmdArrApp (setAnchorEpa an anc cs) a b c d)
+  setAnnotationAnchor (HsCmdArrForm an a b c d ) anc cs = (HsCmdArrForm (setAnchorEpa an anc cs) a b c d )
+  setAnnotationAnchor (HsCmdApp an a b )         anc cs = (HsCmdApp (setAnchorEpa an anc cs) a b )
+  setAnnotationAnchor a@(HsCmdLam {})              _ _s = a
+  setAnnotationAnchor (HsCmdPar an a)            anc cs = (HsCmdPar (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (HsCmdCase an a b)         anc cs = (HsCmdCase (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (HsCmdLamCase an a)        anc cs = (HsCmdLamCase (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (HsCmdIf an a b c d)       anc cs = (HsCmdIf (setAnchorEpa an anc cs) a b c d)
+  setAnnotationAnchor (HsCmdLet an a b)          anc cs = (HsCmdLet (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (HsCmdDo an a)             anc cs = (HsCmdDo (setAnchorEpa an anc cs) a)
 
   exact (HsCmdArrApp an arr arg o isRightToLeft) = do
     if isRightToLeft
@@ -2642,14 +2655,14 @@ instance (
 
   -----------------------------------------------------------------
 
-  setAnnotationAnchor a@(LastStmt _ _ _ _)             _ = a
-  setAnnotationAnchor (BindStmt an a b)              anc = (BindStmt (setAnchorEpa an anc) a b)
-  setAnnotationAnchor a@(ApplicativeStmt _ _ _)        _ = a
-  setAnnotationAnchor a@(BodyStmt _ _ _ _)             _ = a
-  setAnnotationAnchor (LetStmt an a)                 anc = (LetStmt (setAnchorEpa an anc) a)
-  setAnnotationAnchor a@(ParStmt _ _ _ _)              _ = a
-  setAnnotationAnchor (TransStmt an a b c d e f g h) anc = (TransStmt (setAnchorEpa an anc) a b c d e f g h)
-  setAnnotationAnchor (RecStmt an a b c d e f)       anc = (RecStmt (setAnchorEpa an anc) a b c d e f)
+  setAnnotationAnchor a@(LastStmt _ _ _ _)             _ _s = a
+  setAnnotationAnchor (BindStmt an a b)              anc cs = (BindStmt (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor a@(ApplicativeStmt _ _ _)        _ _s = a
+  setAnnotationAnchor a@(BodyStmt _ _ _ _)             _ _s = a
+  setAnnotationAnchor (LetStmt an a)                 anc cs = (LetStmt (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor a@(ParStmt _ _ _ _)              _ _s = a
+  setAnnotationAnchor (TransStmt an a b c d e f g h) anc cs = (TransStmt (setAnchorEpa an anc cs) a b c d e f g h)
+  setAnnotationAnchor (RecStmt an a b c d e f)       anc cs = (RecStmt (setAnchorEpa an anc cs) a b c d e f)
 
   -----------------------------------------------------------------
 
@@ -2708,7 +2721,7 @@ instance (
 
 instance ExactPrint (ParStmtBlock GhcPs GhcPs) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact (ParStmtBlock a stmts b c) = do
     stmts' <- markAnnotated stmts
     return (ParStmtBlock a stmts' b c)
@@ -2747,10 +2760,10 @@ instance ExactPrint (TyClDecl GhcPs) where
   getAnnotationEntry (DataDecl  { tcdDExt = an })         = fromAnn an
   getAnnotationEntry (ClassDecl { tcdCExt = (an, _, _) }) = fromAnn an
 
-  setAnnotationAnchor a@FamDecl{}     _ = a
-  setAnnotationAnchor x@SynDecl{}   anc = x { tcdSExt = setAnchorEpa (tcdSExt x) anc }
-  setAnnotationAnchor x@DataDecl{}  anc = x { tcdDExt = setAnchorEpa (tcdDExt x) anc }
-  setAnnotationAnchor x@ClassDecl{} anc = x { tcdCExt = (setAnchorEpa an anc, a, b) }
+  setAnnotationAnchor a@FamDecl{}     _ _s = a
+  setAnnotationAnchor x@SynDecl{}   anc cs = x { tcdSExt = setAnchorEpa (tcdSExt x) anc cs }
+  setAnnotationAnchor x@DataDecl{}  anc cs = x { tcdDExt = setAnchorEpa (tcdDExt x) anc cs }
+  setAnnotationAnchor x@ClassDecl{} anc cs = x { tcdCExt = (setAnchorEpa an anc cs, a, b) }
     where
       (an,a,b) = tcdCExt x
 
@@ -2827,7 +2840,7 @@ instance ExactPrint (TyClDecl GhcPs) where
 
 instance ExactPrint (FunDep GhcPs) where
   getAnnotationEntry (FunDep an _ _) = fromAnn an
-  setAnnotationAnchor (FunDep an a b) anc = FunDep (setAnchorEpa an anc) a b
+  setAnnotationAnchor (FunDep an a b) anc cs = FunDep (setAnchorEpa an anc cs) a b
 
   exact f@(FunDep an ls rs') = do
     markAnnotated ls
@@ -2839,7 +2852,7 @@ instance ExactPrint (FunDep GhcPs) where
 
 instance ExactPrint (FamilyDecl GhcPs) where
   getAnnotationEntry (FamilyDecl { fdExt = an }) = fromAnn an
-  setAnnotationAnchor x anc = x { fdExt = setAnchorEpa (fdExt x) anc }
+  setAnnotationAnchor x anc cs = x { fdExt = setAnchorEpa (fdExt x) anc cs}
 
   exact f@(FamilyDecl { fdExt = an
                       , fdInfo = info
@@ -2906,7 +2919,7 @@ exactFlavour an (ClosedTypeFamily {}) = markEpAnn an AnnType
 
 -- instance ExactPrint DataDefnWithContext where
 --   getAnnotationEntry DataDefnWithContext{ddwc_an = an} = fromAnn an
---   setAnnotationAnchor x anc = x { ddwc_an = setAnchorEpa (ddwc_an x) anc }
+--   setAnnotationAnchor x anc cs = x { ddwc_an = setAnchorEpa (ddwc_an x) anc cs }
 
 --   exact dd@(DataDefnWithContext an exactHdr defn) = do
 --     = exactDataDefn an exactHdr defn >> return dd
@@ -2980,7 +2993,7 @@ exactVanillaDeclHead thing tvs@(HsQTvs { hsq_explicit = tyvars }) fixity context
 
 instance ExactPrint (InjectivityAnn GhcPs) where
   getAnnotationEntry (InjectivityAnn an _ _) = fromAnn an
-  setAnnotationAnchor (InjectivityAnn an a b) anc = InjectivityAnn (setAnchorEpa an anc) a b
+  setAnnotationAnchor (InjectivityAnn an a b) anc cs = InjectivityAnn (setAnchorEpa an anc cs) a b
   exact a@(InjectivityAnn an lhs rhs) = do
     markEpAnn an AnnVbar
     markAnnotated lhs
@@ -3015,8 +3028,8 @@ instance ExactPrintTVFlag flag => ExactPrint (HsTyVarBndr flag GhcPs) where
   getAnnotationEntry (UserTyVar an _ _)     = fromAnn an
   getAnnotationEntry (KindedTyVar an _ _ _) = fromAnn an
 
-  setAnnotationAnchor (UserTyVar an a b)     anc = UserTyVar (setAnchorEpa an anc) a b
-  setAnnotationAnchor (KindedTyVar an a b c) anc = KindedTyVar (setAnchorEpa an anc) a b c
+  setAnnotationAnchor (UserTyVar an a b)     anc cs = UserTyVar (setAnchorEpa an anc cs) a b
+  setAnnotationAnchor (KindedTyVar an a b c) anc cs = KindedTyVar (setAnchorEpa an anc cs) a b c
 
   exact v@(UserTyVar an flag n) = do
     exactTVDelimiters an flag $ markAnnotated n
@@ -3054,29 +3067,29 @@ instance ExactPrint (HsType GhcPs) where
   getAnnotationEntry (HsWildCardTy _)          = NoEntryVal
   getAnnotationEntry (XHsType _)               = NoEntryVal
 
-  setAnnotationAnchor a@(HsForAllTy _ _ _)        _ = a
-  setAnnotationAnchor a@(HsQualTy _ _ _)          _ = a
-  setAnnotationAnchor (HsTyVar an a b)          anc = (HsTyVar (setAnchorEpa an anc) a b)
-  setAnnotationAnchor a@(HsAppTy _ _ _)           _ = a
-  setAnnotationAnchor a@(HsAppKindTy _ _ _)       _ = a
-  setAnnotationAnchor (HsFunTy an a b c)        anc = (HsFunTy (setAnchorEpa an anc) a b c)
-  setAnnotationAnchor (HsListTy an a)           anc = (HsListTy (setAnchorEpa an anc) a)
-  setAnnotationAnchor (HsTupleTy an a b)        anc = (HsTupleTy (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (HsSumTy an a)            anc = (HsSumTy (setAnchorEpa an anc) a)
-  setAnnotationAnchor a@(HsOpTy _ _ _ _)          _ = a
-  setAnnotationAnchor (HsParTy an a)            anc = (HsParTy (setAnchorEpa an anc) a)
-  setAnnotationAnchor (HsIParamTy an a b)       anc = (HsIParamTy (setAnchorEpa an anc) a b)
-  setAnnotationAnchor a@(HsStarTy _ _)            _ = a
-  setAnnotationAnchor (HsKindSig an a b)        anc = (HsKindSig (setAnchorEpa an anc) a b)
-  setAnnotationAnchor a@(HsSpliceTy _ _)          _ = a
-  setAnnotationAnchor (HsDocTy an a b)          anc = (HsDocTy (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (HsBangTy an a b)         anc = (HsBangTy (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (HsRecTy an a)            anc = (HsRecTy (setAnchorEpa an anc) a)
-  setAnnotationAnchor (HsExplicitListTy an a b) anc = (HsExplicitListTy (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (HsExplicitTupleTy an a)  anc = (HsExplicitTupleTy (setAnchorEpa an anc) a)
-  setAnnotationAnchor a@(HsTyLit _ _)             _ = a
-  setAnnotationAnchor a@(HsWildCardTy _)          _ = a
-  setAnnotationAnchor a@(XHsType _)               _ = a
+  setAnnotationAnchor a@(HsForAllTy _ _ _)        _ _s = a
+  setAnnotationAnchor a@(HsQualTy _ _ _)          _ _s = a
+  setAnnotationAnchor (HsTyVar an a b)          anc cs = (HsTyVar (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor a@(HsAppTy _ _ _)           _ _s = a
+  setAnnotationAnchor a@(HsAppKindTy _ _ _)       _ _s = a
+  setAnnotationAnchor (HsFunTy an a b c)        anc cs = (HsFunTy (setAnchorEpa an anc cs) a b c)
+  setAnnotationAnchor (HsListTy an a)           anc cs = (HsListTy (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (HsTupleTy an a b)        anc cs = (HsTupleTy (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (HsSumTy an a)            anc cs = (HsSumTy (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor a@(HsOpTy _ _ _ _)          _ _s = a
+  setAnnotationAnchor (HsParTy an a)            anc cs = (HsParTy (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (HsIParamTy an a b)       anc cs = (HsIParamTy (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor a@(HsStarTy _ _)            _ _s = a
+  setAnnotationAnchor (HsKindSig an a b)        anc cs = (HsKindSig (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor a@(HsSpliceTy _ _)          _ _s = a
+  setAnnotationAnchor (HsDocTy an a b)          anc cs = (HsDocTy (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (HsBangTy an a b)         anc cs = (HsBangTy (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (HsRecTy an a)            anc cs = (HsRecTy (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (HsExplicitListTy an a b) anc cs = (HsExplicitListTy (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (HsExplicitTupleTy an a)  anc cs = (HsExplicitTupleTy (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor a@(HsTyLit _ _)             _ _s = a
+  setAnnotationAnchor a@(HsWildCardTy _)          _ _s = a
+  setAnnotationAnchor a@(XHsType _)               _ _s = a
 
   exact t@(HsForAllTy { hst_xforall = _an
                     , hst_tele = tele, hst_body = ty }) = do
@@ -3190,8 +3203,8 @@ instance ExactPrint (HsForAllTelescope GhcPs) where
   getAnnotationEntry (HsForAllVis an _)   = fromAnn an
   getAnnotationEntry (HsForAllInvis an _) = fromAnn an
 
-  setAnnotationAnchor (HsForAllVis an a) anc = HsForAllVis (setAnchorEpa an anc) a
-  setAnnotationAnchor (HsForAllInvis an a) anc = HsForAllInvis (setAnchorEpa an anc) a
+  setAnnotationAnchor (HsForAllVis an a) anc cs = HsForAllVis (setAnchorEpa an anc cs) a
+  setAnnotationAnchor (HsForAllInvis an a) anc cs = HsForAllInvis (setAnchorEpa an anc cs) a
 
   exact f@(HsForAllVis an bndrs)   = do
     markLocatedAA an fst -- AnnForall
@@ -3209,7 +3222,7 @@ instance ExactPrint (HsForAllTelescope GhcPs) where
 
 instance ExactPrint (HsDerivingClause GhcPs) where
   getAnnotationEntry d@(HsDerivingClause{}) = fromAnn (deriv_clause_ext d)
-  setAnnotationAnchor x anc = x { deriv_clause_ext = setAnchorEpa (deriv_clause_ext x) anc }
+  setAnnotationAnchor x anc cs = x { deriv_clause_ext = setAnchorEpa (deriv_clause_ext x) anc cs}
 
   exact d@(HsDerivingClause { deriv_clause_ext      = an
                             , deriv_clause_strategy = dcs
@@ -3242,10 +3255,10 @@ instance ExactPrint (DerivStrategy GhcPs) where
   getAnnotationEntry (NewtypeStrategy an)  = fromAnn an
   getAnnotationEntry (ViaStrategy (XViaStrategyPs an  _)) = fromAnn an
 
-  setAnnotationAnchor (StockStrategy an)    anc = (StockStrategy (setAnchorEpa an anc))
-  setAnnotationAnchor (AnyclassStrategy an) anc = (AnyclassStrategy (setAnchorEpa an anc))
-  setAnnotationAnchor (NewtypeStrategy an)  anc = (NewtypeStrategy (setAnchorEpa an anc))
-  setAnnotationAnchor (ViaStrategy (XViaStrategyPs an  a)) anc = (ViaStrategy (XViaStrategyPs (setAnchorEpa an anc)  a))
+  setAnnotationAnchor (StockStrategy an)    anc cs = (StockStrategy (setAnchorEpa an anc cs))
+  setAnnotationAnchor (AnyclassStrategy an) anc cs = (AnyclassStrategy (setAnchorEpa an anc cs))
+  setAnnotationAnchor (NewtypeStrategy an)  anc cs = (NewtypeStrategy (setAnchorEpa an anc cs))
+  setAnnotationAnchor (ViaStrategy (XViaStrategyPs an  a)) anc cs = (ViaStrategy (XViaStrategyPs (setAnchorEpa an anc cs)  a))
 
   exact s@(StockStrategy an)    = markEpAnn an AnnStock >> return s
   exact s@(AnyclassStrategy an) = markEpAnn an AnnAnyclass >> return s
@@ -3274,7 +3287,7 @@ instance (ExactPrint a) => ExactPrint (LocatedC a) where
 
 instance ExactPrint (DerivClauseTys GhcPs) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   exact d@(DctSingle _ ty) = do
     markAnnotated ty
@@ -3287,7 +3300,7 @@ instance ExactPrint (DerivClauseTys GhcPs) where
 
 instance ExactPrint (HsSigType GhcPs) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   exact s@(HsSig _ bndrs ty) = do
     markAnnotated bndrs
@@ -3382,8 +3395,8 @@ instance ExactPrint (ConDecl GhcPs) where
   getAnnotationEntry x@(ConDeclGADT{}) = fromAnn (con_g_ext x)
   getAnnotationEntry x@(ConDeclH98{})  = fromAnn (con_ext x)
 
-  setAnnotationAnchor x@ConDeclGADT{} anc = x { con_g_ext = setAnchorEpa (con_g_ext x) anc }
-  setAnnotationAnchor x@ConDeclH98{}  anc = x { con_ext   = setAnchorEpa (con_ext x) anc }
+  setAnnotationAnchor x@ConDeclGADT{} anc cs = x { con_g_ext = setAnchorEpa (con_g_ext x) anc cs}
+  setAnnotationAnchor x@ConDeclH98{}  anc cs = x { con_ext   = setAnchorEpa (con_ext x) anc cs}
 
 -- based on pprConDecl
   exact d@(ConDeclH98 { con_ext = an
@@ -3445,7 +3458,7 @@ instance ExactPrint (ConDecl GhcPs) where
 
 instance ExactPrint Void where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact x = return x
 
 -- ---------------------------------------------------------------------
@@ -3454,8 +3467,8 @@ instance ExactPrintTVFlag flag => ExactPrint (HsOuterTyVarBndrs flag GhcPs) wher
   getAnnotationEntry (HsOuterImplicit _) = NoEntryVal
   getAnnotationEntry (HsOuterExplicit an _) = fromAnn an
 
-  setAnnotationAnchor (HsOuterImplicit a) _ = HsOuterImplicit a
-  setAnnotationAnchor (HsOuterExplicit an a) anc = HsOuterExplicit (setAnchorEpa an anc) a
+  setAnnotationAnchor (HsOuterImplicit a) _ _ = HsOuterImplicit a
+  setAnnotationAnchor (HsOuterExplicit an a) anc cs = HsOuterExplicit (setAnchorEpa an anc cs) a
 
   exact b@(HsOuterImplicit _) = pure b
   exact b@(HsOuterExplicit an bndrs) = do
@@ -3469,7 +3482,7 @@ instance ExactPrintTVFlag flag => ExactPrint (HsOuterTyVarBndrs flag GhcPs) wher
 instance ExactPrint (ConDeclField GhcPs) where
   getAnnotationEntry f@(ConDeclField{}) = fromAnn (cd_fld_ext f)
 
-  setAnnotationAnchor x anc = x { cd_fld_ext = setAnchorEpa (cd_fld_ext x) anc }
+  setAnnotationAnchor x anc cs = x { cd_fld_ext = setAnchorEpa (cd_fld_ext x) anc cs}
 
   exact f@(ConDeclField an names ftype mdoc) = do
     markAnnotated names
@@ -3482,14 +3495,14 @@ instance ExactPrint (ConDeclField GhcPs) where
 
 instance ExactPrint (FieldOcc GhcPs) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact f@(FieldOcc _ n) = markAnnotated n >> return f
 
 -- ---------------------------------------------------------------------
 
 instance ExactPrint (AmbiguousFieldOcc GhcPs) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact f@(Unambiguous _ n) = markAnnotated n >> return f
   exact f@(Ambiguous   _ n) = markAnnotated n >> return f
 
@@ -3503,7 +3516,7 @@ markScaled (HsScaled arr (L l c)) = do
 
 instance (ExactPrint a) => ExactPrint (HsScaled GhcPs a) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
   exact s@(HsScaled arr t) = do
     markAnnotated t
     markArrow EpAnnNotUsed arr
@@ -3532,7 +3545,7 @@ instance ExactPrint (LocatedP CType) where
 instance ExactPrint (SourceText, RuleName) where
   -- We end up at the right place from the Located wrapper
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   exact (st, rn)
     = printStringAdvance (toSourceTextWithSuffix st (unpackFS rn) "")
@@ -3639,14 +3652,14 @@ instance ExactPrint (IE GhcPs) where
   getAnnotationEntry (IEDoc _ _)            = NoEntryVal
   getAnnotationEntry (IEDocNamed _ _)       = NoEntryVal
 
-  setAnnotationAnchor a@(IEVar _ _)             _ = a
-  setAnnotationAnchor (IEThingAbs an a)       anc = (IEThingAbs (setAnchorEpa an anc) a)
-  setAnnotationAnchor (IEThingAll an a)       anc = (IEThingAll (setAnchorEpa an anc) a)
-  setAnnotationAnchor (IEThingWith an a b c)  anc = (IEThingWith (setAnchorEpa an anc) a b c)
-  setAnnotationAnchor (IEModuleContents an a) anc = (IEModuleContents (setAnchorEpa an anc) a)
-  setAnnotationAnchor a@(IEGroup _ _ _)         _ = a
-  setAnnotationAnchor a@(IEDoc _ _)             _ = a
-  setAnnotationAnchor a@(IEDocNamed _ _)        _ = a
+  setAnnotationAnchor a@(IEVar _ _)             _ _s = a
+  setAnnotationAnchor (IEThingAbs an a)       anc cs = (IEThingAbs (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (IEThingAll an a)       anc cs = (IEThingAll (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (IEThingWith an a b c)  anc cs = (IEThingWith (setAnchorEpa an anc cs) a b c)
+  setAnnotationAnchor (IEModuleContents an a) anc cs = (IEModuleContents (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor a@(IEGroup _ _ _)         _ _s = a
+  setAnnotationAnchor a@(IEDoc _ _)             _ _s = a
+  setAnnotationAnchor a@(IEDocNamed _ _)        _ _s = a
 
   exact i@(IEVar _ ln) = markAnnotated ln >> return i
   exact i@(IEThingAbs _ thing) = markAnnotated thing >> return i
@@ -3685,7 +3698,7 @@ instance ExactPrint (IE GhcPs) where
 
 instance ExactPrint (IEWrappedName RdrName) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   exact i@(IEName n) = markAnnotated n >> return i
   exact i@(IEPattern r n) = do
@@ -3717,22 +3730,22 @@ instance ExactPrint (Pat GhcPs) where
   getAnnotationEntry (NPlusKPat an _ _ _ _ _) = fromAnn an
   getAnnotationEntry (SigPat an _ _)          = fromAnn an
 
-  setAnnotationAnchor a@(WildPat _)              _ = a
-  setAnnotationAnchor a@(VarPat _ _)             _ = a
-  setAnnotationAnchor (LazyPat an a)            anc = (LazyPat (setAnchorEpa an anc) a)
-  setAnnotationAnchor (AsPat an a b)            anc = (AsPat (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (ParPat an a)             anc = (ParPat (setAnchorEpa an anc) a)
-  setAnnotationAnchor (BangPat an a)            anc = (BangPat (setAnchorEpa an anc) a)
-  setAnnotationAnchor (ListPat an a)            anc = (ListPat (setAnchorEpa an anc) a)
-  setAnnotationAnchor (TuplePat an a b)         anc = (TuplePat (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (SumPat an a b c)         anc = (SumPat (setAnchorEpa an anc) a b c)
-  setAnnotationAnchor (ConPat an a b)           anc = (ConPat (setAnchorEpa an anc) a b)
-  setAnnotationAnchor (ViewPat an a b)          anc = (ViewPat (setAnchorEpa an anc) a b)
-  setAnnotationAnchor a@(SplicePat _ _)         _ = a
-  setAnnotationAnchor a@(LitPat _ _)            _ = a
-  setAnnotationAnchor (NPat an a b c)          anc = (NPat (setAnchorEpa an anc) a b c)
-  setAnnotationAnchor (NPlusKPat an a b c d e) anc = (NPlusKPat (setAnchorEpa an anc) a b c d e)
-  setAnnotationAnchor (SigPat an a b)          anc = (SigPat (setAnchorEpa an anc) a b)
+  setAnnotationAnchor a@(WildPat _)              _ _s = a
+  setAnnotationAnchor a@(VarPat _ _)             _ _s = a
+  setAnnotationAnchor (LazyPat an a)            anc cs = (LazyPat (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (AsPat an a b)            anc cs = (AsPat (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (ParPat an a)             anc cs = (ParPat (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (BangPat an a)            anc cs = (BangPat (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (ListPat an a)            anc cs = (ListPat (setAnchorEpa an anc cs) a)
+  setAnnotationAnchor (TuplePat an a b)         anc cs = (TuplePat (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (SumPat an a b c)         anc cs = (SumPat (setAnchorEpa an anc cs) a b c)
+  setAnnotationAnchor (ConPat an a b)           anc cs = (ConPat (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor (ViewPat an a b)          anc cs = (ViewPat (setAnchorEpa an anc cs) a b)
+  setAnnotationAnchor a@(SplicePat _ _)         _ _s = a
+  setAnnotationAnchor a@(LitPat _ _)            _ _s = a
+  setAnnotationAnchor (NPat an a b c)          anc cs = (NPat (setAnchorEpa an anc cs) a b c)
+  setAnnotationAnchor (NPlusKPat an a b c d e) anc cs = (NPlusKPat (setAnchorEpa an anc cs) a b c d e)
+  setAnnotationAnchor (SigPat an a b)          anc cs = (SigPat (setAnchorEpa an anc cs) a b)
 
   exact p@(WildPat _) = do
     anchor <- getAnchorU
@@ -3819,7 +3832,7 @@ instance ExactPrint (Pat GhcPs) where
 
 instance ExactPrint (HsPatSigType GhcPs) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   exact s@(HsPS an ty) = do
     markAnnKw an id AnnAt
@@ -3830,7 +3843,7 @@ instance ExactPrint (HsPatSigType GhcPs) where
 
 instance ExactPrint (HsOverLit GhcPs) where
   getAnnotationEntry = const NoEntryVal
-  setAnnotationAnchor a _ = a
+  setAnnotationAnchor a _ _ = a
 
   exact ol =
     let str = case ol_val ol of
@@ -4027,6 +4040,20 @@ getUnallocatedComments = gets epComments
 
 putUnallocatedComments :: (Monad m, Monoid w) => [Comment] -> EP w m ()
 putUnallocatedComments cs = modify (\s -> s { epComments = cs } )
+
+-- | Return the comments applied since the last call
+-- takeAppliedComments, and clear them
+takeAppliedComments :: (Monad m, Monoid w) => EP w m [Comment]
+takeAppliedComments = do
+  cs <- gets epCommentsApplied
+  modify (\s -> s { epCommentsApplied = [] })
+  return cs
+
+-- | Mark a comment as being applied.  This is used to update comments
+-- when doing delta processing
+applyComment :: (Monad m, Monoid w) => Comment -> EP w m ()
+applyComment c
+  = modify (\s -> s { epCommentsApplied = c:(epCommentsApplied s) } )
 
 getLayoutOffsetP :: (Monad m, Monoid w) => EP w m LayoutStartCol
 getLayoutOffsetP = gets pLHS
