@@ -208,8 +208,11 @@ tt' = do
     -- mkParserTestMD libdir      "ghc92" "proc-do-complex.hs"
     -- mkParserTestMD libdir      "ghc92" "ConstructorComment.hs"
 
-    mkParserTest libdir      "ghc92" "Observer1.hs"
+    -- mkParserTest libdir      "ghc92" "Observer1.hs"
     -- mkParserTestMD libdir      "ghc92" "Observer1.hs"
+
+    -- mkParserTest libdir      "ghc92" "ScopesBug.hs"
+    mkParserTestMD libdir      "ghc92" "ScopesBug.hs"
 
     -- mkParserTest libdir      "ghc92" "BalanceComments1.hs"
     -- mkParserTestBC libdir    "ghc92" "BalanceComments1.hs"

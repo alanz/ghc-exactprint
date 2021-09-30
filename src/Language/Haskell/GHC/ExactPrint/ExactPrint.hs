@@ -238,15 +238,24 @@ data FlushComments = FlushComments
                    | NoFlushComments
                    deriving (Eq, Show)
 
-data Entry = Entry Anchor EpAnnComments FlushComments
+-- | For GenLocated SrcSpan, we construct an entry location but cannot update it.
+data CanUpdateAnchor = CanUpdateAnchor
+                     | NoCanUpdateAnchor
+                   deriving (Eq, Show)
+
+data Entry = Entry Anchor EpAnnComments FlushComments CanUpdateAnchor
            | NoEntryVal
 
+
+mkEntry :: Anchor -> EpAnnComments -> Entry
+mkEntry anc cs = Entry anc cs NoFlushComments CanUpdateAnchor
+
 instance HasEntry (SrcSpanAnn' (EpAnn an)) where
-  fromAnn (SrcSpanAnn EpAnnNotUsed ss) = Entry (spanAsAnchor ss) emptyComments NoFlushComments
+  fromAnn (SrcSpanAnn EpAnnNotUsed ss) = mkEntry (spanAsAnchor ss) emptyComments
   fromAnn (SrcSpanAnn an _) = fromAnn an
 
 instance HasEntry (EpAnn a) where
-  fromAnn (EpAnn anchor _ cs) = Entry anchor cs NoFlushComments
+  fromAnn (EpAnn anchor _ cs) = mkEntry anchor cs
   fromAnn EpAnnNotUsed = NoEntryVal
 
 -- ---------------------------------------------------------------------
@@ -254,12 +263,16 @@ instance HasEntry (EpAnn a) where
 fromAnn' :: (HasEntry a) => a -> Entry
 fromAnn' an = case fromAnn an of
   NoEntryVal -> NoEntryVal
-  Entry a c _ -> Entry a c FlushComments
+  Entry a c _ u -> Entry a c FlushComments u
 
 -- ---------------------------------------------------------------------
 
 astId :: (Typeable a) => a -> String
 astId a = show (typeOf a)
+
+cua :: CanUpdateAnchor -> EPP [a] -> EPP [a]
+cua CanUpdateAnchor f = f
+cua NoCanUpdateAnchor _ = return []
 
 -- | "Enter" an annotation, by using the associated 'anchor' field as
 -- the new reference point for calculating all DeltaPos positions.
@@ -274,7 +287,7 @@ enterAnn NoEntryVal a = do
   r <- exact a
   debugM $ "enterAnn:done:NO ANN:p =" ++ show (p, astId a)
   return r
-enterAnn (Entry anchor' cs flush) a = do
+enterAnn (Entry anchor' cs flush canUpdateAnchor) a = do
   p <- getPosP
   debugM $ "enterAnn:starting:(p,a) =" ++ show (p, astId a)
   -- debugM $ "enterAnn:(cs) =" ++ showGhc (cs)
@@ -284,7 +297,7 @@ enterAnn (Entry anchor' cs flush) a = do
   addCommentsA (priorComments cs)
   debugM $ "enterAnn:Added comments"
   printComments curAnchor
-  priorCs <- takeAppliedComments -- no pop
+  priorCs <- cua canUpdateAnchor takeAppliedComments -- no pop
   -- -------------------------
   case anchor_op anchor' of
     MovedAnchor dp -> do
@@ -354,7 +367,7 @@ enterAnn (Entry anchor' cs flush) a = do
   a' <- exact a
   mflush
 
-  postCs <- takeAppliedCommentsPop
+  postCs <- cua canUpdateAnchor takeAppliedCommentsPop
   when (flush == NoFlushComments) $ do
     when ((getFollowingComments cs) /= []) $ do
       debugM $ "starting trailing comments:" ++ showAst (getFollowingComments cs)
@@ -363,10 +376,12 @@ enterAnn (Entry anchor' cs flush) a = do
 
   -- postCs <- takeAppliedComments
   let newAchor = anchor' { anchor_op = MovedAnchor edp }
-  let r = (setAnnotationAnchor a' newAchor (mkEpaComments (priorCs++ postCs) []))
+  let r = case canUpdateAnchor of
+            CanUpdateAnchor -> setAnnotationAnchor a' newAchor (mkEpaComments (noKWComments (priorCs++ postCs)) [])
+            NoCanUpdateAnchor -> a'
   -- let r = (setAnnotationAnchor a' newAchor (mkEpaComments [] postCs))
   pure () -- monadic action to flush debugM
-  debugM $ "calling setAnnotationAnchor:(newAchor,priorCs,postCs)=" ++ showAst (newAchor, priorCs, postCs)
+  debugM $ "calling setAnnotationAnchor:(curAnchor, newAchor,priorCs,postCs)=" ++ showAst (show (rs2range curAnchor), newAchor, priorCs, postCs)
   -- debugM $ "calling setAnnotationAnchor:(newAchor,postCs)=" ++ showAst (newAchor, postCs)
   debugM $ "enterAnn:done:(p,a) =" ++ show (p, astId a')
   return r
@@ -475,10 +490,9 @@ class (Typeable a) => ExactPrint a where
 -- | Bare Located elements are simply stripped off without further
 -- processing.
 instance (ExactPrint a) => ExactPrint (Located a) where
-  getAnnotationEntry (L l _) = Entry (spanAsAnchor l) emptyComments NoFlushComments
+  getAnnotationEntry (L l _) = Entry (spanAsAnchor l) emptyComments NoFlushComments NoCanUpdateAnchor
 
-  -- We cannot set a proper anchor for just a SrcSpan
-  setAnnotationAnchor la _ _ = la
+  setAnnotationAnchor la _anc _cs = la
 
   exact (L l a) = L l <$> markAnnotated a
 
@@ -1016,6 +1030,7 @@ exactDataFamInstDecl an top_lvl
                                 , feqn_pats   = pats
                                 , feqn_fixity = fixity
                                 , feqn_rhs    = defn' }))
+                    `debug` ("exactDataFamInstDecl: defn' derivs:" ++ showAst (dd_derivs defn'))
   where
     pp_hdr :: Maybe (LHsContext GhcPs) -> EPP (LocatedN RdrName, HsOuterTyVarBndrs () GhcPs, Maybe (LHsContext GhcPs))
     pp_hdr mctxt = do
@@ -2826,15 +2841,16 @@ instance ExactPrint (TyClDecl GhcPs) where
                     , tcdLName = ltycon', tcdTyVars = tyvars', tcdFixity = fixity
                     , tcdRhs = rhs' })
 
+  -- TODO: add a workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/20452
   exact (DataDecl { tcdDExt = an, tcdLName = ltycon, tcdTyVars = tyvars
                   , tcdFixity = fixity, tcdDataDefn = defn }) = do
-    exactDataDefn an (exactVanillaDeclHead ltycon tyvars fixity) defn
-    return (DataDecl { tcdDExt = an, tcdLName = ltycon, tcdTyVars = tyvars
-                     , tcdFixity = fixity, tcdDataDefn = defn })
+    (ltycon', tyvars', mctxt', defn') <- exactDataDefn an (exactVanillaDeclHead ltycon tyvars fixity) defn
+    return (DataDecl { tcdDExt = an, tcdLName = ltycon', tcdTyVars = tyvars'
+                     , tcdFixity = fixity, tcdDataDefn = defn' })
 
   -- -----------------------------------
 
-  exact d@(ClassDecl {tcdCExt = (an, sortKey, _),
+  exact d@(ClassDecl {tcdCExt = (an, sortKey, lo),
                       tcdCtxt = context, tcdLName = lclas, tcdTyVars = tyvars,
                       tcdFixity = fixity,
                       tcdFDs  = fds,
@@ -2844,17 +2860,23 @@ instance ExactPrint (TyClDecl GhcPs) where
       -- TODO: add a test that demonstrates tcdDocs
       | null sigs && isEmptyBag methods && null ats && null at_defs -- No "where" part
       = do
-          top_matter
+          (fds', lclas', tyvars',context') <- top_matter
           markEpAnn an AnnOpenC
           markEpAnn an AnnCloseC
-          return d
+          return (ClassDecl {tcdCExt = (an, sortKey, lo),
+                             tcdCtxt = context', tcdLName = lclas', tcdTyVars = tyvars',
+                             tcdFixity = fixity,
+                             tcdFDs  = fds',
+                             tcdSigs = sigs, tcdMeths = methods,
+                             tcdATs = ats, tcdATDefs = at_defs,
+                             tcdDocs = _docs})
 
       | otherwise       -- Laid out
       = do
-          top_matter
+          (fds', lclas', tyvars',context') <- top_matter
           markEpAnn an AnnOpenC
           markEpAnnAll an id AnnSemi
-          withSortKey sortKey
+          ds <- withSortKey sortKey
                                (prepareListAnnotationA sigs
                              ++ prepareListAnnotationA (bagToList methods)
                              ++ prepareListAnnotationA ats
@@ -2862,18 +2884,31 @@ instance ExactPrint (TyClDecl GhcPs) where
                              -- ++ prepareListAnnotation docs
                                )
           markEpAnn an AnnCloseC
-          return d
+          let
+            sigs'    = undynamic ds
+            methods' = listToBag $ undynamic ds
+            ats'     = undynamic ds
+            at_defs' = undynamic ds
+          return (ClassDecl {tcdCExt = (an, sortKey, lo),
+                             tcdCtxt = context', tcdLName = lclas', tcdTyVars = tyvars',
+                             tcdFixity = fixity,
+                             tcdFDs  = fds',
+                             tcdSigs = sigs', tcdMeths = methods',
+                             tcdATs = ats', tcdATDefs = at_defs',
+                             tcdDocs = _docs})
       where
         top_matter = do
           annotationsToComments (epAnnAnns an)  [AnnOpenP, AnnCloseP]
           markEpAnn an AnnClass
-          exactVanillaDeclHead lclas tyvars fixity context
-          unless (null fds) $ do
-            markEpAnn an AnnVbar
-            markAnnotated fds
-            return ()
+          (lclas', tyvars',context') <-  exactVanillaDeclHead lclas tyvars fixity context
+          fds' <- if (null fds)
+            then return fds
+            else do
+              markEpAnn an AnnVbar
+              markAnnotated fds
           markEpAnn an AnnWhere
-          return ()
+          return (fds', lclas', tyvars',context')
+
 
 -- ---------------------------------------------------------------------
 
@@ -3056,14 +3091,15 @@ instance ExactPrintTVFlag flag => ExactPrint (HsTyVarBndr flag GhcPs) where
   setAnnotationAnchor (UserTyVar an a b)     anc cs = UserTyVar (setAnchorEpa an anc cs) a b
   setAnnotationAnchor (KindedTyVar an a b c) anc cs = KindedTyVar (setAnchorEpa an anc cs) a b c
 
-  exact v@(UserTyVar an flag n) = do
-    exactTVDelimiters an flag $ markAnnotated n
-    return v
-  exact v@(KindedTyVar an flag n k) = exactTVDelimiters an flag $ do
-    markAnnotated n
+  exact (UserTyVar an flag n) = do
+    exactTVDelimiters an flag $ do
+      n' <- markAnnotated n
+      return (UserTyVar an flag n')
+  exact (KindedTyVar an flag n k) = exactTVDelimiters an flag $ do
+    n' <- markAnnotated n
     markEpAnn an AnnDcolon
-    markAnnotated k
-    return v
+    k' <- markAnnotated k
+    return (KindedTyVar an flag n' k')
 
 -- ---------------------------------------------------------------------
 
@@ -3251,16 +3287,19 @@ instance ExactPrint (HsForAllTelescope GhcPs) where
 
 instance ExactPrint (HsDerivingClause GhcPs) where
   getAnnotationEntry d@(HsDerivingClause{}) = fromAnn (deriv_clause_ext d)
-  setAnnotationAnchor x anc cs = x { deriv_clause_ext = setAnchorEpa (deriv_clause_ext x) anc cs}
+  setAnnotationAnchor x anc cs = (x { deriv_clause_ext = setAnchorEpa (deriv_clause_ext x) anc cs})
+                                   `debug` ("setAnnotationAnchor HsDerivingClause: (anc,cs):" ++ showAst (anc,cs))
 
-  exact d@(HsDerivingClause { deriv_clause_ext      = an
-                            , deriv_clause_strategy = dcs
-                            , deriv_clause_tys      = dct }) = do
+  exact (HsDerivingClause { deriv_clause_ext      = an
+                          , deriv_clause_strategy = dcs
+                          , deriv_clause_tys      = dct }) = do
     markEpAnn an AnnDeriving
     exact_strat_before
-    markAnnotated dct
+    dct' <- markAnnotated dct
     exact_strat_after
-    return d
+    return (HsDerivingClause { deriv_clause_ext      = an
+                             , deriv_clause_strategy = dcs
+                             , deriv_clause_tys      = dct' })
       where
         -- -- This complexity is to distinguish between
         -- --    deriving Show

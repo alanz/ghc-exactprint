@@ -19,6 +19,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   where
 import Control.Monad.State
 import Data.Function
+import Data.Maybe
 import Data.Ord (comparing)
 
 import Data.Generics
@@ -45,8 +46,8 @@ import Language.Haskell.GHC.ExactPrint.Types
 
 -- |Global switch to enable debug tracing in ghc-exactprint Delta / Print
 debugEnabledFlag :: Bool
-debugEnabledFlag = True
--- debugEnabledFlag = False
+-- debugEnabledFlag = True
+debugEnabledFlag = False
 
 -- |Global switch to enable debug tracing in ghc-exactprint Pretty
 debugPEnabledFlag :: Bool
@@ -254,6 +255,14 @@ mkKWComment kw (EpaSpan ss)
 mkKWComment kw (EpaDelta dp)
   = Comment (keywordToString $ G kw) (Anchor placeholderRealSpan (MovedAnchor dp)) (Just kw)
 
+-- | Detects a comment which originates from a specific keyword.
+isKWComment :: Comment -> Bool
+isKWComment c = isJust (commentOrigin c)
+
+noKWComments :: [Comment] -> [Comment]
+noKWComments = filter (\c -> not (isKWComment c))
+
+
 comment2dp :: (Comment,  DeltaPos) -> (KeywordId, DeltaPos)
 comment2dp = first AnnComment
 
@@ -411,7 +420,7 @@ instance Monoid TrailingAnn where
 instance Semigroup AnnContext where
   (<>) = error "unimplemented"
 instance Monoid AnnContext where
-  mempty = error "meaningless"
+  mempty = AnnContext Nothing [] []
 
 instance Semigroup EpAnnSumPat where
   (<>) = error "unimplemented"
