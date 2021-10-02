@@ -117,18 +117,18 @@ mkTests = do
   roundTripMakeDeltaTests <- findTestsMD libdir
   prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
-                    --   internalTests,
-                    --   roundTripTests
+                      internalTests,
+                      roundTripTests
+                    ,
+                      (transformTests libdir)
+                    , (failingTests libdir)
+                    -- , noAnnotationTests
                     -- ,
-                    --   (transformTests libdir)
-                    -- , (failingTests libdir)
-                    -- -- , noAnnotationTests
-                    -- -- ,
-                    -- --   prettyRoundTripTests
+                    --   prettyRoundTripTests
+                    ,
+                      roundTripBalanceCommentsTests
                     -- ,
-                    --   roundTripBalanceCommentsTests
-                    -- ,
-                      roundTripMakeDeltaTests
+                      -- roundTripMakeDeltaTests
                     ]
 
 failingTests :: LibDir -> Test
@@ -212,7 +212,22 @@ tt' = do
     -- mkParserTestMD libdir      "ghc92" "Observer1.hs"
 
     -- mkParserTest libdir      "ghc92" "ScopesBug.hs"
-    mkParserTestMD libdir      "ghc92" "ScopesBug.hs"
+    -- mkParserTestMD libdir      "ghc92" "ScopesBug.hs"
+
+    -- mkParserTest libdir      "ghc92" "Field.hs"
+    -- mkParserTestMD libdir      "ghc92" "Field.hs"
+
+    -- mkParserTest libdir      "ghc88" "EmptyCase008.hs"
+    -- mkParserTestMD libdir      "ghc88" "EmptyCase008.hs"
+
+    -- mkParserTest libdir      "ghc86" "HashTab.hs"
+    -- mkParserTestMD libdir      "ghc86" "HashTab.hs"
+
+    -- mkParserTest libdir      "ghc80" "T6018failclosed.hs"
+    -- mkParserTestMD libdir      "ghc80" "T6018failclosed.hs"
+
+    -- mkParserTest libdir      "ghc92" "TypeFamilies.hs"
+    mkParserTestMD libdir      "ghc92" "TypeFamilies.hs"
 
     -- mkParserTest libdir      "ghc92" "BalanceComments1.hs"
     -- mkParserTestBC libdir    "ghc92" "BalanceComments1.hs"
