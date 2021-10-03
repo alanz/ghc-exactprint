@@ -182,6 +182,7 @@ tt' = do
 
     -- mkTestModChange libdir changeRenameCase1 "RenameCase1.hs"
 
+    mkTestModChange libdir rmTypeSig1 "RmTypeSig1.hs"
 
     -- mkParserTest libdir      "ghc80" "T10970a.hs"
 
@@ -222,12 +223,13 @@ tt' = do
 
     -- mkParserTest libdir      "ghc86" "HashTab.hs"
     -- mkParserTestMD libdir      "ghc86" "HashTab.hs"
+    -- mkParserTestBC libdir      "ghc86" "HashTab.hs"
 
     -- mkParserTest libdir      "ghc80" "T6018failclosed.hs"
     -- mkParserTestMD libdir      "ghc80" "T6018failclosed.hs"
 
     -- mkParserTest libdir      "ghc92" "TypeFamilies.hs"
-    mkParserTestMD libdir      "ghc92" "TypeFamilies.hs"
+    -- mkParserTestMD libdir      "ghc92" "TypeFamilies.hs"
 
     -- mkParserTest libdir      "ghc92" "BalanceComments1.hs"
     -- mkParserTestBC libdir    "ghc92" "BalanceComments1.hs"
