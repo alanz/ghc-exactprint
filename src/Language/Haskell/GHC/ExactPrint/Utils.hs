@@ -46,8 +46,8 @@ import Language.Haskell.GHC.ExactPrint.Types
 
 -- |Global switch to enable debug tracing in ghc-exactprint Delta / Print
 debugEnabledFlag :: Bool
--- debugEnabledFlag = True
-debugEnabledFlag = False
+debugEnabledFlag = True
+-- debugEnabledFlag = False
 
 -- |Global switch to enable debug tracing in ghc-exactprint Pretty
 debugPEnabledFlag :: Bool
@@ -252,7 +252,7 @@ normaliseCommentText (x:xs) = x:normaliseCommentText xs
 mkKWComment :: AnnKeywordId -> EpaLocation -> Comment
 mkKWComment kw (EpaSpan ss)
   = Comment (keywordToString $ G kw) (Anchor ss UnchangedAnchor) (Just kw)
-mkKWComment kw (EpaDelta dp)
+mkKWComment kw (EpaDelta dp [])
   = Comment (keywordToString $ G kw) (Anchor placeholderRealSpan (MovedAnchor dp)) (Just kw)
 
 -- | Detects a comment which originates from a specific keyword.
