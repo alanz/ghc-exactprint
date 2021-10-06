@@ -472,7 +472,9 @@ printStringAtRs pa str = do
   p' <- adjustDeltaForOffsetM p
   printStringAtLsDelta p' str
   setPriorEndASTD True pa
-  return (EpaDelta p' [])
+  cs' <- takeAppliedComments
+  debugM $ "printStringAtRs:cs'=" ++ show cs'
+  return (EpaDelta p' (map comment2LEpaComment cs'))
 
 printStringAtRs' :: (Monad m, Monoid w) => RealSrcSpan -> String -> EP w m ()
 printStringAtRs' pa str = printStringAtRs pa str >> return ()
@@ -499,9 +501,11 @@ printStringAtAA (EpaDelta d cs) s = do
   p1 <- getPosP
   printStringAtLsDelta d s
   p2 <- getPosP
-  debugM $ "printStringAtAA:(pe,p1,p2)=" ++ show (pe,p1,p2)
+  -- debugM $ "printStringAtAA:(pe,p1,p2)=" ++ show (pe,p1,p2)
   setPriorEndASTPD True (p1,p2)
-  return (EpaDelta d cs)
+  cs' <- takeAppliedComments
+  debugM $ "printStringAtAA:(pe,p1,p2,cs')=" ++ show (pe,p1,p2,cs')
+  return (EpaDelta d (map comment2LEpaComment cs'))
 
 
 -- ---------------------------------------------------------------------
@@ -751,6 +755,55 @@ lapr_close k parent = fmap (\new -> parent { apr_close = new })
 lidl :: Lens [AddEpAnn] [AddEpAnn]
 lidl k parent = fmap (\new -> new)
                      (k parent)
+
+lid :: Lens AddEpAnn AddEpAnn
+lid k parent = fmap (\new -> new)
+                    (k parent)
+
+-- data AnnsIf
+--   = AnnsIf {
+--       aiIf       :: EpaLocation,
+--       aiThen     :: EpaLocation,
+--       aiElse     :: EpaLocation,
+--       aiThenSemi :: Maybe EpaLocation,
+--       aiElseSemi :: Maybe EpaLocation
+--       } deriving Data
+
+laiIf :: Lens AnnsIf EpaLocation
+laiIf k parent = fmap (\new -> parent { aiIf = new })
+                      (k (aiIf parent))
+
+laiThen :: Lens AnnsIf EpaLocation
+laiThen k parent = fmap (\new -> parent { aiThen = new })
+                        (k (aiThen parent))
+
+laiElse :: Lens AnnsIf EpaLocation
+laiElse k parent = fmap (\new -> parent { aiElse = new })
+                        (k (aiElse parent))
+
+laiThenSemi :: Lens AnnsIf (Maybe EpaLocation)
+laiThenSemi k parent = fmap (\new -> parent { aiThenSemi = new })
+                            (k (aiThenSemi parent))
+
+laiElseSemi :: Lens AnnsIf (Maybe EpaLocation)
+laiElseSemi k parent = fmap (\new -> parent { aiElseSemi = new })
+                            (k (aiElseSemi parent))
+
+-- data AnnParen
+--   = AnnParen {
+--       ap_adornment :: ParenType,
+--       ap_open      :: EpaLocation,
+--       ap_close     :: EpaLocation
+--       } deriving (Data)
+
+lap_open :: Lens AnnParen EpaLocation
+lap_open k parent = fmap (\new -> parent { ap_open = new })
+                         (k (ap_open parent))
+
+lap_close :: Lens AnnParen EpaLocation
+lap_close k parent = fmap (\new -> parent { ap_close = new })
+                          (k (ap_close parent))
+
 -- ---------------------------------------------------------------------
 
 markLensKwA :: (Monad m, Monoid w)
@@ -791,6 +844,7 @@ markALocatedA (EpAnn anc a cs) = do
   t <- markTrailing (lann_trailing a)
   return (EpAnn anc (a { lann_trailing = t }) cs)
 
+-- Deprecate in favour of markEpAnnL
 markEpAnn :: (Monad m, Monoid w) => EpAnn [AddEpAnn] -> AnnKeywordId -> EP w m ()
 markEpAnn EpAnnNotUsed _ = return ()
 markEpAnn (EpAnn _ a _) kw = mark a kw
@@ -2424,15 +2478,15 @@ instance ExactPrint (HsExpr GhcPs) where
     return (SectionR an op' expr')
 
   exact (ExplicitTuple an args b) = do
-    if b == Boxed then markEpAnn an AnnOpenP
-                  else markEpAnn an AnnOpenPH
+    an0 <- if b == Boxed then markEpAnnL an lidl AnnOpenP
+                         else markEpAnnL an lidl AnnOpenPH
 
     args' <- mapM markAnnotated args
 
-    if b == Boxed then markEpAnn an AnnCloseP
-                  else markEpAnn an AnnClosePH
+    an1 <- if b == Boxed then markEpAnnL an0 lidl AnnCloseP
+                         else markEpAnnL an0 lidl AnnClosePH
     debugM $ "ExplicitTuple done"
-    return (ExplicitTuple an args' b)
+    return (ExplicitTuple an1 args' b)
 
   exact (ExplicitSum an alt arity expr) = do
     markAnnKw an aesOpen AnnOpenPH
@@ -2870,14 +2924,16 @@ instance ExactPrint (HsCmd GhcPs) where
     if isRightToLeft
       then do
         arr' <- markAnnotated arr
-        markKw (anns an)
+        an0 <- markKw (anns an)
         arg' <- markAnnotated arg
-        return (HsCmdArrApp an arr' arg' o isRightToLeft)
+        let an1 = an{anns = an0}
+        return (HsCmdArrApp an1 arr' arg' o isRightToLeft)
       else do
         arg' <- markAnnotated arg
-        markKw (anns an)
+        an0 <- markKw (anns an)
         arr' <- markAnnotated arr
-        return (HsCmdArrApp an arr' arg' o isRightToLeft)
+        let an1 = an{anns = an0}
+        return (HsCmdArrApp an1 arr' arg' o isRightToLeft)
 
   exact (HsCmdArrForm an e fixity mf cs) = do
     markLocatedMAA an al_open
@@ -2927,15 +2983,15 @@ instance ExactPrint (HsCmd GhcPs) where
     return (HsCmdLamCase an matches')
 
   exact (HsCmdIf an a e1 e2 e3) = do
-    markAnnKw an aiIf AnnIf
+    an0 <- markLensKw an laiIf AnnIf
     e1' <- markAnnotated e1
-    markAnnKwM an aiThenSemi AnnSemi
-    markAnnKw an aiThen AnnThen
+    markAnnKwM an0 aiThenSemi AnnSemi
+    an2 <- markLensKw an0 laiThen AnnThen
     e2' <- markAnnotated e2
     markAnnKwM an aiElseSemi AnnSemi
-    markAnnKw an aiElse AnnElse
+    an4 <- markLensKw an2 laiElse AnnElse
     e3' <- markAnnotated e3
-    return (HsCmdIf an a e1' e2' e3')
+    return (HsCmdIf an4 a e1' e2' e3')
 
   exact (HsCmdLet an binds e) = do
     markAnnKw an alLet AnnLet

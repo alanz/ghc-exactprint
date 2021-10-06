@@ -228,6 +228,8 @@ tokComment :: LEpaComment -> Comment
 tokComment t@(L lt _) = mkComment (normaliseCommentText $ ghcCommentText t) lt
 
 mkEpaComments :: [Comment] -> [Comment] -> EpAnnComments
+mkEpaComments priorCs []
+  = EpaComments (map comment2LEpaComment priorCs)
 mkEpaComments priorCs postCs
   = EpaCommentsBalanced (map comment2LEpaComment priorCs) (map comment2LEpaComment postCs)
 
