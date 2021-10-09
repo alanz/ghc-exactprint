@@ -234,7 +234,10 @@ tt' = do
     -- mkParserTest libdir      "ghc92" "StringRef.hs"
     -- mkParserTestMD libdir      "ghc92" "StringRef.hs"
 
-    mkParserTestMD libdir      "ghc92" "proc-do-complex-four-out.hs"
+    -- mkParserTestMD libdir      "ghc92" "proc-do-complex.hs"
+    -- mkParserTestMD libdir      "ghc88" "Utils.hs"
+    mkParserTestMD libdir      "ghc86" "T9662.hs"
+
     -- mkParserTestMD libdir      "ghc92" "TH.hs"
 
     -- mkParserTest libdir      "ghc92" "ListComments.hs"
