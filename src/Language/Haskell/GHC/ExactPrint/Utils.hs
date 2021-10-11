@@ -46,8 +46,8 @@ import Language.Haskell.GHC.ExactPrint.Types
 
 -- |Global switch to enable debug tracing in ghc-exactprint Delta / Print
 debugEnabledFlag :: Bool
-debugEnabledFlag = True
--- debugEnabledFlag = False
+-- debugEnabledFlag = True
+debugEnabledFlag = False
 
 -- |Global switch to enable debug tracing in ghc-exactprint Pretty
 debugPEnabledFlag :: Bool
@@ -331,6 +331,13 @@ setAnchorEpaL :: EpAnn AnnList -> Anchor -> EpAnnComments -> EpAnn AnnList
 setAnchorEpaL EpAnnNotUsed   anc cs = EpAnn anc mempty cs
 setAnchorEpaL (EpAnn _ an _) anc cs = EpAnn anc (an {al_anchor = Nothing}) cs
 
+setAnchorHsModule :: HsModule -> Anchor -> EpAnnComments -> HsModule
+setAnchorHsModule hsmod anc cs = hsmod { hsmodAnn = an' }
+  where
+    -- anc' = anc { anchor_op = MovedAnchor (SameLine 0)}
+    anc' = anc { anchor_op = UnchangedAnchor }
+    an' = setAnchorEpa (hsmodAnn hsmod) anc' cs
+
 -- ---------------------------------------------------------------------
 -- Orphan Monoid instances. See https://gitlab.haskell.org/ghc/ghc/-/issues/20372
 
@@ -427,4 +434,9 @@ instance Monoid AnnContext where
 instance Semigroup EpAnnSumPat where
   (<>) = error "unimplemented"
 instance Monoid EpAnnSumPat where
+  mempty = error "meaningless"
+
+instance Semigroup AnnsModule where
+  (<>) = error "unimplemented"
+instance Monoid AnnsModule where
   mempty = error "meaningless"
