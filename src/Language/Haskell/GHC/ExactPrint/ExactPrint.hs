@@ -1001,14 +1001,16 @@ markAnnKwL = markLensKw
 -- TODO: get rid of this, in favour of markAnnKwAllL.
 markAnnKwAll :: (Monad m, Monoid w) => EpAnn a -> (a -> [EpaLocation]) -> AnnKeywordId -> EP w m ()
 markAnnKwAll EpAnnNotUsed  _ _  = return ()
-markAnnKwAll (EpAnn _ a _) f kw = mapM_ (markKwA kw) (sort (f a))
+-- markAnnKwAll (EpAnn _ a _) f kw = mapM_ (markKwA kw) (sort (f a))
+markAnnKwAll (EpAnn _ a _) f kw = mapM_ (markKwA kw) (f a)
 
 markAnnKwAllL :: (Monad m, Monoid w)
   => EpAnn a -> Lens a [EpaLocation] -> AnnKeywordId -> EP w m (EpAnn a)
 markAnnKwAllL EpAnnNotUsed  _ _  = return EpAnnNotUsed
 -- markAnnKwAllL (EpAnn _ a _) f kw = mapM_ (markKwA kw) (sort (f a))
 markAnnKwAllL (EpAnn anc a cs) l kw = do
-  anns <- mapM (markKwA kw) (sort (view l a))
+  -- anns <- mapM (markKwA kw) (sort (view l a))
+  anns <- mapM (markKwA kw) (view l a)
   return (EpAnn anc (set l anns a) cs)
 
 -- TODO: get rid of this, in favour of markLensKwM.
@@ -1060,7 +1062,8 @@ markEpAnnL (EpAnn anc a cs) l kw = do
 markEpAnnAll :: (Monad m, Monoid w)
   => EpAnn ann -> (ann -> [AddEpAnn]) -> AnnKeywordId -> EP w m ()
 markEpAnnAll EpAnnNotUsed _ _ = return ()
-markEpAnnAll (EpAnn _ a _) f kw = mapM_ markKw (sort anns)
+-- markEpAnnAll (EpAnn _ a _) f kw = mapM_ markKw (sort anns)
+markEpAnnAll (EpAnn _ a _) f kw = mapM_ markKw anns
   where
     anns = filter (\(AddEpAnn ka _) -> ka == kw) (f a)
 
@@ -1068,7 +1071,8 @@ markEpAnnAllL :: (Monad m, Monoid w)
   => EpAnn ann -> Lens ann [AddEpAnn] -> AnnKeywordId -> EP w m (EpAnn ann)
 markEpAnnAllL EpAnnNotUsed _ _ = return EpAnnNotUsed
 markEpAnnAllL (EpAnn anc a cs) l kw = do
-  anns <- mapM doit (sort (view l a))
+  -- anns <- mapM doit (sort (view l a))
+  anns <- mapM doit (view l a)
   return (EpAnn anc (set l anns a) cs)
   where
     doit a@(AddEpAnn ka _)
@@ -1077,7 +1081,8 @@ markEpAnnAllL (EpAnn anc a cs) l kw = do
           else return a
 
 markAnnAll :: (Monad m, Monoid w) => [AddEpAnn] -> AnnKeywordId -> EP w m [AddEpAnn]
-markAnnAll a kw = mapM doit (sort a)
+-- markAnnAll a kw = mapM doit (sort a)
+markAnnAll a kw = mapM doit a
   where
     doit an@(AddEpAnn ka _)
       = if ka == kw
@@ -1165,7 +1170,8 @@ markAnnList' reallyTrail ann action = do
   debugM $ "markAnnList : " ++ showPprUnsafe (p, ann)
   al_open' <- mapM markAddEpAnn (al_open ann)
   ann0 <- markTrailIf (not reallyTrail) ann -- Only makes sense for HsModule.
-  al_rest' <- markAnnAll (sort $ al_rest ann) AnnSemi
+  -- al_rest' <- markAnnAll (sort $ al_rest ann) AnnSemi
+  al_rest' <- markAnnAll (al_rest ann) AnnSemi
   r <- action
   al_close' <- mapM markAddEpAnn (al_close ann)
   debugM $ "markAnnList: calling markTrailing with:" ++ showPprUnsafe (al_trailing ann)
@@ -1294,13 +1300,14 @@ instance ExactPrint HsModule where
     (an0, mmn' , mdeprec', mexports') <-
       case mmn of
         Nothing -> return (an, mmn, mdeprec, mexports)
-        Just (L l mn) -> do
+        Just m@(L l mn) -> do
           an0 <- markEpAnnL an lam_main AnnModule
           -- If there is a comment between the 'module' keyword and
           -- the module name, we need to capture it, by fudging a
           -- LocatedA for now.
-          (L la mn') <- markAnnotated ((L (noAnnSrcSpan l) mn):: LocatedA ModuleName)
-          debugM $ "HsModule.ModuleName:la=" ++ showAst la
+          -- (L la mn') <- markAnnotated ((L (noAnnSrcSpan l) mn):: LocatedA ModuleName)
+          -- debugM $ "HsModule.ModuleName:la=" ++ showAst la
+          m' <- markAnnotated m
 
           -- forM_ mdeprec markLocated
           mdeprec' <- setLayoutTopLevelP $ markAnnotated mdeprec
@@ -1314,9 +1321,10 @@ instance ExactPrint HsModule where
 
           -- Capture the module name comments at the top
           -- level. Workaround until ModuleName is LocatedA
-          mapM_ (applyComment . tokComment) (priorComments $ epAnnComments (ann la))
-          mapM_ (applyComment . tokComment) (getFollowingComments $ epAnnComments (ann la))
-          return (an1, Just (L l mn'), mdeprec', mexports')
+          -- mapM_ (applyComment . tokComment) (priorComments $ epAnnComments (ann la))
+          -- mapM_ (applyComment . tokComment) (getFollowingComments $ epAnnComments (ann la))
+          -- return (an1, Just (L l mn'), mdeprec', mexports')
+          return (an1, Just m', mdeprec', mexports')
 
     debugM $ "After HsModule.AnnWhere done, an0=" ++ showAst (anns an0)
     (am_decls', (decls', imports')) <- markAnnList' False (am_decls $ anns an0) $ do
@@ -1368,7 +1376,7 @@ instance ExactPrint (ImportDecl GhcPs) where
   setAnnotationAnchor idecl anc cs = idecl { ideclExt = setAnchorEpa (ideclExt idecl) anc cs }
 
   exact x@(ImportDecl EpAnnNotUsed _ _ _ _ _ _ _ _ _) = withPpr x
-  exact (ImportDecl ann msrc (L lm modname) mpkg src safeflag qualFlag impl mAs hiding) = do
+  exact (ImportDecl ann msrc m@(L lm modname) mpkg src safeflag qualFlag impl mAs hiding) = do
 
     ann0 <- markLensKw ann limportDeclAnnImport AnnImport
     let (EpAnn anc an cs) = ann0
@@ -1402,7 +1410,8 @@ instance ExactPrint (ImportDecl GhcPs) where
          printStringAtMLocL ann1 limportDeclAnnPackage (sourceTextToString src' (show v))
        _ -> return ann1
 
-    printStringAtRs' (realSrcSpan lm) (moduleNameString modname)
+    -- printStringAtRs' (realSrcSpan lm) (moduleNameString modname)
+    m' <- markAnnotated m
 
     ann3 <-
       case qualFlag of
@@ -1410,13 +1419,14 @@ instance ExactPrint (ImportDecl GhcPs) where
           -> printStringAtMLocL ann2 limportDeclAnnQualified "qualified"
         _ -> return ann2
 
-    importDeclAnnAs' <-
+    (importDeclAnnAs', mAs') <-
       case mAs of
-        Nothing -> return (importDeclAnnAs an)
-        Just (L l mn) -> do
+        Nothing -> return (importDeclAnnAs an, Nothing)
+        Just m@(L l mn) -> do
           a <- printStringAtMLoc' (importDeclAnnAs an) "as"
-          _ <- printStringAtRs (realSrcSpan l) (moduleNameString mn)
-          return a
+          -- _ <- printStringAtRs (realSrcSpan l) (moduleNameString mn)
+          m' <- markAnnotated m
+          return (a, Just m')
 
     hiding' <-
       case hiding of
@@ -1430,7 +1440,8 @@ instance ExactPrint (ImportDecl GhcPs) where
                   , importDeclAnnPragma = importDeclAnnPragma'
                   }
 
-    return (ImportDecl (EpAnn anc' an2 cs') msrc (L lm modname) mpkg src safeflag qualFlag impl mAs hiding')
+    -- return (ImportDecl (EpAnn anc' an2 cs') msrc (L lm modname) mpkg src safeflag qualFlag impl mAs hiding')
+    return (ImportDecl (EpAnn anc' an2 cs') msrc m' mpkg src safeflag qualFlag impl mAs' hiding')
 
 
 -- ---------------------------------------------------------------------
@@ -3929,9 +3940,11 @@ instance (ExactPrint a) => ExactPrint (LocatedC a) where
     a' <- markAnnotated a
     return (L (SrcSpanAnn EpAnnNotUsed l) a')
   exact (L (SrcSpanAnn (EpAnn anc (AnnContext ma opens closes) cs) l) a) = do
-    mapM_ (markKwA AnnOpenP) (sort opens)
+    -- mapM_ (markKwA AnnOpenP) (sort opens)
+    mapM_ (markKwA AnnOpenP) opens
     a' <- markAnnotated a
-    mapM_ (markKwA AnnCloseP) (sort closes)
+    -- mapM_ (markKwA AnnCloseP) (sort closes)
+    mapM_ (markKwA AnnCloseP) closes
     case ma of
       Just (UnicodeSyntax, r) -> markKwA AnnDarrowU r >> pure ()
       Just (NormalSyntax,  r) -> markKwA AnnDarrow  r >> pure ()
@@ -4045,7 +4058,8 @@ markTrailing :: (Monad m, Monoid w) => [TrailingAnn] -> EP w m [TrailingAnn]
 markTrailing ts = do
   p <- getPosP
   debugM $ "markTrailing:" ++ showPprUnsafe (p,ts)
-  mapM markKwT (sort ts)
+  -- mapM markKwT (sort ts)
+  mapM markKwT ts
 
 -- ---------------------------------------------------------------------
 
@@ -4271,27 +4285,28 @@ instance ExactPrint (LocatedL [LocatedA (IE GhcPs)]) where
   getAnnotationEntry = entryFromLocatedA
   setAnnotationAnchor = setAnchorAn
 
-  exact (L (SrcSpanAnn ann l) ies) = do
+  exact (L (SrcSpanAnn an l) ies) = do
     debugM $ "LocatedL [LIE"
-    markLocatedAAL ann al_rest AnnHiding
+    an0 <- markEpAnnL an lal_rest AnnHiding
     p <- getPosP
     debugM $ "LocatedL [LIE:p=" ++ showPprUnsafe p
-    (ann', ies') <- markAnnList True ann (markAnnotated ies)
-    return (L (SrcSpanAnn ann' l) ies')
+    (an1, ies') <- markAnnList True an0 (markAnnotated ies)
+    return (L (SrcSpanAnn an1 l) ies')
 
 instance (ExactPrint (Match GhcPs (LocatedA body)))
    => ExactPrint (LocatedL [LocatedA (Match GhcPs (LocatedA body))]) where
   getAnnotationEntry = entryFromLocatedA
   setAnnotationAnchor = setAnchorAn
   exact (L la a) = do
+    let an = ann la
     debugM $ "LocatedL [LMatch"
     -- TODO: markAnnList?
-    markEpAnnAll (ann la) al_rest AnnWhere
-    markLocatedMAA (ann la) al_open
-    markEpAnnAll (ann la) al_rest AnnSemi
+    an0 <- markEpAnnAllL an lal_rest AnnWhere
+    an1 <- markLensMAA an0 lal_open
+    an2 <- markEpAnnAllL an1 lal_rest AnnSemi
     a' <- markAnnotated a
-    markLocatedMAA (ann la) al_close
-    return (L la a')
+    an3 <- markLensMAA an2 lal_close
+    return (L (la { ann = an3}) a')
 
 -- instance ExactPrint (LocatedL [ExprLStmt GhcPs]) where
 instance ExactPrint (LocatedL [LocatedA (StmtLR GhcPs GhcPs (LocatedA (HsExpr GhcPs)))]) where
@@ -4321,10 +4336,10 @@ instance ExactPrint (LocatedL [LocatedA (StmtLR GhcPs GhcPs (LocatedA (HsCmd Ghc
   exact (L (SrcSpanAnn ann' l) es) = do
     let ann = fixAnnListAnn ann'
     debugM $ "LocatedL [CmdLStmt"
-    markLocatedMAA ann al_open
+    an0 <- markLensMAA ann lal_open
     es' <- mapM markAnnotated es
-    markLocatedMAA ann al_close
-    return (L (SrcSpanAnn ann' l) es')
+    an1 <- markLensMAA an0 lal_close
+    return (L (SrcSpanAnn an1 l) es')
 
 instance ExactPrint (LocatedL [LocatedA (ConDeclField GhcPs)]) where
   getAnnotationEntry = entryFromLocatedA
@@ -4396,9 +4411,10 @@ instance ExactPrint (IE GhcPs) where
     markEpAnn an AnnCloseP
     return (IEThingWith an thing' wc' withs')
 
-  exact i@(IEModuleContents an (L lm mn)) = do
+  exact i@(IEModuleContents an m@(L lm mn)) = do
     markEpAnn an AnnModule
-    printStringAtSs lm (moduleNameString mn)
+    -- printStringAtSs lm (moduleNameString mn)
+    markAnnotated m
     return i
 
   -- exact (IEGroup _ _ _)          = NoEntryVal
