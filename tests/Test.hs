@@ -242,12 +242,15 @@ tt' = do
     -- Still to fix, think it is local to ExactPrint.hs
     -- mkParserTestMD libdir      "ghc710" "RdrNames.hs"
 
+
+    mkParserTestMD libdir      "ghc92" "ConPat.hs"
+    
     -- Fixed by diff to make LocatedA Modulename
     -- mkParserTestMD libdir      "ghc710" "LetExprSemi.hs"
 
     -- mkParserTestMD libdir      "ghc710" "AltsSemis.hs"
     -- mkParserTest libdir      "ghc710" "AltsSemis.hs"
-    mkParserTest libdir      "ghc710" "EmptyMostly.hs"
+    -- mkParserTest libdir      "ghc710" "EmptyMostly.hs"
 
     -- mkParserTest libdir      "ghc92" "ListComments.hs"
     -- mkParserTestMD libdir      "ghc92" "ListComments.hs"
