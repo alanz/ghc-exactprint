@@ -141,7 +141,8 @@ epOptions astPrint tokenPrint wsPrint rigidity delta = EPOptions
 stringOptions :: EPOptions Identity String
 stringOptions = epOptions (\_ b -> return b) return return NormalLayout False
 
--- | Options which can be used to simply update the AST to be in delta form, without generating output
+-- | Options which can be used to simply update the AST to be in delta
+-- form, without generating output
 deltaOptions :: EPOptions Identity ()
 deltaOptions = epOptions (\_ _ -> return ()) (\_ -> return ()) (\_ -> return ()) NormalLayout True
 
@@ -423,9 +424,9 @@ annotationsToComments (EpAnn anc a cs) l kws = do
 
     go :: ([Comment], [AddEpAnn]) -> [AddEpAnn] -> ([Comment], [AddEpAnn])
     go acc [] = acc
-    go (cs,ans) ((AddEpAnn k ss) : ls)
-      | Set.member k keywords = go ((mkKWComment k ss):cs, ans) ls
-      | otherwise             = go (cs, (AddEpAnn k ss):ans)     ls
+    go (cs',ans) ((AddEpAnn k ss) : ls)
+      | Set.member k keywords = go ((mkKWComment k ss):cs', ans) ls
+      | otherwise             = go (cs', (AddEpAnn k ss):ans)    ls
 
 
 -- -- |In order to interleave annotations into the stream, we turn them into
@@ -529,9 +530,9 @@ printStringAtMLocL (EpAnn anc an cs) l s = do
   r <- go (view l an) s
   return (EpAnn anc (set l r an) cs)
   where
-    go (Just aa) s = Just <$> printStringAtAA aa s
-    go Nothing s = do
-      printStringAtLsDelta (SameLine 1) s
+    go (Just aa) str = Just <$> printStringAtAA aa str
+    go Nothing str = do
+      printStringAtLsDelta (SameLine 1) str
       return (Just (EpaDelta (SameLine 1) []))
 
 printStringAtAA :: (Monad m, Monoid w) => EpaLocation -> String -> EP w m EpaLocation
@@ -541,7 +542,7 @@ printStringAtAAC :: (Monad m, Monoid w)
   => CaptureComments -> EpaLocation -> String -> EP w m EpaLocation
 printStringAtAAC capture (EpaSpan r) s = printStringAtRsC capture r s
 printStringAtAAC capture (EpaDelta d cs) s = do
-  mapM (printOneComment . tokComment) cs
+  mapM_ (printOneComment . tokComment) cs
   pe <- getPriorEndD
   p1 <- getPosP
   printStringAtLsDelta d s
@@ -564,13 +565,13 @@ markExternalSourceText l (SourceText txt) _ = printStringAtRs (realSrcSpan l) tx
 
 -- ---------------------------------------------------------------------
 
--- TODO: remove in favour of markLensMAA
-markLocatedMAA :: (Monad m, Monoid w) => EpAnn a -> (a -> Maybe AddEpAnn) -> EP w m ()
-markLocatedMAA EpAnnNotUsed  _  = return ()
-markLocatedMAA (EpAnn _ a _) f =
-  case f a of
-    Nothing -> return ()
-    Just aa -> markAddEpAnn aa >> return ()
+-- -- TODO: remove in favour of markLensMAA
+-- markLocatedMAA :: (Monad m, Monoid w) => EpAnn a -> (a -> Maybe AddEpAnn) -> EP w m ()
+-- markLocatedMAA EpAnnNotUsed  _  = return ()
+-- markLocatedMAA (EpAnn _ a _) f =
+--   case f a of
+--     Nothing -> return ()
+--     Just aa -> markAddEpAnn aa >> return ()
 
 markLensMAA :: (Monad m, Monoid w) => EpAnn a -> Lens a (Maybe AddEpAnn) -> EP w m (EpAnn a)
 markLensMAA EpAnnNotUsed  _  = return EpAnnNotUsed
@@ -591,7 +592,6 @@ markLensAA EpAnnNotUsed  _  = return EpAnnNotUsed
 markLensAA (EpAnn anc a cs) l = do
   a' <- markKw (view l a)
   return (EpAnn anc (set l a' a) cs)
-
 
 
 -- TODO: removein favour of markEpAnnL
@@ -622,7 +622,7 @@ markEpAnnLMS (EpAnn anc a cs) l kw (Just str) = do
 
 markEpAnnLMS' :: (Monad m, Monoid w)
                 => EpAnn a -> Lens a AddEpAnn -> AnnKeywordId -> Maybe String -> EP w m (EpAnn a)
-markEpAnnLMS' an l kw Nothing = markLensKwA an l kw
+markEpAnnLMS' an l _kw Nothing = markLensKwA an l
 markEpAnnLMS' EpAnnNotUsed  _ _ _ = return EpAnnNotUsed
 markEpAnnLMS' (EpAnn anc a cs) l kw (Just str) = do
   anns <- go (view l a)
@@ -717,15 +717,15 @@ markParen (EpAnn anc (AnnParen pt o c) cs) l = do
     kw AnnParens       = (AnnOpenP,  AnnCloseP)
     kw AnnParensHash   = (AnnOpenPH, AnnClosePH)
     kw AnnParensSquare = (AnnOpenS, AnnCloseS)
-markParen' :: (Monad m, Monoid w) => EpAnn AnnParen -> (forall a. (a,a) -> a) -> EP w m (EpAnn AnnParen)
-markParen' EpAnnNotUsed _ = return (EpAnnNotUsed)
-markParen' (EpAnn anc (AnnParen pt o c) cs) f = do
-  markKwA (f $ kw pt) (f (o, c))
-  return (EpAnn anc (AnnParen pt o c) cs)
-  where
-    kw AnnParens       = (AnnOpenP,  AnnCloseP)
-    kw AnnParensHash   = (AnnOpenPH, AnnClosePH)
-    kw AnnParensSquare = (AnnOpenS, AnnCloseS)
+-- markParen' :: (Monad m, Monoid w) => EpAnn AnnParen -> (forall a. (a,a) -> a) -> EP w m (EpAnn AnnParen)
+-- markParen' EpAnnNotUsed _ = return (EpAnnNotUsed)
+-- markParen' (EpAnn anc (AnnParen pt o c) cs) f = do
+--   markKwA (f $ kw pt) (f (o, c))
+--   return (EpAnn anc (AnnParen pt o c) cs)
+--   where
+--     kw AnnParens       = (AnnOpenP,  AnnCloseP)
+--     kw AnnParensHash   = (AnnOpenPH, AnnClosePH)
+--     kw AnnParensSquare = (AnnOpenS, AnnCloseS)
 
 -- ---------------------------------------------------------------------
 -- Bare bones Optics
@@ -797,9 +797,9 @@ limportDeclAnnImport :: Lens EpAnnImportDecl EpaLocation
 limportDeclAnnImport k annImp = fmap (\new -> annImp { importDeclAnnImport = new })
                                      (k (importDeclAnnImport annImp))
 
-limportDeclAnnPragma :: Lens EpAnnImportDecl (Maybe (EpaLocation, EpaLocation))
-limportDeclAnnPragma k annImp = fmap (\new -> annImp { importDeclAnnPragma = new })
-                                     (k (importDeclAnnPragma annImp))
+-- limportDeclAnnPragma :: Lens EpAnnImportDecl (Maybe (EpaLocation, EpaLocation))
+-- limportDeclAnnPragma k annImp = fmap (\new -> annImp { importDeclAnnPragma = new })
+--                                      (k (importDeclAnnPragma annImp))
 
 limportDeclAnnSafe :: Lens EpAnnImportDecl (Maybe EpaLocation)
 limportDeclAnnSafe k annImp = fmap (\new -> annImp { importDeclAnnSafe = new })
@@ -860,9 +860,9 @@ lidl :: Lens [AddEpAnn] [AddEpAnn]
 lidl k parent = fmap (\new -> new)
                      (k parent)
 
-lid :: Lens AddEpAnn AddEpAnn
-lid k parent = fmap (\new -> new)
-                    (k parent)
+-- lid :: Lens AddEpAnn AddEpAnn
+-- lid k parent = fmap (\new -> new)
+--                     (k parent)
 
 lfst :: Lens (a,a) a
 lfst k parent = fmap (\new -> (new, snd parent))
@@ -961,13 +961,13 @@ laiElseSemi k parent = fmap (\new -> parent { aiElseSemi = new })
 --       ap_close     :: EpaLocation
 --       } deriving (Data)
 
-lap_open :: Lens AnnParen EpaLocation
-lap_open k parent = fmap (\new -> parent { ap_open = new })
-                         (k (ap_open parent))
+-- lap_open :: Lens AnnParen EpaLocation
+-- lap_open k parent = fmap (\new -> parent { ap_open = new })
+--                          (k (ap_open parent))
 
-lap_close :: Lens AnnParen EpaLocation
-lap_close k parent = fmap (\new -> parent { ap_close = new })
-                          (k (ap_close parent))
+-- lap_close :: Lens AnnParen EpaLocation
+-- lap_close k parent = fmap (\new -> parent { ap_close = new })
+--                           (k (ap_close parent))
 
 -- -------------------------------------
 -- data EpAnnHsCase = EpAnnHsCase
@@ -1075,9 +1075,9 @@ lasRest k parent = fmap (\new -> parent { asRest = new })
 -- ---------------------------------------------------------------------
 
 markLensKwA :: (Monad m, Monoid w)
-  => EpAnn a -> Lens a AddEpAnn -> AnnKeywordId -> EP w m (EpAnn a)
-markLensKwA EpAnnNotUsed  _ _  = return EpAnnNotUsed
-markLensKwA (EpAnn anc a cs) l kw = do
+  => EpAnn a -> Lens a AddEpAnn -> EP w m (EpAnn a)
+markLensKwA EpAnnNotUsed  _    = return EpAnnNotUsed
+markLensKwA (EpAnn anc a cs) l = do
   loc <- markKw (view l a)
   return (EpAnn anc (set l loc a) cs)
 
@@ -1144,11 +1144,11 @@ markEpAnn :: (Monad m, Monoid w)
 markEpAnn EpAnnNotUsed _ = return ()
 markEpAnn (EpAnn _ a _) kw = mark a kw
 
--- Deprecate in favour of markEpAnnL
-markEpAnn' :: (Monad m, Monoid w)
-  => EpAnn ann -> (ann -> [AddEpAnn]) -> AnnKeywordId -> EP w m ()
-markEpAnn' EpAnnNotUsed _ _ = return ()
-markEpAnn' (EpAnn _anc a _cs) f kw = mark' (f a) kw >> return ()
+-- -- Deprecate in favour of markEpAnnL
+-- markEpAnn' :: (Monad m, Monoid w)
+--   => EpAnn ann -> (ann -> [AddEpAnn]) -> AnnKeywordId -> EP w m ()
+-- markEpAnn' EpAnnNotUsed _ _ = return ()
+-- markEpAnn' (EpAnn _anc a _cs) f kw = mark' (f a) kw >> return ()
 
 markEpAnnL :: (Monad m, Monoid w)
   => EpAnn ann -> Lens ann [AddEpAnn] -> AnnKeywordId -> EP w m (EpAnn ann)
@@ -1174,10 +1174,10 @@ markEpAnnAllL (EpAnn anc a cs) l kw = do
   anns <- mapM doit (view l a)
   return (EpAnn anc (set l anns a) cs)
   where
-    doit a@(AddEpAnn ka _)
+    doit an@(AddEpAnn ka _)
       = if ka == kw
-          then markKw a
-          else return a
+          then markKw an
+          else return an
 
 markAnnAll :: (Monad m, Monoid w) => [AddEpAnn] -> AnnKeywordId -> EP w m [AddEpAnn]
 -- markAnnAll a kw = mapM doit (sort a)
@@ -1357,7 +1357,7 @@ instance (ExactPrint a) => ExactPrint (Located a) where
   getAnnotationEntry (L l _) = Entry (spanAsAnchor l) emptyComments NoFlushComments NoCanUpdateAnchor
 
   -- setAnnotationAnchor la _anc _cs = la
-  setAnnotationAnchor la _anc _cs = error "should not be called:setAnnotationAnchor (Located a)"
+  setAnnotationAnchor _la _anc _cs = error "should not be called:setAnnotationAnchor (Located a)"
 
   exact (L l a) = L l <$> markAnnotated a
 
@@ -1399,13 +1399,8 @@ instance ExactPrint HsModule where
     (an0, mmn' , mdeprec', mexports') <-
       case mmn of
         Nothing -> return (an, mmn, mdeprec, mexports)
-        Just m@(L l mn) -> do
+        Just m -> do
           an0 <- markEpAnnL an lam_main AnnModule
-          -- If there is a comment between the 'module' keyword and
-          -- the module name, we need to capture it, by fudging a
-          -- LocatedA for now.
-          -- (L la mn') <- markAnnotated ((L (noAnnSrcSpan l) mn):: LocatedA ModuleName)
-          -- debugM $ "HsModule.ModuleName:la=" ++ showAst la
           m' <- markAnnotated m
 
           -- forM_ mdeprec markLocated
@@ -1440,7 +1435,7 @@ instance ExactPrint HsModule where
 
 instance ExactPrint ModuleName where
   getAnnotationEntry _ = NoEntryVal
-  setAnnotationAnchor n anc cs = n
+  setAnnotationAnchor n _anc cs = n
      `debug` ("ModuleName.setAnnotationAnchor:cs=" ++ showAst cs)
   exact n = do
     debugM $ "ModuleName: " ++ showPprUnsafe n
@@ -1453,20 +1448,20 @@ instance ExactPrint (LocatedP WarningTxt) where
   setAnnotationAnchor = setAnchorAn
 
   exact (L (SrcSpanAnn an l) (WarningTxt (L la src) ws)) = do
-    markAnnOpenP an src "{-# WARNING"
-    an0 <- markEpAnnL an lapr_rest AnnOpenS
+    an0 <- markAnnOpenP an src "{-# WARNING"
+    an1 <- markEpAnnL an0 lapr_rest AnnOpenS
     ws' <- markAnnotated ws
-    an1 <- markEpAnnL an0 lapr_rest AnnCloseS
-    an2 <- markAnnCloseP an1
-    return (L (SrcSpanAnn an2 l) (WarningTxt (L la src) ws'))
+    an2 <- markEpAnnL an1 lapr_rest AnnCloseS
+    an3 <- markAnnCloseP an2
+    return (L (SrcSpanAnn an3 l) (WarningTxt (L la src) ws'))
 
   exact (L (SrcSpanAnn an l) (DeprecatedTxt (L ls src) ws)) = do
-    markAnnOpenP an src "{-# DEPRECATED"
-    markLocatedAAL an apr_rest AnnOpenS
+    an0 <- markAnnOpenP an src "{-# DEPRECATED"
+    an1 <- markEpAnnL an0 lapr_rest AnnOpenS
     ws' <- markAnnotated ws
-    markLocatedAAL an apr_rest AnnCloseS
-    markAnnCloseP an
-    return (L (SrcSpanAnn an l) (DeprecatedTxt (L ls src) ws'))
+    an2 <- markEpAnnL an1 lapr_rest AnnCloseS
+    an3 <- markAnnCloseP an2
+    return (L (SrcSpanAnn an3 l) (DeprecatedTxt (L ls src) ws'))
 
 -- ---------------------------------------------------------------------
 
@@ -1475,10 +1470,10 @@ instance ExactPrint (ImportDecl GhcPs) where
   setAnnotationAnchor idecl anc cs = idecl { ideclExt = setAnchorEpa (ideclExt idecl) anc cs }
 
   exact x@(ImportDecl EpAnnNotUsed _ _ _ _ _ _ _ _ _) = withPpr x
-  exact (ImportDecl ann msrc m@(L lm modname) mpkg src safeflag qualFlag impl mAs hiding) = do
+  exact (ImportDecl ann msrc m mpkg src safeflag qualFlag impl mAs hiding) = do
 
     ann0 <- markLensKw ann limportDeclAnnImport AnnImport
-    let (EpAnn anc an cs) = ann0
+    let (EpAnn _anc an _cs) = ann0
 
     -- "{-# SOURCE" and "#-}"
     importDeclAnnPragma' <-
@@ -1509,7 +1504,6 @@ instance ExactPrint (ImportDecl GhcPs) where
          printStringAtMLocL ann1 limportDeclAnnPackage (sourceTextToString src' (show v))
        _ -> return ann1
 
-    -- printStringAtRs' (realSrcSpan lm) (moduleNameString modname)
     m' <- markAnnotated m
 
     ann3 <-
@@ -1521,11 +1515,10 @@ instance ExactPrint (ImportDecl GhcPs) where
     (importDeclAnnAs', mAs') <-
       case mAs of
         Nothing -> return (importDeclAnnAs an, Nothing)
-        Just m@(L l mn) -> do
+        Just m0 -> do
           a <- printStringAtMLoc' (importDeclAnnAs an) "as"
-          -- _ <- printStringAtRs (realSrcSpan l) (moduleNameString mn)
-          m' <- markAnnotated m
-          return (a, Just m')
+          m'' <- markAnnotated m0
+          return (a, Just m'')
 
     hiding' <-
       case hiding of
@@ -1539,7 +1532,6 @@ instance ExactPrint (ImportDecl GhcPs) where
                   , importDeclAnnPragma = importDeclAnnPragma'
                   }
 
-    -- return (ImportDecl (EpAnn anc' an2 cs') msrc (L lm modname) mpkg src safeflag qualFlag impl mAs hiding')
     return (ImportDecl (EpAnn anc' an2 cs') msrc m' mpkg src safeflag qualFlag impl mAs' hiding')
 
 
@@ -1766,10 +1758,10 @@ instance ExactPrint (WarnDecls GhcPs) where
   setAnnotationAnchor (Warnings an a b) anc cs = Warnings (setAnchorEpa an anc cs) a b
 
   exact (Warnings an src warns) = do
-    markAnnOpen an src "{-# WARNING" -- Note: might be {-# DEPRECATED
+    an0 <- markAnnOpen an src "{-# WARNING" -- Note: might be {-# DEPRECATED
     warns' <- markAnnotated warns
-    markLocatedAALS an id AnnClose (Just "#-}")
-    return (Warnings an src warns')
+    an1 <- markEpAnnLMS an0 lidl AnnClose (Just "#-}")
+    return (Warnings an1 src warns')
 
 -- ---------------------------------------------------------------------
 
