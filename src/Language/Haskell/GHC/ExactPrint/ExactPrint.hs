@@ -1170,7 +1170,6 @@ markEpAnnAllL :: (Monad m, Monoid w)
   => EpAnn ann -> Lens ann [AddEpAnn] -> AnnKeywordId -> EP w m (EpAnn ann)
 markEpAnnAllL EpAnnNotUsed _ _ = return EpAnnNotUsed
 markEpAnnAllL (EpAnn anc a cs) l kw = do
-  -- anns <- mapM doit (sort (view l a))
   anns <- mapM doit (view l a)
   return (EpAnn anc (set l anns a) cs)
   where
@@ -1180,7 +1179,6 @@ markEpAnnAllL (EpAnn anc a cs) l kw = do
           else return an
 
 markAnnAll :: (Monad m, Monoid w) => [AddEpAnn] -> AnnKeywordId -> EP w m [AddEpAnn]
--- markAnnAll a kw = mapM doit (sort a)
 markAnnAll a kw = mapM doit a
   where
     doit an@(AddEpAnn ka _)
@@ -1486,31 +1484,31 @@ instance ExactPrint (ImportDecl GhcPs) where
               mc' <- printStringAtAA mc "#-}"
               return $ Just (mo', mc')
             Nothing ->  do
-              markAnnOpen' Nothing msrc "{-# SOURCE"
+              _ <- markAnnOpen' Nothing msrc "{-# SOURCE"
               printStringAtMLoc Nothing "#-}"
               return Nothing
         NoSourceText -> return (importDeclAnnPragma an)
     ann1 <- if safeflag
       then (markLensKwM ann0 limportDeclAnnSafe AnnSafe)
       else return ann0
-    ann1 <-
+    ann2 <-
       case qualFlag of
         QualifiedPre  -- 'qualified' appears in prepositive position.
-          -> printStringAtMLocL ann0 limportDeclAnnQualified "qualified"
-        _ -> return ann0
-    ann2 <-
+          -> printStringAtMLocL ann1 limportDeclAnnQualified "qualified"
+        _ -> return ann1
+    ann3 <-
       case mpkg of
        Just (StringLiteral src' v _) ->
-         printStringAtMLocL ann1 limportDeclAnnPackage (sourceTextToString src' (show v))
-       _ -> return ann1
+         printStringAtMLocL ann2 limportDeclAnnPackage (sourceTextToString src' (show v))
+       _ -> return ann2
 
     m' <- markAnnotated m
 
-    ann3 <-
+    ann4 <-
       case qualFlag of
         QualifiedPost  -- 'qualified' appears in postpositive position.
-          -> printStringAtMLocL ann2 limportDeclAnnQualified "qualified"
-        _ -> return ann2
+          -> printStringAtMLocL ann3 limportDeclAnnQualified "qualified"
+        _ -> return ann3
 
     (importDeclAnnAs', mAs') <-
       case mAs of
@@ -1527,7 +1525,7 @@ instance ExactPrint (ImportDecl GhcPs) where
           lie' <- markAnnotated lie
           return (Just (isHiding, lie'))
 
-    let (EpAnn anc' an' cs') = ann3
+    let (EpAnn anc' an' cs') = ann4
     let an2 = an' { importDeclAnnAs = importDeclAnnAs'
                   , importDeclAnnPragma = importDeclAnnPragma'
                   }
@@ -1616,14 +1614,14 @@ instance ExactPrint DataFamInstDeclWithContext where
     = (DataFamInstDeclWithContext a c (DataFamInstDecl (fe { feqn_ext = (setAnchorEpa (feqn_ext fe) anc cs)})))
   exact (DataFamInstDeclWithContext an c d) = do
     debugM $ "starting DataFamInstDeclWithContext:an=" ++ showAst an
-    d' <- exactDataFamInstDecl an c d
-    return (DataFamInstDeclWithContext an c d')
+    (an', d') <- exactDataFamInstDecl an c d
+    return (DataFamInstDeclWithContext an' c d')
 
 -- ---------------------------------------------------------------------
 
 exactDataFamInstDecl :: (Monad m, Monoid w)
                      => EpAnn [AddEpAnn] -> TopLevelFlag -> DataFamInstDecl GhcPs
-                     -> EP w m (DataFamInstDecl GhcPs)
+                     -> EP w m (EpAnn [AddEpAnn], DataFamInstDecl GhcPs)
 exactDataFamInstDecl an top_lvl
   (DataFamInstDecl (FamEqn { feqn_ext    = an2
                            , feqn_tycon  = tycon
@@ -1631,9 +1629,10 @@ exactDataFamInstDecl an top_lvl
                            , feqn_pats   = pats
                            , feqn_fixity = fixity
                            , feqn_rhs    = defn })) = do
-    (an2', tycon', bndrs', _,  _mc, defn') <- exactDataDefn an2 pp_hdr defn
+    (an', an2', tycon', bndrs', _,  _mc, defn') <- exactDataDefn an2 pp_hdr defn
     return
-      (DataFamInstDecl ( FamEqn { feqn_ext    = an2'
+      (an',
+       DataFamInstDecl ( FamEqn { feqn_ext    = an2'
                                 , feqn_tycon  = tycon'
                                 , feqn_bndrs  = bndrs'
                                 , feqn_pats   = pats
@@ -1643,12 +1642,16 @@ exactDataFamInstDecl an top_lvl
   where
     pp_hdr :: (Monad m, Monoid w)
            => Maybe (LHsContext GhcPs)
-           -> EP w m (LocatedN RdrName, HsOuterTyVarBndrs () GhcPs, HsTyPats GhcPs, Maybe (LHsContext GhcPs))
+           -> EP w m ( EpAnn [AddEpAnn]
+                     , LocatedN RdrName
+                     , HsOuterTyVarBndrs () GhcPs
+                     , HsTyPats GhcPs
+                     , Maybe (LHsContext GhcPs))
     pp_hdr mctxt = do
-      case top_lvl of
-        TopLevel -> markEpAnn an AnnInstance -- TODO: maybe in toplevel
-        NotTopLevel -> return ()
-      exactHsFamInstLHS an tycon bndrs pats fixity mctxt
+      an0 <- case top_lvl of
+               TopLevel -> markEpAnnL an lidl AnnInstance -- TODO: maybe in toplevel
+               NotTopLevel -> return an
+      exactHsFamInstLHS an0 tycon bndrs pats fixity mctxt
 
 {-
 Note [an and an2 in exactDataFamInstDecl]
@@ -1953,10 +1956,10 @@ instance (ExactPrint body) => ExactPrint (FamEqn GhcPs body) where
                 , feqn_pats   = pats
                 , feqn_fixity = fixity
                 , feqn_rhs    = rhs }) = do
-    (tycon', bndrs', pats', _) <- exactHsFamInstLHS an tycon bndrs pats fixity Nothing
+    (an', tycon', bndrs', pats', _) <- exactHsFamInstLHS an tycon bndrs pats fixity Nothing
     markEpAnn an AnnEqual
     rhs' <- markAnnotated rhs
-    return (FamEqn { feqn_ext = an
+    return (FamEqn { feqn_ext = an'
                    , feqn_tycon  = tycon'
                    , feqn_bndrs  = bndrs'
                    , feqn_pats   = pats'
@@ -1973,38 +1976,42 @@ exactHsFamInstLHS ::
    -> HsTyPats GhcPs
    -> LexicalFixity
    -> Maybe (LHsContext GhcPs)
-   -> EP w m (LocatedN RdrName, HsOuterTyVarBndrs () GhcPs, HsTyPats GhcPs, Maybe (LHsContext GhcPs))
+   -> EP w m ( EpAnn [AddEpAnn]
+             , LocatedN RdrName
+             , HsOuterTyVarBndrs () GhcPs
+             , HsTyPats GhcPs, Maybe (LHsContext GhcPs))
 exactHsFamInstLHS an thing bndrs typats fixity mb_ctxt = do
-  markEpAnn an AnnForall
+  an0 <- markEpAnnL an lidl AnnForall
   bndrs' <- markAnnotated bndrs
-  markEpAnn an AnnDot
+  an1 <- markEpAnnL an0 lidl AnnDot
   mb_ctxt' <- mapM markAnnotated mb_ctxt
-  (thing', typats') <- exact_pats typats
-  return (thing', bndrs', typats', mb_ctxt')
+  (an2, thing', typats') <- exact_pats an1 typats
+  return (an2, thing', bndrs', typats', mb_ctxt')
   where
-    exact_pats :: (Monad m, Monoid w) => HsTyPats GhcPs -> EP w m (LocatedN RdrName, HsTyPats GhcPs)
-    exact_pats (patl:patr:pats)
+    exact_pats :: (Monad m, Monoid w)
+      => EpAnn [AddEpAnn] -> HsTyPats GhcPs -> EP w m (EpAnn [AddEpAnn], LocatedN RdrName, HsTyPats GhcPs)
+    exact_pats an (patl:patr:pats)
       | Infix <- fixity
       = let exact_op_app = do
-              markAnnAll (epAnnAnns an) AnnOpenP
+              an0 <- markEpAnnAllL an lidl AnnOpenP
               patl' <- markAnnotated patl
               thing' <- markAnnotated thing
               patr' <- markAnnotated patr
-              markAnnAll (epAnnAnns an) AnnCloseP
-              return (thing', [patl',patr'])
+              an1 <- markEpAnnAllL an0 lidl AnnCloseP
+              return (an1, thing', [patl',patr'])
         in case pats of
              [] -> exact_op_app
              _  -> do
-               (thing', p) <- exact_op_app
+               (an0, thing', p) <- exact_op_app
                pats' <- mapM markAnnotated pats
-               return (thing', p++pats')
+               return (an0, thing', p++pats')
 
-    exact_pats pats = do
-      markAnnAll (epAnnAnns an) AnnOpenP
+    exact_pats an pats = do
+      an0 <- markEpAnnAllL an lidl AnnOpenP
       thing' <- markAnnotated thing
       pats' <- markAnnotated pats
-      markAnnAll (epAnnAnns an) AnnCloseP
-      return (thing', pats')
+      an1 <- markEpAnnAllL an0 lidl AnnCloseP
+      return (an1, thing', pats')
 
 -- ---------------------------------------------------------------------
 
@@ -3509,7 +3516,7 @@ instance ExactPrint (TyClDecl GhcPs) where
     an0 <- annotationsToComments an lidl [AnnOpenP,AnnCloseP]
     an1 <- markEpAnnL an0 lidl AnnType
 
-    (ltycon', tyvars',_,_) <- exactVanillaDeclHead ltycon tyvars fixity Nothing
+    (anx, ltycon', tyvars',_,_) <- exactVanillaDeclHead ltycon tyvars fixity Nothing
     an2 <- markEpAnnL an1 lidl AnnEqual
     rhs' <- markAnnotated rhs
     return (SynDecl { tcdSExt = an2
@@ -3519,7 +3526,7 @@ instance ExactPrint (TyClDecl GhcPs) where
   -- TODO: add a workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/20452
   exact (DataDecl { tcdDExt = an, tcdLName = ltycon, tcdTyVars = tyvars
                   , tcdFixity = fixity, tcdDataDefn = defn }) = do
-    (an', ltycon', tyvars', _, _mctxt', defn') <-
+    (_, an', ltycon', tyvars', _, _mctxt', defn') <-
       exactDataDefn an (exactVanillaDeclHead ltycon tyvars fixity) defn
     return (DataDecl { tcdDExt = an', tcdLName = ltycon', tcdTyVars = tyvars'
                      , tcdFixity = fixity, tcdDataDefn = defn' })
@@ -3576,7 +3583,7 @@ instance ExactPrint (TyClDecl GhcPs) where
         top_matter = do
           an' <- annotationsToComments an lidl  [AnnOpenP, AnnCloseP]
           an0 <- markEpAnnL an lidl AnnClass
-          (lclas', tyvars',_,context') <-  exactVanillaDeclHead lclas tyvars fixity context
+          (_, lclas', tyvars',_,context') <-  exactVanillaDeclHead lclas tyvars fixity context
           (an1, fds') <- if (null fds)
             then return (an0, fds)
             else do
@@ -3616,7 +3623,7 @@ instance ExactPrint (FamilyDecl GhcPs) where
     exactFlavour an info
     exact_top_level
     annotationsToComments an lidl [AnnOpenP,AnnCloseP]
-    (ltycon', tyvars',_,_) <- exactVanillaDeclHead ltycon tyvars fixity Nothing
+    (_, ltycon', tyvars',_,_) <- exactVanillaDeclHead ltycon tyvars fixity Nothing
     result' <- exact_kind
     mb_inj' <-
       case mb_inj of
@@ -3678,9 +3685,15 @@ exactFlavour an (ClosedTypeFamily {}) = markEpAnn an AnnType
 exactDataDefn
   :: (Monad m, Monoid w)
   => EpAnn [AddEpAnn]
-  -> (Maybe (LHsContext GhcPs) -> EP w m (LocatedN RdrName, a, b, Maybe (LHsContext GhcPs))) -- Printing the header
+  -> (Maybe (LHsContext GhcPs) -> EP w m (EpAnn [AddEpAnn]
+                                         , LocatedN RdrName
+                                         , a
+                                         , b
+                                         , Maybe (LHsContext GhcPs))) -- Printing the header
   -> HsDataDefn GhcPs
-  -> EP w m (EpAnn [AddEpAnn], LocatedN RdrName, a, b, Maybe (LHsContext GhcPs), HsDataDefn GhcPs)
+  -> EP w m ( EpAnn [AddEpAnn] -- ^ from exactHdr
+            , EpAnn [AddEpAnn] -- ^ updated one passed in
+            , LocatedN RdrName, a, b, Maybe (LHsContext GhcPs), HsDataDefn GhcPs)
 exactDataDefn an exactHdr
                  (HsDataDefn { dd_ext = x, dd_ND = new_or_data, dd_ctxt = context
                              , dd_cType = mb_ct
@@ -3692,7 +3705,7 @@ exactDataDefn an exactHdr
     else markEpAnnL an' lidl AnnNewtype
   an1 <- markEpAnnL an0 lidl AnnInstance -- optional
   mb_ct' <- mapM markAnnotated mb_ct
-  (ln', tvs', b, mctxt') <- exactHdr context
+  (anx, ln', tvs', b, mctxt') <- exactHdr context
   (an2, mb_sig') <- case mb_sig of
     Nothing -> return (an1, Nothing)
     Just kind -> do
@@ -3706,7 +3719,7 @@ exactDataDefn an exactHdr
   (an5, condecls') <- exact_condecls an4 condecls
   an6 <- markEpAnnL an5 lidl AnnCloseC
   derivings' <- mapM markAnnotated derivings
-  return (an6, ln', tvs', b, mctxt',
+  return (anx, an6, ln', tvs', b, mctxt',
                  (HsDataDefn { dd_ext = x, dd_ND = new_or_data, dd_ctxt = context
                              , dd_cType = mb_ct'
                              , dd_kindSig = mb_sig'
@@ -3718,7 +3731,10 @@ exactVanillaDeclHead :: (Monad m, Monoid w)
                      -> LHsQTyVars GhcPs
                      -> LexicalFixity
                      -> Maybe (LHsContext GhcPs)
-                     -> EP w m (LocatedN RdrName, LHsQTyVars GhcPs, (), Maybe (LHsContext GhcPs))
+                     -> EP w m ( EpAnn [AddEpAnn]
+                               , LocatedN RdrName
+                               , LHsQTyVars GhcPs
+                               , (), Maybe (LHsContext GhcPs))
 exactVanillaDeclHead thing tvs@(HsQTvs { hsq_explicit = tyvars }) fixity context = do
   let
     exact_tyvars (varl:varsr)
@@ -3742,7 +3758,7 @@ exactVanillaDeclHead thing tvs@(HsQTvs { hsq_explicit = tyvars }) fixity context
       return (thing', [])
   context' <- mapM markAnnotated context
   (thing', tyvars') <- exact_tyvars tyvars
-  return (thing', tvs { hsq_explicit = tyvars' }, (), context')
+  return (EpAnnNotUsed, thing', tvs { hsq_explicit = tyvars' }, (), context')
 
 -- ---------------------------------------------------------------------
 

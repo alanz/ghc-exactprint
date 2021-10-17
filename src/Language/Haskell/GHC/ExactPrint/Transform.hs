@@ -1230,7 +1230,7 @@ makeDeltaAst' a = fst $ evalRWS (go a) () Nothing
       let cs' = case ma of
             Nothing -> cs <> mkComments ("from anc:Nothing") (Anchor loc UnchangedAnchor)
             Just anc' -> cs <> mkComments ("from anc:" ++ showGhc anc') anc'
-      return (SrcSpanAnn (EpAnn anchor' an cs) l)
+      return (SrcSpanAnn (EpAnn anchor' an cs') l)
 
     locatedAnnImpl (SrcSpanAnn EpAnnNotUsed l) = do
       -- error $ "EpAnnNotUsed: " ++ showGhc l
@@ -1243,7 +1243,7 @@ makeDeltaAst' a = fst $ evalRWS (go a) () Nothing
       let cs' = case ma of
             Nothing -> mkComments ("EpAnnNotUsed:from anc:Nothing") (spanAsAnchor l)
             Just anc' -> mkComments ("EpAnnNotUsed:from anc:" ++ showGhc anc') anc'
-      return (SrcSpanAnn (EpAnn anchor' mempty emptyComments) l)
+      return (SrcSpanAnn (EpAnn anchor' mempty cs') l)
 
 -- | Monadic variation on everywhere', so Apply a monadic
 -- transformation everywhere in top-down manner
