@@ -1,7 +1,7 @@
 #!/bin/sh
 
 rm -fr dist*
-rm .ghc.env*
+# rm .ghc.env*
 
 # For GHC-8/master
 # cabal install --allow-newer turtle Diff
