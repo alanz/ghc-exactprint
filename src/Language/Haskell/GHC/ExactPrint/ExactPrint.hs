@@ -418,7 +418,7 @@ annotationsToComments EpAnnNotUsed _ _kws = return EpAnnNotUsed
 annotationsToComments (EpAnn anc a cs) l kws = do
   let (newComments, newAnns) = go ([],[]) (view l a)
   addComments newComments
-  return (EpAnn anc (set l newAnns a) cs)
+  return (EpAnn anc (set l (reverse newAnns) a) cs)
   where
     keywords = Set.fromList kws
 
@@ -1238,7 +1238,7 @@ markKwA kw aa = markKwAC CaptureComments kw aa
 
 markKwAC :: (Monad m, Monoid w)
   => CaptureComments -> AnnKeywordId -> EpaLocation -> EP w m EpaLocation
-markKwAC capture kw aa = printStringAtAAC capture aa (keywordToString (G kw))
+markKwAC capture kw aa = printStringAtAAC capture aa (keywordToString kw)
 
 -- | Print a keyword encoded in a 'TrailingAnn'
 markKwT :: (Monad m, Monoid w) => TrailingAnn -> EP w m TrailingAnn
@@ -2297,14 +2297,8 @@ instance ExactPrint (GRHSs GhcPs (LocatedA (HsCmd GhcPs))) where
 fixValbindsAnn :: EpAnn AnnList -> EpAnn AnnList
 fixValbindsAnn EpAnnNotUsed = EpAnnNotUsed
 fixValbindsAnn (EpAnn anchor (AnnList ma o c r t) cs)
-  = (EpAnn (widenAnchor anchor (map toEpaAnn t)) (AnnList ma o c r t) cs)
-  where
-    toEpaAnn (AddSemiAnn ss)    = AddEpAnn AnnSemi ss
-    toEpaAnn (AddCommaAnn ss)   = AddEpAnn AnnComma ss
-    toEpaAnn (AddVbarAnn ss)    = AddEpAnn AnnVbar ss
-    toEpaAnn (AddRarrowAnn ss)  = AddEpAnn AnnRarrow ss
-    toEpaAnn (AddRarrowAnnU ss) = AddEpAnn AnnRarrowU ss
-    toEpaAnn (AddLollyAnnU ss)  = AddEpAnn AnnLollyU ss
+  = (EpAnn (widenAnchor anchor (map trailingAnnToAddEpAnn t)) (AnnList ma o c r t) cs)
+
 
 -- See https://gitlab.haskell.org/ghc/ghc/-/issues/20256
 fixAnnListAnn :: EpAnn AnnList -> EpAnn AnnList
@@ -3051,7 +3045,7 @@ exactMdo :: (Monad m, Monoid w) => EpAnn AnnList -> Maybe ModuleName -> AnnKeywo
 exactMdo an Nothing            kw = markLocatedAAL  an al_rest kw
 exactMdo an (Just module_name) kw = markLocatedAALS an al_rest kw (Just n)
     where
-      n = (moduleNameString module_name) ++ "." ++ (keywordToString (G kw))
+      n = (moduleNameString module_name) ++ "." ++ (keywordToString kw)
 
 markMaybeDodgyStmts :: (Monad m, Monoid w, ExactPrint (LocatedAn an a))
   => LocatedAn an a -> EP w m (LocatedAn an a)

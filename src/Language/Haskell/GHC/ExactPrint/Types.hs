@@ -54,26 +54,6 @@ instance Ord Comment where
 instance Outputable Comment where
   ppr x = text (show x)
 
--- | The different syntactic elements which are not represented in the
--- AST.
--- TODO:AZ: check which if these are still in use
-data KeywordId = G AnnKeywordId  -- ^ A normal keyword
-               | AnnSemiSep          -- ^ A separating comma
-               | AnnTypeApp          -- ^ Visible type application annotation
-               | AnnComment Comment
-               | AnnString String    -- ^ Used to pass information from
-                                     -- Delta to Print when we have to work
-                                     -- out details from the original
-                                     -- SrcSpan.
-               deriving (Eq)
-
-instance Show KeywordId where
-  show (G gc)          = "(G " ++ show gc ++ ")"
-  show AnnSemiSep      = "AnnSemiSep"
-  show AnnTypeApp      = "AnnTypeApp"
-  show (AnnComment dc) = "(AnnComment " ++ show dc ++ ")"
-  show (AnnString s)   = "(AnnString " ++ s ++ ")"
-
 -- | Marks the start column of a layout block.
 newtype LayoutStartCol = LayoutStartCol { getLayoutStartCol :: Int }
   deriving (Eq, Num)

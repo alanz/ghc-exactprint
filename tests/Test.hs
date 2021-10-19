@@ -243,7 +243,7 @@ tt' = do
     -- mkParserTestMD libdir      "ghc710" "RdrNames.hs"
 
 
-    mkParserTest libdir      "ghc92" "Observer1.hs"
+    -- mkParserTest libdir      "ghc92" "Observer1.hs"
     -- mkParserTestMD libdir      "ghc92" "Observer1.hs"
 
     -- Fixed by diff to make LocatedA Modulename
@@ -251,7 +251,7 @@ tt' = do
 
     -- mkParserTestMD libdir      "ghc710" "AltsSemis.hs"
     -- mkParserTest libdir      "ghc710" "AltsSemis.hs"
-    -- mkParserTest libdir      "ghc710" "EmptyMostly.hs"
+    mkParserTest libdir      "ghc710" "EmptyMostly.hs"
 
     -- mkParserTest libdir      "ghc92" "ListComments.hs"
     -- mkParserTestMD libdir      "ghc92" "ListComments.hs"

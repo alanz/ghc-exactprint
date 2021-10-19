@@ -136,7 +136,7 @@ undeltaSpan :: RealSrcSpan -> AnnKeywordId -> DeltaPos -> AddEpAnn
 undeltaSpan anchor kw dp = AddEpAnn kw (EpaSpan sp)
   where
     (l,c) = undelta (ss2pos anchor) dp (LayoutStartCol 0)
-    len = length (keywordToString (G kw))
+    len = length (keywordToString kw)
     sp = range2rs ((l,c),(l,c+len))
 
 -- ---------------------------------------------------------------------
@@ -254,9 +254,9 @@ normaliseCommentText (x:xs) = x:normaliseCommentText xs
 -- | Makes a comment which originates from a specific keyword.
 mkKWComment :: AnnKeywordId -> EpaLocation -> Comment
 mkKWComment kw (EpaSpan ss)
-  = Comment (keywordToString $ G kw) (Anchor ss UnchangedAnchor) (Just kw)
+  = Comment (keywordToString kw) (Anchor ss UnchangedAnchor) (Just kw)
 mkKWComment kw (EpaDelta dp _)
-  = Comment (keywordToString $ G kw) (Anchor placeholderRealSpan (MovedAnchor dp)) (Just kw)
+  = Comment (keywordToString kw) (Anchor placeholderRealSpan (MovedAnchor dp)) (Just kw)
 
 -- | Detects a comment which originates from a specific keyword.
 isKWComment :: Comment -> Bool
@@ -266,8 +266,8 @@ noKWComments :: [Comment] -> [Comment]
 noKWComments = filter (\c -> not (isKWComment c))
 
 
-comment2dp :: (Comment,  DeltaPos) -> (KeywordId, DeltaPos)
-comment2dp = first AnnComment
+-- comment2dp :: (Comment,  DeltaPos) -> (AnnKeywordId, DeltaPos)
+-- comment2dp = first AnnComment
 
 sortAnchorLocated :: [GenLocated Anchor a] -> [GenLocated Anchor a]
 sortAnchorLocated = sortBy (compare `on` (anchor . getLoc))
@@ -339,3 +339,11 @@ setAnchorHsModule hsmod anc cs = hsmod { hsmodAnn = an' }
     anc' = anc { anchor_op = UnchangedAnchor }
     an' = setAnchorEpa (hsmodAnn hsmod) anc' cs
 
+
+trailingAnnToAddEpAnn :: TrailingAnn -> AddEpAnn
+trailingAnnToAddEpAnn (AddSemiAnn ss)    = AddEpAnn AnnSemi ss
+trailingAnnToAddEpAnn (AddCommaAnn ss)   = AddEpAnn AnnComma ss
+trailingAnnToAddEpAnn (AddVbarAnn ss)    = AddEpAnn AnnVbar ss
+trailingAnnToAddEpAnn (AddRarrowAnn ss)  = AddEpAnn AnnRarrow ss
+trailingAnnToAddEpAnn (AddRarrowAnnU ss) = AddEpAnn AnnRarrowU ss
+trailingAnnToAddEpAnn (AddLollyAnnU ss)  = AddEpAnn AnnLollyU ss
