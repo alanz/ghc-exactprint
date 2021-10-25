@@ -12,4 +12,3 @@ main :: IO ()
 main = do
   print $ defR { rOne = 42 + 12 }
   print $ Record { rTwo = "foo" ++ "foo" }
-

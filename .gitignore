@@ -43,3 +43,9 @@ packages
 /hie.yaml.cbl
 /hie.yaml.stack
 /ctags
+/tests/examples/ghc710/OveridingPrimitives.hs.out.ghc843
+/tests/examples/ghc710/PatBind.hs.out.orig
+/tests/examples/ghc710/QuasiQuote.hs.out.orig
+/tests/examples/ghc80/AddParams2.hs.out.orig
+/tests/examples/ghc80/T9600.hs.out.ep
+/tests/examples/ghc92/BalanceComments1.hs.out.orig

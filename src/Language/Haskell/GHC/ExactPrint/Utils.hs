@@ -226,7 +226,7 @@ ghcCommentText (L _ (GHC.EpaComment (EpaBlockComment s) _))    = s
 ghcCommentText (L _ (GHC.EpaComment (EpaEofComment) _))        = ""
 
 tokComment :: LEpaComment -> Comment
-tokComment t@(L lt _) = mkComment (normaliseCommentText $ ghcCommentText t) lt
+tokComment t@(L lt c) = mkComment (normaliseCommentText $ ghcCommentText t) lt (ac_prior_tok c)
 
 mkEpaComments :: [Comment] -> [Comment] -> EpAnnComments
 mkEpaComments priorCs []
@@ -235,15 +235,14 @@ mkEpaComments priorCs postCs
   = EpaCommentsBalanced (map comment2LEpaComment priorCs) (map comment2LEpaComment postCs)
 
 comment2LEpaComment :: Comment -> LEpaComment
-comment2LEpaComment (Comment s anc _mk) = mkLEpaComment s anc
+comment2LEpaComment (Comment s anc r _mk) = mkLEpaComment s anc r
 
 
-mkLEpaComment :: String -> Anchor -> LEpaComment
--- Note: fudging the ac_prior_tok value, hope it does not cause a problem
-mkLEpaComment s anc = (L anc (GHC.EpaComment (EpaLineComment s) (anchor anc)))
+mkLEpaComment :: String -> Anchor -> RealSrcSpan -> LEpaComment
+mkLEpaComment s anc r = (L anc (GHC.EpaComment (EpaLineComment s) r))
 
-mkComment :: String -> Anchor -> Comment
-mkComment c anc = Comment c anc Nothing
+mkComment :: String -> Anchor -> RealSrcSpan -> Comment
+mkComment c anc r = Comment c anc r Nothing
 
 -- Windows comments include \r in them from the lexer.
 normaliseCommentText :: String -> String
@@ -254,9 +253,9 @@ normaliseCommentText (x:xs) = x:normaliseCommentText xs
 -- | Makes a comment which originates from a specific keyword.
 mkKWComment :: AnnKeywordId -> EpaLocation -> Comment
 mkKWComment kw (EpaSpan ss)
-  = Comment (keywordToString kw) (Anchor ss UnchangedAnchor) (Just kw)
+  = Comment (keywordToString kw) (Anchor ss UnchangedAnchor) ss (Just kw)
 mkKWComment kw (EpaDelta dp _)
-  = Comment (keywordToString kw) (Anchor placeholderRealSpan (MovedAnchor dp)) (Just kw)
+  = Comment (keywordToString kw) (Anchor placeholderRealSpan (MovedAnchor dp)) placeholderRealSpan (Just kw)
 
 -- | Detects a comment which originates from a specific keyword.
 isKWComment :: Comment -> Bool
@@ -264,10 +263,6 @@ isKWComment c = isJust (commentOrigin c)
 
 noKWComments :: [Comment] -> [Comment]
 noKWComments = filter (\c -> not (isKWComment c))
-
-
--- comment2dp :: (Comment,  DeltaPos) -> (AnnKeywordId, DeltaPos)
--- comment2dp = first AnnComment
 
 sortAnchorLocated :: [GenLocated Anchor a] -> [GenLocated Anchor a]
 sortAnchorLocated = sortBy (compare `on` (anchor . getLoc))
@@ -347,3 +342,10 @@ trailingAnnToAddEpAnn (AddVbarAnn ss)    = AddEpAnn AnnVbar ss
 trailingAnnToAddEpAnn (AddRarrowAnn ss)  = AddEpAnn AnnRarrow ss
 trailingAnnToAddEpAnn (AddRarrowAnnU ss) = AddEpAnn AnnRarrowU ss
 trailingAnnToAddEpAnn (AddLollyAnnU ss)  = AddEpAnn AnnLollyU ss
+
+-- ---------------------------------------------------------------------
+
+-- TODO: move this to GHC
+anchorToEpaLocation :: Anchor -> EpaLocation
+anchorToEpaLocation (Anchor rs UnchangedAnchor) = EpaSpan rs
+anchorToEpaLocation (Anchor _ (MovedAnchor dp)) = EpaDelta dp []

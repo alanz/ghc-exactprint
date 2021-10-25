@@ -76,14 +76,14 @@ checkLine line s
            size   = length pragma
            mSrcLoc = mkSrcLoc (mkFastString "LINE")
            ss     = mkSrcSpan (mSrcLoc line 1) (mSrcLoc line (size+1))
-       in (res, Just $ mkLEpaComment pragma (GHC.spanAsAnchor ss))
+       in (res, Just $ mkLEpaComment pragma (GHC.spanAsAnchor ss) (GHC.realSrcSpan ss))
   -- Deal with shebang/cpp directives too
   -- x |  "#" `isPrefixOf` s = ("",Just $ Comment ((line, 1), (line, length s)) s)
   |  "#!" `isPrefixOf` s =
     let mSrcLoc = mkSrcLoc (mkFastString "SHEBANG")
         ss = mkSrcSpan (mSrcLoc line 1) (mSrcLoc line (length s))
     in
-    ("",Just $ mkLEpaComment s (GHC.spanAsAnchor ss))
+    ("",Just $ mkLEpaComment s (GHC.spanAsAnchor ss) (GHC.realSrcSpan ss))
   | otherwise = (s, Nothing)
 
 getPragma :: String -> (String, String)
@@ -126,8 +126,8 @@ goodComment :: GHC.LEpaComment -> Bool
 goodComment c = isGoodComment (tokComment c)
   where
     isGoodComment :: Comment -> Bool
-    isGoodComment (Comment "" _ _) = False
-    isGoodComment _              = True
+    isGoodComment (Comment "" _ _ _) = False
+    isGoodComment _                  = True
 
 
 toRealLocated :: GHC.Located a -> GHC.RealLocated a
@@ -169,7 +169,7 @@ getCppTokens directiveToks origSrcToks postCppToks = toks
     missingAsComments = map mkCommentTok missingToks
       where
         mkCommentTok :: (GHC.Located GHC.Token,String) -> (GHC.Located GHC.Token,String)
-        mkCommentTok (GHC.L l _,s) = (GHC.L l (GHC.ITlineComment s placeholderBufSpan),s)
+        mkCommentTok (GHC.L l _,s) = (GHC.L l (GHC.ITlineComment s (makeBufSpan l)),s)
 
     toks = mergeBy locFn directiveToks missingAsComments
 
@@ -258,7 +258,7 @@ getPreprocessorAsComments srcFile = do
   let directives = filter (\(_lineNum,line) -> line /= [] && head line == '#')
                     $ zip [1..] (lines fcontents)
 
-  let mkTok (lineNum,line) = (GHC.L l (GHC.ITlineComment line placeholderBufSpan),line)
+  let mkTok (lineNum,line) = (GHC.L l (GHC.ITlineComment line (makeBufSpan l)),line)
        where
          start = GHC.mkSrcLoc (GHC.mkFastString srcFile) lineNum 1
          end   = GHC.mkSrcLoc (GHC.mkFastString srcFile) lineNum (length line)
@@ -267,11 +267,11 @@ getPreprocessorAsComments srcFile = do
   let toks = map mkTok directives
   return toks
 
-placeholderBufSpan :: GHC.PsSpan
-placeholderBufSpan = pspan
+makeBufSpan :: GHC.SrcSpan -> GHC.PsSpan
+makeBufSpan ss = pspan
   where
     bl = GHC.BufPos 0
-    pspan = GHC.PsSpan GHC.placeholderRealSpan (GHC.BufSpan bl bl)
+    pspan = GHC.PsSpan (GHC.realSrcSpan ss) (GHC.BufSpan bl bl)
 
 -- ---------------------------------------------------------------------
 

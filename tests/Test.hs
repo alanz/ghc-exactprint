@@ -136,14 +136,8 @@ failingTests libdir = testList "Failing tests"
   [
   -- Tests requiring future GHC modifications
 
-    -- https://gitlab.haskell.org/ghc/ghc/-/issues/20243
-    mkTestModBad libdir "n-plus-k-patterns.hs"
-
-    -- https://gitlab.haskell.org/ghc/ghc/-/issues/20258
-  , mkTestModBad libdir "TopLevelSemis.hs"
-
   -- We do not capture EOF location very well any more
-  , mkTestModBad libdir "T10970a.hs"
+    mkTestModBad libdir "T10970a.hs"
 
   ]
 
@@ -187,7 +181,6 @@ tt' = do
     -- mkParserTest libdir      "ghc80" "T10970a.hs"
 
 
-    -- mkTestModChange libdir rmDecl1  "RmDecl1.hs"
 
     -- mkParserTest libdir      "ghc710" "EmptyMostly.hs"
 
@@ -200,6 +193,7 @@ tt' = do
     -- mkParserTestMD libdir      "ghc92" "Records2.hs"
     -- mkParserTestMD libdir      "ghc92" "AdhocRule.hs"
     -- mkParserTestMD libdir      "ghc92" "Observer.hs"
+
     -- mkParserTest libdir      "ghc92" "CommentPlacement.hs"
     -- mkParserTestMD libdir      "ghc92" "CommentPlacement.hs"
 
@@ -242,16 +236,29 @@ tt' = do
     -- Still to fix, think it is local to ExactPrint.hs
     -- mkParserTestMD libdir      "ghc710" "RdrNames.hs"
 
+    -- mkTestModChange libdir rmDecl4  "RmDecl4.hs"
+    -- mkParserTest libdir     "ghc92" "RmDecl4.hs"
+    -- mkParserTestMD libdir     "ghc92" "RmDecl4.hs"
+
+    -- mkParserTestMD libdir     "ghc92" "Records2.hs"
+
+    -- mkTestModChange libdir rmTypeSig1  "RmTypeSig1.hs"
 
     -- mkParserTest libdir      "ghc92" "Observer1.hs"
     -- mkParserTestMD libdir      "ghc92" "Observer1.hs"
+
+    -- mkParserTest libdir     "ghc92" "ExperimIOP.hs"
+    mkParserTestMD libdir     "ghc92" "ExperimIOP.hs"
 
     -- Fixed by diff to make LocatedA Modulename
     -- mkParserTestMD libdir      "ghc710" "LetExprSemi.hs"
 
     -- mkParserTestMD libdir      "ghc710" "AltsSemis.hs"
     -- mkParserTest libdir      "ghc710" "AltsSemis.hs"
-    mkParserTest libdir      "ghc710" "EmptyMostly.hs"
+    -- mkParserTest libdir      "ghc80" "Match.hs"
+    -- mkTestModBad libdir "TopLevelSemis.hs"
+    -- mkParserTest libdir "ghc92" "TopLevelSemis.hs"
+    -- mkTestModBad libdir "n-plus-k-patterns.hs"
 
     -- mkParserTest libdir      "ghc92" "ListComments.hs"
     -- mkParserTestMD libdir      "ghc92" "ListComments.hs"

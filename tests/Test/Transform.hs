@@ -190,7 +190,7 @@ changeLocalDecls2 libdir (L l p) = do
         let sortKey = captureOrder decls
         let binds = (HsValBinds an (ValBinds sortKey (listToBag $ [decl'])
                                     [sig']))
-        return (L lm (Match ma mln pats (GRHSs noExtField rhs binds)))
+        return (L lm (Match ma mln pats (GRHSs emptyComments rhs binds)))
       replaceLocalBinds x = return x
   return (L l p')
 
@@ -256,7 +256,7 @@ changeLocalDecls libdir (L l p) = do
                           (ValBinds sortKey
                                     (listToBag $ decl':oldBinds)
                                     (sig':os':oldSigs)))
-        return (L lm (Match an mln pats (GRHSs noExtField rhs binds')))
+        return (L lm (Match an mln pats (GRHSs emptyComments rhs binds')))
       replaceLocalBinds x = return x
   return (L l p')
 
@@ -675,40 +675,18 @@ addLocaLDecl6 libdir lp = do
   (lp',_,_w) <- runTransformT doAddLocal
   debugM $ "log:[\n" ++ intercalate "\n" _w ++ "]log end\n"
   return lp'
+
 -- ---------------------------------------------------------------------
-
--- rmDecl1 :: Changer
--- rmDecl1 ans lp = do
---   let doRmDecl = do
---          tlDecs <- hsDecls lp
---          let (d1:s1:d2:ds) = tlDecs
-
---          -- First delete the decl (d2) only
---          balanceComments s1 d2 -- ++AZ++
---          balanceComments d2 (head ds)
---          lp1 <- replaceDecls lp (d1:s1:ds)
---          -- return lp1
-
---          -- Then delete the sig separately
---          tlDecs1 <- hsDecls lp1
---          let (d1':s1':ds') = tlDecs1
---          -- transferEntryDPT s1' (head ds')  -- required in HaRe.
---          balanceComments d1' s1'
---          balanceComments s1' (head ds')
---          transferEntryDPT s1' (head ds')  -- required in HaRe.
---          replaceDecls lp (d1':ds')
-
---   (lp',(ans',_),_w) <- runTransformT ans doRmDecl
---   return (ans',lp')
 
 rmDecl1 :: Changer
 rmDecl1 _libdir lp = do
   let doRmDecl = do
          tlDecs0 <- hsDecls lp
          tlDecs <- balanceCommentsList $ captureLineSpacing tlDecs0
-         let (de1:_s1:_d2:ds) = tlDecs
+         let (de1:_s1:_d2:d3:ds) = tlDecs
+         let d3' = setEntryDP d3 (DifferentLine 2 0)
 
-         replaceDecls lp (de1:ds)
+         replaceDecls lp (de1:d3':ds)
 
   (lp',_,_w) <- runTransformT doRmDecl
   debugM $ "log:[\n" ++ intercalate "\n" _w ++ "]log end\n"
@@ -810,7 +788,8 @@ rmDecl4 :: Changer
 rmDecl4 _libdir lp = do
   let
       doRmDecl = do
-         [de1] <- hsDecls lp
+         let lpd = (makeDeltaAst lp)
+         [de1] <- hsDecls lpd
 
          (de1',Just sd1) <- modifyValD (getLocA de1) de1 $ \_m [sd1,sd2] -> do
            sd2' <- transferEntryDP' sd1 sd2
@@ -818,11 +797,12 @@ rmDecl4 _libdir lp = do
            let sd1' = setEntryDP sd1 (DifferentLine 2 0)
            return ([sd2'],Just sd1')
 
-         replaceDecls (anchorEof lp) [de1',sd1]
+         replaceDecls (anchorEof lpd) [de1',sd1]
 
   (lp',_,_w) <- runTransformT doRmDecl
   debugM $ "log:[\n" ++ intercalate "\n" _w ++ "]log end\n"
   return lp'
+
 -- ---------------------------------------------------------------------
 
 -- rmDecl5 :: Changer
@@ -952,7 +932,7 @@ rmDecl7 _libdir lp = do
 rmTypeSig1 :: Changer
 rmTypeSig1 _libdir lp = do
   let doRmDecl = do
-         tlDecs <- hsDecls lp
+         tlDecs <- hsDecls (makeDeltaAst lp)
          let (s0:de1:d2) = tlDecs
              s1 = captureTypeSigSpacing s0
              (L l (SigD x1 (TypeSig x2 [n1,n2] typ))) = s1

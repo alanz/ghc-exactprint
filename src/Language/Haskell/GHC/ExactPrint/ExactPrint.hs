@@ -403,7 +403,7 @@ flushComments trailing = do
   addCommentsA trailing
   cs <- getUnallocatedComments
   -- Must compare without span filenames, for CPP injected comments with fake filename
-  let cmp (Comment _ l1 _) (Comment _ l2 _) = compare (ss2pos $ anchor l1) (ss2pos $ anchor l2)
+  let cmp (Comment _ l1 _ _) (Comment _ l2 _ _) = compare (ss2pos $ anchor l1) (ss2pos $ anchor l2)
   debugM $ "flushing comments starting"
   mapM_ printOneComment (sortBy cmp cs)
   debugM $ "flushing comments done"
@@ -537,6 +537,13 @@ printStringAtMLocL (EpAnn anc an cs) l s = do
 
 printStringAtAA :: (Monad m, Monoid w) => EpaLocation -> String -> EP w m EpaLocation
 printStringAtAA el str = printStringAtAAC CaptureComments el str
+
+printStringAtAAL :: (Monad m, Monoid w)
+  => EpAnn a -> Lens a EpaLocation -> String -> EP w m (EpAnn a)
+printStringAtAAL EpAnnNotUsed _ _ = return EpAnnNotUsed
+printStringAtAAL (EpAnn anc an cs) l str = do
+  r <- printStringAtAAC CaptureComments (view l an) str
+  return (EpAnn anc (set l r an) cs)
 
 printStringAtAAC :: (Monad m, Monoid w)
   => CaptureComments -> EpaLocation -> String -> EP w m EpaLocation
@@ -860,9 +867,9 @@ lidl :: Lens [AddEpAnn] [AddEpAnn]
 lidl k parent = fmap (\new -> new)
                      (k parent)
 
--- lid :: Lens AddEpAnn AddEpAnn
--- lid k parent = fmap (\new -> new)
---                     (k parent)
+lid :: Lens a a
+lid k parent = fmap (\new -> new)
+                    (k parent)
 
 lfst :: Lens (a,a) a
 lfst k parent = fmap (\new -> (new, snd parent))
@@ -1296,7 +1303,7 @@ printComments ss = do
 -- ---------------------------------------------------------------------
 
 printOneComment :: (Monad m, Monoid w) => Comment -> EP w m ()
-printOneComment c@(Comment _str loc _mo) = do
+printOneComment c@(Comment _str loc _r _mo) = do
   debugM $ "printOneComment:c=" ++ showGhc c
   dp <-case anchor_op loc of
     MovedAnchor dp -> return dp
@@ -1312,11 +1319,36 @@ printOneComment c@(Comment _str loc _mo) = do
       -- debugM $ "printOneComment:edp=" ++ show edp
       return edp
     _ -> return dp''
-  -- LayoutStartCol dOff <- gets dLHS
-  -- debugM $ "printOneComment:(dp,dp',dp'',dOff)=" ++ showGhc (dp,dp',dp'',dOff)
+  -- Start of debug printing
+  LayoutStartCol dOff <- gets dLHS
+  debugM $ "printOneComment:(dp,dp',dp'',dOff)=" ++ showGhc (dp,dp',dp'',dOff)
+  -- End of debug printing
   setPriorEndD (ss2posEnd (anchor loc))
-  applyComment c
+  -- applyComment c
+  updateAndApplyComment c dp'
   printQueuedComment (anchor loc) c dp'
+
+updateAndApplyComment :: (Monad m, Monoid w) => Comment -> DeltaPos -> EP w m ()
+updateAndApplyComment co@(Comment str anc pp mo) dp = do
+  debugM $ "updateAndApplyComment: (dp,anc',co)=" ++ showAst (dp,anc',co)
+  applyComment (Comment str anc' pp mo)
+  where
+    -- anc' = anc { anchor_op = MovedAnchor dp }
+    anc' = anc { anchor_op = op}
+
+    (r,c) = ss2posEnd pp
+    la = anchor anc
+    dp' = if r == 0
+           then (ss2delta (r,c+1) la)
+           else (ss2delta (r,c)   la)
+    op' = case dp' of
+            SameLine n -> if n >= 0
+                            then MovedAnchor dp'
+                            else MovedAnchor dp
+            _ -> MovedAnchor dp'
+    op = if str == "" && op' == MovedAnchor (SameLine 0) -- EOF comment
+           then MovedAnchor dp
+           else op'
 
 -- ---------------------------------------------------------------------
 
@@ -1327,7 +1359,7 @@ commentAllocation ss = do
   -- RealSrcSpan, which affects comparison, as the Ord instance for
   -- RealSrcSpan compares the file first. So we sort via ss2pos
   -- TODO: this is inefficient, use Pos all the way through
-  let (earlier,later) = partition (\(Comment _str loc _mo) -> (ss2pos $ anchor loc) <= (ss2pos ss)) cs
+  let (earlier,later) = partition (\(Comment _str loc _r _mo) -> (ss2pos $ anchor loc) <= (ss2pos ss)) cs
   putUnallocatedComments later
   -- debugM $ "commentAllocation:(ss,earlier,later)" ++ show (rs2range ss,earlier,later)
   return earlier
@@ -1401,7 +1433,6 @@ instance ExactPrint HsModule where
           an0 <- markEpAnnL an lam_main AnnModule
           m' <- markAnnotated m
 
-          -- forM_ mdeprec markLocated
           mdeprec' <- setLayoutTopLevelP $ markAnnotated mdeprec
 
           mexports' <- setLayoutTopLevelP $ markAnnotated mexports
@@ -1409,13 +1440,7 @@ instance ExactPrint HsModule where
           debugM $ "HsModule.AnnWhere coming"
           an1 <- setLayoutTopLevelP $ markEpAnnL an0 lam_main AnnWhere
           debugM $ "HsModule.AnnWhere done, an1=" ++ showAst (anns an1)
-          -- return (Just mn', mdeprec', mexports', an')
 
-          -- Capture the module name comments at the top
-          -- level. Workaround until ModuleName is LocatedA
-          -- mapM_ (applyComment . tokComment) (priorComments $ epAnnComments (ann la))
-          -- mapM_ (applyComment . tokComment) (getFollowingComments $ epAnnComments (ann la))
-          -- return (an1, Just (L l mn'), mdeprec', mexports')
           return (an1, Just m', mdeprec', mexports')
 
     debugM $ "After HsModule.AnnWhere done, an0=" ++ showAst (anns an0)
@@ -2275,20 +2300,26 @@ instance ExactPrint (GRHSs GhcPs (LocatedA (HsExpr GhcPs))) where
   getAnnotationEntry (GRHSs _ _ _) = NoEntryVal
   setAnnotationAnchor a _ _ = a
 
-  exact (GRHSs an grhss binds) = do
+  exact (GRHSs cs grhss binds) = do
+    addCommentsA $ priorComments cs
+    addCommentsA $ getFollowingComments cs
     grhss' <- markAnnotated grhss
     binds' <- markAnnotated binds
-    return (GRHSs an grhss' binds')
+    -- The comments will be added back as they are printed
+    return (GRHSs emptyComments grhss' binds')
 
 
 instance ExactPrint (GRHSs GhcPs (LocatedA (HsCmd GhcPs))) where
   getAnnotationEntry (GRHSs _ _ _) = NoEntryVal
   setAnnotationAnchor a _ _ = a
 
-  exact (GRHSs an grhss binds) = do
+  exact (GRHSs cs grhss binds) = do
+    addCommentsA $ priorComments cs
+    addCommentsA $ getFollowingComments cs
     grhss' <- markAnnotated grhss
     binds' <- markAnnotated binds
-    return (GRHSs an grhss' binds')
+    -- The comments will be added back as they are printed
+    return (GRHSs emptyComments grhss' binds')
 
 -- ---------------------------------------------------------------------
 
@@ -2645,7 +2676,6 @@ instance ExactPrint (GRHS GhcPs (LocatedA (HsExpr GhcPs))) where
     an0 <- markLensKwM an lga_vbar AnnVbar
     guards' <- markAnnotated guards
     debugM $ "GRHS before matchSeparator"
-    -- markLocatedAA an ga_sep -- Mark the matchSeparator for these GRHSs
     an1 <- markLensAA an0 lga_sep -- Mark the matchSeparator for these GRHSs
     debugM $ "GRHS after matchSeparator"
     expr' <- markAnnotated expr
@@ -4095,7 +4125,7 @@ instance ExactPrint (LocatedN RdrName) where
   setAnnotationAnchor = setAnchorAn
 
   exact x@(L (SrcSpanAnn EpAnnNotUsed l) n) = do
-    printUnicode l n
+    printUnicode (spanAsAnchor l) n
     return x
   exact (L (SrcSpanAnn (EpAnn anc ann cs) ll) n) = do
     ann' <-
@@ -4130,7 +4160,7 @@ instance ExactPrint (LocatedN RdrName) where
           t' <- markTrailing t
           return (NameAnnQuote q' name' t')
         NameAnnTrailing t -> do
-          printUnicode ll n
+          anc' <- printUnicode anc n
           t' <- markTrailing t
           return (NameAnnTrailing t')
     return (L (SrcSpanAnn (EpAnn anc ann' cs) ll) n)
@@ -4138,13 +4168,22 @@ instance ExactPrint (LocatedN RdrName) where
 locFromAdd :: AddEpAnn -> EpaLocation
 locFromAdd (AddEpAnn _ loc) = loc
 
-printUnicode :: (Monad m, Monoid w) => SrcSpan -> RdrName -> EP w m ()
-printUnicode l n = do
+printUnicode :: (Monad m, Monoid w) => Anchor -> RdrName -> EP w m Anchor
+printUnicode anc n = do
   let str = case (showPprUnsafe n) of
             -- TODO: unicode support?
-              "forall" -> if spanLength (realSrcSpan l) == 1 then "∀" else "forall"
+              "forall" -> if spanLength (anchor anc) == 1 then "∀" else "forall"
               s -> s
-  printStringAtSs l str
+  -- printStringAtSs l str
+  -- loc <- printStringAtAAC NoCaptureComments (anchorToEpaLocation anc) str
+  -- case loc of
+  --   EpaSpan _ -> return anc
+  --   EpaDelta dp [] -> return anc { anchor_op = MovedAnchor dp }
+  loc <- printStringAtAAC NoCaptureComments (EpaDelta (SameLine 0) []) str
+  case loc of
+    EpaSpan _ -> return anc
+    EpaDelta dp [] -> return anc { anchor_op = MovedAnchor dp }
+
 
 markName :: (Monad m, Monoid w)
   => NameAdornment -> EpaLocation -> Maybe (EpaLocation,RdrName) -> EpaLocation
@@ -4263,7 +4302,12 @@ instance ExactPrint (ConDecl GhcPs) where
     cons' <- mapM markAnnotated cons
     an0 <- markEpAnnL an lidl AnnDcolon
     an1 <- annotationsToComments an0 lidl  [AnnOpenP, AnnCloseP]
-    bndrs' <- markAnnotated bndrs
+
+    -- Work around https://gitlab.haskell.org/ghc/ghc/-/issues/20558
+    bndrs' <- case bndrs of
+      L _ (HsOuterImplicit _) -> return bndrs
+      _ -> markAnnotated bndrs
+
     mcxt' <- mapM markAnnotated mcxt
     an2 <- if (isJust mcxt)
       then markEpAnnL an1 lidl AnnDarrow
@@ -4665,11 +4709,9 @@ instance ExactPrint (Pat GhcPs) where
   -- | NPlusKPat an n lit1 lit2 _ _)
   exact (NPlusKPat an n k lit2 a b) = do
     n' <- markAnnotated n
-    -- We need a fix for
-    -- https://gitlab.haskell.org/ghc/ghc/-/issues/20243 to complete
-    -- this
+    an' <- printStringAtAAL an lid "+"
     k' <- markAnnotated k
-    return (NPlusKPat an n' k' lit2 a b)
+    return (NPlusKPat an' n' k' lit2 a b)
 
   exact (SigPat an pat sig) = do
     pat' <- markAnnotated pat
