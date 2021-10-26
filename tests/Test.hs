@@ -247,8 +247,8 @@ tt' = do
     -- mkParserTest libdir      "ghc92" "Observer1.hs"
     -- mkParserTestMD libdir      "ghc92" "Observer1.hs"
 
-    -- mkParserTest libdir     "ghc92" "ExperimIOP.hs"
-    mkParserTestMD libdir     "ghc92" "ExperimIOP.hs"
+    -- mkParserTest libdir     "ghc92" "IndentedComments.hs"
+    mkParserTestMD libdir     "ghc92" "IndentedComments.hs"
 
     -- Fixed by diff to make LocatedA Modulename
     -- mkParserTestMD libdir      "ghc710" "LetExprSemi.hs"

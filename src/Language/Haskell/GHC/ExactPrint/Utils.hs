@@ -141,10 +141,10 @@ undeltaSpan anchor kw dp = AddEpAnn kw (EpaSpan sp)
 
 -- ---------------------------------------------------------------------
 
-adjustDeltaForOffset :: Int -> LayoutStartCol -> DeltaPos -> DeltaPos
-adjustDeltaForOffset _ _colOffset                      dp@(SameLine _) = dp
-adjustDeltaForOffset d (LayoutStartCol colOffset) (DifferentLine l c)
-  = DifferentLine l (c - colOffset - d)
+adjustDeltaForOffset :: LayoutStartCol -> DeltaPos -> DeltaPos
+adjustDeltaForOffset _colOffset                      dp@(SameLine _) = dp
+adjustDeltaForOffset (LayoutStartCol colOffset) (DifferentLine l c)
+  = DifferentLine l (c - colOffset)
 
 -- ---------------------------------------------------------------------
 

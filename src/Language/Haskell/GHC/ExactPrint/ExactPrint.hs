@@ -289,7 +289,7 @@ enterAnn (Entry anchor' cs flush canUpdateAnchor) a = do
   off <- gets dLHS
   let spanStart = ss2pos curAnchor
   priorEndAfterComments <- getPriorEndD
-  let edp' = adjustDeltaForOffset 0
+  let edp' = adjustDeltaForOffset
                -- Use the propagated offset if one is set
                -- Note that we need to use the new offset if it has
                -- changed.
@@ -309,7 +309,7 @@ enterAnn (Entry anchor' cs flush canUpdateAnchor) a = do
                    -- list entry values to be DP (1,0)
         Just (Anchor r _) -> dp
           where
-            dp = adjustDeltaForOffset 0
+            dp = adjustDeltaForOffset
                    off (ss2delta priorEndAfterComments r)
   when (isJust med) $ debugM $ "enterAnn:(med,edp)=" ++ show (med,edp)
   -- ---------------------------------------------
@@ -1311,13 +1311,16 @@ printOneComment c@(Comment _str loc _r _mo) = do
         pe <- getPriorEndD
         let dp = ss2delta pe (anchor loc)
         -- debugM $ "printOneComment:(dp,pe,anchor loc)=" ++ showGhc (dp,pe,ss2pos $ anchor loc)
-        return dp
-  dp'' <- adjustDeltaForOffsetM dp
+        -- return dp
+        adjustDeltaForOffsetM dp
+  -- dp'' <- adjustDeltaForOffsetM dp
+  let dp'' = dp
   mep <- getExtraDP
   dp' <- case mep of
     Just (Anchor _ (MovedAnchor edp)) -> do
-      -- debugM $ "printOneComment:edp=" ++ show edp
-      return edp
+      debugM $ "printOneComment:edp=" ++ show edp
+      -- return edp
+      adjustDeltaForOffsetM edp
     _ -> return dp''
   -- Start of debug printing
   LayoutStartCol dOff <- gets dLHS
@@ -1338,9 +1341,12 @@ updateAndApplyComment co@(Comment str anc pp mo) dp = do
 
     (r,c) = ss2posEnd pp
     la = anchor anc
-    dp' = if r == 0
+    dp'' = if r == 0
            then (ss2delta (r,c+1) la)
            else (ss2delta (r,c)   la)
+    dp' = if pp == anchor anc
+             then dp
+             else dp''
     op' = case dp' of
             SameLine n -> if n >= 0
                             then MovedAnchor dp'
@@ -1348,7 +1354,8 @@ updateAndApplyComment co@(Comment str anc pp mo) dp = do
             _ -> MovedAnchor dp'
     op = if str == "" && op' == MovedAnchor (SameLine 0) -- EOF comment
            then MovedAnchor dp
-           else op'
+           -- else op'
+           else MovedAnchor dp
 
 -- ---------------------------------------------------------------------
 
@@ -4843,6 +4850,8 @@ isGoodDeltaWithOffset :: DeltaPos -> LayoutStartCol -> Bool
 isGoodDeltaWithOffset dp colOffset = isGoodDelta (deltaPos l c)
   where (l,c) = undelta (0,0) dp colOffset
 
+-- | Print a comment, using the current layout offset to convert the
+-- @DeltaPos@ to an absolute position.
 printQueuedComment :: (Monad m, Monoid w) => RealSrcSpan -> Comment -> DeltaPos -> EP w m ()
 printQueuedComment loc Comment{commentContents} dp = do
   p <- getPosP
@@ -5008,7 +5017,7 @@ advance dp = do
 adjustDeltaForOffsetM :: (Monad m, Monoid w) => DeltaPos -> EP w m DeltaPos
 adjustDeltaForOffsetM dp = do
   colOffset <- gets dLHS
-  return (adjustDeltaForOffset 0 colOffset dp)
+  return (adjustDeltaForOffset colOffset dp)
 
 -- ---------------------------------------------------------------------
 -- Printing functions

@@ -318,7 +318,7 @@ setEntryDP (L (SrcSpanAnn (EpAnn (Anchor r _) an cs) l) a) dp
 addEpaLocationDelta :: LayoutStartCol -> RealSrcSpan -> EpaLocation -> EpaLocation
 addEpaLocationDelta _off _anc (EpaDelta d cs) = EpaDelta d cs
 addEpaLocationDelta  off  anc (EpaSpan r)
-  = EpaDelta (adjustDeltaForOffset 0 off (ss2deltaEnd anc r)) []
+  = EpaDelta (adjustDeltaForOffset off (ss2deltaEnd anc r)) []
 
 -- Set the entry DP for an element coming after an existing keyword annotation
 setEntryDPFromAnchor :: LayoutStartCol -> EpaLocation -> LocatedA t -> LocatedA t
@@ -328,7 +328,7 @@ setEntryDPFromAnchor  off (EpaSpan anc) ll@(L la _) = setEntryDP ll dp'
     r = case la of
       (SrcSpanAnn EpAnnNotUsed l) -> realSrcSpan l
       (SrcSpanAnn (EpAnn (Anchor r' _) _ _) _) -> r'
-    dp' = adjustDeltaForOffset 0 off (ss2deltaEnd anc r)
+    dp' = adjustDeltaForOffset off (ss2deltaEnd anc r)
 
 -- ---------------------------------------------------------------------
 
