@@ -174,10 +174,11 @@ tt' = do
   let libdir = GHC.Paths.libdir
   runTestText (putTextToHandle stdout True) $ TestList [
 
-    -- mkTestModChange libdir changeRenameCase1 "RenameCase1.hs"
+    -- mkTestModChange libdir changeLayoutLet2 "LayoutLet2.hs"
+    -- mkParserTestMD libdir      "transform" "LayoutLet2.hs"
 
     -- mkTestModChange libdir rmTypeSig1 "RmTypeSig1.hs"
-
+    mkTestModChange libdir changeLocToName   "LocToName.hs"
     -- mkParserTest libdir      "ghc80" "T10970a.hs"
 
 
@@ -248,7 +249,7 @@ tt' = do
     -- mkParserTestMD libdir      "ghc92" "Observer1.hs"
 
     -- mkParserTest libdir     "ghc92" "IndentedComments.hs"
-    mkParserTestMD libdir     "ghc92" "IndentedComments.hs"
+    -- mkParserTestMD libdir     "ghc92" "IndentedComments.hs"
 
     -- Fixed by diff to make LocatedA Modulename
     -- mkParserTestMD libdir      "ghc710" "LetExprSemi.hs"
@@ -260,8 +261,8 @@ tt' = do
     -- mkParserTest libdir "ghc92" "TopLevelSemis.hs"
     -- mkTestModBad libdir "n-plus-k-patterns.hs"
 
-    -- mkParserTest libdir      "ghc92" "ListComments.hs"
-    -- mkParserTestMD libdir      "ghc92" "ListComments.hs"
+    -- mkParserTest libdir      "ghc92" "n-plus-k-patterns.hs"
+    -- mkParserTestMD libdir      "ghc92" "n-plus-k-patterns.hs"
 
     -- mkParserTest libdir      "ghc92" "BalanceComments1.hs"
     -- mkParserTestBC libdir    "ghc92" "BalanceComments1.hs"

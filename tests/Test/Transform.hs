@@ -342,9 +342,9 @@ changeLayoutLet5 :: Changer
 changeLayoutLet5 _libdir parsed = return (rename "x" [((7,5),(7,8)),((9,14),(9,17))] parsed)
 
 
-rename :: (Data a) => String -> [(Pos, Pos)] -> a -> a
+rename :: (ExactPrint a, Data a) => String -> [(Pos, Pos)] -> a -> a
 rename newNameStr spans' a
-  = everywhere (mkT replaceRdr) a
+  = everywhere (mkT replaceRdr) (makeDeltaAst a)
   where
     newName = mkRdrUnqual (mkVarOcc newNameStr)
 

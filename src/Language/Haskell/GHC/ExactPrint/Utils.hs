@@ -349,3 +349,46 @@ trailingAnnToAddEpAnn (AddLollyAnnU ss)  = AddEpAnn AnnLollyU ss
 anchorToEpaLocation :: Anchor -> EpaLocation
 anchorToEpaLocation (Anchor rs UnchangedAnchor) = EpaSpan rs
 anchorToEpaLocation (Anchor _ (MovedAnchor dp)) = EpaDelta dp []
+
+-- ---------------------------------------------------------------------
+-- Horrible hack for dealing with some things still having a SrcSpan,
+-- not an Anchor.
+
+{-
+A SrcSpan is defined as
+
+data SrcSpan =
+    RealSrcSpan !RealSrcSpan !(Maybe BufSpan)  -- See Note [Why Maybe BufPos]
+  | UnhelpfulSpan !UnhelpfulSpanReason
+
+data BufSpan =
+  BufSpan { bufSpanStart, bufSpanEnd :: {-# UNPACK #-} !BufPos }
+  deriving (Eq, Ord, Show)
+
+newtype BufPos = BufPos { bufPos :: Int }
+
+
+We use the BufPos to encode a delta, using bufSpanStart for the line,
+and bufSpanEnd for the col.
+
+To be absolutely sure, we make the delta versions use -ve values.
+
+-}
+
+hackSrcSpanToAnchor :: SrcSpan -> Anchor
+hackSrcSpanToAnchor (UnhelpfulSpan _) = error "hackSrcSpanToAnchor"
+hackSrcSpanToAnchor (RealSrcSpan rs Nothing) = Anchor rs UnchangedAnchor
+hackSrcSpanToAnchor (RealSrcSpan rs (Just (BufSpan (BufPos s) (BufPos e))))
+  = if s <= 0 && e <= 0
+    then Anchor rs (MovedAnchor (deltaPos (-s) (-e)))
+    else Anchor rs UnchangedAnchor
+
+hackAnchorToSrcSpan :: Anchor -> SrcSpan
+hackAnchorToSrcSpan (Anchor rs UnchangedAnchor) = RealSrcSpan rs Nothing
+hackAnchorToSrcSpan (Anchor rs (MovedAnchor dp))
+  = RealSrcSpan rs (Just (BufSpan (BufPos s) (BufPos e)))
+  where
+    s = - (getDeltaLine dp)
+    e = - (deltaColumn dp)
+
+-- ---------------------------------------------------------------------
