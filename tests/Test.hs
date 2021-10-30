@@ -178,7 +178,7 @@ tt' = do
     -- mkParserTestMD libdir      "transform" "LayoutLet2.hs"
 
     -- mkTestModChange libdir rmTypeSig1 "RmTypeSig1.hs"
-    mkTestModChange libdir changeLocToName   "LocToName.hs"
+    -- mkTestModChange libdir changeLocToName   "LocToName.hs"
     -- mkParserTest libdir      "ghc80" "T10970a.hs"
 
 
@@ -257,8 +257,7 @@ tt' = do
     -- mkParserTestMD libdir      "ghc710" "AltsSemis.hs"
     -- mkParserTest libdir      "ghc710" "AltsSemis.hs"
     -- mkParserTest libdir      "ghc80" "Match.hs"
-    -- mkTestModBad libdir "TopLevelSemis.hs"
-    -- mkParserTest libdir "ghc92" "TopLevelSemis.hs"
+    mkParserTest libdir "ghc92" "TopLevelSemis.hs"
     -- mkTestModBad libdir "n-plus-k-patterns.hs"
 
     -- mkParserTest libdir      "ghc92" "n-plus-k-patterns.hs"

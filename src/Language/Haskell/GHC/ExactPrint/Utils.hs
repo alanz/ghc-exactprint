@@ -36,8 +36,6 @@ import GHC.Types.SrcLoc
 import GHC.Data.FastString
 import GHC.Utils.Outputable (showSDocUnsafe, showPprUnsafe)
 
-import Control.Arrow
-
 import Data.List (sortBy, elemIndex)
 
 import Debug.Trace

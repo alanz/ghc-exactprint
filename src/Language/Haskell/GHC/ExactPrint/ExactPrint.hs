@@ -593,11 +593,6 @@ markLensMAA (EpAnn anc a cs) l =
       aa' <- markAddEpAnn aa
       return (EpAnn anc (set l (Just aa') a) cs)
 
--- TODO: remove in favour of markLensAA
-markLocatedAA :: (Monad m, Monoid w) => EpAnn a -> (a -> AddEpAnn) -> EP w m Int
-markLocatedAA EpAnnNotUsed  _  = return 1
-markLocatedAA (EpAnn _ a _) f = markKw (f a) >> return 1
-
 markLensAA :: (Monad m, Monoid w) => EpAnn a -> Lens a AddEpAnn -> EP w m (EpAnn a)
 markLensAA EpAnnNotUsed  _  = return EpAnnNotUsed
 markLensAA (EpAnn anc a cs) l = do
@@ -852,6 +847,10 @@ lal_close k parent = fmap (\new -> parent { al_close = new })
 lal_rest :: Lens AnnList [AddEpAnn]
 lal_rest k parent = fmap (\new -> parent { al_rest = new })
                            (k (al_rest parent))
+
+lal_trailing :: Lens AnnList [TrailingAnn]
+lal_trailing k parent = fmap (\new -> parent { al_trailing = new })
+                           (k (al_trailing parent))
 
 -- -------------------------------------
 
@@ -1118,20 +1117,9 @@ markLensKw (EpAnn anc a cs) l kw = do
   loc <- markKwA kw (view l a)
   return (EpAnn anc (set l loc a) cs)
 
--- TODO: get rid of this, in favour of markAnnKwL (or markLensKw).
-markAnnKw :: (Monad m, Monoid w) => EpAnn a -> (a -> EpaLocation) -> AnnKeywordId -> EP w m Int
-markAnnKw EpAnnNotUsed  _ _  = return 1
-markAnnKw (EpAnn _anc a _cs) f kw = markKwA kw (f a) >> return 1
-
 markAnnKwL :: (Monad m, Monoid w)
   => EpAnn a -> Lens a EpaLocation -> AnnKeywordId -> EP w m (EpAnn a)
 markAnnKwL = markLensKw
-
--- TODO: get rid of this, in favour of markAnnKwAllL.
-markAnnKwAll :: (Monad m, Monoid w) => EpAnn a -> (a -> [EpaLocation]) -> AnnKeywordId -> EP w m Int
-markAnnKwAll EpAnnNotUsed  _ _  = return 1
--- markAnnKwAll (EpAnn _ a _) f kw = mapM_ (markKwA kw) (sort (f a))
-markAnnKwAll (EpAnn _ a _) f kw = mapM_ (markKwA kw) (f a) >> return 1
 
 markAnnKwAllL :: (Monad m, Monoid w)
   => EpAnn a -> Lens a [EpaLocation] -> AnnKeywordId -> EP w m (EpAnn a)
@@ -1141,14 +1129,6 @@ markAnnKwAllL (EpAnn anc a cs) l kw = do
   -- anns <- mapM (markKwA kw) (sort (view l a))
   anns <- mapM (markKwA kw) (view l a)
   return (EpAnn anc (set l anns a) cs)
-
--- TODO: get rid of this, in favour of markLensKwM.
-markAnnKwM :: (Monad m, Monoid w) => EpAnn a -> (a -> Maybe EpaLocation) -> AnnKeywordId -> EP w m Int
-markAnnKwM EpAnnNotUsed  _ _ = return 1
-markAnnKwM (EpAnn _ a _) f kw = go (f a) >> return 1
-  where
-    go Nothing = return 1
-    go (Just s) = markKwA kw s >> return 1
 
 markLensKwM :: (Monad m, Monoid w)
   => EpAnn a -> Lens a (Maybe EpaLocation) -> AnnKeywordId -> EP w m (EpAnn a)
@@ -1283,28 +1263,59 @@ markKwT (AddLollyAnnU ss)  = AddLollyAnnU  <$> markKwA AnnLollyU ss
 
 markAnnList :: (Monad m, Monoid w)
   => Bool -> EpAnn AnnList -> EP w m a -> EP w m (EpAnn AnnList, a)
-markAnnList _ EpAnnNotUsed action = do
-  a <- action
-  return (EpAnnNotUsed, a)
-markAnnList reallyTrail (EpAnn anc ann cs) action = do
-  (ann', a') <- markAnnList' reallyTrail ann action
-  return (EpAnn anc ann' cs, a')
+markAnnList reallyTrail ann action = do
+  markAnnListA reallyTrail ann $ \a -> do
+    r <- action
+    return (a,r)
+
+markAnnListA :: (Monad m, Monoid w)
+  => Bool -> EpAnn AnnList
+  -> (EpAnn AnnList -> EP w m (EpAnn AnnList, a))
+  -> EP w m (EpAnn AnnList, a)
+markAnnListA _ EpAnnNotUsed action = do
+  action EpAnnNotUsed
+markAnnListA reallyTrail an@(EpAnn anc ann cs) action = do
+  -- (ann', a') <- markAnnList' reallyTrail ann action
+  -- return (EpAnn anc ann' cs, a')
+  -- (an', a') <- markAnnList' reallyTrail an lid (action EpAnnNotUsed) -- AZ: for now
+  -- return (an', a')
+  undefined
 
 markAnnList' :: (Monad m, Monoid w)
-  => Bool -> AnnList -> EP w m a -> EP w m (AnnList, a)
-markAnnList' reallyTrail ann action = do
+  => Bool -> EpAnn AnnList -> EP w m a -> EP w m (EpAnn AnnList, a)
+markAnnList' reallyTrail an action = do
   p <- getPosP
-  debugM $ "markAnnList : " ++ showPprUnsafe (p, ann)
-  al_open' <- mapM markAddEpAnn (al_open ann)
-  ann0 <- markTrailIf (not reallyTrail) ann -- Only makes sense for HsModule.
-  -- al_rest' <- markAnnAll (sort $ al_rest ann) AnnSemi
-  al_rest' <- markAnnAll (al_rest ann) AnnSemi
+  debugM $ "markAnnList : " ++ showPprUnsafe (p, an)
+  -- al_open' <- mapM markAddEpAnn (al_open ann)
+  an0 <- markLensMAA an lal_open
+  an1 <- if (not reallyTrail)
+           then markTrailingL an0 lal_trailing
+           else return an0
+  -- al_rest' <- markAnnAll (al_rest ann) AnnSemi
+  an2 <- markEpAnnAllL an0 lal_rest AnnSemi
   r <- action
-  al_close' <- mapM markAddEpAnn (al_close ann)
-  debugM $ "markAnnList: calling markTrailing with:" ++ showPprUnsafe (al_trailing ann)
-  ann1 <- markTrailIf reallyTrail ann0 -- normal case
-  return (ann1 { al_open = al_open', al_rest = al_rest', al_close = al_close'}
-         , r)
+  -- al_close' <- mapM markAddEpAnn (al_close ann)
+  an3 <- markLensMAA an2 lal_close
+  -- ann1 <- markTrailIf reallyTrail ann0 -- normal case
+  an4 <- if reallyTrail
+           then markTrailingL an3 lal_trailing
+           else return an3
+  return (an4, r)
+
+-- markAnnList' :: (Monad m, Monoid w)
+--   => Bool -> AnnList -> EP w m a -> EP w m (AnnList, a)
+-- markAnnList' reallyTrail ann action = do
+--   p <- getPosP
+--   debugM $ "markAnnList : " ++ showPprUnsafe (p, ann)
+--   al_open' <- mapM markAddEpAnn (al_open ann)
+--   ann0 <- markTrailIf (not reallyTrail) ann -- Only makes sense for HsModule.
+--   al_rest' <- markAnnAll (al_rest ann) AnnSemi
+--   r <- action
+--   al_close' <- mapM markAddEpAnn (al_close ann)
+--   debugM $ "markAnnList: calling markTrailing with:" ++ showPprUnsafe (al_trailing ann)
+--   ann1 <- markTrailIf reallyTrail ann0 -- normal case
+--   return (ann1 { al_open = al_open', al_rest = al_rest', al_close = al_close'}
+--          , r)
 
 markTrailIf :: (Monad m, Monoid w) => Bool -> AnnList -> EP w m AnnList
 markTrailIf cond ann =
@@ -1414,7 +1425,7 @@ instance (ExactPrint a) => ExactPrint (Located a) where
   -- getAnnotationEntry (L l _) = NoEntryVal
 
   -- setAnnotationAnchor _la _anc _cs = error "should not be called:setAnnotationAnchor (Located a)"
-  setAnnotationAnchor (L l a) anc cs = L (hackAnchorToSrcSpan anc) a
+  setAnnotationAnchor (L _ a) anc _cs = L (hackAnchorToSrcSpan anc) a
 
   exact (L l a) = L l <$> markAnnotated a
 
@@ -1471,10 +1482,14 @@ instance ExactPrint HsModule where
           return (an1, Just m', mdeprec', mexports')
 
     debugM $ "After HsModule.AnnWhere done, an0=" ++ showAst (anns an0)
-    (am_decls', (decls', imports')) <- markAnnList' False (am_decls $ anns an0) $ do
+    let ann_decls = EpAnn undefined (am_decls $ anns an0) emptyComments
+    (ann_decls', (decls', imports')) <- markAnnList' False ann_decls $ do
       imports' <- markTopLevelList imports
       decls' <- markTopLevelList decls
       return (decls', imports')
+    let am_decls' = case ann_decls' of
+          EpAnnNotUsed -> (am_decls $ anns an0)
+          EpAnn _ r _ -> r
 
     let anf = an0 { anns = (anns an0) { am_decls = am_decls' }}
     debugM $ "HsModule, anf=" ++ showAst anf
@@ -1724,12 +1739,12 @@ instance ExactPrint (DerivDecl GhcPs) where
   getAnnotationEntry (DerivDecl {deriv_ext = an} ) = fromAnn an
   setAnnotationAnchor dd anc cs = dd { deriv_ext = setAnchorEpa (deriv_ext dd) anc cs }
   exact (DerivDecl an typ ms mov) = do
-    markEpAnn an AnnDeriving
+    an0 <- markEpAnnL an lidl AnnDeriving
     ms' <- mapM markAnnotated ms
-    markEpAnn an AnnInstance
+    an1 <- markEpAnnL an0 lidl AnnInstance
     mov' <- mapM markAnnotated mov
     typ' <- markAnnotated typ
-    return (DerivDecl an typ' ms' mov')
+    return (DerivDecl an1 typ' ms' mov')
 
 -- ---------------------------------------------------------------------
 
@@ -1741,24 +1756,24 @@ instance ExactPrint (ForeignDecl GhcPs) where
   setAnnotationAnchor (ForeignExport an a b c) anc cs = ForeignExport (setAnchorEpa an anc cs) a b c
 
   exact (ForeignImport an n ty fimport) = do
-    markEpAnn an AnnForeign
-    markEpAnn an AnnImport
+    an0 <- markEpAnnL an lidl AnnForeign
+    an1 <- markEpAnnL an0 lidl AnnImport
 
     fimport' <- markAnnotated fimport
 
     n' <- markAnnotated n
-    markEpAnn an AnnDcolon
+    an2 <- markEpAnnL an1 lidl AnnDcolon
     ty' <- markAnnotated ty
-    return (ForeignImport an n' ty' fimport')
+    return (ForeignImport an2 n' ty' fimport')
 
   exact (ForeignExport an n ty fexport) = do
-    markEpAnn an AnnForeign
-    markEpAnn an AnnExport
+    an0 <- markEpAnnL an lidl AnnForeign
+    an1 <- markEpAnnL an0 lidl AnnExport
     fexport' <- markAnnotated fexport
     n' <- markAnnotated n
-    markEpAnn an AnnDcolon
+    an2 <- markEpAnnL an1 lidl AnnDcolon
     ty' <- markAnnotated ty
-    return (ForeignExport an n' ty' fexport')
+    return (ForeignExport an2 n' ty' fexport')
 
 -- ---------------------------------------------------------------------
 
@@ -1826,7 +1841,7 @@ instance ExactPrint (WarnDecl GhcPs) where
 
   exact (Warning an lns txt) = do
     lns' <- markAnnotated lns
-    markEpAnn an AnnOpenS -- "["
+    an0 <- markEpAnnL an lidl AnnOpenS -- "["
     txt' <-
       case txt of
         WarningTxt    src ls -> do
@@ -1835,8 +1850,8 @@ instance ExactPrint (WarnDecl GhcPs) where
         DeprecatedTxt src ls -> do
           ls' <- markAnnotated ls
           return (DeprecatedTxt src ls')
-    markEpAnn an AnnCloseS -- "]"
-    return (Warning an lns' txt')
+    an1 <- markEpAnnL an0 lidl AnnCloseS -- "]"
+    return (Warning an1 lns' txt')
 
 -- ---------------------------------------------------------------------
 
@@ -1961,8 +1976,8 @@ instance ExactPrint (RoleAnnotDecl GhcPs) where
   getAnnotationEntry (RoleAnnotDecl an _ _) = fromAnn an
   setAnnotationAnchor (RoleAnnotDecl an a b) anc cs = RoleAnnotDecl (setAnchorEpa an anc cs) a b
   exact (RoleAnnotDecl an ltycon roles) = do
-    markEpAnn an AnnType
-    markEpAnn an AnnRole
+    an0 <- markEpAnnL an lidl AnnType
+    an1 <- markEpAnnL an0 lidl AnnRole
     ltycon' <- markAnnotated ltycon
     let markRole (L l (Just r)) = do
           (L _ r') <- markAnnotated (L l r)
@@ -1971,7 +1986,7 @@ instance ExactPrint (RoleAnnotDecl GhcPs) where
           printStringAtSs l "_"
           return (L l Nothing)
     roles' <- mapM markRole roles
-    return (RoleAnnotDecl an ltycon' roles')
+    return (RoleAnnotDecl an1 ltycon' roles')
 
 -- ---------------------------------------------------------------------
 
@@ -1990,12 +2005,12 @@ instance ExactPrint (RuleBndr GhcPs) where
     ln' <- markAnnotated ln
     return (RuleBndr x ln')
   exact (RuleBndrSig an ln (HsPS x ty)) = do
-    markEpAnn an AnnOpenP -- "("
+    an0 <- markEpAnnL an lidl AnnOpenP -- "("
     ln' <- markAnnotated ln
-    markEpAnn an AnnDcolon
+    an1 <- markEpAnnL an0 lidl AnnDcolon
     ty' <- markAnnotated ty
-    markEpAnn an AnnCloseP -- ")"
-    return (RuleBndrSig an ln' (HsPS x ty'))
+    an2 <- markEpAnnL an1 lidl AnnCloseP -- ")"
+    return (RuleBndrSig an2 ln' (HsPS x ty'))
 
 -- ---------------------------------------------------------------------
 
@@ -2008,10 +2023,10 @@ instance (ExactPrint body) => ExactPrint (FamEqn GhcPs body) where
                 , feqn_pats   = pats
                 , feqn_fixity = fixity
                 , feqn_rhs    = rhs }) = do
-    (an', tycon', bndrs', pats', _) <- exactHsFamInstLHS an tycon bndrs pats fixity Nothing
-    markEpAnn an AnnEqual
+    (an0, tycon', bndrs', pats', _) <- exactHsFamInstLHS an tycon bndrs pats fixity Nothing
+    an1 <- markEpAnnL an0 lidl AnnEqual
     rhs' <- markAnnotated rhs
-    return (FamEqn { feqn_ext = an'
+    return (FamEqn { feqn_ext = an1
                    , feqn_tycon  = tycon'
                    , feqn_bndrs  = bndrs'
                    , feqn_pats   = pats'
@@ -2090,23 +2105,23 @@ instance ExactPrint (ClsInstDecl GhcPs) where
                      , cid_overlap_mode = mbOverlap
                      , cid_datafam_insts = adts })
       = do
-          (mbOverlap', inst_ty') <- top_matter
-          markEpAnn an AnnWhere
-          markEpAnn an AnnOpenC
-          markEpAnnAll an id AnnSemi
+          (an0, mbOverlap', inst_ty') <- top_matter
+          -- an0 <- markEpAnnL an' lidl AnnWhere
+          an1 <- markEpAnnL an0 lidl AnnOpenC
+          an2 <- markEpAnnAllL an1 lid AnnSemi
           ds <- withSortKey sortKey
                                (prepareListAnnotationA ats
                              ++ prepareListAnnotationF an adts
                              ++ prepareListAnnotationA (bagToList binds)
                              ++ prepareListAnnotationA sigs
                                )
-          markEpAnn an AnnCloseC -- '}'
+          an3 <- markEpAnnL an2 lidl AnnCloseC -- '}'
           let
             ats'   = undynamic ds
             adts'  = undynamic ds
             binds' = listToBag $ undynamic ds
             sigs'  = undynamic ds
-          return (ClsInstDecl { cid_ext = (an, sortKey)
+          return (ClsInstDecl { cid_ext = (an3, sortKey)
                               , cid_poly_ty = inst_ty', cid_binds = binds'
                               , cid_sigs = sigs', cid_tyfam_insts = ats'
                               , cid_overlap_mode = mbOverlap'
@@ -2114,11 +2129,11 @@ instance ExactPrint (ClsInstDecl GhcPs) where
 
       where
         top_matter = do
-          markEpAnn an AnnInstance
+          an0 <- markEpAnnL an lidl AnnInstance
           mo <- mapM markAnnotated mbOverlap
           it <- markAnnotated inst_ty
-          markEpAnn an AnnWhere -- Optional
-          return (mo,it)
+          an1 <- markEpAnnL an0 lidl AnnWhere -- Optional
+          return (an1, mo,it)
 
 -- ---------------------------------------------------------------------
 
@@ -2127,10 +2142,10 @@ instance ExactPrint (TyFamInstDecl GhcPs) where
   setAnnotationAnchor (TyFamInstDecl an a) anc cs = TyFamInstDecl (setAnchorEpa an anc cs) a
 
   exact d@(TyFamInstDecl { tfid_xtn = an, tfid_eqn = eqn }) = do
-    markEpAnn an AnnType
-    markEpAnn an AnnInstance
+    an0 <- markEpAnnL an lidl AnnType
+    an1 <- markEpAnnL an0 lidl AnnInstance
     eqn' <- markAnnotated eqn
-    return (d { tfid_eqn = eqn' })
+    return (d { tfid_xtn = an1, tfid_eqn = eqn' })
 
 -- ---------------------------------------------------------------------
 
@@ -2199,44 +2214,44 @@ instance ExactPrint (PatSynBind GhcPs GhcPs) where
             , psb_id = psyn, psb_args = details
             , psb_def = pat
             , psb_dir = dir }) = do
-    markEpAnn an AnnPattern
-    (psyn', details') <-
+    an0 <- markEpAnnL an lidl AnnPattern
+    (an1, psyn', details') <-
       case details of
         InfixCon v1 v2 -> do
           v1' <- markAnnotated v1
           psyn' <- markAnnotated psyn
           v2' <- markAnnotated v2
-          return (psyn',InfixCon v1' v2')
+          return (an0, psyn',InfixCon v1' v2')
         PrefixCon tvs vs -> do
           psyn' <- markAnnotated psyn
           tvs' <- markAnnotated tvs
           vs' <- markAnnotated vs
-          return (psyn', PrefixCon tvs' vs')
+          return (an0, psyn', PrefixCon tvs' vs')
         RecCon vs -> do
           psyn' <- markAnnotated psyn
-          markEpAnn an AnnOpenC  -- '{'
+          an1 <- markEpAnnL an0 lidl AnnOpenC  -- '{'
           vs' <- markAnnotated vs
-          markEpAnn an AnnCloseC -- '}'
-          return (psyn', RecCon vs')
+          an2 <- markEpAnnL an1 lidl AnnCloseC -- '}'
+          return (an2, psyn', RecCon vs')
 
-    (pat', dir') <-
+    (an2, pat', dir') <-
       case dir of
         Unidirectional           -> do
-          markEpAnn an AnnLarrow
+          an2 <- markEpAnnL an1 lidl AnnLarrow
           pat' <- markAnnotated pat
-          return (pat', dir)
+          return (an2, pat', dir)
         ImplicitBidirectional    -> do
-          markEpAnn an AnnEqual
+          an2 <- markEpAnnL an1 lidl AnnEqual
           pat' <- markAnnotated pat
-          return (pat', dir)
+          return (an2, pat', dir)
         ExplicitBidirectional mg -> do
-          markEpAnn an AnnLarrow
+          an2 <- markEpAnnL an1 lidl AnnLarrow
           pat' <- markAnnotated pat
-          markEpAnn an AnnWhere
+          an3 <- markEpAnnL an2 lidl  AnnWhere
           mg' <- markAnnotated mg
-          return (pat', ExplicitBidirectional mg')
+          return (an3, pat', ExplicitBidirectional mg')
 
-    return (PSB{ psb_ext = an
+    return (PSB{ psb_ext = an2
                , psb_id = psyn', psb_args = details'
                , psb_def = pat'
                , psb_dir = dir' })
@@ -2380,7 +2395,6 @@ instance ExactPrint (HsLocalBinds GhcPs) where
 
   exact (HsValBinds an' valbinds) = do
     let an = fixValbindsAnn an'
-    -- markLocatedAAL an al_rest AnnWhere
     an0 <- markEpAnnL an lal_rest AnnWhere
 
     let manc = case an of
@@ -2440,9 +2454,9 @@ instance ExactPrint (IPBind GhcPs) where
 
   exact (IPBind an (Left lr) rhs) = do
     lr' <- markAnnotated lr
-    markEpAnn an AnnEqual
+    an0 <- markEpAnnL an lidl AnnEqual
     rhs' <- markAnnotated rhs
-    return (IPBind an (Left lr') rhs')
+    return (IPBind an0 (Left lr') rhs')
 
   exact (IPBind _ (Right _) _) = error $ "ExactPrint IPBind: Right only after typechecker"
 
@@ -2946,7 +2960,7 @@ instance ExactPrint (HsExpr GhcPs) where
 
   exact (HsDo an do_or_list_comp stmts) = do
     debugM $ "HsDo"
-    (an',stmts') <- markAnnList True an $ exactDo an do_or_list_comp stmts
+    (an',stmts') <- markAnnListA True an $ \a -> exactDo a do_or_list_comp stmts
     return (HsDo an' do_or_list_comp stmts')
 
   exact (ExplicitList an es) = do
@@ -3089,27 +3103,31 @@ instance ExactPrint (HsExpr GhcPs) where
 -- ---------------------------------------------------------------------
 
 exactDo :: (Monad m, Monoid w, ExactPrint (LocatedAn an a))
-        => EpAnn AnnList -> (HsStmtContext any) -> (LocatedAn an a) -> EP w m (LocatedAn an a)
-exactDo an (DoExpr m)    stmts = exactMdo an m AnnDo             >> markMaybeDodgyStmts stmts
-exactDo an GhciStmtCtxt  stmts = markLocatedAAL an al_rest AnnDo >> markMaybeDodgyStmts stmts
-exactDo an ArrowExpr     stmts = markLocatedAAL an al_rest AnnDo >> markMaybeDodgyStmts stmts
-exactDo an (MDoExpr m)   stmts = exactMdo an m AnnMdo            >> markMaybeDodgyStmts stmts
-exactDo _  ListComp      stmts = markMaybeDodgyStmts stmts
-exactDo _  MonadComp     stmts = markMaybeDodgyStmts stmts
+        => EpAnn AnnList -> HsStmtContext any -> LocatedAn an a
+        -> EP w m (EpAnn AnnList, LocatedAn an a)
+exactDo an (DoExpr m)    stmts = exactMdo an m AnnDo          >>= \an0 -> markMaybeDodgyStmts an0 stmts
+exactDo an GhciStmtCtxt  stmts = markEpAnnL an lal_rest AnnDo >>= \an0 -> markMaybeDodgyStmts an0 stmts
+exactDo an ArrowExpr     stmts = markEpAnnL an lal_rest AnnDo >>= \an0 -> markMaybeDodgyStmts an0 stmts
+exactDo an (MDoExpr m)   stmts = exactMdo an m AnnMdo         >>= \an0 -> markMaybeDodgyStmts an0 stmts
+exactDo an ListComp      stmts = markMaybeDodgyStmts an stmts
+exactDo an MonadComp     stmts = markMaybeDodgyStmts an stmts
 exactDo _  _             _     = panic "pprDo" -- PatGuard, ParStmtCxt
 
-exactMdo :: (Monad m, Monoid w) => EpAnn AnnList -> Maybe ModuleName -> AnnKeywordId -> EP w m Int
-exactMdo an Nothing            kw = markLocatedAAL  an al_rest kw
-exactMdo an (Just module_name) kw = markLocatedAALS an al_rest kw (Just n)
+exactMdo :: (Monad m, Monoid w)
+  => EpAnn AnnList -> Maybe ModuleName -> AnnKeywordId -> EP w m (EpAnn AnnList) 
+exactMdo an Nothing            kw = markEpAnnL   an lal_rest kw
+exactMdo an (Just module_name) kw = markEpAnnLMS an lal_rest kw (Just n)
     where
       n = (moduleNameString module_name) ++ "." ++ (keywordToString kw)
 
 markMaybeDodgyStmts :: (Monad m, Monoid w, ExactPrint (LocatedAn an a))
-  => LocatedAn an a -> EP w m (LocatedAn an a)
-markMaybeDodgyStmts stmts =
+  => EpAnn AnnList -> LocatedAn an a -> EP w m (EpAnn AnnList, LocatedAn an a)
+markMaybeDodgyStmts an stmts =
   if isGoodSrcSpan (getLocA stmts)
-    then markAnnotatedWithLayout stmts
-    else return stmts
+    then do
+      r <- markAnnotatedWithLayout stmts
+      return (an, r)
+    else return (an, stmts)
 
 -- ---------------------------------------------------------------------
 instance ExactPrint (HsPragE GhcPs) where
@@ -3139,9 +3157,9 @@ instance ExactPrint (HsSplice GhcPs) where
   setAnnotationAnchor a@(HsSpliced _ _ _)        _ _ = a
 
   exact (HsTypedSplice an DollarSplice n e) = do
-    markEpAnn an AnnDollarDollar
+    an0 <- markEpAnnL an lidl AnnDollarDollar
     e' <- markAnnotated e
-    return (HsTypedSplice an DollarSplice n e')
+    return (HsTypedSplice an0 DollarSplice n e')
 
   exact (HsUntypedSplice an decoration n b) = do
     an0 <- if (decoration == DollarSplice)
@@ -3214,12 +3232,13 @@ instance (ExactPrint body)
   exact (HsRecField an f arg isPun) = do
     debugM $ "HsRecField"
     f' <- markAnnotated f
-    arg' <- if isPun
-      then return arg
+    (an0, arg') <- if isPun
+      then return (an, arg)
       else do
-        markEpAnn an AnnEqual
-        markAnnotated arg
-    return (HsRecField an f' arg' isPun)
+        an0 <- markEpAnnL an lidl AnnEqual
+        arg' <- markAnnotated arg
+        return (an0, arg')
+    return (HsRecField an0 f' arg' isPun)
 
 -- ---------------------------------------------------------------------
 
@@ -3230,12 +3249,13 @@ instance (ExactPrint body)
   exact (HsRecField an f arg isPun) = do
     debugM $ "HsRecField FieldLabelStrings"
     f' <- markAnnotated f
-    arg' <- if isPun
-      then return arg
+    (an0, arg') <- if isPun
+      then return (an, arg)
       else do
-        markEpAnn an AnnEqual
-        markAnnotated arg
-    return (HsRecField an f' arg' isPun)
+        an0 <- markEpAnnL an lidl AnnEqual
+        arg' <- markAnnotated arg
+        return (an0, arg')
+    return (HsRecField an0 f' arg' isPun)
 
 -- ---------------------------------------------------------------------
 
@@ -3285,7 +3305,7 @@ instance ExactPrint (NonEmpty (Located (HsFieldLabel GhcPs))) where
   exact (h :| t) = do
     h' <- markAnnotated h
     t' <- markAnnotated t
-    return (h :| t)
+    return (h' :| t')
 
 -- ---------------------------------------------------------------------
 
@@ -3410,11 +3430,11 @@ instance ExactPrint (HsCmd GhcPs) where
   exact (HsCmdIf an a e1 e2 e3) = do
     an0 <- markLensKw an laiIf AnnIf
     e1' <- markAnnotated e1
-    markAnnKwM an0 aiThenSemi AnnSemi
-    an2 <- markLensKw an0 laiThen AnnThen
+    an1 <- markLensKwM an0 laiThenSemi AnnSemi
+    an2 <- markLensKw an1 laiThen AnnThen
     e2' <- markAnnotated e2
-    markAnnKwM an aiElseSemi AnnSemi
-    an4 <- markLensKw an2 laiElse AnnElse
+    an3 <- markLensKwM an2 laiElseSemi AnnSemi
+    an4 <- markLensKw an3 laiElse AnnElse
     e3' <- markAnnotated e3
     return (HsCmdIf an4 a e1' e2' e3')
 
@@ -3500,8 +3520,8 @@ instance (
   exact (TransStmt an form stmts b using by c d e) = do
     debugM $ "TransStmt"
     stmts' <- markAnnotated stmts
-    (by', using') <- exactTransStmt an by using form
-    return (TransStmt an form stmts' b using' by' c d e)
+    (an', by', using') <- exactTransStmt an by using form
+    return (TransStmt an' form stmts' b using' by' c d e)
 
 
   exact (RecStmt an stmts a b c d e) = do
@@ -3526,30 +3546,30 @@ instance ExactPrint (ParStmtBlock GhcPs GhcPs) where
 
 exactTransStmt :: (Monad m, Monoid w)
   => EpAnn [AddEpAnn] -> Maybe (LHsExpr GhcPs) -> (LHsExpr GhcPs) -> TransForm
-  -> EP w m (Maybe (LHsExpr GhcPs), (LHsExpr GhcPs))
+  -> EP w m (EpAnn [AddEpAnn], Maybe (LHsExpr GhcPs), (LHsExpr GhcPs))
 exactTransStmt an by using ThenForm = do
   debugM $ "exactTransStmt:ThenForm"
-  markEpAnn an AnnThen
+  an0 <- markEpAnnL an lidl AnnThen
   using' <- markAnnotated using
   case by of
-    Nothing -> return (by, using')
+    Nothing -> return (an0, by, using')
     Just b -> do
-      markEpAnn an AnnBy
+      an1 <- markEpAnnL an0 lidl AnnBy
       b' <- markAnnotated b
-      return (Just b', using')
+      return (an1, Just b', using')
 exactTransStmt an by using GroupForm = do
   debugM $ "exactTransStmt:GroupForm"
-  markEpAnn an AnnThen
-  markEpAnn an AnnGroup
-  by' <- case by of
-    Nothing -> return by
+  an0 <- markEpAnnL an lidl AnnThen
+  an1 <- markEpAnnL an0 lidl AnnGroup
+  (an2, by') <- case by of
+    Nothing -> return (an1, by)
     Just b -> do
-      markEpAnn an AnnBy
+      an2 <- markEpAnnL an1 lidl AnnBy
       b' <- markAnnotated b
-      return (Just b')
-  markEpAnn an AnnUsing
+      return (an2, Just b')
+  an3 <- markEpAnnL an2 lidl AnnUsing
   using' <- markAnnotated using
-  return (by', using')
+  return (an3, by', using')
 
 -- ---------------------------------------------------------------------
 
@@ -3665,9 +3685,9 @@ instance ExactPrint (FunDep GhcPs) where
 
   exact (FunDep an ls rs') = do
     ls' <- markAnnotated ls
-    markEpAnn an AnnRarrow
+    an0 <- markEpAnnL an lidl AnnRarrow
     rs'' <- markAnnotated rs'
-    return (FunDep an ls' rs'')
+    return (FunDep an0 ls' rs'')
 
 -- ---------------------------------------------------------------------
 
@@ -3833,30 +3853,32 @@ instance ExactPrint (InjectivityAnn GhcPs) where
   getAnnotationEntry (InjectivityAnn an _ _) = fromAnn an
   setAnnotationAnchor (InjectivityAnn an a b) anc cs = InjectivityAnn (setAnchorEpa an anc cs) a b
   exact (InjectivityAnn an lhs rhs) = do
-    markEpAnn an AnnVbar
+    an0 <- markEpAnnL an lidl AnnVbar
     lhs' <- markAnnotated lhs
-    markEpAnn an AnnRarrow
+    an1 <- markEpAnnL an0 lidl AnnRarrow
     rhs' <- mapM markAnnotated rhs
-    return (InjectivityAnn an lhs' rhs')
+    return (InjectivityAnn an1 lhs' rhs')
 
 -- ---------------------------------------------------------------------
 
 class Typeable flag => ExactPrintTVFlag flag where
-  exactTVDelimiters :: (Monad m, Monoid w) => EpAnn [AddEpAnn] -> flag -> EP w m a -> EP w m a
+  exactTVDelimiters :: (Monad m, Monoid w)
+    => EpAnn [AddEpAnn] -> flag -> EP w m (HsTyVarBndr flag GhcPs)
+    -> EP w m (EpAnn [AddEpAnn], (HsTyVarBndr flag GhcPs))
 
 instance ExactPrintTVFlag () where
   exactTVDelimiters an _ thing_inside = do
-    markEpAnnAll an id AnnOpenP
+    an0 <- markEpAnnAllL an lid AnnOpenP
     r <- thing_inside
-    markEpAnnAll an id AnnCloseP
-    return r
+    an1 <- markEpAnnAllL an0 lid AnnCloseP
+    return (an1, r)
 
 instance ExactPrintTVFlag Specificity where
   exactTVDelimiters an s thing_inside = do
-    markEpAnnAll an id open
+    an0 <- markEpAnnAllL an lid open
     r <- thing_inside
-    markEpAnnAll an id close
-    return r
+    an1 <- markEpAnnAllL an0 lid close
+    return (an1, r)
     where
       (open, close) = case s of
         SpecifiedSpec -> (AnnOpenP, AnnCloseP)
@@ -3870,14 +3892,21 @@ instance ExactPrintTVFlag flag => ExactPrint (HsTyVarBndr flag GhcPs) where
   setAnnotationAnchor (KindedTyVar an a b c) anc cs = KindedTyVar (setAnchorEpa an anc cs) a b c
 
   exact (UserTyVar an flag n) = do
-    exactTVDelimiters an flag $ do
-      n' <- markAnnotated n
-      return (UserTyVar an flag n')
-  exact (KindedTyVar an flag n k) = exactTVDelimiters an flag $ do
-    n' <- markAnnotated n
-    markEpAnn an AnnDcolon
-    k' <- markAnnotated k
-    return (KindedTyVar an flag n' k')
+    r <- exactTVDelimiters an flag $ do
+           n' <- markAnnotated n
+           return (UserTyVar an flag n')
+    case r of
+      (an', UserTyVar _ flag'' n'') -> return (UserTyVar an' flag'' n'')
+      _ -> error "KindedTyVar should never happen here"
+  exact (KindedTyVar an flag n k) = do
+    r <- exactTVDelimiters an flag $ do
+          n' <- markAnnotated n
+          an0 <- markEpAnnL an lidl AnnDcolon
+          k' <- markAnnotated k
+          return (KindedTyVar an0 flag n' k')
+    case r of
+      (an',KindedTyVar _ flag'' n'' k'') -> return (KindedTyVar an' flag'' n'' k'')
+      _ -> error "UserTyVar should never happen here"
 
 -- ---------------------------------------------------------------------
 
@@ -3988,20 +4017,19 @@ instance ExactPrint (HsType GhcPs) where
     return (HsParTy an1 ty')
   exact (HsIParamTy an n t) = do
     n' <- markAnnotated n
-    markEpAnn an AnnDcolon
+    an0 <- markEpAnnL an lidl AnnDcolon
     t' <- markAnnotated t
-    return (HsIParamTy an n' t')
-  exact (HsStarTy an isUnicode)
-    = do
+    return (HsIParamTy an0 n' t')
+  exact (HsStarTy an isUnicode) = do
     if isUnicode
         then printStringAdvance "\x2605" -- Unicode star
         else printStringAdvance "*"
     return (HsStarTy an isUnicode)
   exact (HsKindSig an ty k) = do
     ty' <- markAnnotated ty
-    markEpAnn an AnnDcolon
+    an0 <- markEpAnnL an lidl AnnDcolon
     k' <- markAnnotated k
-    return (HsKindSig an ty' k')
+    return (HsKindSig an0 ty' k')
   exact (HsSpliceTy a splice) = do
     splice' <- markAnnotated splice
     return (HsSpliceTy a splice')
@@ -4057,16 +4085,16 @@ instance ExactPrint (HsForAllTelescope GhcPs) where
   setAnnotationAnchor (HsForAllInvis an a) anc cs = HsForAllInvis (setAnchorEpa an anc cs) a
 
   exact (HsForAllVis an bndrs)   = do
-    markLocatedAA an fst -- AnnForall
+    an0 <- markLensAA an lfst -- AnnForall
     bndrs' <- markAnnotated bndrs
-    markLocatedAA an snd -- AnnRarrow
-    return (HsForAllVis an bndrs')
+    an1 <- markLensAA an0 lsnd -- AnnRarrow
+    return (HsForAllVis an1 bndrs')
 
   exact (HsForAllInvis an bndrs) = do
-    markLocatedAA an fst -- AnnForall
+    an0 <- markLensAA an lfst -- AnnForall
     bndrs' <- markAnnotated bndrs
-    markLocatedAA an snd -- AnnDot
-    return (HsForAllInvis an bndrs')
+    an1 <- markLensAA an0 lsnd -- AnnDot
+    return (HsForAllInvis an1 bndrs')
 
 -- ---------------------------------------------------------------------
 
@@ -4078,11 +4106,11 @@ instance ExactPrint (HsDerivingClause GhcPs) where
   exact (HsDerivingClause { deriv_clause_ext      = an
                           , deriv_clause_strategy = dcs
                           , deriv_clause_tys      = dct }) = do
-    markEpAnn an AnnDeriving
+    an0 <- markEpAnnL an lidl AnnDeriving
     exact_strat_before
     dct' <- markAnnotated dct
     exact_strat_after
-    return (HsDerivingClause { deriv_clause_ext      = an
+    return (HsDerivingClause { deriv_clause_ext      = an0
                              , deriv_clause_strategy = dcs
                              , deriv_clause_tys      = dct' })
       where
@@ -4178,12 +4206,17 @@ instance ExactPrint (LocatedN RdrName) where
       case ann of
         NameAnn a o l c t -> do
           mn <- markName a o (Just (l,n)) c
-          let (o', (Just (l',_)), c') =
-                case mn of
-                 (o', (Just (l',n')), c') -> (o', (Just (l',n')), c')
-                 _ -> error "ExactPrint (LocatedN RdrName)"
-          t' <- markTrailing t
-          return (NameAnn a o' l' c' t')
+          -- let (o', (Just (l',_)), c') =
+          --       case mn of
+          --        (o', (Just (l',n')), c') -> (o', (Just (l',n')), c')
+          --        _ -> error "ExactPrint (LocatedN RdrName)"
+          -- t' <- markTrailing t
+          -- return (NameAnn a o' l' c' t')
+          case mn of
+            (o', (Just (l',_n)), c') -> do -- (o', (Just (l',n')), c')
+              t' <- markTrailing t
+              return (NameAnn a o' l' c' t')
+            _ -> error "ExactPrint (LocatedN RdrName)"
         NameAnnCommas a o commas c t -> do
           let (kwo,kwc) = adornments a
           (AddEpAnn _ o') <- markKwC NoCaptureComments (AddEpAnn kwo o)
@@ -4220,15 +4253,11 @@ printUnicode anc n = do
             -- TODO: unicode support?
               "forall" -> if spanLength (anchor anc) == 1 then "∀" else "forall"
               s -> s
-  -- printStringAtSs l str
-  -- loc <- printStringAtAAC NoCaptureComments (anchorToEpaLocation anc) str
-  -- case loc of
-  --   EpaSpan _ -> return anc
-  --   EpaDelta dp [] -> return anc { anchor_op = MovedAnchor dp }
   loc <- printStringAtAAC NoCaptureComments (EpaDelta (SameLine 0) []) str
   case loc of
     EpaSpan _ -> return anc
     EpaDelta dp [] -> return anc { anchor_op = MovedAnchor dp }
+    EpaDelta _ _cs -> error "printUnicode should not capture comments"
 
 
 markName :: (Monad m, Monoid w)
@@ -4252,11 +4281,18 @@ adornments NameParensHash = (AnnOpenPH, AnnClosePH)
 adornments NameBackquotes = (AnnBackquote, AnnBackquote)
 adornments NameSquare     = (AnnOpenS, AnnCloseS)
 
+
+markTrailingL :: (Monad m, Monoid w) => EpAnn a -> Lens a [TrailingAnn] -> EP w m (EpAnn a)
+markTrailingL EpAnnNotUsed l = return EpAnnNotUsed
+markTrailingL (EpAnn anc an cs) l = do
+  let ts = view l an
+  ts <- mapM markKwT (view l an)
+  return (EpAnn anc (set l ts an) cs)
+
 markTrailing :: (Monad m, Monoid w) => [TrailingAnn] -> EP w m [TrailingAnn]
 markTrailing ts = do
   p <- getPosP
   debugM $ "markTrailing:" ++ showPprUnsafe (p,ts)
-  -- mapM markKwT (sort ts)
   mapM markKwT ts
 
 -- ---------------------------------------------------------------------
@@ -4391,10 +4427,10 @@ instance ExactPrintTVFlag flag => ExactPrint (HsOuterTyVarBndrs flag GhcPs) wher
 
   exact b@(HsOuterImplicit _) = pure b
   exact (HsOuterExplicit an bndrs) = do
-    markLocatedAA an fst -- "forall"
+    an0 <- markLensAA an lfst -- "forall"
     bndrs' <- markAnnotated bndrs
-    markLocatedAA an snd -- "."
-    return (HsOuterExplicit an bndrs')
+    an1 <- markLensAA an0 lsnd -- "."
+    return (HsOuterExplicit an1 bndrs')
 
 -- ---------------------------------------------------------------------
 
@@ -4405,10 +4441,10 @@ instance ExactPrint (ConDeclField GhcPs) where
 
   exact (ConDeclField an names ftype mdoc) = do
     names' <- markAnnotated names
-    markEpAnn an AnnDcolon
+    an0 <- markEpAnnL an lidl AnnDcolon
     ftype' <- markAnnotated ftype
     mdoc' <- mapM markAnnotated mdoc
-    return (ConDeclField an names' ftype' mdoc')
+    return (ConDeclField an0 names' ftype' mdoc')
 
 -- ---------------------------------------------------------------------
 
@@ -4592,28 +4628,28 @@ instance ExactPrint (IE GhcPs) where
     return (IEThingAbs x thing')
   exact (IEThingAll an thing) = do
     thing' <- markAnnotated thing
-    markEpAnn an AnnOpenP
-    markEpAnn an AnnDotdot
-    markEpAnn an AnnCloseP
-    return (IEThingAll an thing')
+    an0 <- markEpAnnL an  lidl AnnOpenP
+    an1 <- markEpAnnL an0 lidl AnnDotdot
+    an2 <- markEpAnnL an1 lidl AnnCloseP
+    return (IEThingAll an2 thing')
 
   exact (IEThingWith an thing wc withs) = do
     thing' <- markAnnotated thing
-    markEpAnn an AnnOpenP
-    (wc', withs') <-
+    an0 <- markEpAnnL an lidl AnnOpenP
+    (an1, wc', withs') <-
       case wc of
         NoIEWildcard -> do
           withs'' <- markAnnotated withs
-          return (wc, withs'')
+          return (an0, wc, withs'')
         IEWildcard pos -> do
           let (bs, as) = splitAt pos withs
           bs' <- markAnnotated bs
-          markEpAnn an AnnDotdot
-          markEpAnn an AnnComma
+          an1 <- markEpAnnL an0 lidl AnnDotdot
+          an2 <- markEpAnnL an1 lidl AnnComma
           as' <- markAnnotated as
-          return (wc, bs'++as')
-    markEpAnn an AnnCloseP
-    return (IEThingWith an thing' wc' withs')
+          return (an2, wc, bs'++as')
+    an2 <- markEpAnnL an1 lidl AnnCloseP
+    return (IEThingWith an2 thing' wc' withs')
 
   exact (IEModuleContents an m) = do
     an0 <- markEpAnnL an lidl AnnModule
