@@ -125,8 +125,8 @@ mkTests = do
                     -- , noAnnotationTests
                     -- ,
                     --   prettyRoundTripTests
-                    ,
-                      roundTripBalanceCommentsTests
+                    -- ,
+                    --   roundTripBalanceCommentsTests
                     ,
                       roundTripMakeDeltaTests
                     ]
@@ -181,7 +181,19 @@ tt' = do
     -- mkTestModChange libdir changeLocToName   "LocToName.hs"
     -- mkParserTest libdir      "ghc80" "T10970a.hs"
 
+    -- mkTestModChange libdir changeLocalDecls2  "LocalDecls2.hs"
+    -- mkParserTestMD libdir "transform"  "LocalDecls2.hs"
+    -- mkParserTest libdir "transform"  "LocalDecls2.hs"
 
+    mkTestModChange libdir addLocaLDecl2  "AddLocalDecl2.hs"
+    -- mkParserTestMD libdir "transform"  "AddLocalDecl2.hs"
+    -- mkParserTest libdir "transform"  "AddLocalDecl2.hs"
+
+    -- mkParserTest libdir "ghc710" "Control.hs"
+    -- mkParserTestBC libdir "ghc710" "Control.hs"
+
+    -- mkTestModChange libdir changeAddDecl     "AddDecl.hs"
+    -- mkParserTestMD libdir "transform"  "AddDecl.hs"
 
     -- mkParserTest libdir      "ghc710" "EmptyMostly.hs"
 
@@ -257,7 +269,7 @@ tt' = do
     -- mkParserTestMD libdir      "ghc710" "AltsSemis.hs"
     -- mkParserTest libdir      "ghc710" "AltsSemis.hs"
     -- mkParserTest libdir      "ghc80" "Match.hs"
-    mkParserTest libdir "ghc92" "TopLevelSemis.hs"
+    -- mkParserTest libdir "ghc92" "TopLevelSemis.hs"
     -- mkTestModBad libdir "n-plus-k-patterns.hs"
 
     -- mkParserTest libdir      "ghc92" "n-plus-k-patterns.hs"

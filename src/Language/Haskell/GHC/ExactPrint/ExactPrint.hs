@@ -641,18 +641,6 @@ markEpAnnLMS' (EpAnn anc a cs) l kw (Just str) = do
           return (AddEpAnn kw' r')
       | otherwise = return (AddEpAnn kw' r)
 
--- Deprecate in favour of markEpAnnLMS
-markLocatedAALS :: (Monad m, Monoid w)
-                => EpAnn a -> (a -> [AddEpAnn]) -> AnnKeywordId -> Maybe String -> EP w m Int
-markLocatedAALS an f kw Nothing = markLocatedAAL an f kw
-markLocatedAALS EpAnnNotUsed  _ _ _ = return 1
-markLocatedAALS (EpAnn _ a _) f kw (Just str) = go (f a) >> return 1
-  where
-    go [] = return (1::Int)
-    go (AddEpAnn kw' r:as)
-      | kw' == kw = printStringAtAA r str >> return 1
-      | otherwise = go as
-
 -- ---------------------------------------------------------------------
 
 markArrow :: (Monad m, Monoid w)
@@ -1167,29 +1155,12 @@ markEpAnnL (EpAnn anc a cs) l kw = do
   anns <- mark' (view l a) kw
   return (EpAnn anc (set l anns a) cs)
 
--- Deprecate in favour of markEpAnnAllL
-markEpAnnAll :: (Monad m, Monoid w)
-  => EpAnn ann -> (ann -> [AddEpAnn]) -> AnnKeywordId -> EP w m Int
-markEpAnnAll EpAnnNotUsed _ _ = return 1
--- markEpAnnAll (EpAnn _ a _) f kw = mapM_ markKw (sort anns)
-markEpAnnAll (EpAnn _ a _) f kw = mapM_ markKw anns >> return 1
-  where
-    anns = filter (\(AddEpAnn ka _) -> ka == kw) (f a)
-
 markEpAnnAllL :: (Monad m, Monoid w)
   => EpAnn ann -> Lens ann [AddEpAnn] -> AnnKeywordId -> EP w m (EpAnn ann)
 markEpAnnAllL EpAnnNotUsed _ _ = return EpAnnNotUsed
 markEpAnnAllL (EpAnn anc a cs) l kw = do
   anns <- mapM doit (view l a)
   return (EpAnn anc (set l anns a) cs)
-  where
-    doit an@(AddEpAnn ka _)
-      = if ka == kw
-          then markKw an
-          else return an
-
-markAnnAll :: (Monad m, Monoid w) => [AddEpAnn] -> AnnKeywordId -> EP w m [AddEpAnn]
-markAnnAll a kw = mapM doit a
   where
     doit an@(AddEpAnn ka _)
       = if ka == kw
@@ -1274,56 +1245,38 @@ markAnnListA :: (Monad m, Monoid w)
   -> EP w m (EpAnn AnnList, a)
 markAnnListA _ EpAnnNotUsed action = do
   action EpAnnNotUsed
-markAnnListA reallyTrail an@(EpAnn anc ann cs) action = do
-  -- (ann', a') <- markAnnList' reallyTrail ann action
-  -- return (EpAnn anc ann' cs, a')
-  -- (an', a') <- markAnnList' reallyTrail an lid (action EpAnnNotUsed) -- AZ: for now
-  -- return (an', a')
-  undefined
+markAnnListA reallyTrail an action = do
+  debugM $ "markAnnListA: an=" ++ showAst an
+  an0 <- markLensMAA an lal_open
+  an1 <- if (not reallyTrail)
+           then markTrailingL an0 lal_trailing
+           else return an0
+  an2 <- markEpAnnAllL an1 lal_rest AnnSemi
+  (an3, r) <- action an2
+  an4 <- markLensMAA an3 lal_close
+  an5 <- if reallyTrail
+           then markTrailingL an4 lal_trailing
+           else return an4
+  debugM $ "markAnnListA: an5=" ++ showAst an
+  return (an5, r)
+
 
 markAnnList' :: (Monad m, Monoid w)
   => Bool -> EpAnn AnnList -> EP w m a -> EP w m (EpAnn AnnList, a)
 markAnnList' reallyTrail an action = do
   p <- getPosP
   debugM $ "markAnnList : " ++ showPprUnsafe (p, an)
-  -- al_open' <- mapM markAddEpAnn (al_open ann)
   an0 <- markLensMAA an lal_open
   an1 <- if (not reallyTrail)
            then markTrailingL an0 lal_trailing
            else return an0
-  -- al_rest' <- markAnnAll (al_rest ann) AnnSemi
-  an2 <- markEpAnnAllL an0 lal_rest AnnSemi
+  an2 <- markEpAnnAllL an1 lal_rest AnnSemi
   r <- action
-  -- al_close' <- mapM markAddEpAnn (al_close ann)
   an3 <- markLensMAA an2 lal_close
-  -- ann1 <- markTrailIf reallyTrail ann0 -- normal case
   an4 <- if reallyTrail
            then markTrailingL an3 lal_trailing
            else return an3
   return (an4, r)
-
--- markAnnList' :: (Monad m, Monoid w)
---   => Bool -> AnnList -> EP w m a -> EP w m (AnnList, a)
--- markAnnList' reallyTrail ann action = do
---   p <- getPosP
---   debugM $ "markAnnList : " ++ showPprUnsafe (p, ann)
---   al_open' <- mapM markAddEpAnn (al_open ann)
---   ann0 <- markTrailIf (not reallyTrail) ann -- Only makes sense for HsModule.
---   al_rest' <- markAnnAll (al_rest ann) AnnSemi
---   r <- action
---   al_close' <- mapM markAddEpAnn (al_close ann)
---   debugM $ "markAnnList: calling markTrailing with:" ++ showPprUnsafe (al_trailing ann)
---   ann1 <- markTrailIf reallyTrail ann0 -- normal case
---   return (ann1 { al_open = al_open', al_rest = al_rest', al_close = al_close'}
---          , r)
-
-markTrailIf :: (Monad m, Monoid w) => Bool -> AnnList -> EP w m AnnList
-markTrailIf cond ann =
-  if cond
-    then do
-      at' <- markTrailing (al_trailing ann) -- Only makes sense for HsModule.
-      return (ann{ al_trailing = at'})
-    else return ann
 
 -- ---------------------------------------------------------------------
 
@@ -1482,7 +1435,7 @@ instance ExactPrint HsModule where
           return (an1, Just m', mdeprec', mexports')
 
     debugM $ "After HsModule.AnnWhere done, an0=" ++ showAst (anns an0)
-    let ann_decls = EpAnn undefined (am_decls $ anns an0) emptyComments
+    let ann_decls = EpAnn (entry an) (am_decls $ anns an0) emptyComments
     (ann_decls', (decls', imports')) <- markAnnList' False ann_decls $ do
       imports' <- markTopLevelList imports
       decls' <- markTopLevelList decls
@@ -2395,6 +2348,7 @@ instance ExactPrint (HsLocalBinds GhcPs) where
 
   exact (HsValBinds an' valbinds) = do
     let an = fixValbindsAnn an'
+    debugM $ "exact HsValBinds: an=" ++ showAst an
     an0 <- markEpAnnL an lal_rest AnnWhere
 
     let manc = case an of
@@ -2407,6 +2361,7 @@ instance ExactPrint (HsLocalBinds GhcPs) where
       _ -> return ()
 
     (an1, valbinds') <- markAnnList False an0 $ markAnnotatedWithLayout valbinds
+    debugM $ "exact HsValBinds: an1=" ++ showAst an1
     return (HsValBinds an1 valbinds')
 
   exact (HsIPBinds an bs) = do
@@ -4283,9 +4238,8 @@ adornments NameSquare     = (AnnOpenS, AnnCloseS)
 
 
 markTrailingL :: (Monad m, Monoid w) => EpAnn a -> Lens a [TrailingAnn] -> EP w m (EpAnn a)
-markTrailingL EpAnnNotUsed l = return EpAnnNotUsed
+markTrailingL EpAnnNotUsed _ = return EpAnnNotUsed
 markTrailingL (EpAnn anc an cs) l = do
-  let ts = view l an
   ts <- mapM markKwT (view l an)
   return (EpAnn anc (set l ts an) cs)
 
@@ -5060,7 +5014,7 @@ takeAppliedCommentsPop = do
       return []
     h:t -> do
       modify (\s -> s { epCommentsApplied = t })
-      return h
+      return (reverse h)
 
 -- | Mark a comment as being applied.  This is used to update comments
 -- when doing delta processing

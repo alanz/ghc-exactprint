@@ -345,7 +345,7 @@ trailingAnnToAddEpAnn (AddLollyAnnU ss)  = AddEpAnn AnnLollyU ss
 
 -- TODO: move this to GHC
 anchorToEpaLocation :: Anchor -> EpaLocation
-anchorToEpaLocation (Anchor rs UnchangedAnchor) = EpaSpan rs
+anchorToEpaLocation (Anchor r UnchangedAnchor) = EpaSpan r
 anchorToEpaLocation (Anchor _ (MovedAnchor dp)) = EpaDelta dp []
 
 -- ---------------------------------------------------------------------
@@ -375,16 +375,16 @@ To be absolutely sure, we make the delta versions use -ve values.
 
 hackSrcSpanToAnchor :: SrcSpan -> Anchor
 hackSrcSpanToAnchor (UnhelpfulSpan _) = error "hackSrcSpanToAnchor"
-hackSrcSpanToAnchor (RealSrcSpan rs Nothing) = Anchor rs UnchangedAnchor
-hackSrcSpanToAnchor (RealSrcSpan rs (Just (BufSpan (BufPos s) (BufPos e))))
+hackSrcSpanToAnchor (RealSrcSpan r Nothing) = Anchor r UnchangedAnchor
+hackSrcSpanToAnchor (RealSrcSpan r (Just (BufSpan (BufPos s) (BufPos e))))
   = if s <= 0 && e <= 0
-    then Anchor rs (MovedAnchor (deltaPos (-s) (-e)))
-    else Anchor rs UnchangedAnchor
+    then Anchor r (MovedAnchor (deltaPos (-s) (-e)))
+    else Anchor r UnchangedAnchor
 
 hackAnchorToSrcSpan :: Anchor -> SrcSpan
-hackAnchorToSrcSpan (Anchor rs UnchangedAnchor) = RealSrcSpan rs Nothing
-hackAnchorToSrcSpan (Anchor rs (MovedAnchor dp))
-  = RealSrcSpan rs (Just (BufSpan (BufPos s) (BufPos e)))
+hackAnchorToSrcSpan (Anchor r UnchangedAnchor) = RealSrcSpan r Nothing
+hackAnchorToSrcSpan (Anchor r (MovedAnchor dp))
+  = RealSrcSpan r (Just (BufSpan (BufPos s) (BufPos e)))
   where
     s = - (getDeltaLine dp)
     e = - (deltaColumn dp)
