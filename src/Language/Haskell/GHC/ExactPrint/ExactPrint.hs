@@ -210,30 +210,80 @@ data CanUpdateAnchor = CanUpdateAnchor
                      | NoCanUpdateAnchor
                    deriving (Eq, Show)
 
-data Entry = Entry Anchor EpAnnComments FlushComments CanUpdateAnchor
-           | NoEntryVal
+data Entry
+  = Entry {
+      _eAnchor          :: !Anchor,
+      _eComments        :: !EpAnnComments,
+      _eFlushComments   :: !FlushComments,
+      _eCanUpdateAnchor :: !CanUpdateAnchor,
+      _eTrailingAnns    :: ![TrailingAnn]
+      }
+  | NoEntryVal
 
 -- | For flagging whether to capture comments in an EpaDelta or not
 data CaptureComments = CaptureComments
                      | NoCaptureComments
 
-mkEntry :: Anchor -> EpAnnComments -> Entry
-mkEntry anc cs = Entry anc cs NoFlushComments CanUpdateAnchor
+mkEntry :: Anchor -> EpAnnComments -> [TrailingAnn] -> Entry
+mkEntry anc cs ts = Entry anc cs NoFlushComments CanUpdateAnchor ts
 
-instance HasEntry (SrcSpanAnn' (EpAnn an)) where
-  fromAnn (SrcSpanAnn EpAnnNotUsed ss) = mkEntry (spanAsAnchor ss) emptyComments
+-- ---------------------------------------------------------------------
+-- HasEntry instances
+
+instance (HasTrailingAnns an) => HasEntry (SrcSpanAnn' (EpAnn an)) where
+  fromAnn (SrcSpanAnn EpAnnNotUsed ss) = mkEntry (spanAsAnchor ss) emptyComments []
   fromAnn (SrcSpanAnn an _) = fromAnn an
 
-instance HasEntry (EpAnn a) where
-  fromAnn (EpAnn anchor _ cs) = mkEntry anchor cs
+instance (HasTrailingAnns an) => HasEntry (EpAnn an) where
+  fromAnn (EpAnn anchor a cs) = mkEntry anchor cs (trailingAnns a)
   fromAnn EpAnnNotUsed = NoEntryVal
+
+class HasTrailingAnns a where
+  trailingAnns :: a -> [TrailingAnn]
+  trailingAnns = const [] -- default assume there are none
+
+-- HasTrailingAnns default empty
+instance HasTrailingAnns AnnsModule where
+instance HasTrailingAnns EpAnnImportDecl where
+instance HasTrailingAnns [AddEpAnn] where
+instance HasTrailingAnns HsRuleAnn where
+instance HasTrailingAnns AnnSig where
+instance HasTrailingAnns AnnPragma where
+instance HasTrailingAnns GrhsAnn where
+instance HasTrailingAnns EpAnnUnboundVar where
+instance HasTrailingAnns NoEpAnns where
+instance HasTrailingAnns AnnParen where
+instance HasTrailingAnns AnnExplicitSum where
+instance HasTrailingAnns EpAnnHsCase where
+instance HasTrailingAnns AnnsIf where
+instance HasTrailingAnns AnnsLet where
+instance HasTrailingAnns AnnProjection where
+instance HasTrailingAnns AnnFieldLabel where
+instance HasTrailingAnns EpaLocation where
+instance HasTrailingAnns AddEpAnn where
+instance HasTrailingAnns (AddEpAnn, AddEpAnn) where
+instance HasTrailingAnns AnnContext where
+instance HasTrailingAnns EpAnnSumPat where
+
+-- HasTrailingAnns with values
+instance HasTrailingAnns AnnList where
+  trailingAnns a = al_trailing a
+
+instance HasTrailingAnns TrailingAnn where
+  trailingAnns a = [a]
+
+instance HasTrailingAnns NameAnn where
+  trailingAnns a = nann_trailing a
+
+instance HasTrailingAnns AnnListItem where
+  trailingAnns (AnnListItem ts) = ts
 
 -- ---------------------------------------------------------------------
 
 fromAnn' :: (HasEntry a) => a -> Entry
 fromAnn' an = case fromAnn an of
   NoEntryVal -> NoEntryVal
-  Entry a c _ u -> Entry a c FlushComments u
+  Entry a c _ u ts -> Entry a c FlushComments u ts
 
 -- ---------------------------------------------------------------------
 
@@ -258,7 +308,7 @@ enterAnn NoEntryVal a = do
   r <- exact a
   debugM $ "enterAnn:done:NO ANN:p =" ++ show (p, astId a)
   return r
-enterAnn (Entry anchor' cs flush canUpdateAnchor) a = do
+enterAnn (Entry anchor' cs flush canUpdateAnchor ts) a = do
   p <- getPosP
   debugM $ "enterAnn:starting:(p,a) =" ++ show (p, astId a)
   -- debugM $ "enterAnn:(cs) =" ++ showGhc (cs)
@@ -551,7 +601,9 @@ printStringAtAAL (EpAnn anc an cs) l str = do
 
 printStringAtAAC :: (Monad m, Monoid w)
   => CaptureComments -> EpaLocation -> String -> EP w m EpaLocation
-printStringAtAAC capture (EpaSpan r) s = printStringAtRsC capture r s
+printStringAtAAC capture (EpaSpan r) s = do
+  -- printComments r
+  printStringAtRsC capture r s
 printStringAtAAC capture (EpaDelta d cs) s = do
   mapM_ (printOneComment . tokComment) cs
   pe <- getPriorEndD
@@ -1350,7 +1402,7 @@ commentAllocation ss = do
   -- TODO: this is inefficient, use Pos all the way through
   let (earlier,later) = partition (\(Comment _str loc _r _mo) -> (ss2pos $ anchor loc) <= (ss2pos ss)) cs
   putUnallocatedComments later
-  -- debugM $ "commentAllocation:(ss,earlier,later)" ++ show (rs2range ss,earlier,later)
+  debugM $ "commentAllocation:(ss,earlier,later)" ++ show (rs2range ss,earlier,later)
   return earlier
 
 -- ---------------------------------------------------------------------
@@ -1374,7 +1426,7 @@ markTopLevelList ls = mapM (\a -> setLayoutTopLevelP $ markAnnotated a) ls
 -- processing.
 instance (ExactPrint a) => ExactPrint (Located a) where
   -- getAnnotationEntry (L l _) = Entry (spanAsAnchor l) emptyComments NoFlushComments NoCanUpdateAnchor
-  getAnnotationEntry (L l _) = Entry (hackSrcSpanToAnchor l) emptyComments NoFlushComments CanUpdateAnchorOnly
+  getAnnotationEntry (L l _) = Entry (hackSrcSpanToAnchor l) emptyComments NoFlushComments CanUpdateAnchorOnly []
   -- getAnnotationEntry (L l _) = NoEntryVal
 
   -- setAnnotationAnchor _la _anc _cs = error "should not be called:setAnnotationAnchor (Located a)"
@@ -1388,6 +1440,9 @@ instance (ExactPrint a) => ExactPrint (LocatedA a) where
   exact (L la a) = do
     debugM $ "LocatedA a:la loc=" ++ show (ss2range $ locA la)
     a' <- markAnnotated a
+    -- What about comments between current output position and the
+    -- trailing anns? When balanceComments puts them as trailing
+    -- comments
     ann' <- markALocatedA (ann la)
     return (L (la { ann = ann'}) a')
 
@@ -4847,7 +4902,7 @@ exactConArgs (RecCon rpats) = do
 
 -- ---------------------------------------------------------------------
 
-entryFromLocatedA :: LocatedAn ann a -> Entry
+entryFromLocatedA :: (HasTrailingAnns ann) => LocatedAn ann a -> Entry
 entryFromLocatedA (L la _) = fromAnn la
 
 -- See https://gitlab.haskell.org/ghc/ghc/-/issues/20256
