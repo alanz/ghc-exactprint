@@ -1374,7 +1374,9 @@ markTopLevelList ls = mapM (\a -> setLayoutTopLevelP $ markAnnotated a) ls
 -- processing.
 instance (ExactPrint a) => ExactPrint (Located a) where
   -- getAnnotationEntry (L l _) = Entry (spanAsAnchor l) emptyComments NoFlushComments NoCanUpdateAnchor
-  getAnnotationEntry (L l _) = Entry (hackSrcSpanToAnchor l) emptyComments NoFlushComments CanUpdateAnchorOnly
+  getAnnotationEntry (L l _) = case l of
+    UnhelpfulSpan _ -> NoEntryVal
+    _ -> Entry (hackSrcSpanToAnchor l) emptyComments NoFlushComments CanUpdateAnchorOnly
   -- getAnnotationEntry (L l _) = NoEntryVal
 
   -- setAnnotationAnchor _la _anc _cs = error "should not be called:setAnnotationAnchor (Located a)"

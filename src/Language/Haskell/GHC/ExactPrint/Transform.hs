@@ -334,7 +334,9 @@ setEntryDPFromAnchor  off (EpaSpan anc) ll@(L la _) = setEntryDP ll dp'
 
 -- |Take the annEntryDelta associated with the first item and associate it with the second.
 -- Also transfer any comments occuring before it.
-transferEntryDP :: (Monad m, Monoid t) => LocatedAn t a -> LocatedAn t b -> TransformT m (LocatedAn t b)
+-- transferEntryDP :: (Monad m, Monoid t) => LocatedAn t a -> LocatedAn t b -> TransformT m (LocatedAn t b)
+transferEntryDP :: (Monad m, Monoid t2)
+  => LocatedAn t1 a -> LocatedAn t2 b -> TransformT m (LocatedAn t2 b)
 transferEntryDP (L (SrcSpanAnn EpAnnNotUsed l1) _) (L (SrcSpanAnn EpAnnNotUsed _) b) = do
   logTr $ "transferEntryDP': EpAnnNotUsed,EpAnnNotUsed"
   return (L (SrcSpanAnn EpAnnNotUsed l1) b)
