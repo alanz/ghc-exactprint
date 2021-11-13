@@ -2146,9 +2146,15 @@ instance ExactPrint (HsBind GhcPs) where
   setAnnotationAnchor pb@PatBind{} anc cs = pb { pat_ext = setAnchorEpa (pat_ext pb) anc cs}
   setAnnotationAnchor a _ _ = a
 
-  exact b@(FunBind _ _ matches _) = do
+  exact (FunBind x fid matches t) = do
     matches' <- markAnnotated matches
-    return b { fun_matches = matches' }
+    let
+      fun_id' = case unLoc (mg_alts matches') of
+        [] -> fid
+        (L _ m:_) -> case m_ctxt m of
+          FunRhs f _ _ -> f
+          _ -> fid
+    return (FunBind x fun_id' matches' t)
   exact (PatBind x pat grhss t) = do
     pat' <- markAnnotated pat
     grhss' <- markAnnotated grhss

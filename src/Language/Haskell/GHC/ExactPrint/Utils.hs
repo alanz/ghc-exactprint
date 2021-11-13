@@ -332,7 +332,13 @@ setAnchorHsModule hsmod anc cs = hsmod { hsmodAnn = an' }
     anc' = anc { anchor_op = UnchangedAnchor }
     an' = setAnchorEpa (hsmodAnn hsmod) anc' cs
 
+-- |Version of l2l that preserves the anchor, immportant if it has an
+-- updated AnchorOperation
+moveAnchor :: Monoid b => SrcAnn a -> SrcAnn b
+moveAnchor (SrcSpanAnn EpAnnNotUsed l) = noAnnSrcSpan l
+moveAnchor (SrcSpanAnn (EpAnn anc _ cs) l) = SrcSpanAnn (EpAnn anc mempty cs) l 
 
+-- ---------------------------------------------------------------------
 trailingAnnToAddEpAnn :: TrailingAnn -> AddEpAnn
 trailingAnnToAddEpAnn (AddSemiAnn ss)    = AddEpAnn AnnSemi ss
 trailingAnnToAddEpAnn (AddCommaAnn ss)   = AddEpAnn AnnComma ss
@@ -374,7 +380,7 @@ To be absolutely sure, we make the delta versions use -ve values.
 -}
 
 hackSrcSpanToAnchor :: SrcSpan -> Anchor
-hackSrcSpanToAnchor (UnhelpfulSpan _) = error "hackSrcSpanToAnchor"
+hackSrcSpanToAnchor (UnhelpfulSpan s) = error $ "hackSrcSpanToAnchor : UnhelpfulSpan:" ++ show s
 hackSrcSpanToAnchor (RealSrcSpan r Nothing) = Anchor r UnchangedAnchor
 hackSrcSpanToAnchor (RealSrcSpan r (Just (BufSpan (BufPos s) (BufPos e))))
   = if s <= 0 && e <= 0

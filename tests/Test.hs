@@ -117,19 +117,20 @@ mkTests = do
   roundTripMakeDeltaTests <- findTestsMD libdir
   prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
-                      internalTests,
-                      roundTripTests
-                    ,
-                      (transformTests libdir)
-                    , (failingTests libdir)
+                    --   internalTests,
+                    --   roundTripTests
+                    -- ,
+                    --   (transformTests libdir)
+                    -- , (failingTests libdir)
+                    -- ,
+                      roundTripBalanceCommentsTests
+                    -- ,
+                    --   roundTripMakeDeltaTests
+                    ]
                     -- , noAnnotationTests
                     -- ,
                     --   prettyRoundTripTests
                     -- ,
-                    --   roundTripBalanceCommentsTests
-                    ,
-                      roundTripMakeDeltaTests
-                    ]
 
 failingTests :: LibDir -> Test
 failingTests libdir = testList "Failing tests"
@@ -185,7 +186,7 @@ tt' = do
     -- mkParserTestMD libdir "transform"  "LocalDecls2.hs"
     -- mkParserTest libdir "transform"  "LocalDecls2.hs"
 
-    mkTestModChange libdir addLocaLDecl2  "AddLocalDecl2.hs"
+    -- mkTestModChange libdir addLocaLDecl2  "AddLocalDecl2.hs"
     -- mkParserTestMD libdir "transform"  "AddLocalDecl2.hs"
     -- mkParserTest libdir "transform"  "AddLocalDecl2.hs"
 
@@ -269,11 +270,18 @@ tt' = do
     -- mkParserTestMD libdir      "ghc710" "AltsSemis.hs"
     -- mkParserTest libdir      "ghc710" "AltsSemis.hs"
     -- mkParserTest libdir      "ghc80" "Match.hs"
-    -- mkParserTest libdir "ghc92" "TopLevelSemis.hs"
     -- mkTestModBad libdir "n-plus-k-patterns.hs"
+
+    -- mkParserTest libdir "ghc92" "TopLevelSemis.hs"
+    -- mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
+
+    -- mkParserTest libdir "ghc92" "TopLevelSemis1.hs"
+    -- mkParserTestBC libdir "ghc92" "TopLevelSemis1.hs"
 
     -- mkParserTest libdir      "ghc92" "n-plus-k-patterns.hs"
     -- mkParserTestMD libdir      "ghc92" "n-plus-k-patterns.hs"
+
+    mkParserTestMD libdir      "ghc92" "Retrie.hs"
 
     -- mkParserTest libdir      "ghc92" "BalanceComments1.hs"
     -- mkParserTestBC libdir    "ghc92" "BalanceComments1.hs"

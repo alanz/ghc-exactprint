@@ -80,6 +80,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
 
         -- * Pure functions
         , setEntryDP
+        , getEntryDP
         , transferEntryDP
         , transferEntryDP'
         , wrapSig, wrapDecl
@@ -96,12 +97,12 @@ import GHC  hiding (parseModule, parsedSource)
 import GHC.Data.Bag
 import GHC.Data.FastString
 
+import Data.Maybe
 import Data.Generics
 import Data.List (sort, sortBy)
 
 import Data.Functor.Identity
 import Control.Monad.State
-
 
 ------------------------------------------------------------------------------
 -- Transformation of source elements
@@ -313,6 +314,13 @@ setEntryDP (L (SrcSpanAnn (EpAnn (Anchor r _) an cs) l) a) dp
                                     else DifferentLine line col
                 edp = edp' `debug` ("setEntryDP :" ++ showGhc (edp', (ss2pos $ anchor $ getLoc lc), r))
 
+
+-- ---------------------------------------------------------------------
+  
+getEntryDP :: LocatedAn t a -> DeltaPos
+getEntryDP (L (SrcSpanAnn (EpAnn (Anchor _ (MovedAnchor dp)) _ _) _) _) = dp
+getEntryDP _ = SameLine 1
+
 -- ---------------------------------------------------------------------
 
 addEpaLocationDelta :: LayoutStartCol -> RealSrcSpan -> EpaLocation -> EpaLocation
@@ -334,8 +342,7 @@ setEntryDPFromAnchor  off (EpaSpan anc) ll@(L la _) = setEntryDP ll dp'
 
 -- |Take the annEntryDelta associated with the first item and associate it with the second.
 -- Also transfer any comments occuring before it.
--- transferEntryDP :: (Monad m, Monoid t) => LocatedAn t a -> LocatedAn t b -> TransformT m (LocatedAn t b)
-transferEntryDP :: (Monad m, Monoid t2)
+transferEntryDP :: (Monad m, Monoid t2, Typeable t1, Typeable t2)
   => LocatedAn t1 a -> LocatedAn t2 b -> TransformT m (LocatedAn t2 b)
 transferEntryDP (L (SrcSpanAnn EpAnnNotUsed l1) _) (L (SrcSpanAnn EpAnnNotUsed _) b) = do
   logTr $ "transferEntryDP': EpAnnNotUsed,EpAnnNotUsed"
@@ -343,22 +350,28 @@ transferEntryDP (L (SrcSpanAnn EpAnnNotUsed l1) _) (L (SrcSpanAnn EpAnnNotUsed _
 transferEntryDP (L (SrcSpanAnn (EpAnn anc _an cs) _l1) _) (L (SrcSpanAnn EpAnnNotUsed l2) b) = do
   logTr $ "transferEntryDP': EpAnn,EpAnnNotUsed"
   return (L (SrcSpanAnn (EpAnn anc mempty cs) l2) b)
-transferEntryDP (L (SrcSpanAnn (EpAnn anc1 _an1 cs1) _l1) _) (L (SrcSpanAnn (EpAnn _anc2 an2 cs2) l2) b) = do
+transferEntryDP (L (SrcSpanAnn (EpAnn anc1 an1 cs1) _l1) _) (L (SrcSpanAnn (EpAnn _anc2 an2 cs2) l2) b) = do
   logTr $ "transferEntryDP': EpAnn,EpAnn"
   -- Problem: if the original had preceding comments, blindly
   -- transferring the location is not correct
   case priorComments cs1 of
-    [] -> return (L (SrcSpanAnn (EpAnn anc1 an2 cs2) l2) b)
+    [] -> return (L (SrcSpanAnn (EpAnn anc1 (combine an1 an2) cs2) l2) b)
     -- TODO: what happens if the receiving side already has comments?
     (L anc _:_) -> do
       logDataWithAnnsTr "transferEntryDP':priorComments anc=" anc
-      return (L (SrcSpanAnn (EpAnn anc an2 cs2) l2) b)
+      -- return (L (SrcSpanAnn (EpAnn anc an2 cs2) l2) b)
+      return (L (SrcSpanAnn (EpAnn anc1 (combine an1 an2) (cs1 <> cs2)) l2) b)
 transferEntryDP (L (SrcSpanAnn EpAnnNotUsed _l1) _) (L (SrcSpanAnn (EpAnn anc2 an2 cs2) l2) b) = do
   logTr $ "transferEntryDP': EpAnnNotUsed,EpAnn"
   return (L (SrcSpanAnn (EpAnn anc2' an2 cs2) l2) b)
     where
       anc2' = case anc2 of
         Anchor _a op   -> Anchor (realSrcSpan l2) op
+
+
+-- |If a and b are the same type return first arg, else return second
+combine :: (Typeable a, Typeable b) => a -> b -> b
+combine x y = fromMaybe y (cast x)
 
 -- |Take the annEntryDelta associated with the first item and associate it with the second.
 -- Also transfer any comments occuring before it.
