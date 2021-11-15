@@ -336,7 +336,7 @@ setAnchorHsModule hsmod anc cs = hsmod { hsmodAnn = an' }
 -- updated AnchorOperation
 moveAnchor :: Monoid b => SrcAnn a -> SrcAnn b
 moveAnchor (SrcSpanAnn EpAnnNotUsed l) = noAnnSrcSpan l
-moveAnchor (SrcSpanAnn (EpAnn anc _ cs) l) = SrcSpanAnn (EpAnn anc mempty cs) l 
+moveAnchor (SrcSpanAnn (EpAnn anc _ cs) l) = SrcSpanAnn (EpAnn anc mempty cs) l
 
 -- ---------------------------------------------------------------------
 trailingAnnToAddEpAnn :: TrailingAnn -> AddEpAnn

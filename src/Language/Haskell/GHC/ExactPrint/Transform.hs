@@ -293,6 +293,30 @@ setEntryDP (L (SrcSpanAnn (EpAnn (Anchor r _) an (EpaComments [])) l) a) dp
   = L (SrcSpanAnn
            (EpAnn (Anchor r (MovedAnchor dp)) an (EpaComments []))
            l) a
+setEntryDP (L (SrcSpanAnn (EpAnn (Anchor r (MovedAnchor d)) an cs) l) a) dp
+  = L (SrcSpanAnn
+           (EpAnn (Anchor r (MovedAnchor d')) an cs')
+           l) a
+  where
+    (d',cs') = case cs of
+      EpaComments (h:t) ->
+        let
+          (dp0,c') = go h
+        in
+          (dp0, EpaComments (c':t))
+      EpaCommentsBalanced (h:t) ts ->
+        let
+          (dp0,c') = go h
+        in
+          (dp0, EpaCommentsBalanced (c':t) ts)
+      _ -> (dp, cs)
+    -- go (L (Anchor rr (MovedAnchor ma)) c) = (dp, L (Anchor rr (MovedAnchor ma)) c)
+    go (L (Anchor rr (MovedAnchor ma)) c) = (d,  L (Anchor rr (MovedAnchor ma)) c)
+    go (L (Anchor rr                _) c) = (d,  L (Anchor rr (MovedAnchor dp)) c)
+-- setEntryDP (L (SrcSpanAnn (EpAnn (Anchor r (MovedAnchor _)) an cs) l) a) dp
+--   = L (SrcSpanAnn
+--            (EpAnn (Anchor r (MovedAnchor dp)) an cs)
+--            l) a
 setEntryDP (L (SrcSpanAnn (EpAnn (Anchor r _) an cs) l) a) dp
   = case sort (priorComments cs) of
       [] ->
@@ -309,14 +333,13 @@ setEntryDP (L (SrcSpanAnn (EpAnn (Anchor r _) an cs) l) a) dp
                 delta = ss2delta (ss2pos $ anchor $ getLoc lc) r
                 line = getDeltaLine delta
                 col = deltaColumn delta
-                -- TODO: this adjustment by 1 happens all over the place. Generalise it
                 edp' = if line == 0 then SameLine col
                                     else DifferentLine line col
                 edp = edp' `debug` ("setEntryDP :" ++ showGhc (edp', (ss2pos $ anchor $ getLoc lc), r))
 
 
 -- ---------------------------------------------------------------------
-  
+
 getEntryDP :: LocatedAn t a -> DeltaPos
 getEntryDP (L (SrcSpanAnn (EpAnn (Anchor _ (MovedAnchor dp)) _ _) _) _) = dp
 getEntryDP _ = SameLine 1
