@@ -80,7 +80,8 @@ warn c _ = c
 -- | A good delta has no negative values.
 isGoodDelta :: DeltaPos -> Bool
 isGoodDelta (SameLine co) = co >= 0
-isGoodDelta (DifferentLine ro co) = ro > 0 && co >= 0
+-- isGoodDelta (DifferentLine ro co) = ro > 0 && co >= 0
+isGoodDelta (DifferentLine ro co) = ro > 0
   -- Note: DifferentLine invariant is ro is nonzero and positive
 
 

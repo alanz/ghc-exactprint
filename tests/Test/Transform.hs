@@ -668,7 +668,8 @@ addLocaLDecl6 libdir lp = do
   let
       newDecl' = setEntryDP (makeDeltaAst newDecl) (DifferentLine 1 5)
       doAddLocal = do
-        decls0 <- hsDecls (makeDeltaAst lp)
+        -- decls0 <- hsDecls (makeDeltaAst lp)
+        decls0 <- hsDecls lp
         [de1'',d2] <- balanceCommentsList decls0
 
         let de1 = captureMatchLineSpacing de1''
@@ -759,7 +760,8 @@ rmDecl3 :: Changer
 rmDecl3 _libdir lp = do
   let
       doRmDecl = do
-         [de1,d2] <- hsDecls (makeDeltaAst lp)
+         -- [de1,d2] <- hsDecls (makeDeltaAst lp)
+         [de1,d2] <- hsDecls lp
 
          (de1',Just sd1) <- modifyValD (getLocA de1) de1 $ \_m [sd1] -> do
            let sd1' = setEntryDP sd1 (DifferentLine 2 0)
@@ -846,7 +848,8 @@ rmDecl5 _libdir lp = do
             return (HsLet a lb' expr)
           go x = return x
 
-        everywhereM (mkM go) (makeDeltaAst lp)
+        -- everywhereM (mkM go) (makeDeltaAst lp)
+        everywhereM (mkM go) lp
 
   let (lp',_,_w) = runTransform doRmDecl
   debugM $ "log:[\n" ++ intercalate "\n" _w ++ "]log end\n"
@@ -914,6 +917,7 @@ rmDecl7 _libdir lp = do
   let
       doRmDecl = do
          tlDecs <- hsDecls (makeDeltaAst lp)
+         -- tlDecs <- hsDecls lp
          [s1,de1,d2,d3] <- balanceCommentsList tlDecs
 
          d3' <- transferEntryDP' d2 d3

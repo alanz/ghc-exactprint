@@ -117,15 +117,15 @@ mkTests = do
   roundTripMakeDeltaTests <- findTestsMD libdir
   prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
-                    --   internalTests,
-                    --   roundTripTests
+                      internalTests,
+                      roundTripTests
+                    ,
+                      (transformTests libdir)
+                    , (failingTests libdir)
                     -- ,
-                    --   (transformTests libdir)
-                    -- , (failingTests libdir)
-                    -- ,
-                      roundTripBalanceCommentsTests
-                    -- ,
-                    --   roundTripMakeDeltaTests
+                    --   roundTripBalanceCommentsTests
+                    ,
+                      roundTripMakeDeltaTests
                     ]
                     -- , noAnnotationTests
                     -- ,
@@ -186,9 +186,9 @@ tt' = do
     -- mkParserTestMD libdir "transform"  "LocalDecls2.hs"
     -- mkParserTest libdir "transform"  "LocalDecls2.hs"
 
-    -- mkTestModChange libdir addLocaLDecl2  "AddLocalDecl2.hs"
-    -- mkParserTestMD libdir "transform"  "AddLocalDecl2.hs"
-    -- mkParserTest libdir "transform"  "AddLocalDecl2.hs"
+    -- mkTestModChange libdir addLocaLDecl6  "AddLocalDecl6.hs"
+    -- mkParserTestMD libdir "transform"  "AddLocalDecl6.hs"
+    -- mkParserTest libdir "transform"  "AddLocalDecl6.hs"
 
     -- mkParserTest libdir "ghc710" "Control.hs"
     -- mkParserTestBC libdir "ghc710" "Control.hs"
@@ -250,9 +250,9 @@ tt' = do
     -- Still to fix, think it is local to ExactPrint.hs
     -- mkParserTestMD libdir      "ghc710" "RdrNames.hs"
 
-    -- mkTestModChange libdir rmDecl4  "RmDecl4.hs"
-    -- mkParserTest libdir     "ghc92" "RmDecl4.hs"
-    -- mkParserTestMD libdir     "ghc92" "RmDecl4.hs"
+    mkTestModChange libdir rmDecl7  "RmDecl7.hs"
+    -- mkParserTest libdir     "ghc92" "RmDecl3.hs"
+    -- mkParserTestMD libdir     "ghc92" "RmDecl3.hs"
 
     -- mkParserTestMD libdir     "ghc92" "Records2.hs"
 
@@ -278,10 +278,13 @@ tt' = do
     -- mkParserTest libdir "ghc92" "TopLevelSemis1.hs"
     -- mkParserTestBC libdir "ghc92" "TopLevelSemis1.hs"
 
+    -- mkParserTest libdir "ghc92" "FOL.hs"
+    -- mkParserTest libdir "ghc92" "TH_reifyDecl1a.hs"
+
     -- mkParserTest libdir      "ghc92" "n-plus-k-patterns.hs"
     -- mkParserTestMD libdir      "ghc92" "n-plus-k-patterns.hs"
 
-    mkParserTestMD libdir      "ghc92" "Retrie.hs"
+    -- mkParserTestMD libdir      "ghc92" "Retrie.hs"
 
     -- mkParserTest libdir      "ghc92" "BalanceComments1.hs"
     -- mkParserTestBC libdir    "ghc92" "BalanceComments1.hs"

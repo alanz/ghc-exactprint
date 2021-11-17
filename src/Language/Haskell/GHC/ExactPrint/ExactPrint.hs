@@ -285,11 +285,22 @@ enterAnn (Entry anchor' cs flush canUpdateAnchor) a = do
   -- -------------------------
   setAnchorU curAnchor
   -- -------------------------------------------------------------------
+  -- Make sure the running dPriorEndPosition gets updated according to
+  -- the change in the current anchor.
+
+  -- Compute the distance from dPriorEndPosition to the start of the new span.
+
+  -- While processing in the context of the prior anchor, we choose to
+  -- enter a new Anchor, which has a defined position relative to the
+  -- prior anchor, even if we do not actively output anything at that
+  -- point.
+  -- Is this edp?
+
+  -- -------------------------------------------------------------------
   -- The first part corresponds to the delta phase, so should only use
-  -- delta phase variables
-  -- -----------------------------------
+  -- delta phase variables -----------------------------------
   -- Calculate offset required to get to the start of the SrcSPan
-  off <- gets dLHS
+  off <- getLayoutOffsetD
   let spanStart = ss2pos curAnchor
   priorEndAfterComments <- getPriorEndD
   let edp' = adjustDeltaForOffset
@@ -323,6 +334,9 @@ enterAnn (Entry anchor' cs flush canUpdateAnchor) a = do
 
   debugM $ "enterAnn: (anchor_op, curAnchor):" ++ show (anchor_op anchor', rs2range curAnchor)
   debugM $ "enterAnn: (dLHS,spanStart,pec,edp)=" ++ show (off,spanStart,priorEndAfterComments,edp)
+  p <- getPosP
+  d <- getPriorEndD
+  debugM $ "enterAnn: (posp, posd)=" ++ show (p,d)
 
   -- end of delta phase processing
   -- -------------------------------------------------------------------
@@ -340,6 +354,7 @@ enterAnn (Entry anchor' cs flush canUpdateAnchor) a = do
   a' <- exact a
   mflush
 
+  -- end of sub-Anchor processing, start of tail end processing
   postCs <- cua canUpdateAnchor takeAppliedCommentsPop
   when (flush == NoFlushComments) $ do
     when ((getFollowingComments cs) /= []) $ do
@@ -354,7 +369,7 @@ enterAnn (Entry anchor' cs flush canUpdateAnchor) a = do
             NoCanUpdateAnchor -> a'
   -- let r = (setAnnotationAnchor a' newAchor (mkEpaComments [] postCs))
   pure () -- monadic action to flush debugM
-  debugM $ "calling setAnnotationAnchor:(curAnchor, newAchor,priorCs,postCs)=" ++ showAst (show (rs2range curAnchor), newAchor, priorCs, postCs)
+  -- debugM $ "calling setAnnotationAnchor:(curAnchor, newAchor,priorCs,postCs)=" ++ showAst (show (rs2range curAnchor), newAchor, priorCs, postCs)
   -- debugM $ "calling setAnnotationAnchor:(newAchor,postCs)=" ++ showAst (newAchor, postCs)
   debugM $ "enterAnn:done:(p,a) =" ++ show (p, astId a')
   return r
@@ -389,7 +404,7 @@ a line offset.
 -}
 addComments :: (Monad m, Monoid w) => [Comment] -> EP w m ()
 addComments csNew = do
-  debugM $ "addComments:" ++ show csNew
+  -- debugM $ "addComments:" ++ show csNew
   cs <- getUnallocatedComments
   -- Make sure we merge duplicates while sorting, needed until
   -- https://gitlab.haskell.org/ghc/ghc/-/issues/20239 is resolved
@@ -554,16 +569,18 @@ printStringAtAAC :: (Monad m, Monoid w)
 printStringAtAAC capture (EpaSpan r) s = printStringAtRsC capture r s
 printStringAtAAC capture (EpaDelta d cs) s = do
   mapM_ (printOneComment . tokComment) cs
-  pe <- getPriorEndD
+  pe1 <- getPriorEndD
   p1 <- getPosP
   printStringAtLsDelta d s
   p2 <- getPosP
-  -- debugM $ "printStringAtAA:(pe,p1,p2)=" ++ show (pe,p1,p2)
-  setPriorEndASTPD True (p1,p2)
+  pe2 <- getPriorEndD
+  debugM $ "printStringAtAA:(pe1,pe2,p1,p2)=" ++ show (pe1,pe2,p1,p2)
+  -- setPriorEndASTPD True (p1,p2)
+  setPriorEndASTPD True (pe1,pe2)
   cs' <- case capture of
     CaptureComments -> takeAppliedComments
     NoCaptureComments -> return []
-  debugM $ "printStringAtAA:(pe,p1,p2,cs')=" ++ show (pe,p1,p2,cs')
+  debugM $ "printStringAtAA:(pe1,pe2,p1,p2,cs')=" ++ show (pe1,pe2,p1,p2,cs')
   -- return (EpaDelta d (map comment2LEpaComment (noKWComments cs')))
   return (EpaDelta d (map comment2LEpaComment cs'))
 
@@ -1297,7 +1314,7 @@ printOneComment c@(Comment _str loc _r _mo) = do
     _ -> do
         pe <- getPriorEndD
         let dp = ss2delta pe (anchor loc)
-        -- debugM $ "printOneComment:(dp,pe,anchor loc)=" ++ showGhc (dp,pe,ss2pos $ anchor loc)
+        debugM $ "printOneComment:(dp,pe,anchor loc)=" ++ showGhc (dp,pe,ss2pos $ anchor loc)
         adjustDeltaForOffsetM dp
   mep <- getExtraDP
   dp' <- case mep of
@@ -1306,16 +1323,16 @@ printOneComment c@(Comment _str loc _r _mo) = do
       adjustDeltaForOffsetM edp
     _ -> return dp
   -- Start of debug printing
-  -- LayoutStartCol dOff <- gets dLHS
+  -- LayoutStartCol dOff <- getLayoutOffsetD
   -- debugM $ "printOneComment:(dp,dp',dOff)=" ++ showGhc (dp,dp',dOff)
   -- End of debug printing
-  setPriorEndD (ss2posEnd (anchor loc))
+  -- setPriorEndD (ss2posEnd (anchor loc))
   updateAndApplyComment c dp'
   printQueuedComment (anchor loc) c dp'
 
 updateAndApplyComment :: (Monad m, Monoid w) => Comment -> DeltaPos -> EP w m ()
 updateAndApplyComment co@(Comment str anc pp mo) dp = do
-  debugM $ "updateAndApplyComment: (dp,anc',co)=" ++ showAst (dp,anc',co)
+  -- debugM $ "updateAndApplyComment: (dp,anc',co)=" ++ showAst (dp,anc',co)
   applyComment (Comment str anc' pp mo)
   where
     -- anc' = anc { anchor_op = MovedAnchor dp }
@@ -1436,7 +1453,7 @@ instance ExactPrint HsModule where
 
           return (an1, Just m', mdeprec', mexports')
 
-    debugM $ "After HsModule.AnnWhere done, an0=" ++ showAst (anns an0)
+    -- debugM $ "After HsModule.AnnWhere done, an0=" ++ showAst (anns an0)
     let ann_decls = EpAnn (entry an) (am_decls $ anns an0) emptyComments
     (ann_decls', (decls', imports')) <- markAnnList' False ann_decls $ do
       imports' <- markTopLevelList imports
@@ -4894,20 +4911,23 @@ isGoodDeltaWithOffset dp colOffset = isGoodDelta (deltaPos l c)
 printQueuedComment :: (Monad m, Monoid w) => RealSrcSpan -> Comment -> DeltaPos -> EP w m ()
 printQueuedComment loc Comment{commentContents} dp = do
   p <- getPosP
+  d <- getPriorEndD
   colOffset <- getLayoutOffsetP
   let (dr,dc) = undelta (0,0) dp colOffset
   -- do not lose comments against the left margin
   when (isGoodDelta (deltaPos dr (max 0 dc))) $ do
     printCommentAt (undelta p dp colOffset) commentContents
-    setPriorEndASTD False loc
+    -- setPriorEndASTD False loc
   p' <- getPosP
+  d' <- getPriorEndD
+  debugM $ "printQueuedComment: (p,p',d,d')=" ++ show (p,p',d,d')
   debugM $ "printQueuedComment: (p,p',dp,colOffset,undelta)=" ++ show (p,p',dp,colOffset,undelta p dp colOffset)
 
 ------------------------------------------------------------------------
 
 setLayoutBoth :: (Monad m, Monoid w) => EP w m a -> EP w m a
 setLayoutBoth k = do
-  oldLHS <- gets dLHS
+  oldLHS <- getLayoutOffsetD
   oldAnchorOffset <- getLayoutOffsetP
   debugM $ "setLayoutBoth: (oldLHS,oldAnchorOffset)=" ++ show (oldLHS,oldAnchorOffset)
   modify (\a -> a { dMarkLayout = True
@@ -4958,12 +4978,11 @@ getAnchorU = gets uAnchorSpan
 
 setPriorEndD :: (Monad m, Monoid w) => Pos -> EP w m ()
 setPriorEndD pe = do
-  -- setLayoutStartIfNeededD (snd pe)
   setPriorEndNoLayoutD pe
 
 setPriorEndNoLayoutD :: (Monad m, Monoid w) => Pos -> EP w m ()
 setPriorEndNoLayoutD pe = do
-  debugM $ "setPriorEndNoLayout:pe=" ++ show pe
+  debugM $ "setPriorEndNoLayoutD:pe=" ++ show pe
   modify (\s -> s { dPriorEndPosition = pe })
 
 setPriorEndASTD :: (Monad m, Monoid w) => Bool -> RealSrcSpan -> EP w m ()
@@ -4982,6 +5001,9 @@ setLayoutStartD p = do
     debugM $ "setLayoutStartD: setting dLHS=" ++ show p
     modify (\s -> s { dMarkLayout = False
                     , dLHS = LayoutStartCol p})
+
+getLayoutOffsetD :: (Monad m, Monoid w) => EP w m LayoutStartCol
+getLayoutOffsetD = gets dLHS
 
 setAnchorU :: (Monad m, Monoid w) => RealSrcSpan -> EP w m ()
 setAnchorU rss = do
@@ -5049,13 +5071,24 @@ advance dp = do
   p <- getPosP
   colOffset <- getLayoutOffsetP
   debugM $ "advance:(p,dp,colOffset,ws)=" ++ show (p,dp,colOffset,undelta p dp colOffset)
-  printWhitespace (undelta p dp colOffset)
+  if isGoodDelta dp
+    then do
+      printWhitespace (undelta p dp colOffset)
+      -- Sync point. We only call advance as we start the sub-span
+      -- processing, so force the dPriorEndPosition to ???
+      p <- getPosP
+      d <- getPriorEndD
+      r <- getAnchorU
+      setPriorEndD (fst $ rs2range r)
+      debugM $ "advance:before: (posp, posd, posd')=" ++ show (p,d,fst $ rs2range r)
+    else
+      return ()
 
 -- ---------------------------------------------------------------------
 
 adjustDeltaForOffsetM :: (Monad m, Monoid w) => DeltaPos -> EP w m DeltaPos
 adjustDeltaForOffsetM dp = do
-  colOffset <- gets dLHS
+  colOffset <- getLayoutOffsetD
   return (adjustDeltaForOffset colOffset dp)
 
 -- ---------------------------------------------------------------------
@@ -5073,11 +5106,17 @@ printString layout str = do
   let strDP = dpFromString str
       cr = getDeltaLine strDP
   p <- getPosP
-  colOffset <- getLayoutOffsetP
+  d <- getPriorEndD
+  colOffsetP <- getLayoutOffsetP
+  colOffsetD <- getLayoutOffsetD
   -- debugM $ "printString:(p,colOffset,strDP,cr)="  ++ show (p,colOffset,strDP,cr)
   if cr == 0
-    then setPosP (undelta p strDP colOffset)
-    else setPosP (undelta p strDP 1)
+    then do
+      setPosP      (undelta p strDP colOffsetP)
+      setPriorEndD (undelta d strDP colOffsetD)
+    else do
+      setPosP      (undelta p strDP 1)
+      setPriorEndD (undelta d strDP 1)
 
   -- Debug stuff
   -- pp <- getPosP
@@ -5102,8 +5141,10 @@ printStringAdvance str = do
 newLine :: (Monad m, Monoid w) => EP w m ()
 newLine = do
     (l,_) <- getPosP
+    (ld,_) <- getPriorEndD
     printString False "\n"
     setPosP (l+1,1)
+    setPriorEndNoLayoutD (ld+1,1)
 
 padUntil :: (Monad m, Monoid w) => Pos -> EP w m ()
 padUntil (l,c) = do
