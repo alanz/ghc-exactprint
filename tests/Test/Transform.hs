@@ -184,7 +184,7 @@ changeLocalDecls2 libdir top@(L l p) = do
         let anc2 = (Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 5)))
         let an = EpAnn anc
                         (AnnList (Just anc2) Nothing Nothing
-                                 [(undeltaSpan (rs newSpan) AnnWhere (SameLine 0))] [])
+                                 [AddEpAnn AnnWhere (EpaDelta (SameLine 0) [])] [])
                         emptyComments
         let decls = [s,d]
         let sortKey = captureOrder decls
@@ -916,8 +916,8 @@ rmDecl7 :: Changer
 rmDecl7 _libdir lp = do
   let
       doRmDecl = do
-         tlDecs <- hsDecls (makeDeltaAst lp)
-         -- tlDecs <- hsDecls lp
+         -- tlDecs <- hsDecls (makeDeltaAst lp)
+         tlDecs <- hsDecls lp
          [s1,de1,d2,d3] <- balanceCommentsList tlDecs
 
          d3' <- transferEntryDP' d2 d3
@@ -943,7 +943,8 @@ rmDecl7 _libdir lp = do
 rmTypeSig1 :: Changer
 rmTypeSig1 _libdir lp = do
   let doRmDecl = do
-         tlDecs <- hsDecls (makeDeltaAst lp)
+         -- tlDecs <- hsDecls (makeDeltaAst lp)
+         tlDecs <- hsDecls lp
          let (s0:de1:d2) = tlDecs
              s1 = captureTypeSigSpacing s0
              (L l (SigD x1 (TypeSig x2 [n1,n2] typ))) = s1
@@ -975,7 +976,8 @@ rmTypeSig1 _libdir lp = do
 rmTypeSig2 :: Changer
 rmTypeSig2 _libdir lp = do
   let doRmDecl = do
-         tlDecs <- hsDecls (makeDeltaAst lp)
+         -- tlDecs <- hsDecls (makeDeltaAst lp)
+         tlDecs <- hsDecls lp
          let [de1] = tlDecs
 
          (de1',_) <- modifyValD (getLocA de1) de1 $ \_m [s,d] -> do
@@ -1071,11 +1073,11 @@ addHiding2 _libdir (L l p) = do
         let
           [L li imp1] = hsmodImports p
           Just (_,L lh ns) = ideclHiding imp1
-          lh' = (SrcSpanAnn (EpAnn (Anchor (realSrcSpan (locA lh)) m0)
+          lh' = (SrcSpanAnn (EpAnn (Anchor (realSrcSpan (locA lh)) m1)
                                      (AnnList Nothing
                                               (Just (AddEpAnn AnnOpenP  d1))
                                               (Just (AddEpAnn AnnCloseP d0))
-                                              [(AddEpAnn AnnHiding d1)]
+                                              [(AddEpAnn AnnHiding d0)]
                                               [])
                                        emptyComments) (locA lh))
           n1 = L (noAnnSrcSpanDP0 l1) (mkVarUnqual (mkFastString "n1"))

@@ -277,13 +277,15 @@ enterAnn (Entry anchor' cs flush canUpdateAnchor) a = do
       debugM $ "enterAnn: MovedAnchor:" ++ show dp
       -- Set the original anchor as prior end, so the rest of this AST
       -- fragment has a reference
-      -- BUT: this means the entry DP can be calculated incorrectly too,
-      -- for immediately nested items.
       setPriorEndNoLayoutD (ss2pos curAnchor)
     _ -> do
       return ()
   -- -------------------------
-  setAnchorU curAnchor
+  if ((fst $ fst $ rs2range curAnchor) >= 0)
+    then
+      setAnchorU curAnchor
+    else
+      debugM $ "enterAnn: not calling setAnchorU for : " ++ show (rs2range curAnchor)
   -- -------------------------------------------------------------------
   -- Make sure the running dPriorEndPosition gets updated according to
   -- the change in the current anchor.
@@ -4897,7 +4899,8 @@ printStringAtLsDelta cl s = do
       printStringAt (undelta p cl colOffset) s
         -- `debug` ("printStringAtLsDelta:(pos,s):" ++ show (undelta p cl colOffset,s))
       p' <- getPosP
-      debugM $ "printStringAtLsDelta:(pos,p',s):" ++ show (undelta p cl colOffset,p',s)
+      d <- getPriorEndD
+      debugM $ "printStringAtLsDelta:(pos,p',d,s):" ++ show (undelta p cl colOffset,p',d,s)
     else return () `debug` ("printStringAtLsDelta:bad delta for (mc,s):" ++ show (cl,s))
 
 -- ---------------------------------------------------------------------
@@ -5080,7 +5083,7 @@ advance dp = do
       d <- getPriorEndD
       r <- getAnchorU
       setPriorEndD (fst $ rs2range r)
-      debugM $ "advance:before: (posp, posd, posd')=" ++ show (p,d,fst $ rs2range r)
+      debugM $ "advance:after: (posp, posd, posd')=" ++ show (p,d,fst $ rs2range r)
     else
       return ()
 

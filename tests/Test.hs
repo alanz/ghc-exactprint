@@ -250,10 +250,12 @@ tt' = do
     -- Still to fix, think it is local to ExactPrint.hs
     -- mkParserTestMD libdir      "ghc710" "RdrNames.hs"
 
-    mkTestModChange libdir rmDecl7  "RmDecl7.hs"
-    -- mkParserTest libdir     "ghc92" "RmDecl3.hs"
+    -- mkTestModChange libdir rmDecl7  "RmDecl7.hs"
+    -- mkParserTest libdir     "transform" "RmDecl7.hs"
     -- mkParserTestMD libdir     "ghc92" "RmDecl3.hs"
 
+    mkTestModChange libdir addHiding2  "AddHiding2.hs"
+    -- mkParserTest libdir     "transform" "RmDecl7.hs"
     -- mkParserTestMD libdir     "ghc92" "Records2.hs"
 
     -- mkTestModChange libdir rmTypeSig1  "RmTypeSig1.hs"
