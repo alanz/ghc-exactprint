@@ -86,7 +86,7 @@ isGoodDelta (DifferentLine ro co) = ro > 0
 
 
 -- | Create a delta from the current position to the start of the given
--- @SrcSpan@.
+-- @RealSrcSpan@.
 ss2delta :: Pos -> RealSrcSpan -> DeltaPos
 ss2delta ref ss = pos2delta ref (ss2pos ss)
 
@@ -249,6 +249,10 @@ normaliseCommentText [] = []
 normaliseCommentText ('\r':xs) = normaliseCommentText xs
 normaliseCommentText (x:xs) = x:normaliseCommentText xs
 
+-- |Must compare without span filenames, for CPP injected comments with fake filename
+cmpComments :: Comment -> Comment -> Ordering
+cmpComments (Comment _ l1 _ _) (Comment _ l2 _ _) = compare (ss2pos $ anchor l1) (ss2pos $ anchor l2)
+
 -- | Makes a comment which originates from a specific keyword.
 mkKWComment :: AnnKeywordId -> EpaLocation -> Comment
 mkKWComment kw (EpaSpan ss)
@@ -347,6 +351,26 @@ trailingAnnToAddEpAnn (AddVbarAnn ss)    = AddEpAnn AnnVbar ss
 trailingAnnToAddEpAnn (AddRarrowAnn ss)  = AddEpAnn AnnRarrow ss
 trailingAnnToAddEpAnn (AddRarrowAnnU ss) = AddEpAnn AnnRarrowU ss
 trailingAnnToAddEpAnn (AddLollyAnnU ss)  = AddEpAnn AnnLollyU ss
+
+trailingAnnLoc :: TrailingAnn -> EpaLocation
+trailingAnnLoc (AddSemiAnn ss)    = ss
+trailingAnnLoc (AddCommaAnn ss)   = ss
+trailingAnnLoc (AddVbarAnn ss)    = ss
+trailingAnnLoc (AddRarrowAnn ss)  = ss
+trailingAnnLoc (AddRarrowAnnU ss) = ss
+trailingAnnLoc (AddLollyAnnU ss)  = ss
+
+setTrailingAnnLoc :: TrailingAnn -> EpaLocation -> TrailingAnn
+setTrailingAnnLoc (AddSemiAnn _)    ss = (AddSemiAnn ss)
+setTrailingAnnLoc (AddCommaAnn _)   ss = (AddCommaAnn ss)
+setTrailingAnnLoc (AddVbarAnn _)    ss = (AddVbarAnn ss)
+setTrailingAnnLoc (AddRarrowAnn _)  ss = (AddRarrowAnn ss)
+setTrailingAnnLoc (AddRarrowAnnU _) ss = (AddRarrowAnnU ss)
+setTrailingAnnLoc (AddLollyAnnU _)  ss = (AddLollyAnnU ss)
+
+
+addEpAnnLoc :: AddEpAnn -> EpaLocation
+addEpAnnLoc (AddEpAnn _ l) = l
 
 -- ---------------------------------------------------------------------
 

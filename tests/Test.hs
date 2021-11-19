@@ -127,6 +127,8 @@ mkTests = do
                     ,
                       roundTripMakeDeltaTests
                     ]
+
+-- Tests that are no longer needed
                     -- , noAnnotationTests
                     -- ,
                     --   prettyRoundTripTests
@@ -254,7 +256,7 @@ tt' = do
     -- mkParserTest libdir     "transform" "RmDecl7.hs"
     -- mkParserTestMD libdir     "ghc92" "RmDecl3.hs"
 
-    mkTestModChange libdir addHiding2  "AddHiding2.hs"
+    -- mkTestModChange libdir addHiding2  "AddHiding2.hs"
     -- mkParserTest libdir     "transform" "RmDecl7.hs"
     -- mkParserTestMD libdir     "ghc92" "Records2.hs"
 
@@ -275,9 +277,10 @@ tt' = do
     -- mkTestModBad libdir "n-plus-k-patterns.hs"
 
     -- mkParserTest libdir "ghc92" "TopLevelSemis.hs"
-    -- mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
+    mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
 
     -- mkParserTest libdir "ghc92" "TopLevelSemis1.hs"
+    -- mkParserTestMD libdir "ghc92" "TopLevelSemis1.hs"
     -- mkParserTestBC libdir "ghc92" "TopLevelSemis1.hs"
 
     -- mkParserTest libdir "ghc92" "FOL.hs"

@@ -420,9 +420,9 @@ pushDeclDP d _dp = d
 
 balanceCommentsList :: (Monad m) => [LHsDecl GhcPs] -> TransformT m [LHsDecl GhcPs]
 balanceCommentsList [] = return []
-balanceCommentsList [x] = return [x]
+balanceCommentsList [x] = return [tweakListComments x]
 balanceCommentsList (a:b:ls) = do
-  (a',b') <- balanceComments a b
+  (a',b') <- balanceComments (tweakListComments a) b
   r <- balanceCommentsList (b':ls)
   return (a':r)
 
@@ -715,6 +715,64 @@ commentOrigDelta (L (GHC.Anchor la _) (GHC.EpaComment t pp))
         op = if t == EpaEofComment && op' == MovedAnchor (SameLine 0)
                then MovedAnchor (DifferentLine 1 0)
                else op'
+
+spanOrigDelta :: RealSrcSpan -> RealSrcSpan -> DeltaPos
+spanOrigDelta prior cur = dp
+  where
+    (r,c) = ss2posEnd prior
+    dp = if r == 0
+           then (ss2delta (r,c+1) cur)
+           else (ss2delta (r,c)   cur)
+
+-- ---------------------------------------------------------------------
+
+-- A LocatedA item may have both trailing comments and trailing list items.
+-- Move any relevant comments preceding a list item into an EpaDelta instead.
+tweakListComments :: LocatedA a -> LocatedA a
+tweakListComments (L (SrcSpanAnn EpAnnNotUsed l) a) = L (SrcSpanAnn EpAnnNotUsed l) a
+tweakListComments (L (SrcSpanAnn (EpAnn anc an cs) l) a) = L (SrcSpanAnn (EpAnn anc an' cs') l) a
+  where
+    (an', cs') = case cs of
+      EpaComments [] -> (an,cs)
+      EpaComments c -> go (\cc -> EpaComments cc) an c
+      EpaCommentsBalanced _ [] -> (an,cs)
+      EpaCommentsBalanced p c -> go (\cc -> EpaCommentsBalanced p cc) an c
+
+    go :: ([LEpaComment] -> b)
+                      -> AnnListItem
+                      -> [LEpaComment]
+                      -> (AnnListItem, b)
+    go f (AnnListItem []) c = (AnnListItem [], f c)
+    go f (AnnListItem lis) c = process f ([],[]) lis (sort c)
+
+    process :: ([LEpaComment] -> b)
+                      -> ([TrailingAnn], [LEpaComment])
+                      -> [TrailingAnn]
+                      -> [LEpaComment]
+                      -> (AnnListItem, b)
+    process f (ll,cc) [] cs = (AnnListItem (reverse ll), f (cs++cc))
+    process f (ll,cc) li [] = (AnnListItem (reverse $ ll++li), f cc)
+    process f (ll,cc) (l:li) cs@(L lc c:_) = r
+      where
+        r = case trailingAnnLoc l of
+          EpaSpan s -> r
+            where
+              cond (L lc _) = anchor lc >= s
+              (these,those) = break cond cs
+              r = case these of
+                [] -> undefined
+                priors ->
+                      -- We have at least one comment preceding the list item
+                      let
+                        -- dp is the delta from the end of the last comment to
+                        -- the start of the AddXXXAnn delta
+                        dp = spanOrigDelta (anchor $ getLoc $ last priors) s
+
+                        l' = EpaDelta dp (commentOrigDeltas these)
+                        cs' = those
+                      in
+                        process f (setTrailingAnnLoc l l':ll,cc) li cs'
+          EpaDelta d' cs' -> process f (l:ll,cc) li cs
 
 -- ---------------------------------------------------------------------
 

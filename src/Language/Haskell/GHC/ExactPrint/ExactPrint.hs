@@ -423,10 +423,8 @@ flushComments :: (Monad m, Monoid w) => [LEpaComment] -> EP w m ()
 flushComments trailing = do
   addCommentsA trailing
   cs <- getUnallocatedComments
-  -- Must compare without span filenames, for CPP injected comments with fake filename
-  let cmp (Comment _ l1 _ _) (Comment _ l2 _ _) = compare (ss2pos $ anchor l1) (ss2pos $ anchor l2)
   debugM $ "flushing comments starting"
-  mapM_ printOneComment (sortBy cmp cs)
+  mapM_ printOneComment (sortBy cmpComments cs)
   debugM $ "flushing comments done"
 
 -- ---------------------------------------------------------------------
