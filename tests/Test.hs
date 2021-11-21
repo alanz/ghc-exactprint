@@ -117,15 +117,15 @@ mkTests = do
   roundTripMakeDeltaTests <- findTestsMD libdir
   prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
-                      internalTests,
-                      roundTripTests
-                    ,
-                      (transformTests libdir)
-                    , (failingTests libdir)
+                    --   internalTests,
+                    --   roundTripTests
                     -- ,
-                    --   roundTripBalanceCommentsTests
-                    ,
-                      roundTripMakeDeltaTests
+                    --   (transformTests libdir)
+                    -- , (failingTests libdir)
+                    -- ,
+                      roundTripBalanceCommentsTests
+                    -- ,
+                    --   roundTripMakeDeltaTests
                     ]
 
 -- Tests that are no longer needed
@@ -199,6 +199,8 @@ tt' = do
     -- mkParserTestMD libdir "transform"  "AddDecl.hs"
 
     -- mkParserTest libdir      "ghc710" "EmptyMostly.hs"
+    -- mkParserTestMD libdir      "ghc710" "EmptyMostly.hs"
+    -- mkParserTestBC libdir      "ghc710" "EmptyMostly.hs"
 
     -- mkParserTest libdir      "ghc92-copied" "AddLocalDecl5.expected.hs"
 
@@ -276,12 +278,23 @@ tt' = do
     -- mkParserTest libdir      "ghc80" "Match.hs"
     -- mkTestModBad libdir "n-plus-k-patterns.hs"
 
-    -- mkParserTest libdir "ghc92" "TopLevelSemis.hs"
-    mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
+    -- mkParserTest libdir "ghc80" "RandomPGC.hs"
+    -- mkParserTestMD libdir "ghc80" "RandomPGC.hs"
+    -- mkParserTestBC libdir "ghc80" "RandomPGC.hs"
 
-    -- mkParserTest libdir "ghc92" "TopLevelSemis1.hs"
-    -- mkParserTestMD libdir "ghc92" "TopLevelSemis1.hs"
-    -- mkParserTestBC libdir "ghc92" "TopLevelSemis1.hs"
+    -- mkParserTest libdir "ghc92" "CommentOrder.hs"
+    -- mkParserTest libdir "ghc92" "Checkpoint.hs"
+
+    -- mkParserTest libdir "ghc86" "HashTab.hs"
+    -- mkParserTestMD libdir "ghc86" "HashTab.hs"
+    -- mkParserTestBC libdir "ghc86" "HashTab.hs"
+
+    -- mkParserTest libdir      "ghc710" "QuasiQuote.hs"
+    -- mkParserTestBC libdir      "ghc710" "QuasiQuote.hs"
+    -- mkParserTest libdir "ghc92" "PragmaSpans.hs"
+
+    -- mkParserTest libdir      "ghc710" "LinePragma.hs"
+    mkParserTestBC libdir      "ghc710" "LinePragma.hs"
 
     -- mkParserTest libdir "ghc92" "FOL.hs"
     -- mkParserTest libdir "ghc92" "TH_reifyDecl1a.hs"
