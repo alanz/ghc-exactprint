@@ -15,8 +15,7 @@ author:              Alan Zimmerman, Matthew Pickering
 maintainer:          alan.zimm@gmail.com
 category:            Development
 build-type:          Simple
--- tested-with:         GHC == 9.2.1
-tested-with:         GHC == 9.2.0.20210821
+tested-with:         GHC == 9.2.1
 extra-source-files:  ChangeLog
                      tests/examples/failing/*.hs
                      tests/examples/ghc710-only/*.hs
@@ -58,6 +57,7 @@ library
   exposed-modules:     Language.Haskell.GHC.ExactPrint
                      , Language.Haskell.GHC.ExactPrint.ExactPrint
                      , Language.Haskell.GHC.ExactPrint.Lookup
+                     , Language.Haskell.GHC.ExactPrint.Orphans
                      , Language.Haskell.GHC.ExactPrint.Parsers
                      , Language.Haskell.GHC.ExactPrint.Preprocess
                      , Language.Haskell.GHC.ExactPrint.Transform

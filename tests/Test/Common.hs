@@ -12,6 +12,8 @@ module Test.Common (
               , ParseFailure(..)
               , ReportType(..)
               , roundTripTest
+              , roundTripTestBC
+              , roundTripTestMD
               , mkParsingTest
               , getModSummaryForFile
 
@@ -20,6 +22,7 @@ module Test.Common (
               , Changer
               , genTest
               , noChange
+              , changeMakeDelta
               , mkDebugOutput
               , showErrorMessages
               , LibDir
@@ -31,31 +34,23 @@ import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Parsers
 import Language.Haskell.GHC.ExactPrint.Preprocess
--- import Language.Haskell.GHC.ExactPrint.Types
 
 import qualified Control.Monad.IO.Class as GHC
 import qualified GHC           as GHC hiding (parseModule)
 import qualified GHC.Data.Bag          as GHC
 import qualified GHC.Driver.Session    as GHC
 import qualified GHC.Utils.Error       as GHC
--- import qualified GHC.Utils.Outputable  as GHC
--- import qualified GHC.Hs.Dump           as GHC
 
 import qualified GHC.LanguageExtensions as LangExt
-
--- import qualified Data.Map as Map
 
 import Control.Monad
 import Data.List hiding (find)
 
 import System.Directory
 
--- import Test.Consistency
-
 import Test.HUnit
 import System.FilePath
 
--- import Debug.Trace
 testPrefix :: FilePath
 testPrefix = "." </> "tests" </> "examples"
 
@@ -81,28 +76,15 @@ data ReportType =
    Success
  | RoundTripFailure deriving (Eq, Show)
 
-{-
-runParser :: GHC.P a -> GHC.DynFlags -> FilePath -> String -> GHC.ParseResult a
-runParser parser flags filename str = GHC.unP parser parseState
-    where
-      location = GHC.mkRealSrcLoc (GHC.mkFastString filename) 1 1
-      buffer = GHC.stringToStringBuffer str
-      parseState = GHC.mkPState flags buffer location
-
-parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located (GHC.HsModule GhcPs))
-parseFile = runParser GHC.parseModule
-
-mkApiAnns :: GHC.PState -> GHC.ApiAnns
-mkApiAnns pstate = (Map.fromListWith (++) . GHC.annotations $ pstate
-                   , Map.fromList ((GHC.noSrcSpan, GHC.comment_q pstate) : (GHC.annotations_comments pstate)))
-
-removeSpaces :: String -> String
-removeSpaces = map (\case {'\160' -> ' '; s -> s})
--}
 
 roundTripTest :: LibDir -> FilePath -> IO Report
 roundTripTest libdir f = genTest libdir noChange f f
 
+roundTripTestBC :: LibDir -> FilePath -> IO Report
+roundTripTestBC libdir f = genTest libdir changeBalanceComments f f
+
+roundTripTestMD :: LibDir -> FilePath -> IO Report
+roundTripTestMD libdir f = genTest libdir changeMakeDelta f f
 
 mkParsingTest :: (FilePath -> IO Report) -> FilePath -> FilePath -> Test
 mkParsingTest tester dir fp =
@@ -118,13 +100,22 @@ mkParsingTest tester dir fp =
                  forM_ (cppStatus r) writeHsPP
                  assertBool fp (status r == Success))
 
-
--- type Changer = (Anns -> GHC.ParsedSource -> IO (Anns,GHC.ParsedSource))
--- First param is libdir
 type Changer = LibDir -> (GHC.ParsedSource -> IO GHC.ParsedSource)
 
 noChange :: Changer
 noChange _libdir parsed = return parsed
+
+changeBalanceComments :: Changer
+changeBalanceComments _libdir (GHC.L l p) = do
+  let decls0 = GHC.hsmodDecls p
+      (decls,_,w) = runTransform (balanceCommentsList decls0)
+  let p2 = p { GHC.hsmodDecls = decls}
+  debugM $ "changeBalanceComments:\n" ++ unlines w
+  return (GHC.L l p2)
+
+changeMakeDelta :: Changer
+changeMakeDelta _libdir m = do
+  return (makeDeltaAst m)
 
 genTest :: LibDir -> Changer -> FilePath -> FilePath -> IO Report
 genTest libdir f origFile expectedFile  = do
@@ -212,14 +203,5 @@ getModSummaryForFile fileName = do
 
 showErrorMessages :: GHC.ErrorMessages -> String
 showErrorMessages m = show $ GHC.bagToList m
-
--- ---------------------------------------------------------------------
-
--- instance GHC.Outputable GHC.ApiAnns where
---   ppr (GHC.ApiAnns items eof comments rogueComments)
---     = GHC.text "ApiAnns" GHC.<+> GHC.ppr items
---                          GHC.<+> GHC.ppr eof
---                          GHC.<+> GHC.ppr comments
---                          GHC.<+> GHC.ppr rogueComments
 
 -- ---------------------------------------------------------------------

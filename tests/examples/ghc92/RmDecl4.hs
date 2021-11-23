@@ -3,8 +3,7 @@ module RmDecl4 where
 -- Remove first declaration from a where clause, last should still be indented
 ff y = y + zz + xx
   where
+    zz = 1 -- comment
     xx = 2
-
-zz = 1
 
 -- EOF

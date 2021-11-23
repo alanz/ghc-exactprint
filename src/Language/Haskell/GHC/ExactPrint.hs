@@ -11,8 +11,11 @@ module Language.Haskell.GHC.ExactPrint
         , module Language.Haskell.GHC.ExactPrint.Transform
 
         -- * Printing
+        , ExactPrint(..)
         , exactPrint
 
+        -- * Relativising
+        , makeDeltaAst
         ) where
 
 import Language.Haskell.GHC.ExactPrint.ExactPrint

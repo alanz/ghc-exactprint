@@ -19,12 +19,14 @@ module Language.Haskell.GHC.ExactPrint.Utils
   where
 import Control.Monad.State
 import Data.Function
+import Data.Maybe
 import Data.Ord (comparing)
 
 import Data.Generics
 
 import GHC.Hs.Dump
 import Language.Haskell.GHC.ExactPrint.Lookup
+import Language.Haskell.GHC.ExactPrint.Orphans ()
 
 import GHC hiding (EpaComment)
 import qualified GHC
@@ -33,8 +35,6 @@ import GHC.Types.Name.Reader
 import GHC.Types.SrcLoc
 import GHC.Data.FastString
 import GHC.Utils.Outputable (showSDocUnsafe, showPprUnsafe)
-
-import Control.Arrow
 
 import Data.List (sortBy, elemIndex)
 
@@ -80,12 +80,13 @@ warn c _ = c
 -- | A good delta has no negative values.
 isGoodDelta :: DeltaPos -> Bool
 isGoodDelta (SameLine co) = co >= 0
-isGoodDelta (DifferentLine ro co) = ro > 0 && co >= 0
+-- isGoodDelta (DifferentLine ro co) = ro > 0 && co >= 0
+isGoodDelta (DifferentLine ro co) = ro > 0
   -- Note: DifferentLine invariant is ro is nonzero and positive
 
 
 -- | Create a delta from the current position to the start of the given
--- @SrcSpan@.
+-- @RealSrcSpan@.
 ss2delta :: Pos -> RealSrcSpan -> DeltaPos
 ss2delta ref ss = pos2delta ref (ss2pos ss)
 
@@ -134,15 +135,15 @@ undeltaSpan :: RealSrcSpan -> AnnKeywordId -> DeltaPos -> AddEpAnn
 undeltaSpan anchor kw dp = AddEpAnn kw (EpaSpan sp)
   where
     (l,c) = undelta (ss2pos anchor) dp (LayoutStartCol 0)
-    len = length (keywordToString (G kw))
+    len = length (keywordToString kw)
     sp = range2rs ((l,c),(l,c+len))
 
 -- ---------------------------------------------------------------------
 
-adjustDeltaForOffset :: Int -> LayoutStartCol -> DeltaPos -> DeltaPos
-adjustDeltaForOffset _ _colOffset                      dp@(SameLine _) = dp
-adjustDeltaForOffset d (LayoutStartCol colOffset) (DifferentLine l c)
-  = DifferentLine l (c - colOffset - d)
+adjustDeltaForOffset :: LayoutStartCol -> DeltaPos -> DeltaPos
+adjustDeltaForOffset _colOffset                      dp@(SameLine _) = dp
+adjustDeltaForOffset (LayoutStartCol colOffset) (DifferentLine l c)
+  = DifferentLine l (c - colOffset)
 
 -- ---------------------------------------------------------------------
 
@@ -224,14 +225,23 @@ ghcCommentText (L _ (GHC.EpaComment (EpaBlockComment s) _))    = s
 ghcCommentText (L _ (GHC.EpaComment (EpaEofComment) _))        = ""
 
 tokComment :: LEpaComment -> Comment
-tokComment t@(L lt _) = mkComment (normaliseCommentText $ ghcCommentText t) lt
+tokComment t@(L lt c) = mkComment (normaliseCommentText $ ghcCommentText t) lt (ac_prior_tok c)
 
-mkLEpaComment :: String -> Anchor -> LEpaComment
--- Note: fudging the ac_prior_tok value, hope it does not cause a problem
-mkLEpaComment s anc = (L anc (GHC.EpaComment (EpaLineComment s) (anchor anc)))
+mkEpaComments :: [Comment] -> [Comment] -> EpAnnComments
+mkEpaComments priorCs []
+  = EpaComments (map comment2LEpaComment priorCs)
+mkEpaComments priorCs postCs
+  = EpaCommentsBalanced (map comment2LEpaComment priorCs) (map comment2LEpaComment postCs)
 
-mkComment :: String -> Anchor -> Comment
-mkComment c anc = Comment c anc Nothing
+comment2LEpaComment :: Comment -> LEpaComment
+comment2LEpaComment (Comment s anc r _mk) = mkLEpaComment s anc r
+
+
+mkLEpaComment :: String -> Anchor -> RealSrcSpan -> LEpaComment
+mkLEpaComment s anc r = (L anc (GHC.EpaComment (EpaLineComment s) r))
+
+mkComment :: String -> Anchor -> RealSrcSpan -> Comment
+mkComment c anc r = Comment c anc r Nothing
 
 -- Windows comments include \r in them from the lexer.
 normaliseCommentText :: String -> String
@@ -239,15 +249,33 @@ normaliseCommentText [] = []
 normaliseCommentText ('\r':xs) = normaliseCommentText xs
 normaliseCommentText (x:xs) = x:normaliseCommentText xs
 
+-- |Must compare without span filenames, for CPP injected comments with fake filename
+cmpComments :: Comment -> Comment -> Ordering
+cmpComments (Comment _ l1 _ _) (Comment _ l2 _ _) = compare (ss2pos $ anchor l1) (ss2pos $ anchor l2)
+
+-- |Sort, comparing without span filenames, for CPP injected comments with fake filename
+sortComments :: [Comment] -> [Comment]
+sortComments cs = sortBy cmpComments cs
+
+-- |Sort, comparing without span filenames, for CPP injected comments with fake filename
+sortEpaComments :: [LEpaComment] -> [LEpaComment]
+sortEpaComments cs = sortBy cmp cs
+  where
+    cmp (L l1 _) (L l2 _) = compare (ss2pos $ anchor l1) (ss2pos $ anchor l2)
+
 -- | Makes a comment which originates from a specific keyword.
 mkKWComment :: AnnKeywordId -> EpaLocation -> Comment
 mkKWComment kw (EpaSpan ss)
-  = Comment (keywordToString $ G kw) (Anchor ss UnchangedAnchor) (Just kw)
-mkKWComment kw (EpaDelta dp)
-  = Comment (keywordToString $ G kw) (Anchor placeholderRealSpan (MovedAnchor dp)) (Just kw)
+  = Comment (keywordToString kw) (Anchor ss UnchangedAnchor) ss (Just kw)
+mkKWComment kw (EpaDelta dp _)
+  = Comment (keywordToString kw) (Anchor placeholderRealSpan (MovedAnchor dp)) placeholderRealSpan (Just kw)
 
-comment2dp :: (Comment,  DeltaPos) -> (KeywordId, DeltaPos)
-comment2dp = first AnnComment
+-- | Detects a comment which originates from a specific keyword.
+isKWComment :: Comment -> Bool
+isKWComment c = isJust (commentOrigin c)
+
+noKWComments :: [Comment] -> [Comment]
+noKWComments = filter (\c -> not (isKWComment c))
 
 sortAnchorLocated :: [GenLocated Anchor a] -> [GenLocated Anchor a]
 sortAnchorLocated = sortBy (compare `on` (anchor . getLoc))
@@ -287,9 +315,119 @@ locatedAnAnchor :: LocatedAn a t -> RealSrcSpan
 locatedAnAnchor (L (SrcSpanAnn EpAnnNotUsed l) _) = realSrcSpan l
 locatedAnAnchor (L (SrcSpanAnn (EpAnn a _ _) _) _) = anchor a
 
- -- ---------------------------------------------------------------------
+-- ---------------------------------------------------------------------
 
 showAst :: (Data a) => a -> String
 showAst ast
   = showSDocUnsafe
     $ showAstData NoBlankSrcSpan NoBlankEpAnnotations ast
+
+-- ---------------------------------------------------------------------
+
+setAnchorAn :: (Monoid an) => LocatedAn an a -> Anchor -> EpAnnComments -> LocatedAn an a
+setAnchorAn (L (SrcSpanAnn EpAnnNotUsed l)    a) anc cs
+  = (L (SrcSpanAnn (EpAnn anc mempty cs) l) a)
+     `debug` ("setAnchorAn: anc=" ++ showAst anc)
+setAnchorAn (L (SrcSpanAnn (EpAnn _ an _) l) a) anc cs
+  = (L (SrcSpanAnn (EpAnn anc an cs) l) a)
+     `debug` ("setAnchorAn: anc=" ++ showAst anc)
+
+setAnchorEpa :: (Monoid an) => EpAnn an -> Anchor -> EpAnnComments -> EpAnn an
+setAnchorEpa EpAnnNotUsed   anc cs = EpAnn anc mempty cs
+setAnchorEpa (EpAnn _ an _) anc cs = EpAnn anc an     cs
+
+setAnchorEpaL :: EpAnn AnnList -> Anchor -> EpAnnComments -> EpAnn AnnList
+setAnchorEpaL EpAnnNotUsed   anc cs = EpAnn anc mempty cs
+setAnchorEpaL (EpAnn _ an _) anc cs = EpAnn anc (an {al_anchor = Nothing}) cs
+
+setAnchorHsModule :: HsModule -> Anchor -> EpAnnComments -> HsModule
+setAnchorHsModule hsmod anc cs = hsmod { hsmodAnn = an' }
+  where
+    -- anc' = anc { anchor_op = MovedAnchor (SameLine 0)}
+    anc' = anc { anchor_op = UnchangedAnchor }
+    an' = setAnchorEpa (hsmodAnn hsmod) anc' cs
+
+-- |Version of l2l that preserves the anchor, immportant if it has an
+-- updated AnchorOperation
+moveAnchor :: Monoid b => SrcAnn a -> SrcAnn b
+moveAnchor (SrcSpanAnn EpAnnNotUsed l) = noAnnSrcSpan l
+moveAnchor (SrcSpanAnn (EpAnn anc _ cs) l) = SrcSpanAnn (EpAnn anc mempty cs) l
+
+-- ---------------------------------------------------------------------
+trailingAnnToAddEpAnn :: TrailingAnn -> AddEpAnn
+trailingAnnToAddEpAnn (AddSemiAnn ss)    = AddEpAnn AnnSemi ss
+trailingAnnToAddEpAnn (AddCommaAnn ss)   = AddEpAnn AnnComma ss
+trailingAnnToAddEpAnn (AddVbarAnn ss)    = AddEpAnn AnnVbar ss
+trailingAnnToAddEpAnn (AddRarrowAnn ss)  = AddEpAnn AnnRarrow ss
+trailingAnnToAddEpAnn (AddRarrowAnnU ss) = AddEpAnn AnnRarrowU ss
+trailingAnnToAddEpAnn (AddLollyAnnU ss)  = AddEpAnn AnnLollyU ss
+
+trailingAnnLoc :: TrailingAnn -> EpaLocation
+trailingAnnLoc (AddSemiAnn ss)    = ss
+trailingAnnLoc (AddCommaAnn ss)   = ss
+trailingAnnLoc (AddVbarAnn ss)    = ss
+trailingAnnLoc (AddRarrowAnn ss)  = ss
+trailingAnnLoc (AddRarrowAnnU ss) = ss
+trailingAnnLoc (AddLollyAnnU ss)  = ss
+
+setTrailingAnnLoc :: TrailingAnn -> EpaLocation -> TrailingAnn
+setTrailingAnnLoc (AddSemiAnn _)    ss = (AddSemiAnn ss)
+setTrailingAnnLoc (AddCommaAnn _)   ss = (AddCommaAnn ss)
+setTrailingAnnLoc (AddVbarAnn _)    ss = (AddVbarAnn ss)
+setTrailingAnnLoc (AddRarrowAnn _)  ss = (AddRarrowAnn ss)
+setTrailingAnnLoc (AddRarrowAnnU _) ss = (AddRarrowAnnU ss)
+setTrailingAnnLoc (AddLollyAnnU _)  ss = (AddLollyAnnU ss)
+
+
+addEpAnnLoc :: AddEpAnn -> EpaLocation
+addEpAnnLoc (AddEpAnn _ l) = l
+
+-- ---------------------------------------------------------------------
+
+-- TODO: move this to GHC
+anchorToEpaLocation :: Anchor -> EpaLocation
+anchorToEpaLocation (Anchor r UnchangedAnchor) = EpaSpan r
+anchorToEpaLocation (Anchor _ (MovedAnchor dp)) = EpaDelta dp []
+
+-- ---------------------------------------------------------------------
+-- Horrible hack for dealing with some things still having a SrcSpan,
+-- not an Anchor.
+
+{-
+A SrcSpan is defined as
+
+data SrcSpan =
+    RealSrcSpan !RealSrcSpan !(Maybe BufSpan)  -- See Note [Why Maybe BufPos]
+  | UnhelpfulSpan !UnhelpfulSpanReason
+
+data BufSpan =
+  BufSpan { bufSpanStart, bufSpanEnd :: {-# UNPACK #-} !BufPos }
+  deriving (Eq, Ord, Show)
+
+newtype BufPos = BufPos { bufPos :: Int }
+
+
+We use the BufPos to encode a delta, using bufSpanStart for the line,
+and bufSpanEnd for the col.
+
+To be absolutely sure, we make the delta versions use -ve values.
+
+-}
+
+hackSrcSpanToAnchor :: SrcSpan -> Anchor
+hackSrcSpanToAnchor (UnhelpfulSpan s) = error $ "hackSrcSpanToAnchor : UnhelpfulSpan:" ++ show s
+hackSrcSpanToAnchor (RealSrcSpan r Nothing) = Anchor r UnchangedAnchor
+hackSrcSpanToAnchor (RealSrcSpan r (Just (BufSpan (BufPos s) (BufPos e))))
+  = if s <= 0 && e <= 0
+    then Anchor r (MovedAnchor (deltaPos (-s) (-e)))
+    else Anchor r UnchangedAnchor
+
+hackAnchorToSrcSpan :: Anchor -> SrcSpan
+hackAnchorToSrcSpan (Anchor r UnchangedAnchor) = RealSrcSpan r Nothing
+hackAnchorToSrcSpan (Anchor r (MovedAnchor dp))
+  = RealSrcSpan r (Just (BufSpan (BufPos s) (BufPos e)))
+  where
+    s = - (getDeltaLine dp)
+    e = - (deltaColumn dp)
+
+-- ---------------------------------------------------------------------

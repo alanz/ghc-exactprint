@@ -27,7 +27,7 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-data GHCVersion = GHC710 | GHC80 | GHC82 | GHC84 | GHC86 | GHC88 | GHC810 | GHC90 | GHC92
+data GHCVersion = GHC92
      deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
@@ -37,7 +37,6 @@ ghcVersion = GHC92
 testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
-    GHC90  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90"]
     GHC92  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92"]
 
     -- GHC92  -> ["ghc92-copied"]
@@ -69,6 +68,30 @@ transform = hSilence [stderr] $ do
 findTests :: LibDir -> IO Test
 findTests libdir
   = testList "Round-trip tests" <$> mapM (findTestsDir id (mkParserTest libdir)) testDirs
+
+findTestsBC :: LibDir -> IO Test
+findTestsBC libdir
+  = testList "Balance comments tests" <$> mapM (findTestsDir filterBC (mkParserTestBC libdir)) testDirs
+
+-- | Filter out tests that are known to fail, for particular compilers
+filterBC :: [FilePath] -> [FilePath]
+filterBC fps = sort $ Set.toList $ Set.difference (Set.fromList fps) skipped
+-- filterBC fps = error $ "filterBC:fps=" ++ show fps
+  where
+  skipped = Set.fromList
+    [
+    "Control.hs",
+    "Internals.hs",
+    "LinePragma.hs",
+    "QuasiQuote.hs",
+    "RandomPGC.hs",
+    "HashTab.hs",
+    "LinePragmas.hs"
+    ]
+
+findTestsMD :: LibDir -> IO Test
+findTestsMD libdir
+  = testList "Make Delta tests" <$> mapM (findTestsDir id (mkParserTestMD libdir)) testDirs
 
 findPrettyTests :: LibDir -> IO Test
 findPrettyTests libdir =
@@ -105,37 +128,45 @@ mkTests = do
   -- listTests
   let libdir = GHC.Paths.libdir
   roundTripTests <- findTests libdir
-  prettyRoundTripTests <- findPrettyTests libdir
+  roundTripBalanceCommentsTests <- findTestsBC libdir
+  roundTripMakeDeltaTests <- findTestsMD libdir
+  -- prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
-                      internalTests,
-                      roundTripTests
-                    ,
+                    --   internalTests,
+                    --   roundTripTests
+                    -- ,
                       (transformTests libdir)
                     , (failingTests libdir)
+                    -- ,
+                    --   roundTripBalanceCommentsTests
+                    -- ,
+                    --   roundTripMakeDeltaTests
+                    ]
+
+-- Tests that are no longer needed
                     -- , noAnnotationTests
                     -- ,
                     --   prettyRoundTripTests
-                    ]
+                    -- ,
 
 failingTests :: LibDir -> Test
 failingTests libdir = testList "Failing tests"
   [
   -- Tests requiring future GHC modifications
 
-    -- https://gitlab.haskell.org/ghc/ghc/-/issues/20243
-    mkTestModBad libdir "n-plus-k-patterns.hs"
-
-    -- https://gitlab.haskell.org/ghc/ghc/-/issues/20258
-  , mkTestModBad libdir "TopLevelSemis.hs"
-
   -- We do not capture EOF location very well any more
-  , mkTestModBad libdir "T10970a.hs"
-
+    mkTestModBad libdir "T10970a.hs"
   ]
 
 
 mkParserTest :: LibDir -> FilePath -> FilePath -> Test
 mkParserTest libdir dir fp = mkParsingTest (roundTripTest libdir) dir fp
+
+mkParserTestBC :: LibDir -> FilePath -> FilePath -> Test
+mkParserTestBC libdir dir fp = mkParsingTest (roundTripTestBC libdir) dir fp
+
+mkParserTestMD :: LibDir -> FilePath -> FilePath -> Test
+mkParserTestMD libdir dir fp = mkParsingTest (roundTripTestMD libdir) dir fp
 
 -- ---------------------------------------------------------------------
 
@@ -160,134 +191,12 @@ tt' = do
   let libdir = GHC.Paths.libdir
   runTestText (putTextToHandle stdout True) $ TestList [
 
-    -- mkTestModChange libdir changeRenameCase1 "RenameCase1.hs"
+    mkTestModChange libdir rmDecl7 "RmDecl7.hs"
 
-    -- mkParserTest libdir      "ghc710" "UnicodeSyntaxFailure.hs"
-    -- mkParserTest libdir      "ghc80" "Class.hs"
-    -- mkParserTest libdir      "ghc82" "Completesig03A.hs"
-    -- mkParserTest libdir      "ghc82" "brackets.hs"
-    -- mkParserTest libdir      "ghc84" "T13747.hs"
-    -- mkParserTest libdir      "ghc86" "SlidingTypeSyn.hs"
-
-    -- mkParserTest libdir      "ghc86" "dynamic-paper.hs"
-    -- mkParserTest libdir      "ghc90" "ArrowLambdaCase.hs"
-    -- mkParserTest libdir      "ghc80" "T6018failclosed.hs"
-    -- mkParserTest libdir      "failing" "InfixOperator.hs"
-
-    -- mkParserTest libdir      "ghc92-copied" "AddLocalDecl5.expected.hs"
-    -- mkParserTest libdir      "ghc92" "ScopesBug.hs"
-    -- mkParserTest libdir      "ghc92-copied" "T10279.hs"
-    -- mkParserTest libdir      "ghc92-copied" "T10891.hs"
-    -- mkParserTest libdir      "ghc92-copied" "T2632.hs"
-    -- mkParserTest libdir      "ghc92-copied" "T4442.hs"
-    -- mkParserTest libdir      "ghc92-copied" "TH_reifyExplicitForAllFams.hs"
-    -- mkParserTest libdir      "ghc92-copied" "TH_unresolvedInfix.hs"
-    -- mkParserTest libdir      "ghc92-copied" "regalloc_unit_tests.hs"
-
-    -- mkParserTest libdir      "ghc92" "Checkpoint.hs"
-    -- mkParserTest libdir      "ghc710" "MultiLineCommentWithPragmas.hs"
-
-    -- mkParserTest libdir      "ghc710" "Process.hs"
-    -- mkParserTest libdir      "ghc92" "PostgreSQL.hs"
-    -- mkParserTest libdir      "ghc92" "Main.hs"
-    -- mkParserTest libdir      "ghc92" "MainHareTest.hs"
-    -- mkParserTest libdir      "ghc92" "TH.hs"
-    -- mkParserTest libdir      "ghc92" "LeapSeconds.hs"
-    -- mkParserTest libdir      "ghc92" "proc-lets.hs"
-    -- mkParserTest libdir      "ghc92" "n-plus-k-patterns.hs"
-    -- mkParserTest libdir      "ghc92" "TopLevelSemis.hs"
-    -- mkParserTest libdir      "ghc92" "MiniBall.hs"
-
-    mkParserTest libdir      "ghc80" "T10970a.hs"
-
-
-    -- mkTestModChange libdir rmDecl1  "RmDecl1.hs"
-
-    -- mkParserTest libdir      "ghc92" "LinearArrow.hs"
-    -- mkParserTest libdir      "transform" "AddLocalDecl5.1.hs"
-    -- mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
-    -- mkTestModChange libdir changeLocalDecls2  "LocalDecls2.hs"
-    -- mkTestModChange libdir addLocaLDecl1  "AddLocalDecl1.hs"
-    {-
-    ### Failure in: 1:Round-trip tests:1:ghc80:27:Decision.hs
-    ### Failure in: 2:transformation tests:0:Low level transformations:15
-    AddLocalDecl1.hs
-    AddLocalDecl4.hs
-    AddLocalDecl5.hs
-    AddLocalDecl6.hs
-    -}
-
-    -- mkParserTest libdir      "ghc710" "EmptyMostly.hs"
-
-    -- comment problem
-    -- mkParserTest libdir      "ghc710" "Move1.hs"
-    -- mkParserTest libdir      "ghc80" "Decision.hs"
-    -- mkParserTest libdir      "ghc80" "RandomPGC.hs"
-    -- mkParserTest libdir      "ghc92" "BlockComment.hs"
-    -- mkParserTest libdir      "ghc92" "CommentPlacement.hs"
-    -- mkParserTest libdir      "ghc92" "CommentPlacement2.hs"
-    -- mkParserTest libdir      "ghc80" "Decision.hs"
-
-    -- mkParserTest libdir      "ghc92-copied" "AddLocalDecl5.expected.hs"
-    -- mkParserTest libdir      "ghc92-copied" "AtomicPrimops.hs"
-    -- mkParserTest libdir      "ghc92-copied" "BinaryLiterals0.hs"
-    -- mkParserTest libdir      "ghc92-copied" "CountDeps.hs"
-    -- mkParserTest libdir      "ghc92-copied" "regalloc_unit_tests.hs"
-
-
-
--- ### Failure in: 1:Round-trip tests:0:ghc710:20:Control.hs
--- ### Failure in: 1:Round-trip tests:0:ghc710:21:CoreIr.hs
--- ### Failure in: 1:Round-trip tests:0:ghc710:23:Cpp.hs
--- ### Failure in: 1:Round-trip tests:0:ghc710:38:EmptyMostly.hs
--- ### Failure in: 1:Round-trip tests:0:ghc710:39:EmptyMostly2.hs
--- ### Failure in: 1:Round-trip tests:0:ghc710:40:EmptyMostlyInst.hs
--- ### Failure in: 1:Round-trip tests:0:ghc710:41:EmptyMostlyNoSemis.hs
--- ### Error in:   1:Round-trip tests:0:ghc710:50:ForeignDecl.hs
-
-    -- mkParserTest libdir      "ghc710" "BracesSemiDataDecl.hs"
-    -- mkParserTest libdir      "ghc710" "GADTRecords.hs"
-    -- mkParserTest libdir      "ghc710" "RdrNames.hs"
-    -- mkParserTest libdir      "ghc710" "RdrNames1.hs"
-
-    -- mkParserTest libdir      "ghc80" "T11010.hs"
-    -- mkParserTest libdir      "ghc80" "Test10399.hs"
-    -- mkParserTest libdir      "ghc90" "Linear12.hs"
-    -- mkParserTest libdir      "ghc90" "T17544_kw.hs"
-
-    -- mkParserTest libdir      "ghc90" "FromManual.hs"
-    -- mkPrettyRoundtrip libdir  "ghc90" "FromManual.hs"
-
-    -- mkParserTest libdir       "ghc90" "Linear1Rule.hs"
-    -- mkPrettyRoundtrip libdir  "ghc90" "Linear1Rule.hs"
-
-    -- mkParserTest libdir       "ghc80" "Test11018.hs"
-    -- mkPrettyRoundtrip libdir  "ghc80" "Test11018.hs"
-
-    -- mkParserTest libdir       "ghc86" "UnicodeSyntax.hs"
-    -- mkPrettyRoundtrip libdir  "ghc86" "UnicodeSyntax.hs"
-
-    -- mkParserTest libdir       "ghc86" "empty-foralls.hs"
-    -- mkPrettyRoundtrip libdir  "ghc86" "empty-foralls.hs"
-
-    -- mkParserTest libdir       "ghc710" "PatSynBind.hs"
-    -- mkPrettyRoundtrip libdir  "ghc710" "PatSynBind.hs"
-
-    -- ---------------------------------------------
-
-    -- mkParserTest libdir       "ghc86" "Webhook.hs"
-
-    -- mkParserTest libdir       "ghc710" "TypeBrackets2.hs"
-    -- mkPrettyRoundtrip libdir  "ghc710" "TypeBrackets2.hs"
-
-    -- mkParserTest libdir       "ghc710" "DataDecl.hs"
-    -- mkPrettyRoundtrip libdir  "ghc710" "DataDecl.hs"
-
-    -- mkParserTest libdir      "ghc90" "BaseDescriptor.hs"
-    -- mkPrettyRoundtrip libdir "ghc90" "BaseDescriptor.hs"
-
-    -- mkParserTest libdir      "ghc90" "BaseDescriptors2.hs"
-    -- mkPrettyRoundtrip libdir "ghc90" "BaseDescriptors2.hs"
+    -- mkTestModChange libdir changeLayoutLet2 "LayoutLet2.hs"
+    -- mkParserTestMD libdir      "transform" "LayoutLet2.hs"
+    -- mkParserTest libdir      "ghc80" "T10970a.hs"
+    -- mkParserTestBC libdir "ghc710" "Control.hs"
 
    -- Needs GHC changes
 
