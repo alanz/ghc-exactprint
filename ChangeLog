@@ -1,3 +1,6 @@
+2021-11-23 v1.3
+	* Update for GHC 9.2.1 as released
+	* Introduce makeDeltaAst command to convert all EpaSpan's to equivalent EpaDelta versions
 2021-08-23 v1.2
 	* Remove types and functions from previous version, now obsolete
 2021-08-23 v1.1
