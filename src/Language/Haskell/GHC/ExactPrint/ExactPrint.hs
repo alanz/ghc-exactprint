@@ -424,7 +424,7 @@ flushComments trailing = do
   addCommentsA trailing
   cs <- getUnallocatedComments
   debugM $ "flushing comments starting"
-  mapM_ printOneComment (sortBy cmpComments cs)
+  mapM_ printOneComment (sortComments cs)
   debugM $ "flushing comments done"
 
 -- ---------------------------------------------------------------------

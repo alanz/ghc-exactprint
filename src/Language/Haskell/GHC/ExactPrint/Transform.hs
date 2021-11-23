@@ -318,7 +318,7 @@ setEntryDP (L (SrcSpanAnn (EpAnn (Anchor r (MovedAnchor d)) an cs) l) a) dp
 --            (EpAnn (Anchor r (MovedAnchor dp)) an cs)
 --            l) a
 setEntryDP (L (SrcSpanAnn (EpAnn (Anchor r _) an cs) l) a) dp
-  = case sort (priorComments cs) of
+  = case sortEpaComments (priorComments cs) of
       [] ->
         L (SrcSpanAnn
                (EpAnn (Anchor r (MovedAnchor dp)) an cs)
@@ -461,11 +461,11 @@ balanceCommentsFB (L lf (FunBind x n (MG mx (L lm matches) o) t)) second = do
   -- + move the trailing ones to the last match.
   let
     split = splitCommentsEnd (realSrcSpan $ locA lf) (epAnnComments $ ann lf)
-    split2 = splitCommentsStart (realSrcSpan $ locA lf)  (EpaComments (sort $ priorComments split))
+    split2 = splitCommentsStart (realSrcSpan $ locA lf)  (EpaComments (sortEpaComments $ priorComments split))
 
-    before = sort $ priorComments split2
-    middle = sort $ getFollowingComments split2
-    after  = sort $ getFollowingComments split
+    before = sortEpaComments $ priorComments split2
+    middle = sortEpaComments $ getFollowingComments split2
+    after  = sortEpaComments $ getFollowingComments split
 
     lf' = setCommentsSrcAnn lf (EpaComments before)
   logTr $ "balanceCommentsFB (before, after): " ++ showAst (before, after)
@@ -592,8 +592,8 @@ balanceComments' la1 la2 = do
     -- Need to also check for comments more closely attached to la1,
     -- ie trailing on the same line
     (move'',stay') = break (simpleBreak 0) (trailingCommentsDeltas (anchorFromLocatedA la1) (map snd stay''))
-    move = sort $ map snd (cs1move ++ move'' ++ move')
-    stay = sort $ map snd (cs1stay ++ stay')
+    move = sortEpaComments $ map snd (cs1move ++ move'' ++ move')
+    stay = sortEpaComments $ map snd (cs1stay ++ stay')
 
     an1' = setCommentsSrcAnn (getLoc la1) (EpaCommentsBalanced (map snd cs1p) move)
     an2' = setCommentsSrcAnn (getLoc la2) (EpaCommentsBalanced stay (map snd cs2f))
@@ -615,7 +615,7 @@ trailingCommentsDeltas anc (la@(L l _):las)
 -- AZ:TODO: this is identical to commentsDeltas
 priorCommentsDeltas :: RealSrcSpan -> [LEpaComment]
                     -> [(Int, LEpaComment)]
-priorCommentsDeltas anc cs = go anc (reverse $ sort cs)
+priorCommentsDeltas anc cs = go anc (reverse $ sortEpaComments cs)
   where
     go :: RealSrcSpan -> [LEpaComment] -> [(Int, LEpaComment)]
     go _ [] = []
@@ -669,8 +669,8 @@ moveLeadingComments (L la a) lb = (L la' a, lb')
   `debug` ("moveLeadingComments: (before, after, la', lb'):" ++ showAst (before, after, la', lb'))
   where
     split = splitCommentsEnd (realSrcSpan $ locA la) (epAnnComments $ ann la)
-    before = sort $ priorComments split
-    after = sort $ getFollowingComments split
+    before = sortEpaComments $ priorComments split
+    after = sortEpaComments $ getFollowingComments split
 
     -- TODO: need to set an entry delta on lb' to zero, and move the
     -- original spacing to the first comment.
@@ -745,16 +745,16 @@ tweakListComments' (L (SrcSpanAnn (EpAnn anc an cs) l) a) = L (SrcSpanAnn (EpAnn
     -- resolved, the comments may be in reverse order.
     (an', cs') = case cs of
       EpaComments [] -> (an,cs)
-      EpaComments c -> go (\cc -> EpaComments cc) an (sort c)
+      EpaComments c -> go (\cc -> EpaComments cc) an (sortEpaComments c)
       EpaCommentsBalanced _ [] -> (an,cs)
-      EpaCommentsBalanced p c -> go (\cc -> EpaCommentsBalanced (sort p) cc) an (sort c)
+      EpaCommentsBalanced p c -> go (\cc -> EpaCommentsBalanced (sortEpaComments p) cc) an (sortEpaComments c)
 
     go :: Data b => ([LEpaComment] -> b)
                       -> AnnListItem
                       -> [LEpaComment]
                       -> (AnnListItem, b)
     go f (AnnListItem []) c = (AnnListItem [], f c)
-    go f (AnnListItem lis) c = process f ([],[]) lis (sort c)
+    go f (AnnListItem lis) c = process f ([],[]) lis (sortEpaComments c)
 
     process :: Data b => ([LEpaComment] -> b)
             -> ([TrailingAnn], [LEpaComment])
@@ -849,7 +849,7 @@ balanceSameLineComments (L la (Match anm mctxt pats (GRHSs x grhss lb))) = do
 
           gac = addCommentOrigDeltas $ epAnnComments ga
           gfc = getFollowingComments gac
-          gac' = setFollowingComments gac (sort $ gfc ++ move)
+          gac' = setFollowingComments gac (sortEpaComments $ gfc ++ move)
           ga' = (EpAnn anc an gac')
 
           an1' = setCommentsSrcAnn la cs1

@@ -253,6 +253,16 @@ normaliseCommentText (x:xs) = x:normaliseCommentText xs
 cmpComments :: Comment -> Comment -> Ordering
 cmpComments (Comment _ l1 _ _) (Comment _ l2 _ _) = compare (ss2pos $ anchor l1) (ss2pos $ anchor l2)
 
+-- |Sort, comparing without span filenames, for CPP injected comments with fake filename
+sortComments :: [Comment] -> [Comment]
+sortComments cs = sortBy cmpComments cs
+
+-- |Sort, comparing without span filenames, for CPP injected comments with fake filename
+sortEpaComments :: [LEpaComment] -> [LEpaComment]
+sortEpaComments cs = sortBy cmp cs
+  where
+    cmp (L l1 _) (L l2 _) = compare (ss2pos $ anchor l1) (ss2pos $ anchor l2)
+
 -- | Makes a comment which originates from a specific keyword.
 mkKWComment :: AnnKeywordId -> EpaLocation -> Comment
 mkKWComment kw (EpaSpan ss)

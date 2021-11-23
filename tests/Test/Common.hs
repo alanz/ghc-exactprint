@@ -22,6 +22,7 @@ module Test.Common (
               , Changer
               , genTest
               , noChange
+              , changeMakeDelta
               , mkDebugOutput
               , showErrorMessages
               , LibDir
@@ -33,32 +34,23 @@ import Language.Haskell.GHC.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Parsers
 import Language.Haskell.GHC.ExactPrint.Preprocess
-import Language.Haskell.GHC.ExactPrint.ExactPrint
--- import Language.Haskell.GHC.ExactPrint.Types
 
 import qualified Control.Monad.IO.Class as GHC
 import qualified GHC           as GHC hiding (parseModule)
 import qualified GHC.Data.Bag          as GHC
 import qualified GHC.Driver.Session    as GHC
 import qualified GHC.Utils.Error       as GHC
--- import qualified GHC.Utils.Outputable  as GHC
--- import qualified GHC.Hs.Dump           as GHC
 
 import qualified GHC.LanguageExtensions as LangExt
-
--- import qualified Data.Map as Map
 
 import Control.Monad
 import Data.List hiding (find)
 
 import System.Directory
 
--- import Test.Consistency
-
 import Test.HUnit
 import System.FilePath
 
--- import Debug.Trace
 testPrefix :: FilePath
 testPrefix = "." </> "tests" </> "examples"
 
@@ -84,24 +76,6 @@ data ReportType =
    Success
  | RoundTripFailure deriving (Eq, Show)
 
-{-
-runParser :: GHC.P a -> GHC.DynFlags -> FilePath -> String -> GHC.ParseResult a
-runParser parser flags filename str = GHC.unP parser parseState
-    where
-      location = GHC.mkRealSrcLoc (GHC.mkFastString filename) 1 1
-      buffer = GHC.stringToStringBuffer str
-      parseState = GHC.mkPState flags buffer location
-
-parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located (GHC.HsModule GhcPs))
-parseFile = runParser GHC.parseModule
-
-mkApiAnns :: GHC.PState -> GHC.ApiAnns
-mkApiAnns pstate = (Map.fromListWith (++) . GHC.annotations $ pstate
-                   , Map.fromList ((GHC.noSrcSpan, GHC.comment_q pstate) : (GHC.annotations_comments pstate)))
-
-removeSpaces :: String -> String
-removeSpaces = map (\case {'\160' -> ' '; s -> s})
--}
 
 roundTripTest :: LibDir -> FilePath -> IO Report
 roundTripTest libdir f = genTest libdir noChange f f
@@ -126,9 +100,6 @@ mkParsingTest tester dir fp =
                  forM_ (cppStatus r) writeHsPP
                  assertBool fp (status r == Success))
 
-
--- type Changer = (Anns -> GHC.ParsedSource -> IO (Anns,GHC.ParsedSource))
--- First param is libdir
 type Changer = LibDir -> (GHC.ParsedSource -> IO GHC.ParsedSource)
 
 noChange :: Changer
@@ -232,14 +203,5 @@ getModSummaryForFile fileName = do
 
 showErrorMessages :: GHC.ErrorMessages -> String
 showErrorMessages m = show $ GHC.bagToList m
-
--- ---------------------------------------------------------------------
-
--- instance GHC.Outputable GHC.ApiAnns where
---   ppr (GHC.ApiAnns items eof comments rogueComments)
---     = GHC.text "ApiAnns" GHC.<+> GHC.ppr items
---                          GHC.<+> GHC.ppr eof
---                          GHC.<+> GHC.ppr comments
---                          GHC.<+> GHC.ppr rogueComments
 
 -- ---------------------------------------------------------------------
