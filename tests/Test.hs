@@ -191,12 +191,15 @@ tt' = do
   let libdir = GHC.Paths.libdir
   runTestText (putTextToHandle stdout True) $ TestList [
 
-    mkTestModChange libdir rmDecl7 "RmDecl7.hs"
+    -- mkTestModChange libdir rmDecl7 "RmDecl7.hs"
 
     -- mkTestModChange libdir changeLayoutLet2 "LayoutLet2.hs"
     -- mkParserTestMD libdir      "transform" "LayoutLet2.hs"
     -- mkParserTest libdir      "ghc80" "T10970a.hs"
     -- mkParserTestBC libdir "ghc710" "Control.hs"
+
+    -- mkParserTest libdir      "ghc92" "Retrie.hs"
+    mkParserTestMD libdir      "ghc92" "Retrie.hs"
 
    -- Needs GHC changes
 

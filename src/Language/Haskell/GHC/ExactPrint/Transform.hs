@@ -85,6 +85,13 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , transferEntryDP'
         , wrapSig, wrapDecl
         , decl2Sig, decl2Bind
+
+        -- * From retrie
+        , stripComments
+        , swapEntryDPT
+        , transferAnnsT
+        , isComma
+        , entryDP
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Types
@@ -1402,4 +1409,77 @@ mkComments str anc = EpaComments [mkCommentAnc str anc]
 mkCommentAnc :: String -> Anchor -> LEpaComment
 mkCommentAnc str anc = L anc (EpaComment (EpaLineComment str) (anchor anc) )
 
+-- ---------------------------------------------------------------------
+-- Transferred from retrie
+
+stripComments :: SrcAnn an -> SrcAnn an
+stripComments (SrcSpanAnn EpAnnNotUsed l) = SrcSpanAnn EpAnnNotUsed l
+stripComments (SrcSpanAnn (EpAnn anc an _) l) = SrcSpanAnn (EpAnn anc an emptyComments) l
+
+-- Swap entryDP and prior comments between the two args
+swapEntryDPT
+  :: (Data a, Data b, Monad m, Monoid a1, Monoid a2, Typeable a1, Typeable a2)
+  => LocatedAn a1 a -> LocatedAn a2 b -> TransformT m (LocatedAn a1 a, LocatedAn a2 b)
+swapEntryDPT a b = do
+  b' <- transferEntryDP a b
+  a' <- transferEntryDP b a
+  return (a',b')
+
+-- swapEntryDPT
+--   :: (Data a, Data b, Monad m)
+--   => LocatedAn a1 a -> LocatedAn a2 b -> TransformT m ()
+-- swapEntryDPT a b =
+--   modifyAnnsT $ \ anns ->
+--   let akey = mkAnnKey a
+--       bkey = mkAnnKey b
+--       aann = fromMaybe annNone $ M.lookup akey anns
+--       bann = fromMaybe annNone $ M.lookup bkey anns
+--   in M.insert akey
+--       aann { annEntryDelta = annEntryDelta bann
+--            , annPriorComments = annPriorComments bann } $
+--      M.insert bkey
+--       bann { annEntryDelta = annEntryDelta aann
+--            , annPriorComments = annPriorComments aann } anns
+
+-- transferAnnsT
+--   :: (Data a, Data b, Monad m)
+--   => (KeywordId -> Bool)        -- transfer Anns matching predicate
+--   -> Located a                  -- from
+--   -> Located b                  -- to
+--   -> TransformT m ()
+-- transferAnnsT p a b = modifyAnnsT f
+--   where
+--     bKey = mkAnnKey b
+--     f anns = fromMaybe anns $ do
+--       anA <- M.lookup (mkAnnKey a) anns
+--       anB <- M.lookup bKey anns
+--       let anB' = anB { annsDP = annsDP anB ++ filter (p . fst) (annsDP anA) }
+--       return $ M.insert bKey anB' anns
+
+transferAnnsT
+  :: (Data a, Data b, Monad m)
+  => (TrailingAnn -> Bool)      -- transfer Anns matching predicate
+  -> LocatedA a                 -- from
+  -> LocatedA b                 -- to
+  -> TransformT m (LocatedA b)
+transferAnnsT p (L (SrcSpanAnn EpAnnNotUsed _) _) b = return b
+transferAnnsT p (L (SrcSpanAnn (EpAnn anc (AnnListItem ts) cs) l) a) (L (SrcSpanAnn an lb) b) = do
+  let ps = filter p ts
+  let an' = case an of
+        EpAnnNotUsed -> EpAnn (spanAsAnchor lb) (AnnListItem ps) emptyComments
+        EpAnn ancb (AnnListItem tsb) csb -> EpAnn ancb (AnnListItem (tsb++ps)) csb
+  return (L (SrcSpanAnn an' lb) b)
+
+isComma :: TrailingAnn -> Bool
+isComma (AddCommaAnn _) = True
+isComma _ = False
+
+entryDP :: LocatedA a -> DeltaPos
+entryDP (L (SrcSpanAnn EpAnnNotUsed _) _) = SameLine 1
+entryDP (L (SrcSpanAnn (EpAnn anc _ _) _) _)
+  = case anchor_op anc of
+      UnchangedAnchor -> SameLine 1
+      MovedAnchor dp -> dp
+
+-- End of transfer from retrie
 -- ---------------------------------------------------------------------

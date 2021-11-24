@@ -1,11 +1,8 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE UnboxedSums #-}
-module Types4a where
+module Retrie where
 
-import Data.Maybe hiding (f1,f2,n1,n2)
+main = do
+  return ({- comment -} x >= 1 || y >= 2)
 
-type Foo5 = forall r (a :: Type) (b :: TYPE r). (a -> b) -> a -> b
+  putStrLn $ show $ {- comment here -} foo || bar
 
-foo5 :: forall s (c :: Type) (d :: TYPE s). (c -> d) -> c -> d
-foo5 = ($)
+{-# RULES "print" forall x. putStrLn $ show $ x = print $ x #-}

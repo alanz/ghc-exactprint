@@ -16,9 +16,13 @@ module Language.Haskell.GHC.ExactPrint
 
         -- * Relativising
         , makeDeltaAst
+
+        -- * Fixity
+        , module Language.Haskell.GHC.ExactPrint.Fixity
         ) where
 
 import Language.Haskell.GHC.ExactPrint.ExactPrint
+import Language.Haskell.GHC.ExactPrint.Fixity
 import Language.Haskell.GHC.ExactPrint.Transform
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Parsers

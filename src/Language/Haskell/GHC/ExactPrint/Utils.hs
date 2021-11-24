@@ -431,3 +431,11 @@ hackAnchorToSrcSpan (Anchor r (MovedAnchor dp))
     e = - (deltaColumn dp)
 
 -- ---------------------------------------------------------------------
+-- Moved from retrie
+
+varRdrName :: HsExpr p -> Maybe (LIdP p)
+varRdrName (HsVar _ n) = Just n
+varRdrName _ = Nothing
+
+-- Moved from retrie ends
+-- ---------------------------------------------------------------------
