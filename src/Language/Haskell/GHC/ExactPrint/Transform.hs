@@ -192,7 +192,7 @@ captureMatchLineSpacing (L l (ValD x (FunBind a b (MG c (L d ms ) e) f)))
       ms' = captureLineSpacing ms
 captureMatchLineSpacing d = d
 
-captureLineSpacing :: Monoid t
+captureLineSpacing :: Default t
                    => [LocatedAn t e] -> [LocatedAn t e]
 captureLineSpacing [] = []
 captureLineSpacing [d] = [d]
@@ -285,10 +285,10 @@ setEntryDPDecl d dp = setEntryDP d dp
 
 -- |Set the true entry 'DeltaPos' from the annotation for a given AST
 -- element. This is the 'DeltaPos' ignoring any comments.
-setEntryDP :: (Monoid t) => LocatedAn t a -> DeltaPos -> LocatedAn t a
+setEntryDP :: Default t => LocatedAn t a -> DeltaPos -> LocatedAn t a
 setEntryDP (L (SrcSpanAnn EpAnnNotUsed l) a) dp
   = L (SrcSpanAnn
-           (EpAnn (Anchor (realSrcSpan l) (MovedAnchor dp)) mempty emptyComments)
+           (EpAnn (Anchor (realSrcSpan l) (MovedAnchor dp)) def emptyComments)
            l) a
 setEntryDP (L (SrcSpanAnn (EpAnn (Anchor r _) an (EpaComments [])) l) a) dp
   = L (SrcSpanAnn
