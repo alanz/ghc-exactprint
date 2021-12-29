@@ -103,6 +103,7 @@ import Data.List (sort, sortBy)
 
 import Data.Functor.Identity
 import Control.Monad.State
+import Data.Default
 
 ------------------------------------------------------------------------------
 -- Transformation of source elements
@@ -1361,7 +1362,7 @@ makeDeltaAst' a = fst $ evalRWS (go a) () Nothing
                       `extM` (locatedAnnImpl @AnnContext)  -- LocatedC
                       )
 
-    locatedAnnImpl :: forall an. (Monoid an)
+    locatedAnnImpl :: forall an. (Default an)
       => SrcAnn an -> Delta (SrcAnn an)
     locatedAnnImpl (SrcSpanAnn (EpAnn anc@(Anchor loc _op) an cs) l) = do
       -- error "locatedAnnImpl:EpAnn"
@@ -1386,7 +1387,7 @@ makeDeltaAst' a = fst $ evalRWS (go a) () Nothing
       let cs' = case ma of
             Nothing -> mkComments ("EpAnnNotUsed:from anc:Nothing") (spanAsAnchor l)
             Just anc' -> mkComments ("EpAnnNotUsed:from anc:" ++ showGhc anc') anc'
-      return (SrcSpanAnn (EpAnn anchor' mempty cs') l)
+      return (SrcSpanAnn (EpAnn anchor' def cs') l)
 
 -- | Monadic variation on everywhere', so Apply a monadic
 -- transformation everywhere in top-down manner

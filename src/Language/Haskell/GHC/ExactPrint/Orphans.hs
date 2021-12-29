@@ -2,107 +2,82 @@
 
 module Language.Haskell.GHC.ExactPrint.Orphans where
 
+import Data.Default
 import GHC hiding (EpaComment)
 
 -- ---------------------------------------------------------------------
--- Orphan Monoid instances. See https://gitlab.haskell.org/ghc/ghc/-/issues/20372
+-- Orphan Default instances. See https://gitlab.haskell.org/ghc/ghc/-/issues/20372
 
-instance Semigroup AnnPragma where
-  (<>) = error "unimplemented"
-instance Monoid AnnPragma where
-  mempty = error "meaningless"
+instance Default NameAnn where
+  def = mempty
+
+instance Default AnnList where
+  def = mempty
+
+instance Default AnnListItem where
+  def = mempty
+
+instance Default AnnPragma where
+  def = AnnPragma def  def def
 
 instance Semigroup EpAnnImportDecl where
   (<>) = error "unimplemented"
-instance Monoid EpAnnImportDecl where
-  mempty = error "meaningless"
+instance Default EpAnnImportDecl where
+  def = EpAnnImportDecl def  Nothing  Nothing  Nothing  Nothing  Nothing
 
-instance Semigroup HsRuleAnn where
-  (<>) = error "unimplemented"
-instance Monoid HsRuleAnn where
-  mempty = error "meaningless"
+instance Default HsRuleAnn where
+  def = HsRuleAnn Nothing Nothing def
 
-instance Semigroup AnnSig where
-  (<>) = error "unimplemented"
-instance Monoid AnnSig where
-  mempty = error "meaningless"
+instance Default AnnSig where
+  def = AnnSig def  def
 
-instance Semigroup GrhsAnn where
-  (<>) = error "unimplemented"
-instance Monoid GrhsAnn where
-  mempty = error "meaningless"
+instance Default GrhsAnn where
+  def = GrhsAnn Nothing  def
 
-instance Semigroup EpAnnUnboundVar where
-  (<>) = error "unimplemented"
-instance Monoid EpAnnUnboundVar where
-  mempty = error "meaningless"
+instance Default EpAnnUnboundVar where
+  def = EpAnnUnboundVar def  def
 
-instance Semigroup NoEpAnns where
-  (<>) = error "unimplemented"
-instance Monoid NoEpAnns where
-  mempty = error "meaningless"
+instance Default NoEpAnns where
+  def = NoEpAnns
 
-instance Semigroup AnnParen where
-  (<>) = error "unimplemented"
-instance Monoid AnnParen where
-  mempty = error "meaningless"
+instance Default AnnParen where
+  def = AnnParen AnnParens def  def
 
-instance Semigroup AnnExplicitSum where
-  (<>) = error "unimplemented"
-instance Monoid AnnExplicitSum where
-  mempty = error "meaningless"
+instance Default AnnExplicitSum where
+  def = AnnExplicitSum def  def  def  def
 
-instance Semigroup EpAnnHsCase where
-  (<>) = error "unimplemented"
-instance Monoid EpAnnHsCase where
-  mempty = error "meaningless"
+instance Default EpAnnHsCase where
+  def = EpAnnHsCase def def def
 
-instance Semigroup AnnsIf where
-  (<>) = error "unimplemented"
-instance Monoid AnnsIf where
-  mempty = error "meaningless"
+instance Default AnnsIf where
+  def = AnnsIf def def def def def
 
-instance Semigroup AnnsLet where
-  (<>) = error "unimplemented"
-instance Monoid AnnsLet where
-  mempty = error "meaningless"
+instance Default AnnsLet where
+  def = AnnsLet def def
 
-instance Semigroup AnnProjection where
-  (<>) = error "unimplemented"
-instance Monoid AnnProjection where
-  mempty = error "meaningless"
+instance Default AnnProjection where
+  def = AnnProjection def def
 
-instance Semigroup AnnFieldLabel where
-  (<>) = error "unimplemented"
-instance Monoid AnnFieldLabel where
-  mempty = error "meaningless"
+instance Default AnnFieldLabel where
+  def = AnnFieldLabel Nothing
 
-instance Semigroup EpaLocation where
-  (<>) = error "unimplemented"
-instance Monoid EpaLocation where
-  mempty = error "meaningless"
+instance Default EpaLocation where
+  def = EpaDelta (SameLine 0) []
 
-instance Semigroup AddEpAnn where
-  (<>) = error "unimplemented"
-instance Monoid AddEpAnn where
-  mempty = error "meaningless"
+instance Default AddEpAnn where
+  def = AddEpAnn def def
 
-instance Semigroup TrailingAnn where
-  (<>) = error "unimplemented"
-instance Monoid TrailingAnn where
-  mempty = error "meaningless"
+instance Default AnnKeywordId where
+  def = Annlarrowtail  {- gotta pick one -}
 
-instance Semigroup AnnContext where
-  (<>) = error "unimplemented"
-instance Monoid AnnContext where
-  mempty = AnnContext Nothing [] []
+instance Default TrailingAnn where
+  def = AddLollyAnnU {-gotta pick one -} def
 
-instance Semigroup EpAnnSumPat where
-  (<>) = error "unimplemented"
-instance Monoid EpAnnSumPat where
-  mempty = error "meaningless"
+instance Default AnnContext where
+  def = AnnContext Nothing [] []
 
-instance Semigroup AnnsModule where
-  (<>) = error "unimplemented"
-instance Monoid AnnsModule where
-  mempty = error "meaningless"
+instance Default EpAnnSumPat where
+  def = EpAnnSumPat def  def  def
+
+instance Default AnnsModule where
+  def = AnnsModule [] mempty
