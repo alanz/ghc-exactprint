@@ -6,6 +6,7 @@
 {-# LANGUAGE NamedFieldPuns       #-}
 {-# LANGUAGE RankNTypes           #-}
 {-# LANGUAGE StandaloneDeriving   #-}
+{-# LANGUAGE TupleSections        #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE ViewPatterns         #-}
@@ -3094,7 +3095,7 @@ exactDo an MonadComp     stmts = markMaybeDodgyStmts an stmts
 exactDo _  _             _     = panic "pprDo" -- PatGuard, ParStmtCxt
 
 exactMdo :: (Monad m, Monoid w)
-  => EpAnn AnnList -> Maybe ModuleName -> AnnKeywordId -> EP w m (EpAnn AnnList) 
+  => EpAnn AnnList -> Maybe ModuleName -> AnnKeywordId -> EP w m (EpAnn AnnList)
 exactMdo an Nothing            kw = markEpAnnL   an lal_rest kw
 exactMdo an (Just module_name) kw = markEpAnnLMS an lal_rest kw (Just n)
     where
@@ -4142,11 +4143,11 @@ instance (ExactPrint a) => ExactPrint (LocatedC a) where
     a' <- markAnnotated a
     -- mapM_ (markKwA AnnCloseP) (sort closes)
     mapM_ (markKwA AnnCloseP) closes
-    case ma of
-      Just (UnicodeSyntax, r) -> markKwA AnnDarrowU r >> pure ()
-      Just (NormalSyntax,  r) -> markKwA AnnDarrow  r >> pure ()
-      Nothing -> pure ()
-    return (L (SrcSpanAnn (EpAnn anc (AnnContext ma opens closes) cs) l) a')
+    ma' <- case ma of
+      Just (UnicodeSyntax, r) -> Just . (UnicodeSyntax,) <$> markKwA AnnDarrowU r
+      Just (NormalSyntax,  r) -> Just . (NormalSyntax,) <$> markKwA AnnDarrow  r
+      Nothing -> pure Nothing
+    return (L (SrcSpanAnn (EpAnn anc (AnnContext ma' opens closes) cs) l) a')
 
 -- ---------------------------------------------------------------------
 
