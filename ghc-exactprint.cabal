@@ -74,6 +74,7 @@ library
                      , bytestring >= 0.10.6
                      , containers >= 0.5
                      , ordered-containers
+                     , data-default
                      , directory >= 1.2
                      , filepath  >= 1.4
                      , ghc       >= 7.10.2

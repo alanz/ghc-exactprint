@@ -40,6 +40,7 @@ import Data.List (sortBy, elemIndex)
 
 import Debug.Trace
 import Language.Haskell.GHC.ExactPrint.Types
+import Data.Default
 
 -- ---------------------------------------------------------------------
 
@@ -324,16 +325,16 @@ showAst ast
 
 -- ---------------------------------------------------------------------
 
-setAnchorAn :: (Monoid an) => LocatedAn an a -> Anchor -> EpAnnComments -> LocatedAn an a
+setAnchorAn :: (Default an) => LocatedAn an a -> Anchor -> EpAnnComments -> LocatedAn an a
 setAnchorAn (L (SrcSpanAnn EpAnnNotUsed l)    a) anc cs
-  = (L (SrcSpanAnn (EpAnn anc mempty cs) l) a)
+  = (L (SrcSpanAnn (EpAnn anc def cs) l) a)
      `debug` ("setAnchorAn: anc=" ++ showAst anc)
 setAnchorAn (L (SrcSpanAnn (EpAnn _ an _) l) a) anc cs
   = (L (SrcSpanAnn (EpAnn anc an cs) l) a)
      `debug` ("setAnchorAn: anc=" ++ showAst anc)
 
-setAnchorEpa :: (Monoid an) => EpAnn an -> Anchor -> EpAnnComments -> EpAnn an
-setAnchorEpa EpAnnNotUsed   anc cs = EpAnn anc mempty cs
+setAnchorEpa :: (Default an) => EpAnn an -> Anchor -> EpAnnComments -> EpAnn an
+setAnchorEpa EpAnnNotUsed   anc cs = EpAnn anc def cs
 setAnchorEpa (EpAnn _ an _) anc cs = EpAnn anc an     cs
 
 setAnchorEpaL :: EpAnn AnnList -> Anchor -> EpAnnComments -> EpAnn AnnList
