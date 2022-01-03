@@ -1,3 +1,5 @@
+2022-01-03 v1.4.1
+	* Fix delta-in of open/close parentheses in AnnContext (@pepeiborra)
 2022-01-03 v1.4.0.1
 	* Add haddock docs to makeDeltaAst
 2022-01-03 v1.4
