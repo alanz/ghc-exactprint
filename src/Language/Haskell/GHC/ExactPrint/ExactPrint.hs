@@ -4142,15 +4142,15 @@ instance (ExactPrint a) => ExactPrint (LocatedC a) where
     return (L (SrcSpanAnn EpAnnNotUsed l) a')
   exact (L (SrcSpanAnn (EpAnn anc (AnnContext ma opens closes) cs) l) a) = do
     -- mapM_ (markKwA AnnOpenP) (sort opens)
-    mapM_ (markKwA AnnOpenP) opens
+    opens' <- mapM (markKwA AnnOpenP) opens
     a' <- markAnnotated a
     -- mapM_ (markKwA AnnCloseP) (sort closes)
-    mapM_ (markKwA AnnCloseP) closes
+    closes' <- mapM (markKwA AnnCloseP) closes
     ma' <- case ma of
       Just (UnicodeSyntax, r) -> Just . (UnicodeSyntax,) <$> markKwA AnnDarrowU r
       Just (NormalSyntax,  r) -> Just . (NormalSyntax,) <$> markKwA AnnDarrow  r
       Nothing -> pure Nothing
-    return (L (SrcSpanAnn (EpAnn anc (AnnContext ma' opens closes) cs) l) a')
+    return (L (SrcSpanAnn (EpAnn anc (AnnContext ma' opens' closes') cs) l) a')
 
 -- ---------------------------------------------------------------------
 
