@@ -1,5 +1,5 @@
 name:                ghc-exactprint
-version:             1.4.0
+version:             1.4.0.1
 synopsis:            ExactPrint for GHC
 description:         Using the API Annotations available from GHC 9.2.1, this
                      library provides a means to round trip any code that can

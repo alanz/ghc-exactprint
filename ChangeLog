@@ -1,3 +1,5 @@
+2022-01-03 v1.4.0.1
+	* Add haddock docs to makeDeltaAst
 2022-01-03 v1.4
 	* Fix handling of AnnContext (@pepeiborra)
 	* Fix crashy bogus instances (@pepeiborra)

@@ -77,6 +77,9 @@ exactPrintWithOptions :: (ExactPrint ast, Monoid b, Monad m)
 exactPrintWithOptions r ast =
     runEP r (markAnnotated ast)
 
+-- | Transform concrete annotations into relative annotations which
+-- are more useful when transforming an AST. This corresponds to the
+-- earlier 'relativiseApiAnns'.
 makeDeltaAst :: ExactPrint ast => ast -> ast
 makeDeltaAst ast = fst $ runIdentity (runEP deltaOptions (markAnnotated ast))
 
