@@ -132,15 +132,15 @@ mkTests = do
   roundTripMakeDeltaTests <- findTestsMD libdir
   -- prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
-                    --   internalTests,
-                    --   roundTripTests
-                    -- ,
+                      internalTests,
+                      roundTripTests
+                    ,
                       (transformTests libdir)
                     , (failingTests libdir)
-                    -- ,
-                    --   roundTripBalanceCommentsTests
-                    -- ,
-                    --   roundTripMakeDeltaTests
+                    ,
+                      roundTripBalanceCommentsTests
+                    ,
+                      roundTripMakeDeltaTests
                     ]
 
 -- Tests that are no longer needed
