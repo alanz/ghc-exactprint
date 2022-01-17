@@ -55,6 +55,7 @@ Flag dev {
 
 library
   exposed-modules:     Language.Haskell.GHC.ExactPrint
+                     , Language.Haskell.GHC.ExactPrint.Dump
                      , Language.Haskell.GHC.ExactPrint.ExactPrint
                      , Language.Haskell.GHC.ExactPrint.Lookup
                      , Language.Haskell.GHC.ExactPrint.Orphans

@@ -24,10 +24,13 @@ module Language.Haskell.GHC.ExactPrint.ExactPrint
   , stringOptions
   , epOptions
   , deltaOptions
+
+  -- Temporary to avoid import loop problems
+  , showAst
   ) where
 
 import GHC
-import GHC.Base (NonEmpty(..))
+import GHC.Base (NonEmpty(..) )
 import GHC.Core.Coercion.Axiom (Role(..))
 import GHC.Data.Bag
 import qualified GHC.Data.BooleanFormula as BF
@@ -57,12 +60,22 @@ import Data.Maybe ( isJust, mapMaybe )
 
 import Data.Void
 
+import Language.Haskell.GHC.ExactPrint.Dump
 import Language.Haskell.GHC.ExactPrint.Lookup
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Types
 
 -- import Debug.Trace
 
+-- ---------------------------------------------------------------------
+
+-- Note: moved from Language.Haskell.GHC.ExactPrint.Utils as a hack to
+-- avoid import loop problems while we have to use the local version
+-- of Dump
+showAst :: (Data a) => a -> String
+showAst ast
+  = showSDocUnsafe
+    $ showAstData NoBlankSrcSpan NoBlankEpAnnotations ast
 -- ---------------------------------------------------------------------
 
 exactPrint :: ExactPrint ast => ast -> String
@@ -237,7 +250,11 @@ instance HasEntry (EpAnn a) where
 fromAnn' :: (HasEntry a) => a -> Entry
 fromAnn' an = case fromAnn an of
   NoEntryVal -> NoEntryVal
-  Entry a c _ u -> Entry a c FlushComments u
+  Entry a c _ u -> Entry a c' FlushComments u
+    where
+      c' = case c of
+        EpaComments cs -> EpaCommentsBalanced (filterEofComment False cs) (filterEofComment True cs)
+        EpaCommentsBalanced cp ct -> EpaCommentsBalanced cp ct
 
 -- ---------------------------------------------------------------------
 
@@ -349,8 +366,8 @@ enterAnn (Entry anchor' cs flush canUpdateAnchor) a = do
   -- start of print phase processing
 
   let mflush = when (flush == FlushComments) $ do
-        debugM $ "flushing comments in enterAnn"
-        flushComments (getFollowingComments cs)
+        debugM $ "flushing comments in enterAnn:" ++ showAst cs
+        flushComments (getFollowingComments cs ++ filterEofComment True (priorComments cs))
 
   -- let
   --   st = annNone
@@ -425,11 +442,22 @@ addComments csNew = do
 -- ones in the state.
 flushComments :: (Monad m, Monoid w) => [LEpaComment] -> EP w m ()
 flushComments trailing = do
-  addCommentsA trailing
+  addCommentsA (filterEofComment False trailing)
   cs <- getUnallocatedComments
   debugM $ "flushing comments starting"
   mapM_ printOneComment (sortComments cs)
+  debugM $ "flushing comments:EOF:trailing:" ++ showAst (trailing)
+  debugM $ "flushing comments:EOF:" ++ showAst (filterEofComment True trailing)
+  mapM_ printOneComment (map tokComment (filterEofComment True trailing))
   debugM $ "flushing comments done"
+
+filterEofComment :: Bool -> [LEpaComment] -> [LEpaComment]
+filterEofComment keep cs = fixCs cs
+  where
+      notEof com = case com of
+       L _ (GHC.EpaComment (EpaEofComment) _) -> keep
+       _ -> not keep
+      fixCs c = filter notEof c
 
 -- ---------------------------------------------------------------------
 
@@ -1401,7 +1429,9 @@ instance (ExactPrint a) => ExactPrint (Located a) where
   -- getAnnotationEntry (L l _) = NoEntryVal
 
   -- setAnnotationAnchor _la _anc _cs = error "should not be called:setAnnotationAnchor (Located a)"
-  setAnnotationAnchor (L _ a) anc _cs = L (hackAnchorToSrcSpan anc) a
+  -- setAnnotationAnchor (L _ a) anc _cs = L (hackAnchorToSrcSpan anc) a
+  setAnnotationAnchor (L _ a) anc _cs = (L (hackAnchorToSrcSpan anc) a)
+                 `debug` ("setAnnotationAnchor(Located):" ++ showAst anc)
 
   exact (L l a) = L l <$> markAnnotated a
 

@@ -24,7 +24,9 @@ import Data.Ord (comparing)
 
 import Data.Generics
 
-import GHC.Hs.Dump
+-- import GHC.Hs.Dump
+-- import Language.Haskell.GHC.ExactPrint.Dump
+
 import Language.Haskell.GHC.ExactPrint.Lookup
 import Language.Haskell.GHC.ExactPrint.Orphans ()
 
@@ -237,8 +239,8 @@ mkEpaComments priorCs postCs
 comment2LEpaComment :: Comment -> LEpaComment
 comment2LEpaComment (Comment s anc r _mk) = mkLEpaComment s anc r
 
-
 mkLEpaComment :: String -> Anchor -> RealSrcSpan -> LEpaComment
+mkLEpaComment "" anc r = (L anc (GHC.EpaComment (EpaEofComment) r))
 mkLEpaComment s anc r = (L anc (GHC.EpaComment (EpaLineComment s) r))
 
 mkComment :: String -> Anchor -> RealSrcSpan -> Comment
@@ -318,20 +320,23 @@ locatedAnAnchor (L (SrcSpanAnn (EpAnn a _ _) _) _) = anchor a
 
 -- ---------------------------------------------------------------------
 
-showAst :: (Data a) => a -> String
-showAst ast
-  = showSDocUnsafe
-    $ showAstData NoBlankSrcSpan NoBlankEpAnnotations ast
+-- Note: moved to Language.Haskell.GHC.ExactPrint.ExactPrint as a hack
+-- to avoid import loop problems while we have to use the local
+-- version of Dump
+-- showAst :: (Data a) => a -> String
+-- showAst ast
+--   = showSDocUnsafe
+--     $ showAstData NoBlankSrcSpan NoBlankEpAnnotations ast
 
 -- ---------------------------------------------------------------------
 
 setAnchorAn :: (Default an) => LocatedAn an a -> Anchor -> EpAnnComments -> LocatedAn an a
 setAnchorAn (L (SrcSpanAnn EpAnnNotUsed l)    a) anc cs
   = (L (SrcSpanAnn (EpAnn anc def cs) l) a)
-     `debug` ("setAnchorAn: anc=" ++ showAst anc)
+     -- `debug` ("setAnchorAn: anc=" ++ showAst anc)
 setAnchorAn (L (SrcSpanAnn (EpAnn _ an _) l) a) anc cs
   = (L (SrcSpanAnn (EpAnn anc an cs) l) a)
-     `debug` ("setAnchorAn: anc=" ++ showAst anc)
+     -- `debug` ("setAnchorAn: anc=" ++ showAst anc)
 
 setAnchorEpa :: (Default an) => EpAnn an -> Anchor -> EpAnnComments -> EpAnn an
 setAnchorEpa EpAnnNotUsed   anc cs = EpAnn anc def cs

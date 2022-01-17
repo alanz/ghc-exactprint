@@ -87,6 +87,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , decl2Sig, decl2Bind
         ) where
 
+import Language.Haskell.GHC.ExactPrint.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
 
