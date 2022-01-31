@@ -332,7 +332,7 @@ setEntryDP (L (SrcSpanAnn (EpAnn (Anchor r _) an cs) l) a) dp
               where
                 cs'' = setPriorComments cs (L (Anchor (anchor ca) (MovedAnchor dp)) c:cs')
                 lc = head $ reverse $ (L ca c:cs')
-                delta = ss2delta (ss2pos $ anchor $ getLoc lc) r
+                delta = tweakDelta $ ss2delta (ss2pos $ anchor $ getLoc lc) r
                 line = getDeltaLine delta
                 col = deltaColumn delta
                 edp' = if line == 0 then SameLine col
@@ -712,11 +712,15 @@ anchorFromLocatedA (L (SrcSpanAnn an loc) _)
 commentOrigDelta :: LEpaComment -> LEpaComment
 commentOrigDelta (L (GHC.Anchor la _) (GHC.EpaComment t pp))
   = (L (GHC.Anchor la op) (GHC.EpaComment t pp))
+                  `debug` ("commentOrigDelta: (la, pp, r,c, op)=" ++ showAst (la, pp, r,c, op))
   where
         (r,c) = ss2posEnd pp
+
         op' = if r == 0
                then MovedAnchor (ss2delta (r,c+1) la)
-               else MovedAnchor (ss2delta (r,c)   la)
+               -- then MovedAnchor (ss2delta (r,c+0) la)
+               -- else MovedAnchor (ss2delta (r,c)   la)
+               else MovedAnchor (tweakDelta $ ss2delta (r,c)   la)
         op = if t == EpaEofComment && op' == MovedAnchor (SameLine 0)
                then MovedAnchor (DifferentLine 1 0)
                else op'
@@ -781,7 +785,7 @@ tweakListComments' (L (SrcSpanAnn (EpAnn anc an cs) l) a) = L (SrcSpanAnn (EpAnn
                       let
                         -- dp is the delta from the end of the last comment to
                         -- the start of the AddXXXAnn delta
-                        dp = spanOrigDelta (anchor $ getLoc $ last priors) s
+                        dp = tweakDelta $ spanOrigDelta (anchor $ getLoc $ last priors) s
 
                         l' = EpaDelta dp (commentOrigDeltas these)
                         cs' = those
@@ -789,6 +793,11 @@ tweakListComments' (L (SrcSpanAnn (EpAnn anc an cs) l) a) = L (SrcSpanAnn (EpAnn
                         process f (setTrailingAnnLoc l l':ll,before++cc) li cs'
           EpaDelta d' cs' -> process f (l:ll,cc) li cs
 
+-- | For comment-related deltas starting on a new line we have an
+-- off-by-one problem. Adjust
+tweakDelta :: DeltaPos  -> DeltaPos
+tweakDelta (SameLine d) = SameLine d
+tweakDelta (DifferentLine l d) = DifferentLine l (d-1)
 
 -- TODO: Until https://gitlab.haskell.org/ghc/ghc/-/issues/20715 is
 -- fixed we have to special-case a funbind.  Damn.
@@ -1263,8 +1272,8 @@ oldWhereAnnotation (EpAnn anc an cs) ww _oldSpan = do
 newWhereAnnotation :: (Monad m) => WithWhere -> TransformT m (EpAnn AnnList)
 newWhereAnnotation ww = do
   newSpan <- uniqueSrcSpanT
-  let anc  = Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 3))
-  let anc2 = Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 5))
+  let anc  = Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 2))
+  let anc2 = Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 4))
   let w = case ww of
         WithWhere -> [AddEpAnn AnnWhere (EpaDelta (SameLine 0) [])]
         WithoutWhere -> []

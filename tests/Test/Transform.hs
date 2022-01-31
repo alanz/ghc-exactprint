@@ -187,8 +187,8 @@ changeLocalDecls2 libdir top = do
                         -> Transform (LMatch GhcPs (LHsExpr GhcPs))
       replaceLocalBinds (L lm (Match ma mln pats (GRHSs _ rhs EmptyLocalBinds{}))) = do
         newSpan <- uniqueSrcSpanT
-        let anc = (Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 3)))
-        let anc2 = (Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 5)))
+        let anc = (Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 2)))
+        let anc2 = (Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 4)))
         let an = EpAnn anc
                         (AnnList (Just anc2) Nothing Nothing
                                  [AddEpAnn AnnWhere (EpaDelta (SameLine 0) [])] [])
@@ -262,7 +262,7 @@ changeLocalDecls libdir top = do
         -- let (EpAnn anc (AnnList (Just (Anchor anc2 _)) a b c dd) cs) = van
         -- let van' = (EpAnn anc (AnnList (Just (Anchor anc2 (MovedAnchor (DifferentLine 1 5)))) a b c dd) cs)
         let (EpAnn anc (AnnList _ a b c dd) cs) = van
-        let van' = (EpAnn anc (AnnList (Just (Anchor (anchor anc) (MovedAnchor (DifferentLine 1 5)))) a b c dd) cs)
+        let van' = (EpAnn anc (AnnList (Just (Anchor (anchor anc) (MovedAnchor (DifferentLine 1 4)))) a b c dd) cs)
         let binds' = (HsValBinds van'
                           (ValBinds sortKey
                                     (listToBag $ decl':oldBinds)
@@ -474,7 +474,7 @@ transformHighLevelTests libdir =
 addLocaLDecl1 :: Changer
 addLocaLDecl1 libdir lp = do
   Right (L ld (ValD _ decl)) <- withDynFlags libdir (\df -> parseDecl df "decl" "nn = 2")
-  let decl' = setEntryDP (makeDeltaAst (L ld decl)) (DifferentLine 1 5)
+  let decl' = setEntryDP (makeDeltaAst (L ld decl)) (DifferentLine 1 4)
       doAddLocal = do
         (de1:d2:d3:_) <- hsDecls (makeDeltaAst lp)
         (de1'',d2') <- balanceComments de1 d2

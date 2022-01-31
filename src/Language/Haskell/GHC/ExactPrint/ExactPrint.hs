@@ -112,9 +112,9 @@ runEP epReader action = do
 defaultEPState :: EPState
 defaultEPState = EPState
              { epPos      = (1,1)
-             , dLHS       = 0
+             , dLHS       = 1
              , pMarkLayout = False
-             , pLHS = 0
+             , pLHS = 1
              , dMarkLayout = False
              , dPriorEndPosition = (1,1)
              , uAnchorSpan = badRealSrcSpan
@@ -1352,7 +1352,9 @@ printOneComment c@(Comment _str loc _r _mo) = do
   dp' <- case mep of
     Just (Anchor _ (MovedAnchor edp)) -> do
       debugM $ "printOneComment:edp=" ++ show edp
-      adjustDeltaForOffsetM edp
+      ddd <- fmap unTweakDelta $ adjustDeltaForOffsetM edp
+      debugM $ "printOneComment:ddd=" ++ show ddd
+      fmap unTweakDelta $ adjustDeltaForOffsetM edp
     _ -> return dp
   -- Start of debug printing
   -- LayoutStartCol dOff <- getLayoutOffsetD
@@ -1361,6 +1363,13 @@ printOneComment c@(Comment _str loc _r _mo) = do
   -- setPriorEndD (ss2posEnd (anchor loc))
   updateAndApplyComment c dp'
   printQueuedComment (anchor loc) c dp'
+
+-- | For comment-related deltas starting on a new line we have an
+-- off-by-one problem. Adjust
+unTweakDelta :: DeltaPos  -> DeltaPos
+unTweakDelta (SameLine d) = SameLine d
+unTweakDelta (DifferentLine l d) = DifferentLine l (d+1)
+
 
 updateAndApplyComment :: (Monad m, Monoid w) => Comment -> DeltaPos -> EP w m ()
 updateAndApplyComment co@(Comment str anc pp mo) dp = do
@@ -1373,7 +1382,8 @@ updateAndApplyComment co@(Comment str anc pp mo) dp = do
     (r,c) = ss2posEnd pp
     la = anchor anc
     dp'' = if r == 0
-           then (ss2delta (r,c+1) la)
+           -- then (ss2delta (r,c+1) la)
+           then (ss2delta (r,c+0) la)
            else (ss2delta (r,c)   la)
     dp' = if pp == anchor anc
              then dp
@@ -4983,7 +4993,7 @@ setLayoutTopLevelP k = do
   debugM $ "setLayoutTopLevelP entered"
   oldAnchorOffset <- getLayoutOffsetP
   modify (\a -> a { pMarkLayout = False
-                  , pLHS = 0} )
+                  , pLHS = 1} )
   r <- k
   debugM $ "setLayoutTopLevelP:resetting"
   setLayoutOffsetP oldAnchorOffset
