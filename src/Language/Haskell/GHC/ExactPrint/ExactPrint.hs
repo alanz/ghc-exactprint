@@ -2728,7 +2728,9 @@ instance ExactPrint (GRHS GhcPs (LocatedA (HsExpr GhcPs))) where
 
   exact (GRHS an guards expr) = do
     debugM $ "GRHS comments:" ++ showGhc (comments an)
-    an0 <- markLensKwM an lga_vbar AnnVbar
+    an0 <- if null guards
+             then return an
+             else markLensKwM an lga_vbar AnnVbar
     guards' <- markAnnotated guards
     debugM $ "GRHS before matchSeparator"
     an1 <- markLensAA an0 lga_sep -- Mark the matchSeparator for these GRHSs
