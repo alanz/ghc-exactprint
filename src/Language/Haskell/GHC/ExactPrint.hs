@@ -19,6 +19,7 @@ module Language.Haskell.GHC.ExactPrint
 
 
         -- * Dumping ASTs
+        , showAst
         -- ** Temporary copy from GHC, shows AnchorOps embedded in SrcSpan
         , showAstData
         , BlankSrcSpan(..)

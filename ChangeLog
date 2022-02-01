@@ -1,3 +1,9 @@
+2022-02-01 v1.5.0
+	* Add private version of showAstData, to be able to render
+	AnchorOperation's hacked into SrcSpan's.
+	* Change the starting top level margin from 0 to 1. This means we
+	can use (DifferentLine n 0) everywhere with the same meaning, not
+	needing (DifferentLine n 1) at the top level. Hence 1.5 bump.
 2022-01-03 v1.4.1
 	* Fix delta-in of open/close parentheses in AnnContext (@pepeiborra)
 2022-01-03 v1.4.0.1
