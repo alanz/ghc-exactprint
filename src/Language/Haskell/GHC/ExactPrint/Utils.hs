@@ -22,11 +22,6 @@ import Data.Function
 import Data.Maybe
 import Data.Ord (comparing)
 
-import Data.Generics
-
--- import GHC.Hs.Dump
--- import Language.Haskell.GHC.ExactPrint.Dump
-
 import Language.Haskell.GHC.ExactPrint.Lookup
 import Language.Haskell.GHC.ExactPrint.Orphans ()
 
@@ -36,7 +31,7 @@ import GHC.Types.Name
 import GHC.Types.Name.Reader
 import GHC.Types.SrcLoc
 import GHC.Data.FastString
-import GHC.Utils.Outputable (showSDocUnsafe, showPprUnsafe)
+import GHC.Utils.Outputable ( showPprUnsafe )
 
 import Data.List (sortBy, elemIndex)
 
@@ -83,8 +78,7 @@ warn c _ = c
 -- | A good delta has no negative values.
 isGoodDelta :: DeltaPos -> Bool
 isGoodDelta (SameLine co) = co >= 0
--- isGoodDelta (DifferentLine ro co) = ro > 0 && co >= 0
-isGoodDelta (DifferentLine ro co) = ro > 0
+isGoodDelta (DifferentLine ro _co) = ro > 0
   -- Note: DifferentLine invariant is ro is nonzero and positive
 
 
@@ -349,7 +343,6 @@ setAnchorEpaL (EpAnn _ an _) anc cs = EpAnn anc (an {al_anchor = Nothing}) cs
 setAnchorHsModule :: HsModule -> Anchor -> EpAnnComments -> HsModule
 setAnchorHsModule hsmod anc cs = hsmod { hsmodAnn = an' }
   where
-    -- anc' = anc { anchor_op = MovedAnchor (SameLine 0)}
     anc' = anc { anchor_op = UnchangedAnchor }
     an' = setAnchorEpa (hsmodAnn hsmod) anc' cs
 

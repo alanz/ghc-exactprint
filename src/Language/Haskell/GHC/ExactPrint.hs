@@ -16,8 +16,16 @@ module Language.Haskell.GHC.ExactPrint
 
         -- * Relativising
         , makeDeltaAst
+
+
+        -- * Dumping ASTs
+        -- ** Temporary copy from GHC, shows AnchorOps embedded in SrcSpan
+        , showAstData
+        , BlankSrcSpan(..)
+        , BlankEpAnnotations(..)
         ) where
 
+import Language.Haskell.GHC.ExactPrint.Dump
 import Language.Haskell.GHC.ExactPrint.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Transform
 import Language.Haskell.GHC.ExactPrint.Types

@@ -17,18 +17,18 @@ module Language.Haskell.GHC.ExactPrint.Dump (
 import Prelude ()
 import GHC.Prelude
 
-import GHC.Hs
+import GHC.Hs hiding ( ann, anns, deltaPos, realSrcSpan )
 
 import GHC.Core.DataCon
 
 import GHC.Data.Bag
 import GHC.Data.FastString
 import GHC.Types.Name.Set
-import GHC.Types.Name
+import GHC.Types.Name hiding ( occName )
 import GHC.Types.SrcLoc
 import GHC.Types.Var
 import GHC.Types.SourceText
-import GHC.Unit.Module
+import GHC.Unit.Module hiding ( moduleName )
 import GHC.Utils.Outputable
 
 import Data.Data hiding (Fixity)

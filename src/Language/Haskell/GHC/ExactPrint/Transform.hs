@@ -312,13 +312,8 @@ setEntryDP (L (SrcSpanAnn (EpAnn (Anchor r (MovedAnchor d)) an cs) l) a) dp
         in
           (dp0, EpaCommentsBalanced (c':t) ts)
       _ -> (dp, cs)
-    -- go (L (Anchor rr (MovedAnchor ma)) c) = (dp, L (Anchor rr (MovedAnchor ma)) c)
     go (L (Anchor rr (MovedAnchor ma)) c) = (d,  L (Anchor rr (MovedAnchor ma)) c)
     go (L (Anchor rr                _) c) = (d,  L (Anchor rr (MovedAnchor dp)) c)
--- setEntryDP (L (SrcSpanAnn (EpAnn (Anchor r (MovedAnchor _)) an cs) l) a) dp
---   = L (SrcSpanAnn
---            (EpAnn (Anchor r (MovedAnchor dp)) an cs)
---            l) a
 setEntryDP (L (SrcSpanAnn (EpAnn (Anchor r _) an cs) l) a) dp
   = case sortEpaComments (priorComments cs) of
       [] ->
@@ -384,7 +379,6 @@ transferEntryDP (L (SrcSpanAnn (EpAnn anc1 an1 cs1) _l1) _) (L (SrcSpanAnn (EpAn
     -- TODO: what happens if the receiving side already has comments?
     (L anc _:_) -> do
       logDataWithAnnsTr "transferEntryDP':priorComments anc=" anc
-      -- return (L (SrcSpanAnn (EpAnn anc an2 cs2) l2) b)
       return (L (SrcSpanAnn (EpAnn anc1 (combine an1 an2) (cs1 <> cs2)) l2) b)
 transferEntryDP (L (SrcSpanAnn EpAnnNotUsed _l1) _) (L (SrcSpanAnn (EpAnn anc2 an2 cs2) l2) b) = do
   logTr $ "transferEntryDP': EpAnnNotUsed,EpAnn"
@@ -441,9 +435,6 @@ balanceComments :: (Monad m)
   => LHsDecl GhcPs -> LHsDecl GhcPs
   -> TransformT m (LHsDecl GhcPs, LHsDecl GhcPs)
 balanceComments first second = do
-  -- ++AZ++ : replace the nested casts with appropriate gmapM
-  -- logTr $ "balanceComments entered"
-  -- logDataWithAnnsTr "first" first
   case first of
     (L l (ValD x fb@(FunBind{}))) -> do
       (L l' fb',second') <- balanceCommentsFB (L l fb) second
@@ -486,7 +477,6 @@ balanceCommentsFB (L lf (FunBind x n (MG mx (L lm matches) o) t)) second = do
         [] -> moveLeadingComments m'' lf'
         _  -> (m'',lf')
   logTr $ "balanceCommentsMatch done"
-  -- return (L lf'' (FunBind x n (MG mx (L lm (reverse (m''':ms))) o) t), second')
   balanceComments' (L lf'' (FunBind x n (MG mx (L lm (reverse (m''':ms))) o) t)) second'
 balanceCommentsFB f s = balanceComments' f s
 
@@ -495,13 +485,7 @@ balanceCommentsFB f s = balanceComments' f s
 balanceCommentsMatch :: (Monad m)
   => LMatch GhcPs (LHsExpr GhcPs) -> TransformT m (LMatch GhcPs (LHsExpr GhcPs))
 balanceCommentsMatch (L l (Match am mctxt pats (GRHSs xg grhss binds))) = do
-  logTr $ "balanceCommentsMatch: (loc1)=" ++ showGhc (ss2range (locA l))
-  -- logTr $ "balanceCommentsMatch: (move',stay')=" ++ showAst (move',stay')
   logTr $ "balanceCommentsMatch: (logInfo)=" ++ showAst (logInfo)
-  -- logTr $ "balanceCommentsMatch: (loc1)=" ++ showGhc (ss2range (locA l))
-  logTr $ "balanceCommentsMatch: (anc1,cs1f)=" ++ showAst (anc1,cs1f)
-  logTr $ "balanceCommentsMatch: (move,stay)=" ++ showAst (move,stay)
-  logTr $ "balanceCommentsMatch: (l'', grhss')=" ++ showAst (l'', grhss')
   return (L l'' (Match am mctxt pats (GRHSs xg grhss' binds')))
   where
     simpleBreak (r,_) = r /= 0
@@ -738,7 +722,7 @@ spanOrigDelta prior cur = dp
 -- TODO: Until https://gitlab.haskell.org/ghc/ghc/-/issues/20715 is
 -- fixed we have to special-case a funbind.  Damn.
 tweakListComments :: LHsDecl GhcPs -> LHsDecl GhcPs
-tweakListComments a@(L l (ValD x fb@(FunBind{}))) = tweakListCommentsFB a
+tweakListComments a@(L _ (ValD _ (FunBind{}))) = tweakListCommentsFB a
 tweakListComments a = tweakListComments' a
 
 -- A LocatedA item may have both trailing comments and trailing list items.
@@ -767,19 +751,19 @@ tweakListComments' (L (SrcSpanAnn (EpAnn anc an cs) l) a) = L (SrcSpanAnn (EpAnn
             -> [TrailingAnn]
             -> [LEpaComment]
             -> (AnnListItem, b)
-    process f (ll,cc) [] cs = (AnnListItem (reverse ll), f (cc++cs))
+    process f (ll,cc) [] cs0 = (AnnListItem (reverse ll), f (cc++cs0))
     process f (ll,cc) li [] = (AnnListItem (reverse $ ll++li), f cc)
-    process f (ll,cc) (l:li) cs@(L lc c:_) = r
+    process f (ll,cc) (l0:li) cs0 = r
       where
-        r = case trailingAnnLoc l of
-          EpaSpan s -> r
+        r = case trailingAnnLoc l0 of
+          EpaSpan s -> r0
             where
               condp (L lc _) = anchor lc >= anchor anc
-              (before,rest) = break condp cs
+              (before,rest) = break condp cs0
               cond (L lc _) = anchor lc >= s
               (these,those) = break cond rest
-              r = case these of
-                [] -> process f (l:ll,cc) li cs
+              r0 = case these of
+                [] -> process f (l0:ll,cc) li cs0
                 priors ->
                       -- We have at least one comment preceding the list item
                       let
@@ -788,10 +772,10 @@ tweakListComments' (L (SrcSpanAnn (EpAnn anc an cs) l) a) = L (SrcSpanAnn (EpAnn
                         dp = tweakDelta $ spanOrigDelta (anchor $ getLoc $ last priors) s
 
                         l' = EpaDelta dp (commentOrigDeltas these)
-                        cs' = those
+                        cs1 = those
                       in
-                        process f (setTrailingAnnLoc l l':ll,before++cc) li cs'
-          EpaDelta d' cs' -> process f (l:ll,cc) li cs
+                        process f (setTrailingAnnLoc l0 l':ll,before++cc) li cs1
+          EpaDelta _d' _cs' -> process f (l0:ll,cc) li cs0
 
 -- | For comment-related deltas starting on a new line we have an
 -- off-by-one problem. Adjust
@@ -810,24 +794,24 @@ tweakListCommentsFB (L l (ValD xv (FunBind x n (MG mx (L lm matches) o) t))) = r
     -- first match for processing
     (l',matches') = case matches of
       [] -> (l,matches)
-      (L lm m:ms) -> (l', L lm' m:ms)
-                          `debug` ("tweakListCommentsFB:(l',lm')=" ++ showAst (l',lm'))
+      (L lm0 m:ms) -> (l1, L lm' m:ms)
+                          `debug` ("tweakListCommentsFB:(l',lm')=" ++ showAst (l1,lm'))
       -- (L lm m:ms) -> error $ "lm'=\n" ++ showAst lm'
         where
-          (l',cs',as) = case l of
+          (l1,cs',as) = case l of
             SrcSpanAnn EpAnnNotUsed _ -> (l,[], [])
-            SrcSpanAnn (EpAnn anc an (EpaComments cs))            l
-              -> (SrcSpanAnn (EpAnn anc (AnnListItem []) (EpaComments [])) l, cs, lann_trailing an)
-            SrcSpanAnn (EpAnn anc an (EpaCommentsBalanced ls ts)) l
-              -> (SrcSpanAnn (EpAnn anc (AnnListItem []) (EpaCommentsBalanced ls [])) l, ts, lann_trailing an)
+            SrcSpanAnn (EpAnn anc an (EpaComments cs))            l0
+              -> (SrcSpanAnn (EpAnn anc (AnnListItem []) (EpaComments [])) l0, cs, lann_trailing an)
+            SrcSpanAnn (EpAnn anc an (EpaCommentsBalanced ls ts)) l0
+              -> (SrcSpanAnn (EpAnn anc (AnnListItem []) (EpaCommentsBalanced ls [])) l0, ts, lann_trailing an)
 
-          lm' = case lm of
-            SrcSpanAnn EpAnnNotUsed                               l
-              -> SrcSpanAnn (EpAnn (spanAsAnchor l) (AnnListItem as) (EpaComments cs')) l
-            SrcSpanAnn (EpAnn anc (AnnListItem is) (EpaComments cs))            l
-              -> SrcSpanAnn (EpAnn anc (AnnListItem (as<>is)) (EpaComments (cs'<>cs))) l
-            SrcSpanAnn (EpAnn anc (AnnListItem is) (EpaCommentsBalanced ls ts)) l
-              -> SrcSpanAnn (EpAnn anc (AnnListItem (as<>is)) (EpaCommentsBalanced (cs'<>ls) ts)) l
+          lm' = case lm0 of
+            SrcSpanAnn EpAnnNotUsed                               l0
+              -> SrcSpanAnn (EpAnn (spanAsAnchor l0) (AnnListItem as) (EpaComments cs')) l0
+            SrcSpanAnn (EpAnn anc (AnnListItem is) (EpaComments cs))            l0
+              -> SrcSpanAnn (EpAnn anc (AnnListItem (as<>is)) (EpaComments (cs'<>cs))) l0
+            SrcSpanAnn (EpAnn anc (AnnListItem is) (EpaCommentsBalanced ls ts)) l0
+              -> SrcSpanAnn (EpAnn anc (AnnListItem (as<>is)) (EpaCommentsBalanced (cs'<>ls) ts)) l0
 
     r = (L l' (ValD xv (FunBind x n (MG mx (L lm (map tweakListComments' matches')) o) t)))
 tweakListCommentsFB x = error $ "tweakListCommentsFB for " ++ showAst x
