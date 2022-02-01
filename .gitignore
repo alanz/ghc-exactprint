@@ -49,3 +49,7 @@ packages
 /tests/examples/ghc80/AddParams2.hs.out.orig
 /tests/examples/ghc80/T9600.hs.out.ep
 /tests/examples/ghc92/BalanceComments1.hs.out.orig
+/.envrc
+/.vscode/
+/cabal.project.local~0
+/cabal.project.local~1
