@@ -199,10 +199,10 @@ tt' = do
 
    -- mkTestModChange libdir rmDecl1 "RmDecl1.hs"
 
-   mkTestModChange libdir rmDecl4 "RmDecl4.hs"
+   -- mkTestModChange libdir rmDecl4 "RmDecl4.hs"
     -- mkParserTestMD libdir      "ghc92" "Foo.hs"
     -- mkParserTest libdir      "ghc92" "Foo.hs"
-    -- mkParserTestMD libdir      "ghc92" "Foo.hs"
+    mkParserTestMD libdir      "ghc92" "Foo.hs"
     -- mkParserTest libdir      "ghc92" "Foo2.hs"
     -- mkParserTest libdir      "ghc710" "EmptyMostly.hs"
     -- mkParserTestBC libdir "ghc710" "Control.hs"
