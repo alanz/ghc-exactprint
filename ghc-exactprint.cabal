@@ -16,6 +16,7 @@ maintainer:          alan.zimm@gmail.com
 category:            Development
 build-type:          Simple
 tested-with:         GHC == 9.2.1
+                   , GHC == 9.2.2
 extra-source-files:  ChangeLog
                      tests/examples/failing/*.hs
                      tests/examples/ghc710-only/*.hs
