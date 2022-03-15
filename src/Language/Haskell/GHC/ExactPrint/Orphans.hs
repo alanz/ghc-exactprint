@@ -52,9 +52,6 @@ instance Default EpAnnHsCase where
 instance Default AnnsIf where
   def = AnnsIf def def def def def
 
-instance Default AnnsLet where
-  def = AnnsLet def def
-
 instance Default AnnProjection where
   def = AnnProjection def def
 
@@ -71,7 +68,7 @@ instance Default AnnKeywordId where
   def = Annlarrowtail  {- gotta pick one -}
 
 instance Default TrailingAnn where
-  def = AddLollyAnnU {-gotta pick one -} def
+  def = AddSemiAnn {-gotta pick one -} def
 
 instance Default AnnContext where
   def = AnnContext Nothing [] []
