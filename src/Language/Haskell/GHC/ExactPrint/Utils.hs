@@ -32,6 +32,7 @@ import GHC.Types.Name.Reader
 import GHC.Types.SrcLoc
 import GHC.Data.FastString
 import GHC.Utils.Outputable ( showPprUnsafe )
+import qualified GHC.Data.Strict as Strict
 
 import Data.List (sortBy, elemIndex)
 
@@ -357,26 +358,16 @@ trailingAnnToAddEpAnn :: TrailingAnn -> AddEpAnn
 trailingAnnToAddEpAnn (AddSemiAnn ss)    = AddEpAnn AnnSemi ss
 trailingAnnToAddEpAnn (AddCommaAnn ss)   = AddEpAnn AnnComma ss
 trailingAnnToAddEpAnn (AddVbarAnn ss)    = AddEpAnn AnnVbar ss
-trailingAnnToAddEpAnn (AddRarrowAnn ss)  = AddEpAnn AnnRarrow ss
-trailingAnnToAddEpAnn (AddRarrowAnnU ss) = AddEpAnn AnnRarrowU ss
-trailingAnnToAddEpAnn (AddLollyAnnU ss)  = AddEpAnn AnnLollyU ss
 
 trailingAnnLoc :: TrailingAnn -> EpaLocation
 trailingAnnLoc (AddSemiAnn ss)    = ss
 trailingAnnLoc (AddCommaAnn ss)   = ss
 trailingAnnLoc (AddVbarAnn ss)    = ss
-trailingAnnLoc (AddRarrowAnn ss)  = ss
-trailingAnnLoc (AddRarrowAnnU ss) = ss
-trailingAnnLoc (AddLollyAnnU ss)  = ss
 
 setTrailingAnnLoc :: TrailingAnn -> EpaLocation -> TrailingAnn
 setTrailingAnnLoc (AddSemiAnn _)    ss = (AddSemiAnn ss)
 setTrailingAnnLoc (AddCommaAnn _)   ss = (AddCommaAnn ss)
 setTrailingAnnLoc (AddVbarAnn _)    ss = (AddVbarAnn ss)
-setTrailingAnnLoc (AddRarrowAnn _)  ss = (AddRarrowAnn ss)
-setTrailingAnnLoc (AddRarrowAnnU _) ss = (AddRarrowAnnU ss)
-setTrailingAnnLoc (AddLollyAnnU _)  ss = (AddLollyAnnU ss)
-
 
 addEpAnnLoc :: AddEpAnn -> EpaLocation
 addEpAnnLoc (AddEpAnn _ l) = l
@@ -415,16 +406,16 @@ To be absolutely sure, we make the delta versions use -ve values.
 
 hackSrcSpanToAnchor :: SrcSpan -> Anchor
 hackSrcSpanToAnchor (UnhelpfulSpan s) = error $ "hackSrcSpanToAnchor : UnhelpfulSpan:" ++ show s
-hackSrcSpanToAnchor (RealSrcSpan r Nothing) = Anchor r UnchangedAnchor
-hackSrcSpanToAnchor (RealSrcSpan r (Just (BufSpan (BufPos s) (BufPos e))))
+hackSrcSpanToAnchor (RealSrcSpan r Strict.Nothing) = Anchor r UnchangedAnchor
+hackSrcSpanToAnchor (RealSrcSpan r (Strict.Just (BufSpan (BufPos s) (BufPos e))))
   = if s <= 0 && e <= 0
     then Anchor r (MovedAnchor (deltaPos (-s) (-e)))
     else Anchor r UnchangedAnchor
 
 hackAnchorToSrcSpan :: Anchor -> SrcSpan
-hackAnchorToSrcSpan (Anchor r UnchangedAnchor) = RealSrcSpan r Nothing
+hackAnchorToSrcSpan (Anchor r UnchangedAnchor) = RealSrcSpan r Strict.Nothing
 hackAnchorToSrcSpan (Anchor r (MovedAnchor dp))
-  = RealSrcSpan r (Just (BufSpan (BufPos s) (BufPos e)))
+  = RealSrcSpan r (Strict.Just (BufSpan (BufPos s) (BufPos e)))
   where
     s = - (getDeltaLine dp)
     e = - (deltaColumn dp)
