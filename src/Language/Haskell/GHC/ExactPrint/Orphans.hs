@@ -77,7 +77,7 @@ instance Default AnnKeywordId where
 #if MIN_VERSION_GLASGOW_HASKELL(9,2,9,0)
 #else
 instance Default TrailingAnn where
-  def = AddLollyAnnU {-gotta pick one -} def
+  def = AddSemiAnn {-gotta pick one -} def
 #endif
 
 instance Default AnnContext where
