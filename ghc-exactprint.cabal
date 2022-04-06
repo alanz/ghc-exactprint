@@ -79,7 +79,7 @@ library
                      , data-default
                      , directory >= 1.2
                      , filepath  >= 1.4
-                     , ghc       >= 7.10.2
+                     , ghc       >= 9.2.1
                      , ghc-paths >= 0.1
                      , mtl       >= 2.2.1
                      , syb       >= 0.5
@@ -118,7 +118,7 @@ Test-Suite test
                      , Diff
                      , directory >= 1.2
                      , filepath  >= 1.4
-                     , ghc  >= 7.10.2
+                     , ghc       >= 9.2.1
                      , ghc-paths  >= 0.1
                      , mtl        >= 2.2.1
                      , syb        >= 0.5
@@ -186,7 +186,7 @@ executable prepare-hackage
                  , directory
                  , filemanip
                  , filepath
-                 , ghc       >= 9.2
+                 , ghc       >= 9.2.1
                  , ghc-paths >= 0.1
                  , HUnit
                  , text   >= 1.2.2
