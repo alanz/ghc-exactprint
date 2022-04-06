@@ -33,7 +33,9 @@ import GHC.Types.Name.Reader
 import GHC.Types.SrcLoc
 import GHC.Data.FastString
 import GHC.Utils.Outputable ( showPprUnsafe )
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,9,0)
 import qualified GHC.Data.Strict as Strict
+#endif
 
 import Data.List (sortBy, elemIndex)
 
@@ -371,44 +373,34 @@ trailingAnnToAddEpAnn :: TrailingAnn -> AddEpAnn
 trailingAnnToAddEpAnn (AddSemiAnn ss)    = AddEpAnn AnnSemi ss
 trailingAnnToAddEpAnn (AddCommaAnn ss)   = AddEpAnn AnnComma ss
 trailingAnnToAddEpAnn (AddVbarAnn ss)    = AddEpAnn AnnVbar ss
-<<<<<<< variant A
 #if MIN_VERSION_GLASGOW_HASKELL(9,2,9,0)
 #else
 trailingAnnToAddEpAnn (AddRarrowAnn ss)  = AddEpAnn AnnRarrow ss
 trailingAnnToAddEpAnn (AddRarrowAnnU ss) = AddEpAnn AnnRarrowU ss
 trailingAnnToAddEpAnn (AddLollyAnnU ss)  = AddEpAnn AnnLollyU ss
 #endif
->>>>>>> variant B
-======= end
 
 trailingAnnLoc :: TrailingAnn -> EpaLocation
 trailingAnnLoc (AddSemiAnn ss)    = ss
 trailingAnnLoc (AddCommaAnn ss)   = ss
 trailingAnnLoc (AddVbarAnn ss)    = ss
-<<<<<<< variant A
 #if MIN_VERSION_GLASGOW_HASKELL(9,2,9,0)
 #else
 trailingAnnLoc (AddRarrowAnn ss)  = ss
 trailingAnnLoc (AddRarrowAnnU ss) = ss
 trailingAnnLoc (AddLollyAnnU ss)  = ss
 #endif
->>>>>>> variant B
-======= end
 
 setTrailingAnnLoc :: TrailingAnn -> EpaLocation -> TrailingAnn
 setTrailingAnnLoc (AddSemiAnn _)    ss = (AddSemiAnn ss)
 setTrailingAnnLoc (AddCommaAnn _)   ss = (AddCommaAnn ss)
 setTrailingAnnLoc (AddVbarAnn _)    ss = (AddVbarAnn ss)
-<<<<<<< variant A
 #if MIN_VERSION_GLASGOW_HASKELL(9,2,9,0)
 #else
 setTrailingAnnLoc (AddRarrowAnn _)  ss = (AddRarrowAnn ss)
 setTrailingAnnLoc (AddRarrowAnnU _) ss = (AddRarrowAnnU ss)
 setTrailingAnnLoc (AddLollyAnnU _)  ss = (AddLollyAnnU ss)
 #endif
-
->>>>>>> variant B
-======= end
 
 addEpAnnLoc :: AddEpAnn -> EpaLocation
 addEpAnnLoc (AddEpAnn _ l) = l
@@ -447,16 +439,27 @@ To be absolutely sure, we make the delta versions use -ve values.
 
 hackSrcSpanToAnchor :: SrcSpan -> Anchor
 hackSrcSpanToAnchor (UnhelpfulSpan s) = error $ "hackSrcSpanToAnchor : UnhelpfulSpan:" ++ show s
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,9,0)
 hackSrcSpanToAnchor (RealSrcSpan r Strict.Nothing) = Anchor r UnchangedAnchor
 hackSrcSpanToAnchor (RealSrcSpan r (Strict.Just (BufSpan (BufPos s) (BufPos e))))
+#else
+hackSrcSpanToAnchor (RealSrcSpan r Nothing) = Anchor r UnchangedAnchor
+hackSrcSpanToAnchor (RealSrcSpan r (Just (BufSpan (BufPos s) (BufPos e))))
+#endif
   = if s <= 0 && e <= 0
     then Anchor r (MovedAnchor (deltaPos (-s) (-e)))
     else Anchor r UnchangedAnchor
 
 hackAnchorToSrcSpan :: Anchor -> SrcSpan
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,9,0)
 hackAnchorToSrcSpan (Anchor r UnchangedAnchor) = RealSrcSpan r Strict.Nothing
 hackAnchorToSrcSpan (Anchor r (MovedAnchor dp))
   = RealSrcSpan r (Strict.Just (BufSpan (BufPos s) (BufPos e)))
+#else
+hackAnchorToSrcSpan (Anchor r UnchangedAnchor) = RealSrcSpan r Nothing
+hackAnchorToSrcSpan (Anchor r (MovedAnchor dp))
+  = RealSrcSpan r (Just (BufSpan (BufPos s) (BufPos e)))
+#endif
   where
     s = - (getDeltaLine dp)
     e = - (deltaColumn dp)

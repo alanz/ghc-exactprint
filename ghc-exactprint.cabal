@@ -93,6 +93,11 @@ library
   default-language:    Haskell2010
   if impl (ghc < 9.2)
       buildable: False
+  else
+    if impl (ghc > 9.2.9)
+        hs-source-dirs: src-ghc94
+    else
+        hs-source-dirs: src-ghc92
 
 Test-Suite test
   type:                exitcode-stdio-1.0
