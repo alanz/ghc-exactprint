@@ -2,6 +2,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE CPP #-}
 
 module Language.Haskell.GHC.ExactPrint.Utils
   -- (
@@ -32,6 +33,7 @@ import GHC.Types.Name.Reader
 import GHC.Types.SrcLoc
 import GHC.Data.FastString
 import GHC.Utils.Outputable ( showPprUnsafe )
+import qualified GHC.Data.Strict as Strict
 
 import Data.List (sortBy, elemIndex)
 
@@ -212,14 +214,26 @@ insertCppComments (L l p) cs = L l p'
 -- ---------------------------------------------------------------------
 
 ghcCommentText :: LEpaComment -> String
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,9,0)
+ghcCommentText (L _ (GHC.EpaComment (EpaDocComment s) _))  = show s
+#else
 ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentNext s) _))  = s
 ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentPrev s) _))  = s
 ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentNamed s) _)) = s
 ghcCommentText (L _ (GHC.EpaComment (EpaDocSection _ s) _))    = s
+#endif
 ghcCommentText (L _ (GHC.EpaComment (EpaDocOptions s) _))      = s
 ghcCommentText (L _ (GHC.EpaComment (EpaLineComment s) _))     = s
 ghcCommentText (L _ (GHC.EpaComment (EpaBlockComment s) _))    = s
 ghcCommentText (L _ (GHC.EpaComment (EpaEofComment) _))        = ""
+
+
+  --   EpaDocComment      HsDocString -- ^ a docstring that can be pretty printed using pprHsDocString
+  -- | EpaDocOptions      String     -- ^ doc options (prune, ignore-exports, etc)
+  -- | EpaLineComment     String     -- ^ comment starting by "--"
+  -- | EpaBlockComment    String     -- ^ comment in {- -}
+  -- | EpaEofComment                 -- ^ empty comment, capturing
+
 
 tokComment :: LEpaComment -> Comment
 tokComment t@(L lt c) = mkComment (normaliseCommentText $ ghcCommentText t) lt (ac_prior_tok c)
@@ -357,25 +371,34 @@ trailingAnnToAddEpAnn :: TrailingAnn -> AddEpAnn
 trailingAnnToAddEpAnn (AddSemiAnn ss)    = AddEpAnn AnnSemi ss
 trailingAnnToAddEpAnn (AddCommaAnn ss)   = AddEpAnn AnnComma ss
 trailingAnnToAddEpAnn (AddVbarAnn ss)    = AddEpAnn AnnVbar ss
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,9,0)
+#else
 trailingAnnToAddEpAnn (AddRarrowAnn ss)  = AddEpAnn AnnRarrow ss
 trailingAnnToAddEpAnn (AddRarrowAnnU ss) = AddEpAnn AnnRarrowU ss
 trailingAnnToAddEpAnn (AddLollyAnnU ss)  = AddEpAnn AnnLollyU ss
+#endif
 
 trailingAnnLoc :: TrailingAnn -> EpaLocation
 trailingAnnLoc (AddSemiAnn ss)    = ss
 trailingAnnLoc (AddCommaAnn ss)   = ss
 trailingAnnLoc (AddVbarAnn ss)    = ss
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,9,0)
+#else
 trailingAnnLoc (AddRarrowAnn ss)  = ss
 trailingAnnLoc (AddRarrowAnnU ss) = ss
 trailingAnnLoc (AddLollyAnnU ss)  = ss
+#endif
 
 setTrailingAnnLoc :: TrailingAnn -> EpaLocation -> TrailingAnn
 setTrailingAnnLoc (AddSemiAnn _)    ss = (AddSemiAnn ss)
 setTrailingAnnLoc (AddCommaAnn _)   ss = (AddCommaAnn ss)
 setTrailingAnnLoc (AddVbarAnn _)    ss = (AddVbarAnn ss)
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,9,0)
+#else
 setTrailingAnnLoc (AddRarrowAnn _)  ss = (AddRarrowAnn ss)
 setTrailingAnnLoc (AddRarrowAnnU _) ss = (AddRarrowAnnU ss)
 setTrailingAnnLoc (AddLollyAnnU _)  ss = (AddLollyAnnU ss)
+#endif
 
 
 addEpAnnLoc :: AddEpAnn -> EpaLocation
@@ -415,16 +438,16 @@ To be absolutely sure, we make the delta versions use -ve values.
 
 hackSrcSpanToAnchor :: SrcSpan -> Anchor
 hackSrcSpanToAnchor (UnhelpfulSpan s) = error $ "hackSrcSpanToAnchor : UnhelpfulSpan:" ++ show s
-hackSrcSpanToAnchor (RealSrcSpan r Nothing) = Anchor r UnchangedAnchor
-hackSrcSpanToAnchor (RealSrcSpan r (Just (BufSpan (BufPos s) (BufPos e))))
+hackSrcSpanToAnchor (RealSrcSpan r Strict.Nothing) = Anchor r UnchangedAnchor
+hackSrcSpanToAnchor (RealSrcSpan r (Strict.Just (BufSpan (BufPos s) (BufPos e))))
   = if s <= 0 && e <= 0
     then Anchor r (MovedAnchor (deltaPos (-s) (-e)))
     else Anchor r UnchangedAnchor
 
 hackAnchorToSrcSpan :: Anchor -> SrcSpan
-hackAnchorToSrcSpan (Anchor r UnchangedAnchor) = RealSrcSpan r Nothing
+hackAnchorToSrcSpan (Anchor r UnchangedAnchor) = RealSrcSpan r Strict.Nothing
 hackAnchorToSrcSpan (Anchor r (MovedAnchor dp))
-  = RealSrcSpan r (Just (BufSpan (BufPos s) (BufPos e)))
+  = RealSrcSpan r (Strict.Just (BufSpan (BufPos s) (BufPos e)))
   where
     s = - (getDeltaLine dp)
     e = - (deltaColumn dp)
