@@ -369,12 +369,12 @@ moveAnchor (SrcSpanAnn EpAnnNotUsed l) = noAnnSrcSpan l
 moveAnchor (SrcSpanAnn (EpAnn anc _ cs) l) = SrcSpanAnn (EpAnn anc mempty cs) l
 
 -- ---------------------------------------------------------------------
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,9,0)
+#else
 trailingAnnToAddEpAnn :: TrailingAnn -> AddEpAnn
 trailingAnnToAddEpAnn (AddSemiAnn ss)    = AddEpAnn AnnSemi ss
 trailingAnnToAddEpAnn (AddCommaAnn ss)   = AddEpAnn AnnComma ss
 trailingAnnToAddEpAnn (AddVbarAnn ss)    = AddEpAnn AnnVbar ss
-#if MIN_VERSION_GLASGOW_HASKELL(9,2,9,0)
-#else
 trailingAnnToAddEpAnn (AddRarrowAnn ss)  = AddEpAnn AnnRarrow ss
 trailingAnnToAddEpAnn (AddRarrowAnnU ss) = AddEpAnn AnnRarrowU ss
 trailingAnnToAddEpAnn (AddLollyAnnU ss)  = AddEpAnn AnnLollyU ss
