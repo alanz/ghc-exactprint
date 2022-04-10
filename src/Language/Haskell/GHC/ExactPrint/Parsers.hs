@@ -302,9 +302,12 @@ fixModuleTrailingComments (GHC.L l p) = GHC.L l p'
 -- See ghc tickets #15513, #15541.
 initDynFlags :: GHC.GhcMonad m => FilePath -> m GHC.DynFlags
 initDynFlags file = do
+  -- Based on GHC backpack driver doBackPack
   dflags0         <- GHC.getSessionDynFlags
-  src_opts        <- GHC.liftIO $ GHC.getOptionsFromFile (GHC.initParserOpts dflags0) file
-  (dflags1, _, _) <- GHC.parseDynamicFilePragma dflags0 src_opts
+  let dflags1 = dflags0
+  let parser_opts1 = GHC.initParserOpts dflags1
+  (p_warns, src_opts) <- liftIO $ GHC.getOptionsFromFile parser_opts1 file
+  (dflags, _unhandled_flags, _warns) <- liftIO $ GHC.parseDynamicFilePragma dflags1 src_opts
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
   -- Prevent parsing of .ghc.environment.* "package environment files"
@@ -324,13 +327,18 @@ initDynFlags file = do
 -- invocation of `setSessionDynFlags` before calling `initDynFlagsPure`.
 -- See ghc tickets #15513, #15541.
 initDynFlagsPure :: GHC.GhcMonad m => FilePath -> String -> m GHC.DynFlags
-initDynFlagsPure fp s = do
+initDynFlagsPure file s = do
+  -- AZ Note: "I" below appears to be Lennart Spitzner
   -- I was told we could get away with using the unsafeGlobalDynFlags.
   -- as long as `parseDynamicFilePragma` is impure there seems to be
   -- no reason to use it.
-  dflags0 <- GHC.getSessionDynFlags
-  let pragmaInfo = GHC.getOptions (GHC.initParserOpts dflags0) (GHC.stringToStringBuffer $ s) fp
-  (dflags1, _, _) <- GHC.parseDynamicFilePragma dflags0 pragmaInfo
+
+  -- Based on GHC backpack driver doBackPack
+  dflags0         <- GHC.getSessionDynFlags
+  let dflags1 = dflags0
+  let parser_opts1 = GHC.initParserOpts dflags1
+  (p_warns, src_opts) <- liftIO $ GHC.getOptionsFromFile parser_opts1 file
+  (dflags, _unhandled_flags, _warns) <- liftIO $ GHC.parseDynamicFilePragma dflags1 src_opts
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
   -- Prevent parsing of .ghc.environment.* "package environment files"

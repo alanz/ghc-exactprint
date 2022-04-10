@@ -229,14 +229,6 @@ ghcCommentText (L _ (GHC.EpaComment (EpaLineComment s) _))     = s
 ghcCommentText (L _ (GHC.EpaComment (EpaBlockComment s) _))    = s
 ghcCommentText (L _ (GHC.EpaComment (EpaEofComment) _))        = ""
 
-
-  --   EpaDocComment      HsDocString -- ^ a docstring that can be pretty printed using pprHsDocString
-  -- | EpaDocOptions      String     -- ^ doc options (prune, ignore-exports, etc)
-  -- | EpaLineComment     String     -- ^ comment starting by "--"
-  -- | EpaBlockComment    String     -- ^ comment in {- -}
-  -- | EpaEofComment                 -- ^ empty comment, capturing
-
-
 tokComment :: LEpaComment -> Comment
 tokComment t@(L lt c) = mkComment (normaliseCommentText $ ghcCommentText t) lt (ac_prior_tok c)
 
