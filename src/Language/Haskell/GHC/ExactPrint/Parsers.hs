@@ -81,8 +81,10 @@ parseWith :: GHC.DynFlags
           -> ParseResult w
 parseWith dflags fileName parser s =
   case runParser parser dflags fileName s of
-    GHC.PFailed pst                     -> Left (GHC.GhcPsMessage <$> GHC.getPsErrorMessages pst) 
-    GHC.POk _ pmod -> Right pmod
+    GHC.PFailed pst
+      -> Left (GHC.GhcPsMessage <$> GHC.getPsErrorMessages pst)
+    GHC.POk _ pmod
+      -> Right pmod
 
 
 parseWithECP :: (GHC.DisambECP w)
@@ -93,8 +95,10 @@ parseWithECP :: (GHC.DisambECP w)
           -> ParseResult (GHC.LocatedA w)
 parseWithECP dflags fileName parser s =
     case runParser (parser >>= \p -> GHC.runPV $ GHC.unECP p) dflags fileName s of
-      GHC.PFailed pst                     -> Left (GHC.GhcPsMessage <$> GHC.getPsErrorMessages pst) 
-      GHC.POk _ pmod -> Right pmod
+      GHC.PFailed pst
+        -> Left (GHC.GhcPsMessage <$> GHC.getPsErrorMessages pst)
+      GHC.POk _ pmod
+        -> Right pmod
 
 -- ---------------------------------------------------------------------
 
@@ -186,8 +190,10 @@ parseModuleFromStringInternal :: Parser GHC.ParsedSource
 parseModuleFromStringInternal dflags fileName str =
   let (str1, lp) = stripLinePragmas str
       res        = case runParser GHC.parseModule dflags fileName str1 of
-        GHC.PFailed pst     -> Left (GHC.GhcPsMessage <$> GHC.getPsErrorMessages pst) 
-        GHC.POk     _  pmod -> Right (lp, dflags, pmod)
+        GHC.PFailed pst
+          -> Left (GHC.GhcPsMessage <$> GHC.getPsErrorMessages pst)
+        GHC.POk     _  pmod
+          -> Right (lp, dflags, pmod)
   in  postParseTransform res
 
 parseModuleWithOptions :: LibDir -- ^ GHC libdir
@@ -257,9 +263,10 @@ parseModuleEpAnnsWithCppInternal cppOptions dflags file = do
         return (contents1,lp,dflags)
   return $
     case parseFile dflags' file fileContents of
-      GHC.PFailed pst -> Left (GHC.GhcPsMessage <$> GHC.getPsErrorMessages pst) 
-      GHC.POk _ pmod  ->
-        Right $ (injectedComments, dflags', fixModuleTrailingComments pmod)
+      GHC.PFailed pst
+        -> Left (GHC.GhcPsMessage <$> GHC.getPsErrorMessages pst)
+      GHC.POk _ pmod
+        -> Right $ (injectedComments, dflags', fixModuleTrailingComments pmod)
 
 -- | Internal function. Exposed if you want to muck with DynFlags
 -- before parsing. Or after parsing.
@@ -304,10 +311,9 @@ initDynFlags :: GHC.GhcMonad m => FilePath -> m GHC.DynFlags
 initDynFlags file = do
   -- Based on GHC backpack driver doBackPack
   dflags0         <- GHC.getSessionDynFlags
-  let dflags1 = dflags0
-  let parser_opts1 = GHC.initParserOpts dflags1
-  (p_warns, src_opts) <- liftIO $ GHC.getOptionsFromFile parser_opts1 file
-  (dflags, _unhandled_flags, _warns) <- liftIO $ GHC.parseDynamicFilePragma dflags1 src_opts
+  let parser_opts0 = GHC.initParserOpts dflags0
+  (_, src_opts)   <- GHC.liftIO $ GHC.getOptionsFromFile parser_opts0 file
+  (dflags1, _, _) <- GHC.parseDynamicFilePragma dflags0 src_opts
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
   -- Prevent parsing of .ghc.environment.* "package environment files"
@@ -327,18 +333,15 @@ initDynFlags file = do
 -- invocation of `setSessionDynFlags` before calling `initDynFlagsPure`.
 -- See ghc tickets #15513, #15541.
 initDynFlagsPure :: GHC.GhcMonad m => FilePath -> String -> m GHC.DynFlags
-initDynFlagsPure file s = do
+initDynFlagsPure fp s = do
   -- AZ Note: "I" below appears to be Lennart Spitzner
   -- I was told we could get away with using the unsafeGlobalDynFlags.
   -- as long as `parseDynamicFilePragma` is impure there seems to be
   -- no reason to use it.
-
-  -- Based on GHC backpack driver doBackPack
-  dflags0         <- GHC.getSessionDynFlags
-  let dflags1 = dflags0
-  let parser_opts1 = GHC.initParserOpts dflags1
-  (p_warns, src_opts) <- liftIO $ GHC.getOptionsFromFile parser_opts1 file
-  (dflags, _unhandled_flags, _warns) <- liftIO $ GHC.parseDynamicFilePragma dflags1 src_opts
+  dflags0 <- GHC.getSessionDynFlags
+  let parser_opts0 = GHC.initParserOpts dflags0
+  let (_, pragmaInfo) = GHC.getOptions parser_opts0 (GHC.stringToStringBuffer $ s) fp
+  (dflags1, _, _) <- GHC.parseDynamicFilePragma dflags0 pragmaInfo
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
   -- Prevent parsing of .ghc.environment.* "package environment files"

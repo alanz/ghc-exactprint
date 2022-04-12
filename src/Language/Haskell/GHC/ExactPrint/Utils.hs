@@ -217,7 +217,7 @@ insertCppComments (L l p) cs = L l p'
 
 ghcCommentText :: LEpaComment -> String
 #if MIN_VERSION_GLASGOW_HASKELL(9,2,9,0)
-ghcCommentText (L _ (GHC.EpaComment (EpaDocComment s) _))  = show s
+ghcCommentText (L _ (GHC.EpaComment (EpaDocComment s) _))      = exactPrintHsDocString s
 #else
 ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentNext s) _))  = s
 ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentPrev s) _))  = s

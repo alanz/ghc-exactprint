@@ -19,7 +19,7 @@ instance Default AnnListItem where
   def = mempty
 
 instance Default AnnPragma where
-  def = AnnPragma def  def def
+  def = AnnPragma def def def
 
 instance Semigroup EpAnnImportDecl where
   (<>) = error "unimplemented"

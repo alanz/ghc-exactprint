@@ -2273,6 +2273,9 @@ exactMatch (Match an mctxt pats grhss) = do
       CaseAlt -> do
         pats' <- markAnnotated pats
         return (an, CaseAlt, pats')
+      LamCaseAlt v -> do
+        pats' <- markAnnotated pats
+        return (an, LamCaseAlt v, pats')
       _ -> do
         mctxt' <- withPpr mctxt
         return (an, mctxt', pats)

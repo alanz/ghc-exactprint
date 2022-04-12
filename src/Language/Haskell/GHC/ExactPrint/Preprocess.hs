@@ -230,9 +230,9 @@ getPreprocessedSrcDirectPrim cppOptions src_fn = do
       return (txt, buf, dflags')
 
 showErrorMessages :: GHC.ErrorMessages -> String
-showErrorMessages msgs = intercalate "\n" 
-    $ map (show @(GHC.MsgEnvelope GHC.DiagnosticMessage) . fmap toDiagnosticMessage) 
-    $ GHC.bagToList 
+showErrorMessages msgs = intercalate "\n"
+    $ map (show @(GHC.MsgEnvelope GHC.DiagnosticMessage) . fmap toDiagnosticMessage)
+    $ GHC.bagToList
     $ GHC.getErrorMessages msgs
 
 -- | Show Error Messages relies on show instance for MsgEnvelope DiagnosticMessage

@@ -497,8 +497,9 @@ balanceCommentsMatch (L l (Match am mctxt pats (GRHSs xg grhss binds))) = do
     stay = map snd stay'
     (l'', grhss', binds', logInfo)
       = case reverse grhss of
-          [] -> (l, [], binds, (EpaComments [], SrcSpanAnn EpAnnNotUsed noSrcSpan))
-          (L lg g@(GRHS EpAnnNotUsed _grs _rhs):gs) -> (l, reverse (L lg g:gs), binds, (EpaComments [], SrcSpanAnn EpAnnNotUsed noSrcSpan))
+          [] -> (l, [], binds,                 (EpaComments [], SrcSpanAnn EpAnnNotUsed noSrcSpan))
+          (L lg g@(GRHS EpAnnNotUsed _grs _rhs):gs)
+            -> (l, reverse (L lg g:gs), binds, (EpaComments [], SrcSpanAnn EpAnnNotUsed noSrcSpan))
           (L lg (GRHS ag grs rhs):gs) ->
             let
               anc1' = setFollowingComments anc1 stay
@@ -509,7 +510,7 @@ balanceCommentsMatch (L l (Match am mctxt pats (GRHSs xg grhss binds))) = do
               -- ---------------------------------
 
               (EpAnn anc an lgc) = ag
-              lgc' = splitCommentsEnd (realSrcSpan lg) $ addCommentOrigDeltas lgc
+              lgc' = splitCommentsEnd (realSrcSpan $ locA lg) $ addCommentOrigDeltas lgc
               ag' = if moved
                       then EpAnn anc an lgc'
                       else EpAnn anc an (lgc' <> (EpaCommentsBalanced [] move))
@@ -552,7 +553,7 @@ balanceComments' la1 la2 = do
   logTr $ "balanceComments': (loc1,loc2)=" ++ showGhc (ss2range loc1,ss2range loc2)
   logTr $ "balanceComments': (anc1)=" ++ showAst (anc1)
   logTr $ "balanceComments': (cs1s)=" ++ showAst (cs1s)
-  logTr $ "balanceComments': (sort cs1f)=" ++ showAst (sort cs1f)
+  -- logTr $ "balanceComments': (sort cs1f)=" ++ showAst (sort cs1f)
   logTr $ "balanceComments': (cs1stay,cs1move)=" ++ showAst (cs1stay,cs1move)
   logTr $ "balanceComments': (an1',an2')=" ++ showAst (an1',an2')
   return (la1', la2')
@@ -1046,17 +1047,16 @@ instance HasDecls (LocatedA (Match GhcPs (LocatedA (HsExpr GhcPs)))) where
 -- ---------------------------------------------------------------------
 
 instance HasDecls (LocatedA (HsExpr GhcPs)) where
-  hsDecls (L _ (HsLet _ decls _ex)) = hsDeclsValBinds decls
-  hsDecls _                         = return []
+  hsDecls (L _ (HsLet _ _ decls _ _ex)) = hsDeclsValBinds decls
+  hsDecls _                             = return []
 
-  replaceDecls (L ll (HsLet x binds ex)) newDecls
+  replaceDecls (L ll (HsLet x tkLet binds tkIn ex)) newDecls
     = do
         logTr "replaceDecls HsLet"
         let lastAnc = realSrcSpan $ spanHsLocaLBinds binds
         -- TODO: may be an intervening comment, take account for lastAnc
-        let (x', ex',newDecls') = case x of
-              EpAnnNotUsed -> (x, ex, newDecls)
-              (EpAnn a (AnnsLet l i) cs) ->
+        let (tkLet', tkIn', ex',newDecls') = case (tkLet, tkIn) of
+              (L (TokenLoc l) ls, L (TokenLoc i) is) ->
                 let
                   off = case l of
                           (EpaSpan r) -> LayoutStartCol $ snd $ ss2pos r
@@ -1066,18 +1066,21 @@ instance HasDecls (LocatedA (HsExpr GhcPs)) where
                   newDecls'' = case newDecls of
                     [] -> newDecls
                     (d:ds) -> setEntryDPDecl d (SameLine 0) : ds
-                in ( EpAnn a (AnnsLet l (addEpaLocationDelta off lastAnc i)) cs
+                -- in ( EpAnn a (AnnsLet l (addEpaLocationDelta off lastAnc i)) cs
+                in ( L (TokenLoc l) ls
+                   , L (TokenLoc (addEpaLocationDelta off lastAnc i)) is
                    , ex''
                    , newDecls'')
+              (_,_) -> (tkLet, tkIn, ex, newDecls)
         binds' <- replaceDeclsValbinds WithoutWhere binds newDecls'
-        return (L ll (HsLet x' binds' ex'))
+        return (L ll (HsLet x tkLet' binds' tkIn' ex'))
 
   -- TODO: does this make sense? Especially as no hsDecls for HsPar
-  replaceDecls (L l (HsPar x e)) newDecls
+  replaceDecls (L l (HsPar x lpar e rpar)) newDecls
     = do
         logTr "replaceDecls HsPar"
         e' <- replaceDecls e newDecls
-        return (L l (HsPar x e'))
+        return (L l (HsPar x lpar e' rpar))
   replaceDecls old _new = error $ "replaceDecls (LHsExpr GhcPs) undefined for:" ++ showGhc old
 
 -- ---------------------------------------------------------------------
