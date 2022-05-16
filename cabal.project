@@ -18,8 +18,8 @@ repository head.hackage.ghc.haskell.org
 -- $ cp ${WhereThisGitHubRepoIsCloned}/patches/$PKGID.cabal ./*.cabal
 -- $ cd ../..
 
--- allow-newer:
---          ghc-paths:Cabal
+allow-newer:
+         ghc-paths:Cabal
 
 package ghc-exactprint
   test-show-details: direct

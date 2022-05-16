@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
@@ -28,16 +29,22 @@ import Test.HUnit
 -- ---------------------------------------------------------------------
 
 data GHCVersion = GHC92
+           | GHC94
      deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
+#if MIN_VERSION_ghc(9,4,0)
+ghcVersion = GHC94
+#else
 ghcVersion = GHC92
+#endif
 
 -- | Directories to automatically find roundtrip tests
 testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
     GHC92  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92"]
+    GHC94  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92"]
 
     -- GHC92  -> ["ghc92-copied"]
     -- GHC92  -> ["ghc92"]
@@ -202,12 +209,20 @@ tt' = do
    -- mkTestModChange libdir rmDecl4 "RmDecl4.hs"
     -- mkParserTestMD libdir      "ghc92" "Foo.hs"
     -- mkParserTest libdir      "ghc92" "Foo.hs"
-    mkParserTestMD libdir      "ghc92" "Foo.hs"
+    -- mkParserTestMD libdir      "ghc92" "Foo.hs"
     -- mkParserTest libdir      "ghc92" "Foo2.hs"
     -- mkParserTest libdir      "ghc710" "EmptyMostly.hs"
     -- mkParserTestBC libdir "ghc710" "Control.hs"
     -- mkParserTestBC libdir "ghc92" "CommentPlacement3.hs"
     -- mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
+
+    -- mkParserTest libdir      "ghc92" "ConstructorComment.hs"
+    -- mkParserTest libdir      "ghc92" "Binary.hs"
+    -- mkParserTest libdir      "ghc92" "Observer.hs"
+    -- mkParserTest libdir      "ghc92" "Observer1.hs"
+
+   -- mkTestModChange libdir addLocaLDecl1  "AddLocalDecl1.hs"
+   mkTestModChange libdir addLocaLDecl3  "AddLocalDecl3.hs"
 
    -- Needs GHC changes
 

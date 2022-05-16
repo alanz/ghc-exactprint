@@ -299,6 +299,9 @@ dpFromString xs = dpFromString' xs 0 0
 
 -- ---------------------------------------------------------------------
 
+isSymbolRdrName :: RdrName -> Bool
+isSymbolRdrName n = isSymOcc $ rdrNameOcc n
+
 rdrName2String :: RdrName -> String
 rdrName2String r =
   case isExact_maybe r of
@@ -315,6 +318,21 @@ name2String :: Name -> String
 name2String = showPprUnsafe
 
 -- ---------------------------------------------------------------------
+
+-- occAttributes :: OccName.OccName -> String
+-- occAttributes o = "(" ++ ns ++ vo ++ tv ++ tc ++ d ++ ds ++ s ++ v ++ ")"
+--   where
+--     -- ns = (showSDocUnsafe $ OccName.pprNameSpaceBrief $ occNameSpace o) ++ ", "
+--     ns = (showSDocUnsafe $ OccName.pprNameSpaceBrief $ occNameSpace o) ++ ", "
+--     vo = if isVarOcc     o then "Var "     else ""
+--     tv = if isTvOcc      o then "Tv "      else ""
+--     tc = if isTcOcc      o then "Tc "      else ""
+--     d  = if isDataOcc    o then "Data "    else ""
+--     ds = if isDataSymOcc o then "DataSym " else ""
+--     s  = if isSymOcc     o then "Sym "     else ""
+--     v  = if isValOcc     o then "Val "     else ""
+
+ -- ---------------------------------------------------------------------
 
 locatedAnAnchor :: LocatedAn a t -> RealSrcSpan
 locatedAnAnchor (L (SrcSpanAnn EpAnnNotUsed l) _) = realSrcSpan l

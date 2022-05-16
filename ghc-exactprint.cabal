@@ -114,8 +114,6 @@ Test-Suite test
                      , Test.Transform
   GHC-Options:         -threaded -Wall -Wredundant-constraints
   Default-language:    Haskell2010
-  if impl (ghc < 9.2)
-      buildable: False
   Build-depends:       HUnit >= 1.2
                      , base < 4.18
                      , bytestring
@@ -134,10 +132,18 @@ Test-Suite test
                      -- for the lib only
                      , fail >= 4.9 && <4.10
                      , ghc-boot
+                     , Cabal-syntax
   if flag (dev)
       build-depends: free
   else
       build-depends: ghc-exactprint
+  if impl (ghc < 9.2)
+      buildable: False
+  else
+    if impl (ghc > 9.2.9)
+        hs-source-dirs: src-ghc94
+    else
+        hs-source-dirs: src-ghc92
 
 executable roundtrip
   main-is: Roundtrip.hs
@@ -156,7 +162,7 @@ executable roundtrip
                , filepath
                , ghc
                , ghc-exactprint
-               , ghc-paths
+               -- , ghc-paths
                , syb
                , temporary
                , time
@@ -194,7 +200,7 @@ executable prepare-hackage
                  , filemanip
                  , filepath
                  , ghc       >= 9.2.1
-                 , ghc-paths >= 0.1
+                 -- , ghc-paths >= 0.1
                  , HUnit
                  , text   >= 1.2.2
                  , turtle >= 1.3.0

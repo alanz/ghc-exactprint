@@ -7,7 +7,7 @@
 module Test.Transform where
 
 import Language.Haskell.GHC.ExactPrint
-import Language.Haskell.GHC.ExactPrint.ExactPrint
+-- import Language.Haskell.GHC.ExactPrint.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Parsers
 import Language.Haskell.GHC.ExactPrint.Utils
@@ -90,16 +90,6 @@ mkTestMod libdir suffix dir f fp =
 
 -- ---------------------------------------------------------------------
 
--- changeWhereIn3a :: Changer
--- changeWhereIn3a ans (GHC.L l p) = do
---   let decls = GHC.hsmodDecls p
---          -- (GHC.L _ (GHC.SigD sig))    = head $ drop 1 decls
---       d1 = head $ drop 2 decls
---       d2 = head $ drop 3 decls
---   let (_p1,(ans',_),_w) = runTransform ans (balanceComments d1 d2)
---   let p2 = p { GHC.hsmodDecls = d2:d1:decls}
---   return (ans',GHC.L l p2)
-
 -- | Check that balanceCommentsList is idempotent
 changeWhereIn3a :: Changer
 changeWhereIn3a _libdir (L l p) = do
@@ -128,50 +118,6 @@ changeWhereIn3b _libdir (L l p) = do
   return (L l p2)
 
 -- ---------------------------------------------------------------------
-
--- -- | Add a local declaration with signature to LocalDecl, where there was no
--- -- prior local decl. So it adds a "where" annotation.
--- changeLocalDecls2 :: Changer
--- changeLocalDecls2 ans (GHC.L l p) = do
---   Right (declAnns, d@(GHC.L ld (GHC.ValD _ decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
---   Right (sigAnns, s@(GHC.L ls (GHC.SigD _ sig)))   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
---   let declAnns' = setPrecedingLines (GHC.L ld decl) 1 0 declAnns
---   let  sigAnns' = setPrecedingLines (GHC.L ls  sig) 1 4 sigAnns
---   -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
---   -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
---   -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
---   let (p',(ans',_),_w) = runTransform ans doAddLocal
---       doAddLocal = SYB.everywhereM (SYB.mkM replaceLocalBinds) p
---       replaceLocalBinds :: GHC.LMatch GHC.GhcPs (GHC.LHsExpr GHC.GhcPs)
---                         -> Transform (GHC.LMatch GHC.GhcPs (GHC.LHsExpr GHC.GhcPs))
---       replaceLocalBinds m@(GHC.L lm (GHC.Match _ mln pats (GHC.GRHSs _ rhs (GHC.L _ GHC.EmptyLocalBinds{})))) = do
---         newSpan <- uniqueSrcSpanT
---         let
---           newAnnKey = AnnKey (rs newSpan) (CN "HsValBinds")
---           addWhere mkds =
---             case Map.lookup (mkAnnKey m) mkds of
---               Nothing -> error "wtf"
---               Just ann -> Map.insert newAnnKey ann2 mkds2
---                 where
---                   ann1 = ann { annsDP = annsDP ann ++ [(G GHC.AnnWhere,DP (1,2))]
---                              , annCapturedSpan = Just newAnnKey
---                              , annSortKey = Just [rs ls, rs ld]
---                              }
---                   mkds2 = Map.insert (mkAnnKey m) ann1 mkds
---                   ann2 = annNone
---                              { annEntryDelta     = DP (1,0) }
---         modifyAnnsT addWhere
---         let decls = [s,d]
---         -- logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)
---         modifyAnnsT (captureOrderAnnKey newAnnKey decls)
---         let binds = (GHC.HsValBinds noExt (GHC.ValBinds noExt (GHC.listToBag $ [GHC.L ld decl])
---                                     [GHC.L ls sig]))
---         bindSpan <- uniqueSrcSpanT
---         return (GHC.L lm (GHC.Match noExt mln pats (GHC.GRHSs noExt rhs (GHC.L bindSpan binds))))
---       replaceLocalBinds x = return x
---   -- putStrLn $ "log:" ++ intercalate "\n" w
---   return (mergeAnnList [declAnns',sigAnns',ans'],GHC.L l p')
-
 
 -- | Add a local declaration with signature to LocalDecl, where there was no
 -- prior local decl. So it adds a "where" annotation.
@@ -203,41 +149,6 @@ changeLocalDecls2 libdir top = do
   return top'
 
 -- ---------------------------------------------------------------------
-
--- -- | Add a local declaration with signature to LocalDecl
--- changeLocalDecls :: Changer
--- changeLocalDecls ans (GHC.L l p) = do
---   Right (declAnns, d@(GHC.L ld (GHC.ValD _ decl))) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
---   Right (sigAnns, s@(GHC.L ls (GHC.SigD _ sig)))   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
---   let declAnns' = setPrecedingLines (GHC.L ld decl) 1 0 declAnns
---   let  sigAnns' = setPrecedingLines (GHC.L ls  sig) 1 4 sigAnns
---   -- putStrLn $ "changeLocalDecls:sigAnns=" ++ show sigAnns
---   -- putStrLn $ "changeLocalDecls:declAnns=" ++ show declAnns
---   -- putStrLn $ "\nchangeLocalDecls:sigAnns'=" ++ show sigAnns'
---   let (p',(ans',_),_w) = runTransform ans doAddLocal
---       doAddLocal = SYB.everywhereM (SYB.mkM replaceLocalBinds) p
---       replaceLocalBinds :: GHC.LMatch GHC.GhcPs (GHC.LHsExpr GHC.GhcPs)
---                         -> Transform (GHC.LMatch GHC.GhcPs (GHC.LHsExpr GHC.GhcPs))
---       replaceLocalBinds m@(GHC.L lm (GHC.Match _ mln pats (GHC.GRHSs _ rhs (GHC.L lb (GHC.HsValBinds _ (GHC.ValBinds _ binds sigs)))))) = do
---         a1 <- getAnnsT
---         a' <- case sigs of
---               []    -> return a1
---               (s1:_) -> do
---                 let a2 = setPrecedingLines s1 2 0 a1
---                 return a2
---         putAnnsT a'
---         let oldDecls = GHC.sortLocated $ map wrapDecl (GHC.bagToList binds) ++ map wrapSig sigs
---         let decls = s:d:oldDecls
---         -- logTr $ "(m,decls)=" ++ show (mkAnnKey m,map mkAnnKey decls)
---         modifyAnnsT (captureOrder m decls)
---         let binds' = (GHC.HsValBinds noExt
---                           (GHC.ValBinds noExt (GHC.listToBag $ (GHC.L ld decl):GHC.bagToList binds)
---                                           (GHC.L ls sig:sigs)))
---         return (GHC.L lm (GHC.Match noExt mln pats (GHC.GRHSs noExt rhs (GHC.L lb binds'))))
---       replaceLocalBinds x = return x
---   -- putStrLn $ "log:" ++ intercalate "\n" w
---   return (mergeAnnList [declAnns',sigAnns',ans'],GHC.L l p')
-
 
 -- | Add a local declaration with signature to LocalDecl
 changeLocalDecls :: Changer
@@ -275,20 +186,6 @@ changeLocalDecls libdir top = do
 -- ---------------------------------------------------------------------
 
 -- | Add a declaration to AddDecl
--- changeAddDecl :: Changer
--- changeAddDecl ans top = do
---   Right (declAnns, decl) <- withDynFlags (\df -> parseDecl df "<interactive>" "nn = n2")
---   -- putStrLn $ "changeDecl:(declAnns,decl)=" ++ showGhc (declAnns,decl)
---   let declAnns' = setPrecedingLines decl 2 0 declAnns
---   -- putStrLn $ "changeDecl:(declAnns',decl)=" ++ showGhc (declAnns',decl)
-
---   let (p',(ans',_),_) = runTransform ans doAddDecl
---       doAddDecl = SYB.everywhereM (SYB.mkM replaceTopLevelDecls) top
---       replaceTopLevelDecls :: GHC.ParsedSource -> Transform (GHC.ParsedSource)
---       replaceTopLevelDecls m = insertAtStart m decl
---   return (mergeAnns declAnns' ans',p')
-
--- | Add a declaration to AddDecl
 changeAddDecl :: Changer
 changeAddDecl libdir top = do
   Right decl <- withDynFlags libdir (\df -> parseDecl df "<interactive>" "nn = n2")
@@ -301,23 +198,6 @@ changeAddDecl libdir top = do
       replaceTopLevelDecls :: ParsedSource -> Transform ParsedSource
       replaceTopLevelDecls m = insertAtStart m decl'
   return p'
--- ---------------------------------------------------------------------
-
--- -- |Remove a decl with a trailing comment, and remove the trailing comment too
--- changeWhereIn3 :: Int -> Changer
--- changeWhereIn3 declIndex ans p = return (ans',p')
---   where
---     (p',(ans',_),_) = runTransform ans doTransform
---     doTransform = doRmDecl p
-
---     doRmDecl (GHC.L l (GHC.HsModule lo mmn mexp imps decls mdepr haddock)) = do
---       let
---         -- declIndex = 2 -- zero based
---         decls1 = take declIndex decls
---         decls2 = drop (declIndex + 1) decls
---         decls' = decls1 ++ decls2
---       return (GHC.L l (GHC.HsModule lo mmn mexp imps decls' mdepr haddock))
---       -- error $ "doRmDecl:decls2=" ++ showGhc (length decls,decls1,decls2)
 
 -- ---------------------------------------------------------------------
 
@@ -335,7 +215,6 @@ changeLocToName _libdir parsed = return (rename "LocToName.newPoint" [((20,1),(2
 
 changeLayoutIn3 :: Changer
 changeLayoutIn3 _libdir parsed = return (rename "anotherX" [((7,13),(7,14)),((7,37),(7,38)),((8,37),(8,38))] parsed)
--- changeLayoutIn3 parsed = rename "anotherX" [((7,13),(7,14)),((7,37),(7,38))] parsed
 
 changeLayoutIn4 :: Changer
 changeLayoutIn4 _libdir parsed = return (rename "io" [((7,8),(7,13)),((7,28),(7,33))] parsed)
@@ -370,17 +249,7 @@ rename newNameStr spans' a
         | cond (locA ln) = L ln newName
     replaceRdr x = x
 
-
 -- ---------------------------------------------------------------------
-
--- changeWhereIn4 :: Changer
--- changeWhereIn4 ans parsed
---   = return (ans,SYB.everywhere (SYB.mkT replace) parsed)
---   where
---     replace :: GHC.Located GHC.RdrName -> GHC.Located GHC.RdrName
---     replace (GHC.L ln _n)
---       | ss2range ln == ((12,16),(12,17)) = GHC.L ln (GHC.mkRdrUnqual (GHC.mkVarOcc "p_2"))
---     replace x = x
 
 changeWhereIn4 :: Changer
 changeWhereIn4 _libdir parsed
@@ -390,27 +259,15 @@ changeWhereIn4 _libdir parsed
     replace (L ln _n)
       | ss2range (locA ln) == ((12,16),(12,17)) = L ln (mkRdrUnqual (mkVarOcc "p_2"))
     replace x = x
+
 -- ---------------------------------------------------------------------
-
--- changeLetIn1 :: Changer
--- changeLetIn1 ans parsed
---   = return (ans,SYB.everywhere (SYB.mkT replace) parsed)
---   where
---     replace :: GHC.HsExpr GHC.GhcPs -> GHC.HsExpr GHC.GhcPs
---     replace (GHC.HsLet _ (GHC.L lb localDecls) expr@(GHC.L _ _))
---       =
---          let (GHC.HsValBinds x (GHC.ValBinds xv bagDecls sigs)) = localDecls
---              bagDecls' = GHC.listToBag $ init $ GHC.bagToList bagDecls
---          in (GHC.HsLet noExt (GHC.L lb (GHC.HsValBinds x (GHC.ValBinds xv bagDecls' sigs))) expr)
-
---     replace x = x
 
 changeLetIn1 :: Changer
 changeLetIn1 _libdir parsed
   = return (everywhere (mkT replace) (makeDeltaAst parsed))
   where
     replace :: HsExpr GhcPs -> HsExpr GhcPs
-    replace (HsLet (EpAnn anc (AnnsLet l _i) cs) localDecls expr)
+    replace (HsLet an tkLet localDecls _ expr)
       =
          let (HsValBinds x (ValBinds xv bagDecls sigs)) = localDecls
              [l2,_l1] = map wrapDecl $ bagToList bagDecls
@@ -418,8 +275,9 @@ changeLetIn1 _libdir parsed
              (L (SrcSpanAnn _ le) e) = expr
              a = (SrcSpanAnn (EpAnn (Anchor (realSrcSpan le) (MovedAnchor (SameLine 1))) mempty emptyComments) le)
              expr' = L a e
-         in (HsLet (EpAnn anc (AnnsLet l (EpaDelta (DifferentLine 1 0) [])) cs)
-                (HsValBinds x (ValBinds xv bagDecls' sigs)) expr')
+             tkIn' = L (TokenLoc (EpaDelta (DifferentLine 1 0) [])) HsTok
+         in (HsLet an tkLet
+                (HsValBinds x (ValBinds xv bagDecls' sigs)) tkIn' expr')
 
     replace x = x
 
@@ -456,27 +314,13 @@ transformHighLevelTests libdir =
 
 -- ---------------------------------------------------------------------
 
--- addLocaLDecl1 :: Changer
--- addLocaLDecl1 ans lp = do
---   Right (declAnns, newDecl) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
---   let declAnns' = setPrecedingLines newDecl 1 4 declAnns
---       doAddLocal = do
---         (d1:d2:_) <- hsDecls lp
---         balanceComments d1 d2
---         (d1',_) <- modifyValD (GHC.getLoc d1) d1 $ \_m d -> do
---           return ((newDecl : d),Nothing)
---         replaceDecls lp [d1', d2]
-
---   (lp',(ans',_),_w) <- runTransformT (mergeAnns ans declAnns') doAddLocal
---   -- putStrLn $ "log:\n" ++ intercalate "\n" _w
---   return (ans',lp')
-
 addLocaLDecl1 :: Changer
-addLocaLDecl1 libdir lp = do
+addLocaLDecl1 libdir top = do
   Right (L ld (ValD _ decl)) <- withDynFlags libdir (\df -> parseDecl df "decl" "nn = 2")
-  let decl' = setEntryDP (makeDeltaAst (L ld decl)) (DifferentLine 1 4)
+  let decl' = setEntryDP (L ld decl) (DifferentLine 1 5)
       doAddLocal = do
-        (de1:d2:d3:_) <- hsDecls (makeDeltaAst lp)
+        let lp = makeDeltaAst top
+        (de1:d2:d3:_) <- hsDecls lp
         (de1'',d2') <- balanceComments de1 d2
         (de1',_) <- modifyValD (getLocA de1'') de1'' $ \_m d -> do
           return ((wrapDecl decl' : d),Nothing)
@@ -485,27 +329,8 @@ addLocaLDecl1 libdir lp = do
   (lp',_,w) <- runTransformT doAddLocal
   debugM $ "addLocaLDecl1:" ++ intercalate "\n" w
   return lp'
+
 -- ---------------------------------------------------------------------
-
--- addLocaLDecl2 :: Changer
--- addLocaLDecl2 ans lp = do
---   Right (declAnns, newDecl) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
---   let
---       doAddLocal = do
---          tlDecs <- hsDecls lp
---          let parent = head tlDecs
---          balanceComments parent (head $ tail tlDecs)
-
---          (parent',_) <- modifyValD (GHC.getLoc parent) parent $ \_m decls -> do
---            transferEntryDPT (head decls) newDecl
---            setEntryDPT (head decls) (DP (1, 0))
---            return ((newDecl:decls),Nothing)
-
---          replaceDecls lp (parent':tail tlDecs)
-
---   let (lp',(ans',_),_w) = runTransform (mergeAnns ans declAnns) doAddLocal
---   -- putStrLn $ "log:\n" ++ intercalate "\n" _w
---   return (ans',lp')
 
 addLocaLDecl2 :: Changer
 addLocaLDecl2 libdir lp = do
@@ -529,34 +354,13 @@ addLocaLDecl2 libdir lp = do
 
 -- ---------------------------------------------------------------------
 
--- addLocaLDecl3 :: Changer
--- addLocaLDecl3 ans lp = do
---   Right (declAnns, newDecl) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
---   let
---       doAddLocal = do
---          -- logDataWithAnnsTr "parsed:" lp
---          logDataWithAnnsTr "newDecl:" newDecl
---          tlDecs <- hsDecls lp
---          let parent = head tlDecs
---          balanceComments parent (head $ tail tlDecs)
-
---          (parent',_) <- modifyValD (GHC.getLoc parent) parent $ \m decls -> do
---            setPrecedingLinesT newDecl 1 0
---            moveTrailingComments m (last decls)
---            return ((decls++[newDecl]),Nothing)
-
---          replaceDecls lp (parent':tail tlDecs)
-
---   let (lp',(ans',_),_w) = runTransform (mergeAnns ans declAnns) doAddLocal
---   -- putStrLn $ "log\n" ++ intercalate "\n" _w
---   return (ans',lp')
-
 addLocaLDecl3 :: Changer
-addLocaLDecl3 libdir lp = do
+addLocaLDecl3 libdir top = do
   Right newDecl <- withDynFlags libdir (\df -> parseDecl df "decl" "nn = 2")
   let
       doAddLocal = do
-         (de1:d2:_) <- hsDecls (makeDeltaAst lp)
+         let lp = makeDeltaAst top
+         (de1:d2:_) <- hsDecls lp
          (de1'',d2') <- balanceComments de1 d2
 
          (parent',_) <- modifyValD (getLocA de1) de1'' $ \_m (d:ds) -> do
@@ -570,29 +374,6 @@ addLocaLDecl3 libdir lp = do
   return lp'
 
 -- ---------------------------------------------------------------------
-
--- addLocaLDecl4 :: Changer
--- addLocaLDecl4 ans lp = do
---   Right (declAnns, newDecl) <- withDynFlags (\df -> parseDecl df "decl" "nn = 2")
---   Right (sigAnns, newSig)   <- withDynFlags (\df -> parseDecl df "sig"  "nn :: Int")
---   -- putStrLn $ "addLocaLDecl4:lp=" ++ showGhc lp
---   let
---       doAddLocal = do
---          tlDecs <- hsDecls lp
---          let parent = head tlDecs
-
---          setPrecedingLinesT newSig  1 0
---          setPrecedingLinesT newDecl 1 0
-
---          (parent',_) <- modifyValD (GHC.getLoc parent) parent $ \_m decls -> do
---            return ((decls++[newSig,newDecl]),Nothing)
-
---          replaceDecls lp (parent':tail tlDecs)
-
---   let (lp',(ans',_),_w) = runTransform (mergeAnnList [ans,declAnns,sigAnns]) doAddLocal
---   -- putStrLn $ "log\n" ++ intercalate "\n" _w
---   return (ans',lp')
-
 
 addLocaLDecl4 :: Changer
 addLocaLDecl4 libdir lp = do
@@ -616,22 +397,6 @@ addLocaLDecl4 libdir lp = do
 
 -- ---------------------------------------------------------------------
 
--- addLocaLDecl5 :: Changer
--- addLocaLDecl5 ans lp = do
---   let
---       doAddLocal = do
---          [s1,d1,d2,d3] <- hsDecls lp
-
---          transferEntryDPT d2 d3
-
---          (d1',_) <- modifyValD (GHC.getLoc d1) d1 $ \_m _decls -> do
---            return ([d2],Nothing)
---          replaceDecls lp [s1,d1',d3]
-
---   (lp',(ans',_),_w) <- runTransformT ans doAddLocal
---   -- putStrLn $ "log\n" ++ intercalate "\n" _w
---   return (ans',lp')
-
 addLocaLDecl5 :: Changer
 addLocaLDecl5 _libdir lp = do
   let
@@ -651,26 +416,6 @@ addLocaLDecl5 _libdir lp = do
   return lp'
 
 -- ---------------------------------------------------------------------
-
--- addLocaLDecl6 :: Changer
--- addLocaLDecl6 ans lp = do
---   Right (declAnns, newDecl) <- withDynFlags (\df -> parseDecl df "decl" "x = 3")
---   let declAnns' = setPrecedingLines newDecl 1 4 declAnns
---       doAddLocal = do
---         [d1,d2] <- hsDecls lp
---         balanceComments d1 d2
-
---         let GHC.L _ (GHC.ValD _ (GHC.FunBind _ _ (GHC.MG _ (GHC.L _ [m1,m2]) _) _)) = d1
---         balanceComments m1 m2
-
---         (d1',_) <- modifyValD (GHC.getLoc m1) d1 $ \_m decls -> do
---            return ((newDecl : decls),Nothing)
---         replaceDecls lp [d1', d2]
-
---   (lp',(ans',_),_w) <- runTransformT (mergeAnns ans declAnns') doAddLocal
---   -- putStrLn $ "log:\n" ++ intercalate "\n" _w
---   return (ans',lp')
-
 
 addLocaLDecl6 :: Changer
 addLocaLDecl6 libdir lp = do
@@ -712,24 +457,6 @@ rmDecl1 _libdir lp = do
 
 -- ---------------------------------------------------------------------
 
--- rmDecl2 :: Changer
--- rmDecl2 ans lp = do
---   let
---       doRmDecl = do
---         let
---           go :: GHC.LHsExpr GHC.GhcPs -> Transform (GHC.LHsExpr GHC.GhcPs)
---           go e@(GHC.L _ (GHC.HsLet{})) = do
---             decs <- hsDecls e
---             e' <- replaceDecls e (init decs)
---             return e'
---           go x = return x
-
---         SYB.everywhereM (SYB.mkM go) lp
-
---   let (lp',(ans',_),_w) = runTransform ans doRmDecl
---   -- putStrLn $ "log:\n" ++ intercalate "\n" _w
---   return (ans',lp')
-
 rmDecl2 :: Changer
 rmDecl2 _libdir lp = do
   let
@@ -750,22 +477,6 @@ rmDecl2 _libdir lp = do
   return lp'
 -- ---------------------------------------------------------------------
 
--- rmDecl3 :: Changer
--- rmDecl3 ans lp = do
---   let
---       doRmDecl = do
---          [d1,d2] <- hsDecls lp
-
---          (d1',Just sd1) <- modifyValD (GHC.getLoc d1) d1 $ \_m [sd1] -> do
---            setPrecedingLinesDeclT sd1 2 0
---            return ([],Just sd1)
-
---          replaceDecls lp [d1',sd1,d2]
-
---   (lp',(ans',_),_w) <- runTransformT ans doRmDecl
---   -- putStrLn $ "log:\n" ++ intercalate "\n" _w
---   return (ans',lp')
-
 rmDecl3 :: Changer
 rmDecl3 _libdir lp = do
   let
@@ -783,25 +494,6 @@ rmDecl3 _libdir lp = do
   debugM $ "log:[\n" ++ intercalate "\n" _w ++ "]log end\n"
   return lp'
 -- ---------------------------------------------------------------------
-
--- rmDecl4 :: Changer
--- rmDecl4 ans lp = do
---   let
---       doRmDecl = do
---          [d1] <- hsDecls lp
-
---          (d1',Just sd1) <- modifyValD (GHC.getLoc d1) d1 $ \_m [sd1,sd2] -> do
---            -- [sd1,sd2] <- hsDecls d1
---            transferEntryDPT sd1 sd2
-
---            setPrecedingLinesDeclT sd1 2 0
---            -- d1' <- replaceDecls d1 [sd2]
---            return ([sd2],Just sd1)
-
---          replaceDecls lp [d1',sd1]
-
---   (lp',(ans',_),_w) <- runTransformT ans doRmDecl
---   return (ans',lp')
 
 rmDecl4 :: Changer
 rmDecl4 _libdir lp = do
@@ -824,41 +516,20 @@ rmDecl4 _libdir lp = do
 
 -- ---------------------------------------------------------------------
 
--- rmDecl5 :: Changer
--- rmDecl5 ans lp = do
---   let
---       doRmDecl = do
---         let
---           go :: GHC.HsExpr GHC.GhcPs -> Transform (GHC.HsExpr GHC.GhcPs)
---           go (GHC.HsLet _ (GHC.L l lb) expr) = do
---             decs <- hsDeclsValBinds lb
---             let dec = last decs
---             transferEntryDPT (head decs) dec
---             lb' <- replaceDeclsValbinds lb [dec]
---             return (GHC.HsLet noExt (GHC.L l lb') expr)
---           go x = return x
-
---         SYB.everywhereM (SYB.mkM go) lp
-
---   let (lp',(ans',_),_w) = runTransform ans doRmDecl
---   -- putStrLn $ "log:" ++ intercalate "\n" _w
---   return (ans',lp')
-
 rmDecl5 :: Changer
 rmDecl5 _libdir lp = do
   let
       doRmDecl = do
         let
           go :: HsExpr GhcPs -> Transform (HsExpr GhcPs)
-          go (HsLet a lb expr) = do
+          go (HsLet a tkLet lb tkIn expr) = do
             decs <- hsDeclsValBinds lb
             let dec = last decs
             -- _ <- transferEntryDPT (head decs) dec
             lb' <- replaceDeclsValbinds WithoutWhere lb [dec]
-            return (HsLet a lb' expr)
+            return (HsLet a tkLet lb' tkIn expr)
           go x = return x
 
-        -- everywhereM (mkM go) (makeDeltaAst lp)
         everywhereM (mkM go) lp
 
   let (lp',_,_w) = runTransform doRmDecl
@@ -866,24 +537,6 @@ rmDecl5 _libdir lp = do
   return lp'
 
 -- ---------------------------------------------------------------------
-
--- rmDecl6 :: Changer
--- rmDecl6 ans lp = do
---   let
---       doRmDecl = do
---          [d1] <- hsDecls lp
-
---          (d1',_) <- modifyValD (GHC.getLoc d1) d1 $ \_m subDecs -> do
---            let (ss1:_sd1:sd2:sds) = subDecs
---            transferEntryDPT ss1 sd2
-
---            return (sd2:sds,Nothing)
-
---          replaceDecls lp [d1']
-
---   (lp',(ans',_),_w) <- runTransformT ans doRmDecl
---   -- putStrLn $ "log:" ++ intercalate "\n" _w
---   return (ans',lp')
 
 rmDecl6 :: Changer
 rmDecl6 _libdir lp = do
@@ -904,24 +557,6 @@ rmDecl6 _libdir lp = do
   return lp'
 -- ---------------------------------------------------------------------
 
--- rmDecl7 :: Changer
--- rmDecl7 ans lp = do
---   let
---       doRmDecl = do
---          tlDecs <- hsDecls lp
---          let [s1,d1,d2,d3] = tlDecs
-
---          balanceComments d1 d2
---          balanceComments d2 d3
-
---          transferEntryDPT d2 d3
-
---          replaceDecls lp [s1,d1,d3]
-
---   let (lp',(ans',_),_w) = runTransform ans doRmDecl
---   -- putStrLn $ "log:" ++ intercalate "\n" _w
---   return (ans',lp')
-
 rmDecl7 :: Changer
 rmDecl7 _libdir lp = do
   let
@@ -939,17 +574,6 @@ rmDecl7 _libdir lp = do
   return lp'
 -- ---------------------------------------------------------------------
 
--- rmTypeSig1 :: Changer
--- rmTypeSig1 ans lp = do
---   let doRmDecl = do
---          tlDecs <- hsDecls lp
---          let (s1:d1:d2) = tlDecs
---              (GHC.L l (GHC.SigD x1 (GHC.TypeSig x2 names typ))) = s1
---              s1' = (GHC.L l (GHC.SigD x1 (GHC.TypeSig x2 (tail names) typ)))
---          replaceDecls lp (s1':d1:d2)
-
---   let (lp',(ans',_),_w) = runTransform ans doRmDecl
---   return (ans',lp')
 rmTypeSig1 :: Changer
 rmTypeSig1 _libdir lp = do
   let doRmDecl = do
@@ -968,21 +592,6 @@ rmTypeSig1 _libdir lp = do
 
 -- ---------------------------------------------------------------------
 
--- rmTypeSig2 :: Changer
--- rmTypeSig2 ans lp = do
---   let doRmDecl = do
---          tlDecs <- hsDecls lp
---          let [d1] = tlDecs
-
---          (d1',_) <- modifyValD (GHC.getLoc d1) d1 $ \_m [s,d] -> do
---            transferEntryDPT s d
---            return ([d],Nothing)
---          replaceDecls lp [d1']
-
---   let (lp',(ans',_),_w) = runTransform ans doRmDecl
---   -- putStrLn $ "log:" ++ intercalate "\n" _w
---   return (ans',lp')
-
 rmTypeSig2 :: Changer
 rmTypeSig2 _libdir lp = do
   let doRmDecl = do
@@ -999,30 +608,6 @@ rmTypeSig2 _libdir lp = do
   return lp'
 
 -- ---------------------------------------------------------------------
-
--- addHiding1 :: Changer
--- addHiding1 ans (GHC.L l p) = do
---   let doTransform = do
---         l0 <- uniqueSrcSpanT
---         l1 <- uniqueSrcSpanT
---         l2 <- uniqueSrcSpanT
---         let
---           [GHC.L li imp1,imp2] = GHC.hsmodImports p
---           n1 = GHC.L l1 (GHC.mkVarUnqual (GHC.mkFastString "n1"))
---           n2 = GHC.L l2 (GHC.mkVarUnqual (GHC.mkFastString "n2"))
---           v1 = GHC.L l1 (GHC.IEVar noExt (GHC.L l1 (GHC.IEName n1)))
---           v2 = GHC.L l2 (GHC.IEVar noExt (GHC.L l2 (GHC.IEName n2)))
---           impHiding = GHC.L l0 [v1,v2]
---           imp1' = imp1 { GHC.ideclHiding = Just (True,impHiding)}
---           p' = p { GHC.hsmodImports = [GHC.L li imp1',imp2]}
---         addSimpleAnnT impHiding (DP (0,1)) [((G GHC.AnnHiding),DP (0,0)),((G GHC.AnnOpenP),DP (0,1)),((G GHC.AnnCloseP),DP (0,0))]
---         addSimpleAnnT n1        (DP (0,0)) [((G GHC.AnnVal),DP (0,0))]
---         addSimpleAnnT v1        (DP (0,0)) [((G GHC.AnnComma),DP (0,0))]
---         addSimpleAnnT n2        (DP (0,0)) [((G GHC.AnnVal),DP (0,0))]
---         return (GHC.L l p')
-
---   let (lp',(ans',_),_w) = runTransform ans doTransform
---   return (ans',lp')
 
 addHiding1 :: Changer
 addHiding1 _libdir (L l p) = do
@@ -1052,29 +637,6 @@ addHiding1 _libdir (L l p) = do
   return lp'
 -- ---------------------------------------------------------------------
 
--- addHiding2 :: Changer
--- addHiding2 ans (GHC.L l p) = do
---   let doTransform = do
---         l1 <- uniqueSrcSpanT
---         l2 <- uniqueSrcSpanT
---         let
---           [GHC.L li imp1] = GHC.hsmodImports p
---           Just (_,GHC.L lh ns) = GHC.ideclHiding imp1
---           n1 = GHC.L l1 (GHC.mkVarUnqual (GHC.mkFastString "n1"))
---           n2 = GHC.L l2 (GHC.mkVarUnqual (GHC.mkFastString "n2"))
---           v1 = GHC.L l1 (GHC.IEVar noExt (GHC.L l1 (GHC.IEName n1)))
---           v2 = GHC.L l2 (GHC.IEVar noExt (GHC.L l2 (GHC.IEName n2)))
---           imp1' = imp1 { GHC.ideclHiding = Just (True,GHC.L lh (ns ++ [v1,v2]))}
---           p' = p { GHC.hsmodImports = [GHC.L li imp1']}
---         addSimpleAnnT n1        (DP (0,0)) [((G GHC.AnnVal),DP (0,0))]
---         addSimpleAnnT v1        (DP (0,0)) [((G GHC.AnnComma),DP (0,0))]
---         addSimpleAnnT n2        (DP (0,0)) [((G GHC.AnnVal),DP (0,0))]
---         addTrailingCommaT (last ns)
---         return (GHC.L l p')
-
---   let (lp',(ans',_),_w) = runTransform ans doTransform
---   return (ans',lp')
-
 addHiding2 :: Changer
 addHiding2 _libdir (L l p) = do
   let doTransform = do
@@ -1103,6 +665,7 @@ addHiding2 _libdir (L l p) = do
   let (lp',_,_w) = runTransform doTransform
   debugM $ "log:[\n" ++ intercalate "\n" _w ++ "]log end\n"
   return lp'
+
 -- ---------------------------------------------------------------------
 
 cloneDecl1 :: Changer
