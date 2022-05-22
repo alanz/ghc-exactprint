@@ -222,7 +222,18 @@ tt' = do
     -- mkParserTest libdir      "ghc92" "Observer1.hs"
 
    -- mkTestModChange libdir addLocaLDecl1  "AddLocalDecl1.hs"
-   mkTestModChange libdir addLocaLDecl3  "AddLocalDecl3.hs"
+   -- mkTestModChange libdir addLocaLDecl3  "AddLocalDecl3.hs"
+
+    -- mkParserTestBC libdir "ghc710" "MultiParamTypeClasses.hs"
+
+    -- mkParserTestBC libdir "ghc710" "DataFamilies.hs"
+    -- mkParserTestBC libdir "ghc80" "T4139.hs"
+    mkParserTestBC libdir "ghc92" "CommentPlacement6.hs"
+    -- mkParserTest libdir "ghc92" "CommentPlacement6.hs"
+
+    -- mkParserTest libdir "ghc92" "TopLevelSemis.hs"
+    -- mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
+    -- mkParserTestMD libdir "ghc92" "TopLevelSemis.hs"
 
    -- Needs GHC changes
 

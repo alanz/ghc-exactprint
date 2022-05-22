@@ -1392,7 +1392,6 @@ instance (ExactPrint a) => ExactPrint (Maybe a) where
 -- | 'Located (HsModule GhcPs)' corresponds to 'ParsedSource'
 instance ExactPrint HsModule where
   getAnnotationEntry hsmod = fromAnn' (hsmodAnn hsmod)
-  -- A bit pointless actually changing anything here
   setAnnotationAnchor hsmod anc cs = setAnchorHsModule hsmod anc cs
                    `debug` ("setAnnotationAnchor hsmod called" ++ showAst (anc,cs))
 

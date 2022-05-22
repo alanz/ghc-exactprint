@@ -412,14 +412,20 @@ pushDeclDP d _dp = d
 -- ---------------------------------------------------------------------
 
 balanceCommentsList :: (Monad m) => [LHsDecl GhcPs] -> TransformT m [LHsDecl GhcPs]
-balanceCommentsList ds = balanceCommentsList'' ds
-
-balanceCommentsList'' :: (Monad m) => [LHsDecl GhcPs] -> TransformT m [LHsDecl GhcPs]
-balanceCommentsList'' [] = return []
-balanceCommentsList'' [x] = return [x]
-balanceCommentsList'' (a:b:ls) = do
+balanceCommentsList [] = return []
+balanceCommentsList [x] = return [x]
+balanceCommentsList (a:b:ls) = do
   (a',b') <- balanceComments a b
-  r <- balanceCommentsList'' (b':ls)
+  r <- balanceCommentsList (b':ls)
+  return (a':r)
+
+balanceCommentsList' :: (Monad m) => [LocatedA a] -> TransformT m [LocatedA a]
+balanceCommentsList' [] = return []
+balanceCommentsList' [x] = return [x]
+balanceCommentsList' (a:b:ls) = do
+  logTr $ "balanceCommentsList' entered"
+  (a',b') <- balanceComments' a b
+  r <- balanceCommentsList' (b':ls)
   return (a':r)
 
 -- |The GHC parser puts all comments appearing between the end of one AST
@@ -530,15 +536,6 @@ pushTrailingComments w cs lb@(HsValBinds an _)
       _ -> (ValBinds NoAnnSortKey emptyBag [], [])
 
 
-balanceCommentsList' :: (Monad m) => [LocatedA a] -> TransformT m [LocatedA a]
-balanceCommentsList' [] = return []
-balanceCommentsList' [x] = return [x]
-balanceCommentsList' (a:b:ls) = do
-  logTr $ "balanceCommentsList' entered"
-  (a',b') <- balanceComments' a b
-  r <- balanceCommentsList' (b':ls)
-  return (a':r)
-
 -- |Prior to moving an AST element, make sure any trailing comments belonging to
 -- it are attached to it, and not the following element. Of necessity this is a
 -- heuristic process, to be tuned later. Possibly a variant should be provided
@@ -547,11 +544,12 @@ balanceCommentsList' (a:b:ls) = do
 -- Many of these should in fact be following comments for the previous anchor
 balanceComments' :: (Monad m) => LocatedA a -> LocatedA b -> TransformT m (LocatedA a, LocatedA b)
 balanceComments' la1 la2 = do
-  logTr $ "balanceComments': (loc1,loc2)=" ++ showGhc (ss2range loc1,ss2range loc2)
-  logTr $ "balanceComments': (anc1)=" ++ showAst (anc1)
-  logTr $ "balanceComments': (cs1s)=" ++ showAst (cs1s)
-  logTr $ "balanceComments': (cs1stay,cs1move)=" ++ showAst (cs1stay,cs1move)
-  logTr $ "balanceComments': (an1',an2')=" ++ showAst (an1',an2')
+  -- logTr $ "balanceComments': (loc1,loc2)=" ++ showGhc (ss2range loc1,ss2range loc2)
+  -- logTr $ "balanceComments': (anc1)=" ++ showAst (anc1)
+  -- logTr $ "balanceComments': (cs2p)=" ++ showAst (cs2p)
+  -- logTr $ "balanceComments': (cs2f)=" ++ showAst (cs2f)
+  -- logTr $ "balanceComments': (cs1stay,cs1move)=" ++ showAst (cs1stay,cs1move)
+  -- logTr $ "balanceComments': (an1',an2')=" ++ showAst (an1',an2')
   return (la1', la2')
   where
     simpleBreak n (r,_) = r > n
@@ -560,13 +558,15 @@ balanceComments' la1 la2 = do
     anc1 = addCommentOrigDeltas $ epAnnComments an1
     anc2 = addCommentOrigDeltas $ epAnnComments an2
 
-    cs1s = splitCommentsEnd (anchorFromLocatedA la1) anc1
-    cs1p = priorCommentsDeltas    (anchorFromLocatedA la1) (priorComments        cs1s)
-    cs1f = trailingCommentsDeltas (anchorFromLocatedA la1) (getFollowingComments cs1s)
+    -- Split comments into those before the span, in the span, and after the span
+    (cs1prior,cs1m,cs1following) = splitCommentsAround (anchorFromLocatedA la1) anc1
+    cs1p = priorCommentsDeltas    (anchorFromLocatedA la1) cs1prior
+    cs1f = trailingCommentsDeltas (anchorFromLocatedA la1) cs1following
 
-    cs2s = splitCommentsEnd (anchorFromLocatedA la2) anc2
-    cs2p = priorCommentsDeltas    (anchorFromLocatedA la2) (priorComments        cs2s)
-    cs2f = trailingCommentsDeltas (anchorFromLocatedA la2) (getFollowingComments cs2s)
+    -- Split comments into those before the span, in the span, and after the span
+    (cs2prior,cs2m,cs2following) = splitCommentsAround (anchorFromLocatedA la2) anc2
+    cs2p = priorCommentsDeltas    (anchorFromLocatedA la2) cs2prior
+    cs2f = trailingCommentsDeltas (anchorFromLocatedA la2) cs2following
 
     -- Split cs1f into those that belong on an1 and ones that must move to an2
     (cs1move,cs1stay) = break (simpleBreak 1) cs1f
@@ -578,10 +578,11 @@ balanceComments' la1 la2 = do
     move = sortEpaComments $ map snd (cs1move ++ move'' ++ move')
     stay = sortEpaComments $ map snd (cs1stay ++ stay')
 
-    an1' = setCommentsSrcAnn (getLoc la1) (EpaCommentsBalanced (map snd cs1p) move)
-    an2' = setCommentsSrcAnn (getLoc la2) (EpaCommentsBalanced stay (map snd cs2f))
+    an1' = setCommentsSrcAnn (getLoc la1) (EpaCommentsBalanced ((map snd cs1p)++cs1m) move)
+    an2' = setCommentsSrcAnn (getLoc la2) (EpaCommentsBalanced (cs2m++stay) (map snd cs2f))
     la1' = L an1' f
     la2' = L an2' s
+
 
 -- | Like commentsDeltas, but calculates the delta from the end of the anchor, not the start
 trailingCommentsDeltas :: RealSrcSpan -> [LEpaComment]
@@ -611,6 +612,8 @@ priorCommentsDeltas anc cs = go anc (reverse $ sortEpaComments cs)
         (ll,_) = ss2pos (anchor loc)
 
 
+-- ---------------------------------------------------------------------
+
 -- | Split comments into ones occuring before the end of the reference
 -- span, and those after it.
 splitCommentsEnd :: RealSrcSpan -> EpAnnComments -> EpAnnComments
@@ -628,6 +631,7 @@ splitCommentsEnd p (EpaCommentsBalanced cs ts) = EpaCommentsBalanced cs' ts'
     cs' = before
     ts' = after <> ts
 
+
 -- | Split comments into ones occuring before the start of the reference
 -- span, and those after it.
 splitCommentsStart :: RealSrcSpan -> EpAnnComments -> EpAnnComments
@@ -644,6 +648,21 @@ splitCommentsStart p (EpaCommentsBalanced cs ts) = EpaCommentsBalanced cs' ts'
     (before, after) = break cmp cs
     cs' = before
     ts' = after <> ts
+
+
+-- | Split comments into ones occuring before the start of the reference
+-- span, those in the span, and those after it.
+splitCommentsAround :: RealSrcSpan -> EpAnnComments
+                    -> ([LEpaComment], [LEpaComment], [LEpaComment])
+splitCommentsAround p cs = (before,middle,after)
+  where
+    all = priorComments cs ++ getFollowingComments cs
+    cmpbefore (L (Anchor l _) _) = ss2pos l > ss2pos p
+    cmpafter (L (Anchor l _) _) = ss2pos l > ss2posEnd p
+    (before, both) = break cmpbefore all
+    (middle, after) = break cmpafter both
+
+-- ---------------------------------------------------------------------
 
 moveLeadingComments :: (Data t, Data u, Monoid t, Monoid u)
   => LocatedAn t a -> SrcAnn u -> (LocatedAn t a, SrcAnn u)

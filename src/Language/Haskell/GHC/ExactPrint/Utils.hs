@@ -20,6 +20,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   where
 import Control.Monad.State
 import Data.Function
+import Data.List
 import Data.Maybe
 import Data.Ord (comparing)
 
@@ -50,28 +51,14 @@ debugEnabledFlag :: Bool
 -- debugEnabledFlag = True
 debugEnabledFlag = False
 
--- |Global switch to enable debug tracing in ghc-exactprint Pretty
-debugPEnabledFlag :: Bool
-debugPEnabledFlag = True
--- debugPEnabledFlag = False
-
 -- |Provide a version of trace that comes at the end of the line, so it can
 -- easily be commented out when debugging different things.
 debug :: c -> String -> c
 debug c s = if debugEnabledFlag
               then trace s c
               else c
-
--- |Provide a version of trace for the Pretty module, which can be enabled
--- separately from 'debug' and 'debugM'
-debugP :: String -> c -> c
-debugP s c = if debugPEnabledFlag
-               then trace s c
-               else c
-
 debugM :: Monad m => String -> m ()
 debugM s = when debugEnabledFlag $ traceM s
-
 
 -- ---------------------------------------------------------------------
 
@@ -209,7 +196,9 @@ insertCppComments (L l p) cs = L l p'
   where
     ncs = EpaComments cs
     an' = case GHC.hsmodAnn p of
-      (EpAnn a an ocs) -> EpAnn a an (ocs <> ncs)
+      (EpAnn a an ocs) -> EpAnn a an (EpaComments cs')
+        where
+          cs' = sortEpaComments $ priorComments ocs ++ getFollowingComments ocs ++ cs
       unused -> unused
     p' = p { GHC.hsmodAnn = an' }
 
