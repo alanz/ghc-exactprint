@@ -235,9 +235,7 @@ mkComment c anc r = Comment c anc r Nothing
 
 -- Windows comments include \r in them from the lexer.
 normaliseCommentText :: String -> String
-normaliseCommentText [] = []
-normaliseCommentText ('\r':xs) = normaliseCommentText xs
-normaliseCommentText (x:xs) = x:normaliseCommentText xs
+normaliseCommentText = filter (/= '\r')
 
 -- |Must compare without span filenames, for CPP injected comments with fake filename
 cmpComments :: Comment -> Comment -> Ordering
