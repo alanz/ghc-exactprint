@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Language.Haskell.GHC.ExactPrint.Orphans where
@@ -52,8 +53,10 @@ instance Default EpAnnHsCase where
 instance Default AnnsIf where
   def = AnnsIf def def def def def
 
--- instance Default AnnsLet where
---   def = AnnsLet def def
+#if __GLASGOW_HASKELL__ < 904
+instance Default AnnsLet where
+  def = AnnsLet def def
+#endif
 
 instance Default AnnProjection where
   def = AnnProjection def def
