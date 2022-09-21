@@ -98,7 +98,7 @@ import GHC.Data.FastString
 
 import Data.Maybe
 import Data.Generics
-import Data.List (sort, sortBy)
+import Data.List (sortBy)
 
 import Data.Functor.Identity
 import Control.Monad.State
@@ -553,8 +553,8 @@ balanceComments' la1 la2 = do
   return (la1', la2')
   where
     simpleBreak n (r,_) = r > n
-    L (SrcSpanAnn an1 loc1) f = la1
-    L (SrcSpanAnn an2 loc2) s = la2
+    L (SrcSpanAnn an1 _loc1) f = la1
+    L (SrcSpanAnn an2 _loc2) s = la2
     anc1 = addCommentOrigDeltas $ epAnnComments an1
     anc2 = addCommentOrigDeltas $ epAnnComments an2
 
@@ -656,10 +656,10 @@ splitCommentsAround :: RealSrcSpan -> EpAnnComments
                     -> ([LEpaComment], [LEpaComment], [LEpaComment])
 splitCommentsAround p cs = (before,middle,after)
   where
-    all = priorComments cs ++ getFollowingComments cs
+    all_comments = priorComments cs ++ getFollowingComments cs
     cmpbefore (L (Anchor l _) _) = ss2pos l > ss2pos p
     cmpafter (L (Anchor l _) _) = ss2pos l > ss2posEnd p
-    (before, both) = break cmpbefore all
+    (before, both) = break cmpbefore all_comments
     (middle, after) = break cmpafter both
 
 -- ---------------------------------------------------------------------

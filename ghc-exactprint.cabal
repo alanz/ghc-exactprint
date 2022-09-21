@@ -17,6 +17,8 @@ category:            Development
 build-type:          Simple
 tested-with:         GHC == 9.2.1
                    , GHC == 9.2.2
+                   , GHC == 9.4.1
+                   , GHC == 9.4.2
 extra-source-files:  ChangeLog
                      tests/examples/failing/*.hs
                      tests/examples/ghc710-only/*.hs
@@ -80,14 +82,11 @@ library
                      , directory >= 1.2
                      , filepath  >= 1.4
                      , ghc       >= 9.2.1
-                     -- , ghc-paths >= 0.1
                      , mtl       >= 2.2.1
                      , syb       >= 0.5
                      , free      >= 4.12
                      , fail      >= 4.9 && <4.10
                      , ghc-boot
-                     -- , Cabal
-                     -- , Cabal-syntax == 3.7.0.0
 
 
   default-language:    Haskell2010

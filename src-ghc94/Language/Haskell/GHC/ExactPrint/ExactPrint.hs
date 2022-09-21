@@ -595,7 +595,7 @@ markLensAA (EpAnn anc a cs) l = do
   return (EpAnn anc (set l a' a) cs)
 
 
-markEpAnnLMS :: (Monad m, Monoid w, Data a)
+markEpAnnLMS :: (Monad m, Monoid w)
   => EpAnn a -> Lens a [AddEpAnn] -> AnnKeywordId -> Maybe String -> EP w m (EpAnn a)
 markEpAnnLMS an l kw Nothing = markEpAnnL an l kw
 markEpAnnLMS EpAnnNotUsed  _ _ _ = return EpAnnNotUsed
@@ -1122,7 +1122,7 @@ markEpAnn EpAnnNotUsed _ = return 1
 markEpAnn (EpAnn _ a _) kw = mark a kw >> return 1
 
 
-markEpAnnL :: (Monad m, Monoid w, Data ann)
+markEpAnnL :: (Monad m, Monoid w)
   => EpAnn ann -> Lens ann [AddEpAnn] -> AnnKeywordId -> EP w m (EpAnn ann)
 markEpAnnL EpAnnNotUsed _ _ = return EpAnnNotUsed
 markEpAnnL (EpAnn anc a cs) l kw = do
@@ -1588,9 +1588,9 @@ instance ExactPrint (HsDecl GhcPs) where
 -- ---------------------------------------------------------------------
 
 instance ExactPrint (InstDecl GhcPs) where
-  getAnnotationEntry (ClsInstD     _  _) = NoEntryVal
-  getAnnotationEntry (DataFamInstD an _) = NoEntryVal
-  getAnnotationEntry (TyFamInstD   _  _) = NoEntryVal
+  getAnnotationEntry (ClsInstD     _ _) = NoEntryVal
+  getAnnotationEntry (DataFamInstD _ _) = NoEntryVal
+  getAnnotationEntry (TyFamInstD   _ _) = NoEntryVal
 
   setAnnotationAnchor d _ _ = d
 

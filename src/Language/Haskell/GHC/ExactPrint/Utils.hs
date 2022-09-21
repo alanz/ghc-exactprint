@@ -38,8 +38,6 @@ import GHC.Utils.Outputable ( showPprUnsafe )
 import qualified GHC.Data.Strict as Strict
 #endif
 
-import Data.List (sortBy, elemIndex)
-
 import Debug.Trace
 import Language.Haskell.GHC.ExactPrint.Types
 import Data.Default
@@ -194,7 +192,6 @@ isGadt _ = False
 insertCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
 insertCppComments (L l p) cs = L l p'
   where
-    ncs = EpaComments cs
     an' = case GHC.hsmodAnn p of
       (EpAnn a an ocs) -> EpAnn a an (EpaComments cs')
         where
