@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -40,7 +41,7 @@ import qualified Control.Monad.IO.Class as GHC
 import qualified GHC           as GHC hiding (parseModule)
 import qualified GHC.Data.Bag          as GHC
 import qualified GHC.Driver.Session    as GHC
-import qualified GHC.Utils.Error       as GHC
+-- import qualified GHC.Utils.Error       as GHC
 
 import qualified GHC.LanguageExtensions as LangExt
 
@@ -107,7 +108,12 @@ noChange :: Changer
 noChange _libdir parsed = return parsed
 
 changeBalanceComments :: Changer
+#if __GLASGOW_HASKELL__ >= 904
+changeBalanceComments _libdir top = do
+  let (GHC.L l p) = top
+#else
 changeBalanceComments _libdir (GHC.L l p) = do
+#endif
   let decls0 = GHC.hsmodDecls p
       (decls,_,w) = runTransform (balanceCommentsList decls0)
   let p2 = p { GHC.hsmodDecls = decls}
@@ -202,7 +208,9 @@ getModSummaryForFile fileName = do
 
 -- ---------------------------------------------------------------------
 
-showErrorMessages :: GHC.ErrorMessages -> String
-showErrorMessages m = show $ GHC.bagToList m
+#if __GLASGOW_HASKELL__ < 904
+-- showErrorMessages :: GHC.ErrorMessages -> String
+-- showErrorMessages m = show $ GHC.bagToList m
+#endif
 
 -- ---------------------------------------------------------------------

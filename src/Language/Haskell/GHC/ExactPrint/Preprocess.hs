@@ -12,6 +12,7 @@ module Language.Haskell.GHC.ExactPrint.Preprocess
 
    , CppOptions(..)
    , defaultCppOptions
+   , showErrorMessages
    ) where
 
 import qualified GHC            as GHC hiding (parseModule)

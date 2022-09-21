@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -21,9 +22,11 @@
 module Language.Haskell.GHC.ExactPrint.Transform
         (
         -- * Delta is still here
-          makeDeltaAst'
+#if __GLASGOW_HASKELL__ < 904
+          makeDeltaAst',
+#endif
         -- * The Transform Monad
-        , Transform
+          Transform
         , TransformT(..)
         , hoistTransform
         , runTransform
@@ -215,7 +218,6 @@ captureTypeSigSpacing (L l (SigD x (TypeSig (EpAnn anc (AnnSig dc rs') cs) ns (H
     rd = case last ns of
       L (SrcSpanAnn EpAnnNotUsed   ll) _ -> realSrcSpan ll
       L (SrcSpanAnn (EpAnn anc' _ _) _) _ -> anchor anc' -- TODO MovedAnchor?
-    -- DP (line, col) = ss2delta (ss2pos $ anchor $ getLoc lc) r
     dc' = case dca of
       EpaSpan r -> AddEpAnn kw (EpaDelta (ss2delta (ss2posEnd rd) r) [])
       EpaDelta _ _ -> AddEpAnn kw dca
@@ -415,8 +417,27 @@ pushDeclDP d _dp = d
 -- ---------------------------------------------------------------------
 
 balanceCommentsList :: (Monad m) => [LHsDecl GhcPs] -> TransformT m [LHsDecl GhcPs]
+#if __GLASGOW_HASKELL__ >= 904
+balanceCommentsList [] = return []
+balanceCommentsList [x] = return [x]
+balanceCommentsList (a:b:ls) = do
+  (a',b') <- balanceComments a b
+  r <- balanceCommentsList (b':ls)
+  return (a':r)
+#else
 balanceCommentsList ds = balanceCommentsList'' (map tweakListComments ds)
+#endif
 
+#if __GLASGOW_HASKELL__ >= 904
+balanceCommentsList' :: (Monad m) => [LocatedA a] -> TransformT m [LocatedA a]
+balanceCommentsList' [] = return []
+balanceCommentsList' [x] = return [x]
+balanceCommentsList' (a:b:ls) = do
+  logTr $ "balanceCommentsList' entered"
+  (a',b') <- balanceComments' a b
+  r <- balanceCommentsList' (b':ls)
+  return (a':r)
+#else
 balanceCommentsList'' :: (Monad m) => [LHsDecl GhcPs] -> TransformT m [LHsDecl GhcPs]
 balanceCommentsList'' [] = return []
 balanceCommentsList'' [x] = return [x]
@@ -424,6 +445,7 @@ balanceCommentsList'' (a:b:ls) = do
   (a',b') <- balanceComments a b
   r <- balanceCommentsList'' (b':ls)
   return (a':r)
+#endif
 
 -- |The GHC parser puts all comments appearing between the end of one AST
 -- item and the beginning of the next as 'annPriorComments' for the second one.
@@ -497,8 +519,14 @@ balanceCommentsMatch (L l (Match am mctxt pats (GRHSs xg grhss binds))) = do
     stay = map snd stay'
     (l'', grhss', binds', logInfo)
       = case reverse grhss of
+#if __GLASGOW_HASKELL__ >= 904
+          [] -> (l, [], binds,                 (EpaComments [], SrcSpanAnn EpAnnNotUsed noSrcSpan))
+          (L lg g@(GRHS EpAnnNotUsed _grs _rhs):gs)
+            -> (l, reverse (L lg g:gs), binds, (EpaComments [], SrcSpanAnn EpAnnNotUsed noSrcSpan))
+#else
           [] -> (l, [], binds, (EpaComments [], SrcSpanAnn EpAnnNotUsed noSrcSpan))
           (L lg g@(GRHS EpAnnNotUsed _grs _rhs):gs) -> (l, reverse (L lg g:gs), binds, (EpaComments [], SrcSpanAnn EpAnnNotUsed noSrcSpan))
+#endif
           (L lg (GRHS ag grs rhs):gs) ->
             let
               anc1' = setFollowingComments anc1 stay
@@ -509,7 +537,11 @@ balanceCommentsMatch (L l (Match am mctxt pats (GRHSs xg grhss binds))) = do
               -- ---------------------------------
 
               (EpAnn anc an lgc) = ag
+#if __GLASGOW_HASKELL__ >= 904
+              lgc' = splitCommentsEnd (realSrcSpan $ locA lg) $ addCommentOrigDeltas lgc
+#else
               lgc' = splitCommentsEnd (realSrcSpan lg) $ addCommentOrigDeltas lgc
+#endif
               ag' = if moved
                       then EpAnn anc an lgc'
                       else EpAnn anc an (lgc' <> (EpaCommentsBalanced [] move))
@@ -532,6 +564,7 @@ pushTrailingComments w cs lb@(HsValBinds an _)
       _ -> (ValBinds NoAnnSortKey emptyBag [], [])
 
 
+#if __GLASGOW_HASKELL__ < 904
 balanceCommentsList' :: (Monad m) => [LocatedA a] -> TransformT m [LocatedA a]
 balanceCommentsList' [] = return []
 balanceCommentsList' [x] = return [x]
@@ -540,6 +573,7 @@ balanceCommentsList' (a:b:ls) = do
   (a',b') <- balanceComments' a b
   r <- balanceCommentsList' (b':ls)
   return (a':r)
+#endif
 
 -- |Prior to moving an AST element, make sure any trailing comments belonging to
 -- it are attached to it, and not the following element. Of necessity this is a
@@ -549,12 +583,12 @@ balanceCommentsList' (a:b:ls) = do
 -- Many of these should in fact be following comments for the previous anchor
 balanceComments' :: (Monad m) => LocatedA a -> LocatedA b -> TransformT m (LocatedA a, LocatedA b)
 balanceComments' la1 la2 = do
-  logTr $ "balanceComments': (loc1,loc2)=" ++ showGhc (ss2range loc1,ss2range loc2)
-  logTr $ "balanceComments': (anc1)=" ++ showAst (anc1)
-  logTr $ "balanceComments': (cs1s)=" ++ showAst (cs1s)
-  logTr $ "balanceComments': (sort cs1f)=" ++ showAst (sort cs1f)
-  logTr $ "balanceComments': (cs1stay,cs1move)=" ++ showAst (cs1stay,cs1move)
-  logTr $ "balanceComments': (an1',an2')=" ++ showAst (an1',an2')
+  -- logTr $ "balanceComments': (loc1,loc2)=" ++ showGhc (ss2range loc1,ss2range loc2)
+  -- logTr $ "balanceComments': (anc1)=" ++ showAst (anc1)
+  -- logTr $ "balanceComments': (cs1s)=" ++ showAst (cs1s)
+  -- logTr $ "balanceComments': (sort cs1f)=" ++ showAst (sort cs1f)
+  -- logTr $ "balanceComments': (cs1stay,cs1move)=" ++ showAst (cs1stay,cs1move)
+  -- logTr $ "balanceComments': (an1',an2')=" ++ showAst (an1',an2')
   return (la1', la2')
   where
     simpleBreak n (r,_) = r > n
@@ -563,6 +597,17 @@ balanceComments' la1 la2 = do
     anc1 = addCommentOrigDeltas $ epAnnComments an1
     anc2 = addCommentOrigDeltas $ epAnnComments an2
 
+#if __GLASGOW_HASKELL__ >= 904
+    -- Split comments into those before the span, in the span, and after the span
+    (cs1prior,cs1m,cs1following) = splitCommentsAround (anchorFromLocatedA la1) anc1
+    cs1p = priorCommentsDeltas    (anchorFromLocatedA la1) cs1prior
+    cs1f = trailingCommentsDeltas (anchorFromLocatedA la1) cs1following
+
+    -- Split comments into those before the span, in the span, and after the span
+    (cs2prior,cs2m,cs2following) = splitCommentsAround (anchorFromLocatedA la2) anc2
+    cs2p = priorCommentsDeltas    (anchorFromLocatedA la2) cs2prior
+    cs2f = trailingCommentsDeltas (anchorFromLocatedA la2) cs2following
+#else
     cs1s = splitCommentsEnd (anchorFromLocatedA la1) anc1
     cs1p = priorCommentsDeltas    (anchorFromLocatedA la1) (priorComments        cs1s)
     cs1f = trailingCommentsDeltas (anchorFromLocatedA la1) (getFollowingComments cs1s)
@@ -570,6 +615,7 @@ balanceComments' la1 la2 = do
     cs2s = splitCommentsEnd (anchorFromLocatedA la2) anc2
     cs2p = priorCommentsDeltas    (anchorFromLocatedA la2) (priorComments        cs2s)
     cs2f = trailingCommentsDeltas (anchorFromLocatedA la2) (getFollowingComments cs2s)
+#endif
 
     -- Split cs1f into those that belong on an1 and ones that must move to an2
     (cs1move,cs1stay) = break (simpleBreak 1) cs1f
@@ -581,10 +627,16 @@ balanceComments' la1 la2 = do
     move = sortEpaComments $ map snd (cs1move ++ move'' ++ move')
     stay = sortEpaComments $ map snd (cs1stay ++ stay')
 
+#if __GLASGOW_HASKELL__ >= 904
+    an1' = setCommentsSrcAnn (getLoc la1) (EpaCommentsBalanced ((map snd cs1p)++cs1m) move)
+    an2' = setCommentsSrcAnn (getLoc la2) (EpaCommentsBalanced (cs2m++stay) (map snd cs2f))
+#else
     an1' = setCommentsSrcAnn (getLoc la1) (EpaCommentsBalanced (map snd cs1p) move)
     an2' = setCommentsSrcAnn (getLoc la2) (EpaCommentsBalanced stay (map snd cs2f))
+#endif
     la1' = L an1' f
     la2' = L an2' s
+
 
 -- | Like commentsDeltas, but calculates the delta from the end of the anchor, not the start
 trailingCommentsDeltas :: RealSrcSpan -> [LEpaComment]
@@ -614,6 +666,8 @@ priorCommentsDeltas anc cs = go anc (reverse $ sortEpaComments cs)
         (ll,_) = ss2pos (anchor loc)
 
 
+-- ---------------------------------------------------------------------
+
 -- | Split comments into ones occuring before the end of the reference
 -- span, and those after it.
 splitCommentsEnd :: RealSrcSpan -> EpAnnComments -> EpAnnComments
@@ -631,6 +685,7 @@ splitCommentsEnd p (EpaCommentsBalanced cs ts) = EpaCommentsBalanced cs' ts'
     cs' = before
     ts' = after <> ts
 
+
 -- | Split comments into ones occuring before the start of the reference
 -- span, and those after it.
 splitCommentsStart :: RealSrcSpan -> EpAnnComments -> EpAnnComments
@@ -647,6 +702,23 @@ splitCommentsStart p (EpaCommentsBalanced cs ts) = EpaCommentsBalanced cs' ts'
     (before, after) = break cmp cs
     cs' = before
     ts' = after <> ts
+
+
+#if __GLASGOW_HASKELL__ >= 904
+-- | Split comments into ones occuring before the start of the reference
+-- span, those in the span, and those after it.
+splitCommentsAround :: RealSrcSpan -> EpAnnComments
+                    -> ([LEpaComment], [LEpaComment], [LEpaComment])
+splitCommentsAround p cs = (before,middle,after)
+  where
+    all = priorComments cs ++ getFollowingComments cs
+    cmpbefore (L (Anchor l _) _) = ss2pos l > ss2pos p
+    cmpafter (L (Anchor l _) _) = ss2pos l > ss2posEnd p
+    (before, both) = break cmpbefore all
+    (middle, after) = break cmpafter both
+#endif
+
+-- ---------------------------------------------------------------------
 
 moveLeadingComments :: (Data t, Data u, Monoid t, Monoid u)
   => LocatedAn t a -> SrcAnn u -> (LocatedAn t a, SrcAnn u)
@@ -709,6 +781,7 @@ commentOrigDelta (L (GHC.Anchor la _) (GHC.EpaComment t pp))
                then MovedAnchor (DifferentLine 1 0)
                else op'
 
+#if __GLASGOW_HASKELL__ < 904
 spanOrigDelta :: RealSrcSpan -> RealSrcSpan -> DeltaPos
 spanOrigDelta prior cur = dp
   where
@@ -716,9 +789,11 @@ spanOrigDelta prior cur = dp
     dp = if r == 0
            then (ss2delta (r,c+1) cur)
            else (ss2delta (r,c)   cur)
+#endif
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ < 904
 -- TODO: Until https://gitlab.haskell.org/ghc/ghc/-/issues/20715 is
 -- fixed we have to special-case a funbind.  Damn.
 tweakListComments :: LHsDecl GhcPs -> LHsDecl GhcPs
@@ -776,6 +851,7 @@ tweakListComments' (L (SrcSpanAnn (EpAnn anc an cs) l) a) = L (SrcSpanAnn (EpAnn
                       in
                         process f (setTrailingAnnLoc l0 l':ll,before++cc) li cs1
           EpaDelta _d' _cs' -> process f (l0:ll,cc) li cs0
+#endif
 
 -- | For comment-related deltas starting on a new line we have an
 -- off-by-one problem. Adjust
@@ -783,6 +859,7 @@ tweakDelta :: DeltaPos  -> DeltaPos
 tweakDelta (SameLine d) = SameLine d
 tweakDelta (DifferentLine l d) = DifferentLine l (d-1)
 
+#if __GLASGOW_HASKELL__ < 904
 -- TODO: Until https://gitlab.haskell.org/ghc/ghc/-/issues/20715 is
 -- fixed we have to special-case a funbind.  Damn.
 -- The problem seems to depend on whether the funbind has params
@@ -815,6 +892,7 @@ tweakListCommentsFB (L l (ValD xv (FunBind x n (MG mx (L lm matches) o) t))) = r
 
     r = (L l' (ValD xv (FunBind x n (MG mx (L lm (map tweakListComments' matches')) o) t)))
 tweakListCommentsFB x = error $ "tweakListCommentsFB for " ++ showAst x
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -866,12 +944,14 @@ commentsOrigDeltasDecl (L (SrcSpanAnn an l) d) = L (SrcSpanAnn an' l) d
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ < 904
 -- | Take an anchor and a preceding location, and generate an
 -- equivalent one with a 'MovedAnchor' delta.
 deltaAnchor :: Anchor -> RealSrcSpan -> Anchor
 deltaAnchor (Anchor anc _) ss = Anchor anc (MovedAnchor dp)
   where
     dp = pos2delta (ss2pos ss) (ss2pos anc)
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -1028,12 +1108,7 @@ instance HasDecls (LocatedA (Match GhcPs (LocatedA (HsExpr GhcPs)))) where
         (l', rhs') <- case binds of
           EmptyLocalBinds{} -> do
             logTr $ "replaceDecls LMatch empty binds"
-            -- modifyAnnsT (setPrecedingLines (ghead "LMatch.replaceDecls" newBinds) 1 4)
 
-            -- only move the comment if the original where clause was empty.
-            -- toMove <- balanceTrailingComments m m
-            -- insertCommentBefore (mkAnnKey m) toMove (matchEpAnn AnnWhere)
-            -- TODO: move trailing comments on the same line to before the binds
             logDataWithAnnsTr "Match.replaceDecls:balancing comments:m" m
             L l' m' <- balanceSameLineComments m
             logDataWithAnnsTr "Match.replaceDecls:(m1')" (L l' m')
@@ -1046,17 +1121,31 @@ instance HasDecls (LocatedA (Match GhcPs (LocatedA (HsExpr GhcPs)))) where
 -- ---------------------------------------------------------------------
 
 instance HasDecls (LocatedA (HsExpr GhcPs)) where
+#if __GLASGOW_HASKELL__ >= 904
+  hsDecls (L _ (HsLet _ _ decls _ _ex)) = hsDeclsValBinds decls
+  hsDecls _                             = return []
+#else
   hsDecls (L _ (HsLet _ decls _ex)) = hsDeclsValBinds decls
   hsDecls _                         = return []
+#endif
 
+#if __GLASGOW_HASKELL__ >= 904
+  replaceDecls (L ll (HsLet x tkLet binds tkIn ex)) newDecls
+#else
   replaceDecls (L ll (HsLet x binds ex)) newDecls
+#endif
     = do
         logTr "replaceDecls HsLet"
         let lastAnc = realSrcSpan $ spanHsLocaLBinds binds
         -- TODO: may be an intervening comment, take account for lastAnc
+#if __GLASGOW_HASKELL__ >= 904
+        let (tkLet', tkIn', ex',newDecls') = case (tkLet, tkIn) of
+              (L (TokenLoc l) ls, L (TokenLoc i) is) ->
+#else
         let (x', ex',newDecls') = case x of
               EpAnnNotUsed -> (x, ex, newDecls)
               (EpAnn a (AnnsLet l i) cs) ->
+#endif
                 let
                   off = case l of
                           (EpaSpan r) -> LayoutStartCol $ snd $ ss2pos r
@@ -1066,18 +1155,38 @@ instance HasDecls (LocatedA (HsExpr GhcPs)) where
                   newDecls'' = case newDecls of
                     [] -> newDecls
                     (d:ds) -> setEntryDPDecl d (SameLine 0) : ds
+#if __GLASGOW_HASKELL__ >= 904
+                in ( L (TokenLoc l) ls
+                   , L (TokenLoc (addEpaLocationDelta off lastAnc i)) is
+#else
                 in ( EpAnn a (AnnsLet l (addEpaLocationDelta off lastAnc i)) cs
+#endif
                    , ex''
                    , newDecls'')
+#if __GLASGOW_HASKELL__ >= 904
+              (_,_) -> (tkLet, tkIn, ex, newDecls)
+#endif
         binds' <- replaceDeclsValbinds WithoutWhere binds newDecls'
+#if __GLASGOW_HASKELL__ >= 904
+        return (L ll (HsLet x tkLet' binds' tkIn' ex'))
+#else
         return (L ll (HsLet x' binds' ex'))
+#endif
 
   -- TODO: does this make sense? Especially as no hsDecls for HsPar
+#if __GLASGOW_HASKELL__ >= 904
+  replaceDecls (L l (HsPar x lpar e rpar)) newDecls
+#else
   replaceDecls (L l (HsPar x e)) newDecls
+#endif
     = do
         logTr "replaceDecls HsPar"
         e' <- replaceDecls e newDecls
+#if __GLASGOW_HASKELL__ >= 904
+        return (L l (HsPar x lpar e' rpar))
+#else
         return (L l (HsPar x e'))
+#endif
   replaceDecls old _new = error $ "replaceDecls (LHsExpr GhcPs) undefined for:" ++ showGhc old
 
 -- ---------------------------------------------------------------------
@@ -1135,9 +1244,7 @@ instance HasDecls (LocatedA (Stmt GhcPs (LocatedA (HsExpr GhcPs)))) where
 
   replaceDecls (L l (LetStmt x lb)) newDecls
     = do
-        -- modifyAnnsT (captureOrder s newDecls)
         lb'' <- replaceDeclsValbinds WithWhere lb newDecls
-        -- let lb' = L (getLoc lb) lb''
         return (L l (LetStmt x lb''))
   replaceDecls (L l (LastStmt x e d se)) newDecls
     = do
@@ -1325,6 +1432,7 @@ modifyDeclsT action t = do
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ < 904
 -- type RWS r w s = RWST r w s Identity
 -- runRWS :: Monoid w => RWS r w s a -> r -> s -> (a, s, w)
 -- rws :: Monoid w => (r -> s -> (a, s, w)) -> RWS r w s a
@@ -1396,5 +1504,6 @@ mkComments str anc = EpaComments [mkCommentAnc str anc]
 
 mkCommentAnc :: String -> Anchor -> LEpaComment
 mkCommentAnc str anc = L anc (EpaComment (EpaLineComment str) (anchor anc) )
+#endif
 
 -- ---------------------------------------------------------------------

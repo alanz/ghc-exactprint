@@ -20,6 +20,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   where
 import Control.Monad.State
 import Data.Function
+import Data.List
 import Data.Maybe
 import Data.Ord (comparing)
 
@@ -50,28 +51,14 @@ debugEnabledFlag :: Bool
 -- debugEnabledFlag = True
 debugEnabledFlag = False
 
--- |Global switch to enable debug tracing in ghc-exactprint Pretty
-debugPEnabledFlag :: Bool
-debugPEnabledFlag = True
--- debugPEnabledFlag = False
-
 -- |Provide a version of trace that comes at the end of the line, so it can
 -- easily be commented out when debugging different things.
 debug :: c -> String -> c
 debug c s = if debugEnabledFlag
               then trace s c
               else c
-
--- |Provide a version of trace for the Pretty module, which can be enabled
--- separately from 'debug' and 'debugM'
-debugP :: String -> c -> c
-debugP s c = if debugPEnabledFlag
-               then trace s c
-               else c
-
 debugM :: Monad m => String -> m ()
 debugM s = when debugEnabledFlag $ traceM s
-
 
 -- ---------------------------------------------------------------------
 
@@ -209,7 +196,13 @@ insertCppComments (L l p) cs = L l p'
   where
     ncs = EpaComments cs
     an' = case GHC.hsmodAnn p of
+#if __GLASGOW_HASKELL__ >= 904
+      (EpAnn a an ocs) -> EpAnn a an (EpaComments cs')
+        where
+          cs' = sortEpaComments $ priorComments ocs ++ getFollowingComments ocs ++ cs
+#else
       (EpAnn a an ocs) -> EpAnn a an (ocs <> ncs)
+#endif
       unused -> unused
     p' = p { GHC.hsmodAnn = an' }
 
@@ -222,6 +215,8 @@ ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentNext s) _))  = s
 ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentPrev s) _))  = s
 ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentNamed s) _)) = s
 ghcCommentText (L _ (GHC.EpaComment (EpaDocSection _ s) _))    = s
+#else
+ghcCommentText (L _ (GHC.EpaComment (EpaDocComment s) _))      = exactPrintHsDocString s
 #endif
 ghcCommentText (L _ (GHC.EpaComment (EpaDocOptions s) _))      = s
 ghcCommentText (L _ (GHC.EpaComment (EpaLineComment s) _))     = s
@@ -298,6 +293,9 @@ dpFromString xs = dpFromString' xs 0 0
 
 -- ---------------------------------------------------------------------
 
+isSymbolRdrName :: RdrName -> Bool
+isSymbolRdrName n = isSymOcc $ rdrNameOcc n
+
 rdrName2String :: RdrName -> String
 rdrName2String r =
   case isExact_maybe r of
@@ -360,11 +358,11 @@ moveAnchor (SrcSpanAnn EpAnnNotUsed l) = noAnnSrcSpan l
 moveAnchor (SrcSpanAnn (EpAnn anc _ cs) l) = SrcSpanAnn (EpAnn anc mempty cs) l
 
 -- ---------------------------------------------------------------------
+#if __GLASGOW_HASKELL__ < 904
 trailingAnnToAddEpAnn :: TrailingAnn -> AddEpAnn
 trailingAnnToAddEpAnn (AddSemiAnn ss)    = AddEpAnn AnnSemi ss
 trailingAnnToAddEpAnn (AddCommaAnn ss)   = AddEpAnn AnnComma ss
 trailingAnnToAddEpAnn (AddVbarAnn ss)    = AddEpAnn AnnVbar ss
-#if __GLASGOW_HASKELL__ < 904
 trailingAnnToAddEpAnn (AddRarrowAnn ss)  = AddEpAnn AnnRarrow ss
 trailingAnnToAddEpAnn (AddRarrowAnnU ss) = AddEpAnn AnnRarrowU ss
 trailingAnnToAddEpAnn (AddLollyAnnU ss)  = AddEpAnn AnnLollyU ss
@@ -389,7 +387,6 @@ setTrailingAnnLoc (AddRarrowAnn _)  ss = (AddRarrowAnn ss)
 setTrailingAnnLoc (AddRarrowAnnU _) ss = (AddRarrowAnnU ss)
 setTrailingAnnLoc (AddLollyAnnU _)  ss = (AddLollyAnnU ss)
 #endif
-
 
 addEpAnnLoc :: AddEpAnn -> EpaLocation
 addEpAnnLoc (AddEpAnn _ l) = l
