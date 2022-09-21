@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
@@ -32,6 +33,9 @@ import GHC.Types.Name.Reader
 import GHC.Types.SrcLoc
 import GHC.Data.FastString
 import GHC.Utils.Outputable ( showPprUnsafe )
+#if __GLASGOW_HASKELL__ >= 904
+import qualified GHC.Data.Strict as Strict
+#endif
 
 import Data.List (sortBy, elemIndex)
 
@@ -212,10 +216,13 @@ insertCppComments (L l p) cs = L l p'
 -- ---------------------------------------------------------------------
 
 ghcCommentText :: LEpaComment -> String
+
+#if __GLASGOW_HASKELL__ < 904
 ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentNext s) _))  = s
 ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentPrev s) _))  = s
 ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentNamed s) _)) = s
 ghcCommentText (L _ (GHC.EpaComment (EpaDocSection _ s) _))    = s
+#endif
 ghcCommentText (L _ (GHC.EpaComment (EpaDocOptions s) _))      = s
 ghcCommentText (L _ (GHC.EpaComment (EpaLineComment s) _))     = s
 ghcCommentText (L _ (GHC.EpaComment (EpaBlockComment s) _))    = s
@@ -357,25 +364,31 @@ trailingAnnToAddEpAnn :: TrailingAnn -> AddEpAnn
 trailingAnnToAddEpAnn (AddSemiAnn ss)    = AddEpAnn AnnSemi ss
 trailingAnnToAddEpAnn (AddCommaAnn ss)   = AddEpAnn AnnComma ss
 trailingAnnToAddEpAnn (AddVbarAnn ss)    = AddEpAnn AnnVbar ss
+#if __GLASGOW_HASKELL__ < 904
 trailingAnnToAddEpAnn (AddRarrowAnn ss)  = AddEpAnn AnnRarrow ss
 trailingAnnToAddEpAnn (AddRarrowAnnU ss) = AddEpAnn AnnRarrowU ss
 trailingAnnToAddEpAnn (AddLollyAnnU ss)  = AddEpAnn AnnLollyU ss
+#endif
 
 trailingAnnLoc :: TrailingAnn -> EpaLocation
 trailingAnnLoc (AddSemiAnn ss)    = ss
 trailingAnnLoc (AddCommaAnn ss)   = ss
 trailingAnnLoc (AddVbarAnn ss)    = ss
+#if __GLASGOW_HASKELL__ < 904
 trailingAnnLoc (AddRarrowAnn ss)  = ss
 trailingAnnLoc (AddRarrowAnnU ss) = ss
 trailingAnnLoc (AddLollyAnnU ss)  = ss
+#endif
 
 setTrailingAnnLoc :: TrailingAnn -> EpaLocation -> TrailingAnn
 setTrailingAnnLoc (AddSemiAnn _)    ss = (AddSemiAnn ss)
 setTrailingAnnLoc (AddCommaAnn _)   ss = (AddCommaAnn ss)
 setTrailingAnnLoc (AddVbarAnn _)    ss = (AddVbarAnn ss)
+#if __GLASGOW_HASKELL__ < 904
 setTrailingAnnLoc (AddRarrowAnn _)  ss = (AddRarrowAnn ss)
 setTrailingAnnLoc (AddRarrowAnnU _) ss = (AddRarrowAnnU ss)
 setTrailingAnnLoc (AddLollyAnnU _)  ss = (AddLollyAnnU ss)
+#endif
 
 
 addEpAnnLoc :: AddEpAnn -> EpaLocation
@@ -415,16 +428,27 @@ To be absolutely sure, we make the delta versions use -ve values.
 
 hackSrcSpanToAnchor :: SrcSpan -> Anchor
 hackSrcSpanToAnchor (UnhelpfulSpan s) = error $ "hackSrcSpanToAnchor : UnhelpfulSpan:" ++ show s
+#if __GLASGOW_HASKELL__ < 904
 hackSrcSpanToAnchor (RealSrcSpan r Nothing) = Anchor r UnchangedAnchor
 hackSrcSpanToAnchor (RealSrcSpan r (Just (BufSpan (BufPos s) (BufPos e))))
+#else
+hackSrcSpanToAnchor (RealSrcSpan r Strict.Nothing) = Anchor r UnchangedAnchor
+hackSrcSpanToAnchor (RealSrcSpan r (Strict.Just (BufSpan (BufPos s) (BufPos e))))
+#endif
   = if s <= 0 && e <= 0
     then Anchor r (MovedAnchor (deltaPos (-s) (-e)))
     else Anchor r UnchangedAnchor
 
 hackAnchorToSrcSpan :: Anchor -> SrcSpan
+#if __GLASGOW_HASKELL__ < 904
 hackAnchorToSrcSpan (Anchor r UnchangedAnchor) = RealSrcSpan r Nothing
 hackAnchorToSrcSpan (Anchor r (MovedAnchor dp))
   = RealSrcSpan r (Just (BufSpan (BufPos s) (BufPos e)))
+#else
+hackAnchorToSrcSpan (Anchor r UnchangedAnchor) = RealSrcSpan r Strict.Nothing
+hackAnchorToSrcSpan (Anchor r (MovedAnchor dp))
+  = RealSrcSpan r (Strict.Just (BufSpan (BufPos s) (BufPos e)))
+#endif
   where
     s = - (getDeltaLine dp)
     e = - (deltaColumn dp)

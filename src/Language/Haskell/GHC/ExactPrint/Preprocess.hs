@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- | This module provides support for CPP, interpreter directives and line
@@ -15,27 +16,48 @@ module Language.Haskell.GHC.ExactPrint.Preprocess
 
 import qualified GHC            as GHC hiding (parseModule)
 
-import qualified Control.Monad.IO.Class as GHC
-import qualified GHC.Data.Bag          as GHC
-import qualified GHC.Data.FastString   as GHC
-import qualified GHC.Data.StringBuffer as GHC
-import qualified GHC.Driver.Config     as GHC
-import qualified GHC.Driver.Env        as GHC
-import qualified GHC.Driver.Phases     as GHC
-import qualified GHC.Driver.Pipeline   as GHC
-import qualified GHC.Fingerprint.Type  as GHC
-import qualified GHC.Parser.Errors.Ppr as GHC
-import qualified GHC.Parser.Lexer      as GHC
-import qualified GHC.Settings          as GHC
-import qualified GHC.Types.SourceError as GHC
-import qualified GHC.Types.SourceFile  as GHC
-import qualified GHC.Types.SrcLoc      as GHC
-import qualified GHC.Utils.Error       as GHC
-import qualified GHC.Utils.Fingerprint as GHC
+import qualified Control.Monad.IO.Class   as GHC
+#if __GLASGOW_HASKELL__ >= 904
+#else
+import qualified GHC.Data.Bag             as GHC
+#endif
+import qualified GHC.Data.FastString      as GHC
+import qualified GHC.Data.StringBuffer    as GHC
+#if __GLASGOW_HASKELL__ >= 904
+import qualified GHC.Driver.Config.Parser as GHC
+#else
+import qualified GHC.Driver.Config        as GHC
+#endif
+import qualified GHC.Driver.Env           as GHC
+import qualified GHC.Driver.Phases        as GHC
+import qualified GHC.Driver.Pipeline      as GHC
+import qualified GHC.Fingerprint.Type     as GHC
+#if __GLASGOW_HASKELL__ >= 904
+import qualified GHC.Driver.Errors.Types  as GHC
+#else
+import qualified GHC.Parser.Errors.Ppr    as GHC
+#endif
+import qualified GHC.Parser.Lexer         as GHC
+import qualified GHC.Settings             as GHC
+import qualified GHC.Types.SourceError    as GHC
+import qualified GHC.Types.SourceFile     as GHC
+import qualified GHC.Types.SrcLoc         as GHC
+#if __GLASGOW_HASKELL__ >= 904
+import qualified GHC.Types.Error          as GHC
+#endif
+import qualified GHC.Utils.Error          as GHC
+import qualified GHC.Utils.Fingerprint    as GHC
+#if __GLASGOW_HASKELL__ >= 904
+import qualified GHC.Utils.Outputable     as GHC
+#endif
 import GHC.Types.SrcLoc (mkSrcSpan, mkSrcLoc)
 import GHC.Data.FastString (mkFastString)
 
+#if __GLASGOW_HASKELL__ >= 904
+import Data.List (isPrefixOf)
+#else
 import Data.List (isPrefixOf, intercalate)
+#endif
 import Data.Maybe
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
@@ -129,7 +151,6 @@ goodComment c = isGoodComment (tokComment c)
     isGoodComment (Comment "" _ _ _) = False
     isGoodComment _                  = True
 
-
 toRealLocated :: GHC.Located a -> GHC.RealLocated a
 toRealLocated (GHC.L (GHC.RealSrcSpan s _) x) = GHC.L s              x
 toRealLocated (GHC.L _ x)                     = GHC.L badRealSrcSpan x
@@ -169,7 +190,11 @@ getCppTokens directiveToks origSrcToks postCppToks = toks
     missingAsComments = map mkCommentTok missingToks
       where
         mkCommentTok :: (GHC.Located GHC.Token,String) -> (GHC.Located GHC.Token,String)
+#if __GLASGOW_HASKELL__ >= 904
+        mkCommentTok (GHC.L l _,s) = (GHC.L l (GHC.ITlineComment s placeholderBufSpan),s)
+#else
         mkCommentTok (GHC.L l _,s) = (GHC.L l (GHC.ITlineComment s (makeBufSpan l)),s)
+#endif
 
     toks = mergeBy locFn directiveToks missingAsComments
 
@@ -215,8 +240,13 @@ getPreprocessedSrcDirectPrim :: (GHC.GhcMonad m)
                               -> m (String, GHC.StringBuffer, GHC.DynFlags)
 getPreprocessedSrcDirectPrim cppOptions src_fn = do
   hsc_env <- GHC.getSession
+#if __GLASGOW_HASKELL__ >= 904
+  let dflags = GHC.hsc_dflags hsc_env
+      new_env = GHC.hscSetFlags (injectCppOptions cppOptions dflags) hsc_env
+#else
   let dfs = GHC.hsc_dflags hsc_env
       new_env = hsc_env { GHC.hsc_dflags = injectCppOptions cppOptions dfs }
+#endif
   r <- GHC.liftIO $ GHC.preprocess new_env src_fn Nothing (Just (GHC.Cpp GHC.HsSrcFile))
   case r of
     Left err -> error $ showErrorMessages err
@@ -225,8 +255,18 @@ getPreprocessedSrcDirectPrim cppOptions src_fn = do
       txt <- GHC.liftIO $ readFileGhc hspp_fn
       return (txt, buf, dflags')
 
+#if __GLASGOW_HASKELL__ >= 904
+showErrorMessages :: GHC.Messages GHC.DriverMessage -> String
+showErrorMessages msgs =
+  GHC.renderWithContext GHC.defaultSDocContext
+    $ GHC.vcat
+    $ GHC.pprMsgEnvelopeBagWithLoc
+    $ GHC.getMessages
+    $ msgs
+#else
 showErrorMessages :: GHC.ErrorMessages -> String
 showErrorMessages msgs = intercalate "\n" $ map show $ GHC.bagToList msgs
+#endif
 
 injectCppOptions :: CppOptions -> GHC.DynFlags -> GHC.DynFlags
 injectCppOptions CppOptions{..} dflags =
@@ -258,7 +298,11 @@ getPreprocessorAsComments srcFile = do
   let directives = filter (\(_lineNum,line) -> line /= [] && head line == '#')
                     $ zip [1..] (lines fcontents)
 
+#if __GLASGOW_HASKELL__ >= 904
+  let mkTok (lineNum,line) = (GHC.L l (GHC.ITlineComment line placeholderBufSpan),line)
+#else
   let mkTok (lineNum,line) = (GHC.L l (GHC.ITlineComment line (makeBufSpan l)),line)
+#endif
        where
          start = GHC.mkSrcLoc (GHC.mkFastString srcFile) lineNum 1
          end   = GHC.mkSrcLoc (GHC.mkFastString srcFile) lineNum (length line)
@@ -267,21 +311,30 @@ getPreprocessorAsComments srcFile = do
   let toks = map mkTok directives
   return toks
 
+#if __GLASGOW_HASKELL__ >= 904
+placeholderBufSpan :: GHC.PsSpan
+placeholderBufSpan = pspan
+  where
+    bl = GHC.BufPos 0
+    pspan = GHC.PsSpan GHC.placeholderRealSpan (GHC.BufSpan bl bl)
+#else
 makeBufSpan :: GHC.SrcSpan -> GHC.PsSpan
 makeBufSpan ss = pspan
   where
     bl = GHC.BufPos 0
     pspan = GHC.PsSpan (GHC.realSrcSpan ss) (GHC.BufSpan bl bl)
+#endif
 
 -- ---------------------------------------------------------------------
 
 parseError :: (GHC.MonadIO m) => GHC.PState -> m b
 parseError pst = do
      let
-       -- (warns,errs) = GHC.getMessages pst dflags
-     -- throw $ GHC.mkSrcErr (GHC.unitBag $ GHC.mkPlainErrMsg dflags sspan err)
-     -- GHC.throwErrors (fmap GHC.mkParserErr (GHC.getErrorMessages pst))
+#if __GLASGOW_HASKELL__ >= 904
+     GHC.throwErrors (fmap GHC.GhcPsMessage (GHC.getPsErrorMessages pst))
+#else
      GHC.throwErrors (fmap GHC.pprError (GHC.getErrorMessages pst))
+#endif
 
 -- ---------------------------------------------------------------------
 

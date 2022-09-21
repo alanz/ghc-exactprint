@@ -4,6 +4,7 @@ Temporary copy of the GHC.Hs.Dump module, modified to show DeltaPos
 hacked into a SrcSpan.
 -}
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -59,7 +60,9 @@ showAstData bs ba a0 = blankLine $$ showAstData' a0
               `extQ` annotationAddEpAnn
               `extQ` annotationGrhsAnn
               `extQ` annotationEpAnnHsCase
+#if __GLASGOW_HASKELL__ < 904
               `extQ` annotationEpAnnHsLet
+#endif
               `extQ` annotationAnnList
               `extQ` annotationEpAnnImportDecl
               `extQ` annotationAnnParen
@@ -240,8 +243,10 @@ showAstData bs ba a0 = blankLine $$ showAstData' a0
             annotationEpAnnHsCase :: EpAnn EpAnnHsCase -> SDoc
             annotationEpAnnHsCase = annotation' (text "EpAnn EpAnnHsCase")
 
+#if __GLASGOW_HASKELL__ < 904
             annotationEpAnnHsLet :: EpAnn AnnsLet -> SDoc
             annotationEpAnnHsLet = annotation' (text "EpAnn AnnsLet")
+#endif
 
             annotationAnnList :: EpAnn AnnList -> SDoc
             annotationAnnList = annotation' (text "EpAnn AnnList")

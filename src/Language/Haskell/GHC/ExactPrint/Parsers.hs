@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ViewPatterns #-}
 -----------------------------------------------------------------------------
@@ -53,15 +54,26 @@ import qualified GHC hiding (parseModule)
 import qualified Control.Monad.IO.Class as GHC
 import qualified GHC.Data.FastString    as GHC
 import qualified GHC.Data.StringBuffer  as GHC
+#if __GLASGOW_HASKELL__ >= 904
+import qualified GHC.Driver.Config.Parser as GHC
+#else
 import qualified GHC.Driver.Config      as GHC
+#endif
 import qualified GHC.Driver.Session     as GHC
 import qualified GHC.Parser             as GHC
 import qualified GHC.Parser.Header      as GHC
 import qualified GHC.Parser.Lexer       as GHC
 import qualified GHC.Parser.PostProcess as GHC
-import qualified GHC.Parser.Errors.Ppr  as GHC
+#if __GLASGOW_HASKELL__ >= 904
+import qualified GHC.Driver.Errors.Types  as GHC
+#else
+import qualified GHC.Parser.Errors.Ppr    as GHC
+#endif
 import qualified GHC.Types.SrcLoc       as GHC
+#if __GLASGOW_HASKELL__ >= 904
+#else
 import qualified GHC.Utils.Error        as GHC
+#endif
 
 import qualified GHC.LanguageExtensions as LangExt
 
@@ -79,7 +91,11 @@ parseWith :: GHC.DynFlags
           -> ParseResult w
 parseWith dflags fileName parser s =
   case runParser parser dflags fileName s of
-    GHC.PFailed pst                     -> Left (fmap GHC.pprError $ GHC.getErrorMessages pst)
+#if __GLASGOW_HASKELL__ >= 904
+    GHC.PFailed pst -> Left (fmap GHC.GhcPsMessage $ GHC.getPsErrorMessages pst)
+#else
+    GHC.PFailed pst -> Left (fmap GHC.pprError $ GHC.getErrorMessages pst)
+#endif
     GHC.POk _ pmod -> Right pmod
 
 
@@ -91,7 +107,11 @@ parseWithECP :: (GHC.DisambECP w)
           -> ParseResult (GHC.LocatedA w)
 parseWithECP dflags fileName parser s =
     case runParser (parser >>= \p -> GHC.runPV $ GHC.unECP p) dflags fileName s of
-      GHC.PFailed pst                     -> Left (fmap GHC.pprError $ GHC.getErrorMessages pst)
+#if __GLASGOW_HASKELL__ >= 904
+      GHC.PFailed pst -> Left (fmap GHC.GhcPsMessage $ GHC.getPsErrorMessages pst)
+#else
+      GHC.PFailed pst -> Left (fmap GHC.pprError $ GHC.getErrorMessages pst)
+#endif
       GHC.POk _ pmod -> Right pmod
 
 -- ---------------------------------------------------------------------
@@ -184,7 +204,11 @@ parseModuleFromStringInternal :: Parser GHC.ParsedSource
 parseModuleFromStringInternal dflags fileName str =
   let (str1, lp) = stripLinePragmas str
       res        = case runParser GHC.parseModule dflags fileName str1 of
-        GHC.PFailed pst     -> Left (fmap GHC.pprError $ GHC.getErrorMessages pst)
+#if __GLASGOW_HASKELL__ >= 904
+        GHC.PFailed pst -> Left (fmap GHC.GhcPsMessage $ GHC.getPsErrorMessages pst)
+#else
+        GHC.PFailed pst -> Left (fmap GHC.pprError $ GHC.getErrorMessages pst)
+#endif
         GHC.POk     _  pmod -> Right (lp, dflags, pmod)
   in  postParseTransform res
 
@@ -255,7 +279,11 @@ parseModuleEpAnnsWithCppInternal cppOptions dflags file = do
         return (contents1,lp,dflags)
   return $
     case parseFile dflags' file fileContents of
+#if __GLASGOW_HASKELL__ >= 904
+      GHC.PFailed pst -> Left (fmap GHC.GhcPsMessage $ GHC.getPsErrorMessages pst)
+#else
       GHC.PFailed pst -> Left (fmap GHC.pprError $ GHC.getErrorMessages pst)
+#endif
       GHC.POk _ pmod  ->
         Right $ (injectedComments, dflags', fixModuleTrailingComments pmod)
 
@@ -301,7 +329,12 @@ fixModuleTrailingComments (GHC.L l p) = GHC.L l p'
 initDynFlags :: GHC.GhcMonad m => FilePath -> m GHC.DynFlags
 initDynFlags file = do
   dflags0         <- GHC.getSessionDynFlags
+#if __GLASGOW_HASKELL__ >= 904
+  let parser_opts0 = GHC.initParserOpts dflags0
+  (_, src_opts)   <- GHC.liftIO $ GHC.getOptionsFromFile parser_opts0 file
+#else
   src_opts        <- GHC.liftIO $ GHC.getOptionsFromFile dflags0 file
+#endif
   (dflags1, _, _) <- GHC.parseDynamicFilePragma dflags0 src_opts
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
@@ -327,7 +360,12 @@ initDynFlagsPure fp s = do
   -- as long as `parseDynamicFilePragma` is impure there seems to be
   -- no reason to use it.
   dflags0 <- GHC.getSessionDynFlags
+#if __GLASGOW_HASKELL__ >= 904
+  let parser_opts0 = GHC.initParserOpts dflags0
+  let (_, pragmaInfo) = GHC.getOptions parser_opts0 (GHC.stringToStringBuffer $ s) fp
+#else
   let pragmaInfo = GHC.getOptions dflags0 (GHC.stringToStringBuffer $ s) fp
+#endif
   (dflags1, _, _) <- GHC.parseDynamicFilePragma dflags0 pragmaInfo
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
