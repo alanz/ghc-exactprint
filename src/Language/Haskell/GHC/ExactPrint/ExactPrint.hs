@@ -1858,7 +1858,7 @@ instance ExactPrint (RuleDecl GhcPs) where
     rhs' <- markAnnotated rhs
     return (HsRule an4 ln' act mtybndrs' termbndrs' lhs' rhs')
 
-markActivation :: (Monad m, Monoid w, Data a)
+markActivation :: (Monad m, Monoid w)
   => EpAnn a -> Lens a [AddEpAnn] -> Activation -> EP w m (EpAnn a)
 markActivation an l act = do
   case act of
