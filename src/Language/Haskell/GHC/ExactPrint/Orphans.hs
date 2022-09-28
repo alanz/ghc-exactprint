@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE CPP #-}
 
 module Language.Haskell.GHC.ExactPrint.Orphans where
 
@@ -53,12 +52,6 @@ instance Default EpAnnHsCase where
 instance Default AnnsIf where
   def = AnnsIf def def def def def
 
-#if MIN_VERSION_GLASGOW_HASKELL(9,2,9,0)
-#else
-instance Default AnnsLet where
-  def = AnnsLet def def
-#endif
-
 instance Default AnnProjection where
   def = AnnProjection def def
 
@@ -73,12 +66,6 @@ instance Default AddEpAnn where
 
 instance Default AnnKeywordId where
   def = Annlarrowtail  {- gotta pick one -}
-
-#if MIN_VERSION_GLASGOW_HASKELL(9,2,9,0)
-#else
-instance Default TrailingAnn where
-  def = AddSemiAnn {-gotta pick one -} def
-#endif
 
 instance Default AnnContext where
   def = AnnContext Nothing [] []

@@ -15,9 +15,7 @@ author:              Alan Zimmerman, Matthew Pickering
 maintainer:          alan.zimm@gmail.com
 category:            Development
 build-type:          Simple
-tested-with:         GHC == 9.2.1
-                   , GHC == 9.2.2
-                   , GHC == 9.4.1
+tested-with:         GHC == 9.4.1
                    , GHC == 9.4.2
 extra-source-files:  ChangeLog
                      tests/examples/failing/*.hs
@@ -74,14 +72,14 @@ library
   -- other-extensions:
   GHC-Options:         -Wall -Wredundant-constraints
   -- GHC-Options:         -Weverything
-  build-depends:       base >=4.16 && <4.18
+  build-depends:       base >=4.17 && <4.18
                      , bytestring >= 0.10.6
                      , containers >= 0.5
                      , ordered-containers
                      , data-default
                      , directory >= 1.2
                      , filepath  >= 1.4
-                     , ghc       >= 9.2.1
+                     , ghc       >= 9.4.1
                      , mtl       >= 2.2.1
                      , syb       >= 0.5
                      , free      >= 4.12
@@ -90,13 +88,8 @@ library
 
 
   default-language:    Haskell2010
-  if impl (ghc < 9.2)
+  if impl (ghc < 9.4)
       buildable: False
-  else
-    if impl (ghc > 9.2.9)
-        hs-source-dirs: src-ghc94
-    else
-        hs-source-dirs: src-ghc92
 
 Test-Suite test
   type:                exitcode-stdio-1.0
@@ -122,7 +115,7 @@ Test-Suite test
                      , Diff
                      , directory >= 1.2
                      , filepath  >= 1.4
-                     , ghc       >= 9.2.1
+                     , ghc       >= 9.4.1
                      , ghc-paths  >= 0.1
                      , mtl        >= 2.2.1
                      , syb        >= 0.5
@@ -136,13 +129,8 @@ Test-Suite test
       build-depends: free
   else
       build-depends: ghc-exactprint
-  if impl (ghc < 9.2)
+  if impl (ghc < 9.4)
       buildable: False
-  else
-    if impl (ghc > 9.2.9)
-        hs-source-dirs: src-ghc94
-    else
-        hs-source-dirs: src-ghc92
 
 executable roundtrip
   main-is: Roundtrip.hs
@@ -151,7 +139,7 @@ executable roundtrip
                  Test.CommonUtils
                  -- Test.Consistency
   default-language:    Haskell2010
-  if impl (ghc >= 9.2) && flag (roundtrip)
+  if impl (ghc >= 9.4) && flag (roundtrip)
     build-depends:
                  HUnit
                , base
@@ -198,8 +186,7 @@ executable prepare-hackage
                  , directory
                  , filemanip
                  , filepath
-                 , ghc       >= 9.2.1
-                 -- , ghc-paths >= 0.1
+                 , ghc       >= 9.4.1
                  , HUnit
                  , text   >= 1.2.2
                  , turtle >= 1.3.0

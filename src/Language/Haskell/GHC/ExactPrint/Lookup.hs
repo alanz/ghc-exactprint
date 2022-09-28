@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 module Language.Haskell.GHC.ExactPrint.Lookup
   (
     keywordToString
@@ -36,9 +35,7 @@ keywordToString kw =
       AnnBackquote    -> "`"
       AnnBy           -> "by"
       AnnCase         -> "case"
-#if MIN_VERSION_GLASGOW_HASKELL(9,2,9,0)
       AnnCases        -> "cases"
-#endif
       AnnClass        -> "class"
       AnnCloseB       -> "|)"
       AnnCloseBU      -> "⦈"
