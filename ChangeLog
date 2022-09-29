@@ -1,3 +1,5 @@
+2022-09-30 v1.6.0
+	* Support GHC 9.4.1 and GHC 9.4.2
 2022-02-01 v1.5.0
 	* Add private version of showAstData, to be able to render
 	AnchorOperation's hacked into SrcSpan's.
