@@ -59,7 +59,6 @@ showAstData bs ba a0 = blankLine $$ showAstData' a0
               `extQ` annotationAddEpAnn
               `extQ` annotationGrhsAnn
               `extQ` annotationEpAnnHsCase
-              `extQ` annotationEpAnnHsLet
               `extQ` annotationAnnList
               `extQ` annotationEpAnnImportDecl
               `extQ` annotationAnnParen
@@ -239,9 +238,6 @@ showAstData bs ba a0 = blankLine $$ showAstData' a0
 
             annotationEpAnnHsCase :: EpAnn EpAnnHsCase -> SDoc
             annotationEpAnnHsCase = annotation' (text "EpAnn EpAnnHsCase")
-
-            annotationEpAnnHsLet :: EpAnn AnnsLet -> SDoc
-            annotationEpAnnHsLet = annotation' (text "EpAnn AnnsLet")
 
             annotationAnnList :: EpAnn AnnList -> SDoc
             annotationAnnList = annotation' (text "EpAnn AnnList")

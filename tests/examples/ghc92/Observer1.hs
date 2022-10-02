@@ -1,7 +1,7 @@
 module Observer1 where
 
-instance HasPdu (ObserverRegistry event) where
-  data Pdu (ObserverRegistry event) r where
+instance HasPdu Int where
+  data Pdu Int r where
     --a comment
     RegisterObserver :: Int
     --b comment

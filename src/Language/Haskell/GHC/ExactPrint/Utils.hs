@@ -19,6 +19,7 @@ module Language.Haskell.GHC.ExactPrint.Utils
   where
 import Control.Monad.State
 import Data.Function
+import Data.List
 import Data.Maybe
 import Data.Ord (comparing)
 
@@ -32,8 +33,7 @@ import GHC.Types.Name.Reader
 import GHC.Types.SrcLoc
 import GHC.Data.FastString
 import GHC.Utils.Outputable ( showPprUnsafe )
-
-import Data.List (sortBy, elemIndex)
+import qualified GHC.Data.Strict as Strict
 
 import Debug.Trace
 import Language.Haskell.GHC.ExactPrint.Types
@@ -46,28 +46,14 @@ debugEnabledFlag :: Bool
 -- debugEnabledFlag = True
 debugEnabledFlag = False
 
--- |Global switch to enable debug tracing in ghc-exactprint Pretty
-debugPEnabledFlag :: Bool
-debugPEnabledFlag = True
--- debugPEnabledFlag = False
-
 -- |Provide a version of trace that comes at the end of the line, so it can
 -- easily be commented out when debugging different things.
 debug :: c -> String -> c
 debug c s = if debugEnabledFlag
               then trace s c
               else c
-
--- |Provide a version of trace for the Pretty module, which can be enabled
--- separately from 'debug' and 'debugM'
-debugP :: String -> c -> c
-debugP s c = if debugPEnabledFlag
-               then trace s c
-               else c
-
 debugM :: Monad m => String -> m ()
 debugM s = when debugEnabledFlag $ traceM s
-
 
 -- ---------------------------------------------------------------------
 
@@ -203,19 +189,17 @@ isGadt _ = False
 insertCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
 insertCppComments (L l p) cs = L l p'
   where
-    ncs = EpaComments cs
     an' = case GHC.hsmodAnn p of
-      (EpAnn a an ocs) -> EpAnn a an (ocs <> ncs)
+      (EpAnn a an ocs) -> EpAnn a an (EpaComments cs')
+        where
+          cs' = sortEpaComments $ priorComments ocs ++ getFollowingComments ocs ++ cs
       unused -> unused
     p' = p { GHC.hsmodAnn = an' }
 
 -- ---------------------------------------------------------------------
 
 ghcCommentText :: LEpaComment -> String
-ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentNext s) _))  = s
-ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentPrev s) _))  = s
-ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentNamed s) _)) = s
-ghcCommentText (L _ (GHC.EpaComment (EpaDocSection _ s) _))    = s
+ghcCommentText (L _ (GHC.EpaComment (EpaDocComment s) _))      = exactPrintHsDocString s
 ghcCommentText (L _ (GHC.EpaComment (EpaDocOptions s) _))      = s
 ghcCommentText (L _ (GHC.EpaComment (EpaLineComment s) _))     = s
 ghcCommentText (L _ (GHC.EpaComment (EpaBlockComment s) _))    = s
@@ -291,6 +275,9 @@ dpFromString xs = dpFromString' xs 0 0
 
 -- ---------------------------------------------------------------------
 
+isSymbolRdrName :: RdrName -> Bool
+isSymbolRdrName n = isSymOcc $ rdrNameOcc n
+
 rdrName2String :: RdrName -> String
 rdrName2String r =
   case isExact_maybe r of
@@ -307,6 +294,21 @@ name2String :: Name -> String
 name2String = showPprUnsafe
 
 -- ---------------------------------------------------------------------
+
+-- occAttributes :: OccName.OccName -> String
+-- occAttributes o = "(" ++ ns ++ vo ++ tv ++ tc ++ d ++ ds ++ s ++ v ++ ")"
+--   where
+--     -- ns = (showSDocUnsafe $ OccName.pprNameSpaceBrief $ occNameSpace o) ++ ", "
+--     ns = (showSDocUnsafe $ OccName.pprNameSpaceBrief $ occNameSpace o) ++ ", "
+--     vo = if isVarOcc     o then "Var "     else ""
+--     tv = if isTvOcc      o then "Tv "      else ""
+--     tc = if isTcOcc      o then "Tc "      else ""
+--     d  = if isDataOcc    o then "Data "    else ""
+--     ds = if isDataSymOcc o then "DataSym " else ""
+--     s  = if isSymOcc     o then "Sym "     else ""
+--     v  = if isValOcc     o then "Val "     else ""
+
+ -- ---------------------------------------------------------------------
 
 locatedAnAnchor :: LocatedAn a t -> RealSrcSpan
 locatedAnAnchor (L (SrcSpanAnn EpAnnNotUsed l) _) = realSrcSpan l
@@ -353,30 +355,16 @@ moveAnchor (SrcSpanAnn EpAnnNotUsed l) = noAnnSrcSpan l
 moveAnchor (SrcSpanAnn (EpAnn anc _ cs) l) = SrcSpanAnn (EpAnn anc mempty cs) l
 
 -- ---------------------------------------------------------------------
-trailingAnnToAddEpAnn :: TrailingAnn -> AddEpAnn
-trailingAnnToAddEpAnn (AddSemiAnn ss)    = AddEpAnn AnnSemi ss
-trailingAnnToAddEpAnn (AddCommaAnn ss)   = AddEpAnn AnnComma ss
-trailingAnnToAddEpAnn (AddVbarAnn ss)    = AddEpAnn AnnVbar ss
-trailingAnnToAddEpAnn (AddRarrowAnn ss)  = AddEpAnn AnnRarrow ss
-trailingAnnToAddEpAnn (AddRarrowAnnU ss) = AddEpAnn AnnRarrowU ss
-trailingAnnToAddEpAnn (AddLollyAnnU ss)  = AddEpAnn AnnLollyU ss
 
 trailingAnnLoc :: TrailingAnn -> EpaLocation
 trailingAnnLoc (AddSemiAnn ss)    = ss
 trailingAnnLoc (AddCommaAnn ss)   = ss
 trailingAnnLoc (AddVbarAnn ss)    = ss
-trailingAnnLoc (AddRarrowAnn ss)  = ss
-trailingAnnLoc (AddRarrowAnnU ss) = ss
-trailingAnnLoc (AddLollyAnnU ss)  = ss
 
 setTrailingAnnLoc :: TrailingAnn -> EpaLocation -> TrailingAnn
 setTrailingAnnLoc (AddSemiAnn _)    ss = (AddSemiAnn ss)
 setTrailingAnnLoc (AddCommaAnn _)   ss = (AddCommaAnn ss)
 setTrailingAnnLoc (AddVbarAnn _)    ss = (AddVbarAnn ss)
-setTrailingAnnLoc (AddRarrowAnn _)  ss = (AddRarrowAnn ss)
-setTrailingAnnLoc (AddRarrowAnnU _) ss = (AddRarrowAnnU ss)
-setTrailingAnnLoc (AddLollyAnnU _)  ss = (AddLollyAnnU ss)
-
 
 addEpAnnLoc :: AddEpAnn -> EpaLocation
 addEpAnnLoc (AddEpAnn _ l) = l
@@ -415,16 +403,16 @@ To be absolutely sure, we make the delta versions use -ve values.
 
 hackSrcSpanToAnchor :: SrcSpan -> Anchor
 hackSrcSpanToAnchor (UnhelpfulSpan s) = error $ "hackSrcSpanToAnchor : UnhelpfulSpan:" ++ show s
-hackSrcSpanToAnchor (RealSrcSpan r Nothing) = Anchor r UnchangedAnchor
-hackSrcSpanToAnchor (RealSrcSpan r (Just (BufSpan (BufPos s) (BufPos e))))
+hackSrcSpanToAnchor (RealSrcSpan r Strict.Nothing) = Anchor r UnchangedAnchor
+hackSrcSpanToAnchor (RealSrcSpan r (Strict.Just (BufSpan (BufPos s) (BufPos e))))
   = if s <= 0 && e <= 0
     then Anchor r (MovedAnchor (deltaPos (-s) (-e)))
     else Anchor r UnchangedAnchor
 
 hackAnchorToSrcSpan :: Anchor -> SrcSpan
-hackAnchorToSrcSpan (Anchor r UnchangedAnchor) = RealSrcSpan r Nothing
+hackAnchorToSrcSpan (Anchor r UnchangedAnchor) = RealSrcSpan r Strict.Nothing
 hackAnchorToSrcSpan (Anchor r (MovedAnchor dp))
-  = RealSrcSpan r (Just (BufSpan (BufPos s) (BufPos e)))
+  = RealSrcSpan r (Strict.Just (BufSpan (BufPos s) (BufPos e)))
   where
     s = - (getDeltaLine dp)
     e = - (deltaColumn dp)

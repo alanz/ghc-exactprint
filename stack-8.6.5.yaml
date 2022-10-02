@@ -1,3 +1,0 @@
-resolver: lts-13.21 # GHC 8.6.5
-packages:
-- '.'

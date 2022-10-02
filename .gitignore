@@ -53,3 +53,7 @@ packages
 /.vscode/
 /cabal.project.local~0
 /cabal.project.local~1
+/cabal.project.local~2
+/cabal.project.local~3
+/cpp-grep-cooked.txt
+/cpp-grep-raw.txt

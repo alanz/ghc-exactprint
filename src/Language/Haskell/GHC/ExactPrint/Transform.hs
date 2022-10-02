@@ -20,10 +20,8 @@
 -----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint.Transform
         (
-        -- * Delta is still here
-          makeDeltaAst'
         -- * The Transform Monad
-        , Transform
+          Transform
         , TransformT(..)
         , hoistTransform
         , runTransform
@@ -100,7 +98,7 @@ import GHC.Data.FastString
 
 import Data.Maybe
 import Data.Generics
-import Data.List (sort, sortBy)
+import Data.List (sortBy)
 
 import Data.Functor.Identity
 import Control.Monad.State
@@ -215,7 +213,6 @@ captureTypeSigSpacing (L l (SigD x (TypeSig (EpAnn anc (AnnSig dc rs') cs) ns (H
     rd = case last ns of
       L (SrcSpanAnn EpAnnNotUsed   ll) _ -> realSrcSpan ll
       L (SrcSpanAnn (EpAnn anc' _ _) _) _ -> anchor anc' -- TODO MovedAnchor?
-    -- DP (line, col) = ss2delta (ss2pos $ anchor $ getLoc lc) r
     dc' = case dca of
       EpaSpan r -> AddEpAnn kw (EpaDelta (ss2delta (ss2posEnd rd) r) [])
       EpaDelta _ _ -> AddEpAnn kw dca
@@ -415,14 +412,20 @@ pushDeclDP d _dp = d
 -- ---------------------------------------------------------------------
 
 balanceCommentsList :: (Monad m) => [LHsDecl GhcPs] -> TransformT m [LHsDecl GhcPs]
-balanceCommentsList ds = balanceCommentsList'' (map tweakListComments ds)
-
-balanceCommentsList'' :: (Monad m) => [LHsDecl GhcPs] -> TransformT m [LHsDecl GhcPs]
-balanceCommentsList'' [] = return []
-balanceCommentsList'' [x] = return [x]
-balanceCommentsList'' (a:b:ls) = do
+balanceCommentsList [] = return []
+balanceCommentsList [x] = return [x]
+balanceCommentsList (a:b:ls) = do
   (a',b') <- balanceComments a b
-  r <- balanceCommentsList'' (b':ls)
+  r <- balanceCommentsList (b':ls)
+  return (a':r)
+
+balanceCommentsList' :: (Monad m) => [LocatedA a] -> TransformT m [LocatedA a]
+balanceCommentsList' [] = return []
+balanceCommentsList' [x] = return [x]
+balanceCommentsList' (a:b:ls) = do
+  logTr $ "balanceCommentsList' entered"
+  (a',b') <- balanceComments' a b
+  r <- balanceCommentsList' (b':ls)
   return (a':r)
 
 -- |The GHC parser puts all comments appearing between the end of one AST
@@ -497,8 +500,9 @@ balanceCommentsMatch (L l (Match am mctxt pats (GRHSs xg grhss binds))) = do
     stay = map snd stay'
     (l'', grhss', binds', logInfo)
       = case reverse grhss of
-          [] -> (l, [], binds, (EpaComments [], SrcSpanAnn EpAnnNotUsed noSrcSpan))
-          (L lg g@(GRHS EpAnnNotUsed _grs _rhs):gs) -> (l, reverse (L lg g:gs), binds, (EpaComments [], SrcSpanAnn EpAnnNotUsed noSrcSpan))
+          [] -> (l, [], binds,                 (EpaComments [], SrcSpanAnn EpAnnNotUsed noSrcSpan))
+          (L lg g@(GRHS EpAnnNotUsed _grs _rhs):gs)
+            -> (l, reverse (L lg g:gs), binds, (EpaComments [], SrcSpanAnn EpAnnNotUsed noSrcSpan))
           (L lg (GRHS ag grs rhs):gs) ->
             let
               anc1' = setFollowingComments anc1 stay
@@ -509,7 +513,7 @@ balanceCommentsMatch (L l (Match am mctxt pats (GRHSs xg grhss binds))) = do
               -- ---------------------------------
 
               (EpAnn anc an lgc) = ag
-              lgc' = splitCommentsEnd (realSrcSpan lg) $ addCommentOrigDeltas lgc
+              lgc' = splitCommentsEnd (realSrcSpan $ locA lg) $ addCommentOrigDeltas lgc
               ag' = if moved
                       then EpAnn anc an lgc'
                       else EpAnn anc an (lgc' <> (EpaCommentsBalanced [] move))
@@ -532,15 +536,6 @@ pushTrailingComments w cs lb@(HsValBinds an _)
       _ -> (ValBinds NoAnnSortKey emptyBag [], [])
 
 
-balanceCommentsList' :: (Monad m) => [LocatedA a] -> TransformT m [LocatedA a]
-balanceCommentsList' [] = return []
-balanceCommentsList' [x] = return [x]
-balanceCommentsList' (a:b:ls) = do
-  logTr $ "balanceCommentsList' entered"
-  (a',b') <- balanceComments' a b
-  r <- balanceCommentsList' (b':ls)
-  return (a':r)
-
 -- |Prior to moving an AST element, make sure any trailing comments belonging to
 -- it are attached to it, and not the following element. Of necessity this is a
 -- heuristic process, to be tuned later. Possibly a variant should be provided
@@ -549,27 +544,29 @@ balanceCommentsList' (a:b:ls) = do
 -- Many of these should in fact be following comments for the previous anchor
 balanceComments' :: (Monad m) => LocatedA a -> LocatedA b -> TransformT m (LocatedA a, LocatedA b)
 balanceComments' la1 la2 = do
-  logTr $ "balanceComments': (loc1,loc2)=" ++ showGhc (ss2range loc1,ss2range loc2)
-  logTr $ "balanceComments': (anc1)=" ++ showAst (anc1)
-  logTr $ "balanceComments': (cs1s)=" ++ showAst (cs1s)
-  logTr $ "balanceComments': (sort cs1f)=" ++ showAst (sort cs1f)
-  logTr $ "balanceComments': (cs1stay,cs1move)=" ++ showAst (cs1stay,cs1move)
-  logTr $ "balanceComments': (an1',an2')=" ++ showAst (an1',an2')
+  -- logTr $ "balanceComments': (loc1,loc2)=" ++ showGhc (ss2range loc1,ss2range loc2)
+  -- logTr $ "balanceComments': (anc1)=" ++ showAst (anc1)
+  -- logTr $ "balanceComments': (cs2p)=" ++ showAst (cs2p)
+  -- logTr $ "balanceComments': (cs2f)=" ++ showAst (cs2f)
+  -- logTr $ "balanceComments': (cs1stay,cs1move)=" ++ showAst (cs1stay,cs1move)
+  -- logTr $ "balanceComments': (an1',an2')=" ++ showAst (an1',an2')
   return (la1', la2')
   where
     simpleBreak n (r,_) = r > n
-    L (SrcSpanAnn an1 loc1) f = la1
-    L (SrcSpanAnn an2 loc2) s = la2
+    L (SrcSpanAnn an1 _loc1) f = la1
+    L (SrcSpanAnn an2 _loc2) s = la2
     anc1 = addCommentOrigDeltas $ epAnnComments an1
     anc2 = addCommentOrigDeltas $ epAnnComments an2
 
-    cs1s = splitCommentsEnd (anchorFromLocatedA la1) anc1
-    cs1p = priorCommentsDeltas    (anchorFromLocatedA la1) (priorComments        cs1s)
-    cs1f = trailingCommentsDeltas (anchorFromLocatedA la1) (getFollowingComments cs1s)
+    -- Split comments into those before the span, in the span, and after the span
+    (cs1prior,cs1m,cs1following) = splitCommentsAround (anchorFromLocatedA la1) anc1
+    cs1p = priorCommentsDeltas    (anchorFromLocatedA la1) cs1prior
+    cs1f = trailingCommentsDeltas (anchorFromLocatedA la1) cs1following
 
-    cs2s = splitCommentsEnd (anchorFromLocatedA la2) anc2
-    cs2p = priorCommentsDeltas    (anchorFromLocatedA la2) (priorComments        cs2s)
-    cs2f = trailingCommentsDeltas (anchorFromLocatedA la2) (getFollowingComments cs2s)
+    -- Split comments into those before the span, in the span, and after the span
+    (cs2prior,cs2m,cs2following) = splitCommentsAround (anchorFromLocatedA la2) anc2
+    cs2p = priorCommentsDeltas    (anchorFromLocatedA la2) cs2prior
+    cs2f = trailingCommentsDeltas (anchorFromLocatedA la2) cs2following
 
     -- Split cs1f into those that belong on an1 and ones that must move to an2
     (cs1move,cs1stay) = break (simpleBreak 1) cs1f
@@ -581,10 +578,11 @@ balanceComments' la1 la2 = do
     move = sortEpaComments $ map snd (cs1move ++ move'' ++ move')
     stay = sortEpaComments $ map snd (cs1stay ++ stay')
 
-    an1' = setCommentsSrcAnn (getLoc la1) (EpaCommentsBalanced (map snd cs1p) move)
-    an2' = setCommentsSrcAnn (getLoc la2) (EpaCommentsBalanced stay (map snd cs2f))
+    an1' = setCommentsSrcAnn (getLoc la1) (EpaCommentsBalanced ((map snd cs1p)++cs1m) move)
+    an2' = setCommentsSrcAnn (getLoc la2) (EpaCommentsBalanced (cs2m++stay) (map snd cs2f))
     la1' = L an1' f
     la2' = L an2' s
+
 
 -- | Like commentsDeltas, but calculates the delta from the end of the anchor, not the start
 trailingCommentsDeltas :: RealSrcSpan -> [LEpaComment]
@@ -614,6 +612,8 @@ priorCommentsDeltas anc cs = go anc (reverse $ sortEpaComments cs)
         (ll,_) = ss2pos (anchor loc)
 
 
+-- ---------------------------------------------------------------------
+
 -- | Split comments into ones occuring before the end of the reference
 -- span, and those after it.
 splitCommentsEnd :: RealSrcSpan -> EpAnnComments -> EpAnnComments
@@ -631,6 +631,7 @@ splitCommentsEnd p (EpaCommentsBalanced cs ts) = EpaCommentsBalanced cs' ts'
     cs' = before
     ts' = after <> ts
 
+
 -- | Split comments into ones occuring before the start of the reference
 -- span, and those after it.
 splitCommentsStart :: RealSrcSpan -> EpAnnComments -> EpAnnComments
@@ -647,6 +648,21 @@ splitCommentsStart p (EpaCommentsBalanced cs ts) = EpaCommentsBalanced cs' ts'
     (before, after) = break cmp cs
     cs' = before
     ts' = after <> ts
+
+
+-- | Split comments into ones occuring before the start of the reference
+-- span, those in the span, and those after it.
+splitCommentsAround :: RealSrcSpan -> EpAnnComments
+                    -> ([LEpaComment], [LEpaComment], [LEpaComment])
+splitCommentsAround p cs = (before,middle,after)
+  where
+    all_comments = priorComments cs ++ getFollowingComments cs
+    cmpbefore (L (Anchor l _) _) = ss2pos l > ss2pos p
+    cmpafter (L (Anchor l _) _) = ss2pos l > ss2posEnd p
+    (before, both) = break cmpbefore all_comments
+    (middle, after) = break cmpafter both
+
+-- ---------------------------------------------------------------------
 
 moveLeadingComments :: (Data t, Data u, Monoid t, Monoid u)
   => LocatedAn t a -> SrcAnn u -> (LocatedAn t a, SrcAnn u)
@@ -709,112 +725,14 @@ commentOrigDelta (L (GHC.Anchor la _) (GHC.EpaComment t pp))
                then MovedAnchor (DifferentLine 1 0)
                else op'
 
-spanOrigDelta :: RealSrcSpan -> RealSrcSpan -> DeltaPos
-spanOrigDelta prior cur = dp
-  where
-    (r,c) = ss2posEnd prior
-    dp = if r == 0
-           then (ss2delta (r,c+1) cur)
-           else (ss2delta (r,c)   cur)
-
 -- ---------------------------------------------------------------------
 
--- TODO: Until https://gitlab.haskell.org/ghc/ghc/-/issues/20715 is
--- fixed we have to special-case a funbind.  Damn.
-tweakListComments :: LHsDecl GhcPs -> LHsDecl GhcPs
-tweakListComments a@(L _ (ValD _ (FunBind{}))) = tweakListCommentsFB a
-tweakListComments a = tweakListComments' a
-
--- A LocatedA item may have both trailing comments and trailing list items.
--- Move any relevant comments preceding a list item into an EpaDelta instead.
-tweakListComments' :: LocatedA a -> LocatedA a
-tweakListComments' (L (SrcSpanAnn EpAnnNotUsed l) a) = L (SrcSpanAnn EpAnnNotUsed l) a
-tweakListComments' (L (SrcSpanAnn (EpAnn anc an cs) l) a) = L (SrcSpanAnn (EpAnn anc an' cs') l) a
-  where
-    -- Note: until https://gitlab.haskell.org/ghc/ghc/-/issues/20718 is
-    -- resolved, the comments may be in reverse order.
-    (an', cs') = case cs of
-      EpaComments [] -> (an,cs)
-      EpaComments c -> go (\cc -> EpaComments cc) an (sortEpaComments c)
-      EpaCommentsBalanced _ [] -> (an,cs)
-      EpaCommentsBalanced p c -> go (\cc -> EpaCommentsBalanced (sortEpaComments p) cc) an (sortEpaComments c)
-
-    go :: Data b => ([LEpaComment] -> b)
-                      -> AnnListItem
-                      -> [LEpaComment]
-                      -> (AnnListItem, b)
-    go f (AnnListItem []) c = (AnnListItem [], f c)
-    go f (AnnListItem lis) c = process f ([],[]) lis (sortEpaComments c)
-
-    process :: Data b => ([LEpaComment] -> b)
-            -> ([TrailingAnn], [LEpaComment])
-            -> [TrailingAnn]
-            -> [LEpaComment]
-            -> (AnnListItem, b)
-    process f (ll,cc) [] cs0 = (AnnListItem (reverse ll), f (cc++cs0))
-    process f (ll,cc) li [] = (AnnListItem (reverse $ ll++li), f cc)
-    process f (ll,cc) (l0:li) cs0 = r
-      where
-        r = case trailingAnnLoc l0 of
-          EpaSpan s -> r0
-            where
-              condp (L lc _) = anchor lc >= anchor anc
-              (before,rest) = break condp cs0
-              cond (L lc _) = anchor lc >= s
-              (these,those) = break cond rest
-              r0 = case these of
-                [] -> process f (l0:ll,cc) li cs0
-                priors ->
-                      -- We have at least one comment preceding the list item
-                      let
-                        -- dp is the delta from the end of the last comment to
-                        -- the start of the AddXXXAnn delta
-                        dp = tweakDelta $ spanOrigDelta (anchor $ getLoc $ last priors) s
-
-                        l' = EpaDelta dp (commentOrigDeltas these)
-                        cs1 = those
-                      in
-                        process f (setTrailingAnnLoc l0 l':ll,before++cc) li cs1
-          EpaDelta _d' _cs' -> process f (l0:ll,cc) li cs0
 
 -- | For comment-related deltas starting on a new line we have an
 -- off-by-one problem. Adjust
 tweakDelta :: DeltaPos  -> DeltaPos
 tweakDelta (SameLine d) = SameLine d
 tweakDelta (DifferentLine l d) = DifferentLine l (d-1)
-
--- TODO: Until https://gitlab.haskell.org/ghc/ghc/-/issues/20715 is
--- fixed we have to special-case a funbind.  Damn.
--- The problem seems to depend on whether the funbind has params
--- or not.  If not, we can do a normal tweakListComments.
-tweakListCommentsFB :: LHsDecl GhcPs -> LHsDecl GhcPs
-tweakListCommentsFB (L l (ValD xv (FunBind x n (MG mx (L lm matches) o) t))) = r
-  where
-    -- We need to pass any comments from the outer location into the
-    -- first match for processing
-    (l',matches') = case matches of
-      [] -> (l,matches)
-      (L lm0 m:ms) -> (l1, L lm' m:ms)
-                          `debug` ("tweakListCommentsFB:(l',lm')=" ++ showAst (l1,lm'))
-      -- (L lm m:ms) -> error $ "lm'=\n" ++ showAst lm'
-        where
-          (l1,cs',as) = case l of
-            SrcSpanAnn EpAnnNotUsed _ -> (l,[], [])
-            SrcSpanAnn (EpAnn anc an (EpaComments cs))            l0
-              -> (SrcSpanAnn (EpAnn anc (AnnListItem []) (EpaComments [])) l0, cs, lann_trailing an)
-            SrcSpanAnn (EpAnn anc an (EpaCommentsBalanced ls ts)) l0
-              -> (SrcSpanAnn (EpAnn anc (AnnListItem []) (EpaCommentsBalanced ls [])) l0, ts, lann_trailing an)
-
-          lm' = case lm0 of
-            SrcSpanAnn EpAnnNotUsed                               l0
-              -> SrcSpanAnn (EpAnn (spanAsAnchor l0) (AnnListItem as) (EpaComments cs')) l0
-            SrcSpanAnn (EpAnn anc (AnnListItem is) (EpaComments cs))            l0
-              -> SrcSpanAnn (EpAnn anc (AnnListItem (as<>is)) (EpaComments (cs'<>cs))) l0
-            SrcSpanAnn (EpAnn anc (AnnListItem is) (EpaCommentsBalanced ls ts)) l0
-              -> SrcSpanAnn (EpAnn anc (AnnListItem (as<>is)) (EpaCommentsBalanced (cs'<>ls) ts)) l0
-
-    r = (L l' (ValD xv (FunBind x n (MG mx (L lm (map tweakListComments' matches')) o) t)))
-tweakListCommentsFB x = error $ "tweakListCommentsFB for " ++ showAst x
 
 -- ---------------------------------------------------------------------
 
@@ -863,15 +781,6 @@ commentsOrigDeltasDecl :: LHsDecl GhcPs -> LHsDecl GhcPs
 commentsOrigDeltasDecl (L (SrcSpanAnn an l) d) = L (SrcSpanAnn an' l) d
   where
     an' = addCommentOrigDeltasAnn an
-
--- ---------------------------------------------------------------------
-
--- | Take an anchor and a preceding location, and generate an
--- equivalent one with a 'MovedAnchor' delta.
-deltaAnchor :: Anchor -> RealSrcSpan -> Anchor
-deltaAnchor (Anchor anc _) ss = Anchor anc (MovedAnchor dp)
-  where
-    dp = pos2delta (ss2pos ss) (ss2pos anc)
 
 -- ---------------------------------------------------------------------
 
@@ -1028,12 +937,7 @@ instance HasDecls (LocatedA (Match GhcPs (LocatedA (HsExpr GhcPs)))) where
         (l', rhs') <- case binds of
           EmptyLocalBinds{} -> do
             logTr $ "replaceDecls LMatch empty binds"
-            -- modifyAnnsT (setPrecedingLines (ghead "LMatch.replaceDecls" newBinds) 1 4)
 
-            -- only move the comment if the original where clause was empty.
-            -- toMove <- balanceTrailingComments m m
-            -- insertCommentBefore (mkAnnKey m) toMove (matchEpAnn AnnWhere)
-            -- TODO: move trailing comments on the same line to before the binds
             logDataWithAnnsTr "Match.replaceDecls:balancing comments:m" m
             L l' m' <- balanceSameLineComments m
             logDataWithAnnsTr "Match.replaceDecls:(m1')" (L l' m')
@@ -1046,17 +950,16 @@ instance HasDecls (LocatedA (Match GhcPs (LocatedA (HsExpr GhcPs)))) where
 -- ---------------------------------------------------------------------
 
 instance HasDecls (LocatedA (HsExpr GhcPs)) where
-  hsDecls (L _ (HsLet _ decls _ex)) = hsDeclsValBinds decls
-  hsDecls _                         = return []
+  hsDecls (L _ (HsLet _ _ decls _ _ex)) = hsDeclsValBinds decls
+  hsDecls _                             = return []
 
-  replaceDecls (L ll (HsLet x binds ex)) newDecls
+  replaceDecls (L ll (HsLet x tkLet binds tkIn ex)) newDecls
     = do
         logTr "replaceDecls HsLet"
         let lastAnc = realSrcSpan $ spanHsLocaLBinds binds
         -- TODO: may be an intervening comment, take account for lastAnc
-        let (x', ex',newDecls') = case x of
-              EpAnnNotUsed -> (x, ex, newDecls)
-              (EpAnn a (AnnsLet l i) cs) ->
+        let (tkLet', tkIn', ex',newDecls') = case (tkLet, tkIn) of
+              (L (TokenLoc l) ls, L (TokenLoc i) is) ->
                 let
                   off = case l of
                           (EpaSpan r) -> LayoutStartCol $ snd $ ss2pos r
@@ -1066,18 +969,21 @@ instance HasDecls (LocatedA (HsExpr GhcPs)) where
                   newDecls'' = case newDecls of
                     [] -> newDecls
                     (d:ds) -> setEntryDPDecl d (SameLine 0) : ds
-                in ( EpAnn a (AnnsLet l (addEpaLocationDelta off lastAnc i)) cs
+                -- in ( EpAnn a (AnnsLet l (addEpaLocationDelta off lastAnc i)) cs
+                in ( L (TokenLoc l) ls
+                   , L (TokenLoc (addEpaLocationDelta off lastAnc i)) is
                    , ex''
                    , newDecls'')
+              (_,_) -> (tkLet, tkIn, ex, newDecls)
         binds' <- replaceDeclsValbinds WithoutWhere binds newDecls'
-        return (L ll (HsLet x' binds' ex'))
+        return (L ll (HsLet x tkLet' binds' tkIn' ex'))
 
   -- TODO: does this make sense? Especially as no hsDecls for HsPar
-  replaceDecls (L l (HsPar x e)) newDecls
+  replaceDecls (L l (HsPar x lpar e rpar)) newDecls
     = do
         logTr "replaceDecls HsPar"
         e' <- replaceDecls e newDecls
-        return (L l (HsPar x e'))
+        return (L l (HsPar x lpar e' rpar))
   replaceDecls old _new = error $ "replaceDecls (LHsExpr GhcPs) undefined for:" ++ showGhc old
 
 -- ---------------------------------------------------------------------
@@ -1135,9 +1041,7 @@ instance HasDecls (LocatedA (Stmt GhcPs (LocatedA (HsExpr GhcPs)))) where
 
   replaceDecls (L l (LetStmt x lb)) newDecls
     = do
-        -- modifyAnnsT (captureOrder s newDecls)
         lb'' <- replaceDeclsValbinds WithWhere lb newDecls
-        -- let lb' = L (getLoc lb) lb''
         return (L l (LetStmt x lb''))
   replaceDecls (L l (LastStmt x e d se)) newDecls
     = do
@@ -1322,79 +1226,3 @@ modifyDeclsT action t = do
   decls <- liftT $ hsDecls t
   decls' <- action decls
   liftT $ replaceDecls t decls'
-
--- ---------------------------------------------------------------------
-
--- type RWS r w s = RWST r w s Identity
--- runRWS :: Monoid w => RWS r w s a -> r -> s -> (a, s, w)
--- rws :: Monoid w => (r -> s -> (a, s, w)) -> RWS r w s a
-
--- -- | Evaluate a computation with the given initial state and environment,
--- -- returning the final value and output, discarding the final state.
--- evalRWS :: (Monoid w)
---         => RWS r w s a  -- ^RWS computation to execute
---         -> r            -- ^initial environment
---         -> s            -- ^initial value
---         -> (a, w)       -- ^final value and output
-
--- mkM :: (Monad m, Typeable a, Typeable b) => (b -> m b) -> a -> m a
-
-type Delta a = RWS () [String] (Maybe Anchor) a
-
-
--- | Generic top-down traversal through the given AST fragment,
--- converting all ExactPrint Anchor's into ones with an equivalent
--- MovedAnchor operation.  Initially ignores comments
-makeDeltaAst' :: forall a. (Data a) => a -> a
-makeDeltaAst' a = fst $ evalRWS (go a) () Nothing
-  where
-    go :: a -> Delta a
-    go = everywhereM' (mkM   (locatedAnnImpl @AnnListItem) -- LocatedA
-                      `extM` (locatedAnnImpl @NameAnn)     -- LocatedN
-                      `extM` (locatedAnnImpl @AnnList)     -- LocatedL
-                      `extM` (locatedAnnImpl @AnnPragma)   -- LocatedP
-                      `extM` (locatedAnnImpl @AnnContext)  -- LocatedC
-                      )
-
-    locatedAnnImpl :: forall an. (Default an)
-      => SrcAnn an -> Delta (SrcAnn an)
-    locatedAnnImpl (SrcSpanAnn (EpAnn anc@(Anchor loc _op) an cs) l) = do
-      -- error "locatedAnnImpl:EpAnn"
-      ma <- get
-      put (Just anc)
-      let anchor' = case ma of
-                      Nothing -> (Anchor loc (MovedAnchor (SameLine 0)))
-                      Just (Anchor rl _op) -> deltaAnchor anc rl
-      let cs' = case ma of
-            Nothing -> cs <> mkComments ("from anc:Nothing") (Anchor loc UnchangedAnchor)
-            Just anc' -> cs <> mkComments ("from anc:" ++ showGhc anc') anc'
-      return (SrcSpanAnn (EpAnn anchor' an cs') l)
-
-    locatedAnnImpl (SrcSpanAnn EpAnnNotUsed l) = do
-      -- error $ "EpAnnNotUsed: " ++ showGhc l
-      ma <- get
-      let anc = spanAsAnchor l
-      put (Just anc)
-      let anchor' = case ma of
-                      Nothing -> Anchor (realSrcSpan l) (MovedAnchor (SameLine 0))
-                      Just (Anchor rl _op) -> deltaAnchor anc rl
-      let cs' = case ma of
-            Nothing -> mkComments ("EpAnnNotUsed:from anc:Nothing") (spanAsAnchor l)
-            Just anc' -> mkComments ("EpAnnNotUsed:from anc:" ++ showGhc anc') anc'
-      return (SrcSpanAnn (EpAnn anchor' def cs') l)
-
--- | Monadic variation on everywhere', so Apply a monadic
--- transformation everywhere in top-down manner
-everywhereM' :: Monad m => GenericM m -> GenericM m
-everywhereM' f x
-  = do x' <- f x
-       gmapM (everywhereM' f) x'
-
-
-mkComments  :: String -> Anchor -> EpAnnComments
-mkComments str anc = EpaComments [mkCommentAnc str anc]
-
-mkCommentAnc :: String -> Anchor -> LEpaComment
-mkCommentAnc str anc = L anc (EpaComment (EpaLineComment str) (anchor anc) )
-
--- ---------------------------------------------------------------------

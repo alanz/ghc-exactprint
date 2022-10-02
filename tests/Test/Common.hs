@@ -31,16 +31,16 @@ module Test.Common (
 
 
 import Language.Haskell.GHC.ExactPrint
-import Language.Haskell.GHC.ExactPrint.ExactPrint
+-- import Language.Haskell.GHC.ExactPrint.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Parsers
 import Language.Haskell.GHC.ExactPrint.Preprocess
 
 import qualified Control.Monad.IO.Class as GHC
 import qualified GHC           as GHC hiding (parseModule)
-import qualified GHC.Data.Bag          as GHC
+-- import qualified GHC.Data.Bag          as GHC
 import qualified GHC.Driver.Session    as GHC
-import qualified GHC.Utils.Error       as GHC
+-- import qualified GHC.Utils.Error       as GHC
 
 import qualified GHC.LanguageExtensions as LangExt
 
@@ -107,7 +107,9 @@ noChange :: Changer
 noChange _libdir parsed = return parsed
 
 changeBalanceComments :: Changer
-changeBalanceComments _libdir (GHC.L l p) = do
+changeBalanceComments _libdir top = do
+  let (GHC.L l p) = makeDeltaAst top
+  -- let (GHC.L l p) = top
   let decls0 = GHC.hsmodDecls p
       (decls,_,w) = runTransform (balanceCommentsList decls0)
   let p2 = p { GHC.hsmodDecls = decls}
@@ -199,10 +201,5 @@ getModSummaryForFile fileName = do
   case mm of
    [] -> return Nothing
    fs -> return (Just (snd $ head fs))
-
--- ---------------------------------------------------------------------
-
-showErrorMessages :: GHC.ErrorMessages -> String
-showErrorMessages m = show $ GHC.bagToList m
 
 -- ---------------------------------------------------------------------
