@@ -164,7 +164,7 @@ mkDebugOutput filename printed original parsed =
 
 runRoundTrip :: LibDir
              -> Changer
-             -> GHC.Located GHC.HsModule
+             -> GHC.Located (GHC.HsModule GHC.GhcPs)
              -> [GHC.LEpaComment]
              -> IO (String, GHC.ParsedSource)
 runRoundTrip libdir f !parsedOrig cs = do

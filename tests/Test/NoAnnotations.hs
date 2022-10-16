@@ -87,15 +87,13 @@ runPrettyRoundTrip :: LibDir -> FilePath -> GHC.ParsedSource
                    -> [GHC.LEpaComment]
                    -> IO (ParseResult GHC.ParsedSource)
 runPrettyRoundTrip libdir origFile !parsedOrig _cs = do
-  -- let !newAnns = addAnnotationsForPretty [] parsedOrig mempty
-  let priorComments = GHC.priorComments $ GHC.epAnnComments $ GHC.hsmodAnn $ GHC.unLoc parsedOrig
-  -- let comments = map tokComment $ GHC.sortRealLocated priorComments
+  let priorComments = GHC.priorComments $ GHC.epAnnComments $ GHC.hsmodAnn
+        $ GHC.hsmodExt $ GHC.unLoc parsedOrig
   let comments = map tokComment priorComments
   let pragmas = filter (\(Comment c _ _ _) -> isPrefixOf "{-#" c ) comments
   let pragmaStr = intercalate "\n" $ map commentContents pragmas
 
   let !printed = pragmaStr ++ "\n" ++ exactPrint parsedOrig
-  -- let !printed = pragmaStr ++ "\n" ++ (showSDoc_ $ GHC.ppr parsedOrig)
 
   parseString libdir origFile printed parsedOrig
 

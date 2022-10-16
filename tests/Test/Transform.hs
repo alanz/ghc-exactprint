@@ -423,12 +423,11 @@ addLocaLDecl6 libdir lp = do
   let
       newDecl' = setEntryDP (makeDeltaAst newDecl) (DifferentLine 1 5)
       doAddLocal = do
-        -- decls0 <- hsDecls (makeDeltaAst lp)
         decls0 <- hsDecls lp
         [de1'',d2] <- balanceCommentsList decls0
 
         let de1 = captureMatchLineSpacing de1''
-        let L _ (ValD _ (FunBind _ _ (MG _ (L _ ms) _) _)) = de1
+        let L _ (ValD _ (FunBind _ _ (MG _ (L _ ms)))) = de1
         let [ma1,_ma2] = ms
 
         (de1',_) <- modifyValD (getLocA ma1) de1 $ \_m decls -> do
@@ -619,8 +618,8 @@ addHiding1 _libdir (L l p) = do
           [L li imp1,imp2] = hsmodImports p
           n1 = L (noAnnSrcSpanDP0 l1) (mkVarUnqual (mkFastString "n1"))
           n2 = L (noAnnSrcSpanDP0 l2) (mkVarUnqual (mkFastString "n2"))
-          v1 = L (addComma $ noAnnSrcSpanDP0 l1) (IEVar noExtField (L (noAnnSrcSpanDP0 l1) (IEName n1)))
-          v2 = L (           noAnnSrcSpanDP0 l2) (IEVar noExtField (L (noAnnSrcSpanDP0 l2) (IEName n2)))
+          v1 = L (addComma $ noAnnSrcSpanDP0 l1) (IEVar noExtField (L (noAnnSrcSpanDP0 l1) (IEName noExtField n1)))
+          v2 = L (           noAnnSrcSpanDP0 l2) (IEVar noExtField (L (noAnnSrcSpanDP0 l2) (IEName noExtField n2)))
           impHiding = L (SrcSpanAnn (EpAnn (Anchor (realSrcSpan l0) m0)
                                      (AnnList Nothing
                                               (Just (AddEpAnn AnnOpenP  d1))
@@ -628,7 +627,7 @@ addHiding1 _libdir (L l p) = do
                                               [(AddEpAnn AnnHiding d1)]
                                               [])
                                        emptyComments) l0) [v1,v2]
-          imp1' = imp1 { ideclHiding = Just (True,impHiding)}
+          imp1' = imp1 { ideclImportList = Just (EverythingBut,impHiding)}
           p' = p { hsmodImports = [L li imp1',imp2]}
         return (L l p')
 
@@ -644,7 +643,7 @@ addHiding2 _libdir (L l p) = do
         l2 <- uniqueSrcSpanT
         let
           [L li imp1] = hsmodImports p
-          Just (_,L lh ns) = ideclHiding imp1
+          Just (_,L lh ns) = ideclImportList imp1
           lh' = (SrcSpanAnn (EpAnn (Anchor (realSrcSpan (locA lh)) m1)
                                      (AnnList Nothing
                                               (Just (AddEpAnn AnnOpenP  d1))
@@ -654,11 +653,11 @@ addHiding2 _libdir (L l p) = do
                                        emptyComments) (locA lh))
           n1 = L (noAnnSrcSpanDP0 l1) (mkVarUnqual (mkFastString "n1"))
           n2 = L (noAnnSrcSpanDP0 l2) (mkVarUnqual (mkFastString "n2"))
-          v1 = L (addComma $ noAnnSrcSpanDP0 l1) (IEVar noExtField (L (noAnnSrcSpanDP0 l1) (IEName n1)))
-          v2 = L (           noAnnSrcSpanDP0 l2) (IEVar noExtField (L (noAnnSrcSpanDP0 l2) (IEName n2)))
+          v1 = L (addComma $ noAnnSrcSpanDP0 l1) (IEVar noExtField (L (noAnnSrcSpanDP0 l1) (IEName noExtField n1)))
+          v2 = L (           noAnnSrcSpanDP0 l2) (IEVar noExtField (L (noAnnSrcSpanDP0 l2) (IEName noExtField n2)))
           L ln n = last ns
           n' = L (addComma ln) n
-          imp1' = imp1 { ideclHiding = Just (True,L lh' (init ns ++ [n',v1,v2]))}
+          imp1' = imp1 { ideclImportList = Just (EverythingBut, L lh' (init ns ++ [n',v1,v2]))}
           p' = p { hsmodImports = [L li imp1']}
         return (L l p')
 

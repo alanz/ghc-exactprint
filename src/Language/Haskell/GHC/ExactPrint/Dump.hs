@@ -28,7 +28,6 @@ import GHC.Types.Name hiding ( occName )
 import GHC.Types.SrcLoc
 import GHC.Types.Var
 import GHC.Types.SourceText
-import GHC.Unit.Module hiding ( moduleName )
 import GHC.Utils.Outputable
 
 import Data.Data hiding (Fixity)
