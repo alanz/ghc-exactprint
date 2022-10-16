@@ -34,7 +34,6 @@ module Language.Haskell.GHC.ExactPrint.ExactPrint
   ) where
 
 import GHC
--- import GHC.Base (NonEmpty(..) )
 import GHC.Core.Coercion.Axiom (Role(..))
 import GHC.Data.Bag
 import qualified GHC.Data.BooleanFormula as BF
@@ -54,7 +53,6 @@ import GHC.Unit.Module.Warnings
 import GHC.Utils.Misc
 import GHC.Utils.Panic
 
--- import GHC.Types.PkgQual
 
 import Control.Monad.Identity
 import qualified Control.Monad.Reader as Reader
@@ -64,10 +62,8 @@ import Data.Dynamic
 import Data.Foldable
 import Data.Functor.Const
 import Data.List
--- import qualified Data.Set.Ordered as OSet
 import qualified Data.Set as Set
 import Data.Typeable
--- import Data.List ( partition, sortBy)
 import Data.Maybe ( isJust, mapMaybe )
 
 import Data.Void
@@ -512,7 +508,7 @@ printStringAtRsC :: (Monad m, Monoid w)
 printStringAtRsC capture pa str = do
   printComments pa
   pe <- getPriorEndD
-  debugM $ "printStringAtRs:pe=" ++ show pe
+  debugM $ "printStringAtRsC:pe=" ++ show pe
   let p = ss2delta pe pa
   p' <- adjustDeltaForOffsetM p
   printStringAtLsDelta p' str
@@ -727,7 +723,6 @@ view l = Reader.asks (getConst . l Const)
 {-# INLINE view #-}
 
 over :: ASetter a b -> (b -> b) -> (a -> a)
--- over l f = runIdentity #. l (Identity #. f)
 over l f = runIdentity . l (Identity . f)
 {-# INLINE over #-}
 
@@ -1307,7 +1302,6 @@ updateAndApplyComment (Comment str anc pp mo) dp = do
     (r,c) = ss2posEnd pp
     la = anchor anc
     dp'' = if r == 0
-           -- then (ss2delta (r,c+1) la)
            then (ss2delta (r,c+0) la)
            else (ss2delta (r,c)   la)
     dp' = if pp == anchor anc
@@ -2765,7 +2759,6 @@ instance ExactPrint (HsExpr GhcPs) where
         printStringAtAA l  "_" >> return ()
         printStringAtAA cb "`" >> return ()
         return x
-  -- exact x@(HsRecSel{})                 = withPpr x
   exact x@(HsOverLabel _ _) = withPpr x
 
   exact x@(HsIPVar _ (HsIPName n))
@@ -3451,10 +3444,6 @@ instance (
     an0 <- markEpAnnL an lal_rest AnnRec
     (an1, stmts') <- markAnnList True an0 (markAnnotated stmts)
     return (RecStmt an1 stmts' a b c d e)
-
-  -- exact x = error $ "exact CmdLStmt for:" ++ showAst x
-  -- exact x = error $ "exact CmdLStmt for:"
-
 
 -- ---------------------------------------------------------------------
 
@@ -4474,8 +4463,6 @@ instance ExactPrint (LocatedL [LocatedA (StmtLR GhcPs GhcPs (LocatedA (HsExpr Gh
           return (initStmts' ++ [ls'])
         _ -> do
           markAnnotated stmts
-        -- x -> error $ "pprDo:ListComp" ++ showAst x
-      -- markLocatedMAA an al_close
     return (L (SrcSpanAnn an'' l) stmts')
 
 -- instance ExactPrint (LocatedL [CmdLStmt GhcPs]) where
@@ -4757,7 +4744,6 @@ hsLit2String lit =
     HsRat        _ fl@(FL{fl_text = src }) _ -> toSourceTextWithSuffix src fl ""
     HsFloatPrim  _ fl@(FL{fl_text = src })   -> toSourceTextWithSuffix src fl "#"
     HsDoublePrim _ fl@(FL{fl_text = src })   -> toSourceTextWithSuffix src fl "##"
-    -- (XLit x) -> error $ "got XLit for:" ++ showPprUnsafe x
 
 toSourceTextWithSuffix :: (Show a) => SourceText -> a -> String -> String
 toSourceTextWithSuffix (NoSourceText)    alt suffix = show alt ++ suffix
