@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -24,7 +25,9 @@ import Data.Maybe
 import Data.Ord (comparing)
 
 import Language.Haskell.GHC.ExactPrint.Lookup
-import Language.Haskell.GHC.ExactPrint.Orphans ()
+
+import Language.Haskell.GHC.ExactPrint.Orphans (Default())
+import qualified Language.Haskell.GHC.ExactPrint.Orphans as Orphans
 
 import GHC hiding (EpaComment)
 import qualified GHC
@@ -37,7 +40,7 @@ import qualified GHC.Data.Strict as Strict
 
 import Debug.Trace
 import Language.Haskell.GHC.ExactPrint.Types
-import Data.Default
+-- import Data.Default
 
 -- ---------------------------------------------------------------------
 
@@ -179,22 +182,28 @@ orderByKey keys order
 
 -- ---------------------------------------------------------------------
 
-isGadt :: [LConDecl (GhcPass p)] -> Bool
-isGadt [] = True
-isGadt ((L _ (ConDeclGADT{})):_) = True
-isGadt _ = False
+isListComp :: HsDoFlavour -> Bool
+isListComp = isDoComprehensionContext
+
+-- ---------------------------------------------------------------------
+
+needsWhere :: DataDefnCons (LConDecl (GhcPass p)) -> Bool
+needsWhere (NewTypeCon _) = True
+needsWhere (DataTypeCons _ []) = True
+needsWhere (DataTypeCons _ ((L _ (ConDeclGADT{})):_)) = True
+needsWhere _ = False
 
 -- ---------------------------------------------------------------------
 
 insertCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
 insertCppComments (L l p) cs = L l p'
   where
-    an' = case GHC.hsmodAnn p of
+    an' = case GHC.hsmodAnn $ GHC.hsmodExt p of
       (EpAnn a an ocs) -> EpAnn a an (EpaComments cs')
         where
           cs' = sortEpaComments $ priorComments ocs ++ getFollowingComments ocs ++ cs
       unused -> unused
-    p' = p { GHC.hsmodAnn = an' }
+    p' = p { GHC.hsmodExt = (GHC.hsmodExt p) { GHC.hsmodAnn = an' } }
 
 -- ---------------------------------------------------------------------
 
@@ -328,25 +337,25 @@ locatedAnAnchor (L (SrcSpanAnn (EpAnn a _ _) _) _) = anchor a
 
 setAnchorAn :: (Default an) => LocatedAn an a -> Anchor -> EpAnnComments -> LocatedAn an a
 setAnchorAn (L (SrcSpanAnn EpAnnNotUsed l)    a) anc cs
-  = (L (SrcSpanAnn (EpAnn anc def cs) l) a)
+  = (L (SrcSpanAnn (EpAnn anc Orphans.def cs) l) a)
      -- `debug` ("setAnchorAn: anc=" ++ showAst anc)
 setAnchorAn (L (SrcSpanAnn (EpAnn _ an _) l) a) anc cs
   = (L (SrcSpanAnn (EpAnn anc an cs) l) a)
      -- `debug` ("setAnchorAn: anc=" ++ showAst anc)
 
 setAnchorEpa :: (Default an) => EpAnn an -> Anchor -> EpAnnComments -> EpAnn an
-setAnchorEpa EpAnnNotUsed   anc cs = EpAnn anc def cs
-setAnchorEpa (EpAnn _ an _) anc cs = EpAnn anc an     cs
+setAnchorEpa EpAnnNotUsed   anc cs = EpAnn anc Orphans.def cs
+setAnchorEpa (EpAnn _ an _) anc cs = EpAnn anc an          cs
 
 setAnchorEpaL :: EpAnn AnnList -> Anchor -> EpAnnComments -> EpAnn AnnList
 setAnchorEpaL EpAnnNotUsed   anc cs = EpAnn anc mempty cs
 setAnchorEpaL (EpAnn _ an _) anc cs = EpAnn anc (an {al_anchor = Nothing}) cs
 
-setAnchorHsModule :: HsModule -> Anchor -> EpAnnComments -> HsModule
-setAnchorHsModule hsmod anc cs = hsmod { hsmodAnn = an' }
+setAnchorHsModule :: HsModule GhcPs -> Anchor -> EpAnnComments -> HsModule GhcPs
+setAnchorHsModule hsmod anc cs = hsmod { hsmodExt = (hsmodExt hsmod) {hsmodAnn = an'} }
   where
     anc' = anc { anchor_op = UnchangedAnchor }
-    an' = setAnchorEpa (hsmodAnn hsmod) anc' cs
+    an' = setAnchorEpa (hsmodAnn $ hsmodExt hsmod) anc' cs
 
 -- |Version of l2l that preserves the anchor, immportant if it has an
 -- updated AnchorOperation

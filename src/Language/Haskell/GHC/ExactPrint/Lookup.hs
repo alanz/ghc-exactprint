@@ -30,7 +30,6 @@ keywordToString kw =
       AnnValStr       -> mkErr kw
       AnnName         -> mkErr kw
       AnnAs           -> "as"
-      AnnAt           -> "@"
       AnnBang         -> "!"
       AnnBackquote    -> "`"
       AnnBy           -> "by"
