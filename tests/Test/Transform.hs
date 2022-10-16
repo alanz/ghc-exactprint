@@ -292,6 +292,7 @@ transformHighLevelTests libdir =
   , mkTestModChange libdir addLocaLDecl4  "AddLocalDecl4.hs"
   , mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
   , mkTestModChange libdir addLocaLDecl6  "AddLocalDecl6.hs"
+  , mkTestModChange libdir addLocaLDecl7  "AddLocalDecl7.hs"
 
   , mkTestModChange libdir rmDecl1 "RmDecl1.hs"
   , mkTestModChange libdir rmDecl2 "RmDecl2.hs"
@@ -434,6 +435,17 @@ addLocaLDecl6 libdir lp = do
         (de1',_) <- modifyValD (getLocA ma1) de1 $ \_m decls -> do
            return ((newDecl' : decls),Nothing)
         replaceDecls lp [de1', d2]
+
+  (lp',_,_w) <- runTransformT doAddLocal
+  debugM $ "log:[\n" ++ intercalate "\n" _w ++ "]log end\n"
+  return lp'
+
+addLocaLDecl7 :: Changer
+addLocaLDecl7 libdir lp = do
+  let
+      doAddLocal = do
+        decls0 <- hsDecls lp
+        replaceDecls lp decls0
 
   (lp',_,_w) <- runTransformT doAddLocal
   debugM $ "log:[\n" ++ intercalate "\n" _w ++ "]log end\n"

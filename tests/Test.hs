@@ -246,7 +246,9 @@ tt' = do
     -- mkParserTestBC libdir "ghc92" "TopLevelSemis1.hs"
     -- mkParserTestMD libdir "ghc92" "TopLevelSemis1.hs"
 
-    mkParserTest libdir "ghc94" "record-dot-four-out.hs"
+    -- mkParserTest libdir "ghc94" "record-dot-four-out.hs"
+
+   mkTestModChange libdir addLocaLDecl7  "AddLocalDecl7.hs"
 
    -- Needs GHC changes
 
