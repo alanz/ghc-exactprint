@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds      #-}
 {-# LANGUAGE DeriveDataTypeable   #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE FlexibleInstances    #-}
@@ -43,6 +44,7 @@ import GHC.Types.Fixity
 import GHC.Types.ForeignCall
 import GHC.Types.Name.Reader
 import GHC.Types.PkgQual
+import GHC.Types.SrcLoc
 import GHC.Types.SourceText
 import GHC.Types.Var
 import GHC.Utils.Outputable hiding ( (<>) )
@@ -473,6 +475,351 @@ withPpr a = do
   return a
 
 -- ---------------------------------------------------------------------
+-- Constraints on the Ghc pass to enable ExactPrint for the renaming
+-- phase too
+
+type ExactprinHasEntry p =
+  (
+   HasEntry (XCRoleAnnotDecl (GhcPass p)),
+   HasEntry (XForeignExport (GhcPass p)),
+   HasEntry (XForeignImport (GhcPass p)),
+   HasEntry (XPSB (GhcPass p) (GhcPass p)),
+   HasEntry (XStandaloneKindSig (GhcPass p)),
+   HasEntry (XCDefaultDecl (GhcPass p)),
+   HasEntry (XOverLabel (GhcPass p)),
+   HasEntry (XIPVar (GhcPass p)),
+   HasEntry (XSectionL (GhcPass p)),
+   HasEntry (XSectionR (GhcPass p)),
+   HasEntry (XOpApp (GhcPass p)),
+   HasEntry (XNegApp (GhcPass p)),
+   HasEntry (XExplicitTuple (GhcPass p)),
+   HasEntry (XExplicitSum (GhcPass p)),
+   HasEntry (XCase (GhcPass p)),
+   HasEntry (XIf (GhcPass p)),
+   HasEntry (XMultiIf (GhcPass p)),
+   HasEntry (XLet (GhcPass p)),
+   HasEntry (XDo (GhcPass p)),
+   HasEntry (XExplicitList (GhcPass p)),
+   HasEntry (XRecordCon (GhcPass p)),
+   HasEntry (XRecordUpd (GhcPass p)),
+   HasEntry (XGetField (GhcPass p)),
+   HasEntry (XProjection (GhcPass p)),
+   HasEntry (XExprWithTySig (GhcPass p)),
+   HasEntry (XArithSeq (GhcPass p)),
+   HasEntry (XTypedBracket (GhcPass p)),
+   HasEntry (XUntypedBracket (GhcPass p)),
+   HasEntry (XUntypedSplice (GhcPass p)),
+   HasEntry (XStatic (GhcPass p)),
+   HasEntry (XCmdArrForm (GhcPass p)),
+   HasEntry (XCmdLet (GhcPass p)),
+   HasEntry (XUntypedSpliceExpr (GhcPass p)),
+   HasEntry (XMissing (GhcPass p)),
+   HasEntry (XCmdArrApp (GhcPass p)),
+   HasEntry (XCmdArrForm (GhcPass p)),
+   HasEntry (XCmdCase (GhcPass p)),
+   HasEntry (XCmdIf (GhcPass p)),
+   HasEntry (XCmdLet (GhcPass p)),
+   HasEntry (XCmdDo (GhcPass p)),
+   HasEntry (XBindStmt (GhcPass p) (GhcPass p) (LocatedA (HsExpr (GhcPass p)))),
+   HasEntry (XCIPBind (GhcPass p)),
+   HasEntry (XPatBind (GhcPass p) (GhcPass p)),
+   HasEntry (XSynDecl (GhcPass p)),
+   HasEntry (XSynDecl (GhcPass (NoGhcTcPass p))),
+   HasEntry (XDataDecl (GhcPass p)),
+   HasEntry (XDataDecl (GhcPass (NoGhcTcPass p))),
+   HasEntry (XRecTy (GhcPass p)),
+   HasEntry (XRecTy (GhcPass (NoGhcTcPass p))),
+   HasEntry (XExplicitListTy (GhcPass p)),
+   HasEntry (XExplicitListTy (GhcPass (NoGhcTcPass p))),
+   HasEntry (XExplicitTupleTy (GhcPass p)),
+   HasEntry (XExplicitTupleTy (GhcPass (NoGhcTcPass p))),
+   HasEntry (XNewtypeStrategy (GhcPass p)),
+   HasEntry (XNewtypeStrategy (GhcPass (NoGhcTcPass p))),
+   HasEntry (XHsOuterExplicit (GhcPass p) ()),
+   HasEntry (XHsOuterExplicit (GhcPass (NoGhcTcPass p)) ()),
+   HasEntry (XHsOuterExplicit (GhcPass p) Specificity),
+   HasEntry (XHsOuterExplicit (GhcPass (NoGhcTcPass p)) Specificity),
+   HasEntry (XIEThingWith (GhcPass p)),
+   HasEntry (XIEThingWith (GhcPass (NoGhcTcPass p))),
+   HasEntry (XIEModuleContents (GhcPass p)),
+   HasEntry (XIEModuleContents (GhcPass (NoGhcTcPass p)))
+   )
+
+type ExactprinHasEntryB p =
+  (
+   HasEntry (XLazyPat (GhcPass p)),
+   HasEntry (XLazyPat (GhcPass (NoGhcTcPass p))),
+   HasEntry (XAsPat (GhcPass p)),
+   HasEntry (XAsPat (GhcPass (NoGhcTcPass p))),
+   HasEntry (XBangPat (GhcPass p)),
+   HasEntry (XBangPat (GhcPass (NoGhcTcPass p))),
+   HasEntry (XListPat (GhcPass p)),
+   HasEntry (XListPat (GhcPass (NoGhcTcPass p))),
+   HasEntry (XTuplePat (GhcPass p)),
+   HasEntry (XTuplePat (GhcPass (NoGhcTcPass p))),
+   HasEntry (XSumPat (GhcPass p)),
+   HasEntry (XSumPat (GhcPass (NoGhcTcPass p))),
+   HasEntry (XConPat (GhcPass p)),
+   HasEntry (XConPat (GhcPass (NoGhcTcPass p))),
+   HasEntry (XViewPat (GhcPass p)),
+   HasEntry (XViewPat (GhcPass (NoGhcTcPass p))),
+   HasEntry (XNPat (GhcPass p)),
+   HasEntry (XNPat (GhcPass (NoGhcTcPass p))),
+   HasEntry (XNPlusKPat (GhcPass p)),
+   HasEntry (XNPlusKPat (GhcPass (NoGhcTcPass p))),
+   HasEntry (XSigPat (GhcPass p)),
+   HasEntry (XSigPat (GhcPass (NoGhcTcPass p)))
+  )
+
+type ExactPrintableA p =
+  (
+   Data (HsBind (GhcPass p)),
+   Data (HsBind (GhcPass (NoGhcTcPass p))),
+   Data (HsDerivingClause (GhcPass p)),
+   Data (HsDerivingClause (GhcPass (NoGhcTcPass p))),
+   Data (HsExpr (GhcPass p)),
+   Data (HsExpr (GhcPass (NoGhcTcPass p))),
+   Data (HsType (GhcPass p)),
+   Data (HsType (GhcPass (NoGhcTcPass p))),
+   Data (IE (GhcPass p)),
+   Data (IE (GhcPass (NoGhcTcPass p))),
+
+   ExactprinHasEntry p,
+   ExactprinHasEntryB p,
+   IdGhcP p ~ RdrName,
+   IdGhcP (NoGhcTcPass p) ~ RdrName,
+   ImportDeclPkgQual (GhcPass p) ~ RawPkgQual,
+   ImportDeclPkgQual (GhcPass p) ~ RawPkgQual,
+   IsPass p,
+   NoGhcTcPass (NoGhcTcPass p) ~ NoGhcTcPass p,
+   Outputable (GenLocated (Anno (IdGhcP (NoGhcTcPass p))) (IdGhcP (NoGhcTcPass p))),
+   Outputable (GenLocated (Anno (IdGhcP p)) (IdGhcP p)),
+   Outputable (HsModule (GhcPass p)),
+   OutputableBndr (IdGhcP (NoGhcTcPass p)),
+   OutputableBndr (IdGhcP p),
+   Outputable (HsModule (GhcPass (NoGhcTcPass p))),
+
+   XArithSeq      (GhcPass p) ~ EpAnn [AddEpAnn],
+   XCClsInstDecl (GhcPass p) ~ (EpAnn [AddEpAnn], AnnSortKey),
+   XCClsInstDecl (GhcPass (NoGhcTcPass p)) ~ (EpAnn [AddEpAnn], AnnSortKey),
+   XCDefaultDecl (GhcPass p) ~ EpAnn [AddEpAnn],
+   XCDefaultDecl (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XCIPBind (GhcPass p) ~ EpAnn [AddEpAnn],
+   XCIPBind (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XCImportDecl (GhcPass p) ~ XImportDeclPass,
+   XCImportDecl (GhcPass (NoGhcTcPass p)) ~ XImportDeclPass,
+   XCModule (GhcPass p) ~ XModulePs,
+   XCModule (GhcPass (NoGhcTcPass p)) ~ XModulePs,
+   XCRoleAnnotDecl (GhcPass p) ~ EpAnn [AddEpAnn],
+   XCRoleAnnotDecl (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XCRuleDecls (GhcPass p) ~ (EpAnn [AddEpAnn], SourceText),
+   XCRuleDecls (GhcPass (NoGhcTcPass p)) ~ (EpAnn [AddEpAnn], SourceText),
+   XCase (GhcPass p) ~ EpAnn EpAnnHsCase,
+   XCase (GhcPass (NoGhcTcPass p)) ~ EpAnn EpAnnHsCase
+   )
+
+type ExactPrintableAA p =
+  (
+   XCmdApp     (GhcPass p) ~ EpAnnCO,
+   XCmdArrApp  (GhcPass p) ~ EpAnn AddEpAnn,
+   XCmdArrApp (GhcPass (NoGhcTcPass p)) ~ EpAnn AddEpAnn,
+   XCmdArrApp (GhcPass p) ~ EpAnn AddEpAnn,
+   XCmdArrForm (GhcPass p) ~ EpAnn AnnList,
+   XCmdArrForm (GhcPass (NoGhcTcPass p)) ~ EpAnn AnnList,
+   XCmdCase    (GhcPass (NoGhcTcPass p)) ~ EpAnn EpAnnHsCase,
+   XCmdCase    (GhcPass p) ~ EpAnn EpAnnHsCase,
+   XCmdDo      (GhcPass p) ~ EpAnn AnnList,
+   XCmdDo (GhcPass (NoGhcTcPass p)) ~ EpAnn AnnList,
+   XCmdIf      (GhcPass p) ~ EpAnn AnnsIf,
+   XCmdIf (GhcPass (NoGhcTcPass p)) ~ EpAnn AnnsIf,
+   XCmdLamCase (GhcPass p) ~ EpAnn [AddEpAnn],
+   XCmdLet     (GhcPass p) ~ EpAnnCO,
+   XCmdLet (GhcPass (NoGhcTcPass p)) ~ EpAnnCO,
+   XBindStmt (GhcPass p) (GhcPass p) (LocatedA (HsExpr (GhcPass p))) ~ EpAnn [AddEpAnn],
+   XBindStmt (GhcPass (NoGhcTcPass p))
+             (GhcPass (NoGhcTcPass p))
+             (LocatedA (HsExpr (GhcPass (NoGhcTcPass p)))) ~ EpAnn [AddEpAnn],
+   XBindStmt (GhcPass p) (GhcPass p) (LocatedA (HsCmd (GhcPass p))) ~ EpAnn [AddEpAnn],
+   XBindStmt (GhcPass (NoGhcTcPass p))
+             (GhcPass (NoGhcTcPass p))
+             (LocatedA (HsCmd (GhcPass (NoGhcTcPass p)))) ~ EpAnn [AddEpAnn],
+   XTransStmt (GhcPass p) (GhcPass p) (LocatedA (HsExpr (GhcPass p))) ~ EpAnn [AddEpAnn],
+   XTransStmt (GhcPass (NoGhcTcPass p))
+              (GhcPass (NoGhcTcPass p))
+              (LocatedA (HsExpr (GhcPass (NoGhcTcPass p)))) ~ EpAnn [AddEpAnn],
+   XTransStmt (GhcPass p) (GhcPass p) (LocatedA (HsCmd (GhcPass p))) ~ EpAnn [AddEpAnn],
+   XTransStmt (GhcPass (NoGhcTcPass p))
+              (GhcPass (NoGhcTcPass p))
+              (LocatedA (HsCmd (GhcPass (NoGhcTcPass p)))) ~ EpAnn [AddEpAnn],
+   XRecStmt (GhcPass p) (GhcPass p) (LocatedA (HsExpr (GhcPass p))) ~ EpAnn AnnList,
+   XRecStmt (GhcPass (NoGhcTcPass p))
+            (GhcPass (NoGhcTcPass p))
+            (LocatedA (HsExpr (GhcPass (NoGhcTcPass p)))) ~ EpAnn AnnList,
+   XRecStmt (GhcPass p) (GhcPass p) (LocatedA (HsCmd (GhcPass p))) ~ EpAnn AnnList,
+   XRecStmt (GhcPass (NoGhcTcPass p))
+            (GhcPass (NoGhcTcPass p))
+            (LocatedA (HsCmd (GhcPass (NoGhcTcPass p)))) ~ EpAnn AnnList,
+   ImportDeclPkgQual (GhcPass (NoGhcTcPass p)) ~ RawPkgQual
+   )
+
+type ExactPrintableB p =
+  (
+   XArithSeq (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XDo            (GhcPass p) ~ EpAnn AnnList,
+   XDo (GhcPass (NoGhcTcPass p)) ~ EpAnn AnnList,
+   XExplicitList  (GhcPass p) ~ EpAnn AnnList,
+   XExplicitList (GhcPass (NoGhcTcPass p)) ~ EpAnn AnnList,
+   XExplicitSum (GhcPass p) ~ EpAnn AnnExplicitSum,
+   XExplicitSum (GhcPass (NoGhcTcPass p)) ~ EpAnn AnnExplicitSum,
+   XExplicitTuple  (GhcPass p) ~ EpAnn [AddEpAnn],
+   XExplicitTuple (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XExprWithTySig (GhcPass p) ~ EpAnn [AddEpAnn],
+   XExprWithTySig (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XForeignExport (GhcPass p) ~ EpAnn [AddEpAnn],
+   XForeignExport (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XForeignImport (GhcPass p) ~ EpAnn [AddEpAnn],
+   XForeignImport (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XGetField      (GhcPass p) ~ EpAnnCO,
+   XGetField (GhcPass (NoGhcTcPass p)) ~ EpAnnCO,
+   XHsRule (GhcPass p) ~ (EpAnn HsRuleAnn, SourceText),
+   XHsRule (GhcPass (NoGhcTcPass p)) ~ (EpAnn HsRuleAnn, SourceText),
+   XIPVar (GhcPass p) ~ EpAnnCO,
+   XIPVar (GhcPass (NoGhcTcPass p)) ~ EpAnnCO,
+   XIf            (GhcPass p) ~ EpAnn AnnsIf,
+   XIf (GhcPass (NoGhcTcPass p)) ~ EpAnn AnnsIf,
+   XLet           (GhcPass p) ~ EpAnnCO,
+   XLet (GhcPass (NoGhcTcPass p)) ~ EpAnnCO,
+   XMissing (GhcPass p) ~ EpAnn EpaLocation,
+   XMissing (GhcPass (NoGhcTcPass p)) ~ EpAnn EpaLocation,
+   XMultiIf (GhcPass p) ~ EpAnn [AddEpAnn],
+   XMultiIf (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XNegApp (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XNegApp (GhcPass p) ~ EpAnn [AddEpAnn],
+   XOpApp (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XOpApp (GhcPass p) ~ EpAnn [AddEpAnn],
+   XOverLabel (GhcPass (NoGhcTcPass p)) ~ EpAnnCO,
+   XOverLabel (GhcPass p) ~ EpAnnCO,
+   XPSB (GhcPass (NoGhcTcPass p)) (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XPSB (GhcPass p) (GhcPass p) ~ EpAnn [AddEpAnn],
+   XPatBind (GhcPass (NoGhcTcPass p)) (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XPatBind (GhcPass p) (GhcPass p) ~ EpAnn [AddEpAnn],
+   XProc (GhcPass p) ~ EpAnn [AddEpAnn]
+  )
+
+type ExactprintableC p =
+  (
+    XPatBind (GhcPass p) (GhcPass p) ~ EpAnn [AddEpAnn],
+    XClassDecl (GhcPass p) ~ (EpAnn [AddEpAnn], AnnSortKey, LayoutInfo),
+    XClassDecl (GhcPass (NoGhcTcPass p)) ~ (EpAnn [AddEpAnn], AnnSortKey, LayoutInfo),
+    XSynDecl (GhcPass p) ~ EpAnn [AddEpAnn],
+    XSynDecl (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+    XDataDecl (GhcPass p) ~ EpAnn [AddEpAnn],
+    XDataDecl (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+    XRecTy (GhcPass p) ~ EpAnn AnnList,
+    XRecTy (GhcPass (NoGhcTcPass p)) ~ EpAnn AnnList,
+    XExplicitListTy (GhcPass p) ~ EpAnn [AddEpAnn],
+    XExplicitListTy (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+    XExplicitTupleTy (GhcPass p) ~ EpAnn [AddEpAnn],
+    XExplicitTupleTy (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+    XViaStrategy (GhcPass p) ~ XViaStrategyPs,
+    XViaStrategy (GhcPass (NoGhcTcPass p)) ~ XViaStrategyPs,
+    XStockStrategy (GhcPass p) ~ EpAnn [AddEpAnn],
+    XStockStrategy (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+    XAnyClassStrategy (GhcPass p) ~ EpAnn [AddEpAnn],
+    XAnyClassStrategy (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+    XNewtypeStrategy (GhcPass p) ~ EpAnn [AddEpAnn],
+    XNewtypeStrategy (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+
+    XHsOuterExplicit (GhcPass p) () ~ EpAnnForallTy,
+    XHsOuterExplicit (GhcPass (NoGhcTcPass p)) () ~ EpAnnForallTy,
+    XHsOuterExplicit (GhcPass p) Specificity ~ EpAnnForallTy,
+    XHsOuterExplicit (GhcPass (NoGhcTcPass p)) Specificity ~ EpAnnForallTy,
+
+    XIEThingWith (GhcPass p) ~ EpAnn [AddEpAnn],
+    XIEThingWith (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+    XIEModuleContents (GhcPass p) ~ EpAnn [AddEpAnn],
+    XIEModuleContents (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+
+    XLazyPat (GhcPass p) ~ EpAnn [AddEpAnn],
+    XLazyPat (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+    XAsPat   (GhcPass p) ~ EpAnnCO,
+    XAsPat   (GhcPass (NoGhcTcPass p)) ~ EpAnnCO,
+    XParPat (GhcPass p) ~ EpAnnCO,
+    XParPat (GhcPass (NoGhcTcPass p)) ~ EpAnnCO,
+    XBangPat (GhcPass p) ~ EpAnn [AddEpAnn],
+    XBangPat (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+    XListPat (GhcPass p) ~ EpAnn AnnList,
+    XListPat (GhcPass (NoGhcTcPass p)) ~ EpAnn AnnList,
+    XTuplePat (GhcPass p) ~ EpAnn [AddEpAnn],
+    XTuplePat (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+    XSumPat (GhcPass p) ~ EpAnn EpAnnSumPat,
+    XSumPat (GhcPass (NoGhcTcPass p)) ~ EpAnn EpAnnSumPat,
+    XConPat (GhcPass p) ~ EpAnn [AddEpAnn],
+    XConPat (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+    XViewPat (GhcPass p) ~ EpAnn [AddEpAnn],
+    XViewPat (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+    XSplicePat (GhcPass p) ~ NoExtField,
+    XSplicePat (GhcPass (NoGhcTcPass p)) ~ NoExtField,
+    XNPat (GhcPass p) ~ EpAnn [AddEpAnn],
+    XNPat (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+    XNPlusKPat (GhcPass p) ~ EpAnn EpaLocation,
+    XNPlusKPat (GhcPass (NoGhcTcPass p)) ~ EpAnn EpaLocation,
+    XSigPat (GhcPass p) ~ EpAnn [AddEpAnn],
+    XSigPat (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn]
+
+  )
+
+type Exactprintable p =
+  (Typeable p,
+   Typeable (NoGhcTcPass p),
+   ExactPrintableA p,
+   ExactPrintableAA p,
+   ExactPrintableB p,
+   ExactprintableC p,
+   XProjection    (GhcPass p) ~ EpAnn AnnProjection,
+   XProjection (GhcPass (NoGhcTcPass p)) ~ EpAnn AnnProjection,
+   XRecordCon     (GhcPass p) ~ EpAnn [AddEpAnn],
+   XRecordCon (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XRecordUpd     (GhcPass p) ~ EpAnn [AddEpAnn],
+   XRecordUpd (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XSectionL (GhcPass p) ~ EpAnnCO,
+   XSectionL (GhcPass (NoGhcTcPass p)) ~ EpAnnCO,
+   XSectionR (GhcPass p) ~ EpAnnCO,
+   XSectionR (GhcPass (NoGhcTcPass p)) ~ EpAnnCO,
+   XStandaloneKindSig (GhcPass p) ~ EpAnn [AddEpAnn],
+   XStandaloneKindSig (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XStatic        (GhcPass p) ~ EpAnn [AddEpAnn],
+   XStatic (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XTypedBracket  (GhcPass p) ~ EpAnn [AddEpAnn],
+   XTypedBracket (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XTypedSplice (GhcPass p) ~ (EpAnnCO, EpAnn [AddEpAnn]),
+   XTypedSplice (GhcPass (NoGhcTcPass p)) ~ (EpAnnCO, EpAnn [AddEpAnn]),
+   XUnboundVar (GhcPass p) ~ EpAnn EpAnnUnboundVar,
+   XUnboundVar (GhcPass (NoGhcTcPass p)) ~ EpAnn EpAnnUnboundVar,
+   XUntypedBracket (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XUntypedBracket (GhcPass p) ~ EpAnn [AddEpAnn],
+   XUntypedBracket (GhcPass p) ~ EpAnn [AddEpAnn],
+   XUntypedSplice (GhcPass p) ~ EpAnnCO,
+   XUntypedSplice (GhcPass (NoGhcTcPass p)) ~ EpAnnCO,
+   XUntypedSpliceExpr (GhcPass p) ~ EpAnn [AddEpAnn],
+   XUntypedSpliceExpr (GhcPass (NoGhcTcPass p)) ~ EpAnn [AddEpAnn],
+   XWarnings (GhcPass p) ~ (EpAnn [AddEpAnn], SourceText),
+   XWarnings (GhcPass (NoGhcTcPass p)) ~ (EpAnn [AddEpAnn], SourceText),
+
+   -- Will have to allow either `Name` or `RdrName` some time
+   ConLikeP (GhcPass p) ~ RdrName,
+   ConLikeP (GhcPass (NoGhcTcPass p)) ~ RdrName,
+
+   IdGhcP p ~ RdrName,
+   Anno (IdGhcP p) ~ SrcSpanAnnN,
+
+   Anno (HsBindLR (GhcPass p) (GhcPass p)) ~ SrcSpanAnnA,
+   Anno (IPBind (GhcPass p)) ~ SrcSpanAnnA,
+   Anno (Sig (GhcPass p)) ~ SrcSpanAnnA,
+   ImportDeclPkgQual (GhcPass p) ~ RawPkgQual
+  )
+
+-- ---------------------------------------------------------------------
 
 -- | An AST fragment with an annotation must be able to return the
 -- requirements for nesting another one, captured in an 'Entry', and
@@ -624,15 +971,15 @@ markEpAnnLMS' (EpAnn anc a cs) l kw (Just str) = do
 
 -- ---------------------------------------------------------------------
 
-markToken :: forall m w tok . (Monad m, Monoid w, KnownSymbol tok)
-  => LHsToken tok GhcPs -> EP w m (LHsToken tok GhcPs)
+markToken :: forall m w tok p . (Monad m, Monoid w, KnownSymbol tok)
+  => LHsToken tok (GhcPass p) -> EP w m (LHsToken tok (GhcPass p))
 markToken (L NoTokenLoc t) = return (L NoTokenLoc t)
 markToken (L (TokenLoc aa) t) = do
   aa' <- printStringAtAA aa (symbolVal (Proxy @tok))
   return (L (TokenLoc aa') t)
 
-markUniToken :: forall m w tok utok. (Monad m, Monoid w, KnownSymbol tok, KnownSymbol utok)
-  => LHsUniToken tok utok GhcPs -> EP w m (LHsUniToken tok utok GhcPs)
+markUniToken :: forall m w tok utok p. (Monad m, Monoid w, KnownSymbol tok, KnownSymbol utok)
+  => LHsUniToken tok utok (GhcPass p) -> EP w m (LHsUniToken tok utok (GhcPass p))
 markUniToken (L l HsNormalTok)  = do
   (L l' _) <- markToken (L l (HsTok @tok))
   return (L l' HsNormalTok)
@@ -642,7 +989,8 @@ markUniToken (L l HsUnicodeTok) = do
 
 -- ---------------------------------------------------------------------
 
-markArrow :: (Monad m, Monoid w) => HsArrow GhcPs -> EP w m (HsArrow GhcPs)
+markArrow :: (Monad m, Monoid w, Exactprintable p)
+  => HsArrow (GhcPass p) -> EP w m (HsArrow (GhcPass p))
 markArrow (HsUnrestrictedArrow arr) = do
   arr' <- markUniToken arr
   return (HsUnrestrictedArrow arr')
@@ -1368,8 +1716,8 @@ instance (ExactPrint a) => ExactPrint (Maybe a) where
 
 -- ---------------------------------------------------------------------
 
--- | 'Located (HsModule GhcPs)' corresponds to 'ParsedSource'
-instance ExactPrint (HsModule GhcPs) where
+-- | 'Located (HsModule (GhcPass p))' corresponds to 'ParsedSource'
+instance (Exactprintable p) => ExactPrint (HsModule (GhcPass p)) where
   getAnnotationEntry hsmod = fromAnn' (hsmodAnn $ hsmodExt hsmod)
   -- A bit pointless actually changing anything here
   setAnnotationAnchor hsmod anc cs = setAnchorHsModule hsmod anc cs
@@ -1421,7 +1769,7 @@ instance ExactPrint ModuleName where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (LocatedP (WarningTxt GhcPs)) where
+instance (Exactprintable p) => ExactPrint (LocatedP (WarningTxt (GhcPass p))) where
   getAnnotationEntry = entryFromLocatedA
   setAnnotationAnchor = setAnchorAn
 
@@ -1443,7 +1791,7 @@ instance ExactPrint (LocatedP (WarningTxt GhcPs)) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (ImportDecl GhcPs) where
+instance (Exactprintable p) => ExactPrint (ImportDecl (GhcPass p)) where
   getAnnotationEntry idecl = fromAnn (ideclAnn $ ideclExt idecl)
   setAnnotationAnchor idecl anc cs = idecl { ideclExt
                     = (ideclExt idecl) { ideclAnn = setAnchorEpa (ideclAnn $ ideclExt idecl) anc cs} }
@@ -1524,7 +1872,7 @@ instance ExactPrint HsDocString where
     (printStringAdvance . exactPrintHsDocString) ds
     return ds
 
-instance ExactPrint a => ExactPrint (WithHsDocIdentifiers a GhcPs) where
+instance (Exactprintable p, ExactPrint a) => ExactPrint (WithHsDocIdentifiers a (GhcPass p)) where
   getAnnotationEntry _ = NoEntryVal
   setAnnotationAnchor a _ _ = a
   exact (WithHsDocIdentifiers ds ids) = do
@@ -1533,7 +1881,7 @@ instance ExactPrint a => ExactPrint (WithHsDocIdentifiers a GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (HsDecl GhcPs) where
+instance (Exactprintable p) => ExactPrint (HsDecl (GhcPass p)) where
   getAnnotationEntry (TyClD      _ _) = NoEntryVal
   getAnnotationEntry (InstD      _ _) = NoEntryVal
   getAnnotationEntry (DerivD     _ _) = NoEntryVal
@@ -1570,7 +1918,7 @@ instance ExactPrint (HsDecl GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (InstDecl GhcPs) where
+instance (Exactprintable p) => ExactPrint (InstDecl (GhcPass p)) where
   getAnnotationEntry (ClsInstD     _ _) = NoEntryVal
   getAnnotationEntry (DataFamInstD _ _) = NoEntryVal
   getAnnotationEntry (TyFamInstD   _ _) = NoEntryVal
@@ -1590,14 +1938,14 @@ instance ExactPrint (InstDecl GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-data DataFamInstDeclWithContext
+data DataFamInstDeclWithContext p
   = DataFamInstDeclWithContext
     { _dc_a :: EpAnn [AddEpAnn]
     , _dc_f :: TopLevelFlag
-    , dc_d :: DataFamInstDecl GhcPs
+    , dc_d :: DataFamInstDecl p
     }
 
-instance ExactPrint DataFamInstDeclWithContext where
+instance (Exactprintable p) => ExactPrint (DataFamInstDeclWithContext (GhcPass p)) where
   getAnnotationEntry (DataFamInstDeclWithContext _ _ (DataFamInstDecl (FamEqn { feqn_ext = an})))
     = fromAnn an
   setAnnotationAnchor (DataFamInstDeclWithContext a c (DataFamInstDecl fe)) anc cs
@@ -1609,9 +1957,9 @@ instance ExactPrint DataFamInstDeclWithContext where
 
 -- ---------------------------------------------------------------------
 
-exactDataFamInstDecl :: (Monad m, Monoid w)
-                     => EpAnn [AddEpAnn] -> TopLevelFlag -> DataFamInstDecl GhcPs
-                     -> EP w m (EpAnn [AddEpAnn], DataFamInstDecl GhcPs)
+exactDataFamInstDecl :: forall m w p.(Monad m, Monoid w, Exactprintable p)
+                     => EpAnn [AddEpAnn] -> TopLevelFlag -> DataFamInstDecl (GhcPass p)
+                     -> EP w m (EpAnn [AddEpAnn], DataFamInstDecl (GhcPass p))
 exactDataFamInstDecl an top_lvl
   (DataFamInstDecl (FamEqn { feqn_ext    = an2
                            , feqn_tycon  = tycon
@@ -1631,13 +1979,12 @@ exactDataFamInstDecl an top_lvl
                                 , feqn_rhs    = defn' }))
                     `debug` ("exactDataFamInstDecl: defn' derivs:" ++ showAst (dd_derivs defn'))
   where
-    pp_hdr :: (Monad m, Monoid w)
-           => Maybe (LHsContext GhcPs)
+    pp_hdr :: Maybe (LHsContext (GhcPass p))
            -> EP w m ( EpAnn [AddEpAnn]
                      , LocatedN RdrName
-                     , HsOuterTyVarBndrs () GhcPs
-                     , HsTyPats GhcPs
-                     , Maybe (LHsContext GhcPs))
+                     , HsOuterTyVarBndrs () (GhcPass p)
+                     , HsTyPats (GhcPass p)
+                     , Maybe (LHsContext (GhcPass p)))
     pp_hdr mctxt = do
       an0 <- case top_lvl of
                TopLevel -> markEpAnnL an lidl AnnInstance -- TODO: maybe in toplevel
@@ -1658,7 +2005,7 @@ rendering the DataDefn are contained in the FamEqn, and are called
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (DerivDecl GhcPs) where
+instance (Exactprintable p) => ExactPrint (DerivDecl (GhcPass p)) where
   getAnnotationEntry (DerivDecl {deriv_ext = an} ) = fromAnn an
   setAnnotationAnchor dd anc cs = dd { deriv_ext = setAnchorEpa (deriv_ext dd) anc cs }
   exact (DerivDecl an typ ms mov) = do
@@ -1671,7 +2018,7 @@ instance ExactPrint (DerivDecl GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (ForeignDecl GhcPs) where
+instance (Exactprintable p) => ExactPrint (ForeignDecl (GhcPass p)) where
   getAnnotationEntry (ForeignImport an _ _  _) = fromAnn an
   getAnnotationEntry (ForeignExport an _ _  _) = fromAnn an
 
@@ -1700,7 +2047,7 @@ instance ExactPrint (ForeignDecl GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (ForeignImport GhcPs) where
+instance (Exactprintable p) => ExactPrint (ForeignImport (GhcPass p)) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
   exact (CImport (L ls src) cconv safety@(L ll _) mh imp) = do
@@ -1711,7 +2058,7 @@ instance ExactPrint (ForeignImport GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (ForeignExport GhcPs) where
+instance (Exactprintable p) => ExactPrint (ForeignExport (GhcPass p)) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
   exact (CExport (L ls src) spec) = do
@@ -1746,7 +2093,7 @@ instance ExactPrint CCallConv where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (WarnDecls GhcPs) where
+instance (Exactprintable p) => ExactPrint (WarnDecls (GhcPass p)) where
   getAnnotationEntry (Warnings (an,_) _) = fromAnn an
   setAnnotationAnchor (Warnings (an,a) b) anc cs = Warnings ((setAnchorEpa an anc cs),a) b
 
@@ -1758,7 +2105,7 @@ instance ExactPrint (WarnDecls GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (WarnDecl GhcPs) where
+instance (Exactprintable p) => ExactPrint (WarnDecl (GhcPass p)) where
   getAnnotationEntry (Warning an _ _) = fromAnn an
   setAnnotationAnchor (Warning an a b) anc cs = Warning (setAnchorEpa an anc cs) a b
 
@@ -1800,7 +2147,7 @@ instance ExactPrint FastString where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (RuleDecls GhcPs) where
+instance (Exactprintable p) => ExactPrint (RuleDecls (GhcPass p)) where
   getAnnotationEntry (HsRules (an,_) _) = fromAnn an
   setAnnotationAnchor (HsRules (an,a) b) anc cs = HsRules ((setAnchorEpa an anc cs),a) b
   exact (HsRules (an, src) rules) = do
@@ -1814,7 +2161,7 @@ instance ExactPrint (RuleDecls GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (RuleDecl GhcPs) where
+instance (Exactprintable p) => ExactPrint (RuleDecl (GhcPass p)) where
   getAnnotationEntry (HsRule {rd_ext = (an,_)}) = fromAnn an
   setAnnotationAnchor r@(HsRule {rd_ext = (an,a)}) anc cs
     = r { rd_ext = (setAnchorEpa an anc cs, a)}
@@ -1866,7 +2213,7 @@ markActivation an l act = do
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (SpliceDecl GhcPs) where
+instance (Exactprintable p) => ExactPrint (SpliceDecl (GhcPass p)) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
 
@@ -1876,7 +2223,7 @@ instance ExactPrint (SpliceDecl GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (DocDecl GhcPs) where
+instance (Exactprintable p) => ExactPrint (DocDecl (GhcPass p)) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
 
@@ -1888,7 +2235,7 @@ instance ExactPrint (DocDecl GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (RoleAnnotDecl GhcPs) where
+instance (Exactprintable p) => ExactPrint (RoleAnnotDecl (GhcPass p)) where
   getAnnotationEntry (RoleAnnotDecl an _ _) = fromAnn an
   setAnnotationAnchor (RoleAnnotDecl an a b) anc cs = RoleAnnotDecl (setAnchorEpa an anc cs) a b
   exact (RoleAnnotDecl an ltycon roles) = do
@@ -1913,7 +2260,7 @@ instance ExactPrint Role where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (RuleBndr GhcPs) where
+instance (Exactprintable p) => ExactPrint (RuleBndr (GhcPass p)) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
 
@@ -1930,7 +2277,7 @@ instance ExactPrint (RuleBndr GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance (ExactPrint body) => ExactPrint (FamEqn GhcPs body) where
+instance (Exactprintable p, ExactPrint body) => ExactPrint (FamEqn (GhcPass p) body) where
   getAnnotationEntry (FamEqn { feqn_ext = an}) = fromAnn an
   setAnnotationAnchor fe anc cs = fe {feqn_ext = setAnchorEpa (feqn_ext fe) anc cs}
   exact (FamEqn { feqn_ext = an
@@ -1952,17 +2299,17 @@ instance (ExactPrint body) => ExactPrint (FamEqn GhcPs body) where
 -- ---------------------------------------------------------------------
 
 exactHsFamInstLHS ::
-      (Monad m, Monoid w)
+      (Monad m, Monoid w, Exactprintable p)
    => EpAnn [AddEpAnn]
    -> LocatedN RdrName
-   -> HsOuterTyVarBndrs () GhcPs
-   -> HsTyPats GhcPs
+   -> HsOuterTyVarBndrs () (GhcPass p)
+   -> HsTyPats (GhcPass p)
    -> LexicalFixity
-   -> Maybe (LHsContext GhcPs)
+   -> Maybe (LHsContext (GhcPass p))
    -> EP w m ( EpAnn [AddEpAnn]
              , LocatedN RdrName
-             , HsOuterTyVarBndrs () GhcPs
-             , HsTyPats GhcPs, Maybe (LHsContext GhcPs))
+             , HsOuterTyVarBndrs () (GhcPass p)
+             , HsTyPats (GhcPass p), Maybe (LHsContext (GhcPass p)))
 exactHsFamInstLHS an thing bndrs typats fixity mb_ctxt = do
   an0 <- markEpAnnL an lidl AnnForall
   bndrs' <- markAnnotated bndrs
@@ -1971,8 +2318,8 @@ exactHsFamInstLHS an thing bndrs typats fixity mb_ctxt = do
   (an2, thing', typats') <- exact_pats an1 typats
   return (an2, thing', bndrs', typats', mb_ctxt')
   where
-    exact_pats :: (Monad m, Monoid w)
-      => EpAnn [AddEpAnn] -> HsTyPats GhcPs -> EP w m (EpAnn [AddEpAnn], LocatedN RdrName, HsTyPats GhcPs)
+    exact_pats :: (Monad m, Monoid w, Exactprintable p)
+      => EpAnn [AddEpAnn] -> HsTyPats (GhcPass p) -> EP w m (EpAnn [AddEpAnn], LocatedN RdrName, HsTyPats (GhcPass p))
     exact_pats an' (patl:patr:pats)
       | Infix <- fixity
       = let exact_op_app = do
@@ -2009,7 +2356,7 @@ instance (ExactPrint tm, ExactPrint ty, Outputable tm, Outputable ty)
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (ClsInstDecl GhcPs) where
+instance (Exactprintable p) => ExactPrint (ClsInstDecl (GhcPass p)) where
   getAnnotationEntry cid = fromAnn (fst $ cid_ext cid)
   setAnnotationAnchor cid anc cs
     = cid { cid_ext = (setAnchorEpa (fst $ cid_ext cid) anc cs, (snd $ cid_ext cid)) }
@@ -2051,7 +2398,7 @@ instance ExactPrint (ClsInstDecl GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (TyFamInstDecl GhcPs) where
+instance (Exactprintable p) => ExactPrint (TyFamInstDecl (GhcPass p)) where
   getAnnotationEntry (TyFamInstDecl an _) = fromAnn an
   setAnnotationAnchor (TyFamInstDecl an a) anc cs = TyFamInstDecl (setAnchorEpa an anc cs) a
 
@@ -2095,7 +2442,7 @@ instance ExactPrint (LocatedP OverlapMode) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (HsBind GhcPs) where
+instance (Exactprintable p) => ExactPrint (HsBind (GhcPass p)) where
   getAnnotationEntry FunBind{} = NoEntryVal
   getAnnotationEntry PatBind{pat_ext=an} = fromAnn an
   getAnnotationEntry VarBind{} = NoEntryVal
@@ -2126,7 +2473,7 @@ instance ExactPrint (HsBind GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (PatSynBind GhcPs GhcPs) where
+instance (Exactprintable p) => ExactPrint (PatSynBind (GhcPass p) (GhcPass p)) where
   getAnnotationEntry (PSB { psb_ext = an}) = fromAnn an
   setAnnotationAnchor p anc cs = p { psb_ext = setAnchorEpa (psb_ext p) anc cs}
 
@@ -2179,7 +2526,7 @@ instance ExactPrint (PatSynBind GhcPs GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (RecordPatSynField GhcPs) where
+instance (Exactprintable p) => ExactPrint (RecordPatSynField (GhcPass p)) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
   exact r@(RecordPatSynField { recordPatSynField = v }) = markAnnotated v
@@ -2187,7 +2534,7 @@ instance ExactPrint (RecordPatSynField GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (Match GhcPs (LocatedA (HsCmd GhcPs))) where
+instance (Exactprintable p) => ExactPrint (Match (GhcPass p) (LocatedA (HsCmd (GhcPass p)))) where
   getAnnotationEntry (Match ann _ _ _) = fromAnn ann
   setAnnotationAnchor (Match an a b c) anc cs = Match (setAnchorEpa an anc cs) a b c
 
@@ -2196,7 +2543,7 @@ instance ExactPrint (Match GhcPs (LocatedA (HsCmd GhcPs))) where
 
 -- -------------------------------------
 
-instance ExactPrint (Match GhcPs (LocatedA (HsExpr GhcPs))) where
+instance (Exactprintable p) => ExactPrint (Match (GhcPass p) (LocatedA (HsExpr (GhcPass p)))) where
   getAnnotationEntry (Match ann _ _ _) = fromAnn ann
   setAnnotationAnchor (Match an a b c) anc cs = Match (setAnchorEpa an anc cs) a b c
 
@@ -2205,7 +2552,8 @@ instance ExactPrint (Match GhcPs (LocatedA (HsExpr GhcPs))) where
 
 -- ---------------------------------------------------------------------
 
-exactMatch :: (Monad m, Monoid w) => (ExactPrint (GRHSs GhcPs body)) => (Match GhcPs body) -> EP w m (Match GhcPs body)
+exactMatch :: (Monad m, Monoid w, Exactprintable p)
+  => (ExactPrint (GRHSs (GhcPass p) body)) => (Match (GhcPass p) body) -> EP w m (Match (GhcPass p) body)
 exactMatch (Match an mctxt pats grhss) = do
 
   debugM $ "exact Match entered"
@@ -2261,7 +2609,7 @@ exactMatch (Match an mctxt pats grhss) = do
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (GRHSs GhcPs (LocatedA (HsExpr GhcPs))) where
+instance (Exactprintable p) => ExactPrint (GRHSs (GhcPass p) (LocatedA (HsExpr (GhcPass p)))) where
   getAnnotationEntry (GRHSs _ _ _) = NoEntryVal
   setAnnotationAnchor a _ _ = a
 
@@ -2274,7 +2622,7 @@ instance ExactPrint (GRHSs GhcPs (LocatedA (HsExpr GhcPs))) where
     return (GRHSs emptyComments grhss' binds')
 
 
-instance ExactPrint (GRHSs GhcPs (LocatedA (HsCmd GhcPs))) where
+instance (Exactprintable p) => ExactPrint (GRHSs (GhcPass p) (LocatedA (HsCmd (GhcPass p)))) where
   getAnnotationEntry (GRHSs _ _ _) = NoEntryVal
   setAnnotationAnchor a _ _ = a
 
@@ -2288,7 +2636,7 @@ instance ExactPrint (GRHSs GhcPs (LocatedA (HsCmd GhcPs))) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (HsLocalBinds GhcPs) where
+instance (Exactprintable p) => ExactPrint (HsLocalBinds (GhcPass p)) where
   getAnnotationEntry (HsValBinds an _) = fromAnn an
   getAnnotationEntry (HsIPBinds{}) = NoEntryVal
   getAnnotationEntry (EmptyLocalBinds{}) = NoEntryVal
@@ -2316,15 +2664,15 @@ instance ExactPrint (HsLocalBinds GhcPs) where
   exact (HsIPBinds an bs) = do
     (as, ipb) <- markAnnList True an (markEpAnnL an lal_rest AnnWhere
                            >> markAnnotated bs
-                           >>= \bs' -> return (HsIPBinds an bs'::HsLocalBinds GhcPs))
+                           >>= \bs' -> return (HsIPBinds an bs'::HsLocalBinds (GhcPass p)))
     case ipb of
-      HsIPBinds _ bs' -> return (HsIPBinds as bs'::HsLocalBinds GhcPs)
+      HsIPBinds _ bs' -> return (HsIPBinds as bs'::HsLocalBinds (GhcPass p))
       _ -> error "should not happen HsIPBinds"
   exact b@(EmptyLocalBinds _) = return b
 
 
 -- ---------------------------------------------------------------------
-instance ExactPrint (HsValBindsLR GhcPs GhcPs) where
+instance (Exactprintable p) => ExactPrint (HsValBindsLR (GhcPass p) (GhcPass p)) where
   getAnnotationEntry _ = NoEntryVal
   setAnnotationAnchor a _ _ = a
 
@@ -2344,7 +2692,7 @@ undynamic ds = mapMaybe fromDynamic ds
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (HsIPBinds GhcPs) where
+instance (Exactprintable p) => ExactPrint (HsIPBinds (GhcPass p)) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
 
@@ -2352,7 +2700,7 @@ instance ExactPrint (HsIPBinds GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (IPBind GhcPs) where
+instance (Exactprintable p) => ExactPrint (IPBind (GhcPass p)) where
   getAnnotationEntry (IPBind an _ _) = fromAnn an
   setAnnotationAnchor (IPBind an a b) anc cs = IPBind (setAnchorEpa an anc cs) a b
 
@@ -2374,8 +2722,8 @@ instance ExactPrint HsIPName where
 -- ---------------------------------------------------------------------
 -- Managing lists which have been separated, e.g. Sigs and Binds
 
-prepareListAnnotationF :: (Monad m, Monoid w) =>
-  EpAnn [AddEpAnn] -> [LDataFamInstDecl GhcPs] -> [(RealSrcSpan,EP w m Dynamic)]
+prepareListAnnotationF :: (Monad m, Monoid w, Exactprintable p) =>
+  EpAnn [AddEpAnn] -> [LDataFamInstDecl (GhcPass p)] -> [(RealSrcSpan,EP w m Dynamic)]
 prepareListAnnotationF an ls = map (\b -> (realSrcSpan $ getLocA b, go b)) ls
   where
     go (L l a) = do
@@ -2409,7 +2757,7 @@ orderByFst (a,_) (b,_) = compare a b
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (Sig GhcPs) where
+instance (Exactprintable p) => ExactPrint (Sig (GhcPass p)) where
   getAnnotationEntry (TypeSig a _ _)  = fromAnn a
   getAnnotationEntry (PatSynSig a _ _) = fromAnn a
   getAnnotationEntry (ClassOpSig a _ _ _) = fromAnn a
@@ -2527,7 +2875,7 @@ exactVarSig an vars ty = do
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (StandaloneKindSig GhcPs) where
+instance (Exactprintable p) => ExactPrint (StandaloneKindSig (GhcPass p)) where
   getAnnotationEntry (StandaloneKindSig an _ _) = fromAnn an
   setAnnotationAnchor (StandaloneKindSig an a b) anc cs = StandaloneKindSig (setAnchorEpa an anc cs) a b
 
@@ -2540,7 +2888,7 @@ instance ExactPrint (StandaloneKindSig GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (DefaultDecl GhcPs) where
+instance (Exactprintable p) => ExactPrint (DefaultDecl (GhcPass p)) where
   getAnnotationEntry (DefaultDecl an _) = fromAnn an
   setAnnotationAnchor (DefaultDecl an a) anc cs = DefaultDecl (setAnchorEpa an anc cs) a
 
@@ -2553,7 +2901,7 @@ instance ExactPrint (DefaultDecl GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (AnnDecl GhcPs) where
+instance (Exactprintable p) => ExactPrint (AnnDecl (GhcPass p)) where
   getAnnotationEntry (HsAnnotation (an, _) _ _) = fromAnn an
   setAnnotationAnchor (HsAnnotation (an,a) b c) anc cs = HsAnnotation ((setAnchorEpa an anc cs),a) b c
 
@@ -2597,7 +2945,8 @@ instance ExactPrint (BF.BooleanFormula (LocatedN RdrName)) where
 
 -- ---------------------------------------------------------------------
 
-instance (ExactPrint body) => ExactPrint (HsWildCardBndrs GhcPs body) where
+instance (Exactprintable p, ExactPrint body)
+    => ExactPrint (HsWildCardBndrs (GhcPass p) body) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
   exact (HsWC x ty) = do
@@ -2606,7 +2955,7 @@ instance (ExactPrint body) => ExactPrint (HsWildCardBndrs GhcPs body) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (GRHS GhcPs (LocatedA (HsExpr GhcPs))) where
+instance (Exactprintable p) => ExactPrint (GRHS (GhcPass p) (LocatedA (HsExpr (GhcPass p)))) where
   getAnnotationEntry (GRHS an _ _) = fromAnn an
   setAnnotationAnchor (GRHS an a b) anc cs = GRHS (setAnchorEpa an anc cs) a b
 
@@ -2622,7 +2971,7 @@ instance ExactPrint (GRHS GhcPs (LocatedA (HsExpr GhcPs))) where
     expr' <- markAnnotated expr
     return (GRHS an1 guards' expr')
 
-instance ExactPrint (GRHS GhcPs (LocatedA (HsCmd GhcPs))) where
+instance (Exactprintable p) => ExactPrint (GRHS (GhcPass p) (LocatedA (HsCmd (GhcPass p)))) where
   getAnnotationEntry (GRHS ann _ _) = fromAnn ann
   setAnnotationAnchor (GRHS an a b) anc cs = GRHS (setAnchorEpa an anc cs) a b
 
@@ -2635,7 +2984,7 @@ instance ExactPrint (GRHS GhcPs (LocatedA (HsCmd GhcPs))) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (HsExpr GhcPs) where
+instance (Exactprintable p) => ExactPrint (HsExpr (GhcPass p)) where
   getAnnotationEntry (HsVar{})                    = NoEntryVal
   getAnnotationEntry (HsUnboundVar an _)          = fromAnn an
   getAnnotationEntry (HsRecSel{})                 = NoEntryVal
@@ -3020,7 +3369,7 @@ markMaybeDodgyStmts an stmts =
     else return (an, stmts)
 
 -- ---------------------------------------------------------------------
-instance ExactPrint (HsPragE GhcPs) where
+instance (Exactprintable p) => ExactPrint (HsPragE (GhcPass p)) where
   getAnnotationEntry HsPragSCC{}  = NoEntryVal
   setAnnotationAnchor a _ _ = a
 
@@ -3035,7 +3384,7 @@ instance ExactPrint (HsPragE GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (HsUntypedSplice GhcPs) where
+instance (Exactprintable p) => ExactPrint (HsUntypedSplice (GhcPass p)) where
   getAnnotationEntry (HsUntypedSpliceExpr an _) = fromAnn an
   getAnnotationEntry (HsQuasiQuote _ _ _)       = NoEntryVal
 
@@ -3063,7 +3412,7 @@ instance ExactPrint (HsUntypedSplice GhcPs) where
 -- ---------------------------------------------------------------------
 
 -- TODO:AZ: combine these instances
-instance ExactPrint (MatchGroup GhcPs (LocatedA (HsExpr GhcPs))) where
+instance (Exactprintable p) => ExactPrint (MatchGroup (GhcPass p) (LocatedA (HsExpr (GhcPass p)))) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
   exact (MG x matches) = do
@@ -3073,7 +3422,7 @@ instance ExactPrint (MatchGroup GhcPs (LocatedA (HsExpr GhcPs))) where
       else return matches
     return (MG x matches')
 
-instance ExactPrint (MatchGroup GhcPs (LocatedA (HsCmd GhcPs))) where
+instance (Exactprintable p) => ExactPrint (MatchGroup (GhcPass p) (LocatedA (HsCmd (GhcPass p)))) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
   exact (MG x matches) = do
@@ -3085,7 +3434,8 @@ instance ExactPrint (MatchGroup GhcPs (LocatedA (HsCmd GhcPs))) where
 
 -- ---------------------------------------------------------------------
 
-instance (ExactPrint body) => ExactPrint (HsRecFields GhcPs body) where
+instance (Exactprintable p, ExactPrint body)
+    => ExactPrint (HsRecFields (GhcPass p) body) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
   exact (HsRecFields fields mdot) = do
@@ -3099,8 +3449,8 @@ instance (ExactPrint body) => ExactPrint (HsRecFields GhcPs body) where
 
 -- ---------------------------------------------------------------------
 
-instance (ExactPrint body)
-    => ExactPrint (HsFieldBind (LocatedAn NoEpAnns (FieldOcc GhcPs)) body) where
+instance (ExactPrint body, Exactprintable p)
+    => ExactPrint (HsFieldBind (LocatedAn NoEpAnns (FieldOcc (GhcPass p))) body) where
   getAnnotationEntry x = fromAnn (hfbAnn x)
   setAnnotationAnchor (HsFieldBind an f arg isPun) anc cs = (HsFieldBind (setAnchorEpa an anc cs) f arg isPun)
   exact (HsFieldBind an f arg isPun) = do
@@ -3115,8 +3465,8 @@ instance (ExactPrint body)
 
 -- ---------------------------------------------------------------------
 
-instance (ExactPrint body)
-    => ExactPrint (HsFieldBind (LocatedAn NoEpAnns (FieldLabelStrings GhcPs)) body) where
+instance (ExactPrint body, Exactprintable p)
+    => ExactPrint (HsFieldBind (LocatedAn NoEpAnns (FieldLabelStrings (GhcPass p))) body) where
   getAnnotationEntry x = fromAnn (hfbAnn x)
   setAnnotationAnchor (HsFieldBind an f arg isPun) anc cs = (HsFieldBind (setAnchorEpa an anc cs) f arg isPun)
 
@@ -3132,8 +3482,8 @@ instance (ExactPrint body)
 
 -- ---------------------------------------------------------------------
 
-instance (ExactPrint (LocatedA body))
-    => ExactPrint (HsFieldBind (LocatedAn NoEpAnns (AmbiguousFieldOcc GhcPs)) (LocatedA body)) where
+instance (ExactPrint (LocatedA body), Exactprintable p)
+    => ExactPrint (HsFieldBind (LocatedAn NoEpAnns (AmbiguousFieldOcc (GhcPass p))) (LocatedA body)) where
   getAnnotationEntry x = fromAnn (hfbAnn x)
   setAnnotationAnchor (HsFieldBind an f arg isPun) anc cs = (HsFieldBind (setAnchorEpa an anc cs) f arg isPun)
   exact (HsFieldBind an f arg isPun) = do
@@ -3148,11 +3498,11 @@ instance (ExactPrint (LocatedA body))
 
 -- ---------------------------------------------------------------------
 instance
-    (ExactPrint (HsFieldBind (LocatedAn NoEpAnns (a GhcPs)) body),
-     ExactPrint (HsFieldBind (LocatedAn NoEpAnns (b GhcPs)) body))
+    (ExactPrint (HsFieldBind (LocatedAn NoEpAnns (a (GhcPass p))) body),
+     ExactPrint (HsFieldBind (LocatedAn NoEpAnns (b (GhcPass p))) body))
     => ExactPrint
-         (Either [LocatedA (HsFieldBind (LocatedAn NoEpAnns (a GhcPs)) body)]
-                 [LocatedA (HsFieldBind (LocatedAn NoEpAnns (b GhcPs)) body)]) where
+         (Either [LocatedA (HsFieldBind (LocatedAn NoEpAnns (a (GhcPass p))) body)]
+                 [LocatedA (HsFieldBind (LocatedAn NoEpAnns (b (GhcPass p))) body)]) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
 
@@ -3161,14 +3511,14 @@ instance
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (FieldLabelStrings GhcPs) where
+instance (Exactprintable p) => ExactPrint (FieldLabelStrings (GhcPass p)) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
   exact (FieldLabelStrings fs) = FieldLabelStrings <$> markAnnotated fs
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (DotFieldOcc GhcPs) where
+instance (Exactprintable p) => ExactPrint (DotFieldOcc (GhcPass p)) where
   getAnnotationEntry (DotFieldOcc an _) = fromAnn an
 
   setAnnotationAnchor (DotFieldOcc an a) anc cs = DotFieldOcc (setAnchorEpa an anc cs) a
@@ -3182,7 +3532,7 @@ instance ExactPrint (DotFieldOcc GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (HsTupArg GhcPs) where
+instance (Exactprintable p) => ExactPrint (HsTupArg (GhcPass p)) where
   getAnnotationEntry (Present an _) = fromAnn an
   getAnnotationEntry (Missing an)   = fromAnn an
 
@@ -3196,14 +3546,14 @@ instance ExactPrint (HsTupArg GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (HsCmdTop GhcPs) where
+instance (Exactprintable p) => ExactPrint (HsCmdTop (GhcPass p)) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
   exact (HsCmdTop a cmd) = HsCmdTop a <$> markAnnotated cmd
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (HsCmd GhcPs) where
+instance (Exactprintable p) => ExactPrint (HsCmd (GhcPass p)) where
   getAnnotationEntry (HsCmdArrApp an _ _ _ _)   = fromAnn an
   getAnnotationEntry (HsCmdArrForm an _ _ _ _ ) = fromAnn an
   getAnnotationEntry (HsCmdApp an _ _ )         = fromAnn an
@@ -3316,12 +3666,19 @@ instance ExactPrint (HsCmd GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance (
-  ExactPrint (LocatedA (body GhcPs)),
-                 Anno (StmtLR GhcPs GhcPs (LocatedA (body GhcPs))) ~ SrcSpanAnnA,
-           Anno [GenLocated SrcSpanAnnA (StmtLR GhcPs GhcPs (LocatedA (body GhcPs)))] ~ SrcSpanAnnL,
-           (ExactPrint (LocatedL [LocatedA (StmtLR GhcPs GhcPs (LocatedA (body GhcPs)))])))
-   => ExactPrint (StmtLR GhcPs GhcPs (LocatedA (body GhcPs))) where
+instance (Exactprintable p,
+   HasEntry (XBindStmt (GhcPass p) (GhcPass p) (LocatedA (body (GhcPass p)))),
+   HasEntry (XTransStmt (GhcPass p) (GhcPass p) (LocatedA (body (GhcPass p)))),
+   HasEntry (XRecStmt (GhcPass p) (GhcPass p) (LocatedA (body (GhcPass p)))),
+   XBindStmt (GhcPass p) (GhcPass p) (LocatedA (body (GhcPass p))) ~ EpAnn [AddEpAnn],
+   XTransStmt (GhcPass p) (GhcPass p) (LocatedA (body (GhcPass p))) ~ EpAnn [AddEpAnn],
+   XRecStmt (GhcPass p) (GhcPass p) (LocatedA (body (GhcPass p))) ~ EpAnn AnnList,
+   ExactPrint (LocatedA (body (GhcPass p))),
+   Anno (StmtLR (GhcPass p) (GhcPass p) (LocatedA (body (GhcPass p)))) ~ SrcSpanAnnA,
+   Anno [GenLocated SrcSpanAnnA (StmtLR (GhcPass p) (GhcPass p) (LocatedA (body (GhcPass p))))] ~ SrcSpanAnnL,
+   (ExactPrint (LocatedL [LocatedA (StmtLR (GhcPass p) (GhcPass p) (LocatedA (body (GhcPass p))))]))
+         )
+   => ExactPrint (StmtLR (GhcPass p) (GhcPass p) (LocatedA (body (GhcPass p)))) where
   getAnnotationEntry (LastStmt _ _ _ _)             = NoEntryVal
   getAnnotationEntry (BindStmt an _ _)              = fromAnn an
   getAnnotationEntry (ApplicativeStmt _ _ _)        = NoEntryVal
@@ -3389,16 +3746,16 @@ instance (
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (ParStmtBlock GhcPs GhcPs) where
+instance (Exactprintable p) => ExactPrint (ParStmtBlock (GhcPass p) (GhcPass p)) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
   exact (ParStmtBlock a stmts b c) = do
     stmts' <- markAnnotated stmts
     return (ParStmtBlock a stmts' b c)
 
-exactTransStmt :: (Monad m, Monoid w)
-  => EpAnn [AddEpAnn] -> Maybe (LHsExpr GhcPs) -> (LHsExpr GhcPs) -> TransForm
-  -> EP w m (EpAnn [AddEpAnn], Maybe (LHsExpr GhcPs), (LHsExpr GhcPs))
+exactTransStmt :: (Monad m, Monoid w, Exactprintable p)
+  => EpAnn [AddEpAnn] -> Maybe (LHsExpr (GhcPass p)) -> (LHsExpr (GhcPass p)) -> TransForm
+  -> EP w m (EpAnn [AddEpAnn], Maybe (LHsExpr (GhcPass p)), (LHsExpr (GhcPass p)))
 exactTransStmt an by using ThenForm = do
   debugM $ "exactTransStmt:ThenForm"
   an0 <- markEpAnnL an lidl AnnThen
@@ -3425,7 +3782,7 @@ exactTransStmt an by using GroupForm = do
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (TyClDecl GhcPs) where
+instance (Exactprintable p) => ExactPrint (TyClDecl (GhcPass p)) where
   getAnnotationEntry (FamDecl   { })                      = NoEntryVal
   getAnnotationEntry (SynDecl   { tcdSExt = an })         = fromAnn an
   getAnnotationEntry (DataDecl  { tcdDExt = an })         = fromAnn an
@@ -3531,7 +3888,7 @@ instance ExactPrint (TyClDecl GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (FunDep GhcPs) where
+instance (Exactprintable p) => ExactPrint (FunDep (GhcPass p)) where
   getAnnotationEntry (FunDep an _ _) = fromAnn an
   setAnnotationAnchor (FunDep an a b) anc cs = FunDep (setAnchorEpa an anc cs) a b
 
@@ -3543,7 +3900,7 @@ instance ExactPrint (FunDep GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (FamilyDecl GhcPs) where
+instance (Exactprintable p) => ExactPrint (FamilyDecl (GhcPass p)) where
   getAnnotationEntry (FamilyDecl { fdExt = an }) = fromAnn an
   setAnnotationAnchor x anc cs = x { fdExt = setAnchorEpa (fdExt x) anc cs}
 
@@ -3614,7 +3971,7 @@ instance ExactPrint (FamilyDecl GhcPs) where
             return (an0, TyVarSig x tv_bndr')
 
 
-exactFlavour :: (Monad m, Monoid w) => EpAnn [AddEpAnn] -> FamilyInfo GhcPs -> EP w m (EpAnn [AddEpAnn])
+exactFlavour :: (Monad m, Monoid w) => EpAnn [AddEpAnn] -> FamilyInfo (GhcPass p) -> EP w m (EpAnn [AddEpAnn])
 exactFlavour an DataFamily            = markEpAnnL an lidl AnnData
 exactFlavour an OpenTypeFamily        = markEpAnnL an lidl AnnType
 exactFlavour an (ClosedTypeFamily {}) = markEpAnnL an lidl AnnType
@@ -3622,17 +3979,17 @@ exactFlavour an (ClosedTypeFamily {}) = markEpAnnL an lidl AnnType
 -- ---------------------------------------------------------------------
 
 exactDataDefn
-  :: (Monad m, Monoid w)
+  :: (Monad m, Monoid w, Exactprintable p)
   => EpAnn [AddEpAnn]
-  -> (Maybe (LHsContext GhcPs) -> EP w m (EpAnn [AddEpAnn]
+  -> (Maybe (LHsContext (GhcPass p)) -> EP w m (EpAnn [AddEpAnn]
                                          , LocatedN RdrName
                                          , a
                                          , b
-                                         , Maybe (LHsContext GhcPs))) -- Printing the header
-  -> HsDataDefn GhcPs
+                                         , Maybe (LHsContext (GhcPass p)))) -- Printing the header
+  -> HsDataDefn (GhcPass p)
   -> EP w m ( EpAnn [AddEpAnn] -- ^ from exactHdr
             , EpAnn [AddEpAnn] -- ^ updated one passed in
-            , LocatedN RdrName, a, b, Maybe (LHsContext GhcPs), HsDataDefn GhcPs)
+            , LocatedN RdrName, a, b, Maybe (LHsContext (GhcPass p)), HsDataDefn (GhcPass p))
 exactDataDefn an exactHdr
                  (HsDataDefn { dd_ext = x, dd_ctxt = context
                              , dd_cType = mb_ct
@@ -3673,15 +4030,15 @@ exactDataDefn an exactHdr
                              , dd_cons = condecls'', dd_derivs = derivings' }))
 
 
-exactVanillaDeclHead :: (Monad m, Monoid w)
+exactVanillaDeclHead :: (Monad m, Monoid w, Exactprintable p)
                      => LocatedN RdrName
-                     -> LHsQTyVars GhcPs
+                     -> LHsQTyVars (GhcPass p)
                      -> LexicalFixity
-                     -> Maybe (LHsContext GhcPs)
+                     -> Maybe (LHsContext (GhcPass p))
                      -> EP w m ( EpAnn [AddEpAnn]
                                , LocatedN RdrName
-                               , LHsQTyVars GhcPs
-                               , (), Maybe (LHsContext GhcPs))
+                               , LHsQTyVars (GhcPass p)
+                               , (), Maybe (LHsContext (GhcPass p)))
 exactVanillaDeclHead thing tvs@(HsQTvs { hsq_explicit = tyvars }) fixity context = do
   let
     exact_tyvars (varl:varsr)
@@ -3709,7 +4066,7 @@ exactVanillaDeclHead thing tvs@(HsQTvs { hsq_explicit = tyvars }) fixity context
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (InjectivityAnn GhcPs) where
+instance (Exactprintable p) => ExactPrint (InjectivityAnn (GhcPass p)) where
   getAnnotationEntry (InjectivityAnn an _ _) = fromAnn an
   setAnnotationAnchor (InjectivityAnn an a b) anc cs = InjectivityAnn (setAnchorEpa an anc cs) a b
   exact (InjectivityAnn an lhs rhs) = do
@@ -3722,9 +4079,10 @@ instance ExactPrint (InjectivityAnn GhcPs) where
 -- ---------------------------------------------------------------------
 
 class Typeable flag => ExactPrintTVFlag flag where
-  exactTVDelimiters :: (Monad m, Monoid w)
-    => EpAnn [AddEpAnn] -> flag -> EP w m (HsTyVarBndr flag GhcPs)
-    -> EP w m (EpAnn [AddEpAnn], (HsTyVarBndr flag GhcPs))
+  exactTVDelimiters :: (Monad m, Monoid w, Exactprintable p)
+    => EpAnn [AddEpAnn] -> flag
+    -> EP w m                    (HsTyVarBndr flag (GhcPass p))
+    -> EP w m (EpAnn [AddEpAnn], (HsTyVarBndr flag (GhcPass p)))
 
 instance ExactPrintTVFlag () where
   exactTVDelimiters an _ thing_inside = do
@@ -3744,7 +4102,8 @@ instance ExactPrintTVFlag Specificity where
         SpecifiedSpec -> (AnnOpenP, AnnCloseP)
         InferredSpec  -> (AnnOpenC, AnnCloseC)
 
-instance ExactPrintTVFlag flag => ExactPrint (HsTyVarBndr flag GhcPs) where
+instance (Exactprintable p, ExactPrintTVFlag flag)
+    => ExactPrint (HsTyVarBndr flag (GhcPass p)) where
   getAnnotationEntry (UserTyVar an _ _)     = fromAnn an
   getAnnotationEntry (KindedTyVar an _ _ _) = fromAnn an
 
@@ -3752,7 +4111,8 @@ instance ExactPrintTVFlag flag => ExactPrint (HsTyVarBndr flag GhcPs) where
   setAnnotationAnchor (KindedTyVar an a b c) anc cs = KindedTyVar (setAnchorEpa an anc cs) a b c
 
   exact (UserTyVar an flag n) = do
-    r <- exactTVDelimiters an flag $ do
+    r :: (EpAnn [AddEpAnn], HsTyVarBndr flag (GhcPass p))
+      <- exactTVDelimiters an flag $ do
            n' <- markAnnotated n
            return (UserTyVar an flag n')
     case r of
@@ -3770,7 +4130,7 @@ instance ExactPrintTVFlag flag => ExactPrint (HsTyVarBndr flag GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (HsType GhcPs) where
+instance (Exactprintable p) => ExactPrint (HsType (GhcPass p)) where
   getAnnotationEntry (HsForAllTy _ _ _)        = NoEntryVal
   getAnnotationEntry (HsQualTy _ _ _)          = NoEntryVal
   getAnnotationEntry (HsTyVar an _ _)          = fromAnn an
@@ -3938,7 +4298,7 @@ instance ExactPrint (HsType GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (HsForAllTelescope GhcPs) where
+instance (Exactprintable p) => ExactPrint (HsForAllTelescope (GhcPass p)) where
   getAnnotationEntry (HsForAllVis an _)   = fromAnn an
   getAnnotationEntry (HsForAllInvis an _) = fromAnn an
 
@@ -3959,7 +4319,7 @@ instance ExactPrint (HsForAllTelescope GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (HsDerivingClause GhcPs) where
+instance (Exactprintable p) => ExactPrint (HsDerivingClause (GhcPass p)) where
   getAnnotationEntry d@(HsDerivingClause{}) = fromAnn (deriv_clause_ext d)
   setAnnotationAnchor x anc cs = (x { deriv_clause_ext = setAnchorEpa (deriv_clause_ext x) anc cs})
                                    `debug` ("setAnnotationAnchor HsDerivingClause: (anc,cs):" ++ showAst (anc,cs))
@@ -3982,7 +4342,7 @@ instance ExactPrint (HsDerivingClause GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (DerivStrategy GhcPs) where
+instance (Exactprintable p) => ExactPrint (DerivStrategy (GhcPass p)) where
   getAnnotationEntry (StockStrategy an)    = fromAnn an
   getAnnotationEntry (AnyclassStrategy an) = fromAnn an
   getAnnotationEntry (NewtypeStrategy an)  = fromAnn an
@@ -4028,7 +4388,7 @@ instance (ExactPrint a) => ExactPrint (LocatedC a) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (DerivClauseTys GhcPs) where
+instance (Exactprintable p) => ExactPrint (DerivClauseTys (GhcPass p)) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
 
@@ -4041,7 +4401,7 @@ instance ExactPrint (DerivClauseTys GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (HsSigType GhcPs) where
+instance (Exactprintable p) => ExactPrint (HsSigType (GhcPass p)) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
 
@@ -4156,8 +4516,8 @@ markTrailing ts = do
 -- ---------------------------------------------------------------------
 
 -- based on pp_condecls in Decls.hs
-exact_condecls :: (Monad m, Monoid w)
-  => EpAnn [AddEpAnn] -> [LConDecl GhcPs] -> EP w m (EpAnn [AddEpAnn],[LConDecl GhcPs])
+exact_condecls :: (Monad m, Monoid w, Exactprintable p)
+  => EpAnn [AddEpAnn] -> [LConDecl (GhcPass p)] -> EP w m (EpAnn [AddEpAnn],[LConDecl (GhcPass p)])
 exact_condecls an cs
   | gadt_syntax                  -- In GADT syntax
   = do
@@ -4176,7 +4536,7 @@ exact_condecls an cs
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (ConDecl GhcPs) where
+instance (Exactprintable p) => ExactPrint (ConDecl (GhcPass p)) where
   getAnnotationEntry x@(ConDeclGADT{}) = fromAnn (con_g_ext x)
   getAnnotationEntry x@(ConDeclH98{})  = fromAnn (con_ext x)
 
@@ -4279,7 +4639,13 @@ instance ExactPrint Void where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrintTVFlag flag => ExactPrint (HsOuterTyVarBndrs flag GhcPs) where
+instance (Exactprintable p, ExactPrintTVFlag flag,
+         HasEntry (XHsOuterExplicit (GhcPass p) flag),
+         HasEntry (XHsOuterExplicit (GhcPass (NoGhcTcPass p)) flag),
+         XHsOuterExplicit (GhcPass p) flag ~ EpAnnForallTy,
+         XHsOuterExplicit (GhcPass (NoGhcTcPass p)) flag ~ EpAnnForallTy
+         )
+   => ExactPrint (HsOuterTyVarBndrs flag (GhcPass p)) where
   getAnnotationEntry (HsOuterImplicit _) = NoEntryVal
   getAnnotationEntry (HsOuterExplicit an _) = fromAnn an
 
@@ -4295,7 +4661,7 @@ instance ExactPrintTVFlag flag => ExactPrint (HsOuterTyVarBndrs flag GhcPs) wher
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (ConDeclField GhcPs) where
+instance (Exactprintable p) => ExactPrint (ConDeclField (GhcPass p)) where
   getAnnotationEntry f@(ConDeclField{}) = fromAnn (cd_fld_ext f)
 
   setAnnotationAnchor x anc cs = x { cd_fld_ext = setAnchorEpa (cd_fld_ext x) anc cs}
@@ -4309,14 +4675,14 @@ instance ExactPrint (ConDeclField GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (FieldOcc GhcPs) where
+instance (Exactprintable p) => ExactPrint (FieldOcc (GhcPass p)) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
   exact f@(FieldOcc _ n) = markAnnotated n >> return f
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (AmbiguousFieldOcc GhcPs) where
+instance (Exactprintable p) => ExactPrint (AmbiguousFieldOcc (GhcPass p)) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
   exact f@(Unambiguous _ n) = markAnnotated n >> return f
@@ -4324,7 +4690,8 @@ instance ExactPrint (AmbiguousFieldOcc GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance (ExactPrint a) => ExactPrint (HsScaled GhcPs a) where
+instance (Exactprintable p, ExactPrint a)
+   => ExactPrint (HsScaled (GhcPass p) a) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
   exact (HsScaled arr t) = do
@@ -4374,7 +4741,7 @@ instance ExactPrint (SourceText, RuleName) where
 -- applied.
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (LocatedL [LocatedA (IE GhcPs)]) where
+instance (Exactprintable p) => ExactPrint (LocatedL [LocatedA (IE (GhcPass p))]) where
   getAnnotationEntry = entryFromLocatedA
   setAnnotationAnchor = setAnchorAn
 
@@ -4386,8 +4753,8 @@ instance ExactPrint (LocatedL [LocatedA (IE GhcPs)]) where
     (an1, ies') <- markAnnList True an0 (markAnnotated ies)
     return (L (SrcSpanAnn an1 l) ies')
 
-instance (ExactPrint (Match GhcPs (LocatedA body)))
-   => ExactPrint (LocatedL [LocatedA (Match GhcPs (LocatedA body))]) where
+instance (ExactPrint (Match (GhcPass p) (LocatedA body)))
+   => ExactPrint (LocatedL [LocatedA (Match (GhcPass p) (LocatedA body))]) where
   getAnnotationEntry = entryFromLocatedA
   setAnnotationAnchor = setAnchorAn
   exact (L la a) = do
@@ -4401,7 +4768,8 @@ instance (ExactPrint (Match GhcPs (LocatedA body)))
     an3 <- markLensMAA an2 lal_close
     return (L (la { ann = an3}) a')
 
-instance ExactPrint (LocatedL [LocatedA (StmtLR GhcPs GhcPs (LocatedA (HsExpr GhcPs)))]) where
+instance (Exactprintable p)
+   => ExactPrint (LocatedL [LocatedA (StmtLR (GhcPass p) (GhcPass p) (LocatedA (HsExpr (GhcPass p))))]) where
   getAnnotationEntry = entryFromLocatedA
   setAnnotationAnchor = setAnchorAn
   exact (L (SrcSpanAnn an l) stmts) = do
@@ -4417,8 +4785,9 @@ instance ExactPrint (LocatedL [LocatedA (StmtLR GhcPs GhcPs (LocatedA (HsExpr Gh
           markAnnotated stmts
     return (L (SrcSpanAnn an'' l) stmts')
 
--- instance ExactPrint (LocatedL [CmdLStmt GhcPs]) where
-instance ExactPrint (LocatedL [LocatedA (StmtLR GhcPs GhcPs (LocatedA (HsCmd GhcPs)))]) where
+-- instance ExactPrint (LocatedL [CmdLStmt (GhcPass p)]) where
+instance (Exactprintable p)
+  => ExactPrint (LocatedL [LocatedA (StmtLR (GhcPass p) (GhcPass p) (LocatedA (HsCmd (GhcPass p))))]) where
   getAnnotationEntry = entryFromLocatedA
   setAnnotationAnchor = setAnchorAn
   exact (L (SrcSpanAnn ann l) es) = do
@@ -4428,7 +4797,7 @@ instance ExactPrint (LocatedL [LocatedA (StmtLR GhcPs GhcPs (LocatedA (HsCmd Ghc
     an1 <- markLensMAA an0 lal_close
     return (L (SrcSpanAnn an1 l) es')
 
-instance ExactPrint (LocatedL [LocatedA (ConDeclField GhcPs)]) where
+instance (Exactprintable p) => ExactPrint (LocatedL [LocatedA (ConDeclField (GhcPass p))]) where
   getAnnotationEntry = entryFromLocatedA
   setAnnotationAnchor = setAnchorAn
   exact (L (SrcSpanAnn an l) fs) = do
@@ -4448,7 +4817,7 @@ instance ExactPrint (LocatedL (BF.BooleanFormula (LocatedN RdrName))) where
 -- LocatedL instances end --
 -- =====================================================================
 
-instance ExactPrint (IE GhcPs) where
+instance (Exactprintable p) => ExactPrint (IE (GhcPass p)) where
   getAnnotationEntry (IEVar _ _)            = NoEntryVal
   getAnnotationEntry (IEThingAbs an _)      = fromAnn an
   getAnnotationEntry (IEThingAll an _)      = fromAnn an
@@ -4507,7 +4876,7 @@ instance ExactPrint (IE GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (IEWrappedName GhcPs) where
+instance (Exactprintable p) => ExactPrint (IEWrappedName (GhcPass p)) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
 
@@ -4525,7 +4894,7 @@ instance ExactPrint (IEWrappedName GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (Pat GhcPs) where
+instance (Exactprintable p) => ExactPrint (Pat (GhcPass p)) where
   getAnnotationEntry (WildPat _)              = NoEntryVal
   getAnnotationEntry (VarPat _ _)             = NoEntryVal
   getAnnotationEntry (LazyPat an _)           = fromAnn an
@@ -4650,7 +5019,7 @@ instance ExactPrint (Pat GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (HsPatSigType GhcPs) where
+instance (Exactprintable p) => ExactPrint (HsPatSigType (GhcPass p)) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
 
@@ -4660,7 +5029,7 @@ instance ExactPrint (HsPatSigType GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (HsOverLit GhcPs) where
+instance (Exactprintable p) => ExactPrint (HsOverLit (GhcPass p)) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
 
@@ -4676,7 +5045,7 @@ instance ExactPrint (HsOverLit GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-hsLit2String :: HsLit GhcPs -> String
+hsLit2String :: HsLit (GhcPass p) -> String
 hsLit2String lit =
   case lit of
     HsChar       src v   -> toSourceTextWithSuffix src v ""
@@ -4705,9 +5074,9 @@ sourceTextToString (SourceText txt) _ = txt
 
 -- ---------------------------------------------------------------------
 
-exactUserCon :: (Monad m, Monoid w, ExactPrint con)
-  => EpAnn [AddEpAnn] -> con -> HsConPatDetails GhcPs
-  -> EP w m (EpAnn [AddEpAnn], con, HsConPatDetails GhcPs)
+exactUserCon :: (Monad m, Monoid w, ExactPrint con, Exactprintable p)
+  => EpAnn [AddEpAnn] -> con -> HsConPatDetails (GhcPass p)
+  -> EP w m (EpAnn [AddEpAnn], con, HsConPatDetails (GhcPass p))
 exactUserCon an c (InfixCon p1 p2) = do
   p1' <- markAnnotated p1
   c' <- markAnnotated c
@@ -4720,7 +5089,7 @@ exactUserCon an c details = do
   an1 <- markEpAnnL an0 lidl AnnCloseC
   return (an1, c', details')
 
-instance ExactPrint (HsConPatTyArg GhcPs) where
+instance (Exactprintable p) => ExactPrint (HsConPatTyArg (GhcPass p)) where
   getAnnotationEntry _ = NoEntryVal
   setAnnotationAnchor a _ _ = a
   exact (HsConPatTyArg at tyarg) = do
@@ -4728,8 +5097,8 @@ instance ExactPrint (HsConPatTyArg GhcPs) where
     tyarg' <- markAnnotated tyarg
     return (HsConPatTyArg at' tyarg')
 
-exactConArgs :: (Monad m, Monoid w)
-  => HsConPatDetails GhcPs -> EP w m (HsConPatDetails GhcPs)
+exactConArgs :: (Monad m, Monoid w, Exactprintable p)
+  => HsConPatDetails (GhcPass p) -> EP w m (HsConPatDetails (GhcPass p))
 exactConArgs (PrefixCon tyargs pats) = do
   tyargs' <- markAnnotated tyargs
   pats' <- markAnnotated pats

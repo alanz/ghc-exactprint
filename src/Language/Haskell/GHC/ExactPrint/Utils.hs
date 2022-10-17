@@ -3,6 +3,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Language.Haskell.GHC.ExactPrint.Utils
   -- (
@@ -351,7 +352,8 @@ setAnchorEpaL :: EpAnn AnnList -> Anchor -> EpAnnComments -> EpAnn AnnList
 setAnchorEpaL EpAnnNotUsed   anc cs = EpAnn anc mempty cs
 setAnchorEpaL (EpAnn _ an _) anc cs = EpAnn anc (an {al_anchor = Nothing}) cs
 
-setAnchorHsModule :: HsModule GhcPs -> Anchor -> EpAnnComments -> HsModule GhcPs
+setAnchorHsModule :: (XCModule (GhcPass p) ~ XModulePs)
+  => HsModule (GhcPass p) -> Anchor -> EpAnnComments -> HsModule (GhcPass p)
 setAnchorHsModule hsmod anc cs = hsmod { hsmodExt = (hsmodExt hsmod) {hsmodAnn = an'} }
   where
     anc' = anc { anchor_op = UnchangedAnchor }
