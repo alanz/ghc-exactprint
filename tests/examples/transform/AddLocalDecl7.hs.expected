@@ -1,0 +1,28 @@
+module AddLocalDecl7 where
+
+d1 = 1
+  where nn = 2
+        -- c1
+        w1 = 1
+
+d2 = 1
+  where nn = 2
+        w2 = 1
+
+d3 = 1
+  where
+  nn = 2
+
+d4 = 1
+  where
+    nn = 2
+
+d5 = 1
+  where
+  nn = 2 -- c5
+
+d6 = 1 where
+  nn = 2
+
+d7 = 1 where
+  nn = 2 -- c7
