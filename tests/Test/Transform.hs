@@ -466,7 +466,7 @@ prependDecl ldecl = \case
         (L (SrcSpanAnn (EpAnn _ _ (EpaComments _)) _) _) ->
           error "Unexpected unbalanced comments"
         (L (SrcSpanAnn (EpAnn d1Anc d1Ann (EpaCommentsBalanced (L (Anchor c1Rss cAnc) c1:restCs) d1AfterCs)) ss) d1) ->
-          -- NOTE cannot use setEntryDP to simply assign `DL 1 0` here because when there is a prior comment, the
+          -- NOTE cannot use setEntryDP to simply assign `DL 1 0` here because when there is no prior decl, the
           --      DeltaPos on the declaration is absolute instead of relative, and so we must manually update the
           --      DeltaPos to be relative (since there is about to be a prior declaration).
           let ld1' = L
