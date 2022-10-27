@@ -485,7 +485,7 @@ prependDecl ldecl = \case
           let ld1' = L (SrcSpanAnn (EpAnn (Anchor d1Rss $ MovedAnchor $ DifferentLine 1 0) d1Ann epaCs) ss) d1
           in (d1AncOp, ld1')
         L (SrcSpanAnn EpAnnNotUsed _) _ -> error "Unexpected EpAnnNotUsed"
-      ldecl' = setEntryDP ldecl (getAnchorOpDp ancOp)
+      ldecl' = setEntryDP ldecl (maybe (error "what to do with UnchangedAnchor?") id $ getAnchorOpDp ancOp)
 
 addLocaLDecl8 :: Changer
 addLocaLDecl8 libdir top = do
@@ -508,16 +508,12 @@ appendDecl old newDecl = case old of
   [] -> [setEntryDP newDecl (DifferentLine 1 2)]
   old' -> old' <> [setEntryDP newDecl (DifferentLine 1 0)]
 
-getAnchorDp :: Anchor -> DeltaPos
-getAnchorDp (Anchor _ (MovedAnchor dp)) = dp
-getAnchorDp (Anchor _ UnchangedAnchor) = error "Unexpected UnchangedAnchor"
-
 setAnchorDp :: Anchor -> DeltaPos -> Anchor
 setAnchorDp (Anchor rss _) dp = Anchor rss (MovedAnchor dp)
 
-getAnchorOpDp :: AnchorOperation -> DeltaPos
-getAnchorOpDp (MovedAnchor dp) = dp
-getAnchorOpDp UnchangedAnchor = error "Unexpected UnchangedAnchor"
+getAnchorOpDp :: AnchorOperation -> Maybe DeltaPos
+getAnchorOpDp (MovedAnchor dp) = Just dp
+getAnchorOpDp UnchangedAnchor = Nothing
 
 -- ---------------------------------------------------------------------
 
