@@ -31,7 +31,9 @@ import Test.HUnit
 transformTestsTT :: LibDir -> Test
 transformTestsTT libdir = TestLabel "transformTestsTT" $ TestList
   [
-   mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
+   mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs",
+   mkTestModChange libdir addLocaLDecl7  "AddLocalDecl7.hs",
+   mkTestModChange libdir addLocaLDecl8  "AddLocalDecl8.hs"
   ]
 
 transformTests :: LibDir -> Test
@@ -294,6 +296,7 @@ transformHighLevelTests libdir =
   , mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
   , mkTestModChange libdir addLocaLDecl6  "AddLocalDecl6.hs"
   , mkTestModChange libdir addLocaLDecl7  "AddLocalDecl7.hs"
+  , mkTestModChange libdir addLocaLDecl8  "AddLocalDecl8.hs"
 
   , mkTestModChange libdir rmDecl1 "RmDecl1.hs"
   , mkTestModChange libdir rmDecl2 "RmDecl2.hs"
@@ -483,6 +486,27 @@ prependDecl ldecl = \case
           in (d1AncOp, ld1')
         L (SrcSpanAnn EpAnnNotUsed _) _ -> error "Unexpected EpAnnNotUsed"
       ldecl' = setEntryDP ldecl (getAnchorOpDp ancOp)
+
+addLocaLDecl8 :: Changer
+addLocaLDecl8 libdir top = do
+  Right (L ld (ValD _ decl)) <- withDynFlags libdir (\df -> parseDecl df "decl" "nn = 2")
+  let decl' = setEntryDP (L ld decl) (DifferentLine 1 5)
+      doAddLocal = do
+        let lp = makeDeltaAst top
+        ds <- balanceCommentsList =<< hsDecls lp
+        ds' <- flip mapM ds $ \d -> do
+          (d',_) <- modifyValD (getLocA d) d $ \_m ds -> do
+            pure (appendDecl ds (wrapDecl decl'), Nothing)
+          pure d'
+        replaceDecls lp ds'
+  (lp',_,w) <- runTransformT doAddLocal
+  debugM $ "addLocaLDecl7:" ++ intercalate "\n" w
+  return lp'
+
+appendDecl :: [LHsDecl GhcPs] -> LHsDecl GhcPs -> [LHsDecl GhcPs]
+appendDecl old newDecl = case old of
+  [] -> [setEntryDP newDecl (DifferentLine 1 2)]
+  old' -> old' <> [setEntryDP newDecl (DifferentLine 1 0)]
 
 getAnchorDp :: Anchor -> DeltaPos
 getAnchorDp (Anchor _ (MovedAnchor dp)) = dp
