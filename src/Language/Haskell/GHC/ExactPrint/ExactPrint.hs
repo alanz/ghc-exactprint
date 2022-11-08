@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP   #-}
 {-# LANGUAGE DeriveDataTypeable   #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE FlexibleInstances    #-}
@@ -42,6 +43,9 @@ import GHC.TypeLits
 import GHC.Types.Basic hiding (EP)
 import GHC.Types.Fixity
 import GHC.Types.ForeignCall
+#if MIN_VERSION_ghc(9,4,3)
+import GHC.Types.Name.Reader
+#endif
 import GHC.Types.SourceText
 import GHC.Types.PkgQual
 import GHC.Types.Var
@@ -3223,10 +3227,19 @@ instance ExactPrint (DotFieldOcc GhcPs) where
 
   setAnnotationAnchor (DotFieldOcc an a) anc cs = DotFieldOcc (setAnchorEpa an anc cs) a
 
+#if MIN_VERSION_ghc(9,4,3)
+  exact (DotFieldOcc an (L loc fs)) = do
+    an0 <- markLensKwM an lafDot  AnnDot
+    -- The field name has a SrcSpanAnnN, print it as a
+    -- LocatedN RdrName
+    L loc' _ <- markAnnotated (L loc (mkVarUnqual fs))
+    return (DotFieldOcc an0 (L loc' fs))
+#else
   exact (DotFieldOcc an fs) = do
     an0 <- markLensKwM an lafDot  AnnDot
     fs' <- markAnnotated fs
     return (DotFieldOcc an0 fs')
+#endif
 
 -- ---------------------------------------------------------------------
 
