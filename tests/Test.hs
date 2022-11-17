@@ -140,24 +140,18 @@ mkTests = do
   roundTripTests <- findTests libdir
   roundTripBalanceCommentsTests <- findTestsBC libdir
   roundTripMakeDeltaTests <- findTestsMD libdir
-  -- prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
-                      internalTests,
-                      roundTripTests
-                    ,
+                    --   internalTests,
+                    --   roundTripTests
+                    -- ,
                       (transformTests libdir)
-                    , (failingTests libdir)
-                    ,
-                      roundTripBalanceCommentsTests
-                    ,
-                      roundTripMakeDeltaTests
+                    -- , (failingTests libdir)
+                    -- ,
+                    --   roundTripBalanceCommentsTests
+                    -- ,
+                    --   roundTripMakeDeltaTests
                     ]
 
--- Tests that are no longer needed
-                    -- , noAnnotationTests
-                    -- ,
-                    --   prettyRoundTripTests
-                    -- ,
 
 failingTests :: LibDir -> Test
 failingTests libdir = testList "Failing tests"
@@ -249,7 +243,12 @@ tt' = do
     -- mkParserTest libdir "ghc94" "record-dot-four-out.hs"
 
     -- mkParserTest libdir "ghc86" "Webhook.hs"
-    mkParserTest libdir "ghc92" "ExperimIOP.hs"
+    -- mkParserTest libdir "ghc92" "ExperimIOP.hs"
+
+    -- mkParserTest libdir "ghc80" "overloadedrecfldsrun05.hs"
+
+    mkTestModChange libdir changeRenameCase1 "RenameCase1.hs"
+    -- mkParserTest libdir "transform" "RenameCase1.hs"
 
    -- Needs GHC changes
 

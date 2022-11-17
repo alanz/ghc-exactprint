@@ -147,3 +147,5 @@ gracjan> did you know that this is legal haskell:
 <gracjan> (+ 1) ` fmap {- -} ` [1,2,3]
 -}
 xxx = (+ 1) ` fmap {- -} ` [1,2,3]
+
+xxy x y = x ` fmap {- -} ` y

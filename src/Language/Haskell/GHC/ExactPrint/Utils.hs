@@ -23,6 +23,7 @@ import Data.Function
 import Data.List
 import Data.Maybe
 import Data.Ord (comparing)
+import Data.Data(Data)
 
 import Language.Haskell.GHC.ExactPrint.Lookup
 
@@ -35,8 +36,9 @@ import GHC.Types.Name
 import GHC.Types.Name.Reader
 import GHC.Types.SrcLoc
 import GHC.Data.FastString
-import GHC.Utils.Outputable ( showPprUnsafe )
+import GHC.Utils.Outputable ( showPprUnsafe, showSDocUnsafe )
 import qualified GHC.Data.Strict as Strict
+import qualified GHC.Hs.Dump as GHC
 
 import Debug.Trace
 import Language.Haskell.GHC.ExactPrint.Types
@@ -46,8 +48,8 @@ import Language.Haskell.GHC.ExactPrint.Types
 
 -- |Global switch to enable debug tracing in ghc-exactprint Delta / Print
 debugEnabledFlag :: Bool
--- debugEnabledFlag = True
-debugEnabledFlag = False
+debugEnabledFlag = True
+-- debugEnabledFlag = False
 
 -- |Provide a version of trace that comes at the end of the line, so it can
 -- easily be commented out when debugging different things.
@@ -118,9 +120,9 @@ undelta (l,_) (DifferentLine dl dc) (LayoutStartCol co) = (fl,fc)
     fc = co + dc
 
 undeltaSpan :: RealSrcSpan -> AnnKeywordId -> DeltaPos -> AddEpAnn
-undeltaSpan anchor kw dp = AddEpAnn kw (EpaSpan sp)
+undeltaSpan anc kw dp = AddEpAnn kw (EpaSpan sp)
   where
-    (l,c) = undelta (ss2pos anchor) dp (LayoutStartCol 0)
+    (l,c) = undelta (ss2pos anc) dp (LayoutStartCol 0)
     len = length (keywordToString kw)
     sp = range2rs ((l,c),(l,c+len))
 
@@ -146,16 +148,16 @@ rs2range :: RealSrcSpan -> (Pos,Pos)
 rs2range ss = (ss2pos ss, ss2posEnd ss)
 
 rs :: SrcSpan -> RealSrcSpan
-rs (RealSrcSpan s _) = s
+rs (RealSrcSpan s) = s
 rs _ = badRealSrcSpan
 
 range2rs :: (Pos,Pos) -> RealSrcSpan
-range2rs (s,e) = mkRealSrcSpan (mkLoc s) (mkLoc e)
+range2rs (s,e) = mkRealSrcSpan (mkLoc s) (mkLoc e) Strict.Nothing
   where
     mkLoc (l,c) = mkRealSrcLoc (fsLit "ghc-exactprint") l c
 
 badRealSrcSpan :: RealSrcSpan
-badRealSrcSpan = mkRealSrcSpan bad bad
+badRealSrcSpan = mkRealSrcSpan bad bad Strict.Nothing
   where
     bad = mkRealSrcLoc (fsLit "ghc-exactprint-nospan") 0 0
 
@@ -256,9 +258,9 @@ sortEpaComments cs = sortBy cmp cs
 -- | Makes a comment which originates from a specific keyword.
 mkKWComment :: AnnKeywordId -> EpaLocation -> Comment
 mkKWComment kw (EpaSpan ss)
-  = Comment (keywordToString kw) (Anchor ss UnchangedAnchor) ss (Just kw)
+  = Comment (keywordToString kw) (EpaSpan ss) ss (Just kw)
 mkKWComment kw (EpaDelta dp _)
-  = Comment (keywordToString kw) (Anchor placeholderRealSpan (MovedAnchor dp)) placeholderRealSpan (Just kw)
+  = Comment (keywordToString kw) (EpaDelta dp []) placeholderRealSpan (Just kw)
 
 -- | Detects a comment which originates from a specific keyword.
 isKWComment :: Comment -> Bool
@@ -317,31 +319,18 @@ name2String = showPprUnsafe
 --     s  = if isSymOcc     o then "Sym "     else ""
 --     v  = if isValOcc     o then "Val "     else ""
 
- -- ---------------------------------------------------------------------
-
-locatedAnAnchor :: LocatedAn a t -> RealSrcSpan
-locatedAnAnchor (L (SrcSpanAnn EpAnnNotUsed l) _) = realSrcSpan l
-locatedAnAnchor (L (SrcSpanAnn (EpAnn a _ _) _) _) = anchor a
-
 -- ---------------------------------------------------------------------
 
--- Note: moved to Language.Haskell.GHC.ExactPrint.ExactPrint as a hack
--- to avoid import loop problems while we have to use the local
--- version of Dump
--- showAst :: (Data a) => a -> String
--- showAst ast
---   = showSDocUnsafe
---     $ showAstData NoBlankSrcSpan NoBlankEpAnnotations ast
-
--- ---------------------------------------------------------------------
-
-setAnchorAn :: (Default an) => LocatedAn an a -> Anchor -> EpAnnComments -> LocatedAn an a
-setAnchorAn (L (SrcSpanAnn EpAnnNotUsed l)    a) anc cs
+setAnchorAnI :: (Default an) => LocatedAn an a -> Anchor -> EpAnnComments -> LocatedAn an a
+setAnchorAnI (L (SrcSpanAnn EpAnnNotUsed l)    a) anc cs
   = (L (SrcSpanAnn (EpAnn anc Orphans.def cs) l) a)
      -- `debug` ("setAnchorAn: anc=" ++ showAst anc)
-setAnchorAn (L (SrcSpanAnn (EpAnn _ an _) l) a) anc cs
+setAnchorAnI (L (SrcSpanAnn (EpAnn _ an _) l) a) anc cs
   = (L (SrcSpanAnn (EpAnn anc an cs) l) a)
      -- `debug` ("setAnchorAn: anc=" ++ showAst anc)
+
+setAnchorAn :: LocatedAnS an a -> Anchor -> EpAnnComments -> LocatedAnS an a
+setAnchorAn (L (EpAnnS _ an _) a) anc cs = (L (EpAnnS anc an cs) a)
 
 setAnchorEpa :: (Default an) => EpAnn an -> Anchor -> EpAnnComments -> EpAnn an
 setAnchorEpa EpAnnNotUsed   anc cs = EpAnn anc Orphans.def cs
@@ -354,13 +343,14 @@ setAnchorEpaL (EpAnn _ an _) anc cs = EpAnn anc (an {al_anchor = Nothing}) cs
 setAnchorHsModule :: HsModule GhcPs -> Anchor -> EpAnnComments -> HsModule GhcPs
 setAnchorHsModule hsmod anc cs = hsmod { hsmodExt = (hsmodExt hsmod) {hsmodAnn = an'} }
   where
-    anc' = anc { anchor_op = UnchangedAnchor }
+    -- anc' = anc { anchor_op = UnchangedAnchor }
+    anc' = anc
     an' = setAnchorEpa (hsmodAnn $ hsmodExt hsmod) anc' cs
 
 -- |Version of l2l that preserves the anchor, immportant if it has an
 -- updated AnchorOperation
 moveAnchor :: Monoid b => SrcAnn a -> SrcAnn b
-moveAnchor (SrcSpanAnn EpAnnNotUsed l) = noAnnSrcSpan l
+moveAnchor (SrcSpanAnn EpAnnNotUsed l) = noAnnSrcSpanI l
 moveAnchor (SrcSpanAnn (EpAnn anc _ cs) l) = SrcSpanAnn (EpAnn anc mempty cs) l
 
 -- ---------------------------------------------------------------------
@@ -382,8 +372,7 @@ addEpAnnLoc (AddEpAnn _ l) = l
 
 -- TODO: move this to GHC
 anchorToEpaLocation :: Anchor -> EpaLocation
-anchorToEpaLocation (Anchor r UnchangedAnchor) = EpaSpan r
-anchorToEpaLocation (Anchor _ (MovedAnchor dp)) = EpaDelta dp []
+anchorToEpaLocation anc = anc
 
 -- ---------------------------------------------------------------------
 -- Horrible hack for dealing with some things still having a SrcSpan,
@@ -410,20 +399,36 @@ To be absolutely sure, we make the delta versions use -ve values.
 
 -}
 
+-- TODO:AZ get rid of this
 hackSrcSpanToAnchor :: SrcSpan -> Anchor
 hackSrcSpanToAnchor (UnhelpfulSpan s) = error $ "hackSrcSpanToAnchor : UnhelpfulSpan:" ++ show s
-hackSrcSpanToAnchor (RealSrcSpan r Strict.Nothing) = Anchor r UnchangedAnchor
-hackSrcSpanToAnchor (RealSrcSpan r (Strict.Just (BufSpan (BufPos s) (BufPos e))))
-  = if s <= 0 && e <= 0
-    then Anchor r (MovedAnchor (deltaPos (-s) (-e)))
-    else Anchor r UnchangedAnchor
+hackSrcSpanToAnchor (RealSrcSpan r)
+  = case  realSrcSpanBufSpan r of
+    (Strict.Just (BufSpan (BufPos s) (BufPos e))) ->
+      if s <= 0 && e <= 0
+      -- then Anchor r (MovedAnchor (deltaPos (-s) (-e)))
+      then EpaDelta (deltaPos (-s) (-e)) []
+        `debug` ("hackSrcSpanToAnchor: (r,s,e)=" ++ showAst (r,s,e) )
+      -- else Anchor r UnchangedAnchor
+      else EpaSpan r
+    _ -> EpaSpan r
 
+-- TODO:AZ get rid of this
 hackAnchorToSrcSpan :: Anchor -> SrcSpan
-hackAnchorToSrcSpan (Anchor r UnchangedAnchor) = RealSrcSpan r Strict.Nothing
-hackAnchorToSrcSpan (Anchor r (MovedAnchor dp))
-  = RealSrcSpan r (Strict.Just (BufSpan (BufPos s) (BufPos e)))
-  where
-    s = - (getDeltaLine dp)
-    e = - (deltaColumn dp)
+hackAnchorToSrcSpan (EpaSpan r) = RealSrcSpan (setRealSrcSpanBufSpan r Strict.Nothing)
+-- hackAnchorToSrcSpan (Anchor r (MovedAnchor dp))
+--   = RealSrcSpan (setRealSrcSpanBufSpan r (Strict.Just (BufSpan (BufPos s) (BufPos e))))
+--       `debug` ("hackAnchorToSrcSpan: (r,dp,s,e)=" ++ showAst (r,dp,s,e) )
+--   where
+--     s = - (getDeltaLine dp)
+--     e = - (deltaColumn dp)
+hackAnchorToSrcSpan _ = error $ "hackAnchorToSrcSpan"
+
+ -- ---------------------------------------------------------------------
+
+showAst :: (Data a) => a -> String
+showAst ast
+  = showSDocUnsafe
+    $ GHC.showAstData GHC.NoBlankSrcSpan GHC.NoBlankEpAnnotations ast
 
 -- ---------------------------------------------------------------------
