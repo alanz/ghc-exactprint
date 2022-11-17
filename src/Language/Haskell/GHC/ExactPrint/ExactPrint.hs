@@ -125,6 +125,7 @@ defaultEPState = EPState
              , dPriorEndPosition = (1,1)
              , uAnchorSpan = badRealSrcSpan
              , uExtraDP = Nothing
+             , pAcceptSpan = False
              , epComments = []
              , epCommentsApplied = []
              }
@@ -185,6 +186,13 @@ data EPState = EPState
                                           -- Annotation
              , uExtraDP :: !(Maybe Anchor) -- ^ Used to anchor a
                                              -- list
+             , pAcceptSpan :: Bool -- ^ When we have processed an
+                                   -- entry of EpaDelta, accept the
+                                   -- next `EpaSpan` start as the
+                                   -- current output position. i.e. do
+                                   -- not advance epPos. Achieved by
+                                   -- setting dPriorEndPosition to the
+                                   -- end of the span.
 
              -- Print phase
              , epPos        :: !Pos -- ^ Current output position
@@ -285,6 +293,11 @@ enterAnn NoEntryVal a = do
   debugM $ "enterAnn:done:NO ANN:p =" ++ show (p, astId a)
   return r
 enterAnn (Entry anchor' cs flush canUpdateAnchor) a = do
+  acceptSpan <- getAcceptSpan
+  setAcceptSpan False
+  case anchor' of
+    EpaDelta _ _ -> setAcceptSpan True
+    EpaSpan _ -> return ()
   p <- getPosP
   debugM $ "enterAnn:starting:(p,a) =" ++ show (p, astId a)
   debugM $ "enterAnn:(anchor') =" ++ showGhc anchor'
@@ -303,14 +316,17 @@ enterAnn (Entry anchor' cs flush canUpdateAnchor) a = do
   printComments curAnchor
   priorCs <- cua canUpdateAnchor takeAppliedComments -- no pop
   -- -------------------------
-  case anchor_op anchor' of
-    MovedAnchor dp -> do
-      debugM $ "enterAnn: MovedAnchor:" ++ show dp
+  case anchor' of
+    EpaDelta dp _ -> do
+      debugM $ "enterAnn: EpaDelta:" ++ show dp
       -- Set the original anchor as prior end, so the rest of this AST
       -- fragment has a reference
       setPriorEndNoLayoutD (ss2pos curAnchor)
     _ -> do
-      return ()
+      if acceptSpan
+        then setPriorEndNoLayoutD (ss2pos curAnchor)
+        else return ()
+
   -- -------------------------
   if ((fst $ fst $ rs2range curAnchor) >= 0)
     then
@@ -342,11 +358,10 @@ enterAnn (Entry anchor' cs flush canUpdateAnchor) a = do
                -- changed.
                off (ss2delta priorEndAfterComments curAnchor)
   debugM $ "enterAnn: (edp',off,priorEndAfterComments,curAnchor):" ++ show (edp',off,priorEndAfterComments,rs2range curAnchor)
-  let edp'' = case anchor_op anchor' of
-        MovedAnchor dp -> dp
+  let edp'' = case anchor' of
+        EpaDelta dp _ -> dp
         _ -> edp'
   -- ---------------------------------------------
-  -- let edp = edp''
   med <- getExtraDP
   setExtraDP Nothing
   let edp = case med of
@@ -4155,7 +4170,7 @@ printUnicode anc n = do
             -- TODO: unicode support?
               "forall" -> if spanLength (anchor anc) == 1 then "∀" else "forall"
               s -> s
-  loc <- printStringAtAAC NoCaptureComments (EpaDelta (SameLine 0) []) str
+  loc <- printStringAtAAC NoCaptureComments anc str
   case loc of
     EpaSpan _ -> return anc
     EpaDelta dp [] -> return $ EpaDelta dp []
@@ -4173,7 +4188,7 @@ markName adorn open mname close = do
     case mname of
       Nothing -> return Nothing
       Just (loc, name) -> do
-        -- debugM $ "(loc,name): " ++ showAst (loc,name)
+        debugM $ "(loc,name): " ++ showAst (loc,name)
         -- debugM $ "name:[" ++ (showPprUnsafe name) ++ "]"
         loc' <- printStringAtAAC CaptureComments loc (showPprUnsafe name)
         return (Just (loc',name))
@@ -4891,6 +4906,13 @@ getPriorEndD = gets dPriorEndPosition
 
 getAnchorU :: (Monad m, Monoid w) => EP w m RealSrcSpan
 getAnchorU = gets uAnchorSpan
+
+getAcceptSpan ::(Monad m, Monoid w) => EP w m Bool
+getAcceptSpan = gets pAcceptSpan
+
+setAcceptSpan ::(Monad m, Monoid w) => Bool -> EP w m ()
+setAcceptSpan f =
+  modify (\s -> s { pAcceptSpan = f })
 
 setPriorEndD :: (Monad m, Monoid w) => Pos -> EP w m ()
 setPriorEndD pe = do

@@ -129,7 +129,7 @@ undeltaSpan anc kw dp = AddEpAnn kw (EpaSpan sp)
 -- ---------------------------------------------------------------------
 
 adjustDeltaForOffset :: LayoutStartCol -> DeltaPos -> DeltaPos
-adjustDeltaForOffset _colOffset                      dp@(SameLine _) = dp
+adjustDeltaForOffset _colOffset              dp@(SameLine _) = dp
 adjustDeltaForOffset (LayoutStartCol colOffset) (DifferentLine l c)
   = DifferentLine l (c - colOffset)
 

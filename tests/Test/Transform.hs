@@ -58,10 +58,10 @@ transformLowLevelTests libdir = [
   , mkTestModChange libdir changeLocToName   "LocToName.hs"
   , mkTestModChange libdir changeLetIn1      "LetIn1.hs"
   , mkTestModChange libdir changeWhereIn4    "WhereIn4.hs"
-  , mkTestModChange libdir changeAddDecl     "AddDecl.hs"
-  , mkTestModChange libdir changeLocalDecls  "LocalDecls.hs"
-  , mkTestModChange libdir changeLocalDecls2 "LocalDecls2.hs"
-  , mkTestModChange libdir changeWhereIn3a   "WhereIn3a.hs"
+  , mkTestModChange libdir changeAddDecl     "AddDecl.hs"     -- 14
+  , mkTestModChange libdir changeLocalDecls  "LocalDecls.hs"  -- 15
+  , mkTestModChange libdir changeLocalDecls2 "LocalDecls2.hs" -- 16
+  , mkTestModChange libdir changeWhereIn3a   "WhereIn3a.hs"   -- 17
 --  , mkTestModChange changeCifToCase  "C.hs"          "C"
   ]
 
@@ -159,7 +159,8 @@ changeLocalDecls libdir top = do
   let  sig' = setEntryDP (makeDeltaAst (L ls sig))  (SameLine 0)
   -- let (p',_,_w) = runTransform doAddLocal
   let (top',_,_w) = runTransform doAddLocal
-      doAddLocal = everywhereM (mkM replaceLocalBinds) (makeDeltaAst top)
+      -- doAddLocal = everywhereM (mkM replaceLocalBinds) (makeDeltaAst top)
+      doAddLocal = everywhereM (mkM replaceLocalBinds) top
       replaceLocalBinds :: LMatch GhcPs (LHsExpr GhcPs)
                         -> Transform (LMatch GhcPs (LHsExpr GhcPs))
       replaceLocalBinds (L lm (Match an mln pats (GRHSs _ rhs (HsValBinds van (ValBinds _ binds sigs))))) = do
@@ -187,8 +188,8 @@ changeLocalDecls libdir top = do
 changeAddDecl :: Changer
 changeAddDecl libdir top = do
   Right decl <- withDynFlags libdir (\df -> parseDecl df "<interactive>" "nn = n2")
-  -- let decl' = setEntryDP decl (DifferentLine 2 0)
-  let decl' = setEntryDP (makeDeltaAst decl) (DifferentLine 2 0)
+  let decl' = setEntryDP decl (DifferentLine 2 0)
+  -- let decl' = setEntryDP (makeDeltaAst decl) (DifferentLine 2 0)
 
   let (p',_,_) = runTransform doAddDecl
       -- doAddDecl = everywhereM (mkM replaceTopLevelDecls) (makeDeltaAst top)
@@ -234,7 +235,7 @@ changeLayoutLet5 :: Changer
 changeLayoutLet5 _libdir parsed = return (rename "x" [((7,5),(7,8)),((9,14),(9,17))] parsed)
 
 
-rename :: (ExactPrint a, Data a) => String -> [(Pos, Pos)] -> a -> a
+rename :: (Data a) => String -> [(Pos, Pos)] -> a -> a
 rename newNameStr spans' a
   -- = everywhere (mkT replaceRdr) (makeDeltaAst a)
   = everywhere (mkT replaceRdr) a
@@ -254,7 +255,8 @@ rename newNameStr spans' a
 
 changeWhereIn4 :: Changer
 changeWhereIn4 _libdir parsed
-  = return (everywhere (mkT replace) (makeDeltaAst parsed))
+  -- = return (everywhere (mkT replace) (makeDeltaAst parsed))
+  = return (everywhere (mkT replace) parsed)
   where
     replace :: LocatedN RdrName -> LocatedN RdrName
     replace (L ln _n)
@@ -265,15 +267,15 @@ changeWhereIn4 _libdir parsed
 
 changeLetIn1 :: Changer
 changeLetIn1 _libdir parsed
-  = return (everywhere (mkT replace) (makeDeltaAst parsed))
+  = return (everywhere (mkT replace) parsed)
+  -- = return (everywhere (mkT replace) (makeDeltaAst parsed))
   where
     replace :: HsExpr GhcPs -> HsExpr GhcPs
-    replace (HsLet an tkLet localDecls _ expr)
+    replace (HsLet an tkLet localDecls _ (L _ e))
       =
          let (HsValBinds x (ValBinds xv bagDecls sigs)) = localDecls
              [l2,_l1] = map wrapDecl $ bagToList bagDecls
              bagDecls' = listToBag $ concatMap decl2Bind [l2]
-             (L (EpAnnS _ _ _) e) = expr
              a = (EpAnnS (EpaDelta (SameLine 1) []) mempty emptyComments)
              expr' = L a e
              tkIn' = L (TokenLoc (EpaDelta (DifferentLine 1 0) [])) HsTok

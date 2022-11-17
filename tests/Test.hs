@@ -247,8 +247,11 @@ tt' = do
 
     -- mkParserTest libdir "ghc80" "overloadedrecfldsrun05.hs"
 
-    mkTestModChange libdir changeRenameCase1 "RenameCase1.hs"
+    -- mkTestModChange libdir changeRenameCase1 "RenameCase1.hs"
     -- mkParserTest libdir "transform" "RenameCase1.hs"
+
+    -- mkTestModChange libdir changeLetIn1      "LetIn1.hs"
+    mkTestModChange libdir changeAddDecl     "AddDecl.hs"     -- 14
 
    -- Needs GHC changes
 
