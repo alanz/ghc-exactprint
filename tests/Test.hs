@@ -141,10 +141,10 @@ mkTests = do
   roundTripBalanceCommentsTests <- findTestsBC libdir
   roundTripMakeDeltaTests <- findTestsMD libdir
   return $ TestList [
-                    --   internalTests,
-                    --   roundTripTests
+                      internalTests,
+                      roundTripTests
                     -- ,
-                      (transformTests libdir)
+                      -- (transformTests libdir)
                     -- , (failingTests libdir)
                     -- ,
                     --   roundTripBalanceCommentsTests
@@ -251,8 +251,11 @@ tt' = do
     -- mkParserTest libdir "transform" "RenameCase1.hs"
 
     -- mkTestModChange libdir changeLetIn1      "LetIn1.hs"
-    mkTestModChange libdir changeAddDecl     "AddDecl.hs"     -- 14
+    -- mkTestModChange libdir changeAddDecl     "AddDecl.hs"     -- 14
 
+    -- mkTestModChange libdir changeLocalDecls  "LocalDecls.hs"  -- 15
+
+    mkParserTest libdir "ghc710" "EmptyMostly.hs"
    -- Needs GHC changes
 
 

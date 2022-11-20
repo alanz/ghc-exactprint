@@ -140,7 +140,7 @@ changeLocalDecls2 libdir top = do
                         emptyComments
 
         let decls = [s,d]
-        let sortKey = captureOrder decls
+        let sortKey = captureOrderBinds decls
         let binds = (HsValBinds an (ValBinds sortKey (listToBag $ [decl'])
                                     [sig']))
         return (L lm (Match ma mln pats (GRHSs emptyComments rhs binds)))
@@ -155,11 +155,11 @@ changeLocalDecls :: Changer
 changeLocalDecls libdir top = do
   Right s@(L ls (SigD _ sig))  <- withDynFlags libdir (\df -> parseDecl df "sig"  "nn :: Int")
   Right d@(L ld (ValD _ decl)) <- withDynFlags libdir (\df -> parseDecl df "decl" "nn = 2")
-  let decl' = setEntryDP (makeDeltaAst (L ld decl)) (DifferentLine 1 0)
-  let  sig' = setEntryDP (makeDeltaAst (L ls sig))  (SameLine 0)
-  -- let (p',_,_w) = runTransform doAddLocal
+  -- let decl' = setEntryDP (makeDeltaAst (L ld decl)) (DifferentLine 1 0)
+  let decl' = setEntryDP (L ld decl) (DifferentLine 1 0)
+  -- let  sig' = setEntryDP (makeDeltaAst (L ls sig))  (SameLine 0)
+  let  sig' = setEntryDP (L ls sig)  (SameLine 0)
   let (top',_,_w) = runTransform doAddLocal
-      -- doAddLocal = everywhereM (mkM replaceLocalBinds) (makeDeltaAst top)
       doAddLocal = everywhereM (mkM replaceLocalBinds) top
       replaceLocalBinds :: LMatch GhcPs (LHsExpr GhcPs)
                         -> Transform (LMatch GhcPs (LHsExpr GhcPs))
@@ -170,7 +170,7 @@ changeLocalDecls libdir top = do
         let oldBinds     = concatMap decl2Bind oldDecls'
             (os:oldSigs) = concatMap decl2Sig  oldDecls'
             os' = setEntryDP os (DifferentLine 2 0)
-        let sortKey = captureOrder decls
+        let sortKey = captureOrderBinds decls
         let (EpAnn anc (AnnList _ a b c dd) cs) = van
         let van' = (EpAnn anc (AnnList (Just (EpaDelta (DifferentLine 1 4) [])) a b c dd) cs)
         let binds' = (HsValBinds van'
@@ -525,7 +525,7 @@ rmDecl5 _libdir lp = do
         let
           go :: HsExpr GhcPs -> Transform (HsExpr GhcPs)
           go (HsLet a tkLet lb tkIn expr) = do
-            decs <- hsDeclsValBinds lb
+            let decs = hsDeclsLocalBinds lb
             let dec = last decs
             -- _ <- transferEntryDPT (head decs) dec
             lb' <- replaceDeclsValbinds WithoutWhere lb [dec]

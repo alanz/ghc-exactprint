@@ -68,7 +68,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , anchorEof
 
         -- ** Managing lists, pure functions
-        , captureOrder
+        , captureOrder, captureOrderBinds
         , captureLineSpacing, captureLineSpacingI
         , captureMatchLineSpacing
         , captureTypeSigSpacing
@@ -178,8 +178,27 @@ srcSpanStartLine' _ = 0
 
 -- |If a list has been re-ordered or had items added, capture the new order in
 -- the appropriate 'AnnSortKey' attached to the 'Annotation' for the list.
-captureOrder :: [LocatedA b] -> AnnSortKey
+captureOrder :: [LocatedA b] -> AnnSortKey [RealSrcSpan]
 captureOrder ls = AnnSortKey $ map (rs . getLocA) ls
+
+captureOrderBinds :: [LHsDecl GhcPs] -> AnnSortKey [DeclTag]
+captureOrderBinds ls = AnnSortKey $ map go ls
+  where
+    go (L _ (TyClD _ _))      = TyClDTag
+    go (L _ (InstD _ _))      = InstDTag
+    go (L _ (DerivD _ _))     = DerivDTag
+    go (L _ (ValD _ _))       = ValDTag
+    go (L _ (SigD _ _))       = SigDTag
+    go (L _ (KindSigD _ _))   = KindSigDTag
+    go (L _ (DefD _ _))       = DefDTag
+    go (L _ (ForD _ _))       = ForDTag
+    go (L _ (WarningD _ _))   = WarningDTag
+    go (L _ (AnnD _ _))       = AnnDTag
+    go (L _ (RuleD _ _))      = RuleDTag
+    go (L _ (SpliceD _ _))    = SpliceDTag
+    go (L _ (DocD _ _))       = DocDTag
+    go (L _ (RoleAnnotD _ _)) = RoleAnnotDTag
+    go (L _ (XHsDecl _))      = error "captureOrderBinds"
 
 -- ---------------------------------------------------------------------
 
@@ -219,6 +238,7 @@ captureTypeSigSpacing (L l (SigD x (TypeSig (EpAnn anc (AnnSig dc rs') cs) ns (H
     -- we want DPs for the distance from the end of the ns to the
     -- AnnDColon, and to the start of the ty
     AddEpAnn kw dca = dc
+        `debug` ("captureTypeSigSpacing: anc'=" ++ (showAst $ last ns))
     rd = case last ns of
       L (EpAnnS anc' _ _) _ -> anchor anc' -- TODO MovedAnchor?
     dc' = case dca of
@@ -266,15 +286,15 @@ decl2Sig _                = []
 
 -- ---------------------------------------------------------------------
 
--- |Convert a 'LSig' into a 'LHsDecl'
-wrapSig :: LSig GhcPs -> LHsDecl GhcPs
-wrapSig (L l s) = L l (SigD NoExtField s)
+-- -- |Convert a 'LSig' into a 'LHsDecl'
+-- wrapSig :: LSig GhcPs -> LHsDecl GhcPs
+-- wrapSig (L l s) = L l (SigD NoExtField s)
 
 -- ---------------------------------------------------------------------
 
--- |Convert a 'LHsBind' into a 'LHsDecl'
-wrapDecl :: LHsBind GhcPs -> LHsDecl GhcPs
-wrapDecl (L l s) = L l (ValD NoExtField s)
+-- -- |Convert a 'LHsBind' into a 'LHsDecl'
+-- wrapDecl :: LHsBind GhcPs -> LHsDecl GhcPs
+-- wrapDecl (L l s) = L l (ValD NoExtField s)
 
 -- ---------------------------------------------------------------------
 
@@ -321,12 +341,15 @@ setEntryDP (L (EpAnnS (EpaSpan r) an cs) a) dp
               where
                 cs'' = setPriorComments cs (L (EpaDelta dp []) c:cs')
                 lc = head $ reverse $ (L ca c:cs')
-                delta = tweakDelta $ ss2delta (ss2pos $ anchor $ getLoc lc) r
+                -- delta = tweakDelta $ ss2delta (ss2pos $ anchor $ getLoc lc) r
+                delta = case getLoc lc of
+                          EpaSpan rr -> tweakDelta $ ss2delta (ss2pos rr) r
+                          EpaDelta dp _ -> tweakDelta dp
                 line = getDeltaLine delta
                 col = deltaColumn delta
                 edp' = if line == 0 then SameLine col
                                     else DifferentLine line col
-                edp = edp' `debug` ("setEntryDP :" ++ showGhc (edp', (ss2pos $ anchor $ getLoc lc), r))
+                edp = edp' `debug` ("setEntryDP :" ++ showGhc (edp', (getLoc lc), r))
 
 
 -- |Set the true entry 'DeltaPos' from the annotation for a given AST
@@ -372,12 +395,15 @@ setEntryDPI (L (SrcSpanAnn (EpAnn (EpaSpan r) an cs) l) a) dp
               where
                 cs'' = setPriorComments cs (L (EpaDelta dp []) c:cs')
                 lc = head $ reverse $ (L ca c:cs')
-                delta = tweakDelta $ ss2delta (ss2pos $ anchor $ getLoc lc) r
+                -- delta = tweakDelta $ ss2delta (ss2pos $ anchor $ getLoc lc) r
+                delta = case getLoc lc of
+                          EpaSpan rr -> tweakDelta $ ss2delta (ss2pos rr) r
+                          EpaDelta dp _ -> tweakDelta dp
                 line = getDeltaLine delta
                 col = deltaColumn delta
                 edp' = if line == 0 then SameLine col
                                     else DifferentLine line col
-                edp = edp' `debug` ("setEntryDPI :" ++ showGhc (edp', (ss2pos $ anchor $ getLoc lc), r))
+                edp = edp' `debug` ("setEntryDPI :" ++ showGhc (edp', (getLoc lc), r))
 
 -- ---------------------------------------------------------------------
 
@@ -586,7 +612,7 @@ pushTrailingComments _ _cs (HsIPBinds _ _) = error "TODO: pushTrailingComments:H
 pushTrailingComments w cs lb@(HsValBinds an _)
   = (True, HsValBinds an' vb)
   where
-    (decls, _, _ws1) = runTransform (hsDeclsValBinds lb)
+    decls = hsDeclsLocalBinds lb
     (an', decls') = case reverse decls of
       [] -> (addCommentsToEpAnn (spanHsLocaLBinds lb) an cs, decls)
       (L la d:ds) -> (an, L (addCommentsToEpAnnS la cs) d:ds)
@@ -654,27 +680,30 @@ balanceComments' la1 la2 = do
 trailingCommentsDeltas :: RealSrcSpan -> [LEpaComment]
                -> [(Int, LEpaComment)]
 trailingCommentsDeltas _ [] = []
-trailingCommentsDeltas anc (la@(L l _):las)
-  = deltaComment anc la : trailingCommentsDeltas (anchor l) las
+trailingCommentsDeltas rs (la@(L (EpaDelta dp _) _):las)
+  = (deltaLine dp, la): trailingCommentsDeltas rs las
+trailingCommentsDeltas rs (la@(L l _):las)
+  = deltaComment rs la : trailingCommentsDeltas (anchor l) las
   where
-    deltaComment anc' (L loc c) = (abs(ll - al), L loc c)
+    deltaComment rs' (L loc c) = (abs(ll - al), L loc c)
       where
-        (al,_) = ss2posEnd anc'
+        (al,_) = ss2posEnd rs'
         (ll,_) = ss2pos (anchor loc)
 
 -- AZ:TODO: this is identical to commentsDeltas
 priorCommentsDeltas :: RealSrcSpan -> [LEpaComment]
                     -> [(Int, LEpaComment)]
-priorCommentsDeltas anc cs = go anc (reverse $ sortEpaComments cs)
+priorCommentsDeltas rs cs = go rs (reverse $ sortEpaComments cs)
   where
     go :: RealSrcSpan -> [LEpaComment] -> [(Int, LEpaComment)]
     go _ [] = []
-    go anc' (la@(L l _):las) = deltaComment anc' la : go (anchor l) las
+    go rs' (la@(L (EpaDelta dp _) _):las) = (deltaLine dp, la) : go rs' las
+    go rs' (la@(L l _):las) = deltaComment rs' la : go (anchor l) las
 
     deltaComment :: RealSrcSpan -> LEpaComment -> (Int, LEpaComment)
-    deltaComment anc' (L loc c) = (abs(ll - al), L loc c)
+    deltaComment rs' (L loc c) = (abs(ll - al), L loc c)
       where
-        (al,_) = ss2pos anc'
+        (al,_) = ss2pos rs'
         (ll,_) = ss2pos (anchor loc)
 
 
@@ -999,7 +1028,7 @@ instance HasDecls ParsedSource where
 -- ---------------------------------------------------------------------
 
 instance HasDecls (LocatedA (Match GhcPs (LocatedA (HsExpr GhcPs)))) where
-  hsDecls (L _ (Match _ _ _ (GRHSs _ _ lb))) = hsDeclsValBinds lb
+  hsDecls (L _ (Match _ _ _ (GRHSs _ _ lb))) = return $ hsDeclsLocalBinds lb
 
   replaceDecls (L l (Match xm c p (GRHSs xr rhs binds))) []
     = do
@@ -1028,7 +1057,7 @@ instance HasDecls (LocatedA (Match GhcPs (LocatedA (HsExpr GhcPs)))) where
 -- ---------------------------------------------------------------------
 
 instance HasDecls (LocatedA (HsExpr GhcPs)) where
-  hsDecls (L _ (HsLet _ _ decls _ _ex)) = hsDeclsValBinds decls
+  hsDecls (L _ (HsLet _ _ decls _ _ex)) = return $ hsDeclsLocalBinds decls
   hsDecls _                             = return []
 
   replaceDecls (L ll (HsLet x tkLet binds tkIn ex)) newDecls
@@ -1070,7 +1099,7 @@ instance HasDecls (LocatedA (HsExpr GhcPs)) where
 -- cannot be a member of 'HasDecls' because a 'FunBind' is not idempotent
 -- for 'hsDecls' \/ 'replaceDecls'. 'hsDeclsPatBindD' \/ 'replaceDeclsPatBindD' is
 -- idempotent.
-hsDeclsPatBindD :: (Monad m) => LHsDecl GhcPs -> TransformT m [LHsDecl GhcPs]
+hsDeclsPatBindD :: LHsDecl GhcPs -> [LHsDecl GhcPs]
 hsDeclsPatBindD (L l (ValD _ d)) = hsDeclsPatBind (L l d)
 hsDeclsPatBindD x = error $ "hsDeclsPatBindD called for:" ++ showGhc x
 
@@ -1078,8 +1107,8 @@ hsDeclsPatBindD x = error $ "hsDeclsPatBindD called for:" ++ showGhc x
 -- cannot be a member of 'HasDecls' because a 'FunBind' is not idempotent
 -- for 'hsDecls' \/ 'replaceDecls'. 'hsDeclsPatBind' \/ 'replaceDeclsPatBind' is
 -- idempotent.
-hsDeclsPatBind :: (Monad m) => LHsBind GhcPs -> TransformT m [LHsDecl GhcPs]
-hsDeclsPatBind (L _ (PatBind _ _ (GRHSs _ _grhs lb))) = hsDeclsValBinds lb
+hsDeclsPatBind :: LHsBind GhcPs -> [LHsDecl GhcPs]
+hsDeclsPatBind (L _ (PatBind _ _ (GRHSs _ _grhs lb))) = hsDeclsLocalBinds lb
 hsDeclsPatBind x = error $ "hsDeclsPatBind called for:" ++ showGhc x
 
 -- -------------------------------------
@@ -1111,7 +1140,7 @@ replaceDeclsPatBind x _ = error $ "replaceDeclsPatBind called for:" ++ showGhc x
 -- ---------------------------------------------------------------------
 
 instance HasDecls (LocatedA (Stmt GhcPs (LocatedA (HsExpr GhcPs)))) where
-  hsDecls (L _ (LetStmt _ lb))      = hsDeclsValBinds lb
+  hsDecls (L _ (LetStmt _ lb))      = return $ hsDeclsLocalBinds lb
   hsDecls (L _ (LastStmt _ e _ _))  = hsDecls e
   hsDecls (L _ (BindStmt _ _pat e)) = hsDecls e
   hsDecls (L _ (BodyStmt _ e _ _))  = hsDecls e
@@ -1145,7 +1174,7 @@ instance HasDecls (LocatedA (Stmt GhcPs (LocatedA (HsExpr GhcPs)))) where
 -- |Look up the annotated order and sort the decls accordingly
 -- TODO:AZ: this should be pure
 orderedDecls :: (Monad m)
-             => AnnSortKey -> [LHsDecl GhcPs] -> TransformT m [LHsDecl GhcPs]
+             => AnnSortKey [RealSrcSpan] -> [LHsDecl GhcPs] -> TransformT m [LHsDecl GhcPs]
 orderedDecls sortKey decls = do
   case sortKey of
     NoAnnSortKey -> do
@@ -1156,18 +1185,38 @@ orderedDecls sortKey decls = do
           ordered = map snd $ orderByKey ds keys
       return ordered
 
+-- orderedDeclsBinds :: (Monad m)
+--   => AnnSortKey [DeclTag]
+--   -> [LHsDecl GhcPs] -> [LHsDecl GhcPs]
+--   -> TransformT m [LHsDecl GhcPs]
+-- orderedDeclsBinds sortKey binds sigs = do
+--   case sortKey of
+--     NoAnnSortKey -> do
+--       -- return decls
+--       return $ sortBy (\a b ->
+--                          compare (realSrcSpan "orderedDecls" $ getLocA a)
+--                                  (realSrcSpan "orderedDecls" $ getLocA b)) (binds ++ sigs)
+--     AnnSortKey keys -> do
+--       let
+--         go [] _ _                      = []
+--         go (ValDTag:ks) (b:bs) ss = b : go ks bs ss
+--         go (SigDTag:ks) bs (s:ss) = s : go ks bs ss
+--         go (_:ks) bs ss           =     go ks bs ss
+
+--       return (go keys binds sigs)
+
 -- ---------------------------------------------------------------------
 
-hsDeclsValBinds :: (Monad m) => HsLocalBinds GhcPs -> TransformT m [LHsDecl GhcPs]
-hsDeclsValBinds lb = case lb of
-    HsValBinds _ (ValBinds sortKey bs sigs) -> do
-      let
-        bds = map wrapDecl (bagToList bs)
-        sds = map wrapSig sigs
-      orderedDecls sortKey (bds ++ sds)
-    HsValBinds _ (XValBindsLR _) -> error $ "hsDecls.XValBindsLR not valid"
-    HsIPBinds {}       -> return []
-    EmptyLocalBinds {} -> return []
+-- hsDeclsValBinds :: (Monad m) => HsLocalBinds GhcPs -> TransformT m [LHsDecl GhcPs]
+-- hsDeclsValBinds lb = case lb of
+--     HsValBinds _ (ValBinds sortKey bs sigs) -> do
+--       let
+--         bds = map wrapDecl (bagToList bs)
+--         sds = map wrapSig sigs
+--       orderedDeclsBinds sortKey bds sds
+--     HsValBinds _ (XValBindsLR _) -> error $ "hsDecls.XValBindsLR not valid"
+--     HsIPBinds {}       -> return []
+--     EmptyLocalBinds {} -> return []
 
 data WithWhere = WithWhere
                | WithoutWhere
@@ -1190,7 +1239,7 @@ replaceDeclsValbinds w b@(HsValBinds a _) new
         an <- oldWhereAnnotation a w (realSrcSpan "replaceDeclsValbinds" oldSpan)
         let decs = listToBag $ concatMap decl2Bind new
         let sigs = concatMap decl2Sig new
-        let sortKey = captureOrder new
+        let sortKey = captureOrderBinds new
         return (HsValBinds an (ValBinds sortKey decs sigs))
 replaceDeclsValbinds _ (HsIPBinds {}) _new    = error "undefined replaceDecls HsIPBinds"
 replaceDeclsValbinds w (EmptyLocalBinds _) new
@@ -1201,7 +1250,7 @@ replaceDeclsValbinds w (EmptyLocalBinds _) new
             newSigs  = concatMap decl2Sig  new
         let decs = listToBag $ newBinds
         let sigs = newSigs
-        let sortKey = captureOrder new
+        let sortKey = captureOrderBinds new
         return (HsValBinds an (ValBinds sortKey decs sigs))
 
 oldWhereAnnotation :: (Monad m)
@@ -1262,7 +1311,7 @@ modifyValD :: forall m t. (HasTransform m)
 modifyValD p pb@(L ss (ValD _ (PatBind {} ))) f =
   if (locA ss) == p
      then do
-       ds <- liftT $ hsDeclsPatBindD pb
+       let ds = hsDeclsPatBindD pb
        (ds',r) <- f (error "modifyValD.PatBind should not touch Match") ds
        pb' <- liftT $ replaceDeclsPatBindD pb ds'
        return (pb',r)

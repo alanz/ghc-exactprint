@@ -46,6 +46,7 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Preprocess
+import Language.Haskell.GHC.ExactPrint.Utils -- hiding (showAst)
 
 import Control.Monad.RWS
 
@@ -290,6 +291,7 @@ fixModuleTrailingComments (GHC.L l p) = GHC.L l p'
             let
               pc = GHC.priorComments cs
               fc = GHC.getFollowingComments cs
+                      `debug` ("fixModuleTrailingComments:fc=" ++ showAst fc)
               bf (GHC.L anc _) = GHC.anchor anc > ss
               (prior,f) = break bf fc
               cs'' = GHC.EpaCommentsBalanced (pc <> prior) f
