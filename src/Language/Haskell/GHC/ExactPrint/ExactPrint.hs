@@ -30,7 +30,7 @@ module Language.Haskell.GHC.ExactPrint.ExactPrint
   , deltaOptions
 
   -- Temporary to avoid import loop problems
-  , showAst
+  -- , showAst
   ) where
 
 import GHC
@@ -66,9 +66,9 @@ import Data.List ( partition, sort, sortBy)
 import Data.Maybe ( isJust, mapMaybe )
 import Data.Void
 
-import Language.Haskell.GHC.ExactPrint.Dump
+-- import Language.Haskell.GHC.ExactPrint.Dump
 import Language.Haskell.GHC.ExactPrint.Lookup
-import Language.Haskell.GHC.ExactPrint.Utils hiding (showAst)
+import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Types
 
 -- import Debug.Trace
@@ -78,10 +78,10 @@ import Language.Haskell.GHC.ExactPrint.Types
 -- Note: moved from Language.Haskell.GHC.ExactPrint.Utils as a hack to
 -- avoid import loop problems while we have to use the local version
 -- of Dump
-showAst :: (Data a) => a -> String
-showAst ast
-  = showSDocUnsafe
-    $ showAstData NoBlankSrcSpan NoBlankEpAnnotations ast
+-- showAst :: (Data a) => a -> String
+-- showAst ast
+--   = showSDocUnsafe
+--     $ showAstData NoBlankSrcSpan NoBlankEpAnnotations ast
 -- ---------------------------------------------------------------------
 
 exactPrint :: ExactPrint ast => ast -> String
@@ -221,7 +221,7 @@ class HasEntry ast where
 
 -- | Key entry point.  Switches to an independent AST element with its
 -- own annotation, calculating new offsets, etc
-markAnnotated :: (Monad m, Monoid w, ExactPrint a, Data a) => a -> EP w m a
+markAnnotated :: (Monad m, Monoid w, ExactPrint a) => a -> EP w m a
 markAnnotated a = enterAnn (getAnnotationEntry a) a
 
 -- | For HsModule, because we do not have a proper SrcSpan, we must
@@ -259,7 +259,7 @@ instance HasEntry (EpAnnS a) where
 
 -- ---------------------------------------------------------------------
 
-fromAnn' :: (HasEntry a) => a -> Entry
+fromAnn' :: (HasEntry a, Data a) => a -> Entry
 fromAnn' an = case fromAnn an of
   NoEntryVal -> NoEntryVal
   Entry a c _ u -> Entry a c' FlushComments u
@@ -285,7 +285,7 @@ cua NoCanUpdateAnchor _ = return []
 -- This is combination of the ghc=exactprint Delta.withAST and
 -- Print.exactPC functions and effectively does the delta processing
 -- immediately followed by the print processing.  JIT ghc-exactprint.
-enterAnn :: (Monad m, Monoid w, ExactPrint a, Data a) => Entry -> a -> EP w m a
+enterAnn :: (Monad m, Monoid w, ExactPrint a) => Entry -> a -> EP w m a
 enterAnn NoEntryVal a = do
   p <- getPosP
   debugM $ "enterAnn:starting:NO ANN:(p,a) =" ++ show (p, astId a)

@@ -322,6 +322,12 @@ name2String = showPprUnsafe
 --     s  = if isSymOcc     o then "Sym "     else ""
 --     v  = if isValOcc     o then "Val "     else ""
 
+ -- ---------------------------------------------------------------------
+
+locatedAnAnchor :: LocatedAn a t -> RealSrcSpan
+locatedAnAnchor (L (SrcSpanAnn EpAnnNotUsed l) _) = realSrcSpan "locatedAnAnchor" l
+locatedAnAnchor (L (SrcSpanAnn (EpAnn a _ _) _) _) = anchor a
+
 -- ---------------------------------------------------------------------
 
 setAnchorAnI :: (Default an) => LocatedAn an a -> Anchor -> EpAnnComments -> LocatedAn an a

@@ -10,7 +10,7 @@ import Language.Haskell.GHC.ExactPrint
 -- import Language.Haskell.GHC.ExactPrint.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Parsers
-import Language.Haskell.GHC.ExactPrint.Utils hiding (showAst)
+import Language.Haskell.GHC.ExactPrint.Utils
 
 import GHC                       as GHC
 import GHC.Data.Bag              as GHC

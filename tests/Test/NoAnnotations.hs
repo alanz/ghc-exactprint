@@ -5,25 +5,18 @@
 {-# LANGUAGE TupleSections #-}
 module Test.NoAnnotations where
 
--- import Control.Monad.State
 import Data.Algorithm.Diff
 import Data.Algorithm.DiffOutput
--- import Data.Data (Data, toConstr, showConstr, cast)
--- import Data.Generics (extQ, ext1Q, ext2Q, gmapQ)
 import Data.List
--- import Data.Ord (comparing)
--- import qualified Data.ByteString as B
 
 import Language.Haskell.GHC.ExactPrint
--- import Language.Haskell.GHC.ExactPrint.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Parsers
 import Language.Haskell.GHC.ExactPrint.Types
-import Language.Haskell.GHC.ExactPrint.Utils hiding (showAst)
+import Language.Haskell.GHC.ExactPrint.Utils
 
 import qualified GHC.Utils.Outputable   as GHC
 import qualified Control.Monad.IO.Class as GHC
 import qualified GHC                    as GHC hiding (parseModule)
--- import qualified GHC.Driver.Ppr         as GHC
 import qualified GHC.Hs.Dump            as GHC
 
 import System.Directory

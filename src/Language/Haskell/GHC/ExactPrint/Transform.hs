@@ -85,9 +85,8 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , decl2Sig, decl2Bind
         ) where
 
-import Language.Haskell.GHC.ExactPrint.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Types
-import Language.Haskell.GHC.ExactPrint.Utils hiding (showAst)
+import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Orphans (Default(..))
 
 import Control.Monad.RWS
@@ -344,7 +343,7 @@ setEntryDP (L (EpAnnS (EpaSpan r) an cs) a) dp
                 -- delta = tweakDelta $ ss2delta (ss2pos $ anchor $ getLoc lc) r
                 delta = case getLoc lc of
                           EpaSpan rr -> tweakDelta $ ss2delta (ss2pos rr) r
-                          EpaDelta dp _ -> tweakDelta dp
+                          EpaDelta dp0 _ -> tweakDelta dp0
                 line = getDeltaLine delta
                 col = deltaColumn delta
                 edp' = if line == 0 then SameLine col
@@ -398,7 +397,7 @@ setEntryDPI (L (SrcSpanAnn (EpAnn (EpaSpan r) an cs) l) a) dp
                 -- delta = tweakDelta $ ss2delta (ss2pos $ anchor $ getLoc lc) r
                 delta = case getLoc lc of
                           EpaSpan rr -> tweakDelta $ ss2delta (ss2pos rr) r
-                          EpaDelta dp _ -> tweakDelta dp
+                          EpaDelta dp0 _ -> tweakDelta dp0
                 line = getDeltaLine delta
                 col = deltaColumn delta
                 edp' = if line == 0 then SameLine col
