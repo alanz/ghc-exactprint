@@ -791,20 +791,6 @@ anchorFromLocatedA (L (EpAnnS anc _ _) _) = anchor anc
 -- `MovedAnchor` operation based on the original location, only if it
 -- does not already have one.
 commentOrigDelta :: LEpaComment -> LEpaComment
--- commentOrigDelta (L (GHC.Anchor la _) (GHC.EpaComment t pp))
---   = (L (GHC.Anchor la op) (GHC.EpaComment t pp))
---                   `debug` ("commentOrigDelta: (la, pp, r,c, op)=" ++ showAst (la, pp, r,c, op))
---   where
---         (r,c) = ss2posEnd pp
-
---         op' = if r == 0
---                then MovedAnchor (ss2delta (r,c+1) la)
---                -- then MovedAnchor (ss2delta (r,c+0) la)
---                -- else MovedAnchor (ss2delta (r,c)   la)
---                else MovedAnchor (tweakDelta $ ss2delta (r,c)   la)
---         op = if t == EpaEofComment && op' == MovedAnchor (SameLine 0)
---                then MovedAnchor (DifferentLine 1 0)
---                else op'
 commentOrigDelta (L (EpaSpan la) (GHC.EpaComment t pp))
   = (L op (GHC.EpaComment t pp))
                   `debug` ("commentOrigDelta: (la, pp, r,c, op)=" ++ showAst (la, pp, r,c, op))
@@ -813,8 +799,6 @@ commentOrigDelta (L (EpaSpan la) (GHC.EpaComment t pp))
 
         op' = if r == 0
                then EpaDelta (ss2delta (r,c+1) la) []
-               -- then MovedAnchor (ss2delta (r,c+0) la)
-               -- else MovedAnchor (ss2delta (r,c)   la)
                else EpaDelta (tweakDelta $ ss2delta (r,c)   la) []
         op = if t == EpaEofComment && op' == EpaDelta (SameLine 0) []
                then EpaDelta (DifferentLine 1 0) []
