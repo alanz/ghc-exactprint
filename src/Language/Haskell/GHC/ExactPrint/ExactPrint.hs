@@ -3957,6 +3957,10 @@ instance ExactPrint (HsType GhcPs) where
   exact (HsSpliceTy a splice) = do
     splice' <- markAnnotated splice
     return (HsSpliceTy a splice')
+  exact (HsDocTy an ty doc) = do
+    ty' <- markAnnotated ty
+    doc' <- markAnnotated doc
+    return (HsDocTy an ty' doc')
   exact (HsBangTy an (HsSrcBang mt up str) ty) = do
     an0 <-
       case mt of
@@ -3995,7 +3999,9 @@ instance ExactPrint (HsType GhcPs) where
       (HsCharTy src v) -> printSourceText src (show v)
     return (HsTyLit a lit)
   exact t@(HsWildCardTy _) = printStringAdvance "_" >> return t
-  exact x = error $ "missing match for HsType:" ++ showAst x
+  exact x@(HsRecTy _ _)    = error $ "missing match for HsType:" ++ showAst x
+  exact x@(XHsType _)      = error $ "missing match for HsType:" ++ showAst x
+
 
 -- ---------------------------------------------------------------------
 
