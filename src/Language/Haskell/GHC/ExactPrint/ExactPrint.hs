@@ -14,7 +14,9 @@
 {-# LANGUAGE TypeOperators        #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE ViewPatterns         #-}
+{-# LANGUAGE BlockArguments       #-}
 {-# LANGUAGE UndecidableInstances  #-} -- For the (StmtLR GhcPs GhcPs (LocatedA (body GhcPs))) ExactPrint instance
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module Language.Haskell.GHC.ExactPrint.ExactPrint
   (
@@ -53,9 +55,11 @@ import GHC.Utils.Panic
 
 import Language.Haskell.Syntax.Basic (FieldLabelString(..))
 
-import Control.Monad.Identity
+import Control.Monad (forM, when, unless)
+import Control.Monad.Identity (Identity(..))
 import qualified Control.Monad.Reader as Reader
-import Control.Monad.RWS
+import Control.Monad.RWS (MonadReader, RWST, evalRWST, tell, modify, get, gets, ask)
+import Control.Monad.Trans (lift)
 import Data.Data ( Data )
 import Data.Dynamic
 import Data.Foldable
@@ -82,6 +86,7 @@ showAst :: (Data a) => a -> String
 showAst ast
   = showSDocUnsafe
     $ showAstData NoBlankSrcSpan NoBlankEpAnnotations ast
+
 -- ---------------------------------------------------------------------
 
 exactPrint :: ExactPrint ast => ast -> String
@@ -504,17 +509,22 @@ printStringAtRs pa str = printStringAtRsC CaptureComments pa str
 printStringAtRsC :: (Monad m, Monoid w)
   => CaptureComments -> RealSrcSpan -> String -> EP w m EpaLocation
 printStringAtRsC capture pa str = do
+  debugM $ "printStringAtRsC: pa=" ++ showAst pa
   printComments pa
   pe <- getPriorEndD
   debugM $ "printStringAtRsC:pe=" ++ show pe
   let p = ss2delta pe pa
   p' <- adjustDeltaForOffsetM p
+  debugM $ "printStringAtRsC:(p,p')=" ++ show (p,p')
   printStringAtLsDelta p' str
   setPriorEndASTD True pa
   cs' <- case capture of
     CaptureComments -> takeAppliedComments
     NoCaptureComments -> return []
-  debugM $ "printStringAtRs:cs'=" ++ show cs'
+  debugM $ "printStringAtRsC:cs'=" ++ show cs'
+  debugM $ "printStringAtRsC:p'=" ++ showAst p'
+  debugM $ "printStringAtRsC: (EpaDelta p' [])=" ++ showAst (EpaDelta p' [])
+  debugM $ "printStringAtRsC: (EpaDelta p' (map comment2LEpaComment cs'))=" ++ showAst (EpaDelta p' (map comment2LEpaComment cs'))
   return (EpaDelta p' (map comment2LEpaComment cs'))
 
 printStringAtRs' :: (Monad m, Monoid w) => RealSrcSpan -> String -> EP w m ()
@@ -553,7 +563,7 @@ printStringAtAAL (EpAnn anc an cs) l str = do
 
 printStringAtAAC :: (Monad m, Monoid w)
   => CaptureComments -> EpaLocation -> String -> EP w m EpaLocation
-printStringAtAAC capture (EpaSpan r) s = printStringAtRsC capture r s
+printStringAtAAC capture (EpaSpan r _) s = printStringAtRsC capture r s
 printStringAtAAC capture (EpaDelta d cs) s = do
   mapM_ (printOneComment . tokComment) cs
   pe1 <- getPriorEndD
@@ -2941,7 +2951,7 @@ instance ExactPrint (HsExpr GhcPs) where
 
   exact (HsUntypedBracket an (DecBrL a e)) = do
     an0 <- markEpAnnLMS an lidl AnnOpen (Just "[d|")
-    an1 <- markEpAnnL an lidl AnnOpenC
+    an1 <- markEpAnnL an0 lidl AnnOpenC
     e' <- markAnnotated e
     an2 <- markEpAnnL an1 lidl AnnCloseC
     an3 <- markEpAnnL an2 lidl AnnCloseQ -- "|]"
@@ -3427,17 +3437,17 @@ exactTransStmt an by using GroupForm = do
 -- ---------------------------------------------------------------------
 
 instance ExactPrint (TyClDecl GhcPs) where
-  getAnnotationEntry (FamDecl   { })                      = NoEntryVal
-  getAnnotationEntry (SynDecl   { tcdSExt = an })         = fromAnn an
-  getAnnotationEntry (DataDecl  { tcdDExt = an })         = fromAnn an
-  getAnnotationEntry (ClassDecl { tcdCExt = (an, _, _) }) = fromAnn an
+  getAnnotationEntry (FamDecl   { })                   = NoEntryVal
+  getAnnotationEntry (SynDecl   { tcdSExt = an })      = fromAnn an
+  getAnnotationEntry (DataDecl  { tcdDExt = an })      = fromAnn an
+  getAnnotationEntry (ClassDecl { tcdCExt = (an, _) }) = fromAnn an
 
   setAnnotationAnchor a@FamDecl{}     _ _s = a
   setAnnotationAnchor x@SynDecl{}   anc cs = x { tcdSExt = setAnchorEpa (tcdSExt x) anc cs }
   setAnnotationAnchor x@DataDecl{}  anc cs = x { tcdDExt = setAnchorEpa (tcdDExt x) anc cs }
-  setAnnotationAnchor x@ClassDecl{} anc cs = x { tcdCExt = (setAnchorEpa an anc cs, a, b) }
+  setAnnotationAnchor x@ClassDecl{} anc cs = x { tcdCExt = (setAnchorEpa an anc cs, a) }
     where
-      (an,a,b) = tcdCExt x
+      (an,a) = tcdCExt x
 
   exact (FamDecl a decl) = do
     decl' <- markAnnotated decl
@@ -3469,7 +3479,8 @@ instance ExactPrint (TyClDecl GhcPs) where
 
   -- -----------------------------------
 
-  exact (ClassDecl {tcdCExt = (an, sortKey, lo),
+  exact (ClassDecl {tcdCExt = (an, sortKey),
+                    tcdLayout = lo,
                     tcdCtxt = context, tcdLName = lclas, tcdTyVars = tyvars,
                     tcdFixity = fixity,
                     tcdFDs  = fds,
@@ -3482,7 +3493,8 @@ instance ExactPrint (TyClDecl GhcPs) where
           (an0, fds', lclas', tyvars',context') <- top_matter
           an1 <- markEpAnnL an0 lidl AnnOpenC
           an2 <- markEpAnnL an1 lidl AnnCloseC
-          return (ClassDecl {tcdCExt = (an2, sortKey, lo),
+          return (ClassDecl {tcdCExt = (an2, sortKey),
+                             tcdLayout = lo,
                              tcdCtxt = context', tcdLName = lclas', tcdTyVars = tyvars',
                              tcdFixity = fixity,
                              tcdFDs  = fds',
@@ -3508,7 +3520,8 @@ instance ExactPrint (TyClDecl GhcPs) where
             methods' = listToBag $ undynamic ds
             ats'     = undynamic ds
             at_defs' = undynamic ds
-          return (ClassDecl {tcdCExt = (an3, sortKey, lo),
+          return (ClassDecl {tcdCExt = (an3, sortKey),
+                             tcdLayout = lo,
                              tcdCtxt = context', tcdLName = lclas', tcdTyVars = tyvars',
                              tcdFixity = fixity,
                              tcdFDs  = fds',
@@ -4121,7 +4134,7 @@ printUnicode anc n = do
               s -> s
   loc <- printStringAtAAC NoCaptureComments (EpaDelta (SameLine 0) []) str
   case loc of
-    EpaSpan _ -> return anc
+    EpaSpan _ _ -> return anc
     EpaDelta dp [] -> return anc { anchor_op = MovedAnchor dp }
     EpaDelta _ _cs -> error "printUnicode should not capture comments"
 
