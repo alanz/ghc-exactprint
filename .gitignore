@@ -39,6 +39,7 @@ packages
 *.yaml.lock
 /tests/examples/ghc90-copied/
 /tests/examples/ghc92-copied/
+/tests/examples/ghc94-copied/
 /hie.yaml
 /hie.yaml.cbl
 /hie.yaml.stack
@@ -57,3 +58,6 @@ packages
 /cabal.project.local~3
 /cpp-grep-cooked.txt
 /cpp-grep-raw.txt
+/failing-tests-for-ghc.txt
+/failing-tests-for-ghc9.2.txt
+/failures.txt

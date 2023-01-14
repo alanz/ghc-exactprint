@@ -18,7 +18,6 @@ module Language.Haskell.GHC.ExactPrint.Preprocess
 import qualified GHC            as GHC hiding (parseModule)
 
 import qualified Control.Monad.IO.Class as GHC
-import qualified GHC.Data.Bag          as GHC
 import qualified GHC.Data.FastString   as GHC
 import qualified GHC.Data.StringBuffer as GHC
 import qualified GHC.Driver.Config.Parser as GHC
@@ -40,7 +39,7 @@ import qualified GHC.Utils.Outputable  as GHC
 import GHC.Types.SrcLoc (mkSrcSpan, mkSrcLoc)
 import GHC.Data.FastString (mkFastString)
 
-import Data.List (isPrefixOf, intercalate)
+import Data.List (isPrefixOf)
 import Data.Maybe
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
@@ -227,7 +226,7 @@ getPreprocessedSrcDirectPrim cppOptions src_fn = do
       txt <- GHC.liftIO $ readFileGhc hspp_fn
       return (txt, buf, dflags')
 
-showErrorMessages :: GHC.Messages GHC.DriverMessage -> String
+showErrorMessages :: (GHC.Diagnostic a) => GHC.Messages a -> String
 showErrorMessages msgs =
   GHC.renderWithContext GHC.defaultSDocContext
     $ GHC.vcat
