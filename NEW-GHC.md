@@ -8,7 +8,7 @@ Change to the current GHC git repository (for the new version of GHC)
 
     $ mkdir /tmp/ghc-tests
     $ export DESTINATION=/tmp/ghc-tests
-    $ export PREVIOUS=ghc-9.0
+    $ export PREVIOUS=ghc-9.4
 
 Sanity check
 
@@ -25,9 +25,10 @@ tests. Generally remove any `should_fail` directory.
 
     find /tmp/ghc-tests/ -iname "should_fail" | xargs rm -fr
 
+In the ghc-exactprint directory
 
-    $ mkdir tests/examples/ghc92-copied
-    $ find /tmp/ghc-tests -iname "*.hs"  | xargs cp  --backup=numbered -t ./tests/examples/ghc92-copied/
+    $ mkdir tests/examples/ghc96-copied
+    $ find /tmp/ghc-tests -iname "*.hs"  | xargs cp  --backup=numbered -t ./tests/examples/ghc96-copied/
 
 Note: there is a pathological file `parsing001.hs`, which should be deleted
 
@@ -39,12 +40,12 @@ extension.
 You may need to do `apt-get install mmv` first.
 See http://manpages.ubuntu.com/manpages/zesty/en/man1/mmv.1.html
 
-    $ cd tests/examples/ghc92-copied
+    $ cd tests/examples/ghc96-copied
     $ mmv "*.hs.~*~" "#1.#2.hs"
 
 ### cleanup whitespace in the files
 
-    $ cd tests/examples/ghc90-copied
+    $ cd tests/examples/ghc96-copied
     $ ../../../emacs-ws-cleanup.sh
 
 
@@ -61,13 +62,13 @@ testDirs =
     GHC80  -> ["ghc710", "ghc80"]
     GHC82  -> ["ghc710", "ghc80", "ghc82"]
     -- GHC84  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc84-copied"]
-    GHC86  -> ["ghc86-copied"]
+    GHC96  -> ["ghc96-copied"]
     -- GHC84  -> ["ghc84"
 ```
 
-Also comment out the running of the `noAnnotationTests` and
-`prettyRoundTripTests` in `mkTests`, otherwise the test *.out files
+Also comment out the running of the `roundTripBalanceCommentsTests` and
+`roundTripMakeDeltaTests` in `mkTests`, otherwise the test *.out files
 will not be useful.
 
 Run the tests, and move the failing test files over to the
-`tests/examples/ghc90` directory
+`tests/examples/ghc96` directory
