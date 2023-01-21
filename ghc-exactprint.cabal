@@ -152,7 +152,7 @@ executable roundtrip
                , filepath
                , ghc
                , ghc-exactprint
-               -- , ghc-paths
+               , ghc-paths
                , syb
                , temporary
                , time

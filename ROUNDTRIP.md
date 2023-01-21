@@ -19,6 +19,15 @@ This will generate three additional executables
   cabal exec prepare-hackage
   ```
 
+  OR, based on https://neilmitchell.blogspot.com/2018/11/downloading-all-of-hackage.html
+
+  ```
+  mkdir hackage-roundtrip-work
+  cd hackage-roundtrip-work
+  cabal list --simple | cut -d' ' -f1 | sort | uniq | xargs -l cabal get
+
+  ```
+
   This will manage the `cabal` programme to call `cabal get` for each package on
   hackage, into `./hackage-roundtrip-work`. It also untabifies each haskell file,
   and deletes trailing whitespace.
@@ -54,6 +63,7 @@ TODO: change it to # *define
     find  . -iname "*.hs" -print0 | xargs -0 grep  '__DATE__'    --files-with-matches | xargs rm
 
 
+Empty out the contents of ./roundtrip-config/knownfailures.txt
 
 
 2. ./dist/build/roundtrip/roundtrip
