@@ -254,7 +254,9 @@ tt' = do
 
     -- mkParserTest libdir "ghc96" "TDDataConstructor.hs"
 
-    mkParserTest libdir "ghc96" "T11671_run.hs"
+    -- mkParserTest libdir "ghc96" "LexerM.hs"
+    -- mkParserTest libdir "ghc96" "ContinuationIO.hs"
+    mkParserTest libdir "ghc96" "Main.hs"
 
    -- Needs GHC changes
 

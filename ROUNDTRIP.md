@@ -75,7 +75,7 @@ Empty out the contents of ./roundtrip-config/knownfailures.txt
   ```
   cabal exec roundtrip -- clean
   cabal exec roundtrip -- ./hackage-roundtrip-work/* +RTS -N2
-  cabal exec roundtrip -- failures
+  cabal exec roundtrip -- failures +RTS -N2
   cabal exec static
   ```
 

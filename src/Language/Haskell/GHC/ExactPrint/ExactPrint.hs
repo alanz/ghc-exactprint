@@ -51,6 +51,7 @@ import GHC.Utils.Outputable hiding ( (<>) )
 import GHC.Unit.Module.Warnings
 import GHC.Utils.Misc
 import GHC.Utils.Panic
+import qualified GHC.Data.Strict as Strict
 
 import Language.Haskell.Syntax.Basic (FieldLabelString(..))
 
@@ -1398,9 +1399,7 @@ instance ExactPrint (HsModule GhcPs) where
           m' <- markAnnotated m
 
           mdeprec' <- setLayoutTopLevelP $ markAnnotated mdeprec
-
           mexports' <- setLayoutTopLevelP $ markAnnotated mexports
-
           an1 <- setLayoutTopLevelP $ markEpAnnL an0 lam_main AnnWhere
 
           return (an1, Just m', mdeprec', mexports')
@@ -1806,7 +1805,6 @@ instance ExactPrint FastString where
   -- TODO: https://ghc.haskell.org/trac/ghc/ticket/10313 applies.
   -- exact fs = printStringAdvance (show (unpackFS fs))
   exact fs = printStringAdvance (unpackFS fs) >> return fs
-
 
 -- ---------------------------------------------------------------------
 
@@ -2733,11 +2731,15 @@ instance ExactPrint (HsExpr GhcPs) where
         printStringAtAA l  "_" >> return ()
         printStringAtAA cb "`" >> return ()
         return x
-  exact x@(HsOverLabel _ src l) = do
-    printStringAtLsDelta (SameLine 0) "#"
-    case src of
-      NoSourceText   -> printStringAtLsDelta (SameLine 0) (unpackFS l)
-      SourceText txt -> printStringAtLsDelta (SameLine 0) txt
+  exact x@(HsOverLabel an src l) = do
+    let str = "#" ++ case src of
+              NoSourceText   -> (unpackFS l)
+              SourceText txt -> txt
+    case an of
+      EpAnnNotUsed -> printString True str
+      EpAnn anc _ _ -> do
+        _ <- markAnnotated (L (RealSrcSpan (anchor anc) Strict.Nothing) (fsLit str))
+        return ()
     return x
 
   exact x@(HsIPVar _ (HsIPName n))
@@ -4708,9 +4710,7 @@ hsLit2String :: HsLit GhcPs -> String
 hsLit2String lit =
   case lit of
     HsChar       src v   -> toSourceTextWithSuffix src v ""
-    -- It should be included here
-    -- https://github.com/ghc/ghc/blob/master/compiler/parser/Lexer.x#L1471
-    HsCharPrim   src p   -> toSourceTextWithSuffix src p "#"
+    HsCharPrim   src p   -> toSourceTextWithSuffix src p ""
     HsString     src v   -> toSourceTextWithSuffix src v ""
     HsStringPrim src v   -> toSourceTextWithSuffix src v ""
     HsInt        _ (IL src _ v)   -> toSourceTextWithSuffix src v ""
