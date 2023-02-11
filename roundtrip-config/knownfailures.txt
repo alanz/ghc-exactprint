@@ -112,3 +112,4 @@
 ./hackage-roundtrip-work/vinyl-0.14.3/Data/Vinyl/Syntax.hs
 ./hackage-roundtrip-work/yesod-goodies-0.0.5/Yesod/Goodies/Markdown.hs
 ./hackage-roundtrip-work/cnc-spec-compiler-0.2.0.1/Intel/Cnc/Spec/Codegen/CppOld.hs
+./hackage-roundtrip-work/terrahs-0.9/TerraHS/Misc/Translib.hs

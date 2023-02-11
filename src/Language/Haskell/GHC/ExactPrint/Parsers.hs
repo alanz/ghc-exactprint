@@ -47,7 +47,7 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
 
 import Language.Haskell.GHC.ExactPrint.Preprocess
 
-import Control.Monad.RWS
+-- import Control.Monad.RWS
 import Data.Functor (void)
 
 import qualified GHC hiding (parseModule)

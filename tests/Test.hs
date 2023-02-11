@@ -243,20 +243,11 @@ tt' = do
     -- mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
     -- mkParserTestMD libdir "ghc92" "TopLevelSemis.hs"
 
-    -- mkParserTest libdir "ghc92" "TopLevelSemis1.hs"
-    -- mkParserTestBC libdir "ghc92" "TopLevelSemis1.hs"
-    -- mkParserTestMD libdir "ghc92" "TopLevelSemis1.hs"
 
-    -- mkParserTest libdir "ghc94" "HsDocTy.hs"
-    -- mkParserTest libdir "ghc94" "record-dot-four-out.hs"
-
-    -- mkParserTest libdir "ghc86" "Webhook.hs"
-
-    -- mkParserTest libdir "ghc96" "TDDataConstructor.hs"
+    -- mkParserTest libdir "ghc96" "T11671_run.hs"
 
     -- mkParserTest libdir "ghc96" "LexerM.hs"
-    -- mkParserTest libdir "ghc96" "ContinuationIO.hs"
-    mkParserTest libdir "ghc96" "Main.hs"
+    mkParserTestBC libdir "ghc96" "LexerM.hs"
 
    -- Needs GHC changes
 
