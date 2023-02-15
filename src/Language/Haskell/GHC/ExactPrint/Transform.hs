@@ -88,7 +88,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
 import Language.Haskell.GHC.ExactPrint.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
-import Language.Haskell.GHC.ExactPrint.Orphans (Default(..))
+-- import Language.Haskell.GHC.ExactPrint.Orphans (Default(..))
 
 import Control.Monad.RWS
 import qualified Control.Monad.Fail as Fail
@@ -98,6 +98,7 @@ import GHC.Data.Bag
 import GHC.Data.FastString
 
 import Data.Data
+import Data.Default
 import Data.Maybe
 import Data.Generics
 import Data.List (sortBy)
