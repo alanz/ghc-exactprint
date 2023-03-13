@@ -28,7 +28,7 @@ import Data.Ord (comparing)
 import GHC.Hs.Dump
 import Language.Haskell.GHC.ExactPrint.Lookup
 
-import Language.Haskell.GHC.ExactPrint.Orphans (Default())
+-- import Language.Haskell.GHC.ExactPrint.Orphans (Default())
 import qualified Language.Haskell.GHC.ExactPrint.Orphans as Orphans
 
 import GHC hiding (EpaComment)
@@ -45,7 +45,7 @@ import Data.List (sortBy, elemIndex)
 
 import Debug.Trace
 import Language.Haskell.GHC.ExactPrint.Types
--- import Data.Default
+import Data.Default
 
 -- ---------------------------------------------------------------------
 
@@ -342,14 +342,14 @@ locatedAnAnchor (L (SrcSpanAnn (EpAnn a _ _) _) _) = anchor a
 
 setAnchorAn :: (Default an) => LocatedAn an a -> Anchor -> EpAnnComments -> LocatedAn an a
 setAnchorAn (L (SrcSpanAnn EpAnnNotUsed l)    a) anc cs
-  = (L (SrcSpanAnn (EpAnn anc Orphans.def cs) l) a)
+  = (L (SrcSpanAnn (EpAnn anc def cs) l) a)
      -- `debug` ("setAnchorAn: anc=" ++ showAst anc)
 setAnchorAn (L (SrcSpanAnn (EpAnn _ an _) l) a) anc cs
   = (L (SrcSpanAnn (EpAnn anc an cs) l) a)
      -- `debug` ("setAnchorAn: anc=" ++ showAst anc)
 
 setAnchorEpa :: (Default an) => EpAnn an -> Anchor -> EpAnnComments -> EpAnn an
-setAnchorEpa EpAnnNotUsed   anc cs = EpAnn anc Orphans.def cs
+setAnchorEpa EpAnnNotUsed   anc cs = EpAnn anc def cs
 setAnchorEpa (EpAnn _ an _) anc cs = EpAnn anc an          cs
 
 setAnchorEpaL :: EpAnn AnnList -> Anchor -> EpAnnComments -> EpAnn AnnList
