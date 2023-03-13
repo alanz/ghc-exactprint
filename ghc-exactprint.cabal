@@ -15,11 +15,7 @@ author:              Alan Zimmerman, Matthew Pickering
 maintainer:          alan.zimm@gmail.com
 category:            Development
 build-type:          Simple
-tested-with:         GHC == 9.4.1
-                   , GHC == 9.4.2
-                   , GHC == 9.4.3
-                   , GHC == 9.4.4
-                   , GHC == 9.6.1
+tested-with:         GHC == 9.6.1
 extra-source-files:  ChangeLog
                      tests/examples/failing/*.hs
                      tests/examples/ghc710-only/*.hs
@@ -33,6 +29,7 @@ extra-source-files:  ChangeLog
                      tests/examples/ghc90/*.hs
                      tests/examples/ghc92/*.hs
                      tests/examples/ghc94/*.hs
+                     tests/examples/ghc96/*.hs
                      tests/examples/pre-ghc810/*.hs
                      tests/examples/pre-ghc86/*.hs
                      tests/examples/pre-ghc90/*.hs
@@ -76,7 +73,7 @@ library
   -- other-extensions:
   GHC-Options:         -Wall -Wredundant-constraints
   -- GHC-Options:         -Weverything
-  build-depends:       base >=4.17 && <4.18
+  build-depends:       base >=4.18 && <4.19
                      , bytestring >= 0.10.6
                      , containers >= 0.5
                      , ordered-containers
@@ -92,7 +89,7 @@ library
 
 
   default-language:    Haskell2010
-  if impl (ghc < 9.4)
+  if impl (ghc < 9.6)
       buildable: False
 
 Test-Suite test
@@ -111,7 +108,7 @@ Test-Suite test
   GHC-Options:         -threaded -Wall -Wredundant-constraints
   Default-language:    Haskell2010
   Build-depends:       HUnit >= 1.2
-                     , base < 4.18
+                     , base < 4.19
                      , bytestring
                      , containers >= 0.5
                      , ordered-containers
@@ -125,6 +122,7 @@ Test-Suite test
                      , syb        >= 0.5
                      , silently   >= 1.2
                      , filemanip  >= 0.3
+                     -- , unix-compat >= 0.7
                      -- for the lib only
                      , fail >= 4.9 && <4.10
                      , ghc-boot
