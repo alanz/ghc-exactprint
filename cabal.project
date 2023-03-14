@@ -1,9 +1,9 @@
 packages: .
 
-source-repository-package
-    type: git
-    location: https://github.com/mitchellwrosen/fork--unix-compat.git
-    tag:  f28060acd449643d267954647c1bb7c748c35fa9
+-- source-repository-package
+--     type: git
+--     location: https://github.com/mitchellwrosen/fork--unix-compat.git
+--     tag:  f28060acd449643d267954647c1bb7c748c35fa9
 
 -- repository head.hackage.ghc.haskell.org
 --    url: https://ghc.gitlab.haskell.org/head.hackage/

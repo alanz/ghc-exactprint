@@ -25,11 +25,9 @@ import Data.List
 import Data.Maybe
 import Data.Ord (comparing)
 
-import GHC.Hs.Dump
 import Language.Haskell.GHC.ExactPrint.Lookup
 
--- import Language.Haskell.GHC.ExactPrint.Orphans (Default())
-import qualified Language.Haskell.GHC.ExactPrint.Orphans as Orphans
+import qualified Language.Haskell.GHC.ExactPrint.Orphans()
 
 import GHC hiding (EpaComment)
 import qualified GHC
@@ -39,9 +37,6 @@ import GHC.Types.SrcLoc
 import GHC.Driver.Ppr
 import GHC.Data.FastString
 import qualified GHC.Data.Strict as Strict
-
-import Data.Data hiding ( Fixity )
-import Data.List (sortBy, elemIndex)
 
 import Debug.Trace
 import Language.Haskell.GHC.ExactPrint.Types

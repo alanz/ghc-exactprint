@@ -119,7 +119,6 @@ newtype TransformT m a = TransformT { unTransformT :: RWST () [String] Int m a }
                          ,MonadReader ()
                          ,MonadWriter [String]
                          ,MonadState Int
-                         ,MonadTrans
                          )
 
 instance Fail.MonadFail m => Fail.MonadFail (TransformT m) where
