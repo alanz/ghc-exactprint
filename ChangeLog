@@ -1,3 +1,5 @@
+2022-11-08 v1.7
+	* Support GHC 9.6.1
 2022-11-08 v1.6.1
 	* Add GHC 9.4.4 to CI
 	* Add support for exact printing HsDocTy. #121
