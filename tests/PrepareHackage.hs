@@ -1,17 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}  --
 
+import Control.Monad
 import Data.Char
--- import Data.Monoid
+import Data.List.Extra
+import qualified Data.Set as Set
+import GHC.IO.Exception
 import System.Directory
 import System.FilePath.Posix
--- import System.IO
+import System.Process
 import Test.CommonUtils
-import Turtle hiding (FilePath,(<.>))
-import qualified Data.Set as Set
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
-
--- import qualified GHC.IO.Handle.Text as GHC
 
 import Test.HUnit
 
@@ -19,50 +16,51 @@ main :: IO ()
 main = do
   packages <- allCabalPackages
   -- packages <- allCabalPackagesTest
-  myecho (T.pack $ "number of packages:" ++ (show $ length packages))
+  myecho ("number of packages:" ++ (show $ length packages))
   packageDirsFull <- drop 2 <$> getDirectoryContents hackageWorkDir
   let cond c = c == '.' || c == '-' || isDigit c
-  let packageDirs = map (T.dropWhileEnd cond . T.pack) packageDirsFull
+  let packageDirs = map (dropWhileEnd cond ) packageDirsFull
   isBadPackages <- doesFileExist badpackagesFile
   badPackages <- if isBadPackages
-                   then T.lines <$> T.readFile badpackagesFile
+                   then lines <$> readFile badpackagesFile
                    else return []
   let alreadyUnpacked = Set.fromList $ packageDirs ++ badPackages
-  _ <- shell ("mkdir -p " <> (T.pack hackageWorkDir)) empty
+  -- _ <- shell ("mkdir -p " <> (T.pack hackageWorkDir)) empty
+  _ <- callCommand ("mkdir -p " <> hackageWorkDir)
   mapM_ (preparePackage alreadyUnpacked) packages
 
 -- ---------------------------------------------------------------------
 
-preparePackage :: Set.Set Text -> Text -> IO ()
+preparePackage :: Set.Set String -> String -> IO ()
 preparePackage alreadyUnpacked package = do
   myecho $ "preparePackage:" <> package
   if Set.member package alreadyUnpacked
      then myecho $ "already unpacked:" <> package
      else preparePackage' package
 
-preparePackage' :: Text -> IO ()
+preparePackage' :: String -> IO ()
 preparePackage' package = do
-  (ec,dir) <- shellStrict ("cabal get --destdir=" <> T.pack hackageWorkDir <> " " <> package) empty
+  -- (ec,dir) <- shellStrict ("cabal get --destdir=" <> T.pack hackageWorkDir <> " " <> package) empty
+  (ec,dir,_err) <- readCreateProcessWithExitCode (shell ("cabal get --destdir=" <> hackageWorkDir <> " " <> package)) ""
   -- myecho (T.pack $ "cabal get:" ++ show dir)
-  myecho (T.pack $ show ec)
+  myecho (show ec)
   when (ec == ExitSuccess) $ do
-    let bits = T.splitOn " " (head $ T.lines dir)
-    myecho (T.pack $ "cabal get:dir=" ++ show (last bits))
+    let bits = splitOn " " (head $ lines dir)
+    myecho ("cabal get:dir=" ++ show (last bits))
     cleanPackage (last bits)
   return ()
 
 -- ---------------------------------------------------------------------
 
 -- |Clean up whitespace in a package
-
-cleanPackage :: Text -> IO ()
+cleanPackage :: String -> IO ()
 cleanPackage dir = do
   myecho ("cleaning:" <> dir)
-  fs <- findSrcFiles (T.unpack dir)
+  fs <- findSrcFiles dir
   let
     doOne :: FilePath -> IO ()
     doOne fn = do
-      myecho ("doOne:" <> T.pack fn)
+      myecho ("doOne:" <> fn)
       let tmpFn = fn <.> "clean"
       clean <- cleanupWhiteSpace fn
       writeFile tmpFn clean
@@ -86,13 +84,14 @@ cleanPackage dir = do
 --   -- = return ["airship"]
 
 
-allCabalPackages :: IO [Text]
+allCabalPackages :: IO [String]
 allCabalPackages = do
   -- let cmd = "cabal list --simple-output | awk '{ print $1 }' | uniq"
   let cmd = "cabal list --simple-output | awk '{ print $1 }' | sort | uniq"
-  (_ec,r) <- shellStrict cmd empty
-  let packages = T.lines r
-  myecho (T.pack $ show $ take 5 packages)
+  -- (_ec,r) <- shellStrict cmd empty
+  (_ec,r,_err) <- readCreateProcessWithExitCode (shell cmd) ""
+  let packages = lines r
+  myecho (show $ take 5 packages)
   return packages
 
 -- ---------------------------------------------------------------------
@@ -159,8 +158,8 @@ testList str ts = TestLabel str (TestList ts)
 
 -- ---------------------------------------------------------------------
 
-myecho :: T.Text -> IO ()
-myecho t = mapM_ echo (textToLines t)
+myecho :: String -> IO ()
+myecho t = putStrLn t
 
 -- ---------------------------------------------------------------------
 
