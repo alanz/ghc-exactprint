@@ -88,6 +88,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
 import Language.Haskell.GHC.ExactPrint.ExactPrint
 import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Utils
+-- import Language.Haskell.GHC.ExactPrint.Orphans (Default(..))
 
 import Control.Monad.RWS
 import qualified Control.Monad.Fail as Fail
@@ -96,13 +97,14 @@ import GHC  hiding (parseModule, parsedSource)
 import GHC.Data.Bag
 import GHC.Data.FastString
 
+import Data.Data
+import Data.Default
 import Data.Maybe
 import Data.Generics
 import Data.List (sortBy)
 
 import Data.Functor.Identity
 import Control.Monad.State
-import Data.Default
 
 ------------------------------------------------------------------------------
 -- Transformation of source elements
@@ -117,7 +119,6 @@ newtype TransformT m a = TransformT { unTransformT :: RWST () [String] Int m a }
                          ,MonadReader ()
                          ,MonadWriter [String]
                          ,MonadState Int
-                         ,MonadTrans
                          )
 
 instance Fail.MonadFail m => Fail.MonadFail (TransformT m) where
@@ -184,8 +185,8 @@ captureOrder ls = AnnSortKey $ map (rs . getLocA) ls
 -- ---------------------------------------------------------------------
 
 captureMatchLineSpacing :: LHsDecl GhcPs -> LHsDecl GhcPs
-captureMatchLineSpacing (L l (ValD x (FunBind a b (MG c (L d ms ) e) f)))
-                       = L l (ValD x (FunBind a b (MG c (L d ms') e) f))
+captureMatchLineSpacing (L l (ValD x (FunBind a b (MG c (L d ms )))))
+                       = L l (ValD x (FunBind a b (MG c (L d ms'))))
     where
       ms' :: [LMatch GhcPs (LHsExpr GhcPs)]
       ms' = captureLineSpacing ms
@@ -214,7 +215,7 @@ captureTypeSigSpacing (L l (SigD x (TypeSig (EpAnn anc (AnnSig dc rs') cs) ns (H
       L (SrcSpanAnn EpAnnNotUsed   ll) _ -> realSrcSpan ll
       L (SrcSpanAnn (EpAnn anc' _ _) _) _ -> anchor anc' -- TODO MovedAnchor?
     dc' = case dca of
-      EpaSpan r -> AddEpAnn kw (EpaDelta (ss2delta (ss2posEnd rd) r) [])
+      EpaSpan r _ -> AddEpAnn kw (EpaDelta (ss2delta (ss2posEnd rd) r) [])
       EpaDelta _ _ -> AddEpAnn kw dca
 
     -- ---------------------------------
@@ -224,7 +225,7 @@ captureTypeSigSpacing (L l (SigD x (TypeSig (EpAnn anc (AnnSig dc rs') cs) ns (H
       (L (SrcSpanAnn EpAnnNotUsed    ll) b)
         -> let
              op = case dca of
-               EpaSpan r -> MovedAnchor (ss2delta (ss2posEnd r) (realSrcSpan ll))
+               EpaSpan r _ -> MovedAnchor (ss2delta (ss2posEnd r) (realSrcSpan ll))
                EpaDelta _ _ -> MovedAnchor (SameLine 1)
            in (L (SrcSpanAnn (EpAnn (Anchor (realSrcSpan ll) op) mempty emptyComments) ll) b)
       (L (SrcSpanAnn (EpAnn (Anchor r op) a c) ll) b)
@@ -232,7 +233,7 @@ captureTypeSigSpacing (L l (SigD x (TypeSig (EpAnn anc (AnnSig dc rs') cs) ns (H
               op' = case op of
                 MovedAnchor _ -> op
                 _ -> case dca of
-                  EpaSpan dcr -> MovedAnchor (ss2delta (ss2posEnd dcr) r)
+                  EpaSpan dcr _ -> MovedAnchor (ss2delta (ss2posEnd dcr) r)
                   EpaDelta _ _ -> MovedAnchor (SameLine 1)
            in (L (SrcSpanAnn (EpAnn (Anchor r op') a c) ll) b)
 
@@ -269,8 +270,8 @@ wrapDecl (L l s) = L l (ValD NoExtField s)
 -- ---------------------------------------------------------------------
 
 setEntryDPDecl :: LHsDecl GhcPs -> DeltaPos -> LHsDecl GhcPs
-setEntryDPDecl decl@(L _  (ValD x (FunBind a b (MG c (L d ms ) e) f))) dp
-                   = L l' (ValD x (FunBind a b (MG c (L d ms') e) f))
+setEntryDPDecl decl@(L _  (ValD x (FunBind a b (MG c (L d ms ))))) dp
+                   = L l' (ValD x (FunBind a b (MG c (L d ms'))))
     where
       L l' _ = setEntryDP decl dp
       ms' :: [LMatch GhcPs (LHsExpr GhcPs)]
@@ -342,13 +343,13 @@ getEntryDP _ = SameLine 1
 
 addEpaLocationDelta :: LayoutStartCol -> RealSrcSpan -> EpaLocation -> EpaLocation
 addEpaLocationDelta _off _anc (EpaDelta d cs) = EpaDelta d cs
-addEpaLocationDelta  off  anc (EpaSpan r)
+addEpaLocationDelta  off  anc (EpaSpan r _)
   = EpaDelta (adjustDeltaForOffset off (ss2deltaEnd anc r)) []
 
 -- Set the entry DP for an element coming after an existing keyword annotation
 setEntryDPFromAnchor :: LayoutStartCol -> EpaLocation -> LocatedA t -> LocatedA t
 setEntryDPFromAnchor _off (EpaDelta _ _) (L la a) = L la a
-setEntryDPFromAnchor  off (EpaSpan anc) ll@(L la _) = setEntryDP ll dp'
+setEntryDPFromAnchor  off (EpaSpan anc _) ll@(L la _) = setEntryDP ll dp'
   where
     r = case la of
       (SrcSpanAnn EpAnnNotUsed l) -> realSrcSpan l
@@ -399,8 +400,8 @@ transferEntryDP' la lb = do
 
 
 pushDeclDP :: HsDecl GhcPs -> DeltaPos -> HsDecl GhcPs
-pushDeclDP (ValD x (FunBind a b (MG c (L d  ms ) e) f)) dp
-          = ValD x (FunBind a b (MG c (L d' ms') e) f)
+pushDeclDP (ValD x (FunBind a b (MG c (L d  ms )))) dp
+          = ValD x (FunBind a b (MG c (L d' ms')))
     where
       L d' _ = setEntryDP (L d ms) dp
       ms' :: [LMatch GhcPs (LHsExpr GhcPs)]
@@ -412,20 +413,14 @@ pushDeclDP d _dp = d
 -- ---------------------------------------------------------------------
 
 balanceCommentsList :: (Monad m) => [LHsDecl GhcPs] -> TransformT m [LHsDecl GhcPs]
-balanceCommentsList [] = return []
-balanceCommentsList [x] = return [x]
-balanceCommentsList (a:b:ls) = do
-  (a',b') <- balanceComments a b
-  r <- balanceCommentsList (b':ls)
-  return (a':r)
+balanceCommentsList ds = balanceCommentsList'' ds
 
-balanceCommentsList' :: (Monad m) => [LocatedA a] -> TransformT m [LocatedA a]
-balanceCommentsList' [] = return []
-balanceCommentsList' [x] = return [x]
-balanceCommentsList' (a:b:ls) = do
-  logTr $ "balanceCommentsList' entered"
-  (a',b') <- balanceComments' a b
-  r <- balanceCommentsList' (b':ls)
+balanceCommentsList'' :: (Monad m) => [LHsDecl GhcPs] -> TransformT m [LHsDecl GhcPs]
+balanceCommentsList'' [] = return []
+balanceCommentsList'' [x] = return [x]
+balanceCommentsList'' (a:b:ls) = do
+  (a',b') <- balanceComments a b
+  r <- balanceCommentsList'' (b':ls)
   return (a':r)
 
 -- |The GHC parser puts all comments appearing between the end of one AST
@@ -449,7 +444,7 @@ balanceComments first second = do
 -- 'Match' if that 'Match' needs to be manipulated.
 balanceCommentsFB :: (Monad m)
   => LHsBind GhcPs -> LocatedA b -> TransformT m (LHsBind GhcPs, LocatedA b)
-balanceCommentsFB (L lf (FunBind x n (MG mx (L lm matches) o) t)) second = do
+balanceCommentsFB (L lf (FunBind x n (MG o (L lm matches)))) second = do
   logTr $ "balanceCommentsFB entered: " ++ showGhc (ss2range $ locA lf)
   -- There are comments on lf.  We need to
   -- + Keep the prior ones here
@@ -480,7 +475,7 @@ balanceCommentsFB (L lf (FunBind x n (MG mx (L lm matches) o) t)) second = do
         [] -> moveLeadingComments m'' lf'
         _  -> (m'',lf')
   logTr $ "balanceCommentsMatch done"
-  balanceComments' (L lf'' (FunBind x n (MG mx (L lm (reverse (m''':ms))) o) t)) second'
+  balanceComments' (L lf'' (FunBind x n (MG o (L lm (reverse (m''':ms)))))) second'
 balanceCommentsFB f s = balanceComments' f s
 
 -- | Move comments on the same line as the end of the match into the
@@ -536,6 +531,15 @@ pushTrailingComments w cs lb@(HsValBinds an _)
       _ -> (ValBinds NoAnnSortKey emptyBag [], [])
 
 
+balanceCommentsList' :: (Monad m) => [LocatedA a] -> TransformT m [LocatedA a]
+balanceCommentsList' [] = return []
+balanceCommentsList' [x] = return [x]
+balanceCommentsList' (a:b:ls) = do
+  logTr $ "balanceCommentsList' entered"
+  (a',b') <- balanceComments' a b
+  r <- balanceCommentsList' (b':ls)
+  return (a':r)
+
 -- |Prior to moving an AST element, make sure any trailing comments belonging to
 -- it are attached to it, and not the following element. Of necessity this is a
 -- heuristic process, to be tuned later. Possibly a variant should be provided
@@ -544,29 +548,26 @@ pushTrailingComments w cs lb@(HsValBinds an _)
 -- Many of these should in fact be following comments for the previous anchor
 balanceComments' :: (Monad m) => LocatedA a -> LocatedA b -> TransformT m (LocatedA a, LocatedA b)
 balanceComments' la1 la2 = do
-  -- logTr $ "balanceComments': (loc1,loc2)=" ++ showGhc (ss2range loc1,ss2range loc2)
-  -- logTr $ "balanceComments': (anc1)=" ++ showAst (anc1)
-  -- logTr $ "balanceComments': (cs2p)=" ++ showAst (cs2p)
-  -- logTr $ "balanceComments': (cs2f)=" ++ showAst (cs2f)
-  -- logTr $ "balanceComments': (cs1stay,cs1move)=" ++ showAst (cs1stay,cs1move)
-  -- logTr $ "balanceComments': (an1',an2')=" ++ showAst (an1',an2')
+  logTr $ "balanceComments': (loc1,loc2)=" ++ showGhc (ss2range loc1,ss2range loc2)
+  logTr $ "balanceComments': (anc1)=" ++ showAst (anc1)
+  logTr $ "balanceComments': (cs1s)=" ++ showAst (cs1s)
+  logTr $ "balanceComments': (cs1stay,cs1move)=" ++ showAst (cs1stay,cs1move)
+  logTr $ "balanceComments': (an1',an2')=" ++ showAst (an1',an2')
   return (la1', la2')
   where
     simpleBreak n (r,_) = r > n
-    L (SrcSpanAnn an1 _loc1) f = la1
-    L (SrcSpanAnn an2 _loc2) s = la2
+    L (SrcSpanAnn an1 loc1) f = la1
+    L (SrcSpanAnn an2 loc2) s = la2
     anc1 = addCommentOrigDeltas $ epAnnComments an1
     anc2 = addCommentOrigDeltas $ epAnnComments an2
 
-    -- Split comments into those before the span, in the span, and after the span
-    (cs1prior,cs1m,cs1following) = splitCommentsAround (anchorFromLocatedA la1) anc1
-    cs1p = priorCommentsDeltas    (anchorFromLocatedA la1) cs1prior
-    cs1f = trailingCommentsDeltas (anchorFromLocatedA la1) cs1following
+    cs1s = splitCommentsEnd (anchorFromLocatedA la1) anc1
+    cs1p = priorCommentsDeltas    (anchorFromLocatedA la1) (priorComments        cs1s)
+    cs1f = trailingCommentsDeltas (anchorFromLocatedA la1) (getFollowingComments cs1s)
 
-    -- Split comments into those before the span, in the span, and after the span
-    (cs2prior,cs2m,cs2following) = splitCommentsAround (anchorFromLocatedA la2) anc2
-    cs2p = priorCommentsDeltas    (anchorFromLocatedA la2) cs2prior
-    cs2f = trailingCommentsDeltas (anchorFromLocatedA la2) cs2following
+    cs2s = splitCommentsEnd (anchorFromLocatedA la2) anc2
+    cs2p = priorCommentsDeltas    (anchorFromLocatedA la2) (priorComments        cs2s)
+    cs2f = trailingCommentsDeltas (anchorFromLocatedA la2) (getFollowingComments cs2s)
 
     -- Split cs1f into those that belong on an1 and ones that must move to an2
     (cs1move,cs1stay) = break (simpleBreak 1) cs1f
@@ -578,11 +579,10 @@ balanceComments' la1 la2 = do
     move = sortEpaComments $ map snd (cs1move ++ move'' ++ move')
     stay = sortEpaComments $ map snd (cs1stay ++ stay')
 
-    an1' = setCommentsSrcAnn (getLoc la1) (EpaCommentsBalanced ((map snd cs1p)++cs1m) move)
-    an2' = setCommentsSrcAnn (getLoc la2) (EpaCommentsBalanced (cs2m++stay) (map snd cs2f))
+    an1' = setCommentsSrcAnn (getLoc la1) (EpaCommentsBalanced (map snd cs1p) move)
+    an2' = setCommentsSrcAnn (getLoc la2) (EpaCommentsBalanced stay (map snd cs2f))
     la1' = L an1' f
     la2' = L an2' s
-
 
 -- | Like commentsDeltas, but calculates the delta from the end of the anchor, not the start
 trailingCommentsDeltas :: RealSrcSpan -> [LEpaComment]
@@ -631,7 +631,6 @@ splitCommentsEnd p (EpaCommentsBalanced cs ts) = EpaCommentsBalanced cs' ts'
     cs' = before
     ts' = after <> ts
 
-
 -- | Split comments into ones occuring before the start of the reference
 -- span, and those after it.
 splitCommentsStart :: RealSrcSpan -> EpAnnComments -> EpAnnComments
@@ -648,21 +647,6 @@ splitCommentsStart p (EpaCommentsBalanced cs ts) = EpaCommentsBalanced cs' ts'
     (before, after) = break cmp cs
     cs' = before
     ts' = after <> ts
-
-
--- | Split comments into ones occuring before the start of the reference
--- span, those in the span, and those after it.
-splitCommentsAround :: RealSrcSpan -> EpAnnComments
-                    -> ([LEpaComment], [LEpaComment], [LEpaComment])
-splitCommentsAround p cs = (before,middle,after)
-  where
-    all_comments = priorComments cs ++ getFollowingComments cs
-    cmpbefore (L (Anchor l _) _) = ss2pos l > ss2pos p
-    cmpafter (L (Anchor l _) _) = ss2pos l > ss2posEnd p
-    (before, both) = break cmpbefore all_comments
-    (middle, after) = break cmpafter both
-
--- ---------------------------------------------------------------------
 
 moveLeadingComments :: (Data t, Data u, Monoid t, Monoid u)
   => LocatedAn t a -> SrcAnn u -> (LocatedAn t a, SrcAnn u)
@@ -771,7 +755,7 @@ balanceSameLineComments (L la (Match anm mctxt pats (GRHSs x grhss lb))) = do
 -- ---------------------------------------------------------------------
 
 anchorEof :: ParsedSource -> ParsedSource
-anchorEof (L l m@(HsModule an _lo _mn _exps _imps _decls _ _)) = L l (m { hsmodAnn = an' })
+anchorEof (L l m@(HsModule (XModulePs an _lo _ _) _mn _exps _imps _decls)) = L l (m { hsmodExt = (hsmodExt m){ hsmodAnn = an' } })
   where
     an' = addCommentOrigDeltasAnn an
 
@@ -911,12 +895,12 @@ class (Data t) => HasDecls t where
 -- ---------------------------------------------------------------------
 
 instance HasDecls ParsedSource where
-  hsDecls (L _ (HsModule _ _lo _mn _exps _imps decls _ _)) = return decls
-  replaceDecls (L l (HsModule a lo mname exps imps _decls deps haddocks)) decls
+  hsDecls (L _ (HsModule (XModulePs _ _lo _ _) _mn _exps _imps decls)) = return decls
+  replaceDecls (L l (HsModule (XModulePs a lo deps haddocks) mname exps imps _decls)) decls
     = do
         logTr "replaceDecls LHsModule"
         -- modifyAnnsT (captureOrder m decls)
-        return (L l (HsModule a lo mname exps imps decls deps haddocks))
+        return (L l (HsModule (XModulePs a lo deps haddocks) mname exps imps decls))
 
 -- ---------------------------------------------------------------------
 
@@ -962,7 +946,7 @@ instance HasDecls (LocatedA (HsExpr GhcPs)) where
               (L (TokenLoc l) ls, L (TokenLoc i) is) ->
                 let
                   off = case l of
-                          (EpaSpan r) -> LayoutStartCol $ snd $ ss2pos r
+                          (EpaSpan r _) -> LayoutStartCol $ snd $ ss2pos r
                           (EpaDelta (SameLine _) _) -> LayoutStartCol 0
                           (EpaDelta (DifferentLine _ c) _) -> LayoutStartCol c
                   ex'' = setEntryDPFromAnchor off i ex
@@ -1001,7 +985,7 @@ hsDeclsPatBindD x = error $ "hsDeclsPatBindD called for:" ++ showGhc x
 -- for 'hsDecls' \/ 'replaceDecls'. 'hsDeclsPatBind' \/ 'replaceDeclsPatBind' is
 -- idempotent.
 hsDeclsPatBind :: (Monad m) => LHsBind GhcPs -> TransformT m [LHsDecl GhcPs]
-hsDeclsPatBind (L _ (PatBind _ _ (GRHSs _ _grhs lb) _)) = hsDeclsValBinds lb
+hsDeclsPatBind (L _ (PatBind _ _ (GRHSs _ _grhs lb))) = hsDeclsValBinds lb
 hsDeclsPatBind x = error $ "hsDeclsPatBind called for:" ++ showGhc x
 
 -- -------------------------------------
@@ -1023,11 +1007,11 @@ replaceDeclsPatBindD x _ = error $ "replaceDeclsPatBindD called for:" ++ showGhc
 -- idempotent.
 replaceDeclsPatBind :: (Monad m) => LHsBind GhcPs -> [LHsDecl GhcPs]
                     -> TransformT m (LHsBind GhcPs)
-replaceDeclsPatBind (L l (PatBind x a (GRHSs xr rhss binds) b)) newDecls
+replaceDeclsPatBind (L l (PatBind x a (GRHSs xr rhss binds))) newDecls
     = do
         logTr "replaceDecls PatBind"
         binds'' <- replaceDeclsValbinds WithWhere binds newDecls
-        return (L l (PatBind x a (GRHSs xr rhss binds'') b))
+        return (L l (PatBind x a (GRHSs xr rhss binds'')))
 replaceDeclsPatBind x _ = error $ "replaceDeclsPatBind called for:" ++ showGhc x
 
 -- ---------------------------------------------------------------------

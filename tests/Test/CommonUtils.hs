@@ -21,10 +21,12 @@ module Test.CommonUtils
   , failuresHtmlFile
   ) where
 
+import Control.Monad
+import Control.Monad.Extra
 import Data.List hiding (find)
-import System.FilePath
-import System.FilePath.Find
 import qualified GHC.Data.StringBuffer as GHC
+import System.Directory
+import System.FilePath
 
 -- ---------------------------------------------------------------------
 
@@ -100,30 +102,38 @@ knownFailuresFile = configDir </> "knownfailures.txt"
 
 -- Given base directory finds all haskell source files
 findSrcFiles :: FilePath -> IO [FilePath]
-findSrcFiles = find filterDirectory filterFilename
-
-filterDirectory :: FindClause Bool
-filterDirectory =
-  p <$> fileName
+findSrcFiles = traverseDir okDirectory accFile []
   where
-    p x
-      | "." `isPrefixOf` x = False
+    okDirectory :: FilePath -> Bool
+    okDirectory path
+      | "." `isPrefixOf` takeBaseName path = False
       | otherwise = True
 
-filterFilename :: FindClause Bool
-filterFilename = do
-  ext <- extension
-  fname <- fileName
-  return (ext == ".hs" && p fname)
-  where
-    p x
-      | "refactored" `isInfixOf` x = False
-      | "Setup.hs" `isInfixOf` x = False
-      | "HLint.hs" `isInfixOf` x = False -- HLint config files
-      | otherwise                 = True
+    accFile :: [FilePath] -> FilePath -> IO [FilePath]
+    accFile acc fileName = do
+      return (if (takeExtension fileName == ".hs" && p fileName)
+                then fileName:acc
+                else acc)
+      where
+        p x
+          | "refactored" `isInfixOf` x = False
+          | "Setup.hs" `isInfixOf` x = False
+          | "HLint.hs" `isInfixOf` x = False -- HLint config files
+          | otherwise                 = True
 
 -- ---------------------------------------------------------------------
+-- Based on https://stackoverflow.com/questions/51712083/recursively-search-directories-for-all-files-matching-name-criteria-in-haskell
+traverseDir :: (FilePath -> Bool) -> (b -> FilePath -> IO b) -> b -> FilePath -> IO b
+traverseDir validDir transition =
+    let go state dirPath =
+            do names <- listDirectory dirPath
+               let paths = map (dirPath </>) names
+               (dirPaths, filePaths) <- partitionM doesDirectoryExist paths
+               state' <- foldM transition state filePaths -- process current dir
+               foldM go state' (filter validDir dirPaths) -- process subdirs
+     in go
 
+-- ---------------------------------------------------------------------
 readFileGhc :: FilePath -> IO String
 readFileGhc file = do
   buf@(GHC.StringBuffer _ len _) <- GHC.hGetStringBuffer file

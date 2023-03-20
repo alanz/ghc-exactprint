@@ -6,8 +6,14 @@ import Data.Default
 import GHC hiding (EpaComment)
 
 -- ---------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------
 -- Orphan Default instances. See https://gitlab.haskell.org/ghc/ghc/-/issues/20372
 
+{-
+instance Default [a] where
+  def = []
+-}
 instance Default NameAnn where
   def = mempty
 
@@ -37,6 +43,11 @@ instance Default GrhsAnn where
 instance Default EpAnnUnboundVar where
   def = EpAnnUnboundVar def  def
 
+{-
+instance (Default a, Default b) => Default (a, b) where
+  def = (def, def)
+-}
+
 instance Default NoEpAnns where
   def = NoEpAnns
 
@@ -51,6 +62,11 @@ instance Default EpAnnHsCase where
 
 instance Default AnnsIf where
   def = AnnsIf def def def def def
+
+{-
+instance Default (Maybe a) where
+  def = Nothing
+-}
 
 instance Default AnnProjection where
   def = AnnProjection def def

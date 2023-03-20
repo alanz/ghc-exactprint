@@ -9,6 +9,7 @@ for file in `find . -name "*.hs"`; do
         --eval '(whitespace-cleanup)' \
         --eval '(untabify (point-min) (point-max))' \
         --eval '(perform-replace " " " " nil nil nil)' \
+        --eval '(perform-replace " " " " nil nil nil)' \
         --eval '(perform-replace "" "" nil nil nil)' \
         --eval '(perform-replace "　" " " nil nil nil)' \
         --eval '(perform-replace " " " " nil nil nil)' \

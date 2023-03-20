@@ -47,29 +47,24 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
 
 import Language.Haskell.GHC.ExactPrint.Preprocess
 
-import Control.Monad.RWS
+-- import Control.Monad.RWS
+import Data.Functor (void)
 
 import qualified GHC hiding (parseModule)
 import qualified Control.Monad.IO.Class as GHC
 import qualified GHC.Data.FastString    as GHC
 import qualified GHC.Data.StringBuffer  as GHC
--- import qualified GHC.Driver.Config      as GHC
 import qualified GHC.Driver.Config.Parser as GHC
-import qualified GHC.Driver.Errors.Types  as GHC
+import qualified GHC.Driver.Errors.Types as GHC
 import qualified GHC.Driver.Session     as GHC
 import qualified GHC.Parser             as GHC
 import qualified GHC.Parser.Header      as GHC
 import qualified GHC.Parser.Lexer       as GHC
 import qualified GHC.Parser.PostProcess as GHC
--- import qualified GHC.Parser.Errors.Ppr  as GHC
 import qualified GHC.Types.SrcLoc       as GHC
--- import qualified GHC.Utils.Error        as GHC
 
 import qualified GHC.LanguageExtensions as LangExt
 
-{-# ANN module "HLint: ignore Eta reduce" #-}
-{-# ANN module "HLint: ignore Redundant do" #-}
-{-# ANN module "HLint: ignore Reduce duplication" #-}
 -- ---------------------------------------------------------------------
 
 -- | Wrapper function which returns Annotations along with the parsed
@@ -125,7 +120,7 @@ withDynFlags libdir action = ghcWrapper libdir $ do
 
 -- ---------------------------------------------------------------------
 
-parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located GHC.HsModule)
+parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located (GHC.HsModule GHC.GhcPs))
 parseFile = runParser GHC.parseModule
 
 -- ---------------------------------------------------------------------
@@ -281,17 +276,17 @@ postParseTransform parseRes = fmap mkAnns parseRes
 fixModuleTrailingComments :: GHC.ParsedSource -> GHC.ParsedSource
 fixModuleTrailingComments (GHC.L l p) = GHC.L l p'
   where
-    an' = case GHC.hsmodAnn p of
+    an' = case GHC.hsmodAnn $ GHC.hsmodExt p of
       (GHC.EpAnn a an ocs) -> GHC.EpAnn a an (rebalance (GHC.am_decls an) ocs)
       unused -> unused
-    p' = p { GHC.hsmodAnn = an' }
+    p' = p { GHC.hsmodExt = (GHC.hsmodExt p){ GHC.hsmodAnn = an' } }
     -- p'  = error $ "fixModuleTrailingComments: an'=" ++ showAst an'
 
     rebalance :: GHC.AnnList -> GHC.EpAnnComments -> GHC.EpAnnComments
     rebalance al cs = cs'
       where
         cs' = case GHC.al_close al of
-          Just (GHC.AddEpAnn _ (GHC.EpaSpan ss)) ->
+          Just (GHC.AddEpAnn _ (GHC.EpaSpan ss _)) ->
             let
               pc = GHC.priorComments cs
               fc = GHC.getFollowingComments cs

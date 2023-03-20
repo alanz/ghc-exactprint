@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -17,22 +18,24 @@ module Language.Haskell.GHC.ExactPrint.Utils
   -- , isGoodDelta
   -- ) where
   where
-import Control.Monad.State
+
+import Control.Monad (when)
 import Data.Function
 import Data.List
 import Data.Maybe
 import Data.Ord (comparing)
 
 import Language.Haskell.GHC.ExactPrint.Lookup
-import Language.Haskell.GHC.ExactPrint.Orphans ()
+
+import qualified Language.Haskell.GHC.ExactPrint.Orphans()
 
 import GHC hiding (EpaComment)
 import qualified GHC
 import GHC.Types.Name
 import GHC.Types.Name.Reader
 import GHC.Types.SrcLoc
+import GHC.Driver.Ppr
 import GHC.Data.FastString
-import GHC.Utils.Outputable ( showPprUnsafe )
 import qualified GHC.Data.Strict as Strict
 
 import Debug.Trace
@@ -115,7 +118,7 @@ undelta (l,_) (DifferentLine dl dc) (LayoutStartCol co) = (fl,fc)
     fc = co + dc
 
 undeltaSpan :: RealSrcSpan -> AnnKeywordId -> DeltaPos -> AddEpAnn
-undeltaSpan anchor kw dp = AddEpAnn kw (EpaSpan sp)
+undeltaSpan anchor kw dp = AddEpAnn kw (EpaSpan sp Strict.Nothing)
   where
     (l,c) = undelta (ss2pos anchor) dp (LayoutStartCol 0)
     len = length (keywordToString kw)
@@ -179,22 +182,28 @@ orderByKey keys order
 
 -- ---------------------------------------------------------------------
 
-isGadt :: [LConDecl (GhcPass p)] -> Bool
-isGadt [] = True
-isGadt ((L _ (ConDeclGADT{})):_) = True
-isGadt _ = False
+isListComp :: HsDoFlavour -> Bool
+isListComp = isDoComprehensionContext
+
+-- ---------------------------------------------------------------------
+
+needsWhere :: DataDefnCons (LConDecl (GhcPass p)) -> Bool
+needsWhere (NewTypeCon _) = True
+needsWhere (DataTypeCons _ []) = True
+needsWhere (DataTypeCons _ ((L _ (ConDeclGADT{})):_)) = True
+needsWhere _ = False
 
 -- ---------------------------------------------------------------------
 
 insertCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
 insertCppComments (L l p) cs = L l p'
   where
-    an' = case GHC.hsmodAnn p of
+    an' = case GHC.hsmodAnn $ GHC.hsmodExt p of
       (EpAnn a an ocs) -> EpAnn a an (EpaComments cs')
         where
           cs' = sortEpaComments $ priorComments ocs ++ getFollowingComments ocs ++ cs
       unused -> unused
-    p' = p { GHC.hsmodAnn = an' }
+    p' = p { GHC.hsmodExt = (GHC.hsmodExt p) { GHC.hsmodAnn = an' } }
 
 -- ---------------------------------------------------------------------
 
@@ -246,7 +255,7 @@ sortEpaComments cs = sortBy cmp cs
 
 -- | Makes a comment which originates from a specific keyword.
 mkKWComment :: AnnKeywordId -> EpaLocation -> Comment
-mkKWComment kw (EpaSpan ss)
+mkKWComment kw (EpaSpan ss _)
   = Comment (keywordToString kw) (Anchor ss UnchangedAnchor) ss (Just kw)
 mkKWComment kw (EpaDelta dp _)
   = Comment (keywordToString kw) (Anchor placeholderRealSpan (MovedAnchor dp)) placeholderRealSpan (Just kw)
@@ -336,17 +345,17 @@ setAnchorAn (L (SrcSpanAnn (EpAnn _ an _) l) a) anc cs
 
 setAnchorEpa :: (Default an) => EpAnn an -> Anchor -> EpAnnComments -> EpAnn an
 setAnchorEpa EpAnnNotUsed   anc cs = EpAnn anc def cs
-setAnchorEpa (EpAnn _ an _) anc cs = EpAnn anc an     cs
+setAnchorEpa (EpAnn _ an _) anc cs = EpAnn anc an          cs
 
 setAnchorEpaL :: EpAnn AnnList -> Anchor -> EpAnnComments -> EpAnn AnnList
 setAnchorEpaL EpAnnNotUsed   anc cs = EpAnn anc mempty cs
 setAnchorEpaL (EpAnn _ an _) anc cs = EpAnn anc (an {al_anchor = Nothing}) cs
 
-setAnchorHsModule :: HsModule -> Anchor -> EpAnnComments -> HsModule
-setAnchorHsModule hsmod anc cs = hsmod { hsmodAnn = an' }
+setAnchorHsModule :: HsModule GhcPs -> Anchor -> EpAnnComments -> HsModule GhcPs
+setAnchorHsModule hsmod anc cs = hsmod { hsmodExt = (hsmodExt hsmod) {hsmodAnn = an'} }
   where
     anc' = anc { anchor_op = UnchangedAnchor }
-    an' = setAnchorEpa (hsmodAnn hsmod) anc' cs
+    an' = setAnchorEpa (hsmodAnn $ hsmodExt hsmod) anc' cs
 
 -- |Version of l2l that preserves the anchor, immportant if it has an
 -- updated AnchorOperation
@@ -373,7 +382,7 @@ addEpAnnLoc (AddEpAnn _ l) = l
 
 -- TODO: move this to GHC
 anchorToEpaLocation :: Anchor -> EpaLocation
-anchorToEpaLocation (Anchor r UnchangedAnchor) = EpaSpan r
+anchorToEpaLocation (Anchor r UnchangedAnchor) = EpaSpan r Strict.Nothing
 anchorToEpaLocation (Anchor _ (MovedAnchor dp)) = EpaDelta dp []
 
 -- ---------------------------------------------------------------------
