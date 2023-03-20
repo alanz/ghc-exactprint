@@ -3,6 +3,7 @@
 import Control.Monad
 import Data.Char
 import Data.List.Extra
+import Data.Maybe
 import qualified Data.Set as Set
 import GHC.IO.Exception
 import System.Directory
@@ -42,13 +43,16 @@ preparePackage' :: String -> IO ()
 preparePackage' package = do
   -- (ec,dir) <- shellStrict ("cabal get --destdir=" <> T.pack hackageWorkDir <> " " <> package) empty
   (ec,dir,_err) <- readCreateProcessWithExitCode (shell ("cabal get --destdir=" <> hackageWorkDir <> " " <> package)) ""
-  -- myecho (T.pack $ "cabal get:" ++ show dir)
+  myecho ("cabal get:" ++ show dir)
   myecho (show ec)
   when (ec == ExitSuccess) $ do
-    let bits = splitOn " " (head $ lines dir)
+    let bits = splitOn " " (head $ findUnpackDir dir)
     myecho ("cabal get:dir=" ++ show (last bits))
     cleanPackage (last bits)
   return ()
+
+findUnpackDir bits
+  = catMaybes $ map (stripPrefix "Unpacking to ") $ lines (replace  "Unpacking to\n" "Unpacking to " bits)
 
 -- ---------------------------------------------------------------------
 
@@ -56,7 +60,13 @@ preparePackage' package = do
 cleanPackage :: String -> IO ()
 cleanPackage dir = do
   myecho ("cleaning:" <> dir)
+  -- There may be a timing issue where the unpack does not actually
+  -- complete when returning from the OS command.
+  -- Possibly checking for the existence of the dir hep
+  exists <- doesDirectoryExist dir
+  myecho ("cleaning:doesDirectoryExist: " ++ show exists)
   fs <- findSrcFiles dir
+  myecho ("cleanPackage:fs:len=" <> show (length fs))
   let
     doOne :: FilePath -> IO ()
     doOne fn = do
