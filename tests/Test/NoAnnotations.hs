@@ -11,6 +11,7 @@ import Data.Algorithm.DiffOutput
 -- import Data.Data (Data, toConstr, showConstr, cast)
 -- import Data.Generics (extQ, ext1Q, ext2Q, gmapQ)
 import Data.List
+import Data.Maybe
 -- import Data.Ord (comparing)
 -- import qualified Data.ByteString as B
 
@@ -90,7 +91,7 @@ runPrettyRoundTrip libdir origFile !parsedOrig _cs = do
   -- let !newAnns = addAnnotationsForPretty [] parsedOrig mempty
   let priorComments = GHC.priorComments $ GHC.epAnnComments $ GHC.hsmodAnn $ GHC.unLoc parsedOrig
   -- let comments = map tokComment $ GHC.sortRealLocated priorComments
-  let comments = map tokComment priorComments
+  let comments = concatMap tokComment priorComments
   let pragmas = filter (\(Comment c _ _ _) -> isPrefixOf "{-#" c ) comments
   let pragmaStr = intercalate "\n" $ map commentContents pragmas
 
