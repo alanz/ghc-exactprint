@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP   #-}
 {-# LANGUAGE DeriveDataTypeable   #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE FlexibleInstances    #-}
@@ -33,7 +34,8 @@ module Language.Haskell.GHC.ExactPrint.ExactPrint
   ) where
 
 import GHC
--- import GHC.Base (NonEmpty(..) )
+-- import GHC.Types.SrcLoc (mkRealSrcLoc, mkRealSrcSpan)
+import GHC.Base (NonEmpty(..) )
 import GHC.Core.Coercion.Axiom (Role(..))
 import GHC.Data.Bag
 import qualified GHC.Data.BooleanFormula as BF
@@ -42,6 +44,9 @@ import GHC.TypeLits
 import GHC.Types.Basic hiding (EP)
 import GHC.Types.Fixity
 import GHC.Types.ForeignCall
+#if MIN_VERSION_ghc(9,4,3)
+import GHC.Types.Name.Reader
+#endif
 import GHC.Types.SourceText
 import GHC.Types.PkgQual
 import GHC.Types.Var
@@ -72,6 +77,7 @@ import Language.Haskell.GHC.ExactPrint.Dump
 import Language.Haskell.GHC.ExactPrint.Lookup
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Types
+-- import GHC.Plugins (mkRealSrcLoc)
 
 -- import Debug.Trace
 
@@ -381,7 +387,7 @@ enterAnn (Entry anchor' cs flush canUpdateAnchor) a = do
   when (flush == NoFlushComments) $ do
     when ((getFollowingComments cs) /= []) $ do
       debugM $ "starting trailing comments:" ++ showAst (getFollowingComments cs)
-      mapM_ printOneComment (map tokComment $ getFollowingComments cs)
+      mapM_ printOneComment (concatMap tokComment $ getFollowingComments cs)
       debugM $ "ending trailing comments"
 
   let newAchor = anchor' { anchor_op = MovedAnchor edp }
@@ -397,7 +403,7 @@ enterAnn (Entry anchor' cs flush canUpdateAnchor) a = do
 -- ---------------------------------------------------------------------
 
 addCommentsA :: (Monad m, Monoid w) => [LEpaComment] -> EP w m ()
-addCommentsA csNew = addComments (map tokComment csNew)
+addCommentsA csNew = addComments (concatMap tokComment csNew)
 
 {-
 TODO: When we addComments, some may have an anchor that is no longer
@@ -434,7 +440,7 @@ flushComments trailing = do
   mapM_ printOneComment (sortComments cs)
   debugM $ "flushing comments:EOF:trailing:" ++ showAst (trailing)
   debugM $ "flushing comments:EOF:" ++ showAst (filterEofComment True trailing)
-  mapM_ printOneComment (map tokComment (filterEofComment True trailing))
+  mapM_ printOneComment (concatMap tokComment (filterEofComment True trailing))
   debugM $ "flushing comments done"
 
 filterEofComment :: Bool -> [LEpaComment] -> [LEpaComment]
@@ -557,7 +563,7 @@ printStringAtAAC :: (Monad m, Monoid w)
   => CaptureComments -> EpaLocation -> String -> EP w m EpaLocation
 printStringAtAAC capture (EpaSpan r) s = printStringAtRsC capture r s
 printStringAtAAC capture (EpaDelta d cs) s = do
-  mapM_ (printOneComment . tokComment) cs
+  mapM_  printOneComment $ concatMap tokComment cs
   pe1 <- getPriorEndD
   p1 <- getPosP
   printStringAtLsDelta d s
@@ -1398,7 +1404,8 @@ instance ExactPrint HsModule where
   exact hsmod@(HsModule EpAnnNotUsed _ _ _ _ _ _ _) = withPpr hsmod >> return hsmod
   exact (HsModule an lo mmn mexports imports decls mdeprec mbDoc) = do
 
-    mbDoc' <- markAnnotated mbDoc
+    let mbDoc' = mbDoc
+    -- mbDoc' <- markAnnotated mbDoc
 
     (an0, mmn' , mdeprec', mexports') <-
       case mmn of
@@ -1537,9 +1544,26 @@ instance ExactPrint (ImportDecl GhcPs) where
 instance ExactPrint HsDocString where
   getAnnotationEntry _ = NoEntryVal
   setAnnotationAnchor a _ _ = a
-  exact ds = do
-    (printStringAdvance . exactPrintHsDocString) ds
-    return ds
+  exact (MultiLineDocString decorator (x :| xs)) = do
+    printStringAdvance ("-- " ++ printDecorator decorator)
+    pe <- getPriorEndD
+    debugM $ "MultiLineDocString: (pe,x)=" ++ showAst (pe,x)
+    x' <- markAnnotated x
+    xs' <- markAnnotated (map dedentDocChunk xs)
+    return (MultiLineDocString decorator (x' :| xs'))
+  exact x = do
+    -- TODO: can this happen?
+    debugM $ "Not exact printing:" ++ showAst x
+    return x
+
+
+instance ExactPrint HsDocStringChunk where
+  getAnnotationEntry _ = NoEntryVal
+  setAnnotationAnchor a _ _ = a
+  exact chunk = do
+    printStringAdvance ("--" ++ unpackHDSC chunk)
+    return chunk
+
 
 instance ExactPrint a => ExactPrint (WithHsDocIdentifiers a GhcPs) where
   getAnnotationEntry _ = NoEntryVal
@@ -1896,11 +1920,12 @@ instance ExactPrint (DocDecl GhcPs) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ = a
 
-  exact v = case v of
-    (DocCommentNext ds)    -> DocCommentNext <$> exact ds
-    (DocCommentPrev ds)    -> DocCommentPrev <$> exact ds
-    (DocCommentNamed s ds) -> DocCommentNamed s <$> exact ds
-    (DocGroup i ds)        -> DocGroup i <$> exact ds
+  exact v = return v
+  -- exact v = case v of
+  --   (DocCommentNext ds)    -> DocCommentNext <$> exact ds
+  --   (DocCommentPrev ds)    -> DocCommentPrev <$> exact ds
+  --   (DocCommentNamed s ds) -> DocCommentNamed s <$> exact ds
+  --   (DocGroup i ds)        -> DocGroup i <$> exact ds
 
 -- ---------------------------------------------------------------------
 
@@ -3223,10 +3248,19 @@ instance ExactPrint (DotFieldOcc GhcPs) where
 
   setAnnotationAnchor (DotFieldOcc an a) anc cs = DotFieldOcc (setAnchorEpa an anc cs) a
 
+#if MIN_VERSION_ghc(9,4,3)
+  exact (DotFieldOcc an (L loc fs)) = do
+    an0 <- markLensKwM an lafDot  AnnDot
+    -- The field name has a SrcSpanAnnN, print it as a
+    -- LocatedN RdrName
+    L loc' _ <- markAnnotated (L loc (mkVarUnqual fs))
+    return (DotFieldOcc an0 (L loc' fs))
+#else
   exact (DotFieldOcc an fs) = do
     an0 <- markLensKwM an lafDot  AnnDot
     fs' <- markAnnotated fs
     return (DotFieldOcc an0 fs')
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -3944,6 +3978,10 @@ instance ExactPrint (HsType GhcPs) where
   exact (HsSpliceTy a splice) = do
     splice' <- markAnnotated splice
     return (HsSpliceTy a splice')
+  exact (HsDocTy an ty doc) = do
+    ty' <- markAnnotated ty
+    -- doc' <- markAnnotated doc
+    return (HsDocTy an ty' doc)
   exact (HsBangTy an (HsSrcBang mt up str) ty) = do
     an0 <-
       case mt of
@@ -3982,7 +4020,9 @@ instance ExactPrint (HsType GhcPs) where
       (HsCharTy src v) -> printSourceText src (show v)
     return (HsTyLit a lit)
   exact t@(HsWildCardTy _) = printStringAdvance "_" >> return t
-  exact x = error $ "missing match for HsType:" ++ showAst x
+  exact x@(HsRecTy _ _)    = error $ "missing match for HsType:" ++ showAst x
+  exact x@(XHsType _)      = error $ "missing match for HsType:" ++ showAst x
+
 
 -- ---------------------------------------------------------------------
 
@@ -4546,7 +4586,14 @@ instance ExactPrint (IE GhcPs) where
     m' <- markAnnotated m
     return (IEModuleContents an0 m')
 
-  exact x = error $ "missing match for IE:" ++ showAst x
+  -- These three exist to not error out, but are no-ops The contents
+  -- appear as "normal" comments too, which we process instead.
+  exact (IEGroup x lev doc) = do
+    return (IEGroup x lev doc)
+  exact (IEDoc x doc) = do
+    return (IEDoc x doc)
+  exact (IEDocNamed x str) = do
+    return (IEDocNamed x str)
 
 -- ---------------------------------------------------------------------
 
@@ -5042,6 +5089,7 @@ printString layout str = do
 printStringAdvance :: (Monad m, Monoid w) => String -> EP w m ()
 printStringAdvance str = do
   ss <- getAnchorU
+  debugM $ "printStringAdvance: ss =" ++ showGhc ss
   _ <- printStringAtRs ss str
   return ()
 

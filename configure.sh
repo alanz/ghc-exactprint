@@ -146,4 +146,6 @@ rm -fr dist*
 # cabal configure -fdev --enable-tests --with-compiler=/opt/ghc/9.4.0.20220523/bin/ghc --allow-newer
 
 
-cabal configure -fdev --enable-tests --with-compiler=ghc-9.4.2
+# cabal configure -fdev --enable-tests --with-compiler=ghc-9.4.2
+# cabal configure -fdev --enable-tests --with-compiler=ghc-9.4.3
+cabal configure -fdev --enable-tests --with-compiler=ghc-9.4.5
