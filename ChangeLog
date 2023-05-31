@@ -1,4 +1,7 @@
-2022-11-08 v1.6.1
+2023-05-31 v1.6.1.2
+	* Add GHC 9.4.5 to CI
+	* Add support for exact printing when using GHC option --haddock #125
+2022-11-08 v1.6.1.1
 	* Add GHC 9.4.4 to CI
 	* Add support for exact printing HsDocTy. #121
 2022-11-08 v1.6.1
