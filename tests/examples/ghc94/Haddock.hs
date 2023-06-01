@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
+{-# OPTIONS_GHC -fno-warn-redundant-constraints -haddock #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Test
