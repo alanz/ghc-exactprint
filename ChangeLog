@@ -1,3 +1,6 @@
+2022-11-08 v1.7.0.1
+	* Add CI for GHC 9.6.2
+	* Correctly deal with comments when using GHC flag -haddock
 2022-11-08 v1.7
 	* Support GHC 9.6.1
 2022-11-08 v1.6.1
