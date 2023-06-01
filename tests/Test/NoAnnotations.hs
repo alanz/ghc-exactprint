@@ -89,7 +89,7 @@ runPrettyRoundTrip :: LibDir -> FilePath -> GHC.ParsedSource
 runPrettyRoundTrip libdir origFile !parsedOrig _cs = do
   let priorComments = GHC.priorComments $ GHC.epAnnComments $ GHC.hsmodAnn
         $ GHC.hsmodExt $ GHC.unLoc parsedOrig
-  let comments = map tokComment priorComments
+  let comments = concatMap tokComment priorComments
   let pragmas = filter (\(Comment c _ _ _) -> isPrefixOf "{-#" c ) comments
   let pragmaStr = intercalate "\n" $ map commentContents pragmas
 
