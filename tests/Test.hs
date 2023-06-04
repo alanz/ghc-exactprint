@@ -250,7 +250,8 @@ tt' = do
     -- mkParserTestBC libdir "ghc96" "LexerM.hs"
 
     -- mkParserTest libdir "ghc94" "Haddock.hs"
-    mkParserTest libdir "ghc94" "Haddock1.hs"
+    -- mkParserTest libdir "ghc94" "Haddock1.hs"
+    mkParserTestBC libdir "ghc94" "Haddock1.hs"
 
    -- Needs GHC changes
 

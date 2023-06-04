@@ -231,9 +231,12 @@ hsDocStringComments _ pt (MultiLineDocString dec (x :| xs)) =
     docChunk pt' (L l chunk:cs)
       = Comment ("--" ++ unpackHDSC chunk) (spanAsAnchor l) pt' Nothing : docChunk (rs l) cs
   in
-    (Comment str (spanAsAnchor lx) pt Nothing : docChunk pt (map dedentDocChunk xs))
+    (Comment str (spanAsAnchor lx) pt Nothing : docChunk (rs lx) (map dedentDocChunk xs))
+hsDocStringComments anc pt (NestedDocString dec@(HsDocStringNamed _) (L _ chunk))
+  = [Comment ("{- " ++ printDecorator dec ++ unpackHDSC chunk ++ "-}") anc pt Nothing ]
 hsDocStringComments anc pt (NestedDocString dec (L _ chunk))
   = [Comment ("{-" ++ printDecorator dec ++ unpackHDSC chunk ++ "-}") anc pt Nothing ]
+
 hsDocStringComments _ _ (GeneratedDocString _) = [] -- Should not appear in user-written code
 
 -- Temporary until https://gitlab.haskell.org/ghc/ghc/-/issues/23459 is landed
