@@ -4271,7 +4271,6 @@ instance ExactPrint (ConDecl GhcPs) where
                     , con_mb_cxt = mcxt
                     , con_args = args
                     , con_doc = doc }) = do
-    doc' <- mapM markAnnotated doc
     an0 <- if has_forall
       then markEpAnnL an lidl AnnForall
       else return an
@@ -4291,7 +4290,7 @@ instance ExactPrint (ConDecl GhcPs) where
                        , con_ex_tvs = ex_tvs'
                        , con_mb_cxt = mcxt'
                        , con_args = args'
-                       , con_doc = doc' })
+                       , con_doc = doc })
 
     where
     --   -- In ppr_details: let's not print the multiplicities (they are always 1, by
@@ -4318,7 +4317,6 @@ instance ExactPrint (ConDecl GhcPs) where
                      , con_bndrs = bndrs
                      , con_mb_cxt = mcxt, con_g_args = args
                      , con_res_ty = res_ty, con_doc = doc }) = do
-    doc' <- mapM markAnnotated doc
     cons' <- mapM markAnnotated cons
     an0 <- markEpAnnL an lidl AnnDcolon
     an1 <- annotationsToComments an0 lidl  [AnnOpenP, AnnCloseP]
@@ -4346,7 +4344,7 @@ instance ExactPrint (ConDecl GhcPs) where
                         , con_names = cons'
                         , con_bndrs = bndrs'
                         , con_mb_cxt = mcxt', con_g_args = args'
-                        , con_res_ty = res_ty', con_doc = doc' })
+                        , con_res_ty = res_ty', con_doc = doc })
 
 -- ---------------------------------------------------------------------
 
@@ -4382,8 +4380,7 @@ instance ExactPrint (ConDeclField GhcPs) where
     names' <- markAnnotated names
     an0 <- markEpAnnL an lidl AnnDcolon
     ftype' <- markAnnotated ftype
-    mdoc' <- mapM markAnnotated mdoc
-    return (ConDeclField an0 names' ftype' mdoc')
+    return (ConDeclField an0 names' ftype' mdoc)
 
 -- ---------------------------------------------------------------------
 
