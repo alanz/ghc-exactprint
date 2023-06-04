@@ -215,13 +215,16 @@ tokComment t@(L lt c) =
 hsDocStringComments :: Anchor -> RealSrcSpan -> GHC.HsDocString -> [Comment]
 hsDocStringComments _ pt (MultiLineDocString dec (x :| xs)) =
   let
-    L lx x' = dedentDocChunkBy 4 x
-    str = "-- " ++ printDecorator dec ++ unpackHDSC x'
+    decStr = printDecorator dec
+    L lx x' = dedentDocChunkBy (3 + length decStr) x
+    str = "-- " ++ decStr ++ unpackHDSC x'
     docChunk _ [] = []
     docChunk pt' (L l chunk:cs)
       = Comment ("--" ++ unpackHDSC chunk) (spanAsAnchor l) pt' Nothing : docChunk (rs l) cs
   in
-    (Comment str (spanAsAnchor lx) pt Nothing : docChunk pt (map dedentDocChunk xs))
+    (Comment str (spanAsAnchor lx) pt Nothing : docChunk (rs lx) (map dedentDocChunk xs))
+hsDocStringComments anc pt (NestedDocString dec@(HsDocStringNamed _) (L _ chunk))
+  = [Comment ("{- " ++ printDecorator dec ++ unpackHDSC chunk ++ "-}") anc pt Nothing ]
 hsDocStringComments anc pt (NestedDocString dec (L _ chunk))
   = [Comment ("{-" ++ printDecorator dec ++ unpackHDSC chunk ++ "-}") anc pt Nothing ]
 hsDocStringComments _ _ (GeneratedDocString _) = [] -- Should not appear in user-written code
