@@ -43,8 +43,8 @@ import Data.Default
 
 -- |Global switch to enable debug tracing in ghc-exactprint Delta / Print
 debugEnabledFlag :: Bool
--- debugEnabledFlag = True
-debugEnabledFlag = False
+debugEnabledFlag = True
+-- debugEnabledFlag = False
 
 -- |Global switch to enable debug tracing in ghc-exactprint Pretty
 debugPEnabledFlag :: Bool
@@ -212,7 +212,13 @@ insertCppComments (L l p) cs = L l p'
 -- ---------------------------------------------------------------------
 
 ghcCommentText :: LEpaComment -> String
-ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentNext s) _))  = s
+-- ghcCommentText (L _ (GHC.EpaComment (EpaDocComment s) _))      = exactPrintHsDocString s
+-- ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentNext s) _))  = s
+ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentNext s) _))  = -- "-- |" ++ s
+  case lines s of
+    [] -> ""
+    (x:xs) -> unlines' $ ( "-- |" ++ x)
+                       : map (\y -> "--"++y) xs
 ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentPrev s) _))  = s
 ghcCommentText (L _ (GHC.EpaComment (EpaDocCommentNamed s) _)) = s
 ghcCommentText (L _ (GHC.EpaComment (EpaDocSection _ s) _))    = s
@@ -221,8 +227,93 @@ ghcCommentText (L _ (GHC.EpaComment (EpaLineComment s) _))     = s
 ghcCommentText (L _ (GHC.EpaComment (EpaBlockComment s) _))    = s
 ghcCommentText (L _ (GHC.EpaComment (EpaEofComment) _))        = ""
 
-tokComment :: LEpaComment -> Comment
-tokComment t@(L lt c) = mkComment (normaliseCommentText $ ghcCommentText t) lt (ac_prior_tok c)
+-- | Like unlines, but no trailing newline
+unlines' :: [String] -> String
+unlines' [] = []
+unlines' [x] = x
+unlines' (x:xs) = x++"\n"++unlines' xs
+
+-- tokComment :: LEpaComment -> Comment
+-- tokComment t@(L lt c) = mkComment (normaliseCommentText $ ghcCommentText t) lt (ac_prior_tok c)
+
+tokComment :: LEpaComment -> [Comment]
+tokComment t@(L lt c) =
+  case t of
+    (L l (GHC.EpaComment (EpaDocCommentNext s) pt))  ->
+      case lines s of
+        [] -> [mkComment "" lt (ac_prior_tok c)]
+        (x:xs) ->
+          let
+            docChunk :: Anchor -> RealSrcSpan -> [String] -> [Comment]
+            docChunk _ _ [] = []
+            docChunk l' pt' (chunk:cs)
+              = Comment ( "--" ++ chunk) (addLine 0 (length x + 2) l') pt' Nothing : docChunk (addLine 1 1 l') (anchor l') cs
+
+            r = Comment ("-- |" ++ x) (addLine 0 (length x + 4) l) pt Nothing
+                 : docChunk (addLine 1 1 l) (anchor l) xs
+          in
+            r
+                `debug` ("tokComment:r=" ++ showGhc r)
+
+    _ -> [mkComment (normaliseCommentText (ghcCommentText t)) lt (ac_prior_tok c)]
+
+
+addLine :: Int -> Int -> Anchor -> Anchor
+addLine  bump len (Anchor l op) = Anchor l' op
+  where
+    f = srcSpanFile l
+    sl = srcSpanStartLine l
+    sc = srcSpanStartCol l
+    el = srcSpanEndLine l
+    ec = srcSpanEndCol l
+    l' = mkRealSrcSpan (mkRealSrcLoc f (sl + bump) sc)
+                       (mkRealSrcLoc f (sl + bump) (sc + len))
+
+-- hsDocStringComments :: Anchor -> RealSrcSpan -> GHC.HsDocString -> [Comment]
+-- hsDocStringComments _ pt (MultiLineDocString dec (x :| xs)) =
+--   let
+--     decStr = printDecorator dec
+--     L lx x' = dedentDocChunkBy (3 + length decStr) x
+--     str = "-- " ++ decStr ++ unpackHDSC x'
+--     docChunk _ [] = []
+--     docChunk pt' (L l chunk:cs)
+--       = Comment ("--" ++ unpackHDSC chunk) (spanAsAnchor l) pt' Nothing : docChunk (rs l) cs
+--   in
+--     (Comment str (spanAsAnchor lx) pt Nothing : docChunk (rs lx) (map dedentDocChunk xs))
+-- hsDocStringComments anc pt (NestedDocString dec@(HsDocStringNamed _) (L _ chunk))
+--   = [Comment ("{- " ++ printDecorator dec ++ unpackHDSC chunk ++ "-}") anc pt Nothing ]
+-- hsDocStringComments anc pt (NestedDocString dec (L _ chunk))
+--   = [Comment ("{-" ++ printDecorator dec ++ unpackHDSC chunk ++ "-}") anc pt Nothing ]
+
+-- hsDocStringComments _ _ (GeneratedDocString _) = [] -- Should not appear in user-written code
+
+-- -- Temporary until https://gitlab.haskell.org/ghc/ghc/-/issues/23459 is landed
+-- -- At the moment the locations of the 'HsDocStringChunk's are from the start of
+-- -- the string part, leaving aside the "--". So we need to subtract 2 columns from it
+-- dedentDocChunk :: LHsDocStringChunk -> LHsDocStringChunk
+-- dedentDocChunk chunk = dedentDocChunkBy 2 chunk
+
+-- dedentDocChunkBy :: Int -> LHsDocStringChunk -> LHsDocStringChunk
+-- dedentDocChunkBy  dedent (L (RealSrcSpan l mb) c) = L (RealSrcSpan l' mb) c
+--   where
+--     f = srcSpanFile l
+--     sl = srcSpanStartLine l
+--     sc = srcSpanStartCol l
+--     el = srcSpanEndLine l
+--     ec = srcSpanEndCol l
+--     l' = mkRealSrcSpan (mkRealSrcLoc f sl (sc - dedent))
+--                        (mkRealSrcLoc f el (ec - dedent))
+
+-- dedentDocChunkBy _ x = x
+
+-- -- Temporary until https://gitlab.haskell.org/ghc/ghc/-/issues/23459 is landed
+-- printDecorator :: HsDocStringDecorator -> String
+-- printDecorator HsDocStringNext = "|"
+-- printDecorator HsDocStringPrevious = "^"
+-- printDecorator (HsDocStringNamed n) = '$':n
+-- printDecorator (HsDocStringGroup n) = replicate n '*'
+
+
 
 mkEpaComments :: [Comment] -> [Comment] -> EpAnnComments
 mkEpaComments priorCs []

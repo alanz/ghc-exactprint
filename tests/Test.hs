@@ -199,7 +199,7 @@ tt' = do
 
    -- mkTestModChange libdir rmDecl1 "RmDecl1.hs"
 
-   mkTestModChange libdir rmDecl4 "RmDecl4.hs"
+   -- mkTestModChange libdir rmDecl4 "RmDecl4.hs"
     -- mkParserTestMD libdir      "ghc92" "Foo.hs"
     -- mkParserTest libdir      "ghc92" "Foo.hs"
     -- mkParserTestMD libdir      "ghc92" "Foo.hs"
@@ -209,6 +209,7 @@ tt' = do
     -- mkParserTestBC libdir "ghc92" "CommentPlacement3.hs"
     -- mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
 
+    mkParserTest libdir      "ghc92" "Haddock1.hs"
    -- Needs GHC changes
 
 

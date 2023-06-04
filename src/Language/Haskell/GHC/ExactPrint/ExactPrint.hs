@@ -373,7 +373,7 @@ enterAnn (Entry anchor' cs flush canUpdateAnchor) a = do
   when (flush == NoFlushComments) $ do
     when ((getFollowingComments cs) /= []) $ do
       debugM $ "starting trailing comments:" ++ showAst (getFollowingComments cs)
-      mapM_ printOneComment (map tokComment $ getFollowingComments cs)
+      mapM_ printOneComment (concatMap tokComment $ getFollowingComments cs)
       debugM $ "ending trailing comments"
 
   let newAchor = anchor' { anchor_op = MovedAnchor edp }
@@ -389,7 +389,7 @@ enterAnn (Entry anchor' cs flush canUpdateAnchor) a = do
 -- ---------------------------------------------------------------------
 
 addCommentsA :: (Monad m, Monoid w) => [LEpaComment] -> EP w m ()
-addCommentsA csNew = addComments (map tokComment csNew)
+addCommentsA csNew = addComments (concatMap tokComment csNew)
 
 {-
 TODO: When we addComments, some may have an anchor that is no longer
@@ -430,7 +430,7 @@ flushComments trailing = do
   mapM_ printOneComment (sortComments cs)
   debugM $ "flushing comments:EOF:trailing:" ++ showAst (trailing)
   debugM $ "flushing comments:EOF:" ++ showAst (filterEofComment True trailing)
-  mapM_ printOneComment (map tokComment (filterEofComment True trailing))
+  mapM_ printOneComment (concatMap tokComment (filterEofComment True trailing))
   debugM $ "flushing comments done"
 
 filterEofComment :: Bool -> [LEpaComment] -> [LEpaComment]
@@ -553,7 +553,7 @@ printStringAtAAC :: (Monad m, Monoid w)
   => CaptureComments -> EpaLocation -> String -> EP w m EpaLocation
 printStringAtAAC capture (EpaSpan r) s = printStringAtRsC capture r s
 printStringAtAAC capture (EpaDelta d cs) s = do
-  mapM_ (printOneComment . tokComment) cs
+  mapM_ printOneComment $ concatMap tokComment cs
   pe1 <- getPriorEndD
   p1 <- getPosP
   printStringAtLsDelta d s
@@ -1388,7 +1388,7 @@ instance ExactPrint HsModule where
 
     debugM "HsModule Entered"
 
-    mbDoc' <- markAnnotated mbDoc
+    -- mbDoc' <- markAnnotated mbDoc
 
     (an0, mmn' , mdeprec', mexports') <-
       case mmn of
@@ -1419,7 +1419,7 @@ instance ExactPrint HsModule where
     let anf = an0 { anns = (anns an0) { am_decls = am_decls' }}
     debugM $ "HsModule, anf=" ++ showAst anf
 
-    return (HsModule anf lo mmn' mexports' imports' decls' mdeprec' mbDoc')
+    return (HsModule anf lo mmn' mexports' imports' decls' mdeprec' mbDoc)
 
 -- ---------------------------------------------------------------------
 
@@ -4240,7 +4240,7 @@ instance ExactPrint (ConDecl GhcPs) where
                     , con_mb_cxt = mcxt
                     , con_args = args
                     , con_doc = doc }) = do
-    doc' <- mapM markAnnotated doc
+    -- doc' <- mapM markAnnotated doc
     an0 <- if has_forall
       then markEpAnnL an lidl AnnForall
       else return an
@@ -4260,7 +4260,7 @@ instance ExactPrint (ConDecl GhcPs) where
                        , con_ex_tvs = ex_tvs'
                        , con_mb_cxt = mcxt'
                        , con_args = args'
-                       , con_doc = doc' })
+                       , con_doc = doc })
 
     where
     --   -- In ppr_details: let's not print the multiplicities (they are always 1, by
@@ -4287,7 +4287,7 @@ instance ExactPrint (ConDecl GhcPs) where
                      , con_bndrs = bndrs
                      , con_mb_cxt = mcxt, con_g_args = args
                      , con_res_ty = res_ty, con_doc = doc }) = do
-    doc' <- mapM markAnnotated doc
+    -- doc' <- mapM markAnnotated doc
     cons' <- mapM markAnnotated cons
     an0 <- markEpAnnL an lidl AnnDcolon
     an1 <- annotationsToComments an0 lidl  [AnnOpenP, AnnCloseP]
@@ -4314,7 +4314,7 @@ instance ExactPrint (ConDecl GhcPs) where
                         , con_names = cons'
                         , con_bndrs = bndrs'
                         , con_mb_cxt = mcxt', con_g_args = args'
-                        , con_res_ty = res_ty', con_doc = doc' })
+                        , con_res_ty = res_ty', con_doc = doc })
 
 -- ---------------------------------------------------------------------
 
@@ -4350,8 +4350,8 @@ instance ExactPrint (ConDeclField GhcPs) where
     names' <- markAnnotated names
     an0 <- markEpAnnL an lidl AnnDcolon
     ftype' <- markAnnotated ftype
-    mdoc' <- mapM markAnnotated mdoc
-    return (ConDeclField an0 names' ftype' mdoc')
+    -- mdoc' <- mapM markAnnotated mdoc
+    return (ConDeclField an0 names' ftype' mdoc)
 
 -- ---------------------------------------------------------------------
 
@@ -4562,10 +4562,14 @@ instance ExactPrint (IE GhcPs) where
     m' <- markAnnotated m
     return (IEModuleContents an0 m')
 
-  -- exact (IEGroup _ _ _)          = NoEntryVal
-  -- exact (IEDoc _ _)              = NoEntryVal
-  -- exact (IEDocNamed _ _)         = NoEntryVal
-  exact x = error $ "missing match for IE:" ++ showAst x
+  -- These three exist to not error out, but are no-ops The contents
+  -- appear as "normal" comments too, which we process instead.
+  exact (IEGroup x lev doc) = do
+    return (IEGroup x lev doc)
+  exact (IEDoc x doc) = do
+    return (IEDoc x doc)
+  exact (IEDocNamed x str) = do
+    return (IEDocNamed x str)
 
 -- ---------------------------------------------------------------------
 

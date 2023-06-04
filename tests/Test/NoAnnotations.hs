@@ -90,7 +90,7 @@ runPrettyRoundTrip libdir origFile !parsedOrig _cs = do
   -- let !newAnns = addAnnotationsForPretty [] parsedOrig mempty
   let priorComments = GHC.priorComments $ GHC.epAnnComments $ GHC.hsmodAnn $ GHC.unLoc parsedOrig
   -- let comments = map tokComment $ GHC.sortRealLocated priorComments
-  let comments = map tokComment priorComments
+  let comments = concatMap tokComment priorComments
   let pragmas = filter (\(Comment c _ _ _) -> isPrefixOf "{-#" c ) comments
   let pragmaStr = intercalate "\n" $ map commentContents pragmas
 
