@@ -3958,7 +3958,9 @@ instance ExactPrint (HsType GhcPs) where
   exact (HsSpliceTy a splice) = do
     splice' <- markAnnotated splice
     return (HsSpliceTy a splice')
-  -- exact x@(HsDocTy an _ _)          = withPpr x
+  exact (HsDocTy an ty doc) = do
+    ty' <- markAnnotated ty
+    return (HsDocTy an ty' doc)
   exact (HsBangTy an (HsSrcBang mt up str) ty) = do
     an0 <-
       case mt of

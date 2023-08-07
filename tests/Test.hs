@@ -209,7 +209,8 @@ tt' = do
     -- mkParserTestBC libdir "ghc92" "CommentPlacement3.hs"
     -- mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
 
-    mkParserTest libdir      "ghc92" "Haddock1.hs"
+    -- mkParserTest libdir      "ghc92" "Haddock1.hs"
+    mkParserTest libdir      "ghc92" "Haddock.hs"
    -- Needs GHC changes
 
 

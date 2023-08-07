@@ -233,30 +233,67 @@ unlines' [] = []
 unlines' [x] = x
 unlines' (x:xs) = x++"\n"++unlines' xs
 
--- tokComment :: LEpaComment -> Comment
--- tokComment t@(L lt c) = mkComment (normaliseCommentText $ ghcCommentText t) lt (ac_prior_tok c)
-
 tokComment :: LEpaComment -> [Comment]
 tokComment t@(L lt c) =
   case t of
     (L l (GHC.EpaComment (EpaDocCommentNext s) pt))  ->
-      case lines s of
-        [] -> [mkComment "" lt (ac_prior_tok c)]
-        (x:xs) ->
-          let
-            docChunk :: Anchor -> RealSrcSpan -> [String] -> [Comment]
-            docChunk _ _ [] = []
-            docChunk l' pt' (chunk:cs)
-              = Comment ( "--" ++ chunk) (addLine 0 (length x + 2) l') pt' Nothing : docChunk (addLine 1 1 l') (anchor l') cs
+      if isDocCommentNextNested s l
+        then epaDocCommentNextNested s l pt
+        else epaDocCommentNextNonNested s l pt
 
-            r = Comment ("-- |" ++ x) (addLine 0 (length x + 4) l) pt Nothing
-                 : docChunk (addLine 1 1 l) (anchor l) xs
-          in
-            r
-                `debug` ("tokComment:r=" ++ showGhc r)
+    (L l (GHC.EpaComment (EpaDocCommentPrev s) pt))  ->
+     [mkComment ("-- ^" ++ s) l pt]
 
+    (L l (GHC.EpaComment (EpaDocSection n s) pt))  ->
+     [mkComment ("-- " ++ replicate n '*' ++ s) l pt]
     _ -> [mkComment (normaliseCommentText (ghcCommentText t)) lt (ac_prior_tok c)]
 
+
+-- | Try to work out if the original comment was using "--" or "{-" "-}".
+-- Note: this is impossible for a comment against the left margin (like this one).
+isDocCommentNextNested :: String -> Anchor -> Bool
+isDocCommentNextNested s (Anchor r _)
+  = case lines s of
+      [] -> True
+      [x] -> -- Single line, check span length vs string length
+        let
+          start_col = srcSpanStartCol r
+          end_col = srcSpanEndCol r
+          -- "--|" vs "{-|-}"
+          res = (end_col - start_col - length x) /= 4
+        in
+          res
+            `debug` ("isDocCommentNextNested: (length x, start_col, end_col)" ++ show (length x, start_col, end_col))
+      xs -> -- multi-line. For last line, see if the end col aligns
+            -- with starting at the left and adding `-}`
+        let
+          line = last xs
+          end_col = srcSpanEndCol r
+          res = length line + 3 == end_col
+        in
+          res
+            `debug` ("isDocCommentNextNested: (length line, end_col)" ++ show (length line, end_col))
+
+epaDocCommentNextNested :: String -> Anchor -> RealSrcSpan -> [Comment]
+epaDocCommentNextNested s l pt
+  = [Comment ("{-|" ++ s ++ "-}") (addLine 0 (length s + 3) l) pt Nothing]
+
+epaDocCommentNextNonNested :: String -> Anchor -> RealSrcSpan -> [Comment]
+epaDocCommentNextNonNested s l pt
+  = case lines s of
+      [] -> [mkComment "" l pt]
+      (x:xs) ->
+        let
+          docChunk :: Anchor -> RealSrcSpan -> [String] -> [Comment]
+          docChunk _ _ [] = []
+          docChunk l' pt' (chunk:cs)
+            = Comment ( "--" ++ chunk) (addLine 0 (length x + 2) l') pt' Nothing : docChunk (addLine 1 1 l') (anchor l') cs
+
+          r = Comment ("-- |" ++ x) (addLine 0 (length x + 4) l) pt Nothing
+               : docChunk (addLine 1 1 l) (anchor l) xs
+        in
+          r
+              `debug` ("tokComment:r=" ++ showGhc r)
 
 addLine :: Int -> Int -> Anchor -> Anchor
 addLine  bump len (Anchor l op) = Anchor l' op

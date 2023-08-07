@@ -15,7 +15,8 @@ module Haddock1 (
 
         {-| nested-style doc comments,
             multi-line
-        -}
+  blah
+       -}
         , h
 
         -- * A section
@@ -26,7 +27,7 @@ module Haddock1 (
 -- | Haddock before imports
 import Data.List
 
--- | Haddock before decl
+--  | Haddock before decl
 f = undefined
 g = undefined
 h = undefined
