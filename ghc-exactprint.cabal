@@ -15,10 +15,7 @@ author:              Alan Zimmerman, Matthew Pickering
 maintainer:          alan.zimm@gmail.com
 category:            Development
 build-type:          Simple
-tested-with:         GHC == 9.6.1,
-                     GHC == 9.6.2,
-                     GHC == 9.6.3,
-                     GHC == 9.8.1
+tested-with:         GHC == 9.8.1
 extra-source-files:  ChangeLog
                      tests/examples/failing/*.hs
                      tests/examples/ghc710-only/*.hs
@@ -92,7 +89,7 @@ library
 
 
   default-language:    Haskell2010
-  if impl (ghc < 9.6)
+  if impl (ghc < 9.8)
       buildable: False
 
 Test-Suite test
@@ -133,7 +130,7 @@ Test-Suite test
       build-depends: free
   else
       build-depends: ghc-exactprint
-  if impl (ghc < 9.4)
+  if impl (ghc < 9.8)
       buildable: False
 
 executable roundtrip
@@ -143,7 +140,7 @@ executable roundtrip
                  Test.CommonUtils
                  -- Test.Consistency
   default-language:    Haskell2010
-  if impl (ghc >= 9.4) && flag (roundtrip)
+  if impl (ghc >= 9.8) && flag (roundtrip)
     build-depends:
                  HUnit
                , base
