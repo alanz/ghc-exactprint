@@ -63,6 +63,7 @@ showAstData bs ba a0 = blankLine $$ showAstData' a0
               `extQ` annotationAnnParen
               `extQ` annotationTrailingAnn
               `extQ` annotationEpaLocation
+              `extQ` annotationNoEpAnns
               `extQ` addEpAnn
               `extQ` lit `extQ` litr `extQ` litt
               `extQ` sourceText
@@ -133,12 +134,12 @@ showAstData bs ba a0 = blankLine $$ showAstData' a0
             sourceText :: SourceText -> SDoc
             sourceText NoSourceText = parens $ text "NoSourceText"
             sourceText (SourceText src) = case bs of
-              NoBlankSrcSpan   -> parens $ text "SourceText" <+> text src
-              BlankSrcSpanFile -> parens $ text "SourceText" <+> text src
+              NoBlankSrcSpan   -> parens $ text "SourceText" <+> ftext src
+              BlankSrcSpanFile -> parens $ text "SourceText" <+> ftext src
               _                -> parens $ text "SourceText" <+> text "blanked"
 
             epaAnchor :: EpaLocation -> SDoc
-            epaAnchor (EpaSpan r _)  = parens $ text "EpaSpan" <+> realSrcSpan r
+            epaAnchor (EpaSpan r _) = parens $ text "EpaSpan" <+> realSrcSpan r
             epaAnchor (EpaDelta d cs) = case ba of
               NoBlankEpAnnotations -> parens $ text "EpaDelta" <+> deltaPos d <+> showAstData' cs
               BlankEpAnnotations -> parens $ text "EpaDelta" <+> deltaPos d <+> text "blanked"
@@ -152,7 +153,7 @@ showAstData bs ba a0 = blankLine $$ showAstData' a0
 
             occName n  =  braces $
                           text "OccName:"
-                      <+> text (occNameString n)
+                      <+> ftext (occNameFS n)
 
             moduleName :: ModuleName -> SDoc
             moduleName m = braces $ text "ModuleName:" <+> ppr m
@@ -161,10 +162,12 @@ showAstData bs ba a0 = blankLine $$ showAstData' a0
             srcSpan ss = case bs of
              BlankSrcSpan -> text "{ ss }"
              NoBlankSrcSpan -> braces $ char ' ' <>
-                             (hang (pprSrcSpanWithAnchor ss) 1
+                             (hang (ppr ss) 1
+                                   -- TODO: show annotations here
                                    (text ""))
              BlankSrcSpanFile -> braces $ char ' ' <>
                              (hang (pprUserSpan False ss) 1
+                                   -- TODO: show annotations here
                                    (text ""))
 
             realSrcSpan :: RealSrcSpan -> SDoc
@@ -172,9 +175,11 @@ showAstData bs ba a0 = blankLine $$ showAstData' a0
              BlankSrcSpan -> text "{ ss }"
              NoBlankSrcSpan -> braces $ char ' ' <>
                              (hang (ppr ss) 1
+                                   -- TODO: show annotations here
                                    (text ""))
              BlankSrcSpanFile -> braces $ char ' ' <>
                              (hang (pprUserRealSpan False ss) 1
+                                   -- TODO: show annotations here
                                    (text ""))
 
 
@@ -252,6 +257,9 @@ showAstData bs ba a0 = blankLine $$ showAstData' a0
 
             annotationEpaLocation :: EpAnn EpaLocation -> SDoc
             annotationEpaLocation = annotation' (text "EpAnn EpaLocation")
+
+            annotationNoEpAnns :: EpAnn NoEpAnns -> SDoc
+            annotationNoEpAnns = annotation' (text "EpAnn NoEpAnns")
 
             annotation' :: forall a .(Data a)
                        => SDoc -> EpAnn a -> SDoc

@@ -126,9 +126,8 @@ getCppTokensAsComments cppOptions sourceFile = do
 goodComment :: GHC.LEpaComment -> Bool
 goodComment c = isGoodComment (tokComment c)
   where
-    isGoodComment :: [Comment] -> Bool
-    isGoodComment []                 = False
-    isGoodComment [Comment "" _ _ _] = False
+    isGoodComment :: Comment -> Bool
+    isGoodComment (Comment "" _ _ _) = False
     isGoodComment _                  = True
 
 
@@ -195,7 +194,7 @@ stripPreprocessorDirectives :: GHC.StringBuffer -> GHC.StringBuffer
 stripPreprocessorDirectives buf = buf'
   where
     srcByLine = lines $ sbufToString buf
-    noDirectivesLines = map (\line -> if line /= [] && head line == '#' then "" else line) srcByLine
+    noDirectivesLines = map (\line -> case line of '#' : _ -> ""; _ -> line) srcByLine
     buf' = GHC.stringToStringBuffer $ unlines noDirectivesLines
 
 -- ---------------------------------------------------------------------
@@ -227,6 +226,7 @@ getPreprocessedSrcDirectPrim cppOptions src_fn = do
       txt <- GHC.liftIO $ readFileGhc hspp_fn
       return (txt, buf, dflags')
 
+-- showErrorMessages :: GHC.Messages GHC.DriverMessage -> String
 showErrorMessages :: (GHC.Diagnostic a) => GHC.Messages a -> String
 showErrorMessages msgs =
   GHC.renderWithContext GHC.defaultSDocContext
@@ -262,7 +262,7 @@ fingerprintStrings ss = GHC.fingerprintFingerprints $ map GHC.fingerprintString 
 getPreprocessorAsComments :: FilePath -> IO [(GHC.Located GHC.Token, String)]
 getPreprocessorAsComments srcFile = do
   fcontents <- readFileGhc srcFile
-  let directives = filter (\(_lineNum,line) -> line /= [] && head line == '#')
+  let directives = filter (\(_lineNum,line) -> case line of '#' : _ -> True; _ -> False)
                     $ zip [1..] (lines fcontents)
 
   let mkTok (lineNum,line) = (GHC.L l (GHC.ITlineComment line (makeBufSpan l)),line)

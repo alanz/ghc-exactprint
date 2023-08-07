@@ -4,6 +4,7 @@ module Language.Haskell.GHC.ExactPrint.Orphans where
 
 import Data.Default
 import GHC hiding (EpaComment)
+import GHC.Types.SrcLoc
 
 -- ---------------------------------------------------------------------
 
@@ -89,5 +90,8 @@ instance Default AnnContext where
 instance Default EpAnnSumPat where
   def = EpAnnSumPat def  def  def
 
+instance Semigroup RealSrcSpan where
+    a <> b = combineRealSrcSpans a b
+
 instance Default AnnsModule where
-  def = AnnsModule [] mempty
+  def = AnnsModule [] mempty mempty
