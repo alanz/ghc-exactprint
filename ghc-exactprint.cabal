@@ -73,7 +73,7 @@ library
   -- other-extensions:
   GHC-Options:         -Wall -Wredundant-constraints
   -- GHC-Options:         -Weverything
-  build-depends:       base >=4.18 && <4.19
+  build-depends:       base >=4.19 && <4.20
                      , bytestring >= 0.10.6
                      , containers >= 0.5
                      , ordered-containers
@@ -108,7 +108,7 @@ Test-Suite test
   GHC-Options:         -threaded -Wall -Wredundant-constraints
   Default-language:    Haskell2010
   Build-depends:       HUnit >= 1.2
-                     , base < 4.19
+                     , base < 4.20
                      , bytestring
                      , containers >= 0.5
                      , ordered-containers
