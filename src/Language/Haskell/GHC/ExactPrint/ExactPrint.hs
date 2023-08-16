@@ -51,7 +51,6 @@ import GHC.Utils.Outputable hiding ( (<>) )
 import GHC.Unit.Module.Warnings
 import GHC.Utils.Misc
 import GHC.Utils.Panic
-import qualified GHC.Data.Strict as Strict
 import GHC.Base (NonEmpty(..))
 
 import Language.Haskell.Syntax.Basic (FieldLabelString(..))
@@ -1396,7 +1395,7 @@ instance ExactPrint (HsModule GhcPs) where
 
     am_decls' <- markTrailing (am_decls $ anns an0)
     imports' <- markTopLevelList imports
-    decls' <- markTopLevelList decls
+    decls' <- markTopLevelList (filter removeDocDecl decls)
 
     lo1 <- case lo0 of
         ExplicitBraces open close -> do
@@ -1415,6 +1414,11 @@ instance ExactPrint (HsModule GhcPs) where
     debugM $ "HsModule, anf=" ++ showAst anf
 
     return (HsModule (XModulePs anf lo1 mdeprec' mbDoc') mmn' mexports' imports' decls')
+
+
+removeDocDecl :: LHsDecl GhcPs -> Bool
+removeDocDecl (L _ DocD{}) = False
+removeDocDecl _ = True
 
 -- ---------------------------------------------------------------------
 
@@ -3950,8 +3954,8 @@ instance ExactPrint (HsType GhcPs) where
     return (HsSpliceTy a splice')
   exact (HsDocTy an ty doc) = do
     ty' <- markAnnotated ty
-    doc' <- markAnnotated doc
-    return (HsDocTy an ty' doc')
+    -- doc' <- markAnnotated doc
+    return (HsDocTy an ty' doc)
   exact (HsBangTy an (HsSrcBang mt up str) ty) = do
     an0 <-
       case mt of

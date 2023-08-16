@@ -202,56 +202,23 @@ tt' = do
   let libdir = GHC.Paths.libdir
   runTestText (putTextToHandle stdout True) $ TestList [
 
-    -- mkTestModChange libdir rmDecl7 "RmDecl7.hs"
 
-    -- mkTestModChange libdir changeLocalDecls  "LocalDecls.hs"
-    -- mkTestModChange libdir changeLayoutLet2 "LayoutLet2.hs"
-    -- mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
-
-   -- mkTestModChange libdir rmDecl1 "RmDecl1.hs"
-
-   -- mkTestModChange libdir rmDecl4 "RmDecl4.hs"
-    -- mkParserTestMD libdir      "ghc92" "Foo.hs"
-    -- mkParserTest libdir      "ghc92" "Foo.hs"
-    -- mkParserTestMD libdir      "ghc92" "Foo.hs"
-    -- mkParserTest libdir      "ghc92" "Foo2.hs"
-    -- mkParserTest libdir      "ghc710" "EmptyMostly.hs"
-    -- mkParserTestBC libdir "ghc710" "Control.hs"
-    -- mkParserTestBC libdir "ghc92" "CommentPlacement3.hs"
-    -- mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
-
-    -- mkParserTest libdir      "ghc92" "ConstructorComment.hs"
-    -- mkParserTest libdir      "ghc92" "Binary.hs"
-    -- mkParserTest libdir      "ghc92" "Observer.hs"
-    -- mkParserTest libdir      "ghc92" "Observer1.hs"
-
-   -- mkTestModChange libdir addLocaLDecl1  "AddLocalDecl1.hs"
-   -- mkTestModChange libdir addLocaLDecl3  "AddLocalDecl3.hs"
-
-    -- mkParserTestBC libdir "ghc710" "MultiParamTypeClasses.hs"
-
-    -- mkParserTestBC libdir "ghc710" "DataFamilies.hs"
-    -- mkParserTestBC libdir "ghc710" "Cpp.hs"
-    -- mkParserTestBC libdir "ghc80" "T4139.hs"
-
-    -- mkParserTestBC libdir "ghc92" "Checkpoint.hs"
-
-    -- mkParserTestBC libdir "ghc92" "CommentPlacement6.hs"
-    -- mkParserTest libdir "ghc92" "CommentPlacement6.hs"
 
     -- mkParserTest libdir "ghc92" "TopLevelSemis.hs"
     -- mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
     -- mkParserTestMD libdir "ghc92" "TopLevelSemis.hs"
-
 
     -- mkParserTest libdir "ghc96" "T11671_run.hs"
 
     -- mkParserTest libdir "ghc96" "LexerM.hs"
     -- mkParserTestBC libdir "ghc96" "LexerM.hs"
 
-    mkParserTest libdir "ghc94" "Haddock.hs"
+    -- mkParserTest libdir "ghc94" "Haddock.hs"
     -- mkParserTest libdir "ghc94" "Haddock1.hs"
+    -- mkParserTest libdir "ghc94" "Haddock2.hs"
     -- mkParserTestBC libdir "ghc94" "Haddock1.hs"
+
+    mkParserTest libdir "ghc96" "Main.hs"
 
    -- Needs GHC changes
 
