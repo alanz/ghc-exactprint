@@ -4841,11 +4841,14 @@ printStringAtLsDelta cl s = do
   colOffset <- getLayoutOffsetP
   if isGoodDeltaWithOffset cl colOffset
     then do
+      dprior <- getPriorEndD
       printStringAt (undelta p cl colOffset) s
-        -- `debug` ("printStringAtLsDelta:(pos,s):" ++ show (undelta p cl colOffset,s))
+        -- `debug` ("printStringAtLsDelta:(cl,colOffset):" ++ show (cl,colOffset,s))
       p' <- getPosP
-      d <- getPriorEndD
-      debugM $ "printStringAtLsDelta:(pos,p,p',d,s):" ++ show (undelta p cl colOffset,p,p',d,s)
+      dafter <- getPriorEndD
+      setPriorEndASTPD True (dprior,dafter)
+
+      debugM $ "printStringAtLsDelta:(pos,p,p',d,s):" ++ show (undelta p cl colOffset,p,p',dafter,s)
     else return () `debug` ("printStringAtLsDelta:bad delta for (mc,s):" ++ show (cl,s))
 
 -- ---------------------------------------------------------------------

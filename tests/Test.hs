@@ -183,9 +183,9 @@ mkParserTestMD libdir dir fp = mkParsingTest (roundTripTestMD libdir) dir fp
 
 formatTT :: ([([Char], Bool)], [([Char], Bool)]) -> IO ()
 formatTT (ts, fs) = do
-  when (not . null $ tail ts) (do
+  when (not . null $ (drop 1) ts) (do
     putStrLn "Pass"
-    mapM_ (putStrLn . fst) (tail ts)
+    mapM_ (putStrLn . fst) ((drop 1) ts)
     )
   when (not . null $ fs) (do
     putStrLn "Fail"
