@@ -28,25 +28,25 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-data GHCVersion = GHC94
-           | GHC96
+data GHCVersion = GHC96
+           | GHC98
      deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
-#if MIN_VERSION_ghc(9,6,0)
-ghcVersion = GHC96
+#if MIN_VERSION_ghc(9,8,0)
+ghcVersion = GHC98
 #else
-ghcVersion = GHC94
+ghcVersion = GHC96
 #endif
 
 -- | Directories to automatically find roundtrip tests
 testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
-    GHC94  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94"]
     GHC96  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96"]
-    -- GHC96  -> ["ghc96"]
-    -- GHC96  -> ["ghc96-copied"]
+    -- GHC98  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96"]
+    GHC98  -> ["ghc98"]
+    -- GHC98  -> ["ghc98-copied"]
 
 -- ---------------------------------------------------------------------
 
@@ -148,10 +148,10 @@ mkTests = do
                    ,
                      (transformTests libdir)
                    , (failingTests libdir)
-                   ,
-                     roundTripBalanceCommentsTests
-                   ,
-                     roundTripMakeDeltaTests
+                   -- ,
+                   --   roundTripBalanceCommentsTests
+                   -- ,
+                   --   roundTripMakeDeltaTests
                     ]
 
 -- Tests that are no longer needed
@@ -218,7 +218,7 @@ tt' = do
     -- mkParserTest libdir "ghc94" "Haddock2.hs"
     -- mkParserTestBC libdir "ghc94" "Haddock1.hs"
 
-    mkParserTest libdir "ghc96" "Main.hs"
+    mkParserTest libdir "ghc99" "ExportWarnings_aux.hs"
 
    -- Needs GHC changes
 

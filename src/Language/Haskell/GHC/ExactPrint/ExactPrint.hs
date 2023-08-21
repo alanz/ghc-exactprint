@@ -633,6 +633,15 @@ markEpAnnLMS' (EpAnn anc a cs) l kw (Just str) = do
 
 -- ---------------------------------------------------------------------
 
+markLToken :: forall m w tok . (Monad m, Monoid w, KnownSymbol tok)
+  => Located (HsToken tok) -> EP w m (Located (HsToken tok))
+markLToken (L (RealSrcSpan aa mb) t) = do
+  epaLoc'<-  printStringAtAA (EpaSpan aa mb) (symbolVal (Proxy @tok))
+  case epaLoc' of
+    EpaSpan aa' mb' -> return (L (RealSrcSpan aa' mb') t)
+    _               -> return (L (RealSrcSpan aa  mb ) t)
+markLToken (L lt t) = return (L lt t)
+
 markToken :: forall m w tok . (Monad m, Monoid w, KnownSymbol tok)
   => LHsToken tok GhcPs -> EP w m (LHsToken tok GhcPs)
 markToken (L NoTokenLoc t) = return (L NoTokenLoc t)
@@ -1438,11 +1447,12 @@ instance ExactPrint (LocatedP (WarningTxt GhcPs)) where
 
   exact (L (SrcSpanAnn an l) (WarningTxt mb_cat (L la src) ws)) = do
     an0 <- markAnnOpenP an src "{-# WARNING"
+    mb_cat' <- markAnnotated mb_cat
     an1 <- markEpAnnL an0 lapr_rest AnnOpenS
     ws' <- markAnnotated ws
     an2 <- markEpAnnL an1 lapr_rest AnnCloseS
     an3 <- markAnnCloseP an2
-    return (L (SrcSpanAnn an3 l) (WarningTxt mb_cat (L la src) ws'))
+    return (L (SrcSpanAnn an3 l) (WarningTxt mb_cat' (L la src) ws'))
 
   exact (L (SrcSpanAnn an l) (DeprecatedTxt (L ls src) ws)) = do
     an0 <- markAnnOpenP an src "{-# DEPRECATED"
@@ -1451,6 +1461,25 @@ instance ExactPrint (LocatedP (WarningTxt GhcPs)) where
     an2 <- markEpAnnL an1 lapr_rest AnnCloseS
     an3 <- markAnnCloseP an2
     return (L (SrcSpanAnn an3 l) (DeprecatedTxt (L ls src) ws'))
+
+instance ExactPrint InWarningCategory where
+  getAnnotationEntry _ = NoEntryVal
+  setAnnotationAnchor a _ _ = a
+
+  exact (InWarningCategory tkIn source (L l wc)) = do
+      tkIn' <- markLToken tkIn
+      L _ (_,wc') <- markAnnotated (L l (source, wc))
+      return (InWarningCategory tkIn' source (L l wc'))
+
+instance ExactPrint (SourceText, WarningCategory) where
+  getAnnotationEntry _ = NoEntryVal
+  setAnnotationAnchor a _ _ = a
+
+  exact (st, WarningCategory wc) = do
+      case st of
+          NoSourceText -> printStringAdvance $ "\"" ++ (unpackFS wc) ++ "\""
+          SourceText src -> printStringAdvance $ (unpackFS src)
+      return (st, WarningCategory wc)
 
 -- ---------------------------------------------------------------------
 
