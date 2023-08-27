@@ -44,8 +44,8 @@ testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
     GHC96  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96"]
-    -- GHC98  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96"]
-    GHC98  -> ["ghc98"]
+    GHC98  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96", "ghc98"]
+    -- GHC98  -> ["ghc98"]
     -- GHC98  -> ["ghc98-copied"]
 
 -- ---------------------------------------------------------------------
@@ -148,10 +148,10 @@ mkTests = do
                    ,
                      (transformTests libdir)
                    , (failingTests libdir)
-                   -- ,
-                   --   roundTripBalanceCommentsTests
-                   -- ,
-                   --   roundTripMakeDeltaTests
+                   ,
+                     roundTripBalanceCommentsTests
+                   ,
+                     roundTripMakeDeltaTests
                     ]
 
 -- Tests that are no longer needed
@@ -201,9 +201,6 @@ tt' :: IO (Counts,Int)
 tt' = do
   let libdir = GHC.Paths.libdir
   runTestText (putTextToHandle stdout True) $ TestList [
-
-
-
     -- mkParserTest libdir "ghc92" "TopLevelSemis.hs"
     -- mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
     -- mkParserTestMD libdir "ghc92" "TopLevelSemis.hs"
@@ -218,7 +215,7 @@ tt' = do
     -- mkParserTest libdir "ghc94" "Haddock2.hs"
     -- mkParserTestBC libdir "ghc94" "Haddock1.hs"
 
-    mkParserTest libdir "ghc99" "ExportWarnings_aux.hs"
+    mkParserTest libdir "ghc80" "Deprecation.hs"
 
    -- Needs GHC changes
 

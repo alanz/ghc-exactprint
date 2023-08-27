@@ -30,6 +30,7 @@ extra-source-files:  ChangeLog
                      tests/examples/ghc92/*.hs
                      tests/examples/ghc94/*.hs
                      tests/examples/ghc96/*.hs
+                     tests/examples/ghc98/*.hs
                      tests/examples/pre-ghc810/*.hs
                      tests/examples/pre-ghc86/*.hs
                      tests/examples/pre-ghc90/*.hs

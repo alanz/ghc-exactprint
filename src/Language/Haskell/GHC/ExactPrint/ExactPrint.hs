@@ -1420,7 +1420,7 @@ instance ExactPrint (HsModule GhcPs) where
         setEofPos (Just (pos, prior))
 
     let anf = an0 { anns = (anns an0) { am_decls = am_decls' }}
-    debugM $ "HsModule, anf=" ++ showAst anf
+    -- debugM $ "HsModule, anf=" ++ showAst anf
 
     return (HsModule (XModulePs anf lo1 mdeprec' mbDoc') mmn' mexports' imports' decls')
 
@@ -1812,6 +1812,7 @@ instance ExactPrint (WarnDecls GhcPs) where
   setAnnotationAnchor (Warnings (an,a) b) anc cs = Warnings ((setAnchorEpa an anc cs),a) b
 
   exact (Warnings (an,src) warns) = do
+    debugM $ "foo"
     an0 <- markAnnOpen an src "{-# WARNING" -- Note: might be {-# DEPRECATED
     warns' <- markAnnotated warns
     an1 <- markEpAnnLMS an0 lidl AnnClose (Just "#-}")
@@ -1823,19 +1824,21 @@ instance ExactPrint (WarnDecl GhcPs) where
   getAnnotationEntry (Warning an _ _) = fromAnn an
   setAnnotationAnchor (Warning an a b) anc cs = Warning (setAnchorEpa an anc cs) a b
 
-  exact (Warning an lns txt) = do
+  exact (Warning an lns  (WarningTxt mb_cat src ls )) = do
+    mb_cat' <- markAnnotated mb_cat
     lns' <- markAnnotated lns
     an0 <- markEpAnnL an lidl AnnOpenS -- "["
-    txt' <-
-      case txt of
-        WarningTxt mb_cat src ls -> do
-          ls' <- markAnnotated ls
-          return (WarningTxt mb_cat src ls')
-        DeprecatedTxt src ls -> do
-          ls' <- markAnnotated ls
-          return (DeprecatedTxt src ls')
+    ls' <- markAnnotated ls
     an1 <- markEpAnnL an0 lidl AnnCloseS -- "]"
-    return (Warning an1 lns' txt')
+    return (Warning an1 lns'  (WarningTxt mb_cat' src ls'))
+
+  exact (Warning an lns (DeprecatedTxt src ls)) = do
+    lns' <- markAnnotated lns
+    an0 <- markEpAnnL an lidl AnnOpenS -- "["
+    ls' <- markAnnotated ls
+    return (lns', DeprecatedTxt src ls')
+    an1 <- markEpAnnL an0 lidl AnnCloseS -- "]"
+    return (Warning an1 lns' (DeprecatedTxt src ls'))
 
 -- ---------------------------------------------------------------------
 
@@ -4202,6 +4205,7 @@ printUnicode anc n = do
   let str = case (showPprUnsafe n) of
             -- TODO: unicode support?
               "forall" -> if spanLength (anchor anc) == 1 then "∀" else "forall"
+              "->" -> if spanLength (anchor anc) == 1 then "→" else "->"
               s -> s
   loc <- printStringAtAAC NoCaptureComments (EpaDelta (SameLine 0) []) str
   case loc of
@@ -4209,6 +4213,13 @@ printUnicode anc n = do
     EpaDelta dp [] -> return anc { anchor_op = MovedAnchor dp }
     EpaDelta _ _cs -> error "printUnicode should not capture comments"
 
+maybeUnicode :: EpaLocation -> RdrName -> String
+maybeUnicode (EpaSpan r _mb) n =
+  case (showPprUnsafe n) of
+    "forall" -> if spanLength r == 1 then "∀" else "forall"
+    "->" -> if spanLength r == 1 then "→" else "->"
+    s -> s
+maybeUnicode (EpaDelta _ _) n = showPprUnsafe n
 
 markName :: (Monad m, Monoid w)
   => NameAdornment -> EpaLocation -> Maybe (EpaLocation,RdrName) -> EpaLocation
@@ -4219,9 +4230,10 @@ markName adorn open mname close = do
   mname' <-
     case mname of
       Nothing -> return Nothing
-      Just (name, a) -> do
-        name' <- printStringAtAAC CaptureComments name (showPprUnsafe a)
-        return (Just (name',a))
+      Just (loc, name) -> do
+        -- https://gitlab.haskell.org/ghc/ghc/-/issues/23885
+        loc' <- printStringAtAAC CaptureComments loc (maybeUnicode loc name)
+        return (Just (loc',name))
   (AddEpAnn _ close') <- markKwC CaptureComments (AddEpAnn kwc close)
   return (open', mname', close')
 
