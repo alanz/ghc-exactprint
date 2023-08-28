@@ -43,7 +43,7 @@ preparePackage alreadyUnpacked package = do
 preparePackage' :: Text -> IO ()
 preparePackage' package = do
   (ec,dir) <- shellStrict ("cabal get --destdir=" <> T.pack hackageWorkDir <> " " <> package) empty
-  -- myecho (T.pack $ "cabal get:" ++ show dir)
+  myecho (T.pack $ "cabal get:" ++ show dir)
   myecho (T.pack $ show ec)
   when (ec == ExitSuccess) $ do
     let bits = T.splitOn " " (head $ T.lines dir)

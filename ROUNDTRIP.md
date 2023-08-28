@@ -52,16 +52,17 @@ Remove files with a `#define` or `#include` in them
 
 TODO: change it to # *define
 
-    find  . -iname "*.hs" -print0 | xargs -0 grep  '^# *define'  --files-with-matches | xargs rm
-    find  . -iname "*.hs" -print0 | xargs -0 grep  '^# *include' --files-with-matches | xargs rm
-    find  . -iname "*.hs" -print0 | xargs -0 grep  'happyFail'   --files-with-matches | xargs rm
-    find  . -iname "*.hs" -print0 | xargs -0 grep  '^{-# LINE'   --files-with-matches | xargs rm
-    find  . -iname "*.hs" -print0 | xargs -0 grep  '^#! */'      --files-with-matches | xargs rm
-    find  . -iname "*.hs" -print0 | xargs -0 grep  '__FILE__'    --files-with-matches | xargs rm
-    find  . -iname "*.hs" -print0 | xargs -0 grep  '__LINE__'    --files-with-matches | xargs rm
-    find  . -iname "*.hs" -print0 | xargs -0 grep  '__TIME__'    --files-with-matches | xargs rm
-    find  . -iname "*.hs" -print0 | xargs -0 grep  '__DATE__'    --files-with-matches | xargs rm
-
+```sh
+find  . -iname "*.hs" -print0 | xargs -0 grep  '^# *define'  --files-with-matches | xargs rm
+find  . -iname "*.hs" -print0 | xargs -0 grep  '^# *include' --files-with-matches | xargs rm
+find  . -iname "*.hs" -print0 | xargs -0 grep  'happyFail'   --files-with-matches | xargs rm
+find  . -iname "*.hs" -print0 | xargs -0 grep  '^{-# LINE'   --files-with-matches | xargs rm
+find  . -iname "*.hs" -print0 | xargs -0 grep  '^#! */'      --files-with-matches | xargs rm
+find  . -iname "*.hs" -print0 | xargs -0 grep  '__FILE__'    --files-with-matches | xargs rm
+find  . -iname "*.hs" -print0 | xargs -0 grep  '__LINE__'    --files-with-matches | xargs rm
+find  . -iname "*.hs" -print0 | xargs -0 grep  '__TIME__'    --files-with-matches | xargs rm
+find  . -iname "*.hs" -print0 | xargs -0 grep  '__DATE__'    --files-with-matches | xargs rm
+```
 
 Empty out the contents of ./roundtrip-config/knownfailures.txt
 

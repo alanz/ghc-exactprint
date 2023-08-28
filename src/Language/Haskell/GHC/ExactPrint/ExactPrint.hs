@@ -1812,7 +1812,6 @@ instance ExactPrint (WarnDecls GhcPs) where
   setAnnotationAnchor (Warnings (an,a) b) anc cs = Warnings ((setAnchorEpa an anc cs),a) b
 
   exact (Warnings (an,src) warns) = do
-    debugM $ "foo"
     an0 <- markAnnOpen an src "{-# WARNING" -- Note: might be {-# DEPRECATED
     warns' <- markAnnotated warns
     an1 <- markEpAnnLMS an0 lidl AnnClose (Just "#-}")
@@ -1836,7 +1835,6 @@ instance ExactPrint (WarnDecl GhcPs) where
     lns' <- markAnnotated lns
     an0 <- markEpAnnL an lidl AnnOpenS -- "["
     ls' <- markAnnotated ls
-    return (lns', DeprecatedTxt src ls')
     an1 <- markEpAnnL an0 lidl AnnCloseS -- "]"
     return (Warning an1 lns' (DeprecatedTxt src ls'))
 
@@ -2153,6 +2151,11 @@ instance ExactPrint (LocatedP OverlapMode) where
     return (L (SrcSpanAnn an1 l) (Overlaps src))
 
   exact (L (SrcSpanAnn an l) (Incoherent src)) = do
+    an0 <- markAnnOpenP an src "{-# INCOHERENT"
+    an1 <- markAnnCloseP an0
+    return (L (SrcSpanAnn an1 l) (Incoherent src))
+
+  exact (L (SrcSpanAnn an l) (NonCanonical src)) = do
     an0 <- markAnnOpenP an src "{-# INCOHERENT"
     an1 <- markAnnCloseP an0
     return (L (SrcSpanAnn an1 l) (Incoherent src))
@@ -4181,10 +4184,23 @@ instance ExactPrint (LocatedN RdrName) where
           (o',_,c') <- markName a o Nothing c
           t' <- markTrailing t
           return (NameAnnOnly a o' c' t')
-        NameAnnRArrow nl t -> do
-          (AddEpAnn _ nl') <- markKwC NoCaptureComments (AddEpAnn AnnRarrow nl)
+        NameAnnRArrow unicode o nl c t -> do
+          o' <- case o of
+            Just o0 -> do
+              (AddEpAnn _ o') <- markKwC NoCaptureComments (AddEpAnn AnnOpenP o0)
+              return (Just o')
+            Nothing -> return Nothing
+          (AddEpAnn _ nl') <-
+            if unicode
+              then markKwC NoCaptureComments (AddEpAnn AnnRarrowU nl)
+              else markKwC NoCaptureComments (AddEpAnn AnnRarrow nl)
+          c' <- case c of
+            Just c0 -> do
+              (AddEpAnn _ c') <- markKwC NoCaptureComments (AddEpAnn AnnCloseP c0)
+              return (Just c')
+            Nothing -> return Nothing
           t' <- markTrailing t
-          return (NameAnnRArrow nl' t')
+          return (NameAnnRArrow unicode o' nl' c' t')
         NameAnnQuote q name t -> do
           debugM $ "NameAnnQuote"
           (AddEpAnn _ q') <- markKwC NoCaptureComments (AddEpAnn AnnSimpleQuote q)
@@ -4205,7 +4221,6 @@ printUnicode anc n = do
   let str = case (showPprUnsafe n) of
             -- TODO: unicode support?
               "forall" -> if spanLength (anchor anc) == 1 then "∀" else "forall"
-              "->" -> if spanLength (anchor anc) == 1 then "→" else "->"
               s -> s
   loc <- printStringAtAAC NoCaptureComments (EpaDelta (SameLine 0) []) str
   case loc of
@@ -4213,13 +4228,6 @@ printUnicode anc n = do
     EpaDelta dp [] -> return anc { anchor_op = MovedAnchor dp }
     EpaDelta _ _cs -> error "printUnicode should not capture comments"
 
-maybeUnicode :: EpaLocation -> RdrName -> String
-maybeUnicode (EpaSpan r _mb) n =
-  case (showPprUnsafe n) of
-    "forall" -> if spanLength r == 1 then "∀" else "forall"
-    "->" -> if spanLength r == 1 then "→" else "->"
-    s -> s
-maybeUnicode (EpaDelta _ _) n = showPprUnsafe n
 
 markName :: (Monad m, Monoid w)
   => NameAdornment -> EpaLocation -> Maybe (EpaLocation,RdrName) -> EpaLocation
@@ -4230,10 +4238,9 @@ markName adorn open mname close = do
   mname' <-
     case mname of
       Nothing -> return Nothing
-      Just (loc, name) -> do
-        -- https://gitlab.haskell.org/ghc/ghc/-/issues/23885
-        loc' <- printStringAtAAC CaptureComments loc (maybeUnicode loc name)
-        return (Just (loc',name))
+      Just (name, a) -> do
+        name' <- printStringAtAAC CaptureComments name (showPprUnsafe a)
+        return (Just (name',a))
   (AddEpAnn _ close') <- markKwC CaptureComments (AddEpAnn kwc close)
   return (open', mname', close')
 
