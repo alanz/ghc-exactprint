@@ -46,6 +46,7 @@ This will generate three additional executables
   ```
   cd hackage-roundtrip-work/
   ../emacs-ws-cleanup.sh
+  find  . -iname "*.hs~" | xargs rm
   ```
 
 Remove files with a `#define` or `#include` in them
@@ -62,6 +63,7 @@ find  . -iname "*.hs" -print0 | xargs -0 grep  '__FILE__'    --files-with-matche
 find  . -iname "*.hs" -print0 | xargs -0 grep  '__LINE__'    --files-with-matches | xargs rm
 find  . -iname "*.hs" -print0 | xargs -0 grep  '__TIME__'    --files-with-matches | xargs rm
 find  . -iname "*.hs" -print0 | xargs -0 grep  '__DATE__'    --files-with-matches | xargs rm
+find  . -iname "*.hs" -print0 | xargs -0 grep  '^#line'      --files-with-matches | xargs rm
 ```
 
 Empty out the contents of ./roundtrip-config/knownfailures.txt

@@ -44,9 +44,10 @@ preparePackage' :: Text -> IO ()
 preparePackage' package = do
   (ec,dir) <- shellStrict ("cabal get --destdir=" <> T.pack hackageWorkDir <> " " <> package) empty
   myecho (T.pack $ "cabal get:" ++ show dir)
+  -- cabal get:"Unpacking to\n./hackage-roundtrip-work/amazonka-kinesis-video-archived-media-2.0/\n"
   myecho (T.pack $ show ec)
   when (ec == ExitSuccess) $ do
-    let bits = T.splitOn " " (head $ T.lines dir)
+    let bits = T.splitOn " " (last $ T.lines dir)
     myecho (T.pack $ "cabal get:dir=" ++ show (last bits))
     cleanPackage (last bits)
   return ()
