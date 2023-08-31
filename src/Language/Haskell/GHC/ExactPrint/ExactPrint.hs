@@ -4802,9 +4802,7 @@ hsLit2String :: HsLit GhcPs -> String
 hsLit2String lit =
   case lit of
     HsChar       src v   -> toSourceTextWithSuffix src v ""
-    -- It should be included here
-    -- https://github.com/ghc/ghc/blob/master/compiler/parser/Lexer.x#L1471
-    HsCharPrim   src p   -> toSourceTextWithSuffix src p "#"
+    HsCharPrim   src p   -> toSourceTextWithSuffix src p ""
     HsString     src v   -> toSourceTextWithSuffix src v ""
     HsStringPrim src v   -> toSourceTextWithSuffix src v ""
     HsInt        _ (IL src _ v)   -> toSourceTextWithSuffix src v ""
