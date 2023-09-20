@@ -4,20 +4,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Language.Haskell.GHC.ExactPrint.Utils
-  -- (
-  --  -- * Manipulating Positons
-  --   ss2pos
-  -- , ss2posEnd
-  -- , undelta
-  -- , isPointSrcSpan
-  -- , pos2delta
-  -- , ss2delta
-  -- , addDP
-  -- , spanLength
-  -- , isGoodDelta
-  -- ) where
-  where
+module Language.Haskell.GHC.ExactPrint.Utils where
 
 import Control.Monad (when)
 import Data.Function
@@ -368,21 +355,6 @@ rdrName2String r =
 
 name2String :: Name -> String
 name2String = showPprUnsafe
-
--- ---------------------------------------------------------------------
-
--- occAttributes :: OccName.OccName -> String
--- occAttributes o = "(" ++ ns ++ vo ++ tv ++ tc ++ d ++ ds ++ s ++ v ++ ")"
---   where
---     -- ns = (showSDocUnsafe $ OccName.pprNameSpaceBrief $ occNameSpace o) ++ ", "
---     ns = (showSDocUnsafe $ OccName.pprNameSpaceBrief $ occNameSpace o) ++ ", "
---     vo = if isVarOcc     o then "Var "     else ""
---     tv = if isTvOcc      o then "Tv "      else ""
---     tc = if isTcOcc      o then "Tc "      else ""
---     d  = if isDataOcc    o then "Data "    else ""
---     ds = if isDataSymOcc o then "DataSym " else ""
---     s  = if isSymOcc     o then "Sym "     else ""
---     v  = if isValOcc     o then "Val "     else ""
 
  -- ---------------------------------------------------------------------
 

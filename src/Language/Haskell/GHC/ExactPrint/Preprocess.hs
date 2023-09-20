@@ -26,7 +26,6 @@ import qualified GHC.Driver.Errors.Types as GHC
 import qualified GHC.Driver.Phases     as GHC
 import qualified GHC.Driver.Pipeline   as GHC
 import qualified GHC.Fingerprint.Type  as GHC
--- import qualified GHC.Parser.Errors.Ppr as GHC
 import qualified GHC.Parser.Lexer      as GHC
 import qualified GHC.Settings          as GHC
 import qualified GHC.Types.Error       as GHC

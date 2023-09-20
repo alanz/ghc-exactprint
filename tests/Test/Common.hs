@@ -203,7 +203,7 @@ getModSummaryForFile fileName = do
 
   let mm = filter (\(mfn,_ms) -> mfn == Just cfileName) cgraph
   case mm of
-   [] -> return Nothing
-   fs -> return (Just (snd $ head fs))
+   (f:_) -> return (Just (snd f))
+   _ -> return Nothing
 
 -- ---------------------------------------------------------------------
