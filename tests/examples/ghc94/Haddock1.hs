@@ -30,4 +30,7 @@ g = undefined
 data T a b
  = A Int (Maybe Float) -- ^ This comment describes the 'A' constructor
  | -- | This comment describes the 'B' constructor
-   B (T a b, T Int Float) -- ^
+   B (T a b, T Int Float) -- ^ abcd
+
+-- | An abstract data declaration
+data T2 a b = T2 a b

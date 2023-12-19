@@ -4,20 +4,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Language.Haskell.GHC.ExactPrint.Utils
-  -- (
-  --  -- * Manipulating Positons
-  --   ss2pos
-  -- , ss2posEnd
-  -- , undelta
-  -- , isPointSrcSpan
-  -- , pos2delta
-  -- , ss2delta
-  -- , addDP
-  -- , spanLength
-  -- , isGoodDelta
-  -- ) where
-  where
+module Language.Haskell.GHC.ExactPrint.Utils where
 
 import Control.Monad (when)
 import Data.Function
@@ -168,6 +155,25 @@ spanLength = (-) <$> srcSpanEndCol <*> srcSpanStartCol
 isPointSrcSpan :: RealSrcSpan -> Bool
 isPointSrcSpan ss = spanLength ss == 0
                   && srcSpanStartLine ss == srcSpanEndLine ss
+
+-- ---------------------------------------------------------------------
+
+origDelta :: RealSrcSpan -> RealSrcSpan -> DeltaPos
+origDelta pos pp = op
+  where
+    (r,c) = ss2posEnd pp
+
+    op = if r == 0
+           then (             ss2delta (r,c+1) pos)
+           else (tweakDelta $ ss2delta (r,c  ) pos)
+
+-- ---------------------------------------------------------------------
+
+-- | For comment-related deltas starting on a new line we have an
+-- off-by-one problem. Adjust
+tweakDelta :: DeltaPos  -> DeltaPos
+tweakDelta (SameLine d) = SameLine d
+tweakDelta (DifferentLine l d) = DifferentLine l (d-1)
 
 -- ---------------------------------------------------------------------
 
@@ -349,21 +355,6 @@ rdrName2String r =
 
 name2String :: Name -> String
 name2String = showPprUnsafe
-
--- ---------------------------------------------------------------------
-
--- occAttributes :: OccName.OccName -> String
--- occAttributes o = "(" ++ ns ++ vo ++ tv ++ tc ++ d ++ ds ++ s ++ v ++ ")"
---   where
---     -- ns = (showSDocUnsafe $ OccName.pprNameSpaceBrief $ occNameSpace o) ++ ", "
---     ns = (showSDocUnsafe $ OccName.pprNameSpaceBrief $ occNameSpace o) ++ ", "
---     vo = if isVarOcc     o then "Var "     else ""
---     tv = if isTvOcc      o then "Tv "      else ""
---     tc = if isTcOcc      o then "Tc "      else ""
---     d  = if isDataOcc    o then "Data "    else ""
---     ds = if isDataSymOcc o then "DataSym " else ""
---     s  = if isSymOcc     o then "Sym "     else ""
---     v  = if isValOcc     o then "Val "     else ""
 
  -- ---------------------------------------------------------------------
 

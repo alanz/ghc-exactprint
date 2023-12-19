@@ -28,25 +28,25 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-data GHCVersion = GHC94
-           | GHC96
+data GHCVersion = GHC96
+           | GHC98
      deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
-#if MIN_VERSION_ghc(9,6,0)
-ghcVersion = GHC96
+#if MIN_VERSION_ghc(9,8,0)
+ghcVersion = GHC98
 #else
-ghcVersion = GHC94
+ghcVersion = GHC96
 #endif
 
 -- | Directories to automatically find roundtrip tests
 testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
-    GHC94  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94"]
     GHC96  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96"]
-    -- GHC96  -> ["ghc96"]
-    -- GHC96  -> ["ghc96-copied"]
+    GHC98  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96", "ghc98"]
+    -- GHC98  -> ["ghc98"]
+    -- GHC98  -> ["ghc98-copied"]
 
 -- ---------------------------------------------------------------------
 
@@ -183,9 +183,9 @@ mkParserTestMD libdir dir fp = mkParsingTest (roundTripTestMD libdir) dir fp
 
 formatTT :: ([([Char], Bool)], [([Char], Bool)]) -> IO ()
 formatTT (ts, fs) = do
-  when (not . null $ tail ts) (do
+  when (not . null $ (drop 1) ts) (do
     putStrLn "Pass"
-    mapM_ (putStrLn . fst) (tail ts)
+    mapM_ (putStrLn . fst) ((drop 1) ts)
     )
   when (not . null $ fs) (do
     putStrLn "Fail"
@@ -201,48 +201,9 @@ tt' :: IO (Counts,Int)
 tt' = do
   let libdir = GHC.Paths.libdir
   runTestText (putTextToHandle stdout True) $ TestList [
-
-    -- mkTestModChange libdir rmDecl7 "RmDecl7.hs"
-
-    -- mkTestModChange libdir changeLocalDecls  "LocalDecls.hs"
-    -- mkTestModChange libdir changeLayoutLet2 "LayoutLet2.hs"
-    -- mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
-
-   -- mkTestModChange libdir rmDecl1 "RmDecl1.hs"
-
-   -- mkTestModChange libdir rmDecl4 "RmDecl4.hs"
-    -- mkParserTestMD libdir      "ghc92" "Foo.hs"
-    -- mkParserTest libdir      "ghc92" "Foo.hs"
-    -- mkParserTestMD libdir      "ghc92" "Foo.hs"
-    -- mkParserTest libdir      "ghc92" "Foo2.hs"
-    -- mkParserTest libdir      "ghc710" "EmptyMostly.hs"
-    -- mkParserTestBC libdir "ghc710" "Control.hs"
-    -- mkParserTestBC libdir "ghc92" "CommentPlacement3.hs"
-    -- mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
-
-    -- mkParserTest libdir      "ghc92" "ConstructorComment.hs"
-    -- mkParserTest libdir      "ghc92" "Binary.hs"
-    -- mkParserTest libdir      "ghc92" "Observer.hs"
-    -- mkParserTest libdir      "ghc92" "Observer1.hs"
-
-   -- mkTestModChange libdir addLocaLDecl1  "AddLocalDecl1.hs"
-   -- mkTestModChange libdir addLocaLDecl3  "AddLocalDecl3.hs"
-
-    -- mkParserTestBC libdir "ghc710" "MultiParamTypeClasses.hs"
-
-    -- mkParserTestBC libdir "ghc710" "DataFamilies.hs"
-    -- mkParserTestBC libdir "ghc710" "Cpp.hs"
-    -- mkParserTestBC libdir "ghc80" "T4139.hs"
-
-    -- mkParserTestBC libdir "ghc92" "Checkpoint.hs"
-
-    -- mkParserTestBC libdir "ghc92" "CommentPlacement6.hs"
-    -- mkParserTest libdir "ghc92" "CommentPlacement6.hs"
-
     -- mkParserTest libdir "ghc92" "TopLevelSemis.hs"
     -- mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
     -- mkParserTestMD libdir "ghc92" "TopLevelSemis.hs"
-
 
     -- mkParserTest libdir "ghc96" "T11671_run.hs"
 
@@ -251,7 +212,11 @@ tt' = do
 
     -- mkParserTest libdir "ghc94" "Haddock.hs"
     -- mkParserTest libdir "ghc94" "Haddock1.hs"
-    mkParserTestBC libdir "ghc94" "Haddock1.hs"
+    -- mkParserTest libdir "ghc94" "Haddock2.hs"
+    -- mkParserTestBC libdir "ghc94" "Haddock1.hs"
+
+    -- mkParserTest libdir "ghc98" "IndentedModule2.hs"
+    mkParserTest libdir "ghc98" "ModuleComments.hs"
 
    -- Needs GHC changes
 

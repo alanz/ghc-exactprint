@@ -8,7 +8,7 @@ Change to the current GHC git repository (for the new version of GHC)
 
     $ mkdir /tmp/ghc-tests
     $ export DESTINATION=/tmp/ghc-tests
-    $ export PREVIOUS=ghc-9.4
+    $ export PREVIOUS=ghc-9.6
 
 Sanity check
 
@@ -27,8 +27,8 @@ tests. Generally remove any `should_fail` directory.
 
 In the ghc-exactprint directory
 
-    $ mkdir tests/examples/ghc96-copied
-    $ find /tmp/ghc-tests -iname "*.hs"  | xargs cp  --backup=numbered -t ./tests/examples/ghc96-copied/
+    $ mkdir tests/examples/ghc98-copied
+    $ find /tmp/ghc-tests -iname "*.hs"  | xargs cp  --backup=numbered -t ./tests/examples/ghc98-copied/
 
 Note: there is a pathological file `parsing001.hs`, which should be deleted
 
@@ -40,7 +40,7 @@ extension.
 You may need to do `apt-get install mmv` first.
 See http://manpages.ubuntu.com/manpages/zesty/en/man1/mmv.1.html
 
-    $ cd tests/examples/ghc96-copied
+    $ cd tests/examples/ghc98-copied
     $ mmv "*.hs.~*~" "#1.#2.hs"
 
 ### cleanup whitespace in the files

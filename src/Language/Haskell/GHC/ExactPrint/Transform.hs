@@ -325,7 +325,7 @@ setEntryDP (L (SrcSpanAnn (EpAnn (Anchor r _) an cs) l) a) dp
                l) a
               where
                 cs'' = setPriorComments cs (L (Anchor (anchor ca) (MovedAnchor dp)) c:cs')
-                lc = head $ reverse $ (L ca c:cs')
+                lc = last $ (L ca c:cs')
                 delta = tweakDelta $ ss2delta (ss2pos $ anchor $ getLoc lc) r
                 line = getDeltaLine delta
                 col = deltaColumn delta
@@ -709,15 +709,6 @@ commentOrigDelta (L (GHC.Anchor la _) (GHC.EpaComment t pp))
         op = if t == EpaEofComment && op' == MovedAnchor (SameLine 0)
                then MovedAnchor (DifferentLine 1 0)
                else op'
-
--- ---------------------------------------------------------------------
-
-
--- | For comment-related deltas starting on a new line we have an
--- off-by-one problem. Adjust
-tweakDelta :: DeltaPos  -> DeltaPos
-tweakDelta (SameLine d) = SameLine d
-tweakDelta (DifferentLine l d) = DifferentLine l (d-1)
 
 -- ---------------------------------------------------------------------
 

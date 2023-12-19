@@ -82,6 +82,8 @@ main = do
   case as of
     [] -> putStrLn "Must enter directory to process"
     ["failures"] -> do
+      -- !knownFailures <- readFileIfPresent knownFailuresFile
+      -- let done = S.fromList knownFailures
       fs <- lines <$> readFile origFailuresFile
       () <$ runTests (TestList (map (mkParserTest libdir) fs))
     ["clean"] -> do
@@ -122,10 +124,11 @@ tests libdir done dir = do
 -- Hackage dir
 roundTripHackage :: LibDir -> S.Set String -> FilePath -> IO Test
 roundTripHackage libdir done hackageDir = do
-  packageDirs <- drop 2 <$> getDirectoryContents hackageDir
+  packageDirs <- listDirectory hackageDir
+  dirsOnly <- filterM (doesDirectoryExist . (hackageDir </>)) packageDirs
   when (verb <= Debug) (traceShowM hackageDir)
-  when (verb <= Debug) (traceShowM packageDirs)
-  TestList <$> mapM (roundTripPackage libdir done) (zip [0..] (map (hackageDir </>) packageDirs))
+  when (verb <= Debug) (traceShowM dirsOnly)
+  TestList <$> mapM (roundTripPackage libdir done) (zip [0..] (map (hackageDir </>) dirsOnly))
 
 
 roundTripPackage :: LibDir -> S.Set String -> (Int, FilePath) -> IO Test
