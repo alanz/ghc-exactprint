@@ -81,11 +81,11 @@ library
                      , data-default
                      , directory >= 1.2
                      , filepath  >= 1.4
-                     , ghc       >= 9.4.1
+                     , ghc       >= 9.8.1
                      , mtl       >= 2.2.1
                      , syb       >= 0.5
                      , free      >= 4.12
-                     , fail      >= 4.9 && <4.10
+                     -- , fail      >= 4.9 && <4.10
                      , ghc-boot
 
 
@@ -118,13 +118,13 @@ Test-Suite test
                      , directory >= 1.2
                      , extra
                      , filepath  >= 1.4
-                     , ghc       >= 9.4.1
+                     , ghc       >= 9.8.1
                      , ghc-paths  >= 0.1
                      , mtl        >= 2.2.1
                      , syb        >= 0.5
                      , silently   >= 1.2
                      -- for the lib only
-                     , fail >= 4.9 && <4.10
+                     -- , fail >= 4.9 && <4.10
                      , ghc-boot
                      , Cabal-syntax
   if flag (dev)
@@ -191,7 +191,7 @@ executable prepare-hackage
                  , extra
                  , filemanip
                  , filepath
-                 , ghc       >= 9.4.1
+                 , ghc       >= 9.8.1
                  , HUnit
                  , text   >= 1.2.2
                  , turtle >= 1.3.0
