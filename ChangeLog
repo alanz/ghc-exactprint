@@ -1,3 +1,5 @@
+2022-12-19 v1.8.0.0
+	* Support GHC 9.8.1
 2022-12-19 v1.7.1.0
 	* Add CI for GHC 9.6.3
 	* Reinstate MonadTrans on TransFormT (via @Vekhir)

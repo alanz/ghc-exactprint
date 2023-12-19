@@ -34,7 +34,6 @@ import Data.Data hiding (Fixity)
 import qualified Data.ByteString as B
 
 import Data.Generics (extQ, ext1Q, ext2Q)
-import Language.Haskell.GHC.ExactPrint.Utils
 
 data BlankSrcSpan = BlankSrcSpan | BlankSrcSpanFile | NoBlankSrcSpan
                   deriving (Eq,Show)
@@ -304,7 +303,3 @@ normalize_newlines :: String -> String
 normalize_newlines ('\\':'r':'\\':'n':xs) = '\\':'n':normalize_newlines xs
 normalize_newlines (x:xs)                 = x:normalize_newlines xs
 normalize_newlines []                     = []
-
-pprSrcSpanWithAnchor :: SrcSpan -> SDoc
-pprSrcSpanWithAnchor ss@(UnhelpfulSpan _) = ppr ss
-pprSrcSpanWithAnchor ss = ppr ss <+> parens (ppr (hackSrcSpanToAnchor ss))
