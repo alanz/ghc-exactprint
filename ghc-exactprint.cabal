@@ -1,3 +1,4 @@
+cabal-version:       2.4
 name:                ghc-exactprint
 version:             1.8.0.0
 synopsis:            ExactPrint for GHC
@@ -9,15 +10,15 @@ description:         Using the API Annotations available from GHC 9.2.1, this
                      versions see lower version numbers.
                      .
 
-license:             BSD3
+license:             BSD-3-Clause
 license-file:        LICENSE
 author:              Alan Zimmerman, Matthew Pickering
 maintainer:          alan.zimm@gmail.com
 category:            Development
 build-type:          Simple
 tested-with:         GHC == 9.8.1
-extra-source-files:  ChangeLog
-                     tests/examples/failing/*.hs
+extra-doc-files:     ChangeLog
+extra-source-files:  tests/examples/failing/*.hs
                      tests/examples/ghc710-only/*.hs
                      tests/examples/ghc710/*.hs
                      tests/examples/ghc80/*.hs
@@ -39,7 +40,6 @@ extra-source-files:  ChangeLog
                      tests/examples/failing/*.hs.bad
                      tests/examples/transform/*.hs.expected
                      tests/examples/ghc710/*.hs-boot
-cabal-version:       >=1.10
 
 source-repository head
   type:     git
@@ -55,8 +55,11 @@ Flag dev {
   Default:     False
 }
 
+common warnings
+  GHC-options: -Wall -Wredundant-constraints -Wunused-packages
 
 library
+  import: warnings
   exposed-modules:     Language.Haskell.GHC.ExactPrint
                      , Language.Haskell.GHC.ExactPrint.Dump
                      , Language.Haskell.GHC.ExactPrint.ExactPrint
@@ -68,31 +71,22 @@ library
                      , Language.Haskell.GHC.ExactPrint.Types
                      , Language.Haskell.GHC.ExactPrint.Utils
 
-
   hs-source-dirs:      src
-  -- other-modules:
-  -- other-extensions:
-  GHC-Options:         -Wall -Wredundant-constraints
-  -- GHC-Options:         -Weverything
   build-depends:       base >=4.19 && <4.20
                      , bytestring >= 0.10.6
                      , containers >= 0.5
-                     , ordered-containers
                      , data-default
-                     , directory >= 1.2
-                     , filepath  >= 1.4
                      , ghc       >= 9.8.1
                      , mtl       >= 2.2.1
                      , syb       >= 0.5
-                     , free      >= 4.12
                      , ghc-boot
-
 
   default-language:    Haskell2010
   if impl (ghc < 9.8)
-      buildable: False
+    buildable: False
 
 Test-Suite test
+  import: warnings
   type:                exitcode-stdio-1.0
   if flag (dev)
     hs-source-dirs:      tests
@@ -105,38 +99,36 @@ Test-Suite test
                      , Test.CommonUtils
                      , Test.NoAnnotations
                      , Test.Transform
-  GHC-Options:         -threaded -Wall -Wredundant-constraints
+  GHC-Options:         -threaded
   Default-language:    Haskell2010
   Build-depends:       HUnit >= 1.2
                      , base < 4.20
-                     , bytestring
                      , containers >= 0.5
-                     , ordered-containers
-                     , data-default
                      , Diff
                      , directory >= 1.2
                      , extra
                      , filepath  >= 1.4
                      , ghc       >= 9.8.1
                      , ghc-paths  >= 0.1
-                     , mtl        >= 2.2.1
                      , syb        >= 0.5
                      , silently   >= 1.2
                      , ghc-boot
-                     , Cabal-syntax
   if flag (dev)
-      build-depends: free
+      build-depends: bytestring
+                   , data-default
+                   , free
+                   , mtl        >= 2.2.1
   else
       build-depends: ghc-exactprint
   if impl (ghc < 9.8)
       buildable: False
 
 executable roundtrip
+  import: warnings
   main-is: Roundtrip.hs
   hs-source-dirs: tests
   other-modules: Test.Common
                  Test.CommonUtils
-                 -- Test.Consistency
   default-language:    Haskell2010
   if impl (ghc >= 9.8) && flag (roundtrip)
     build-depends:
@@ -145,40 +137,39 @@ executable roundtrip
                , containers
                , directory
                , extra
-               , filemanip
                , filepath
                , ghc
                , ghc-exactprint
                , ghc-paths
-               , syb
-               , temporary
                , time
                , ghc-boot
     buildable: True
   else
     buildable: False
-  GHC-Options:         -threaded -Wall -Wredundant-constraints
+  GHC-Options: -threaded
 
 executable static
+  import: warnings
   main-is: Static.hs
   hs-source-dirs: tests
+  other-modules: Test.CommonUtils
   default-language:    Haskell2010
   if flag (roundtrip)
     build-depends: base
                  , directory
                  , extra
-                 , filemanip
                  , filepath
                  , ghc
                  , Diff
-                 , ghc-boot
     buildable: True
   else
     buildable: False
-  GHC-Options:         -threaded -Wall -Wredundant-constraints
+  GHC-Options: -threaded
 
 executable prepare-hackage
+  import: warnings
   main-is: PrepareHackage.hs
+  other-modules: Test.CommonUtils
   hs-source-dirs: tests
   default-language:    Haskell2010
   if flag (roundtrip)
@@ -186,14 +177,12 @@ executable prepare-hackage
                  , containers
                  , directory
                  , extra
-                 , filemanip
                  , filepath
                  , ghc       >= 9.8.1
                  , HUnit
                  , text   >= 1.2.2
                  , turtle >= 1.3.0
-                 , ghc-boot
     buildable: True
   else
     buildable: False
-  GHC-Options:         -threaded -Wall -Wredundant-constraints
+  GHC-Options: -threaded
