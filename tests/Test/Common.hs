@@ -36,8 +36,12 @@ import Language.Haskell.GHC.ExactPrint.Parsers
 import Language.Haskell.GHC.ExactPrint.Preprocess
 
 import qualified Control.Monad.IO.Class as GHC
-import qualified GHC hiding (parseModule)
+import GHC hiding (moduleName)
+import GHC.Driver.Errors.Types
 import qualified GHC.Driver.Session    as GHC
+import GHC.Types.Error
+import GHC.Utils.Error
+import GHC.Utils.Outputable (renderWithContext, defaultSDocContext, vcat)
 
 import qualified GHC.LanguageExtensions as LangExt
 
@@ -143,6 +147,14 @@ genTest libdir f origFile expectedFile  = do
               cppStatus = if useCpp then Just orig else Nothing
           return $ Right Report {..}
 
+showErrorMessages :: Messages GhcMessage -> String
+showErrorMessages msgs =
+  renderWithContext defaultSDocContext
+    $ vcat
+    $ pprMsgEnvelopeBagWithLocDefault
+    $ getMessages
+    $ msgs
+
 -- showErrorMessages :: Messages GhcMessage -> String
 -- showErrorMessages msgs =
 --   renderWithContext defaultSDocContext
@@ -150,6 +162,7 @@ genTest libdir f origFile expectedFile  = do
 --     $ pprMsgEnvelopeBagWithLocDefault
 --     $ getMessages
 --     $ msgs
+
 
 mkDebugOutput :: FilePath -> String -> String
               -> GHC.ParsedSource -> String

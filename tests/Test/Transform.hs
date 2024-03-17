@@ -122,44 +122,41 @@ changeWhereIn3b _libdir (L l p) = do
 -- | Add a local declaration with signature to LocalDecl, where there was no
 -- prior local decl. So it adds a "where" annotation.
 changeLocalDecls2 :: Changer
-changeLocalDecls2 libdir top = do
+changeLocalDecls2 libdir (L l p) = do
   Right d@(L ld (ValD _ decl)) <- withDynFlags libdir (\df -> parseDecl df "decl" "nn = 2")
   Right s@(L ls (SigD _ sig))  <- withDynFlags libdir (\df -> parseDecl df "sig"  "nn :: Int")
-  let decl' = setEntryDP (makeDeltaAst (L ld decl)) (DifferentLine 1 0)
-  let  sig' = setEntryDP (makeDeltaAst (L ls  sig)) (SameLine 2)
-  let (top',_,_w) = runTransform doAddLocal
-      doAddLocal = everywhereM (mkM replaceLocalBinds) (makeDeltaAst top)
+  let decl' = setEntryDP (L ld decl) (DifferentLine 1 0)
+  let  sig' = setEntryDP (L ls  sig) (SameLine 2)
+  let (p',_,_w) = runTransform doAddLocal
+      doAddLocal = everywhereM (mkM replaceLocalBinds) p
       replaceLocalBinds :: LMatch GhcPs (LHsExpr GhcPs)
                         -> Transform (LMatch GhcPs (LHsExpr GhcPs))
       replaceLocalBinds (L lm (Match ma mln pats (GRHSs _ rhs EmptyLocalBinds{}))) = do
-        newSpan <- uniqueSrcSpanT
-        let anc = (Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 2)))
-        let anc2 = (Anchor (rs newSpan) (MovedAnchor (DifferentLine 1 4)))
+        let anc = (EpaDelta (DifferentLine 1 3) [])
+        let anc2 = (EpaDelta (DifferentLine 1 5) [])
         let an = EpAnn anc
                         (AnnList (Just anc2) Nothing Nothing
                                  [AddEpAnn AnnWhere (EpaDelta (SameLine 0) [])] [])
                         emptyComments
         let decls = [s,d]
-        let sortKey = captureOrder decls
+        let sortKey = captureOrderBinds decls
         let binds = (HsValBinds an (ValBinds sortKey (listToBag $ [decl'])
                                     [sig']))
         return (L lm (Match ma mln pats (GRHSs emptyComments rhs binds)))
       replaceLocalBinds x = return x
-  -- return (L l p')
-  return top'
+  return (L l p')
 
 -- ---------------------------------------------------------------------
 
 -- | Add a local declaration with signature to LocalDecl
 changeLocalDecls :: Changer
-changeLocalDecls libdir top = do
+changeLocalDecls libdir (L l p) = do
   Right s@(L ls (SigD _ sig))  <- withDynFlags libdir (\df -> parseDecl df "sig"  "nn :: Int")
   Right d@(L ld (ValD _ decl)) <- withDynFlags libdir (\df -> parseDecl df "decl" "nn = 2")
-  let decl' = setEntryDP (makeDeltaAst (L ld decl)) (DifferentLine 1 0)
-  let  sig' = setEntryDP (makeDeltaAst (L ls sig))  (SameLine 0)
-  -- let (p',_,_w) = runTransform doAddLocal
-  let (top',_,_w) = runTransform doAddLocal
-      doAddLocal = everywhereM (mkM replaceLocalBinds) (makeDeltaAst top)
+  let decl' = setEntryDP (L ld decl) (DifferentLine 1 0)
+  let  sig' = setEntryDP (L ls sig)  (SameLine 0)
+  let (p',_,_w) = runTransform doAddLocal
+      doAddLocal = everywhereM (mkM replaceLocalBinds) p
       replaceLocalBinds :: LMatch GhcPs (LHsExpr GhcPs)
                         -> Transform (LMatch GhcPs (LHsExpr GhcPs))
       replaceLocalBinds (L lm (Match an mln pats (GRHSs _ rhs (HsValBinds van (ValBinds _ binds sigs))))) = do
@@ -169,19 +166,18 @@ changeLocalDecls libdir top = do
         let oldBinds     = concatMap decl2Bind oldDecls'
             (os:oldSigs) = concatMap decl2Sig  oldDecls'
             os' = setEntryDP os (DifferentLine 2 0)
-        let sortKey = captureOrder decls
-        -- let (EpAnn anc (AnnList (Just (Anchor anc2 _)) a b c dd) cs) = van
-        -- let van' = (EpAnn anc (AnnList (Just (Anchor anc2 (MovedAnchor (DifferentLine 1 5)))) a b c dd) cs)
-        let (EpAnn anc (AnnList _ a b c dd) cs) = van
-        let van' = (EpAnn anc (AnnList (Just (Anchor (anchor anc) (MovedAnchor (DifferentLine 1 4)))) a b c dd) cs)
+        let sortKey = captureOrderBinds decls
+        let (EpAnn anc (AnnList (Just _) a b c dd) cs) = van
+        let van' = (EpAnn anc (AnnList (Just (EpaDelta (DifferentLine 1 5) [])) a b c dd) cs)
+        -- let (EpAnn anc (AnnList (Just _) a b c dd) cs) = van
+        -- let van' = (EpAnn anc (AnnList (Just (EpaDelta (DifferentLine 1 5) [])) a b c dd) cs)
         let binds' = (HsValBinds van'
-                          (ValBinds sortKey
-                                    (listToBag $ decl':oldBinds)
-                                    (sig':os':oldSigs)))
+                          (ValBinds sortKey (listToBag $ decl':oldBinds)
+                                          (sig':os':oldSigs)))
         return (L lm (Match an mln pats (GRHSs emptyComments rhs binds')))
+                   `debug` ("oldDecls=" ++ showAst oldDecls)
       replaceLocalBinds x = return x
-  -- return (L l p')
-  return top'
+  return (L l p')
 
 -- ---------------------------------------------------------------------
 
@@ -264,20 +260,20 @@ changeWhereIn4 _libdir parsed
 
 changeLetIn1 :: Changer
 changeLetIn1 _libdir parsed
-  = return (everywhere (mkT replace) (makeDeltaAst parsed))
+  = return (everywhere (mkT replace) parsed)
   where
     replace :: HsExpr GhcPs -> HsExpr GhcPs
-    replace (HsLet an tkLet localDecls _ expr)
+    replace (HsLet (tkLet, _) localDecls expr)
       =
          let (HsValBinds x (ValBinds xv bagDecls sigs)) = localDecls
              [l2,_l1] = map wrapDecl $ bagToList bagDecls
              bagDecls' = listToBag $ concatMap decl2Bind [l2]
-             (L (SrcSpanAnn _ le) e) = expr
-             a = (SrcSpanAnn (EpAnn (Anchor (realSrcSpan le) (MovedAnchor (SameLine 1))) mempty emptyComments) le)
+             (L _ e) = expr
+             a = EpAnn (EpaDelta (SameLine 1) []) noAnn emptyComments
              expr' = L a e
-             tkIn' = L (TokenLoc (EpaDelta (DifferentLine 1 0) [])) HsTok
-         in (HsLet an tkLet
-                (HsValBinds x (ValBinds xv bagDecls' sigs)) tkIn' expr')
+             tkIn' = EpTok (EpaDelta (DifferentLine 1 0) [])
+         in (HsLet (tkLet, tkIn')
+                (HsValBinds x (ValBinds xv bagDecls' sigs)) expr')
 
     replace x = x
 
@@ -521,12 +517,13 @@ rmDecl5 _libdir lp = do
       doRmDecl = do
         let
           go :: HsExpr GhcPs -> Transform (HsExpr GhcPs)
-          go (HsLet a tkLet lb tkIn expr) = do
-            decs <- hsDeclsValBinds lb
+          go (HsLet (tkLet, tkIn) lb expr) = do
+            let decs = hsDeclsLocalBinds lb
+            let hdecs : _ = decs
             let dec = last decs
-            -- _ <- transferEntryDPT (head decs) dec
+            _ <- transferEntryDP hdecs dec
             lb' <- replaceDeclsValbinds WithoutWhere lb [dec]
-            return (HsLet a tkLet lb' tkIn expr)
+            return (HsLet (tkLet, tkIn) lb' expr)
           go x = return x
 
         everywhereM (mkM go) lp
@@ -611,50 +608,48 @@ rmTypeSig2 _libdir lp = do
 addHiding1 :: Changer
 addHiding1 _libdir (L l p) = do
   let doTransform = do
-        l0 <- uniqueSrcSpanT
-        l1 <- uniqueSrcSpanT
-        l2 <- uniqueSrcSpanT
         let
           [L li imp1,imp2] = hsmodImports p
-          n1 = L (noAnnSrcSpanDP0 l1) (mkVarUnqual (mkFastString "n1"))
-          n2 = L (noAnnSrcSpanDP0 l2) (mkVarUnqual (mkFastString "n2"))
-          v1 = L (addComma $ noAnnSrcSpanDP0 l1) (IEVar Nothing (L (noAnnSrcSpanDP0 l1) (IEName noExtField n1)))
-          v2 = L (           noAnnSrcSpanDP0 l2) (IEVar Nothing (L (noAnnSrcSpanDP0 l2) (IEName noExtField n2)))
-          impHiding = L (SrcSpanAnn (EpAnn (Anchor (realSrcSpan l0) m0)
-                                     (AnnList Nothing
-                                              (Just (AddEpAnn AnnOpenP  d1))
-                                              (Just (AddEpAnn AnnCloseP d0))
-                                              [(AddEpAnn AnnHiding d1)]
-                                              [])
-                                       emptyComments) l0) [v1,v2]
+          n1 = L noAnnSrcSpanDP0 (mkVarUnqual (mkFastString "n1"))
+          n2 = L noAnnSrcSpanDP0 (mkVarUnqual (mkFastString "n2"))
+          v1 = L (addComma $ noAnnSrcSpanDP0) (IEVar Nothing (L noAnnSrcSpanDP0 (IEName noExtField n1)) Nothing)
+          v2 = L (           noAnnSrcSpanDP0) (IEVar Nothing (L noAnnSrcSpanDP0 (IEName noExtField n2)) Nothing)
+          impHiding = L (EpAnn d0
+                               (AnnList Nothing
+                                        (Just (AddEpAnn AnnOpenP  d1))
+                                        (Just (AddEpAnn AnnCloseP d0))
+                                        [(AddEpAnn AnnHiding d1)]
+                                        [])
+                                 emptyComments) [v1,v2]
           imp1' = imp1 { ideclImportList = Just (EverythingBut,impHiding)}
-          p' = p { hsmodImports = [L li imp1',imp2]}
+          imp2' = setEntryDP imp2 (DifferentLine 2 0)
+          p' = p { hsmodImports = [L li imp1',imp2']}
         return (L l p')
 
   let (lp',_,_w) = runTransform doTransform
   debugM $ "log:[\n" ++ intercalate "\n" _w ++ "]log end\n"
   return lp'
+
 -- ---------------------------------------------------------------------
 
 addHiding2 :: Changer
-addHiding2 _libdir (L l p) = do
+addHiding2 _libdir top = do
   let doTransform = do
-        l1 <- uniqueSrcSpanT
-        l2 <- uniqueSrcSpanT
+        let (L l p) = top
         let
           [L li imp1] = hsmodImports p
-          Just (_,L lh ns) = ideclImportList imp1
-          lh' = (SrcSpanAnn (EpAnn (Anchor (realSrcSpan (locA lh)) m1)
-                                     (AnnList Nothing
-                                              (Just (AddEpAnn AnnOpenP  d1))
-                                              (Just (AddEpAnn AnnCloseP d0))
-                                              [(AddEpAnn AnnHiding d0)]
-                                              [])
-                                       emptyComments) (locA lh))
-          n1 = L (noAnnSrcSpanDP0 l1) (mkVarUnqual (mkFastString "n1"))
-          n2 = L (noAnnSrcSpanDP0 l2) (mkVarUnqual (mkFastString "n2"))
-          v1 = L (addComma $ noAnnSrcSpanDP0 l1) (IEVar Nothing (L (noAnnSrcSpanDP0 l1) (IEName noExtField n1)))
-          v2 = L (           noAnnSrcSpanDP0 l2) (IEVar Nothing (L (noAnnSrcSpanDP0 l2) (IEName noExtField n2)))
+          Just (_,L _lh ns) = ideclImportList imp1
+          lh' = (EpAnn d0
+                       (AnnList Nothing
+                                (Just (AddEpAnn AnnOpenP  d1))
+                                (Just (AddEpAnn AnnCloseP d0))
+                                [(AddEpAnn AnnHiding d1)]
+                                [])
+                         emptyComments)
+          n1 = L (noAnnSrcSpanDP0) (mkVarUnqual (mkFastString "n1"))
+          n2 = L (noAnnSrcSpanDP0) (mkVarUnqual (mkFastString "n2"))
+          v1 = L (addComma $ noAnnSrcSpanDP0) (IEVar Nothing (L noAnnSrcSpanDP0 (IEName noExtField n1)) Nothing)
+          v2 = L (           noAnnSrcSpanDP0) (IEVar Nothing (L noAnnSrcSpanDP0 (IEName noExtField n2)) Nothing)
           L ln n = last ns
           n' = L (addComma ln) n
           imp1' = imp1 { ideclImportList = Just (EverythingBut, L lh' (init ns ++ [n',v1,v2]))}
