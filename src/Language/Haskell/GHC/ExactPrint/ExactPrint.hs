@@ -1419,7 +1419,9 @@ instance ExactPrint (HsModule GhcPs) where
         debugM $ "am_eof:" ++ showGhc (pos, prior)
         setEofPos (Just (pos, prior))
 
-    let anf = an0 { anns = (anns an0) { am_decls = am_decls' }}
+    let anf = case an0 of
+          EpAnnNotUsed -> EpAnnNotUsed
+          EpAnn{} -> an0 { anns = (anns an0) { am_decls = am_decls' }}
     -- debugM $ "HsModule, anf=" ++ showAst anf
 
     return (HsModule (XModulePs anf lo1 mdeprec' mbDoc') mmn' mexports' imports' decls')
@@ -3305,13 +3307,17 @@ instance ExactPrint (HsCmd GhcPs) where
         arr' <- markAnnotated arr
         an0 <- markKw (anns an)
         arg' <- markAnnotated arg
-        let an1 = an{anns = an0}
+        let an1 = case an of
+              EpAnnNotUsed -> EpAnnNotUsed
+              EpAnn{} -> an {anns = an0}
         return (HsCmdArrApp an1 arr' arg' o isRightToLeft)
       else do
         arg' <- markAnnotated arg
         an0 <- markKw (anns an)
         arr' <- markAnnotated arr
-        let an1 = an {anns = an0}
+        let an1 = case an of
+              EpAnnNotUsed -> EpAnnNotUsed
+              EpAnn{} -> an {anns = an0}
         return (HsCmdArrApp an1 arr' arg' o isRightToLeft)
 
   exact (HsCmdArrForm an e fixity mf cs) = do
