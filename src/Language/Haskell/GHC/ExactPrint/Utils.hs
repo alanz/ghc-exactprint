@@ -217,10 +217,11 @@ needsWhere _ = False
 
 -- | Insert the comments at the appropriate places in the AST
 insertCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
-insertCppComments (L l p) cs = L l (insertTopLevelCppComments p' toplevel)
+insertCppComments (L l p) cs = insertRemainingCppComments (L l p'') remaining
   where
     -- Comments embedded within spans
     (p',toplevel) = runState (everywhereM (mkM addCommentsListItem) p) cs
+    (p'', remaining) = insertTopLevelCppComments p' toplevel
 
     addCommentsListItem :: EpAnn AnnListItem ->State [LEpaComment] (EpAnn AnnListItem)
     addCommentsListItem = addComments
@@ -252,9 +253,9 @@ workInComments ocs new = cs'
                    = break (\(L ll _) -> (ss2pos $ anchor ll) < (ss2pos $ anchor ac) )
                            new
 
-insertTopLevelCppComments ::  HsModule GhcPs -> [LEpaComment] -> HsModule GhcPs
+insertTopLevelCppComments ::  HsModule GhcPs -> [LEpaComment] -> (HsModule GhcPs, [LEpaComment])
 insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports imports decls) cs
-  = HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports' imports' decls'
+  = (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports' imports' decls', cs2)
   where
     -- Comments at the top level.
     (mexports', cs0) =
@@ -281,21 +282,21 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
     --     = ((L (EpAnn anc4 an4 cs4) a4:L (EpAnn anc5 an5 cs5) a5:is), cs')
 
 
--- insertCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
--- insertCppComments (L l p) cs = L l p'
---   where
---     an' = case GHC.hsmodAnn $ GHC.hsmodExt p of
---       (EpAnn a an ocs) -> EpAnn a an cs'
---         where
---           pc = priorComments ocs
---           fc = getFollowingComments ocs
---           cs' = case fc of
---             [] -> EpaComments $ sortEpaComments $ pc ++ fc ++ cs
---             (L ac _:_) -> EpaCommentsBalanced (sortEpaComments $ pc ++ cs_before)
---                                               (sortEpaComments $ fc ++ cs_after)
---                    where
---                      (cs_before,cs_after) = break (\(L ll _) -> (ss2pos $ anchor ll) < (ss2pos $ anchor ac) ) cs
---     p' = p { GHC.hsmodExt = (GHC.hsmodExt p) { GHC.hsmodAnn = an' } }
+insertRemainingCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
+insertRemainingCppComments (L l p) cs = L l p'
+  where
+    an' = case GHC.hsmodAnn $ GHC.hsmodExt p of
+      (EpAnn a an ocs) -> EpAnn a an cs'
+        where
+          pc = priorComments ocs
+          fc = getFollowingComments ocs
+          cs' = case fc of
+            [] -> EpaComments $ sortEpaComments $ pc ++ fc ++ cs
+            (L ac _:_) -> EpaCommentsBalanced (sortEpaComments $ pc ++ cs_before)
+                                              (sortEpaComments $ fc ++ cs_after)
+                   where
+                     (cs_before,cs_after) = break (\(L ll _) -> (ss2pos $ anchor ll) < (ss2pos $ anchor ac) ) cs
+    p' = p { GHC.hsmodExt = (GHC.hsmodExt p) { GHC.hsmodAnn = an' } }
 
 -- ---------------------------------------------------------------------
 
