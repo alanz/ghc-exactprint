@@ -185,9 +185,7 @@ runRoundTrip :: LibDir
              -> [GHC.LEpaComment]
              -> IO (String, GHC.ParsedSource)
 runRoundTrip libdir f !parsedOrig cs = do
-  putStrLn $ "comments:" ++ showAst cs
   let !parsedOrigWithComments = insertCppComments parsedOrig cs
-  putStrLn $ "parsedOrigWithComments:" ++ showAst parsedOrigWithComments
   pmod <- f libdir parsedOrigWithComments
   let !printed = exactPrint pmod
   return (printed, pmod)

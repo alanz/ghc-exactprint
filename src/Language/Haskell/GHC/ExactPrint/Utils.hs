@@ -217,7 +217,7 @@ needsWhere _ = False
 
 -- | Insert the comments at the appropriate places in the AST
 insertCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
-insertCppComments (L l p) cs = L l (insertTopCppComments p' toplevel)
+insertCppComments (L l p) cs = L l (insertTopLevelCppComments p' toplevel)
   where
     -- Comments embedded within spans
     (p',toplevel) = runState (everywhereM (mkM addCommentsListItem) p) cs
@@ -225,48 +225,60 @@ insertCppComments (L l p) cs = L l (insertTopCppComments p' toplevel)
     addCommentsListItem :: EpAnn AnnListItem ->State [LEpaComment] (EpAnn AnnListItem)
     addCommentsListItem = addComments
 
-    addComments :: forall ann. Typeable ann => EpAnn ann -> State [LEpaComment] (EpAnn ann)
+    addComments :: forall ann. EpAnn ann -> State [LEpaComment] (EpAnn ann)
     addComments (EpAnn anc an ocs) = do
       case anc of
         EpaSpan (RealSrcSpan s _) -> do
           unAllocated <- get
           let
             (rest, these) = GHC.Parser.Lexer.allocateComments s unAllocated
-            pc = priorComments ocs
-            fc = getFollowingComments ocs
-            cs' = case fc of
-              [] -> EpaComments $ sortEpaComments $ pc ++ fc ++ these
-              (L ac _:_) -> EpaCommentsBalanced (sortEpaComments $ pc ++ cs_before)
-                                                (sortEpaComments $ fc ++ cs_after)
-                     where
-                       (cs_before,cs_after)
-                           = break (\(L ll _) -> (ss2pos $ anchor ll) < (ss2pos $ anchor ac) )
-                                   these
+            cs' = workInComments ocs these
           put rest
           return $ EpAnn anc an cs'
 
         _ -> return $ EpAnn anc an ocs
 
-insertTopCppComments ::  HsModule GhcPs -> [LEpaComment] -> HsModule GhcPs
-insertTopCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports imports decls) cs
-  = HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports imports decls
+workInComments :: EpAnnComments -> [LEpaComment] -> EpAnnComments
+workInComments ocs new = cs'
   where
-    -- Comments at the top level.  In HsModule we get LIE for exports, LImportDecl and LHsDecl
+    pc = priorComments ocs
+    fc = getFollowingComments ocs
+    cs' = case fc of
+      [] -> EpaComments $ sortEpaComments $ pc ++ fc ++ new
+      (L ac _:_) -> EpaCommentsBalanced (sortEpaComments $ pc ++ cs_before)
+                                        (sortEpaComments $ fc ++ cs_after)
+             where
+               (cs_before,cs_after)
+                   = break (\(L ll _) -> (ss2pos $ anchor ll) < (ss2pos $ anchor ac) )
+                           new
+
+insertTopLevelCppComments ::  HsModule GhcPs -> [LEpaComment] -> HsModule GhcPs
+insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports imports decls) cs
+  = HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports' imports' decls'
+  where
+    -- Comments at the top level.
     (mexports', cs0) =
       case mexports of
-        Nothing -> (Nothing, cs0)
+        Nothing -> (Nothing, cs)
         Just (L l exports) -> (Just (L l exports'), cse)
                          where
-                           (exports', cse) = allocPreceding exports cs0
+                           (exports', cse) = allocPreceding exports cs
     (imports', cs1) = allocPreceding imports cs0
-    (decls', cs2) = allocPreceding decls cs2
+    (decls', cs2) = allocPreceding decls cs1
 
     allocPreceding :: [LocatedA a] -> [LEpaComment] -> ([LocatedA a], [LEpaComment])
-    allocPreceding [] cs = ([], cs)
-    allocPreceding [L (EpAnn anc0 an0 cs0) a] cs
-        = ([L (EpAnn anc0 an0 cs0) a], cs)
-    allocPreceding (L (EpAnn anc0 an0 cs0) a0:L (EpAnn anc1 an1 cs1) a1:is) cs
-        = ((L (EpAnn anc0 an0 cs0) a0:L (EpAnn anc1 an1 cs1) a1:is), cs)
+    allocPreceding [] cs' = ([], cs')
+    allocPreceding (L (EpAnn anc4 an4 cs4) a:xs) cs' = ((L (EpAnn anc4 an4 cs4') a:xs'), rest')
+      where
+        (_, rest, these) =
+          case anc4 of
+            EpaSpan (RealSrcSpan s _) -> do
+                GHC.Parser.Lexer.allocatePriorComments s cs' (Strict.Just [])
+            _ -> (Strict.Just [], cs', [])
+        cs4' = workInComments cs4 these
+        (xs',rest') = allocPreceding xs rest
+    -- allocPreceding (L (EpAnn anc4 an4 cs4) a4:L (EpAnn anc5 an5 cs5) a5:is) cs'
+    --     = ((L (EpAnn anc4 an4 cs4) a4:L (EpAnn anc5 an5 cs5) a5:is), cs')
 
 
 -- insertCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
