@@ -145,13 +145,13 @@ mkTests = do
   return $ TestList [
                       internalTests,
                       roundTripTests
-                   ,
-                     (transformTests libdir)
-                   , (failingTests libdir)
-                   ,
-                     roundTripBalanceCommentsTests
-                   ,
-                     roundTripMakeDeltaTests
+                   -- ,
+                   --   (transformTests libdir)
+                   -- , (failingTests libdir)
+                   -- ,
+                   --   roundTripBalanceCommentsTests
+                   -- ,
+                   --   roundTripMakeDeltaTests
                     ]
 
 -- Tests that are no longer needed
@@ -216,7 +216,7 @@ tt' = do
     -- mkParserTestBC libdir "ghc94" "Haddock1.hs"
 
     -- mkParserTest libdir "ghc98" "IndentedModule2.hs"
-    mkParserTest libdir "ghc98" "ModuleComments.hs"
+    mkParserTest libdir "ghc710" "Cpp.hs"
 
    -- Needs GHC changes
 

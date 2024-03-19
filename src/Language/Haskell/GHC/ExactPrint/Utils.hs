@@ -7,8 +7,11 @@
 module Language.Haskell.GHC.ExactPrint.Utils where
 
 import Control.Monad (when)
+import Control.Monad.State.Strict
 import Data.Data hiding ( Fixity )
 import Data.Function
+import Data.Generics.Aliases
+import Data.Generics.Schemes
 import Data.List
 import qualified Data.Map.Strict as Map
 import Data.Maybe
@@ -22,6 +25,7 @@ import GHC.Data.FastString
 import qualified GHC.Data.Strict as Strict
 import GHC.Driver.Ppr
 import GHC.Hs.Dump
+import GHC.Parser.Lexer
 import GHC.Types.Name
 import GHC.Types.Name.Reader
 import GHC.Types.SrcLoc
@@ -211,21 +215,75 @@ needsWhere _ = False
 
 -- ---------------------------------------------------------------------
 
+-- | Insert the comments at the appropriate places in the AST
 insertCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
-insertCppComments (L l p) cs = L l p'
+insertCppComments (L l p) cs = L l (insertTopCppComments p' toplevel)
   where
-    an' = case GHC.hsmodAnn $ GHC.hsmodExt p of
-      (EpAnn a an ocs) -> EpAnn a an cs'
-        where
-          pc = priorComments ocs
-          fc = getFollowingComments ocs
-          cs' = case fc of
-            [] -> EpaComments $ sortEpaComments $ pc ++ fc ++ cs
-            (L ac _:_) -> EpaCommentsBalanced (sortEpaComments $ pc ++ cs_before)
-                                              (sortEpaComments $ fc ++ cs_after)
-                   where
-                     (cs_before,cs_after) = break (\(L ll _) ->   (ss2pos $ anchor ll) < (ss2pos $ anchor ac) ) cs
-    p' = p { GHC.hsmodExt = (GHC.hsmodExt p) { GHC.hsmodAnn = an' } }
+    -- Comments embedded within spans
+    (p',toplevel) = runState (everywhereM (mkM addCommentsListItem) p) cs
+
+    addCommentsListItem :: EpAnn AnnListItem ->State [LEpaComment] (EpAnn AnnListItem)
+    addCommentsListItem = addComments
+
+    addComments :: forall ann. Typeable ann => EpAnn ann -> State [LEpaComment] (EpAnn ann)
+    addComments (EpAnn anc an ocs) = do
+      case anc of
+        EpaSpan (RealSrcSpan s _) -> do
+          unAllocated <- get
+          let
+            (rest, these) = GHC.Parser.Lexer.allocateComments s unAllocated
+            pc = priorComments ocs
+            fc = getFollowingComments ocs
+            cs' = case fc of
+              [] -> EpaComments $ sortEpaComments $ pc ++ fc ++ these
+              (L ac _:_) -> EpaCommentsBalanced (sortEpaComments $ pc ++ cs_before)
+                                                (sortEpaComments $ fc ++ cs_after)
+                     where
+                       (cs_before,cs_after)
+                           = break (\(L ll _) -> (ss2pos $ anchor ll) < (ss2pos $ anchor ac) )
+                                   these
+          put rest
+          return $ EpAnn anc an cs'
+
+        _ -> return $ EpAnn anc an ocs
+
+insertTopCppComments ::  HsModule GhcPs -> [LEpaComment] -> HsModule GhcPs
+insertTopCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports imports decls) cs
+  = HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports imports decls
+  where
+    -- Comments at the top level.  In HsModule we get LIE for exports, LImportDecl and LHsDecl
+    (mexports', cs0) =
+      case mexports of
+        Nothing -> (Nothing, cs0)
+        Just (L l exports) -> (Just (L l exports'), cse)
+                         where
+                           (exports', cse) = allocPreceding exports cs0
+    (imports', cs1) = allocPreceding imports cs0
+    (decls', cs2) = allocPreceding decls cs2
+
+    allocPreceding :: [LocatedA a] -> [LEpaComment] -> ([LocatedA a], [LEpaComment])
+    allocPreceding [] cs = ([], cs)
+    allocPreceding [L (EpAnn anc0 an0 cs0) a] cs
+        = ([L (EpAnn anc0 an0 cs0) a], cs)
+    allocPreceding (L (EpAnn anc0 an0 cs0) a0:L (EpAnn anc1 an1 cs1) a1:is) cs
+        = ((L (EpAnn anc0 an0 cs0) a0:L (EpAnn anc1 an1 cs1) a1:is), cs)
+
+
+-- insertCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
+-- insertCppComments (L l p) cs = L l p'
+--   where
+--     an' = case GHC.hsmodAnn $ GHC.hsmodExt p of
+--       (EpAnn a an ocs) -> EpAnn a an cs'
+--         where
+--           pc = priorComments ocs
+--           fc = getFollowingComments ocs
+--           cs' = case fc of
+--             [] -> EpaComments $ sortEpaComments $ pc ++ fc ++ cs
+--             (L ac _:_) -> EpaCommentsBalanced (sortEpaComments $ pc ++ cs_before)
+--                                               (sortEpaComments $ fc ++ cs_after)
+--                    where
+--                      (cs_before,cs_after) = break (\(L ll _) -> (ss2pos $ anchor ll) < (ss2pos $ anchor ac) ) cs
+--     p' = p { GHC.hsmodExt = (GHC.hsmodExt p) { GHC.hsmodAnn = an' } }
 
 -- ---------------------------------------------------------------------
 
@@ -610,96 +668,3 @@ gfromJust _info (Just h) = h
 gfromJust  info Nothing = error $ "gfromJust " ++ info ++ " Nothing"
 
 -- ---------------------------------------------------------------------
-
--- -- Copied from syb for the test
-
-
--- -- | Generic queries of type \"r\",
--- --   i.e., take any \"a\" and return an \"r\"
--- --
--- type GenericQ r = forall a. Data a => a -> r
-
-
--- -- | Make a generic query;
--- --   start from a type-specific case;
--- --   return a constant otherwise
--- --
--- mkQ :: ( Typeable a
---        , Typeable b
---        )
---     => r
---     -> (b -> r)
---     -> a
---     -> r
--- (r `mkQ` br) a = case cast a of
---                         Just b  -> br b
---                         Nothing -> r
-
--- -- | Make a generic monadic transformation;
--- --   start from a type-specific case;
--- --   resort to return otherwise
--- --
--- mkM :: ( Monad m
---        , Typeable a
---        , Typeable b
---        )
---     => (b -> m b)
---     -> a
---     -> m a
--- mkM = extM return
-
--- -- | Flexible type extension
--- ext0 :: (Typeable a, Typeable b) => c a -> c b -> c a
--- ext0 def ext = maybe def id (gcast ext)
-
-
--- -- | Extend a generic query by a type-specific case
--- extQ :: ( Typeable a
---         , Typeable b
---         )
---      => (a -> q)
---      -> (b -> q)
---      -> a
---      -> q
--- extQ f g a = maybe (f a) g (cast a)
-
--- -- | Flexible type extension
--- ext2 :: (Data a, Typeable t)
---      => c a
---      -> (forall d1 d2. (Data d1, Data d2) => c (t d1 d2))
---      -> c a
--- ext2 def ext = maybe def id (dataCast2 ext)
-
-
--- -- | Extend a generic monadic transformation by a type-specific case
--- extM :: ( Typeable a
---         , Typeable b
---         )
---      => (a -> m a) -> (b -> m b) -> a -> m a
--- extM def ext = unM ((M def) `ext0` (M ext))
-
--- -- | Type extension of monadic transformations for type constructors
--- ext2M :: (Data d, Typeable t)
---       => (forall e. Data e => e -> m e)
---       -> (forall d1 d2. (Data d1, Data d2) => t d1 d2 -> m (t d1 d2))
---       -> d -> m d
--- ext2M def ext = unM ((M def) `ext2` (M ext))
-
--- -- | The type constructor for transformations
--- newtype M m x = M { unM :: x -> m x }
-
--- -- | Generic monadic transformations,
--- --   i.e., take an \"a\" and compute an \"a\"
--- --
--- type GenericM m = forall a. Data a => a -> m a
-
--- -- | Monadic variation on everywhere
--- everywhereM :: forall m. Monad m => GenericM m -> GenericM m
-
--- -- Bottom-up order is also reflected in order of do-actions
--- everywhereM f = go
---   where
---     go :: GenericM m
---     go x = do
---       x' <- gmapM go x
---       f x'
