@@ -38,8 +38,8 @@ g _ _ = ()
 h :: a -> a
 h x = x
 
--- Should NOT have a parse error :(
-{-# RULES "example6" forall a forall. g a forall = () #-}
+-- GHC 9.10 now has a parse error for the following, if a pragma
+{- RULES "example6" forall a forall. g a forall = () -}
 
 -- Should generate a warning
 {-# RULES "example7" forall a b. forall (x :: a). id x = x #-}
