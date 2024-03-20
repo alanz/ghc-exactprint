@@ -1,4 +1,9 @@
 {-# Language CPP #-}
+#if __GLASGOW_HASKELL__ >= 718
+{-# LANGUAGE RoleAnnotations #-}
+#endif
+
+module Cpp where
 
 #if __GLASGOW_HASKELL__ > 704
 foo :: Int
@@ -14,4 +19,3 @@ bar :: (
     Integer)
 #endif
 bar = 4
-

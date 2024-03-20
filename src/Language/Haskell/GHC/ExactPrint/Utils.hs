@@ -217,11 +217,11 @@ needsWhere _ = False
 
 -- | Insert the comments at the appropriate places in the AST
 insertCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
-insertCppComments (L l p) cs = insertRemainingCppComments (L l p'') remaining
+insertCppComments (L l p) cs = insertRemainingCppComments (L l p2) remaining
   where
     -- Comments embedded within spans
-    (p',toplevel) = runState (everywhereM (mkM addCommentsListItem) p) cs
-    (p'', remaining) = insertTopLevelCppComments p' toplevel
+    (p1, toplevel) = runState (everywhereM (mkM addCommentsListItem) p) cs
+    (p2, remaining) = insertTopLevelCppComments p1 toplevel
 
     addCommentsListItem :: EpAnn AnnListItem ->State [LEpaComment] (EpAnn AnnListItem)
     addCommentsListItem = addComments
@@ -240,6 +240,7 @@ insertCppComments (L l p) cs = insertRemainingCppComments (L l p'') remaining
         _ -> return $ EpAnn anc an ocs
 
 workInComments :: EpAnnComments -> [LEpaComment] -> EpAnnComments
+workInComments ocs [] = ocs
 workInComments ocs new = cs'
   where
     pc = priorComments ocs
@@ -255,17 +256,32 @@ workInComments ocs new = cs'
 
 insertTopLevelCppComments ::  HsModule GhcPs -> [LEpaComment] -> (HsModule GhcPs, [LEpaComment])
 insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports imports decls) cs
-  = (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports' imports' decls', cs2)
+  = (HsModule (XModulePs an' lo mdeprec mbDoc) mmn mexports' imports' decls', cs3)
   where
     -- Comments at the top level.
-    (mexports', cs0) =
+    (an', cs0) =
+      case mmn of
+        Nothing -> (an, cs)
+        Just (L l _) ->
+            let
+              (_, remaining, these) =
+                case entry l of
+                  EpaSpan (RealSrcSpan s _) -> do
+                      GHC.Parser.Lexer.allocatePriorComments s cs (Strict.Just [])
+                  _ -> (Strict.Just [], cs, [])
+
+              (EpAnn a anno ocs) = an :: EpAnn AnnsModule
+              anm = EpAnn a anno (workInComments ocs these)
+            in
+              (anm, remaining)
+    (mexports', cs1) =
       case mexports of
-        Nothing -> (Nothing, cs)
+        Nothing -> (Nothing, cs0)
         Just (L l exports) -> (Just (L l exports'), cse)
                          where
-                           (exports', cse) = allocPreceding exports cs
-    (imports', cs1) = allocPreceding imports cs0
-    (decls', cs2) = allocPreceding decls cs1
+                           (exports', cse) = allocPreceding exports cs0
+    (imports', cs2) = allocPreceding imports cs1
+    (decls', cs3) = allocPreceding decls cs2
 
     allocPreceding :: [LocatedA a] -> [LEpaComment] -> ([LocatedA a], [LEpaComment])
     allocPreceding [] cs' = ([], cs')
@@ -278,24 +294,12 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
             _ -> (Strict.Just [], cs', [])
         cs4' = workInComments cs4 these
         (xs',rest') = allocPreceding xs rest
-    -- allocPreceding (L (EpAnn anc4 an4 cs4) a4:L (EpAnn anc5 an5 cs5) a5:is) cs'
-    --     = ((L (EpAnn anc4 an4 cs4) a4:L (EpAnn anc5 an5 cs5) a5:is), cs')
-
 
 insertRemainingCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
 insertRemainingCppComments (L l p) cs = L l p'
   where
-    an' = case GHC.hsmodAnn $ GHC.hsmodExt p of
-      (EpAnn a an ocs) -> EpAnn a an cs'
-        where
-          pc = priorComments ocs
-          fc = getFollowingComments ocs
-          cs' = case fc of
-            [] -> EpaComments $ sortEpaComments $ pc ++ fc ++ cs
-            (L ac _:_) -> EpaCommentsBalanced (sortEpaComments $ pc ++ cs_before)
-                                              (sortEpaComments $ fc ++ cs_after)
-                   where
-                     (cs_before,cs_after) = break (\(L ll _) -> (ss2pos $ anchor ll) < (ss2pos $ anchor ac) ) cs
+    (EpAnn a an ocs) = GHC.hsmodAnn $ GHC.hsmodExt p
+    an' = EpAnn a an (workInComments ocs cs)
     p' = p { GHC.hsmodExt = (GHC.hsmodExt p) { GHC.hsmodAnn = an' } }
 
 -- ---------------------------------------------------------------------
