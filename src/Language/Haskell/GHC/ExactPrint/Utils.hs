@@ -25,7 +25,7 @@ import GHC.Data.FastString
 import qualified GHC.Data.Strict as Strict
 import GHC.Driver.Ppr
 import GHC.Hs.Dump
-import GHC.Parser.Lexer
+import GHC.Parser.Lexer (allocateComments)
 import GHC.Types.Name
 import GHC.Types.Name.Reader
 import GHC.Types.SrcLoc
@@ -264,11 +264,11 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
         Nothing -> (an, cs)
         Just (L l _) ->
             let
-              (_, remaining, these) =
+              (remaining, these) =
                 case entry l of
                   EpaSpan (RealSrcSpan s _) -> do
-                      GHC.Parser.Lexer.allocatePriorComments s cs (Strict.Just [])
-                  _ -> (Strict.Just [], cs, [])
+                      allocatePriorComments s cs
+                  _ -> (cs, [])
 
               (EpAnn a anno ocs) = an :: EpAnn AnnsModule
               anm = EpAnn a anno (workInComments ocs these)
@@ -287,13 +287,25 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
     allocPreceding [] cs' = ([], cs')
     allocPreceding (L (EpAnn anc4 an4 cs4) a:xs) cs' = ((L (EpAnn anc4 an4 cs4') a:xs'), rest')
       where
-        (_, rest, these) =
+        (rest, these) =
           case anc4 of
-            EpaSpan (RealSrcSpan s _) -> do
-                GHC.Parser.Lexer.allocatePriorComments s cs' (Strict.Just [])
-            _ -> (Strict.Just [], cs', [])
+            EpaSpan (RealSrcSpan s _) ->
+                allocatePriorComments s cs'
+            _ -> (cs', [])
         cs4' = workInComments cs4 these
         (xs',rest') = allocPreceding xs rest
+
+allocatePriorComments
+  :: RealSrcSpan
+  -> [LEpaComment]
+  -> ([LEpaComment], [LEpaComment])
+allocatePriorComments ss comment_q =
+  let
+    ss_loc = ss2pos ss
+    cmp (L l _) = ss2pos (anchor l) <= ss_loc
+    (newAnns,after) = partition cmp comment_q
+  in
+    (after, newAnns)
 
 insertRemainingCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
 insertRemainingCppComments (L l p) cs = L l p'

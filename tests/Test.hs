@@ -216,7 +216,8 @@ tt' = do
     -- mkParserTestBC libdir "ghc94" "Haddock1.hs"
 
     -- mkParserTest libdir "ghc98" "IndentedModule2.hs"
-    mkParserTest libdir "ghc710" "Cpp.hs"
+    -- mkParserTest libdir "ghc710" "Cpp.hs"
+    mkParserTest libdir "ghc710" "LinePragma.hs"
 
    -- Needs GHC changes
 
