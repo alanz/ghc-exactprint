@@ -28,23 +28,23 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-data GHCVersion = GHC96
-           | GHC98
+data GHCVersion = GHC98
+           | GHC910
      deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
-#if MIN_VERSION_ghc(9,8,0)
-ghcVersion = GHC98
+#if MIN_VERSION_ghc(9,10,0)
+ghcVersion = GHC910
 #else
-ghcVersion = GHC96
+ghcVersion = GHC98
 #endif
 
 -- | Directories to automatically find roundtrip tests
 testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
-    GHC96  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96"]
-    GHC98  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96", "ghc98"]
+    GHC98  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96"]
+    GHC910 -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96", "ghc98"]
     -- GHC98  -> ["ghc98"]
     -- GHC98  -> ["ghc98-copied"]
 
@@ -217,7 +217,7 @@ tt' = do
 
     -- mkParserTest libdir "ghc98" "IndentedModule2.hs"
     -- mkParserTest libdir "ghc710" "Cpp.hs"
-    mkParserTest libdir "ghc710" "LinePragma.hs"
+    mkParserTest libdir "ghc80" "RandomPGC1.hs"
 
    -- Needs GHC changes
 

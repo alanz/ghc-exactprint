@@ -217,14 +217,21 @@ needsWhere _ = False
 
 -- | Insert the comments at the appropriate places in the AST
 insertCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
-insertCppComments (L l p) cs = insertRemainingCppComments (L l p2) remaining
+insertCppComments (L l p) cs0 = insertRemainingCppComments (L l p2) remaining
   where
+    (EpAnn anct ant cst) = hsmodAnn $ hsmodExt p
+    cs = sortEpaComments $ priorComments cst ++ getFollowingComments cst ++ cs0
+    p0 = p { hsmodExt = (hsmodExt p) { hsmodAnn = EpAnn anct ant emptyComments }}
     -- Comments embedded within spans
-    (p1, toplevel) = runState (everywhereM (mkM addCommentsListItem) p) cs
+    (p1, toplevel) = runState (everywhereM (mkM    addCommentsListItem
+                                            `extM` addCommentsList) p0) cs
     (p2, remaining) = insertTopLevelCppComments p1 toplevel
 
     addCommentsListItem :: EpAnn AnnListItem ->State [LEpaComment] (EpAnn AnnListItem)
     addCommentsListItem = addComments
+
+    addCommentsList :: EpAnn AnnList ->State [LEpaComment] (EpAnn AnnList)
+    addCommentsList = addComments
 
     addComments :: forall ann. EpAnn ann -> State [LEpaComment] (EpAnn ann)
     addComments (EpAnn anc an ocs) = do
@@ -251,7 +258,7 @@ workInComments ocs new = cs'
                                         (sortEpaComments $ fc ++ cs_after)
              where
                (cs_before,cs_after)
-                   = break (\(L ll _) -> (ss2pos $ anchor ll) < (ss2pos $ anchor ac) )
+                   = break (\(L ll _) -> (ss2pos $ anchor ll) > (ss2pos $ anchor ac) )
                            new
 
 insertTopLevelCppComments ::  HsModule GhcPs -> [LEpaComment] -> (HsModule GhcPs, [LEpaComment])
@@ -311,8 +318,20 @@ insertRemainingCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
 insertRemainingCppComments (L l p) cs = L l p'
   where
     (EpAnn a an ocs) = GHC.hsmodAnn $ GHC.hsmodExt p
-    an' = EpAnn a an (workInComments ocs cs)
+    an' = EpAnn a an (addTrailingComments ocs cs)
     p' = p { GHC.hsmodExt = (GHC.hsmodExt p) { GHC.hsmodAnn = an' } }
+
+    addTrailingComments cur new = EpaCommentsBalanced pc' fc'
+      where
+        pc = priorComments cur
+        fc = getFollowingComments cur
+        (pc', fc') = case reverse pc of
+            [] -> (pc, sortEpaComments $ fc ++ new)
+            (L ac _:_) -> (sortEpaComments $ pc ++ cs_before, sortEpaComments $ fc ++ cs_after)
+              where
+               (cs_before,cs_after)
+                   = break (\(L ll _) -> (ss2pos $ anchor ll) > (ss2pos $ anchor ac) )
+                           new
 
 -- ---------------------------------------------------------------------
 
