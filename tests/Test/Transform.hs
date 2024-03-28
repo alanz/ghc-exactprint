@@ -4,6 +4,7 @@
 
  -- Many of the tests match on a specific expected value,the other patterns should trigger a fail
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# LANGUAGE LambdaCase #-}
 module Test.Transform where
 
 import Language.Haskell.GHC.ExactPrint
@@ -30,7 +31,9 @@ import Test.HUnit
 transformTestsTT :: LibDir -> Test
 transformTestsTT libdir = TestLabel "transformTestsTT" $ TestList
   [
-   mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
+   mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs",
+   mkTestModChange libdir addLocaLDecl7  "AddLocalDecl7.hs",
+   mkTestModChange libdir addLocaLDecl8  "AddLocalDecl8.hs"
   ]
 
 transformTests :: LibDir -> Test
@@ -292,6 +295,8 @@ transformHighLevelTests libdir =
   , mkTestModChange libdir addLocaLDecl4  "AddLocalDecl4.hs"
   , mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
   , mkTestModChange libdir addLocaLDecl6  "AddLocalDecl6.hs"
+  , mkTestModChange libdir addLocaLDecl7  "AddLocalDecl7.hs"
+  , mkTestModChange libdir addLocaLDecl8  "AddLocalDecl8.hs"
 
   , mkTestModChange libdir rmDecl1 "RmDecl1.hs"
   , mkTestModChange libdir rmDecl2 "RmDecl2.hs"
@@ -437,6 +442,77 @@ addLocaLDecl6 libdir lp = do
   (lp',_,_w) <- runTransformT doAddLocal
   debugM $ "log:[\n" ++ intercalate "\n" _w ++ "]log end\n"
   return lp'
+
+addLocaLDecl7 :: Changer
+addLocaLDecl7 libdir top = do
+  Right (L ld (ValD _ decl)) <- withDynFlags libdir (\df -> parseDecl df "decl" "nn = 2")
+  let decl' = setEntryDP (L ld decl) (DifferentLine 1 5)
+      doAddLocal = do
+        let lp = makeDeltaAst top
+        ds <- balanceCommentsList =<< hsDecls lp
+        ds' <- flip mapM ds $ \d -> do
+          (d',_) <- modifyValD (getLocA d) d $ \_m ds -> do
+            pure (prependDecl (wrapDecl decl') ds, Nothing)
+          pure d'
+        replaceDecls lp ds'
+  (lp',_,w) <- runTransformT doAddLocal
+  debugM $ "addLocaLDecl7:" ++ intercalate "\n" w
+  return lp'
+
+prependDecl :: LHsDecl GhcPs -> [LHsDecl GhcPs] -> [LHsDecl GhcPs]
+prependDecl ldecl = \case
+  [] -> [setEntryDP ldecl (DifferentLine 1 2)]
+  ld1:lds -> ldecl':ld1'':lds
+    where
+      (ancOp, ld1'') = case ld1 of
+        (L (SrcSpanAnn (EpAnn _ _ (EpaComments _)) _) _) ->
+          error "Unexpected unbalanced comments"
+        (L (SrcSpanAnn (EpAnn d1Anc d1Ann (EpaCommentsBalanced (L (Anchor c1Rss cAnc) c1:restCs) d1AfterCs)) ss) d1) ->
+          -- NOTE cannot use setEntryDP to simply assign `DL 1 0` here because when there is no prior decl, the
+          --      DeltaPos on the declaration is absolute instead of relative, and so we must manually update the
+          --      DeltaPos to be relative (since there is about to be a prior declaration).
+          let ld1' = L
+                (SrcSpanAnn
+                  (EpAnn
+                    (setAnchorDp d1Anc $ DifferentLine 1 0)
+                    d1Ann
+                    (EpaCommentsBalanced (L (Anchor c1Rss $ MovedAnchor $ DifferentLine 1 0) c1:restCs) d1AfterCs))
+                  ss)
+                d1
+          in (cAnc, ld1')
+        (L (SrcSpanAnn (EpAnn (Anchor d1Rss d1AncOp) d1Ann epaCs@(EpaCommentsBalanced [] _)) ss) d1) ->
+          let ld1' = L (SrcSpanAnn (EpAnn (Anchor d1Rss $ MovedAnchor $ DifferentLine 1 0) d1Ann epaCs) ss) d1
+          in (d1AncOp, ld1')
+        L (SrcSpanAnn EpAnnNotUsed _) _ -> error "Unexpected EpAnnNotUsed"
+      ldecl' = setEntryDP ldecl (maybe (error "what to do with UnchangedAnchor?") id $ getAnchorOpDp ancOp)
+
+addLocaLDecl8 :: Changer
+addLocaLDecl8 libdir top = do
+  Right (L ld (ValD _ decl)) <- withDynFlags libdir (\df -> parseDecl df "decl" "nn = 2")
+  let decl' = setEntryDP (L ld decl) (DifferentLine 1 5)
+      doAddLocal = do
+        let lp = makeDeltaAst top
+        ds <- balanceCommentsList =<< hsDecls lp
+        ds' <- flip mapM ds $ \d -> do
+          (d',_) <- modifyValD (getLocA d) d $ \_m ds -> do
+            pure (appendDecl ds (wrapDecl decl'), Nothing)
+          pure d'
+        replaceDecls lp ds'
+  (lp',_,w) <- runTransformT doAddLocal
+  debugM $ "addLocaLDecl7:" ++ intercalate "\n" w
+  return lp'
+
+appendDecl :: [LHsDecl GhcPs] -> LHsDecl GhcPs -> [LHsDecl GhcPs]
+appendDecl old newDecl = case old of
+  [] -> [setEntryDP newDecl (DifferentLine 1 2)]
+  old' -> old' <> [setEntryDP newDecl (DifferentLine 1 0)]
+
+setAnchorDp :: Anchor -> DeltaPos -> Anchor
+setAnchorDp (Anchor rss _) dp = Anchor rss (MovedAnchor dp)
+
+getAnchorOpDp :: AnchorOperation -> Maybe DeltaPos
+getAnchorOpDp (MovedAnchor dp) = Just dp
+getAnchorOpDp UnchangedAnchor = Nothing
 
 -- ---------------------------------------------------------------------
 
