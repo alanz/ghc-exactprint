@@ -654,6 +654,10 @@ printSourceText :: (Monad m, Monoid w) => SourceText -> String -> EP w m ()
 printSourceText (NoSourceText) txt   =  printStringAdvance txt >> return ()
 printSourceText (SourceText   txt) _ =  printStringAdvance (unpackFS txt) >> return ()
 
+printSourceTextAA :: (Monad m, Monoid w) => SourceText -> String -> EP w m ()
+printSourceTextAA (NoSourceText) txt   = printStringAtAA (EpaDelta (SameLine 0) []) txt >> return ()
+printSourceTextAA (SourceText   txt) _ =  printStringAtAA (EpaDelta (SameLine 0) []) (unpackFS txt) >> return ()
+
 -- ---------------------------------------------------------------------
 
 printStringAtSs :: (Monad m, Monoid w) => SrcSpan -> String -> EP w m ()
@@ -2113,7 +2117,8 @@ instance ExactPrint StringLiteral where
   setAnnotationAnchor a _ _ _ = a
 
   exact l@(StringLiteral src fs mcomma) = do
-    printSourceText src (show (unpackFS fs))
+    -- printSourceText src (show (unpackFS fs))
+    printSourceTextAA src (show (unpackFS fs))
     mapM_ (\r -> printStringAtRs r ",") mcomma
     return l
 
@@ -2944,13 +2949,13 @@ instance ExactPrint (HsExpr GhcPs) where
         printStringAtAA cb "`" >> return ()
         return x
       _ -> do
-        printStringAtLsDelta (SameLine 0) "_"
+        printStringAtAA (EpaDelta (SameLine 0) []) "_" >> return ()
         return x
   exact x@(HsOverLabel _ src l) = do
-    printStringAtLsDelta (SameLine 0) "#"
+    printStringAtAA (EpaDelta (SameLine 0) []) "#" >> return ()
     case src of
-      NoSourceText   -> printStringAtLsDelta (SameLine 0) (unpackFS l)
-      SourceText txt -> printStringAtLsDelta (SameLine 0) (unpackFS txt)
+      NoSourceText   -> printStringAtAA (EpaDelta (SameLine 0) []) (unpackFS l)  >> return ()
+      SourceText txt -> printStringAtAA (EpaDelta (SameLine 0) []) (unpackFS txt) >> return ()
     return x
 
   exact x@(HsIPVar _ (HsIPName n))

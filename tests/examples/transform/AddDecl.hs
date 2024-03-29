@@ -6,4 +6,6 @@ module AddDecl where
 foo a b = a + b
 
 -- | Do bar
-bar x y = foo (x+y) x
+bar x y = {- baz -} foo (x+y) x
+
+-- end of file

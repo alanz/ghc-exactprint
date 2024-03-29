@@ -144,9 +144,9 @@ mkTests = do
   -- prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
                       internalTests,
-                      roundTripTests
+                      -- roundTripTests
                    -- ,
-                   --   (transformTests libdir)
+                     (transformTests libdir)
                    -- , (failingTests libdir)
                    -- ,
                    --   roundTripBalanceCommentsTests
@@ -213,12 +213,11 @@ tt' = do
     -- mkParserTest libdir "ghc94" "Haddock.hs"
     -- mkParserTest libdir "ghc94" "Haddock1.hs"
     -- mkParserTest libdir "ghc94" "Haddock2.hs"
+    mkParserTest libdir "ghc94" "Haddock3.hs"
     -- mkParserTestBC libdir "ghc94" "Haddock1.hs"
 
+    -- mkParserTest libdir "ghc98" "ExportWarnings_aux.hs"
     -- mkParserTest libdir "ghc98" "IndentedModule2.hs"
-    -- mkParserTest libdir "ghc710" "Cpp.hs"
-    mkParserTest libdir "ghc80" "RandomPGC1.hs"
-
    -- Needs GHC changes
 
 

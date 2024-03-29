@@ -30,7 +30,7 @@ import Test.HUnit
 transformTestsTT :: LibDir -> Test
 transformTestsTT libdir = TestLabel "transformTestsTT" $ TestList
   [
-   mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
+    mkTestModChange libdir addLocaLDecl1  "AddLocalDecl1.hs"
   ]
 
 transformTests :: LibDir -> Test
@@ -185,11 +185,9 @@ changeLocalDecls libdir (L l p) = do
 changeAddDecl :: Changer
 changeAddDecl libdir top = do
   Right decl <- withDynFlags libdir (\df -> parseDecl df "<interactive>" "nn = n2")
-  -- let decl' = setEntryDP decl (DifferentLine 2 0)
-  let decl' = setEntryDP (makeDeltaAst decl) (DifferentLine 2 0)
+  let decl' = setEntryDP decl (DifferentLine 2 0)
 
   let (p',_,_) = runTransform doAddDecl
-      -- doAddDecl = everywhereM (mkM replaceTopLevelDecls) (makeDeltaAst top)
       doAddDecl = everywhereM (mkM replaceTopLevelDecls) top
       replaceTopLevelDecls :: ParsedSource -> Transform ParsedSource
       replaceTopLevelDecls m = insertAtStart m decl'
@@ -231,9 +229,9 @@ changeLayoutLet5 :: Changer
 changeLayoutLet5 _libdir parsed = return (rename "x" [((7,5),(7,8)),((9,14),(9,17))] parsed)
 
 
-rename :: (ExactPrint a, Data a) => String -> [(Pos, Pos)] -> a -> a
+rename :: (Data a, ExactPrint a) => String -> [(Pos, Pos)] -> a -> a
 rename newNameStr spans' a
-  = everywhere (mkT replaceRdr) (makeDeltaAst a)
+  = everywhere (mkT replaceRdr) a
   where
     newName = mkRdrUnqual (mkVarOcc newNameStr)
 
@@ -249,7 +247,7 @@ rename newNameStr spans' a
 
 changeWhereIn4 :: Changer
 changeWhereIn4 _libdir parsed
-  = return (everywhere (mkT replace) (makeDeltaAst parsed))
+  = return (everywhere (mkT replace) parsed)
   where
     replace :: LocatedN RdrName -> LocatedN RdrName
     replace (L ln _n)
@@ -315,7 +313,7 @@ addLocaLDecl1 libdir top = do
   Right (L ld (ValD _ decl)) <- withDynFlags libdir (\df -> parseDecl df "decl" "nn = 2")
   let decl' = setEntryDP (L ld decl) (DifferentLine 1 5)
       doAddLocal = do
-        let lp = makeDeltaAst top
+        let lp = top
         (de1:d2:d3:_) <- hsDecls lp
         (de1'',d2') <- balanceComments de1 d2
         (de1',_) <- modifyValD (getLocA de1'') de1'' $ \_m d -> do
@@ -355,12 +353,12 @@ addLocaLDecl3 libdir top = do
   Right newDecl <- withDynFlags libdir (\df -> parseDecl df "decl" "nn = 2")
   let
       doAddLocal = do
-         let lp = makeDeltaAst top
+         let lp = top
          (de1:d2:_) <- hsDecls lp
          (de1'',d2') <- balanceComments de1 d2
 
          (parent',_) <- modifyValD (getLocA de1) de1'' $ \_m (d:ds) -> do
-           let newDecl' = setEntryDP (makeDeltaAst newDecl) (DifferentLine 1 0)
+           let newDecl' = setEntryDP newDecl (DifferentLine 1 0)
            return (((d:ds) ++ [newDecl']),Nothing)
 
          replaceDecls (anchorEof lp) [parent',d2']
@@ -397,7 +395,7 @@ addLocaLDecl5 :: Changer
 addLocaLDecl5 _libdir lp = do
   let
       doAddLocal = do
-         decls <- hsDecls (makeDeltaAst lp)
+         decls <- hsDecls lp
          [s1,de1,d2,d3] <- balanceCommentsList decls
 
          let d3' = setEntryDP d3 (DifferentLine 2 0)
@@ -494,8 +492,7 @@ rmDecl4 :: Changer
 rmDecl4 _libdir lp = do
   let
       doRmDecl = do
-         let lpd = (makeDeltaAst lp)
-         [de1] <- hsDecls lpd
+         [de1] <- hsDecls lp
 
          (de1',Just sd1) <- modifyValD (getLocA de1) de1 $ \_m [sd1,sd2] -> do
            sd2' <- transferEntryDP' sd1 sd2
@@ -503,7 +500,7 @@ rmDecl4 _libdir lp = do
            let sd1' = setEntryDP sd1 (DifferentLine 2 0)
            return ([sd2'],Just sd1')
 
-         replaceDecls (anchorEof lpd) [de1',sd1]
+         replaceDecls (anchorEof lp) [de1',sd1]
 
   (lp',_,_w) <- runTransformT doRmDecl
   debugM $ "log:[\n" ++ intercalate "\n" _w ++ "]log end\n"
@@ -538,10 +535,11 @@ rmDecl6 :: Changer
 rmDecl6 _libdir lp = do
   let
       doRmDecl = do
-         [de1] <- hsDecls (makeDeltaAst lp)
+         [de1] <- hsDecls lp
 
          (de1',_) <- modifyValD (getLocA de1) de1 $ \_m subDecs -> do
-           let (ss1:_sd1:sd2:sds) = subDecs
+           let subDecs' = captureLineSpacing subDecs
+           let (ss1:_sd1:sd2:sds) = subDecs'
            sd2' <- transferEntryDP' ss1 sd2
 
            return (sd2':sds,Nothing)
@@ -551,6 +549,7 @@ rmDecl6 _libdir lp = do
   (lp',_,_w) <- runTransformT doRmDecl
   debugM $ "log:[\n" ++ intercalate "\n" _w ++ "]log end\n"
   return lp'
+
 -- ---------------------------------------------------------------------
 
 rmDecl7 :: Changer
@@ -573,13 +572,12 @@ rmDecl7 _libdir lp = do
 rmTypeSig1 :: Changer
 rmTypeSig1 _libdir lp = do
   let doRmDecl = do
-         -- tlDecs <- hsDecls (makeDeltaAst lp)
          tlDecs <- hsDecls lp
          let (s0:de1:d2) = tlDecs
              s1 = captureTypeSigSpacing s0
              (L l (SigD x1 (TypeSig x2 [n1,n2] typ))) = s1
-         n2' <- transferEntryDP n1 n2
-         let s1' = (L l (SigD x1 (TypeSig x2 [n2'] typ)))
+         L ln n2' <- transferEntryDP n1 n2
+         let s1' = (L l (SigD x1 (TypeSig x2 [L (noTrailingN ln) n2'] typ)))
          replaceDecls lp (s1':de1:d2)
 
   let (lp',_,_w) = runTransform doRmDecl
