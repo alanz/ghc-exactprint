@@ -546,14 +546,15 @@ enterAnn (Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
 
   -- Outside the anchor, mark any trailing
   postCs <- cua canUpdateAnchor takeAppliedCommentsPop
-  when (flush == NoFlushComments) $ do
-    when ((getFollowingComments cs) /= []) $ do
-
-      -- debugM $ "enterAnn:in:(anchor') =" ++ show (eloc2str anchor')
-      debugM $ "starting trailing comments:" ++ showAst (getFollowingComments cs)
-      mapM_ printOneComment (concatMap tokComment $ getFollowingComments cs)
-      debugM $ "ending trailing comments"
+  following <- if (flush == NoFlushComments)
+          then do
+              let (before, after) = splitAfterTrailingAnns trailing_anns
+                                                           (getFollowingComments cs)
+              addCommentsA before
+              return after
+           else return []
   trailing' <- markTrailing trailing_anns
+  mapM_ printOneComment (concatMap tokComment $ following)
 
   -- Update original anchor, comments based on the printing process
   let newAchor = EpaDelta edp []
@@ -562,6 +563,27 @@ enterAnn (Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
             CanUpdateAnchorOnly -> setAnnotationAnchor a' newAchor [] emptyComments
             NoCanUpdateAnchor -> a'
   return r
+
+-- ---------------------------------------------------------------------
+
+-- | Split the span following comments into ones that occur prior to
+-- the last trailing ann, and ones after.
+splitAfterTrailingAnns :: [TrailingAnn] -> [LEpaComment] -> ([LEpaComment], [LEpaComment])
+splitAfterTrailingAnns [] cs = ([], cs)
+splitAfterTrailingAnns tas cs = (before, after)
+  where
+    trailing_loc ta = case ta_location ta of
+        EpaSpan (RealSrcSpan s _) -> [s]
+        _ -> []
+    (before, after) = case reverse (concatMap trailing_loc tas) of
+        [] -> ([],cs)
+        (s:_) -> (b,a)
+          where
+            s_pos = ss2pos s
+            (b,a)
+                = break (\(L ll _) -> (ss2pos $ anchor ll) > s_pos)
+                        cs
+
 
 -- ---------------------------------------------------------------------
 

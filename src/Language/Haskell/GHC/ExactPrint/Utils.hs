@@ -255,7 +255,7 @@ workInComments ocs new = cs'
     fc = getFollowingComments ocs
     cs' = case fc of
       [] -> EpaComments $ sortEpaComments $ pc ++ fc ++ new
-      (L ac _:_) -> EpaCommentsBalanced (sortEpaComments $ pc ++ cs_before)
+      (L ac _:_) -> epaCommentsBalanced (sortEpaComments $ pc ++ cs_before)
                                         (sortEpaComments $ fc ++ cs_after)
              where
                (cs_before,cs_after)
@@ -322,7 +322,7 @@ insertRemainingCppComments (L l p) cs = L l p'
     an' = EpAnn a an (addTrailingComments ocs cs)
     p' = p { GHC.hsmodExt = (GHC.hsmodExt p) { GHC.hsmodAnn = an' } }
 
-    addTrailingComments cur new = EpaCommentsBalanced pc' fc'
+    addTrailingComments cur new = epaCommentsBalanced pc' fc'
       where
         pc = priorComments cur
         fc = getFollowingComments cur
@@ -383,6 +383,11 @@ dedentDocChunkBy  dedent (L (RealSrcSpan l mb) c) = L (RealSrcSpan l' mb) c
                        (mkRealSrcLoc f el (ec - dedent))
 
 dedentDocChunkBy _ x = x
+
+
+epaCommentsBalanced :: [LEpaComment] -> [LEpaComment] -> EpAnnComments
+epaCommentsBalanced priorCs     [] = EpaComments priorCs
+epaCommentsBalanced priorCs postCs = EpaCommentsBalanced priorCs postCs
 
 mkEpaComments :: [Comment] -> [Comment] -> EpAnnComments
 mkEpaComments priorCs []

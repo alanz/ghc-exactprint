@@ -31,6 +31,7 @@ transformTestsTT :: LibDir -> Test
 transformTestsTT libdir = TestLabel "transformTestsTT" $ TestList
   [
     mkTestModChange libdir addLocaLDecl1  "AddLocalDecl1.hs"
+  , mkTestModChange libdir addLocaLDecl3  "AddLocalDecl3.hs"
   ]
 
 transformTests :: LibDir -> Test
@@ -229,7 +230,7 @@ changeLayoutLet5 :: Changer
 changeLayoutLet5 _libdir parsed = return (rename "x" [((7,5),(7,8)),((9,14),(9,17))] parsed)
 
 
-rename :: (Data a, ExactPrint a) => String -> [(Pos, Pos)] -> a -> a
+rename :: (Data a) => String -> [(Pos, Pos)] -> a -> a
 rename newNameStr spans' a
   = everywhere (mkT replaceRdr) a
   where

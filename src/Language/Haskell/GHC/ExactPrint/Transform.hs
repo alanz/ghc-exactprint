@@ -552,8 +552,8 @@ balanceComments' la1 la2 = do
     move = sortEpaComments $ map snd (cs1move ++ move'' ++ move')
     stay = sortEpaComments $ map snd (cs1stay ++ stay')
 
-    an1' = setCommentsEpAnn (getLoc la1) (EpaCommentsBalanced (map snd cs1p) move)
-    an2' = setCommentsEpAnn (getLoc la2) (EpaCommentsBalanced stay (map snd cs2f))
+    an1' = setCommentsEpAnn (getLoc la1) (epaCommentsBalanced (map snd cs1p) move)
+    an2' = setCommentsEpAnn (getLoc la2) (epaCommentsBalanced stay (map snd cs2f))
     la1' = L an1' f
     la2' = L an2' s
 
@@ -600,8 +600,8 @@ splitCommentsEnd p (EpaComments cs) = cs'
     (before, after) = break cmp cs
     cs' = case after of
       [] -> EpaComments cs
-      _ -> EpaCommentsBalanced before after
-splitCommentsEnd p (EpaCommentsBalanced cs ts) = EpaCommentsBalanced cs' ts'
+      _ -> epaCommentsBalanced before after
+splitCommentsEnd p (EpaCommentsBalanced cs ts) = epaCommentsBalanced cs' ts'
   where
     cmp (L (EpaSpan (RealSrcSpan l _)) _) = ss2pos l > ss2posEnd p
     cmp (L _ _) = True
@@ -619,8 +619,8 @@ splitCommentsStart p (EpaComments cs) = cs'
     (before, after) = break cmp cs
     cs' = case after of
       [] -> EpaComments cs
-      _ -> EpaCommentsBalanced before after
-splitCommentsStart p (EpaCommentsBalanced cs ts) = EpaCommentsBalanced cs' ts'
+      _ -> epaCommentsBalanced before after
+splitCommentsStart p (EpaCommentsBalanced cs ts) = epaCommentsBalanced cs' ts'
   where
     cmp (L (EpaSpan (RealSrcSpan l _)) _) = ss2pos l > ss2posEnd p
     cmp (L _ _) = True
@@ -640,8 +640,8 @@ moveLeadingComments (L la a) lb = (L la' a, lb')
     -- TODO: need to set an entry delta on lb' to zero, and move the
     -- original spacing to the first comment.
 
-    la' = setCommentsEpAnn la (EpaCommentsBalanced [] after)
-    lb' = addCommentsToEpAnn lb (EpaCommentsBalanced before [])
+    la' = setCommentsEpAnn la (epaCommentsBalanced [] after)
+    lb' = addCommentsToEpAnn lb (epaCommentsBalanced before [])
 
 -- | A GHC comment includes the span of the preceding (non-comment)
 -- token.  Takes an original list of comments, and converts the
@@ -686,7 +686,7 @@ balanceSameLineComments (L la (Match anm mctxt pats (GRHSs x grhss lb))) = do
           (move',stay') = break (simpleBreak 0) (trailingCommentsDeltas (anchor anc) csf)
           move = map snd move'
           stay = map snd stay'
-          cs1 = EpaCommentsBalanced csp stay
+          cs1 = epaCommentsBalanced csp stay
 
           gac = epAnnComments ga
           gfc = getFollowingComments gac
