@@ -72,8 +72,6 @@ import Language.Haskell.GHC.ExactPrint.Lookup
 import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Types
 
--- import Debug.Trace
-
 -- ---------------------------------------------------------------------
 
 exactPrint :: ExactPrint ast => ast -> String
@@ -2351,8 +2349,13 @@ instance (ExactPrint tm, ExactPrint ty, Outputable tm, Outputable ty)
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ _ = a
 
-  exact a@(HsValArg _ tm)   = markAnnotated tm >> return a
-  exact a@(HsTypeArg at ty) = markEpToken at >> markAnnotated ty >> return a
+  exact (HsValArg x tm) = do
+      tm' <- markAnnotated tm
+      return (HsValArg x tm')
+  exact (HsTypeArg at ty) = do
+      at' <- markEpToken at
+      ty' <- markAnnotated ty
+      return (HsTypeArg at' ty')
   exact x@(HsArgPar _sp)    = withPpr x -- Does not appear in original source
 
 -- ---------------------------------------------------------------------
@@ -2681,7 +2684,8 @@ instance ExactPrint (HsValBindsLR GhcPs GhcPs) where
     let
       binds' = listToBag $ concatMap decl2Bind decls
       sigs'  =             concatMap decl2Sig decls
-    return (ValBinds sortKey binds' sigs')
+      sortKey' = captureOrderBinds decls
+    return (ValBinds sortKey' binds' sigs')
   exact (XValBindsLR _) = panic "XValBindsLR"
 
 undynamic :: Typeable a => [Dynamic] -> [a]
@@ -2885,7 +2889,7 @@ instance ExactPrint (AnnDecl GhcPs) where
           n' <- markAnnotated n
           return (an1, TypeAnnProvenance n')
         ModuleAnnProvenance -> do
-          an1 <- markEpAnnL' an lapr_rest AnnModule
+          an1 <- markEpAnnL' an0 lapr_rest AnnModule
           return (an1, prov)
 
     e' <- markAnnotated e
@@ -3931,22 +3935,23 @@ instance ExactPrint (InjectivityAnn GhcPs) where
 
 class Typeable flag => ExactPrintTVFlag flag where
   exactTVDelimiters :: (Monad m, Monoid w)
-    => [AddEpAnn] -> flag -> EP w m (HsTyVarBndr flag GhcPs)
-    -> EP w m ([AddEpAnn], (HsTyVarBndr flag GhcPs))
+    => [AddEpAnn] -> flag
+    -> ([AddEpAnn] -> EP w m ([AddEpAnn], HsTyVarBndr flag GhcPs))
+    -> EP w m ([AddEpAnn], flag, (HsTyVarBndr flag GhcPs))
 
 instance ExactPrintTVFlag () where
-  exactTVDelimiters an _ thing_inside = do
+  exactTVDelimiters an flag thing_inside = do
     an0 <- markEpAnnAllL' an lid AnnOpenP
-    r <- thing_inside
-    an1 <- markEpAnnAllL' an0 lid AnnCloseP
-    return (an1, r)
+    (an1, r) <- thing_inside an0
+    an2 <- markEpAnnAllL' an1 lid AnnCloseP
+    return (an2, flag, r)
 
 instance ExactPrintTVFlag Specificity where
   exactTVDelimiters an s thing_inside = do
     an0 <- markEpAnnAllL' an lid open
-    r <- thing_inside
-    an1 <- markEpAnnAllL' an0 lid close
-    return (an1, r)
+    (an1, r) <- thing_inside an0
+    an2 <- markEpAnnAllL' an1 lid close
+    return (an2, s, r)
     where
       (open, close) = case s of
         SpecifiedSpec -> (AnnOpenP, AnnCloseP)
@@ -3954,33 +3959,33 @@ instance ExactPrintTVFlag Specificity where
 
 instance ExactPrintTVFlag (HsBndrVis GhcPs) where
   exactTVDelimiters an0 bvis thing_inside = do
-    case bvis of
-      HsBndrRequired _ -> return ()
-      HsBndrInvisible at -> markEpToken at >> return ()
+    bvis' <- case bvis of
+      HsBndrRequired _ -> return bvis
+      HsBndrInvisible at -> HsBndrInvisible <$> markEpToken at
     an1 <- markEpAnnAllL' an0 lid AnnOpenP
-    r <- thing_inside
-    an2 <- markEpAnnAllL' an1 lid AnnCloseP
-    return (an2, r)
+    (an2, r) <- thing_inside an1
+    an3 <- markEpAnnAllL' an2 lid AnnCloseP
+    return (an3, bvis', r)
 
 instance ExactPrintTVFlag flag => ExactPrint (HsTyVarBndr flag GhcPs) where
   getAnnotationEntry _ = NoEntryVal
   setAnnotationAnchor a _ _ _ = a
 
   exact (UserTyVar an flag n) = do
-    r <- exactTVDelimiters an flag $ do
+    r <- exactTVDelimiters an flag $ \ani -> do
            n' <- markAnnotated n
-           return (UserTyVar an flag n')
+           return (ani, UserTyVar an flag n')
     case r of
-      (an', UserTyVar _ flag'' n'') -> return (UserTyVar an' flag'' n'')
+      (an', flag', UserTyVar _ _ n'') -> return (UserTyVar an' flag' n'')
       _ -> error "KindedTyVar should never happen here"
   exact (KindedTyVar an flag n k) = do
-    r <- exactTVDelimiters an flag $ do
+    r <- exactTVDelimiters an flag $ \ani -> do
           n' <- markAnnotated n
-          an0 <- markEpAnnL' an lidl AnnDcolon
+          an0 <- markEpAnnL' ani lidl AnnDcolon
           k' <- markAnnotated k
-          return (KindedTyVar an0 flag n' k')
+          return (an0, KindedTyVar an0 flag n' k')
     case r of
-      (an',KindedTyVar _ flag'' n'' k'') -> return (KindedTyVar an' flag'' n'' k'')
+      (an',flag', KindedTyVar _ _ n'' k'') -> return (KindedTyVar an' flag' n'' k'')
       _ -> error "UserTyVar should never happen here"
 
 -- ---------------------------------------------------------------------

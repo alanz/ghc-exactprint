@@ -58,6 +58,15 @@ warn c _ = c
 
 -- ---------------------------------------------------------------------
 
+captureOrderBinds :: [LHsDecl GhcPs] -> AnnSortKey BindTag
+captureOrderBinds ls = AnnSortKey $ map go ls
+  where
+    go (L _ (ValD _ _))       = BindTag
+    go (L _ (SigD _ _))       = SigDTag
+    go d      = error $ "captureOrderBinds:" ++ showGhc d
+
+-- ---------------------------------------------------------------------
+
 notDocDecl :: LHsDecl GhcPs -> Bool
 notDocDecl (L _ DocD{}) = False
 notDocDecl _ = True

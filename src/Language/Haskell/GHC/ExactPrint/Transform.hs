@@ -174,15 +174,6 @@ srcSpanStartLine' _ = 0
 
 -- ---------------------------------------------------------------------
 
-captureOrderBinds :: [LHsDecl GhcPs] -> AnnSortKey BindTag
-captureOrderBinds ls = AnnSortKey $ map go ls
-  where
-    go (L _ (ValD _ _))       = BindTag
-    go (L _ (SigD _ _))       = SigDTag
-    go d      = error $ "captureOrderBinds:" ++ showGhc d
-
--- ---------------------------------------------------------------------
-
 captureMatchLineSpacing :: LHsDecl GhcPs -> LHsDecl GhcPs
 captureMatchLineSpacing (L l (ValD x (FunBind a b (MG c (L d ms )))))
                        = L l (ValD x (FunBind a b (MG c (L d ms'))))
