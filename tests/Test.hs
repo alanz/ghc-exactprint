@@ -213,10 +213,10 @@ tt' = do
     -- mkParserTest libdir "ghc94" "Haddock.hs"
 
     -- mkParserTest libdir "ghc94" "Haddock2.hs"
-    mkParserTestBC libdir "ghc94" "Haddock2.hs"
+    -- mkParserTestBC libdir "ghc94" "Haddock2.hs"
 
     -- mkParserTest libdir "ghc98" "ExportWarnings_aux.hs"
-    -- mkParserTest libdir "ghc98" "IndentedModule2.hs"
+    mkParserTest libdir "ghc98" "IndentedModule2.hs"
 
     -- mkParserTest libdir "ghc92" "TopLevelSemis.hs"
     -- mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
