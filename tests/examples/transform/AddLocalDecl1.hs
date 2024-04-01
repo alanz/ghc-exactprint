@@ -11,3 +11,5 @@ x = a -- comment2
 -- trailing 2
 
 y = 3
+
+-- eof

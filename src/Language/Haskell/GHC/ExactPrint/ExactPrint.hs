@@ -423,9 +423,11 @@ enterAnn (Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
     _ -> return ()
   case anchor' of
     EpaDelta _ dcs -> do
-      debugM $ "enterAnn:Printing comments:" ++ showGhc (priorComments cs)
+      debugM $ "enterAnn:Delta:Flushing comments"
+      flushComments []
+      debugM $ "enterAnn:Delta:Printing prior comments:" ++ showGhc (priorComments cs)
       mapM_ printOneComment (concatMap tokComment $ priorComments cs)
-      debugM $ "enterAnn:Printing EpaDelta comments:" ++ showGhc dcs
+      debugM $ "enterAnn:Delta:Printing EpaDelta comments:" ++ showGhc dcs
       mapM_ printOneComment (concatMap tokComment dcs)
     _ -> do
       debugM $ "enterAnn:Adding comments:" ++ showGhc (priorComments cs)
@@ -554,7 +556,8 @@ enterAnn (Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
               return after
            else return []
   trailing' <- markTrailing trailing_anns
-  mapM_ printOneComment (concatMap tokComment $ following)
+  -- mapM_ printOneComment (concatMap tokComment $ following)
+  addCommentsA following
 
   -- Update original anchor, comments based on the printing process
   let newAchor = EpaDelta edp []
@@ -580,9 +583,8 @@ splitAfterTrailingAnns tas cs = (before, after)
         (s:_) -> (b,a)
           where
             s_pos = ss2pos s
-            (b,a)
-                = break (\(L ll _) -> (ss2pos $ anchor ll) > s_pos)
-                        cs
+            (b,a) = break (\(L ll _) -> (ss2pos $ anchor ll) > s_pos)
+                          cs
 
 
 -- ---------------------------------------------------------------------
