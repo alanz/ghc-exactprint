@@ -220,10 +220,10 @@ tt' = do
     -- mkParserTest libdir "ghc98" "IndentedModule2.hs"
 
     -- mkParserTest libdir "ghc92" "TopLevelSemis.hs"
-    mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
+    -- mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
 
-    -- mkParserTest libdir "ghc92" "TopLevelSemis4.hs"
-    -- mkParserTestBC libdir "ghc92" "TopLevelSemis4.hs"
+    -- mkParserTest libdir "ghc710" "Process2.hs"
+    mkParserTestBC libdir "ghc710" "Process2.hs"
 
     -- mkParserTest libdir "ghc710" "CExpected.hs"
    -- Needs GHC changes

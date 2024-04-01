@@ -527,8 +527,7 @@ balanceComments' la1 la2 = do
   -- debugM $ "balanceComments': (anc1)=" ++ showAst (anc1)
   -- debugM $ "balanceComments': (anc2)=" ++ showAst (anc2)
   debugM $ "balanceComments': (cs1f)=" ++ showAst (cs1f)
-  debugM $ "balanceComments': (cs1fp, cs1ff)=" ++ showAst (cs1fp, cs1ff)
-  debugM $ "balanceComments': (cs1s)=" ++ showAst (cs1s)
+  debugM $ "balanceComments': (cs2p, cs2f)=" ++ showAst (cs2p, cs2f)
   debugM $ "balanceComments': (cs1stay,cs1move)=" ++ showAst (cs1stay,cs1move)
   debugM $ "balanceComments': (an1',an2')=" ++ showAst (an1',an2')
   return (la1', la2')
@@ -539,30 +538,30 @@ balanceComments' la1 la2 = do
     anc1 = comments an1
     anc2 = comments an2
 
-    cs1s = splitCommentsEnd (anchorFromLocatedA la1) anc1
-    cs1p = priorCommentsDeltas    (anchorFromLocatedA la1) (priorComments        cs1s)
+    (p1,m1,f1) = splitComments (anchorFromLocatedA la1) anc1
+    cs1p = priorCommentsDeltas    (anchorFromLocatedA la1) p1
 
     -- Split cs1 following comments into those before any
     -- TrailingAnn's on an1, and any after
-    cs1f = splitCommentsEnd (fullSpanFromLocatedA la1) $ EpaComments (getFollowingComments cs1s)
+    cs1f = splitCommentsEnd (fullSpanFromLocatedA la1) $ EpaComments f1
     cs1fp = priorCommentsDeltas    (anchorFromLocatedA la1) (priorComments        cs1f)
     cs1ff = trailingCommentsDeltas (anchorFromLocatedA la1) (getFollowingComments cs1f)
 
     -- Split cs1ff into those that belong on an1 and ones that must move to an2
     (cs1move,cs1stay) = break (simpleBreak 1) cs1ff
 
-    cs2s = splitCommentsEnd (anchorFromLocatedA la2) anc2
-    cs2p = priorCommentsDeltas    (anchorFromLocatedA la2) (priorComments        cs2s)
-    cs2f = trailingCommentsDeltas (anchorFromLocatedA la2) (getFollowingComments cs2s)
+    (p2,m2,f2) = splitComments (anchorFromLocatedA la2) anc2
+    cs2p = priorCommentsDeltas    (anchorFromLocatedA la2) p2
+    cs2f = trailingCommentsDeltas (anchorFromLocatedA la2) f2
 
     (stay'',move') = break (simpleBreak 1) cs2p
     -- Need to also check for comments more closely attached to la1,
     -- ie trailing on the same line
     (move'',stay') = break (simpleBreak 0) (trailingCommentsDeltas (anchorFromLocatedA la1) (map snd stay''))
     move = sortEpaComments $ map snd (cs1fp ++ cs1move ++ move'' ++ move')
-    stay = sortEpaComments $ map snd (cs1stay ++ stay')
+    stay = sortEpaComments $ m2 ++ map snd (cs1stay ++ stay')
 
-    an1' = setCommentsEpAnn (getLoc la1) (epaCommentsBalanced (map snd cs1p) move)
+    an1' = setCommentsEpAnn (getLoc la1) (epaCommentsBalanced (m1 ++ map snd cs1p) move)
     an2' = setCommentsEpAnn (getLoc la2) (epaCommentsBalanced stay (map snd cs2f))
     la1' = L an1' f
     la2' = L an2' s
@@ -599,6 +598,21 @@ priorCommentsDeltas r cs = go r (reverse $ sortEpaComments cs)
 
 
 -- ---------------------------------------------------------------------
+
+-- | Split comments into ones occurring before the end of the reference
+-- span, and those after it.
+splitComments :: RealSrcSpan -> EpAnnComments -> ([LEpaComment], [LEpaComment], [LEpaComment])
+splitComments p cs = (before, middle, after)
+  where
+    cmpe (L (EpaSpan (RealSrcSpan l _)) _) = ss2pos l > ss2posEnd p
+    cmpe (L _ _) = True
+
+    cmpb (L (EpaSpan (RealSrcSpan l _)) _) = ss2pos l > ss2pos p
+    cmpb (L _ _) = True
+
+    (beforeEnd, after) = break cmpe ((priorComments cs) ++ (getFollowingComments cs))
+    (before, middle) = break cmpb beforeEnd
+
 
 -- | Split comments into ones occurring before the end of the reference
 -- span, and those after it.
