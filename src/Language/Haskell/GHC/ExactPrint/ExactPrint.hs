@@ -3272,11 +3272,17 @@ exactMdo an (Just module_name) kw = markEpAnnLMS'' an lal_rest kw (Just n)
 markMaybeDodgyStmts :: (Monad m, Monoid w, ExactPrint (LocatedAn an a))
   => AnnList -> LocatedAn an a -> EP w m (AnnList, LocatedAn an a)
 markMaybeDodgyStmts an stmts =
-  if isGoodSrcSpan (getLocA stmts)
+  if notDodgy stmts
     then do
       r <- markAnnotatedWithLayout stmts
       return (an, r)
     else return (an, stmts)
+
+notDodgy :: GenLocated (EpAnn ann) e -> Bool
+notDodgy (L (EpAnn anc _ _) _) =
+  case anc of
+    EpaSpan s -> isGoodSrcSpan s
+    EpaDelta{} -> True
 
 -- ---------------------------------------------------------------------
 instance ExactPrint (HsPragE GhcPs) where
@@ -3333,7 +3339,7 @@ instance ExactPrint (MatchGroup GhcPs (LocatedA (HsCmd GhcPs))) where
   setAnnotationAnchor a _ _ _ = a
   exact (MG x matches) = do
     -- TODO:AZ use SortKey, in MG ann.
-    matches' <- if isGoodSrcSpan (getLocA matches)
+    matches' <- if notDodgy matches
       then markAnnotated matches
       else return matches
     return (MG x matches')

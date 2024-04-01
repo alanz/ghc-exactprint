@@ -224,8 +224,8 @@ tt' = do
     -- mkParserTest libdir "ghc98" "T13343.hs"
     -- mkParserTestMD libdir "ghc98" "T13343.hs"
 
-    -- mkParserTest libdir "ghc92" "TopLevelSemis1.hs"
-    mkParserTestMD libdir "ghc92" "TopLevelSemis1.hs"
+    -- mkParserTest libdir "ghc710" "Arrows.hs"
+    mkParserTestMD libdir "ghc710" "Arrows.hs"
 
 
     -- mkParserTest libdir "ghc710" "CExpected.hs"
