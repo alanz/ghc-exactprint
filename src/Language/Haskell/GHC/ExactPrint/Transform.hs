@@ -93,6 +93,7 @@ import qualified Control.Monad.Fail as Fail
 import GHC  hiding (parseModule, parsedSource)
 import GHC.Data.Bag
 import GHC.Data.FastString
+import GHC.Types.SrcLoc
 
 import Data.Data
 import Data.Maybe
@@ -522,7 +523,11 @@ balanceCommentsList' (a:b:ls) = do
 -- Many of these should in fact be following comments for the previous anchor
 balanceComments' :: (Monad m) => LocatedA a -> LocatedA b -> TransformT m (LocatedA a, LocatedA b)
 balanceComments' la1 la2 = do
-  debugM $ "balanceComments': (anc1)=" ++ showAst (anc1)
+  debugM $ "balanceComments': anchors=" ++ showAst (an1, an2)
+  -- debugM $ "balanceComments': (anc1)=" ++ showAst (anc1)
+  -- debugM $ "balanceComments': (anc2)=" ++ showAst (anc2)
+  debugM $ "balanceComments': (cs1f)=" ++ showAst (cs1f)
+  debugM $ "balanceComments': (cs1fp, cs1ff)=" ++ showAst (cs1fp, cs1ff)
   debugM $ "balanceComments': (cs1s)=" ++ showAst (cs1s)
   debugM $ "balanceComments': (cs1stay,cs1move)=" ++ showAst (cs1stay,cs1move)
   debugM $ "balanceComments': (an1',an2')=" ++ showAst (an1',an2')
@@ -536,20 +541,25 @@ balanceComments' la1 la2 = do
 
     cs1s = splitCommentsEnd (anchorFromLocatedA la1) anc1
     cs1p = priorCommentsDeltas    (anchorFromLocatedA la1) (priorComments        cs1s)
-    cs1f = trailingCommentsDeltas (anchorFromLocatedA la1) (getFollowingComments cs1s)
+
+    -- Split cs1 following comments into those before any
+    -- TrailingAnn's on an1, and any after
+    cs1f = splitCommentsEnd (fullSpanFromLocatedA la1) $ EpaComments (getFollowingComments cs1s)
+    cs1fp = priorCommentsDeltas    (anchorFromLocatedA la1) (priorComments        cs1f)
+    cs1ff = trailingCommentsDeltas (anchorFromLocatedA la1) (getFollowingComments cs1f)
+
+    -- Split cs1ff into those that belong on an1 and ones that must move to an2
+    (cs1move,cs1stay) = break (simpleBreak 1) cs1ff
 
     cs2s = splitCommentsEnd (anchorFromLocatedA la2) anc2
     cs2p = priorCommentsDeltas    (anchorFromLocatedA la2) (priorComments        cs2s)
     cs2f = trailingCommentsDeltas (anchorFromLocatedA la2) (getFollowingComments cs2s)
 
-    -- Split cs1f into those that belong on an1 and ones that must move to an2
-    (cs1move,cs1stay) = break (simpleBreak 1) cs1f
-
     (stay'',move') = break (simpleBreak 1) cs2p
     -- Need to also check for comments more closely attached to la1,
     -- ie trailing on the same line
     (move'',stay') = break (simpleBreak 0) (trailingCommentsDeltas (anchorFromLocatedA la1) (map snd stay''))
-    move = sortEpaComments $ map snd (cs1move ++ move'' ++ move')
+    move = sortEpaComments $ map snd (cs1fp ++ cs1move ++ move'' ++ move')
     stay = sortEpaComments $ map snd (cs1stay ++ stay')
 
     an1' = setCommentsEpAnn (getLoc la1) (epaCommentsBalanced (map snd cs1p) move)
@@ -659,10 +669,24 @@ addCommentOrigDeltas (EpaCommentsBalanced pcs fcs)
 addCommentOrigDeltasAnn :: (EpAnn a) -> (EpAnn a)
 addCommentOrigDeltasAnn (EpAnn e a cs) = EpAnn e a (addCommentOrigDeltas cs)
 
+
 -- TODO: this is replicating functionality in ExactPrint. Sort out the
 -- import loop`
 anchorFromLocatedA :: LocatedA a -> RealSrcSpan
 anchorFromLocatedA (L (EpAnn anc _ _) _) = anchor anc
+
+-- | Get the full span of interest for comments from a LocatedA.
+-- This extends up to the last TrailingAnn
+fullSpanFromLocatedA :: LocatedA a -> RealSrcSpan
+fullSpanFromLocatedA (L (EpAnn anc (AnnListItem tas)  _) _) = rr
+  where
+    r = anchor anc
+    trailing_loc ta = case ta_location ta of
+        EpaSpan (RealSrcSpan s _) -> [s]
+        _ -> []
+    rr = case reverse (concatMap trailing_loc tas) of
+        [] -> r
+        (s:_) -> combineRealSrcSpans r s
 
 -- ---------------------------------------------------------------------
 
