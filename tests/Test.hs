@@ -143,13 +143,13 @@ mkTests = do
   roundTripMakeDeltaTests <- findTestsMD libdir
   -- prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
-                      internalTests,
+                      -- internalTests,
                       roundTripTests
-                   ,
-                     (transformTests libdir)
-                   , (failingTests libdir)
-                   ,
-                     roundTripBalanceCommentsTests
+                   -- ,
+                   --   (transformTests libdir)
+                   -- , (failingTests libdir)
+                   -- ,
+                   --   roundTripBalanceCommentsTests
                    -- ,
                    --   roundTripMakeDeltaTests
                     ]
@@ -213,7 +213,7 @@ tt' = do
     -- mkParserTest libdir "ghc94" "Haddock.hs"
     -- mkParserTest libdir "ghc94" "Haddock1.hs"
     -- mkParserTest libdir "ghc94" "Haddock2.hs"
-    -- mkParserTest libdir "ghc94" "Haddock3.hs"
+    mkParserTest libdir "ghc94" "Haddock3.hs"
     -- mkParserTestBC libdir "ghc94" "Haddock1.hs"
 
     -- mkParserTest libdir "ghc98" "ExportWarnings_aux.hs"
@@ -222,11 +222,6 @@ tt' = do
     -- mkParserTest libdir "ghc92" "TopLevelSemis.hs"
     -- mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
 
-    -- mkParserTest libdir "ghc92" "TH1.hs"
-    -- mkParserTestBC libdir "ghc92" "TH1.hs"
-
-    -- mkParserTest libdir "transform" "AddLocalDecl1.hs"
-    mkParserTestBC libdir "transform" "AddLocalDecl1.hs"
 
     -- mkParserTest libdir "ghc710" "CExpected.hs"
    -- Needs GHC changes

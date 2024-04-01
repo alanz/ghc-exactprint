@@ -1694,7 +1694,7 @@ instance ExactPrint (HsModule GhcPs) where
           flushComments []
           putUnallocatedComments []
 
-    decls' <- markTopLevelList (filter removeDocDecl decls)
+    decls' <- markTopLevelList (filter notDocDecl decls)
 
     lo1 <- case lo0 of
         EpExplicitBraces open close -> do
@@ -1715,9 +1715,15 @@ instance ExactPrint (HsModule GhcPs) where
     return (HsModule (XModulePs anf lo1 mdeprec' mbDoc') mmn' mexports' imports' decls')
 
 
-removeDocDecl :: LHsDecl GhcPs -> Bool
-removeDocDecl (L _ DocD{}) = False
-removeDocDecl _ = True
+notDocDecl :: LHsDecl GhcPs -> Bool
+notDocDecl (L _ DocD{}) = False
+notDocDecl _ = True
+
+notIEDoc :: LIE GhcPs -> Bool
+notIEDoc (L _ IEGroup {})    = False
+notIEDoc (L _ IEDoc {})      = False
+notIEDoc (L _ IEDocNamed {}) = False
+notIEDoc _ = True
 
 -- ---------------------------------------------------------------------
 
@@ -4530,7 +4536,7 @@ instance ExactPrint (LocatedL [LocatedA (IE GhcPs)]) where
     an0 <- markEpAnnL an lal_rest AnnHiding
     p <- getPosP
     debugM $ "LocatedL [LIE:p=" ++ showPprUnsafe p
-    (an1, ies') <- markAnnList an0 (markAnnotated ies)
+    (an1, ies') <- markAnnList an0 (markAnnotated (filter notIEDoc ies))
     return (L an1 ies')
 
 instance (ExactPrint (Match GhcPs (LocatedA body)))
