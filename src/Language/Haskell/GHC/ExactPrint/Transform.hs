@@ -63,7 +63,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         -- *** Low level operations used in 'HasDecls'
         , balanceComments
         , balanceCommentsList
-        , balanceCommentsList'
+        , balanceCommentsListA
         , anchorEof
 
         -- ** Managing lists, pure functions
@@ -378,12 +378,18 @@ pushDeclDP d _dp = d
 
 -- ---------------------------------------------------------------------
 
+-- | If we compile in haddock mode we get DocDecls, which we strip out
+-- while exact printing. Make sure we do not balance any comments on
+-- to them be stripping them out here already.
 balanceCommentsList :: (Monad m) => [LHsDecl GhcPs] -> TransformT m [LHsDecl GhcPs]
-balanceCommentsList [] = return []
-balanceCommentsList [x] = return [x]
-balanceCommentsList (a:b:ls) = do
+balanceCommentsList decls = balanceCommentsList' (filter notDocDecl decls)
+
+balanceCommentsList' :: (Monad m) => [LHsDecl GhcPs] -> TransformT m [LHsDecl GhcPs]
+balanceCommentsList' [] = return []
+balanceCommentsList' [x] = return [x]
+balanceCommentsList' (a:b:ls) = do
   (a',b') <- balanceComments a b
-  r <- balanceCommentsList (b':ls)
+  r <- balanceCommentsList' (b':ls)
   return (a':r)
 
 -- |The GHC parser puts all comments appearing between the end of one AST
@@ -400,9 +406,9 @@ balanceComments first second = do
     (L l (ValD x fb@(FunBind{}))) -> do
       (L l' fb',second') <- balanceCommentsFB (L l fb) second
       return (L l' (ValD x fb'), second')
-    _ -> balanceComments' first second
+    _ -> balanceCommentsA first second
 
--- |Once 'balanceComments' has been called to move trailing comments to a
+-- |Once 'balanceCommentsA has been called to move trailing comments to a
 -- 'FunBind', these need to be pushed down from the top level to the last
 -- 'Match' if that 'Match' needs to be manipulated.
 balanceCommentsFB :: (Monad m)
@@ -437,14 +443,14 @@ balanceCommentsFB (L lf (FunBind x n (MG o (L lm matches)))) second = do
                     (L lm' m':ms') ->
                       (L (addCommentsToEpAnn lm' (EpaComments middle )) m':ms')
                     _ -> error "balanceCommentsFB"
-  matches'' <- balanceCommentsList' matches'
+  matches'' <- balanceCommentsListA matches'
   let (m,ms) = case reverse matches'' of
                  (L lm' m':ms') ->
                    (L (addCommentsToEpAnn lm' (EpaCommentsBalanced [] after)) m',ms')
                    -- (L (addCommentsToEpAnnS lm' (EpaCommentsBalanced [] after)) m',ms')
                  _ -> error "balanceCommentsFB4"
   debugM $ "balanceCommentsFB: (m,ms):" ++ showAst (m,ms)
-  (m',second') <- balanceComments' m second
+  (m',second') <- balanceCommentsA m second
   m'' <- balanceCommentsMatch m'
   let (m''',lf'') = case ms of
         [] -> moveLeadingComments m'' lf'
@@ -453,8 +459,8 @@ balanceCommentsFB (L lf (FunBind x n (MG o (L lm matches)))) second = do
   debugM $ "balanceCommentsFB done"
   let bind = L lf'' (FunBind x n (MG o (L lm (reverse (m''':ms)))))
   debugM $ "balanceCommentsFB returning:" ++ showAst bind
-  balanceComments' (packFunBind bind) second'
-balanceCommentsFB f s = balanceComments' f s
+  balanceCommentsA (packFunBind bind) second'
+balanceCommentsFB f s = balanceCommentsA f s
 
 -- | Move comments on the same line as the end of the match into the
 -- GRHS, prior to the binds
@@ -506,13 +512,13 @@ pushTrailingComments w cs lb@(HsValBinds an _)
       _ -> (ValBinds NoAnnSortKey emptyBag [], [])
 
 
-balanceCommentsList' :: (Monad m) => [LocatedA a] -> TransformT m [LocatedA a]
-balanceCommentsList' [] = return []
-balanceCommentsList' [x] = return [x]
-balanceCommentsList' (a:b:ls) = do
-  logTr $ "balanceCommentsList' entered"
-  (a',b') <- balanceComments' a b
-  r <- balanceCommentsList' (b':ls)
+balanceCommentsListA :: (Monad m) => [LocatedA a] -> TransformT m [LocatedA a]
+balanceCommentsListA [] = return []
+balanceCommentsListA [x] = return [x]
+balanceCommentsListA (a:b:ls) = do
+  logTr $ "balanceCommentsListA entered"
+  (a',b') <- balanceCommentsA a b
+  r <- balanceCommentsListA (b':ls)
   return (a':r)
 
 -- |Prior to moving an AST element, make sure any trailing comments belonging to
@@ -521,15 +527,15 @@ balanceCommentsList' (a:b:ls) = do
 -- with a passed-in decision function.
 -- The initial situation is that all comments for a given anchor appear as prior comments
 -- Many of these should in fact be following comments for the previous anchor
-balanceComments' :: (Monad m) => LocatedA a -> LocatedA b -> TransformT m (LocatedA a, LocatedA b)
-balanceComments' la1 la2 = do
-  debugM $ "balanceComments': anchors=" ++ showAst (an1, an2)
-  -- debugM $ "balanceComments': (anc1)=" ++ showAst (anc1)
-  -- debugM $ "balanceComments': (anc2)=" ++ showAst (anc2)
-  debugM $ "balanceComments': (cs1f)=" ++ showAst (cs1f)
-  debugM $ "balanceComments': (cs2p, cs2f)=" ++ showAst (cs2p, cs2f)
-  debugM $ "balanceComments': (cs1stay,cs1move)=" ++ showAst (cs1stay,cs1move)
-  debugM $ "balanceComments': (an1',an2')=" ++ showAst (an1',an2')
+balanceCommentsA :: (Monad m) => LocatedA a -> LocatedA b -> TransformT m (LocatedA a, LocatedA b)
+balanceCommentsA la1 la2 = do
+  debugM $ "balanceCommentsA: anchors=" ++ showAst (an1, an2)
+  -- debugM $ "balanceCommentsA: (anc1)=" ++ showAst (anc1)
+  -- debugM $ "balanceCommentsA: (anc2)=" ++ showAst (anc2)
+  debugM $ "balanceCommentsA: (cs1f)=" ++ showAst (cs1f)
+  debugM $ "balanceCommentsA: (cs2p, cs2f)=" ++ showAst (cs2p, cs2f)
+  debugM $ "balanceCommentsA: (cs1stay,cs1move)=" ++ showAst (cs1stay,cs1move)
+  debugM $ "balanceCommentsA: (an1',an2')=" ++ showAst (an1',an2')
   return (la1', la2')
   where
     simpleBreak n (r,_) = r > n

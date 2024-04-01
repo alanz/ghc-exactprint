@@ -1714,17 +1714,6 @@ instance ExactPrint (HsModule GhcPs) where
 
     return (HsModule (XModulePs anf lo1 mdeprec' mbDoc') mmn' mexports' imports' decls')
 
-
-notDocDecl :: LHsDecl GhcPs -> Bool
-notDocDecl (L _ DocD{}) = False
-notDocDecl _ = True
-
-notIEDoc :: LIE GhcPs -> Bool
-notIEDoc (L _ IEGroup {})    = False
-notIEDoc (L _ IEDoc {})      = False
-notIEDoc (L _ IEDocNamed {}) = False
-notIEDoc _ = True
-
 -- ---------------------------------------------------------------------
 
 instance ExactPrint ModuleName where

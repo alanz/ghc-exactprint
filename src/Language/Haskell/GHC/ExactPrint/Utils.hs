@@ -51,12 +51,24 @@ debug c s = if debugEnabledFlag
 debugM :: Monad m => String -> m ()
 debugM s = when debugEnabledFlag $ traceM s
 
--- ---------------------------------------------------------------------
 
 warn :: c -> String -> c
 -- warn = flip trace
 warn c _ = c
 
+-- ---------------------------------------------------------------------
+
+notDocDecl :: LHsDecl GhcPs -> Bool
+notDocDecl (L _ DocD{}) = False
+notDocDecl _ = True
+
+notIEDoc :: LIE GhcPs -> Bool
+notIEDoc (L _ IEGroup {})    = False
+notIEDoc (L _ IEDoc {})      = False
+notIEDoc (L _ IEDocNamed {}) = False
+notIEDoc _ = True
+
+-- ---------------------------------------------------------------------
 -- | A good delta has no negative values.
 isGoodDelta :: DeltaPos -> Bool
 isGoodDelta (SameLine co) = co >= 0

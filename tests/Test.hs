@@ -143,13 +143,13 @@ mkTests = do
   roundTripMakeDeltaTests <- findTestsMD libdir
   -- prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
-                      -- internalTests,
+                      internalTests,
                       roundTripTests
-                   -- ,
-                   --   (transformTests libdir)
-                   -- , (failingTests libdir)
-                   -- ,
-                   --   roundTripBalanceCommentsTests
+                   ,
+                     (transformTests libdir)
+                   , (failingTests libdir)
+                   ,
+                     roundTripBalanceCommentsTests
                    -- ,
                    --   roundTripMakeDeltaTests
                     ]
@@ -211,10 +211,9 @@ tt' = do
     -- mkParserTestBC libdir "ghc96" "LexerM.hs"
 
     -- mkParserTest libdir "ghc94" "Haddock.hs"
-    -- mkParserTest libdir "ghc94" "Haddock1.hs"
+
     -- mkParserTest libdir "ghc94" "Haddock2.hs"
-    mkParserTest libdir "ghc94" "Haddock3.hs"
-    -- mkParserTestBC libdir "ghc94" "Haddock1.hs"
+    mkParserTestBC libdir "ghc94" "Haddock2.hs"
 
     -- mkParserTest libdir "ghc98" "ExportWarnings_aux.hs"
     -- mkParserTest libdir "ghc98" "IndentedModule2.hs"
