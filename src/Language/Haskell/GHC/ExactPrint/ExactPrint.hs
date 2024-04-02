@@ -4151,17 +4151,16 @@ instance ExactPrint (HsDerivingClause GhcPs) where
                           , deriv_clause_strategy = dcs
                           , deriv_clause_tys      = dct }) = do
     an0 <- markEpAnnL' an lidl AnnDeriving
-    exact_strat_before
+    dcs0 <- case dcs of
+            Just (L _ ViaStrategy{}) -> return dcs
+            _ -> mapM markAnnotated dcs
     dct' <- markAnnotated dct
-    exact_strat_after
+    dcs1 <- case dcs0 of
+            Just (L _ ViaStrategy{}) -> mapM markAnnotated dcs0
+            _ -> return dcs0
     return (HsDerivingClause { deriv_clause_ext      = an0
-                             , deriv_clause_strategy = dcs
+                             , deriv_clause_strategy = dcs1
                              , deriv_clause_tys      = dct' })
-      where
-        (exact_strat_before, exact_strat_after) =
-          case dcs of
-            Just v@(L _ ViaStrategy{}) -> (pure (), markAnnotated v >> pure ())
-            _                          -> (mapM_ markAnnotated dcs, pure ())
 
 -- ---------------------------------------------------------------------
 
