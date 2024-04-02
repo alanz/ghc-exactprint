@@ -1957,14 +1957,14 @@ exactDataFamInstDecl an top_lvl
                            , feqn_pats   = pats
                            , feqn_fixity = fixity
                            , feqn_rhs    = defn })) = do
-    (an', an2', tycon', bndrs', _,  _mc, defn') <- exactDataDefn an2 pp_hdr defn
+    (an', an2', tycon', bndrs', pats',  _mc, defn') <- exactDataDefn an2 pp_hdr defn
                                                  -- See Note [an and an2 in exactDataFamInstDecl]
     return
       (an',
        DataFamInstDecl ( FamEqn { feqn_ext    = an2'
                                 , feqn_tycon  = tycon'
                                 , feqn_bndrs  = bndrs'
-                                , feqn_pats   = pats
+                                , feqn_pats   = pats'
                                 , feqn_fixity = fixity
                                 , feqn_rhs    = defn' }))
                     `debug` ("exactDataFamInstDecl: defn' derivs:" ++ showAst (dd_derivs defn'))
@@ -2375,7 +2375,7 @@ instance ExactPrint (ClsInstDecl GhcPs) where
           an2 <- markEpAnnAllL' an1 lid AnnSemi
           (sortKey', ds) <- withSortKey sortKey
                                [(ClsAtdTag, prepareListAnnotationA ats),
-                                (ClsAtdTag, prepareListAnnotationF an adts),
+                                (ClsAtdTag, prepareListAnnotationF adts),
                                 (ClsMethodTag, prepareListAnnotationA (bagToList binds)),
                                 (ClsSigTag, prepareListAnnotationA sigs)
                                ]
@@ -2724,11 +2724,11 @@ instance ExactPrint HsIPName where
 -- Managing lists which have been separated, e.g. Sigs and Binds
 
 prepareListAnnotationF :: (Monad m, Monoid w) =>
-  [AddEpAnn] -> [LDataFamInstDecl GhcPs] -> [(RealSrcSpan,EP w m Dynamic)]
-prepareListAnnotationF an ls = map (\b -> (realSrcSpan $ getLocA b, go b)) ls
+  [LDataFamInstDecl GhcPs] -> [(RealSrcSpan,EP w m Dynamic)]
+prepareListAnnotationF ls = map (\b -> (realSrcSpan $ getLocA b, go b)) ls
   where
     go (L l a) = do
-      d' <- markAnnotated (DataFamInstDeclWithContext an NotTopLevel a)
+      d' <- markAnnotated (DataFamInstDeclWithContext noAnn NotTopLevel a)
       return (toDyn (L l (dc_d d')))
 
 prepareListAnnotationA :: (Monad m, Monoid w, ExactPrint (LocatedAn an a))
