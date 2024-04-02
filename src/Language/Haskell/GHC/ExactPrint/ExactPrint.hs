@@ -45,9 +45,9 @@ import GHC.Types.Name.Reader
 import GHC.Types.PkgQual
 import GHC.Types.SourceText
 import GHC.Types.Var
-import GHC.Utils.Outputable hiding ( (<>) )
 import GHC.Unit.Module.Warnings
 import GHC.Utils.Misc
+import GHC.Utils.Outputable hiding ( (<>) )
 import GHC.Utils.Panic
 
 import Language.Haskell.Syntax.Basic (FieldLabelString(..))
@@ -2373,7 +2373,7 @@ instance ExactPrint (ClsInstDecl GhcPs) where
           (mbWarn', an0, mbOverlap', inst_ty') <- top_matter
           an1 <- markEpAnnL' an0 lidl AnnOpenC
           an2 <- markEpAnnAllL' an1 lid AnnSemi
-          ds <- withSortKey sortKey
+          (sortKey', ds) <- withSortKey sortKey
                                [(ClsAtdTag, prepareListAnnotationA ats),
                                 (ClsAtdTag, prepareListAnnotationF an adts),
                                 (ClsMethodTag, prepareListAnnotationA (bagToList binds)),
@@ -2385,7 +2385,7 @@ instance ExactPrint (ClsInstDecl GhcPs) where
             adts'  = undynamic ds
             binds' = listToBag $ undynamic ds
             sigs'  = undynamic ds
-          return (ClsInstDecl { cid_ext = (mbWarn', an3, sortKey)
+          return (ClsInstDecl { cid_ext = (mbWarn', an3, sortKey')
                               , cid_poly_ty = inst_ty', cid_binds = binds'
                               , cid_sigs = sigs', cid_tyfam_insts = ats'
                               , cid_overlap_mode = mbOverlap'
@@ -2740,15 +2740,23 @@ prepareListAnnotationA ls = map (\b -> (realSrcSpan $ getLocA b,go b)) ls
       return (toDyn b')
 
 withSortKey :: (Monad m, Monoid w)
-  => AnnSortKey DeclTag -> [(DeclTag, [(RealSrcSpan, EP w m Dynamic)])] -> EP w m [Dynamic]
+  => AnnSortKey DeclTag -> [(DeclTag, [(RealSrcSpan, EP w m Dynamic)])]
+  -> EP w m (AnnSortKey DeclTag, [Dynamic])
 withSortKey annSortKey xs = do
   debugM $ "withSortKey:annSortKey=" ++ showAst annSortKey
-  let ordered = case annSortKey of
-                  NoAnnSortKey -> sortBy orderByFst $ concatMap snd xs
-                  AnnSortKey _keys -> orderedDecls annSortKey (Map.fromList xs)
-  mapM snd ordered
-orderByFst :: Ord a => (a, b1) -> (a, b2) -> Ordering
-orderByFst (a,_) (b,_) = compare a b
+  let (sk, ordered) = case annSortKey of
+                  NoAnnSortKey -> (annSortKey', map snd os)
+                    where
+                      doOne (tag, ds) = map (\d -> (tag, d)) ds
+                      xsExpanded = concatMap doOne xs
+                      os = sortBy orderByFst $ xsExpanded
+                      annSortKey' = AnnSortKey (map fst os)
+                  AnnSortKey _keys -> (annSortKey, orderedDecls annSortKey (Map.fromList xs))
+  ordered' <- mapM snd ordered
+  return (sk, ordered')
+
+orderByFst :: Ord a => (t, (a,b1)) -> (t, (a, b2)) -> Ordering
+orderByFst (_,(a,_)) (_,(b,_)) = compare a b
 
 -- ---------------------------------------------------------------------
 
@@ -3707,7 +3715,7 @@ instance ExactPrint (TyClDecl GhcPs) where
           (an0, fds', lclas', tyvars',context') <- top_matter
           an1 <- markEpAnnL'    an0 lidl AnnOpenC
           an2 <- markEpAnnAllL' an1 lidl AnnSemi
-          ds <- withSortKey sortKey
+          (sortKey', ds) <- withSortKey sortKey
                                [(ClsSigTag, prepareListAnnotationA sigs),
                                 (ClsMethodTag, prepareListAnnotationA (bagToList methods)),
                                 (ClsAtTag, prepareListAnnotationA ats),
@@ -3720,7 +3728,7 @@ instance ExactPrint (TyClDecl GhcPs) where
             methods' = listToBag $ undynamic ds
             ats'     = undynamic ds
             at_defs' = undynamic ds
-          return (ClassDecl {tcdCExt = (an3, lo, sortKey),
+          return (ClassDecl {tcdCExt = (an3, lo, sortKey'),
                              tcdCtxt = context', tcdLName = lclas', tcdTyVars = tyvars',
                              tcdFixity = fixity,
                              tcdFDs  = fds',
