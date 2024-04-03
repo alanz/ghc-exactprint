@@ -1957,8 +1957,8 @@ exactDataFamInstDecl an top_lvl
                            , feqn_pats   = pats
                            , feqn_fixity = fixity
                            , feqn_rhs    = defn })) = do
-    (an', an2', tycon', bndrs', pats',  _mc, defn') <- exactDataDefn an2 pp_hdr defn
-                                                 -- See Note [an and an2 in exactDataFamInstDecl]
+    (an', an2', tycon', bndrs', pats',  defn') <- exactDataDefn an2 pp_hdr defn
+                                          -- See Note [an and an2 in exactDataFamInstDecl]
     return
       (an',
        DataFamInstDecl ( FamEqn { feqn_ext    = an2'
@@ -3682,7 +3682,7 @@ instance ExactPrint (TyClDecl GhcPs) where
   -- TODO: add a workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/20452
   exact (DataDecl { tcdDExt = an, tcdLName = ltycon, tcdTyVars = tyvars
                   , tcdFixity = fixity, tcdDataDefn = defn }) = do
-    (_, an', ltycon', tyvars', _, _mctxt', defn') <-
+    (_, an', ltycon', tyvars', _, defn') <-
       exactDataDefn an (exactVanillaDeclHead ltycon tyvars fixity) defn
     return (DataDecl { tcdDExt = an', tcdLName = ltycon', tcdTyVars = tyvars'
                      , tcdFixity = fixity, tcdDataDefn = defn' })
@@ -3853,7 +3853,7 @@ exactDataDefn
   -> HsDataDefn GhcPs
   -> EP w m ( [AddEpAnn] -- ^ from exactHdr
             , [AddEpAnn] -- ^ updated one passed in
-            , LocatedN RdrName, a, b, Maybe (LHsContext GhcPs), HsDataDefn GhcPs)
+            , LocatedN RdrName, a, b, HsDataDefn GhcPs)
 exactDataDefn an exactHdr
                  (HsDataDefn { dd_ext = x, dd_ctxt = context
                              , dd_cType = mb_ct
@@ -3872,7 +3872,7 @@ exactDataDefn an exactHdr
 
   an1 <- markEpAnnL' an0 lidl AnnInstance -- optional
   mb_ct' <- mapM markAnnotated mb_ct
-  (anx, ln', tvs', b, mctxt') <- exactHdr context
+  (anx, ln', tvs', b, context') <- exactHdr context
   (an2, mb_sig') <- case mb_sig of
     Nothing -> return (an1, Nothing)
     Just kind -> do
@@ -3891,8 +3891,8 @@ exactDataDefn an exactHdr
           _ -> panic "exacprint NewTypeCon"
   an6 <- markEpAnnL' an5 lidl AnnCloseC
   derivings' <- mapM markAnnotated derivings
-  return (anx, an6, ln', tvs', b, mctxt',
-                 (HsDataDefn { dd_ext = x, dd_ctxt = context
+  return (anx, an6, ln', tvs', b,
+                 (HsDataDefn { dd_ext = x, dd_ctxt = context'
                              , dd_cType = mb_ct'
                              , dd_kindSig = mb_sig'
                              , dd_cons = condecls'', dd_derivs = derivings' }))
