@@ -144,7 +144,7 @@ mkTests = do
   -- prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
                    --    internalTests,
-                      -- roundTripTests
+                   --    roundTripTests
                    -- ,
                    --   (transformTests libdir)
                    -- , (failingTests libdir)
