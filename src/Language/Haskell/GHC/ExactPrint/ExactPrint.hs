@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns         #-}
 {-# LANGUAGE DeriveDataTypeable   #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE FlexibleInstances    #-}
@@ -248,7 +249,7 @@ data FlushComments = FlushComments
 data CanUpdateAnchor = CanUpdateAnchor
                      | CanUpdateAnchorOnly
                      | NoCanUpdateAnchor
-                   deriving (Eq, Show)
+                   deriving (Eq, Show, Data)
 
 data Entry = Entry Anchor [TrailingAnn] EpAnnComments FlushComments CanUpdateAnchor
            | NoEntryVal
@@ -402,7 +403,7 @@ enterAnn NoEntryVal a = do
   r <- exact a
   debugM $ "enterAnn:done:NO ANN:p =" ++ show (p, astId a)
   return r
-enterAnn (Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
+enterAnn !(Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
   acceptSpan <- getAcceptSpan
   setAcceptSpan False
   case anchor' of
@@ -467,7 +468,7 @@ enterAnn (Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
   -- The first part corresponds to the delta phase, so should only use
   -- delta phase variables -----------------------------------
   -- Calculate offset required to get to the start of the SrcSPan
-  off <- getLayoutOffsetD
+  !off <- getLayoutOffsetD
   let spanStart = ss2pos curAnchor
   priorEndAfterComments <- getPriorEndD
   let edp' = adjustDeltaForOffset
@@ -514,11 +515,11 @@ enterAnn (Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
   a' <- exact a
   debugM $ "enterAnn:exact a done:" ++ show (showAst anchor')
   when (flush == FlushComments) $ do
-    debugM $ "flushing comments in enterAnn:" ++ showAst cs
+    debugM $ "flushing comments in enterAnn:" ++ showAst (cs, getFollowingComments cs)
     flushComments (getFollowingComments cs)
     debugM $ "flushing comments in enterAnn done"
 
-  eof <- getEofPos
+  !eof <- getEofPos
   case eof of
     Nothing -> return ()
     Just (pos, prior) -> do
@@ -553,15 +554,16 @@ enterAnn (Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
               addCommentsA before
               return after
            else return []
-  trailing' <- markTrailing trailing_anns
+  !trailing' <- markTrailing trailing_anns
   -- mapM_ printOneComment (concatMap tokComment $ following)
   addCommentsA following
 
   -- Update original anchor, comments based on the printing process
-  let newAchor = EpaDelta edp []
+  let newAnchor = EpaDelta edp []
+  debugM $ "enterAnn:setAnnotationAnchor:(canUpdateAnchor,newAnchor,priorCs,postCs):" ++ showAst (canUpdateAnchor,newAnchor,priorCs,postCs)
   let r = case canUpdateAnchor of
-            CanUpdateAnchor -> setAnnotationAnchor a' newAchor trailing' (mkEpaComments (priorCs ++ postCs) [])
-            CanUpdateAnchorOnly -> setAnnotationAnchor a' newAchor [] emptyComments
+            CanUpdateAnchor -> setAnnotationAnchor a' newAnchor trailing' (mkEpaComments priorCs postCs)
+            CanUpdateAnchorOnly -> setAnnotationAnchor a' newAnchor [] emptyComments
             NoCanUpdateAnchor -> a'
   return r
 
@@ -608,22 +610,28 @@ a line offset.
 -}
 addComments :: (Monad m, Monoid w) => [Comment] -> EP w m ()
 addComments csNew = do
-  -- debugM $ "addComments:" ++ show csNew
+  debugM $ "addComments:csNew" ++ show csNew
   cs <- getUnallocatedComments
+  debugM $ "addComments:cs" ++ show cs
 
-  putUnallocatedComments (sort (cs ++ csNew))
+  -- putUnallocatedComments (sort (cs ++ csNew))
+  putUnallocatedComments (cs ++ csNew)
 
 -- ---------------------------------------------------------------------
 
 -- | Just before we print out the EOF comments, flush the remaining
 -- ones in the state.
 flushComments :: (Monad m, Monoid w) => [LEpaComment] -> EP w m ()
-flushComments trailing_anns = do
+flushComments !trailing_anns = do
+  debugM $ "flushComments entered: " ++ showAst trailing_anns
   addCommentsA trailing_anns
+  debugM $ "flushComments after addCommentsA"
   cs <- getUnallocatedComments
-  debugM $ "flushing comments starting"
+  debugM $ "flushComments: got cs"
+  debugM $ "flushing comments starting: cs" ++ showAst cs
     -- AZ:TODO: is the sort still needed?
-  mapM_ printOneComment (sortComments cs)
+  -- mapM_ printOneComment (sortComments cs)
+  mapM_ printOneComment cs
   putUnallocatedComments []
   debugM $ "flushing comments done"
 
@@ -1623,7 +1631,7 @@ instance (ExactPrint a) => ExactPrint (Located a) where
 
   exact (L l a) = L l <$> markAnnotated a
 
-instance (ExactPrint a) => ExactPrint (GenLocated EpaLocation a) where
+instance (ExactPrint a) => ExactPrint (LocatedE a) where
   getAnnotationEntry (L l _) = Entry l [] emptyComments NoFlushComments CanUpdateAnchorOnly
   setAnnotationAnchor (L _ a) anc _ts _cs = L anc a
 
@@ -5073,7 +5081,7 @@ getUnallocatedComments :: (Monad m, Monoid w) => EP w m [Comment]
 getUnallocatedComments = gets epComments
 
 putUnallocatedComments :: (Monad m, Monoid w) => [Comment] -> EP w m ()
-putUnallocatedComments cs = modify (\s -> s { epComments = cs } )
+putUnallocatedComments !cs = modify (\s -> s { epComments = cs } )
 
 -- | Push a fresh stack frame for the applied comments gatherer
 pushAppliedComments  :: (Monad m, Monoid w) => EP w m ()
@@ -5083,7 +5091,7 @@ pushAppliedComments = modify (\s -> s { epCommentsApplied = []:(epCommentsApplie
 -- takeAppliedComments, and clear them, not popping the stack
 takeAppliedComments :: (Monad m, Monoid w) => EP w m [Comment]
 takeAppliedComments = do
-  ccs <- gets epCommentsApplied
+  !ccs <- gets epCommentsApplied
   case ccs of
     [] -> do
       modify (\s -> s { epCommentsApplied = [] })
@@ -5096,7 +5104,7 @@ takeAppliedComments = do
 -- takeAppliedComments, and clear them, popping the stack
 takeAppliedCommentsPop :: (Monad m, Monoid w) => EP w m [Comment]
 takeAppliedCommentsPop = do
-  ccs <- gets epCommentsApplied
+  !ccs <- gets epCommentsApplied
   case ccs of
     [] -> do
       modify (\s -> s { epCommentsApplied = [] })
@@ -5109,7 +5117,7 @@ takeAppliedCommentsPop = do
 -- when doing delta processing
 applyComment :: (Monad m, Monoid w) => Comment -> EP w m ()
 applyComment c = do
-  ccs <- gets epCommentsApplied
+  !ccs <- gets epCommentsApplied
   case ccs of
     []    -> modify (\s -> s { epCommentsApplied = [[c]] } )
     (h:t) -> modify (\s -> s { epCommentsApplied = (c:h):t } )

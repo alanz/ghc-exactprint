@@ -144,7 +144,7 @@ mkTests = do
   -- prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
                    --    internalTests,
-                   --    roundTripTests
+                      -- roundTripTests
                    -- ,
                    --   (transformTests libdir)
                    -- , (failingTests libdir)
@@ -232,7 +232,16 @@ tt' = do
     -- mkParserTestMD libdir "ghc98" "MonoidsFD1.hs"
 
     -- mkParserTest libdir "ghc710" "Associated1.hs"
-    mkParserTestMD libdir "ghc710" "Associated1.hs"
+    -- mkParserTestMD libdir "ghc710" "Associated1.hs"
+
+    -- mkParserTest libdir "ghc710" "ForeignDecl1.hs"
+    -- mkParserTestMD libdir "ghc710" "ForeignDecl1.hs"
+
+    -- mkParserTest libdir "ghc710" "CExpected1.hs"
+    -- mkParserTestMD libdir "ghc710" "CExpected1.hs"
+
+    -- mkParserTest libdir "ghc710" "DataFamilies.hs"
+    mkParserTestMD libdir "ghc710" "DataFamilies.hs"
 
    -- Needs GHC changes
 
