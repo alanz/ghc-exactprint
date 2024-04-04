@@ -241,7 +241,10 @@ tt' = do
     -- mkParserTestMD libdir "ghc710" "CExpected1.hs"
 
     -- mkParserTest libdir "ghc710" "DataFamilies.hs"
-    mkParserTestMD libdir "ghc710" "DataFamilies.hs"
+    -- mkParserTestMD libdir "ghc710" "DataFamilies.hs"
+
+    -- mkParserTest libdir "ghc710" "ImplicitParams.hs"
+    mkParserTestMD libdir "ghc710" "ImplicitParams.hs"
 
    -- Needs GHC changes
 

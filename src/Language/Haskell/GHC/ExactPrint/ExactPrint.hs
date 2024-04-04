@@ -740,6 +740,9 @@ printStringAtMLocL (EpAnn anc an cs) l s = do
       printStringAtLsDelta (SameLine 1) str
       return (Just (EpaDelta (SameLine 1) []))
 
+printStringAdvanceA :: (Monad m, Monoid w) => String -> EP w m ()
+printStringAdvanceA str = printStringAtAA (EpaDelta (SameLine 0) []) str >> return ()
+
 printStringAtAA :: (Monad m, Monoid w) => EpaLocation -> String -> EP w m EpaLocation
 printStringAtAA el str = printStringAtAAC CaptureComments el str
 
@@ -2687,12 +2690,11 @@ instance ExactPrint (HsLocalBinds GhcPs) where
     return (HsValBinds an1 valbinds')
 
   exact (HsIPBinds an bs) = do
-    (as, ipb) <- markAnnList an (markEpAnnL an lal_rest AnnWhere
-                           >> markAnnotated bs
-                           >>= \bs' -> return (HsIPBinds an bs'::HsLocalBinds GhcPs))
-    case ipb of
-      HsIPBinds _ bs' -> return (HsIPBinds as bs'::HsLocalBinds GhcPs)
-      _ -> error "should not happen HsIPBinds"
+    (an2,bs') <- markAnnListA an $ \an0 -> do
+                           an1 <- markEpAnnL an0 lal_rest AnnWhere
+                           bs' <- markAnnotated bs
+                           return (an1, bs')
+    return (HsIPBinds an2 bs')
   exact b@(EmptyLocalBinds _) = return b
 
 
@@ -2719,7 +2721,9 @@ instance ExactPrint (HsIPBinds GhcPs) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ _ = a
 
-  exact b@(IPBinds _ binds) = setLayoutBoth $ markAnnotated binds >> return b
+  exact (IPBinds x binds) = setLayoutBoth $ do
+      binds' <- markAnnotated binds
+      return (IPBinds x binds')
 
 -- ---------------------------------------------------------------------
 
@@ -2740,7 +2744,7 @@ instance ExactPrint HsIPName where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ _ = a
 
-  exact i@(HsIPName fs) = printStringAdvance ("?" ++ (unpackFS fs)) >> return i
+  exact i@(HsIPName fs) = printStringAdvanceA ("?" ++ (unpackFS fs)) >> return i
 
 -- ---------------------------------------------------------------------
 -- Managing lists which have been separated, e.g. Sigs and Binds
