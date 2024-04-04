@@ -2267,11 +2267,11 @@ instance ExactPrint (RoleAnnotDecl GhcPs) where
     an1 <- markEpAnnL' an0 lidl AnnRole
     ltycon' <- markAnnotated ltycon
     let markRole (L l (Just r)) = do
-          (L _ r') <- markAnnotated (L l r)
-          return (L l (Just r'))
+          (L l' r') <- markAnnotated (L l r)
+          return (L l' (Just r'))
         markRole (L l Nothing) = do
-          printStringAtSs (locA l) "_"
-          return (L l Nothing)
+          e' <- printStringAtAA  (entry l) "_"
+          return (L (l { entry = e'}) Nothing)
     roles' <- mapM markRole roles
     return (RoleAnnotDecl an1 ltycon' roles')
 
