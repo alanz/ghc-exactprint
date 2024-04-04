@@ -2388,7 +2388,7 @@ instance ExactPrint (ClsInstDecl GhcPs) where
           an1 <- markEpAnnL' an0 lidl AnnOpenC
           an2 <- markEpAnnAllL' an1 lid AnnSemi
           (sortKey', ds) <- withSortKey sortKey
-                               [(ClsAtdTag, prepareListAnnotationA ats),
+                               [(ClsAtTag, prepareListAnnotationA ats),
                                 (ClsAtdTag, prepareListAnnotationF adts),
                                 (ClsMethodTag, prepareListAnnotationA (bagToList binds)),
                                 (ClsSigTag, prepareListAnnotationA sigs)
