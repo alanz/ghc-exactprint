@@ -30,8 +30,7 @@ import Test.HUnit
 transformTestsTT :: LibDir -> Test
 transformTestsTT libdir = TestLabel "transformTestsTT" $ TestList
   [
-    mkTestModChange libdir addLocaLDecl1  "AddLocalDecl1.hs"
-  , mkTestModChange libdir addLocaLDecl3  "AddLocalDecl3.hs"
+    mkTestModChange libdir changeWhereIn3a   "WhereIn3a.hs"
   ]
 
 transformTests :: LibDir -> Test
