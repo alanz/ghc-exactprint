@@ -238,6 +238,7 @@ needsWhere _ = False
 
 -- | Insert the comments at the appropriate places in the AST
 insertCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
+-- insertCppComments p [] = p
 insertCppComments (L l p) cs0 = insertRemainingCppComments (L l p2) remaining
   where
     (EpAnn anct ant cst) = hsmodAnn $ hsmodExt p

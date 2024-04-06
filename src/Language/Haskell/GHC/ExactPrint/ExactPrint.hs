@@ -590,7 +590,7 @@ splitAfterTrailingAnns tas cs = (before, after)
 -- ---------------------------------------------------------------------
 
 addCommentsA :: (Monad m, Monoid w) => [LEpaComment] -> EP w m ()
-addCommentsA csNew = addComments (concatMap tokComment csNew)
+addCommentsA csNew = addComments False (concatMap tokComment csNew)
 
 {-
 TODO: When we addComments, some may have an anchor that is no longer
@@ -608,14 +608,22 @@ By definition it is the current anchor, so work against that. And that
 also means that the first entry comment that has moved should not have
 a line offset.
 -}
-addComments :: (Monad m, Monoid w) => [Comment] -> EP w m ()
-addComments csNew = do
+addComments :: (Monad m, Monoid w) => Bool -> [Comment] -> EP w m ()
+addComments sortNeeded csNew = do
   debugM $ "addComments:csNew" ++ show csNew
   cs <- getUnallocatedComments
   debugM $ "addComments:cs" ++ show cs
+  -- We can only sort the comments if we are in the first phase,
+  -- were all comments have locations. If any have EpaDelta the
+  -- sort will fail, so we do not try.
+  if sortNeeded && all noDelta (csNew ++ cs)
+    then putUnallocatedComments (sort (cs ++ csNew))
+    else putUnallocatedComments (cs ++ csNew)
 
-  -- putUnallocatedComments (sort (cs ++ csNew))
-  putUnallocatedComments (cs ++ csNew)
+noDelta :: Comment -> Bool
+noDelta c = case commentLoc c of
+    EpaSpan _ -> True
+    _ -> False
 
 -- ---------------------------------------------------------------------
 
@@ -643,7 +651,7 @@ annotationsToComments :: (Monad m, Monoid w)
   => a -> Lens a [AddEpAnn] -> [AnnKeywordId] -> EP w m a
 annotationsToComments a l kws = do
   let (newComments, newAnns) = go ([],[]) (view l a)
-  addComments newComments
+  addComments True newComments
   return (set l (reverse newAnns) a)
   where
     keywords = Set.fromList kws
@@ -3699,6 +3707,7 @@ instance ExactPrint (TyClDecl GhcPs) where
     -- There may be arbitrary parens around parts of the constructor
     -- that are infix.  Turn these into comments so that they feed
     -- into the right place automatically
+    -- TODO: no longer sorting on insert. What now?
     an0 <- annotationsToComments an lidl [AnnOpenP,AnnCloseP]
     an1 <- markEpAnnL' an0 lidl AnnType
 
