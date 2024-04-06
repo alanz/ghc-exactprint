@@ -144,14 +144,14 @@ mkTests = do
   -- prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
                    --    internalTests,
-                      -- roundTripTests
+                   --    roundTripTests
                    -- ,
-                   --   (transformTests libdir)
+                     (transformTests libdir)
                    -- , (failingTests libdir)
                    -- ,
-                   --   roundTripBalanceCommentsTests
+                     -- roundTripBalanceCommentsTests
                    -- ,
-                     roundTripMakeDeltaTests
+                     -- roundTripMakeDeltaTests
                     ]
 
 -- Tests that are no longer needed
@@ -224,8 +224,8 @@ tt' = do
     -- mkParserTest libdir "ghc98" "T13343.hs"
     -- mkParserTestMD libdir "ghc98" "T13343.hs"
 
-    -- -- mkParserTest libdir "ghc710" "Arrows.hs"
-    -- mkParserTestMD libdir "ghc710" "Arrows.hs"
+    mkParserTest libdir "ghc710" "Warning.hs"
+    -- mkParserTestMD libdir "ghc710" "Warning.hs"
 
     -- mkParserTest libdir "ghc98" "MonoidsFD1.hs"
     -- mkParserTestBC libdir "ghc98" "MonoidsFD1.hs"
@@ -243,10 +243,14 @@ tt' = do
     -- mkParserTest libdir "ghc710" "DataFamilies.hs"
     -- mkParserTestMD libdir "ghc710" "DataFamilies.hs"
 
-    -- mkParserTest libdir "ghc710" "TypeBrackets.hs"
-    mkParserTestMD libdir "ghc710" "TypeBrackets.hs"
+    -- mkParserTest libdir "ghc80" "ForFree.hs"
+    -- mkParserTestMD libdir "ghc80" "ForFree.hs"
 
    -- Needs GHC changes
+
+    -- Epalocation needed in WarningTxt
+    -- mkParserTest libdir "ghc80" "DeprM.hs"
+    -- mkParserTestMD libdir "ghc80" "DeprM.hs"
 
 
     ]

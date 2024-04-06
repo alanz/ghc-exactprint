@@ -754,6 +754,11 @@ printStringAdvanceA str = printStringAtAA (EpaDelta (SameLine 0) []) str >> retu
 printStringAtAA :: (Monad m, Monoid w) => EpaLocation -> String -> EP w m EpaLocation
 printStringAtAA el str = printStringAtAAC CaptureComments el str
 
+printStringAtNC :: (Monad m, Monoid w) => NoCommentsLocation -> String -> EP w m NoCommentsLocation
+printStringAtNC el str = do
+    el' <- printStringAtAAC NoCaptureComments (noCommentsToEpaLocation el) str
+    return (epaToNoCommentsLocation el')
+
 printStringAtAAL :: (Monad m, Monoid w)
   => a -> Lens a EpaLocation -> String -> EP w m a
 printStringAtAAL an l str = do
@@ -2167,10 +2172,11 @@ instance ExactPrint StringLiteral where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ _ = a
 
-  exact l@(StringLiteral src fs mcomma) = do
+  exact (StringLiteral src fs mcomma) = do
     printSourceTextAA src (show (unpackFS fs))
-    mapM_ (\r -> printStringAtRs r ",") mcomma
-    return l
+    mcomma' <- mapM (\r -> printStringAtNC r ",") mcomma
+    return (StringLiteral src fs mcomma')
+
 
 -- ---------------------------------------------------------------------
 
@@ -4818,23 +4824,30 @@ instance ExactPrint (Pat GhcPs) where
     tp' <- markAnnotated tp
     return (EmbTyPat toktype' tp')
 
--- ---------------------------------------------------------------------
-
-instance ExactPrint (ArgPat GhcPs) where
-  getAnnotationEntry (VisPat _ pat) = getAnnotationEntry pat
-  getAnnotationEntry InvisPat{}     = NoEntryVal
-
-  setAnnotationAnchor (VisPat x pat) anc ts cs = VisPat x (setAnnotationAnchor pat anc ts cs)
-  setAnnotationAnchor a@(InvisPat _ _) _ _ _   = a
-
-  exact (VisPat x pat) = do
-    pat' <- markAnnotated pat
-    pure (VisPat x pat')
-
   exact (InvisPat tokat tp) = do
     tokat' <- markEpToken tokat
     tp' <- markAnnotated tp
     pure (InvisPat tokat' tp')
+
+-- ---------------------------------------------------------------------
+
+-- Note: Keep this section, for backport to GHC 9.10
+
+-- instance ExactPrint (ArgPat GhcPs) where
+--   getAnnotationEntry (VisPat _ pat) = getAnnotationEntry pat
+--   getAnnotationEntry InvisPat{}     = NoEntryVal
+
+--   setAnnotationAnchor (VisPat x pat) anc ts cs = VisPat x (setAnnotationAnchor pat anc ts cs)
+--   setAnnotationAnchor a@(InvisPat _ _) _ _ _   = a
+
+--   exact (VisPat x pat) = do
+--     pat' <- markAnnotated pat
+--     pure (VisPat x pat')
+
+--   exact (InvisPat tokat tp) = do
+--     tokat' <- markEpToken tokat
+--     tp' <- markAnnotated tp
+--     pure (InvisPat tokat' tp')
 
 -- ---------------------------------------------------------------------
 
