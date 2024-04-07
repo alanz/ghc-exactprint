@@ -145,13 +145,13 @@ mkTests = do
   return $ TestList [
                       internalTests,
                       roundTripTests
-                   -- ,
-                     -- (transformTests libdir)
-                   -- , (failingTests libdir)
-                   -- ,
-                     -- roundTripBalanceCommentsTests
-                   -- ,
-                     -- roundTripMakeDeltaTests
+                   ,
+                     (transformTests libdir)
+                   , (failingTests libdir)
+                   ,
+                     roundTripBalanceCommentsTests
+                   ,
+                     roundTripMakeDeltaTests
                     ]
 
 -- Tests that are no longer needed
@@ -213,10 +213,12 @@ tt' = do
     -- mkParserTest libdir "ghc80" "ForFree.hs"
     -- mkParserTestMD libdir "ghc80" "ForFree.hs"
 
-    -- Current failures (roundtrip only)
-    -- mkParserTest libdir "ghc710" "Stmts.hs"
-    -- mkParserTest libdir "ghc80" "ForFree.hs"
-    mkParserTest libdir "ghc96" "ContinuationIO.hs"
+    -- Current failures (makeDeltaAst only)
+    -- mkParserTest libdir "ghc82" "Completesig03A.hs"
+    mkParserTestMD libdir "ghc82" "Completesig03A.hs"
+
+    -- ExportWarnings_aux.hs
+    -- ghc98:7:T23465.hs
 
    -- Needs GHC changes
 

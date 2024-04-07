@@ -1784,8 +1784,8 @@ instance ExactPrint InWarningCategory where
 
   exact (InWarningCategory tkIn source (L l wc)) = do
       tkIn' <- markEpToken tkIn
-      L _ (_,wc') <- markAnnotated (L l (source, wc))
-      return (InWarningCategory tkIn' source (L l wc'))
+      L l' (_,wc') <- markAnnotated (L l (source, wc))
+      return (InWarningCategory tkIn' source (L l' wc'))
 
 instance ExactPrint (SourceText, WarningCategory) where
   getAnnotationEntry _ = NoEntryVal
@@ -2871,9 +2871,9 @@ instance ExactPrint (Sig GhcPs) where
     an1 <- markEpAnnLMS'' an0 lidl AnnClose (Just "#-}")
     return (SCCFunSig (an1,src) ln' ml')
 
-  exact (CompleteMatchSig (an,src) cs mty) = do
+  exact (CompleteMatchSig (an,src) (L l cs) mty) = do
     an0 <- markAnnOpen an src "{-# COMPLETE"
-    cs' <- markAnnotated cs
+    cs' <- mapM markAnnotated cs
     (an1, mty') <-
       case mty of
         Nothing -> return (an0, mty)
@@ -2882,7 +2882,7 @@ instance ExactPrint (Sig GhcPs) where
           ty' <- markAnnotated ty
           return (an1, Just ty')
     an2 <- markEpAnnLMS'' an1 lidl AnnClose (Just "#-}")
-    return (CompleteMatchSig (an2,src) cs' mty')
+    return (CompleteMatchSig (an2,src) (L l cs') mty')
 
 -- ---------------------------------------------------------------------
 
