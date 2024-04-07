@@ -696,8 +696,8 @@ printSourceText (NoSourceText) txt   =  printStringAdvance txt >> return ()
 printSourceText (SourceText   txt) _ =  printStringAdvance (unpackFS txt) >> return ()
 
 printSourceTextAA :: (Monad m, Monoid w) => SourceText -> String -> EP w m ()
-printSourceTextAA (NoSourceText) txt   = printStringAtAA (EpaDelta (SameLine 0) []) txt >> return ()
-printSourceTextAA (SourceText   txt) _ =  printStringAtAA (EpaDelta (SameLine 0) []) (unpackFS txt) >> return ()
+printSourceTextAA (NoSourceText) txt   = printStringAdvanceA  txt >> return ()
+printSourceTextAA (SourceText   txt) _ = printStringAdvanceA  (unpackFS txt) >> return ()
 
 -- ---------------------------------------------------------------------
 
@@ -3013,21 +3013,21 @@ instance ExactPrint (HsExpr GhcPs) where
       then markAnnotated n
       else return n
     return (HsVar x n')
-  exact x@(HsUnboundVar an _) = do
+  exact (HsUnboundVar an n) = do
     case an of
       Just (EpAnnUnboundVar (ob,cb) l) -> do
-        printStringAtAA ob "`" >> return ()
-        printStringAtAA l  "_" >> return ()
-        printStringAtAA cb "`" >> return ()
-        return x
+        ob' <-  printStringAtAA ob "`"
+        l' <- printStringAtAA l  "_"
+        cb' <- printStringAtAA cb "`"
+        return (HsUnboundVar (Just (EpAnnUnboundVar (ob',cb') l')) n)
       _ -> do
-        printStringAtAA (EpaDelta (SameLine 0) []) "_" >> return ()
-        return x
+        printStringAdvanceA "_" >> return ()
+        return (HsUnboundVar an n)
   exact x@(HsOverLabel _ src l) = do
-    printStringAtAA (EpaDelta (SameLine 0) []) "#" >> return ()
+    printStringAdvanceA "#" >> return ()
     case src of
-      NoSourceText   -> printStringAtAA (EpaDelta (SameLine 0) []) (unpackFS l)  >> return ()
-      SourceText txt -> printStringAtAA (EpaDelta (SameLine 0) []) (unpackFS txt) >> return ()
+      NoSourceText   -> printStringAdvanceA (unpackFS l)  >> return ()
+      SourceText txt -> printStringAdvanceA (unpackFS txt) >> return ()
     return x
 
   exact x@(HsIPVar _ (HsIPName n))
