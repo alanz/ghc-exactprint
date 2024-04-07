@@ -580,7 +580,7 @@ trailingCommentsDeltas r (la@(L l _):las)
 -- AZ:TODO: this is identical to commentsDeltas
 priorCommentsDeltas :: RealSrcSpan -> [LEpaComment]
                     -> [(Int, LEpaComment)]
-priorCommentsDeltas r cs = go r (reverse $ sortEpaComments cs)
+priorCommentsDeltas r cs = go r (sortEpaComments cs)
   where
     go :: RealSrcSpan -> [LEpaComment] -> [(Int, LEpaComment)]
     go _   [] = []
