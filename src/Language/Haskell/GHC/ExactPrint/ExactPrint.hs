@@ -2572,8 +2572,9 @@ instance ExactPrint (PatSynBind GhcPs GhcPs) where
 instance ExactPrint (RecordPatSynField GhcPs) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ _ = a
-  exact r@(RecordPatSynField { recordPatSynField = v }) = markAnnotated v
-        >> return r
+  exact (RecordPatSynField f v) = do
+      f' <- markAnnotated f
+      return (RecordPatSynField f' v)
 
 -- ---------------------------------------------------------------------
 
@@ -4520,7 +4521,9 @@ instance ExactPrint (ConDeclField GhcPs) where
 instance ExactPrint (FieldOcc GhcPs) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ _ = a
-  exact f@(FieldOcc _ n) = markAnnotated n >> return f
+  exact (FieldOcc x n) = do
+      n' <- markAnnotated n
+      return (FieldOcc x n')
 
 -- ---------------------------------------------------------------------
 
