@@ -143,10 +143,10 @@ mkTests = do
   roundTripMakeDeltaTests <- findTestsMD libdir
   -- prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
-                   --    internalTests,
-                   --    roundTripTests
+                      internalTests,
+                      roundTripTests
                    -- ,
-                     (transformTests libdir)
+                     -- (transformTests libdir)
                    -- , (failingTests libdir)
                    -- ,
                      -- roundTripBalanceCommentsTests
@@ -201,50 +201,24 @@ tt' :: IO (Counts,Int)
 tt' = do
   let libdir = GHC.Paths.libdir
   runTestText (putTextToHandle stdout True) $ TestList [
-    -- mkParserTest libdir "ghc92" "TopLevelSemis.hs"
-    -- mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
-    -- mkParserTestMD libdir "ghc92" "TopLevelSemis.hs"
 
-    -- mkParserTest libdir "ghc96" "T11671_run.hs"
-
-    -- mkParserTest libdir "ghc96" "LexerM.hs"
-    -- mkParserTestBC libdir "ghc96" "LexerM.hs"
-
-    -- mkParserTest libdir "ghc94" "Haddock.hs"
-
-    -- mkParserTest libdir "ghc94" "Haddock2.hs"
-    -- mkParserTestBC libdir "ghc94" "Haddock2.hs"
-
-    -- mkParserTest libdir "ghc98" "ExportWarnings_aux.hs"
-    -- mkParserTest libdir "ghc98" "IndentedModule2.hs"
-
-    -- mkParserTest libdir "ghc92" "TopLevelSemis.hs"
-    -- mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
-
-    -- mkParserTest libdir "ghc98" "T13343.hs"
-    -- mkParserTestMD libdir "ghc98" "T13343.hs"
-
-    mkParserTest libdir "ghc710" "Warning.hs"
+    -- mkParserTest libdir "ghc710" "Warning.hs"
     -- mkParserTestMD libdir "ghc710" "Warning.hs"
 
     -- mkParserTest libdir "ghc98" "MonoidsFD1.hs"
     -- mkParserTestBC libdir "ghc98" "MonoidsFD1.hs"
     -- mkParserTestMD libdir "ghc98" "MonoidsFD1.hs"
 
-    -- mkParserTest libdir "ghc710" "Associated1.hs"
-    -- mkParserTestMD libdir "ghc710" "Associated1.hs"
-
-    -- mkParserTest libdir "ghc710" "ForeignDecl1.hs"
-    -- mkParserTestMD libdir "ghc710" "ForeignDecl1.hs"
-
-    -- mkParserTest libdir "ghc710" "CExpected1.hs"
-    -- mkParserTestMD libdir "ghc710" "CExpected1.hs"
-
-    -- mkParserTest libdir "ghc710" "DataFamilies.hs"
-    -- mkParserTestMD libdir "ghc710" "DataFamilies.hs"
 
     -- mkParserTest libdir "ghc80" "ForFree.hs"
     -- mkParserTestMD libdir "ghc80" "ForFree.hs"
+
+    -- Current failures (roundtrip only)
+    -- mkParserTest libdir "ghc710" "EmptyMostly.hs"
+    mkParserTest libdir "ghc710" "EmptyMostlyTrailing.hs"
+    -- "Stmts.hs"
+    -- mkParserTest libdir "ghc80" "ForFree.hs"
+    -- "ContinuationIO.hs"
 
    -- Needs GHC changes
 

@@ -514,6 +514,9 @@ enterAnn !(Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
   debugM $ "enterAnn:exact a starting:" ++ show (showAst anchor')
   a' <- exact a
   debugM $ "enterAnn:exact a done:" ++ show (showAst anchor')
+
+  -- Core recursive exactprint done, start end of Entry processing
+
   when (flush == FlushComments) $ do
     debugM $ "flushing comments in enterAnn:" ++ showAst (cs, getFollowingComments cs)
     flushComments (getFollowingComments cs)
@@ -697,9 +700,6 @@ printSourceTextAA (NoSourceText) txt   = printStringAtAA (EpaDelta (SameLine 0) 
 printSourceTextAA (SourceText   txt) _ =  printStringAtAA (EpaDelta (SameLine 0) []) (unpackFS txt) >> return ()
 
 -- ---------------------------------------------------------------------
-
-printStringAtSs :: (Monad m, Monoid w) => SrcSpan -> String -> EP w m ()
-printStringAtSs ss str = printStringAtRs (realSrcSpan ss) str >> return ()
 
 printStringAtRs :: (Monad m, Monoid w) => RealSrcSpan -> String -> EP w m EpaLocation
 printStringAtRs pa str = printStringAtRsC CaptureComments pa str

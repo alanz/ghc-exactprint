@@ -285,10 +285,11 @@ workInComments ocs new = cs'
 
 insertTopLevelCppComments ::  HsModule GhcPs -> [LEpaComment] -> (HsModule GhcPs, [LEpaComment])
 insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports imports decls) cs
-  = (HsModule (XModulePs an' lo mdeprec mbDoc) mmn mexports' imports' decls', cs3)
+  = (HsModule (XModulePs an1 lo mdeprec mbDoc) mmn mexports' imports' decls', cs3)
+    `debug` ("insertTopLevelCppComments: (cs,an1)=" ++ showAst (cs,an1))
   where
     -- Comments at the top level.
-    (an', cs0) =
+    (an0, cs0) =
       case mmn of
         Nothing -> (an, cs)
         Just (L l _) ->
@@ -303,12 +304,19 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
               anm = EpAnn a anno (workInComments ocs these)
             in
               (anm, remaining)
+    (an1,cs0a) = case lo of
+        EpExplicitBraces (EpTok (EpaSpan (RealSrcSpan s _))) _close ->
+            let
+                (stay,cs0a') = break (\(L ll _) -> (ss2pos $ anchor ll) > (ss2pos $ s)) cs0
+                cs' = workInComments (comments an0) stay
+            in (an0 { comments = cs' }, cs0a')
+        _ -> (an0,cs0)
     (mexports', cs1) =
       case mexports of
-        Nothing -> (Nothing, cs0)
+        Nothing -> (Nothing, cs0a)
         Just (L l exports) -> (Just (L l exports'), cse)
                          where
-                           (exports', cse) = allocPreceding exports cs0
+                           (exports', cse) = allocPreceding exports cs0a
     (imports', cs2) = allocPreceding imports cs1
     (decls', cs3) = allocPreceding decls cs2
 
@@ -338,22 +346,31 @@ allocatePriorComments ss comment_q =
 
 insertRemainingCppComments ::  ParsedSource -> [LEpaComment] -> ParsedSource
 insertRemainingCppComments (L l p) cs = L l p'
+    -- `debug` ("insertRemainingCppComments: (cs,an')=" ++ showAst (cs,an'))
   where
     (EpAnn a an ocs) = GHC.hsmodAnn $ GHC.hsmodExt p
-    an' = EpAnn a an (addTrailingComments ocs cs)
+    an' = EpAnn a an (addTrailingComments end_loc ocs cs)
     p' = p { GHC.hsmodExt = (GHC.hsmodExt p) { GHC.hsmodAnn = an' } }
+    end_loc = case GHC.hsmodLayout $ GHC.hsmodExt p of
+        EpExplicitBraces _open close -> case close of
+            EpTok (EpaSpan (RealSrcSpan s _)) -> ss2pos s
+            _ -> (1,1)
+        _ -> (1,1)
+    (new_before, new_after) = break (\(L ll _) -> (ss2pos $ anchor ll) > end_loc ) cs
 
-    addTrailingComments cur new = epaCommentsBalanced pc' fc'
+    addTrailingComments end_loc' cur new = epaCommentsBalanced pc' fc'
       where
         pc = priorComments cur
         fc = getFollowingComments cur
         (pc', fc') = case reverse pc of
-            [] -> (pc, sortEpaComments $ fc ++ new)
+            [] -> (sortEpaComments $ pc ++ new_before, sortEpaComments $ fc ++ new_after)
             (L ac _:_) -> (sortEpaComments $ pc ++ cs_before, sortEpaComments $ fc ++ cs_after)
+                            -- `debug` ("insertRemainingCppComments: (end_loc', ac, cs_before, cs_after, pc, fc)=" ++ showAst (end_loc', ac, cs_before, cs_after, pc, fc))
               where
                (cs_before,cs_after)
-                   = break (\(L ll _) -> (ss2pos $ anchor ll) > (ss2pos $ anchor ac) )
-                           new
+                   = if (ss2pos $ anchor ac) > end_loc'
+                       then break (\(L ll _) -> (ss2pos $ anchor ll) > (ss2pos $ anchor ac) ) new
+                       else (new_before, new_after)
 
 -- ---------------------------------------------------------------------
 
