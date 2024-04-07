@@ -285,8 +285,7 @@ workInComments ocs new = cs'
 
 insertTopLevelCppComments ::  HsModule GhcPs -> [LEpaComment] -> (HsModule GhcPs, [LEpaComment])
 insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports imports decls) cs
-  = (HsModule (XModulePs an1 lo mdeprec mbDoc) mmn mexports' imports' decls', cs3)
-    `debug` ("insertTopLevelCppComments: (cs,an1)=" ++ showAst (cs,an1))
+  = (HsModule (XModulePs an2 lo mdeprec mbDoc) mmn mexports' imports' decls', cs3)
   where
     -- Comments at the top level.
     (an0, cs0) =
@@ -311,12 +310,20 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
                 cs' = workInComments (comments an0) stay
             in (an0 { comments = cs' }, cs0a')
         _ -> (an0,cs0)
+    -- Deal with possible leading semis
+    (an2, cs0b) = case am_decls $ anns an1 of
+        (AddSemiAnn (EpaSpan (RealSrcSpan s _)):_) -> (an1 {comments = cs'}, cs0b')
+          where
+            (stay,cs0b') = break (\(L ll _) -> (ss2pos $ anchor ll) > (ss2pos $ s)) cs0a
+            cs' = workInComments (comments an1) stay
+        _ -> (an1,cs0)
+
     (mexports', cs1) =
       case mexports of
-        Nothing -> (Nothing, cs0a)
+        Nothing -> (Nothing, cs0b)
         Just (L l exports) -> (Just (L l exports'), cse)
                          where
-                           (exports', cse) = allocPreceding exports cs0a
+                           (exports', cse) = allocPreceding exports cs0b
     (imports', cs2) = allocPreceding imports cs1
     (decls', cs3) = allocPreceding decls cs2
 
@@ -365,7 +372,6 @@ insertRemainingCppComments (L l p) cs = L l p'
         (pc', fc') = case reverse pc of
             [] -> (sortEpaComments $ pc ++ new_before, sortEpaComments $ fc ++ new_after)
             (L ac _:_) -> (sortEpaComments $ pc ++ cs_before, sortEpaComments $ fc ++ cs_after)
-                            -- `debug` ("insertRemainingCppComments: (end_loc', ac, cs_before, cs_after, pc, fc)=" ++ showAst (end_loc', ac, cs_before, cs_after, pc, fc))
               where
                (cs_before,cs_after)
                    = if (ss2pos $ anchor ac) > end_loc'

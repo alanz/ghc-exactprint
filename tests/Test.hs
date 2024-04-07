@@ -214,9 +214,7 @@ tt' = do
     -- mkParserTestMD libdir "ghc80" "ForFree.hs"
 
     -- Current failures (roundtrip only)
-    -- mkParserTest libdir "ghc710" "EmptyMostly.hs"
-    mkParserTest libdir "ghc710" "EmptyMostlyTrailing.hs"
-    -- "Stmts.hs"
+    mkParserTest libdir "ghc710" "Stmts.hs"
     -- mkParserTest libdir "ghc80" "ForFree.hs"
     -- "ContinuationIO.hs"
 
