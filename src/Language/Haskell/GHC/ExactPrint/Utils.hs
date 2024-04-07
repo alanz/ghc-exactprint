@@ -296,7 +296,7 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
               (remaining, these) =
                 case entry l of
                   EpaSpan (RealSrcSpan s _) -> do
-                      allocatePriorComments s cs
+                      allocatePriorComments (ss2posEnd s) cs
                   _ -> (cs, [])
 
               (EpAnn a anno ocs) = an :: EpAnn AnnsModule
@@ -334,18 +334,17 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
         (rest, these) =
           case anc4 of
             EpaSpan (RealSrcSpan s _) ->
-                allocatePriorComments s cs'
+                allocatePriorComments (ss2pos s) cs'
             _ -> (cs', [])
         cs4' = workInComments cs4 these
         (xs',rest') = allocPreceding xs rest
 
 allocatePriorComments
-  :: RealSrcSpan
+  :: Pos
   -> [LEpaComment]
   -> ([LEpaComment], [LEpaComment])
-allocatePriorComments ss comment_q =
+allocatePriorComments ss_loc comment_q =
   let
-    ss_loc = ss2pos ss
     cmp (L l _) = ss2pos (anchor l) <= ss_loc
     (newAnns,after) = partition cmp comment_q
   in
