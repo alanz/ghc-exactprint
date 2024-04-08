@@ -4,7 +4,45 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Language.Haskell.GHC.ExactPrint.Utils where
+module Language.Haskell.GHC.ExactPrint.Utils
+    (
+      showAst
+    , ss2pos, ss2posEnd
+    , ss2delta, ss2deltaEnd
+    , ss2range
+    , rs
+    , debug, debugM
+    , adjustDeltaForOffset
+    , sortEpaComments
+    , epaCommentsBalanced
+    , notDocDecl
+    , notIEDoc
+    , hsDeclsLocalBinds
+    , hsDeclsClassDecl
+    , hsDeclsValBinds
+    , captureOrderBinds
+    , wrapSig, wrapDecl
+    , decl2Sig
+    , mkLEpaComment
+    , mkEpaComments
+    , mkKWComment
+    , tokComment
+    , comment2LEpaComment
+    , commentOrigDelta
+    , replaceDeclsClassDecl
+    , decl2Bind
+    , badRealSrcSpan
+    , rs2range
+    , origDelta
+    , dedentDocChunk
+    , orderedDecls
+    , needsWhere
+    , undelta
+    , spanLength
+    , isGoodDelta
+    , dpFromString
+    , insertCppComments
+    ) where
 
 import Control.Monad (when)
 import Control.Monad.State.Strict
@@ -14,8 +52,6 @@ import Data.Generics.Aliases
 import Data.Generics.Schemes
 import Data.List
 import qualified Data.Map.Strict as Map
-import Data.Maybe
-import Data.Ord (comparing)
 
 import qualified GHC
 import GHC hiding (EpaComment)
@@ -208,23 +244,6 @@ commentOrigDelta c = c
 
 origDelta :: RealSrcSpan -> RealSrcSpan -> DeltaPos
 origDelta pos pp = ss2delta (ss2posEnd pp) pos
-
--- ---------------------------------------------------------------------
-
--- |Given a list of items and a list of keys, returns a list of items
--- ordered by their position in the list of keys.
-orderByKey :: [(DeclTag,a)] -> [DeclTag] -> [(DeclTag,a)]
-orderByKey keys order
-    -- AZ:TODO: if performance becomes a problem, consider a Map of the order
-    -- SrcSpan to an index, and do a lookup instead of elemIndex.
-
-    -- Items not in the ordering are placed to the start
- = sortBy (comparing (flip elemIndex order . fst)) keys
-
--- ---------------------------------------------------------------------
-
-isListComp :: HsDoFlavour -> Bool
-isListComp = isDoComprehensionContext
 
 -- ---------------------------------------------------------------------
 
@@ -476,13 +495,6 @@ mkKWComment kw (EpaSpan (UnhelpfulSpan _))
 mkKWComment kw (EpaDelta dp cs)
   = Comment (keywordToString kw) (EpaDelta dp cs) placeholderRealSpan (Just kw)
 
--- | Detects a comment which originates from a specific keyword.
-isKWComment :: Comment -> Bool
-isKWComment c = isJust (commentOrigin c)
-
-noKWComments :: [Comment] -> [Comment]
-noKWComments = filter (\c -> not (isKWComment c))
-
 sortAnchorLocated :: [GenLocated Anchor a] -> [GenLocated Anchor a]
 sortAnchorLocated = sortBy (compare `on` (anchor . getLoc))
 
@@ -520,11 +532,6 @@ name2String = showPprUnsafe
 
 -- ---------------------------------------------------------------------
 
-locatedAnAnchor :: LocatedAn a t -> RealSrcSpan
-locatedAnAnchor (L (EpAnn a _ _) _) = anchor a
-
--- ---------------------------------------------------------------------
-
 trailingAnnLoc :: TrailingAnn -> EpaLocation
 trailingAnnLoc (AddSemiAnn ss)    = ss
 trailingAnnLoc (AddCommaAnn ss)   = ss
@@ -541,52 +548,6 @@ setTrailingAnnLoc (AddDarrowUAnn _) ss = (AddDarrowUAnn ss)
 
 addEpAnnLoc :: AddEpAnn -> EpaLocation
 addEpAnnLoc (AddEpAnn _ l) = l
-
--- ---------------------------------------------------------------------
-
--- TODO: get rid of this identity function
-anchorToEpaLocation :: Anchor -> EpaLocation
-anchorToEpaLocation a = a
-
--- ---------------------------------------------------------------------
--- Horrible hack for dealing with some things still having a SrcSpan,
--- not an Anchor.
-
-{-
-A SrcSpan is defined as
-
-data SrcSpan =
-    RealSrcSpan !RealSrcSpan !(Maybe BufSpan)  -- See Note [Why Maybe BufPos]
-  | UnhelpfulSpan !UnhelpfulSpanReason
-
-data BufSpan =
-  BufSpan { bufSpanStart, bufSpanEnd :: {-# UNPACK #-} !BufPos }
-  deriving (Eq, Ord, Show)
-
-newtype BufPos = BufPos { bufPos :: Int }
-
-
-We use the BufPos to encode a delta, using bufSpanStart for the line,
-and bufSpanEnd for the col.
-
-To be absolutely sure, we make the delta versions use -ve values.
-
--}
-
-hackSrcSpanToAnchor :: SrcSpan -> Anchor
-hackSrcSpanToAnchor (UnhelpfulSpan s) = error $ "hackSrcSpanToAnchor : UnhelpfulSpan:" ++ show s
-hackSrcSpanToAnchor (RealSrcSpan r mb)
-  = case mb of
-    (Strict.Just (BufSpan (BufPos s) (BufPos e))) ->
-      if s <= 0 && e <= 0
-      then EpaDelta (deltaPos (-s) (-e)) []
-        `debug` ("hackSrcSpanToAnchor: (r,s,e)=" ++ showAst (r,s,e) )
-      else EpaSpan (RealSrcSpan r mb)
-    _ -> EpaSpan (RealSrcSpan r mb)
-
-hackAnchorToSrcSpan :: Anchor -> SrcSpan
-hackAnchorToSrcSpan (EpaSpan s) = s
-hackAnchorToSrcSpan _ = error $ "hackAnchorToSrcSpan"
 
 -- ---------------------------------------------------------------------
 
@@ -744,24 +705,3 @@ showAst :: (Data a) => a -> String
 showAst ast
   = showSDocUnsafe
     $ showAstData BlankSrcSpanFile NoBlankEpAnnotations ast
-
--- ---------------------------------------------------------------------
--- Putting these here for the time being, to avoid import loops
-
-ghead :: String -> [a] -> a
-ghead  info []    = error $ "ghead "++info++" []"
-ghead _info (h:_) = h
-
-glast :: String -> [a] -> a
-glast  info []    = error $ "glast " ++ info ++ " []"
-glast _info h     = last h
-
-gtail :: String -> [a] -> [a]
-gtail  info []    = error $ "gtail " ++ info ++ " []"
-gtail _info (_:t) = t
-
-gfromJust :: String -> Maybe a -> a
-gfromJust _info (Just h) = h
-gfromJust  info Nothing = error $ "gfromJust " ++ info ++ " Nothing"
-
--- ---------------------------------------------------------------------
