@@ -116,6 +116,7 @@ defaultEPState = EPState
              , dPriorEndPosition = (1,1)
              , uAnchorSpan = badRealSrcSpan
              , uExtraDP = Nothing
+             , uExtraDPReturn = Nothing
              , pAcceptSpan = False
              , epComments = []
              , epCommentsApplied = []
@@ -178,6 +179,8 @@ data EPState = EPState
                                           -- Annotation
              , uExtraDP :: !(Maybe Anchor) -- ^ Used to anchor a
                                              -- list
+             , uExtraDPReturn :: !(Maybe DeltaPos)
+                  -- ^ Used to return Delta version of uExtraDP
              , pAcceptSpan :: Bool -- ^ When we have processed an
                                    -- entry of EpaDelta, accept the
                                    -- next `EpaSpan` start as the
@@ -483,17 +486,18 @@ enterAnn !(Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
   -- ---------------------------------------------
   med <- getExtraDP
   setExtraDP Nothing
-  let edp = case med of
-        Nothing -> edp''
-        Just (EpaDelta dp _) -> dp
+  let (edp, medr) = case med of
+        Nothing -> (edp'', Nothing)
+        Just (EpaDelta dp _) -> (dp, Nothing)
                    -- Replace original with desired one. Allows all
                    -- list entry values to be DP (1,0)
-        Just (EpaSpan (RealSrcSpan r _)) -> dp
+        Just (EpaSpan (RealSrcSpan r _)) -> (dp, Just dp)
           where
             dp = adjustDeltaForOffset
                    off (ss2delta priorEndAfterComments r)
         Just (EpaSpan (UnhelpfulSpan r)) -> panic $ "enterAnn: UnhelpfulSpan:" ++ show r
   when (isJust med) $ debugM $ "enterAnn:(med,edp)=" ++ showAst (med,edp)
+  when (isJust medr) $ setExtraDPReturn medr
   -- ---------------------------------------------
   -- Preparation complete, perform the action
   when (priorEndAfterComments < spanStart) (do
@@ -1641,7 +1645,7 @@ markTopLevelList ls = mapM (\a -> setLayoutTopLevelP $ markAnnotated a) ls
 instance (ExactPrint a) => ExactPrint (Located a) where
   getAnnotationEntry (L l _) = case l of
     UnhelpfulSpan _ -> NoEntryVal
-    _ -> Entry (hackSrcSpanToAnchor l) [] emptyComments NoFlushComments CanUpdateAnchorOnly
+    _ -> Entry (EpaSpan l) [] emptyComments NoFlushComments CanUpdateAnchorOnly
 
   setAnnotationAnchor (L l a) _anc _ts _cs = L l a
 
@@ -2702,7 +2706,13 @@ instance ExactPrint (HsLocalBinds GhcPs) where
 
     (an1, valbinds') <- markAnnList an0 $ markAnnotatedWithLayout valbinds
     debugM $ "exact HsValBinds: an1=" ++ showAst an1
-    return (HsValBinds an1 valbinds')
+    medr <- getExtraDPReturn
+    an2 <- case medr of
+             Nothing -> return an1
+             Just dp -> do
+                 setExtraDPReturn Nothing
+                 return $ an1 { anns = (anns an1) { al_anchor = Just (EpaDelta dp []) }}
+    return (HsValBinds an2 valbinds')
 
   exact (HsIPBinds an bs) = do
     (an2,bs') <- markAnnListA an $ \an0 -> do
@@ -5051,6 +5061,14 @@ setExtraDP :: (Monad m, Monoid w) => Maybe Anchor -> EP w m ()
 setExtraDP md = do
   debugM $ "setExtraDP:" ++ show md
   modify (\s -> s {uExtraDP = md})
+
+getExtraDPReturn :: (Monad m, Monoid w) => EP w m (Maybe DeltaPos)
+getExtraDPReturn = gets uExtraDPReturn
+
+setExtraDPReturn :: (Monad m, Monoid w) => Maybe DeltaPos -> EP w m ()
+setExtraDPReturn md = do
+  debugM $ "setExtraDPReturn:" ++ show md
+  modify (\s -> s {uExtraDPReturn = md})
 
 getPriorEndD :: (Monad m, Monoid w) => EP w m Pos
 getPriorEndD = gets dPriorEndPosition

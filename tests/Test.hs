@@ -202,8 +202,8 @@ tt' = do
   let libdir = GHC.Paths.libdir
   runTestText (putTextToHandle stdout True) $ TestList [
 
-    -- mkParserTest libdir "ghc710" "Warning.hs"
-    -- mkParserTestMD libdir "ghc710" "Warning.hs"
+    -- mkParserTest libdir "ghc710" "Expr.hs"
+    mkParserTestMD libdir "ghc710" "Expr.hs"
 
     -- mkParserTest libdir "ghc98" "MonoidsFD1.hs"
     -- mkParserTestBC libdir "ghc98" "MonoidsFD1.hs"
@@ -215,7 +215,7 @@ tt' = do
 
     -- Current failures (makeDeltaAst only)
     -- mkParserTest libdir "ghc82" "Completesig03A.hs"
-    mkParserTestMD libdir "ghc82" "Completesig03A.hs"
+    -- mkParserTestMD libdir "ghc82" "Completesig03A.hs"
 
     -- ExportWarnings_aux.hs
     -- ghc98:7:T23465.hs
