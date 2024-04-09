@@ -60,14 +60,10 @@ main = hSilence [stderr] $ do
      then exitFailure
      else return () -- exitSuccess
 
-transform :: IO ()
-transform = hSilence [stderr] $ do
+transform :: IO (Counts,Int)
+transform = do
   let libdir = GHC.Paths.libdir
-  cnts <- fst <$> runTestText (putTextToHandle stdout True) (transformTestsTT libdir)
-  putStrLn $ show cnts
-  if errors cnts > 0 || failures cnts > 0
-     then exitFailure
-     else return () -- exitSuccess
+  runTestText (putTextToHandle stdout True) (transformTestsTT libdir)
 
 -- ---------------------------------------------------------------------
 
