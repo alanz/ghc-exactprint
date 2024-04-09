@@ -287,7 +287,7 @@ setEntryDP (L (EpAnn (EpaSpan (RealSrcSpan r _)) an cs) a) dp
         L (EpAnn (EpaDelta edp csd) an cs'') a
               where
                 cs'' = setPriorComments cs []
-                csd = L (EpaDelta dp NoComments) c:cs'
+                csd = L (EpaDelta dp NoComments) c:commentOrigDeltas cs'
                 lc = last $ (L ca c:cs')
                 delta = case getLoc lc of
                           EpaSpan (RealSrcSpan rr _) -> ss2delta (ss2pos rr) r

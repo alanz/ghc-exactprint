@@ -30,7 +30,7 @@ import Test.HUnit
 transformTestsTT :: LibDir -> Test
 transformTestsTT libdir = TestLabel "transformTestsTT" $ TestList
   [
-    mkTestModChange libdir changeWhereIn3a   "WhereIn3a.hs"
+    mkTestModChange libdir changeWhereIn3b   "WhereIn3b.hs"
   ]
 
 transformTests :: LibDir -> Test
@@ -62,6 +62,7 @@ transformLowLevelTests libdir = [
   , mkTestModChange libdir changeLocalDecls  "LocalDecls.hs"
   , mkTestModChange libdir changeLocalDecls2 "LocalDecls2.hs"
   , mkTestModChange libdir changeWhereIn3a   "WhereIn3a.hs"
+  , mkTestModChange libdir changeWhereIn3b   "WhereIn3b.hs"
 --  , mkTestModChange changeCifToCase  "C.hs"          "C"
   ]
 
@@ -107,11 +108,11 @@ changeWhereIn3b :: Changer
 changeWhereIn3b _libdir (L l p) = do
   let decls0 = hsmodDecls p
       (decls,_,w) = runTransform (balanceCommentsList decls0)
-      (de0:_:de1:d2:_) = decls
+      (de0:tdecls@(_:de1:d2:_)) = decls
       de0' = setEntryDP de0 (DifferentLine 2 0)
       de1' = setEntryDP de1 (DifferentLine 2 0)
       d2' = setEntryDP d2 (DifferentLine 2 0)
-      decls' = d2':de1':de0':(tail decls)
+      decls' = d2':de1':de0':tdecls
   debugM $ unlines w
   debugM $ "changeWhereIn3b:de1':" ++ showAst de1'
   let p2 = p { hsmodDecls = decls'}
@@ -177,6 +178,7 @@ changeLocalDecls libdir (L l p) = do
         return (L lm (Match an mln pats (GRHSs emptyComments rhs binds')))
                    `debug` ("oldDecls=" ++ showAst oldDecls)
       replaceLocalBinds x = return x
+  debugM $ "log:[\n" ++ intercalate "\n" _w ++ "]log end\n"
   return (L l p')
 
 -- ---------------------------------------------------------------------
@@ -187,7 +189,7 @@ changeAddDecl libdir top = do
   Right decl <- withDynFlags libdir (\df -> parseDecl df "<interactive>" "nn = n2")
   let decl' = setEntryDP decl (DifferentLine 2 0)
 
-  let (p',_,_) = runTransform doAddDecl
+  let (p',_,_w) = runTransform doAddDecl
       doAddDecl = everywhereM (mkM replaceTopLevelDecls) top
       replaceTopLevelDecls :: ParsedSource -> Transform ParsedSource
       replaceTopLevelDecls m = insertAtStart m decl'
