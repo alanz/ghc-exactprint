@@ -845,7 +845,7 @@ markEpAnnLMS'' a l kw (Just str) = do
 
 markEpAnnMS' :: (Monad m, Monoid w)
   => [AddEpAnn] -> AnnKeywordId -> Maybe String -> EP w m [AddEpAnn]
-markEpAnnMS' anns kw Nothing = mark' anns kw
+markEpAnnMS' anns kw Nothing = mark anns kw
 markEpAnnMS' anns kw (Just str) = do
   mapM go anns
   where
@@ -1383,15 +1383,15 @@ markLensKwM' a l kw = do
 
 markEpAnnL' :: (Monad m, Monoid w)
   => EpAnn ann -> Lens ann [AddEpAnn] -> AnnKeywordId -> EP w m (EpAnn ann)
-markEpAnnL' (EpAnn anc a cs) l kw = do
-  anns <- mark' (view l a) kw
-  return (EpAnn anc (set l anns a) cs)
+markEpAnnL' epann l kw = markEpAnnL epann (lepa . l) kw
 
 markEpAnnL :: (Monad m, Monoid w)
   => ann -> Lens ann [AddEpAnn] -> AnnKeywordId -> EP w m ann
 markEpAnnL a l kw = do
-  anns <- mark' (view l a) kw
+  anns <- mark (view l a) kw
   return (set l anns a)
+
+-- -------------------------------------
 
 markEpAnnAllL :: (Monad m, Monoid w)
   => EpAnn ann -> Lens ann [AddEpAnn] -> AnnKeywordId -> EP w m (EpAnn ann)
@@ -1417,13 +1417,13 @@ markEpAnnAllL' a l kw = do
 
 markAddEpAnn :: (Monad m, Monoid w) => AddEpAnn -> EP w m AddEpAnn
 markAddEpAnn a@(AddEpAnn kw _) = do
-  r <- mark' [a] kw
+  r <- mark [a] kw
   case r of
     [a'] -> return a'
     _ -> error "Should not happen: markAddEpAnn"
 
-mark' :: (Monad m, Monoid w) => [AddEpAnn] -> AnnKeywordId -> EP w m [AddEpAnn]
-mark' anns kw = do
+mark :: (Monad m, Monoid w) => [AddEpAnn] -> AnnKeywordId -> EP w m [AddEpAnn]
+mark anns kw = do
   case find' kw anns of
     (lead, Just aa, end) -> do
       aa' <- markKw aa
@@ -3045,11 +3045,11 @@ instance ExactPrint (HsExpr GhcPs) where
     return (HsLit an lit')
 
   exact (HsLam an lam_variant mg) = do
-    an0 <- mark' an AnnLam
+    an0 <- mark an AnnLam
     an1 <- case lam_variant of
              LamSingle -> return an0
-             LamCase -> mark' an0 AnnCase
-             LamCases -> mark' an0 AnnCases
+             LamCase -> mark an0 AnnCase
+             LamCases -> mark an0 AnnCases
     mg' <- markAnnotated mg
     return (HsLam an1 lam_variant mg')
 
@@ -4143,24 +4143,24 @@ instance ExactPrint (HsType GhcPs) where
           return an1
     an1 <-
       case str of
-        SrcLazy     -> mark' an0 AnnTilde
-        SrcStrict   -> mark' an0 AnnBang
+        SrcLazy     -> mark an0 AnnTilde
+        SrcStrict   -> mark an0 AnnBang
         NoSrcStrict -> return an0
     ty' <- markAnnotated ty
     return (HsBangTy an1 (HsSrcBang mt up str) ty')
   exact (HsExplicitListTy an prom tys) = do
     an0 <- if (isPromoted prom)
-             then mark' an AnnSimpleQuote
+             then mark an AnnSimpleQuote
              else return an
-    an1 <- mark' an0 AnnOpenS
+    an1 <- mark an0 AnnOpenS
     tys' <- markAnnotated tys
-    an2 <- mark' an1 AnnCloseS
+    an2 <- mark an1 AnnCloseS
     return (HsExplicitListTy an2 prom tys')
   exact (HsExplicitTupleTy an tys) = do
-    an0 <- mark' an AnnSimpleQuote
-    an1 <- mark' an0 AnnOpenP
+    an0 <- mark an AnnSimpleQuote
+    an1 <- mark an0 AnnOpenP
     tys' <- markAnnotated tys
-    an2 <- mark' an1 AnnCloseP
+    an2 <- mark an1 AnnCloseP
     return (HsExplicitTupleTy an2 tys')
   exact (HsTyLit a lit) = do
     case lit of
