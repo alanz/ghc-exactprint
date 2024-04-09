@@ -815,13 +815,6 @@ markLensAA :: (Monad m, Monoid w)
   => EpAnn a -> Lens a AddEpAnn -> EP w m (EpAnn a)
 markLensAA epann l = markLensAA' epann (lepa . l)
 
-
--- markLensKwA :: (Monad m, Monoid w)
---   => EpAnn a -> Lens a AddEpAnn -> EP w m (EpAnn a)
--- markLensKwA (EpAnn anc a cs) l = do
---   loc <- markKw (view l a)
---   return (EpAnn anc (set l loc a) cs)
-
 markLensAA' :: (Monad m, Monoid w)
   => a -> Lens a AddEpAnn -> EP w m a
 markLensAA' a l = do
@@ -1350,15 +1343,15 @@ markLensKwA a l = do
   loc <- markKw (view l a)
   return (set l loc a)
 
-markLensKw :: (Monad m, Monoid w)
+markLensKw' :: (Monad m, Monoid w)
   => EpAnn a -> Lens a EpaLocation -> AnnKeywordId -> EP w m (EpAnn a)
-markLensKw (EpAnn anc a cs) l kw = do
+markLensKw' (EpAnn anc a cs) l kw = do
   loc <- markKwA kw (view l a)
   return (EpAnn anc (set l loc a) cs)
 
-markLensKw' :: (Monad m, Monoid w)
+markLensKw :: (Monad m, Monoid w)
   => a -> Lens a EpaLocation -> AnnKeywordId -> EP w m a
-markLensKw' a l kw = do
+markLensKw a l kw = do
   loc <- markKwA kw (view l a)
   return (set l loc a)
 
@@ -1805,7 +1798,7 @@ instance ExactPrint (ImportDecl GhcPs) where
   exact (ImportDecl (XImportDeclPass ann msrc impl)
                      modname mpkg src safeflag qualFlag mAs hiding) = do
 
-    ann0 <- markLensKw ann limportDeclAnnImport AnnImport
+    ann0 <- markLensKw' ann limportDeclAnnImport AnnImport
     let (EpAnn _anc an _cs) = ann0
 
     -- "{-# SOURCE" and "#-}"
@@ -3112,17 +3105,17 @@ instance ExactPrint (HsExpr GhcPs) where
     return (ExplicitTuple an1 args' b)
 
   exact (ExplicitSum an alt arity expr) = do
-    an0 <- markLensKw' an laesOpen AnnOpenPH
+    an0 <- markLensKw an laesOpen AnnOpenPH
     an1 <- markAnnKwAllL an0 laesBarsBefore AnnVbar
     expr' <- markAnnotated expr
     an2 <- markAnnKwAllL an1 laesBarsAfter AnnVbar
-    an3 <- markLensKw' an2 laesClose AnnClosePH
+    an3 <- markLensKw an2 laesClose AnnClosePH
     return (ExplicitSum an3 alt arity expr')
 
   exact (HsCase an e alts) = do
-    an0 <- markLensKw' an lhsCaseAnnCase AnnCase
+    an0 <- markLensKw an lhsCaseAnnCase AnnCase
     e' <- markAnnotated e
-    an1 <- markLensKw' an0 lhsCaseAnnOf AnnOf
+    an1 <- markLensKw an0 lhsCaseAnnOf AnnOf
     an2 <- markEpAnnL an1 lhsCaseAnnsRest AnnOpenC
     an3 <- markEpAnnAllL' an2 lhsCaseAnnsRest AnnSemi
     alts' <- setLayoutBoth $ markAnnotated alts
@@ -3130,13 +3123,13 @@ instance ExactPrint (HsExpr GhcPs) where
     return (HsCase an4 e' alts')
 
   exact (HsIf an e1 e2 e3) = do
-    an0 <- markLensKw' an laiIf AnnIf
+    an0 <- markLensKw an laiIf AnnIf
     e1' <- markAnnotated e1
     an1 <- markLensKwM' an0 laiThenSemi AnnSemi
-    an2 <- markLensKw' an1 laiThen AnnThen
+    an2 <- markLensKw an1 laiThen AnnThen
     e2' <- markAnnotated e2
     an3 <- markLensKwM' an2 laiElseSemi AnnSemi
-    an4 <- markLensKw' an3 laiElse AnnElse
+    an4 <- markLensKw an3 laiElse AnnElse
     e3' <- markAnnotated e3
     return (HsIf an4 e1' e2' e3')
 
@@ -3184,9 +3177,9 @@ instance ExactPrint (HsExpr GhcPs) where
     field' <- markAnnotated field
     return (HsGetField an expr' field')
   exact (HsProjection an flds) = do
-    an0 <- markLensKw' an lapOpen AnnOpenP
+    an0 <- markLensKw an lapOpen AnnOpenP
     flds' <- mapM markAnnotated flds
-    an1 <- markLensKw' an0 lapClose AnnCloseP
+    an1 <- markLensKw an0 lapClose AnnCloseP
     return (HsProjection an1 flds')
   exact (ExprWithTySig an expr sig) = do
     expr' <- markAnnotated expr
@@ -3578,9 +3571,9 @@ instance ExactPrint (HsCmd GhcPs) where
     return (HsCmdPar (lpar', rpar') e')
 
   exact (HsCmdCase an e alts) = do
-    an0 <- markLensKw' an lhsCaseAnnCase AnnCase
+    an0 <- markLensKw an lhsCaseAnnCase AnnCase
     e' <- markAnnotated e
-    an1 <- markLensKw' an0 lhsCaseAnnOf AnnOf
+    an1 <- markLensKw an0 lhsCaseAnnOf AnnOf
     an2 <- markEpAnnL an1 lhsCaseAnnsRest AnnOpenC
     an3 <- markEpAnnAllL' an2 lhsCaseAnnsRest AnnSemi
     alts' <- markAnnotated alts
@@ -3588,13 +3581,13 @@ instance ExactPrint (HsCmd GhcPs) where
     return (HsCmdCase an4 e' alts')
 
   exact (HsCmdIf an a e1 e2 e3) = do
-    an0 <- markLensKw' an laiIf AnnIf
+    an0 <- markLensKw an laiIf AnnIf
     e1' <- markAnnotated e1
     an1 <- markLensKwM' an0 laiThenSemi AnnSemi
-    an2 <- markLensKw' an1 laiThen AnnThen
+    an2 <- markLensKw an1 laiThen AnnThen
     e2' <- markAnnotated e2
     an3 <- markLensKwM' an2 laiElseSemi AnnSemi
-    an4 <- markLensKw' an3 laiElse AnnElse
+    an4 <- markLensKw an3 laiElse AnnElse
     e3' <- markAnnotated e3
     return (HsCmdIf an4 a e1' e2' e3')
 
