@@ -796,15 +796,12 @@ markExternalSourceTextE l (SourceText txt) _ = printStringAtAA l (unpackFS txt)
 
 -- ---------------------------------------------------------------------
 
-markLensMAA :: (Monad m, Monoid w) => EpAnn a -> Lens a (Maybe AddEpAnn) -> EP w m (EpAnn a)
-markLensMAA (EpAnn anc a cs) l =
-  case view l a of
-    Nothing -> return (EpAnn anc a cs)
-    Just aa -> do
-      aa' <- markAddEpAnn aa
-      return (EpAnn anc (set l (Just aa') a) cs)
+markLensMAA :: (Monad m, Monoid w)
+  => EpAnn a -> Lens a (Maybe AddEpAnn) -> EP w m (EpAnn a)
+markLensMAA epann l = markLensMAA' epann (lepa . l)
 
-markLensMAA' :: (Monad m, Monoid w) => a -> Lens a (Maybe AddEpAnn) -> EP w m a
+markLensMAA' :: (Monad m, Monoid w)
+  => a -> Lens a (Maybe AddEpAnn) -> EP w m a
 markLensMAA' a l =
   case view l a of
     Nothing -> return a
@@ -812,30 +809,30 @@ markLensMAA' a l =
       aa' <- markAddEpAnn aa
       return (set l (Just aa') a)
 
-markLensAA :: (Monad m, Monoid w) => EpAnn a -> Lens a AddEpAnn -> EP w m (EpAnn a)
-markLensAA (EpAnn anc a cs) l = do
-  a' <- markKw (view l a)
-  return (EpAnn anc (set l a' a) cs)
+-- -------------------------------------
 
-markLensAA' :: (Monad m, Monoid w) => a -> Lens a AddEpAnn -> EP w m a
+markLensAA :: (Monad m, Monoid w)
+  => EpAnn a -> Lens a AddEpAnn -> EP w m (EpAnn a)
+markLensAA epann l = markLensAA' epann (lepa . l)
+
+
+-- markLensKwA :: (Monad m, Monoid w)
+--   => EpAnn a -> Lens a AddEpAnn -> EP w m (EpAnn a)
+-- markLensKwA (EpAnn anc a cs) l = do
+--   loc <- markKw (view l a)
+--   return (EpAnn anc (set l loc a) cs)
+
+markLensAA' :: (Monad m, Monoid w)
+  => a -> Lens a AddEpAnn -> EP w m a
 markLensAA' a l = do
   a' <- markKw (view l a)
   return (set l a' a)
 
+-- -------------------------------------
 
 markEpAnnLMS :: (Monad m, Monoid w)
   => EpAnn a -> Lens a [AddEpAnn] -> AnnKeywordId -> Maybe String -> EP w m (EpAnn a)
-markEpAnnLMS an l kw Nothing = markEpAnnL an l kw
-markEpAnnLMS (EpAnn anc a cs) l kw (Just str) = do
-  anns <- mapM go (view l a)
-  return (EpAnn anc (set l anns a) cs)
-  where
-    go :: (Monad m, Monoid w) => AddEpAnn -> EP w m AddEpAnn
-    go (AddEpAnn kw' r)
-      | kw' == kw = do
-          r' <- printStringAtAA r str
-          return (AddEpAnn kw' r')
-      | otherwise = return (AddEpAnn kw' r)
+markEpAnnLMS epann l kw ms = markEpAnnLMS'' epann (lepa . l) kw ms
 
 markEpAnnLMS'' :: (Monad m, Monoid w)
   => a -> Lens a [AddEpAnn] -> AnnKeywordId -> Maybe String -> EP w m a
@@ -851,6 +848,7 @@ markEpAnnLMS'' a l kw (Just str) = do
           return (AddEpAnn kw' r')
       | otherwise = return (AddEpAnn kw' r)
 
+-- -------------------------------------
 
 markEpAnnMS' :: (Monad m, Monoid w)
   => [AddEpAnn] -> AnnKeywordId -> Maybe String -> EP w m [AddEpAnn]
@@ -865,23 +863,15 @@ markEpAnnMS' anns kw (Just str) = do
           return (AddEpAnn kw' r')
       | otherwise = return (AddEpAnn kw' r)
 
+-- -------------------------------------
+
 markEpAnnLMS' :: (Monad m, Monoid w)
-                => EpAnn a -> Lens a AddEpAnn -> AnnKeywordId -> Maybe String -> EP w m (EpAnn a)
-markEpAnnLMS' an l _kw Nothing = markLensKwA an l
-markEpAnnLMS' (EpAnn anc a cs) l kw (Just str) = do
-  anns <- go (view l a)
-  return (EpAnn anc (set l anns a) cs)
-  where
-    go :: (Monad m, Monoid w) => AddEpAnn -> EP w m AddEpAnn
-    go (AddEpAnn kw' r)
-      | kw' == kw = do
-          r' <- printStringAtAA r str
-          return (AddEpAnn kw' r')
-      | otherwise = return (AddEpAnn kw' r)
+  => EpAnn a -> Lens a AddEpAnn -> AnnKeywordId -> Maybe String -> EP w m (EpAnn a)
+markEpAnnLMS' an l kw ms = markEpAnnLMS0 an (lepa . l) kw ms
 
 markEpAnnLMS0 :: (Monad m, Monoid w)
-                => a -> Lens a AddEpAnn -> AnnKeywordId -> Maybe String -> EP w m a
-markEpAnnLMS0 an l _kw Nothing = markLensKwA' an l
+  => a -> Lens a AddEpAnn -> AnnKeywordId -> Maybe String -> EP w m a
+markEpAnnLMS0 an l _kw Nothing = markLensKwA an l
 markEpAnnLMS0 a l kw (Just str) = do
   anns <- go (view l a)
   return (set l anns a)
@@ -1015,6 +1005,16 @@ You can think of the function composition operator as having this type:
 
 -- ---------------------------------------------------------------------
 -- Lenses
+
+-- data EpAnn ann
+--   = EpAnn { entry   :: !Anchor
+--            , anns     :: !ann
+--            , comments :: !EpAnnComments
+--            }
+
+lepa :: Lens (EpAnn a) a
+lepa k epAnn = fmap (\newAnns -> epAnn { anns = newAnns })
+                    (k (anns epAnn))
 
 -- data AnnsModule
 --   = AnnsModule {
@@ -1345,14 +1345,8 @@ lsumPatVbarsAfter k parent = fmap (\new -> parent { sumPatVbarsAfter = new })
 -- ---------------------------------------------------------------------
 
 markLensKwA :: (Monad m, Monoid w)
-  => EpAnn a -> Lens a AddEpAnn -> EP w m (EpAnn a)
-markLensKwA (EpAnn anc a cs) l = do
-  loc <- markKw (view l a)
-  return (EpAnn anc (set l loc a) cs)
-
-markLensKwA' :: (Monad m, Monoid w)
   => a -> Lens a AddEpAnn -> EP w m a
-markLensKwA' a l = do
+markLensKwA a l = do
   loc <- markKw (view l a)
   return (set l loc a)
 

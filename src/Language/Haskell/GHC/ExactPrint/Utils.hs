@@ -87,7 +87,6 @@ debug c s = if debugEnabledFlag
 debugM :: Monad m => String -> m ()
 debugM s = when debugEnabledFlag $ traceM s
 
-
 warn :: c -> String -> c
 -- warn = flip trace
 warn c _ = c
