@@ -139,14 +139,14 @@ mkTests = do
   roundTripMakeDeltaTests <- findTestsMD libdir
   -- prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
-                      -- internalTests,
-                      -- roundTripTests
-                   -- ,
-                     -- (transformTests libdir)
-                   -- , (failingTests libdir)
-                   -- ,
-                   --   roundTripBalanceCommentsTests
-                   -- ,
+                      internalTests,
+                      roundTripTests
+                   ,
+                     (transformTests libdir)
+                   , (failingTests libdir)
+                   ,
+                     roundTripBalanceCommentsTests
+                   ,
                      roundTripMakeDeltaTests
                     ]
 
@@ -199,7 +199,7 @@ tt' = do
   runTestText (putTextToHandle stdout True) $ TestList [
 
     -- mkParserTest libdir "ghc710" "Expr.hs"
-    -- mkParserTestMD libdir "ghc710" "Expr.hs"
+    mkParserTestMD libdir "ghc710" "Expr.hs"
 
     -- mkParserTest libdir "ghc98" "MonoidsFD1.hs"
     -- mkParserTestBC libdir "ghc98" "MonoidsFD1.hs"
@@ -209,12 +209,9 @@ tt' = do
     -- mkParserTest libdir "ghc80" "ForFree.hs"
     -- mkParserTestMD libdir "ghc80" "ForFree.hs"
 
-    -- mkParserTest libdir "transform" "WhereIn3b.hs"
-    -- mkParserTest libdir "ghc710" "EmptyMostlyTrailing.hs"
-    -- mkParserTest libdir "ghc710" "Undefined10a.hs"
-
-    -- mkParserTest libdir "ghc710" "CExpected.hs"
-    mkParserTestMD libdir "ghc710" "CExpected.hs"
+    -- Current failures (makeDeltaAst only)
+    -- mkParserTest libdir "ghc82" "Completesig03A.hs"
+    -- mkParserTestMD libdir "ghc82" "Completesig03A.hs"
 
     -- ExportWarnings_aux.hs
     -- ghc98:7:T23465.hs
