@@ -577,7 +577,6 @@ trailingCommentsDeltas r (la@(L l _):las)
         (al,_) = ss2posEnd rs'
         (ll,_) = ss2pos (anchor loc)
 
--- AZ:TODO: this is identical to commentsDeltas
 priorCommentsDeltas :: RealSrcSpan -> [LEpaComment]
                     -> [(Int, LEpaComment)]
 priorCommentsDeltas r cs = go r (sortEpaComments cs)

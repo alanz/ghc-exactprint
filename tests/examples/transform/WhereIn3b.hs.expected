@@ -24,5 +24,3 @@ sq pow z = z^pow  --there is a comment
 -- A leading comment
 anotherFun 0 y = sq y
      where  sq x = x^2
-
-
