@@ -304,7 +304,7 @@ workInComments ocs new = cs'
 
 insertTopLevelCppComments ::  HsModule GhcPs -> [LEpaComment] -> (HsModule GhcPs, [LEpaComment])
 insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports imports decls) cs
-  = (HsModule (XModulePs an3 lo mdeprec mbDoc) mmn mexports' imports' decls', cs3)
+  = (HsModule (XModulePs an4 lo mdeprec mbDoc) mmn mexports' imports' decls', cs3)
   where
     -- Comments at the top level.
     (an0, cs0) =
@@ -337,22 +337,31 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
             cs' = workInComments (comments an1) stay
         _ -> (an1,cs0a)
 
-    (mexports', cs1) =
+    (mexports', an3, cs1) =
       case mexports of
-        Nothing -> (Nothing, cs0b)
-        Just (L l exports) -> (Just (L l exports'), cse)
+        Nothing -> (Nothing, an2, cs0b)
+        Just (L l exports) -> (Just (L l exports'), an3', cse)
                          where
-                           (exports', cse) = allocPreceding exports cs0b
+                           hc1' = workInComments (comments an2) csh'
+                           an3' = an2 { comments = hc1' }
+                           (csh', cs0b') = case al_open $ anns l of
+                               Just (AddEpAnn _ (EpaSpan (RealSrcSpan s _))) ->(h, n)
+                                 where
+                                   (h,n) = break (\(L ll _) -> (ss2pos $ anchor ll) > (ss2pos s) )
+                                       cs0b
+
+                               _ -> ([], cs0b)
+                           (exports', cse) = allocPreceding exports cs0b'
     (imports', cs2) = allocPreceding imports cs1
 
     (decls0, cs3) = allocPreceding decls cs2
     (decls', hc0) = balanceFirstDeclComments decls0
-    hc1 = workInComments (comments an2) hc0
-    an3 = an2 { comments = hc1 }
+    hc1 = workInComments (comments an3) hc0
+    an4 = an3 { comments = hc1 }
 
     allocPreceding :: [LocatedA a] -> [LEpaComment] -> ([LocatedA a], [LEpaComment])
     allocPreceding [] cs' = ([], cs')
-    allocPreceding (L (EpAnn anc4 an4 cs4) a:xs) cs' = ((L (EpAnn anc4 an4 cs4') a:xs'), rest')
+    allocPreceding (L (EpAnn anc4 an5 cs4) a:xs) cs' = ((L (EpAnn anc4 an5 cs4') a:xs'), rest')
       where
         (rest, these) =
           case anc4 of
@@ -364,19 +373,19 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
 
 balanceFirstDeclComments :: [LHsDecl GhcPs] -> ([LHsDecl GhcPs], [LEpaComment])
 balanceFirstDeclComments [] = ([],[])
-balanceFirstDeclComments ((L (EpAnn anc an csd) a):ds) = (L (EpAnn anc an csd') a:ds, hc')
+balanceFirstDeclComments ((L (EpAnn anc an csd) a):ds) = (L (EpAnn anc an csd0) a:ds, hc')
   where
-    (csd', hc') = case anc of
-        EpaDelta _ _ -> (csd, [])
+    (csd0, hc') = case anc of
         EpaSpan (RealSrcSpan s _) -> (csd', hc)
                `debug` ("balanceFirstDeclComments: (csd,csd',attached,header)=" ++ showAst (csd,csd',attached,header))
           where
             (priors, inners) =  break (\(L ll _) -> (ss2pos $ anchor ll) > (ss2pos s) )
                                        (priorComments csd)
             pcds = priorCommentsDeltas' s priors
-            (attached, header) = break (\(d,c) -> d /= 1) pcds
+            (attached, header) = break (\(d,_c) -> d /= 1) pcds
             csd' = setPriorComments csd (reverse (map snd attached) ++ inners)
             hc = reverse (map snd header)
+        _ -> (csd, [])
 
 
 
