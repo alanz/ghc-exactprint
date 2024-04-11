@@ -5,44 +5,45 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Language.Haskell.GHC.ExactPrint.Utils
-    (
-      showAst
-    , ss2pos, ss2posEnd
-    , ss2delta, ss2deltaEnd
-    , ss2range
-    , rs
-    , debug, debugM
-    , adjustDeltaForOffset
-    , sortEpaComments
-    , epaCommentsBalanced
-    , notDocDecl
-    , notIEDoc
-    , hsDeclsLocalBinds
-    , hsDeclsClassDecl
-    , hsDeclsValBinds
-    , captureOrderBinds
-    , wrapSig, wrapDecl
-    , decl2Sig
-    , mkLEpaComment
-    , mkEpaComments
-    , mkKWComment
-    , tokComment
-    , comment2LEpaComment
-    , commentOrigDelta
-    , replaceDeclsClassDecl
-    , decl2Bind
-    , badRealSrcSpan
-    , rs2range
-    , origDelta
-    , dedentDocChunk
-    , orderedDecls
-    , needsWhere
-    , undelta
-    , spanLength
-    , isGoodDelta
-    , dpFromString
-    , insertCppComments
-    ) where
+    -- (
+    --   showAst
+    -- , ss2pos, ss2posEnd
+    -- , ss2delta, ss2deltaEnd
+    -- , ss2range
+    -- , rs
+    -- , debug, debugM
+    -- , adjustDeltaForOffset
+    -- , sortEpaComments
+    -- , epaCommentsBalanced
+    -- , notDocDecl
+    -- , notIEDoc
+    -- , hsDeclsLocalBinds
+    -- , hsDeclsClassDecl
+    -- , hsDeclsValBinds
+    -- , captureOrderBinds
+    -- , wrapSig, wrapDecl
+    -- , decl2Sig
+    -- , mkLEpaComment
+    -- , mkEpaComments
+    -- , mkKWComment
+    -- , tokComment
+    -- , comment2LEpaComment
+    -- , commentOrigDelta
+    -- , replaceDeclsClassDecl
+    -- , decl2Bind
+    -- , badRealSrcSpan
+    -- , rs2range
+    -- , origDelta
+    -- , dedentDocChunk
+    -- , orderedDecls
+    -- , needsWhere
+    -- , undelta
+    -- , spanLength
+    -- , isGoodDelta
+    -- , dpFromString
+    -- , insertCppComments
+    -- )
+    where
 
 import Control.Monad (when)
 import Control.Monad.State.Strict
