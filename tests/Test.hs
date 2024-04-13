@@ -139,14 +139,14 @@ mkTests = do
   roundTripMakeDeltaTests <- findTestsMD libdir
   -- prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
-                   --    internalTests,
-                   --    roundTripTests
-                   -- ,
-                   --   (transformTests libdir)
-                   -- , (failingTests libdir)
-                   -- ,
-                   --   roundTripBalanceCommentsTests
-                   -- ,
+                      internalTests,
+                      roundTripTests
+                   ,
+                     (transformTests libdir)
+                   , (failingTests libdir)
+                   ,
+                     roundTripBalanceCommentsTests
+                   ,
                      roundTripMakeDeltaTests
                     ]
 
@@ -203,7 +203,13 @@ tt' = do
 
     -- mkParserTest libdir "ghc98" "ModuleComments1.hs"
     -- mkParserTestBC libdir "ghc98" "MonoidsFD1.hs"
-    mkParserTestMD libdir "ghc98" "ModuleComments1.hs"
+    -- mkParserTestMD libdir "ghc98" "ModuleComments1.hs"
+
+    -- mkParserTest libdir "ghc98" "ModuleComments2.hs"
+    -- mkParserTestMD libdir "ghc98" "ModuleComments2.hs"
+
+    -- mkParserTest libdir "ghc98" "ModuleComments3.hs"
+    mkParserTestMD libdir "ghc98" "ModuleComments3.hs"
 
 
     -- mkParserTest libdir "ghc80" "ForFree.hs"

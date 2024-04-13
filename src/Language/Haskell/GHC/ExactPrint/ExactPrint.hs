@@ -45,6 +45,7 @@ import GHC.Types.ForeignCall
 import GHC.Types.Name.Reader
 import GHC.Types.PkgQual
 import GHC.Types.SourceText
+import GHC.Types.SrcLoc
 import GHC.Types.Var
 import GHC.Unit.Module.Warnings
 import GHC.Utils.Misc
@@ -1707,16 +1708,10 @@ instance ExactPrint (HsModule GhcPs) where
         _ -> return lo
 
     am_decls' <- markTrailing (am_decls $ anns an0)
-    imports' <- markTopLevelList imports
 
-    case lo of
-        EpExplicitBraces _ _ -> return ()
-        _ -> do
-          -- Get rid of the balance of the preceding comments before starting on the decls
-          flushComments []
-          putUnallocatedComments []
-
-    decls' <- markTopLevelList (filter notDocDecl decls)
+    mid <- markAnnotated (HsModuleImpDecls (am_cs $ anns an0) imports decls)
+    let imports' = id_imps mid
+    let decls' = id_decls mid
 
     lo1 <- case lo0 of
         EpExplicitBraces open close -> do
@@ -1731,10 +1726,32 @@ instance ExactPrint (HsModule GhcPs) where
         debugM $ "am_eof:" ++ showGhc (pos, prior)
         setEofPos (Just (pos, prior))
 
-    let anf = an0 { anns = (anns an0) { am_decls = am_decls' }}
+    let anf = an0 { anns = (anns an0) { am_decls = am_decls', am_cs = [] }}
     debugM $ "HsModule, anf=" ++ showAst anf
 
     return (HsModule (XModulePs anf lo1 mdeprec' mbDoc') mmn' mexports' imports' decls')
+
+-- ---------------------------------------------------------------------
+
+-- | This is used to ensure the comments are updated into the right
+-- place for makeDeltaAst.
+data HsModuleImpDecls
+    = HsModuleImpDecls {
+        id_cs     :: [LEpaComment],
+        id_imps   :: [LImportDecl GhcPs],
+        id_decls  :: [LHsDecl GhcPs]
+    } deriving Data
+
+instance ExactPrint HsModuleImpDecls where
+  -- Use an UnHelpfulSpan for the anchor, we are only interested in the comments
+  getAnnotationEntry mid = mkEntry (EpaSpan (UnhelpfulSpan UnhelpfulNoLocationInfo)) [] (EpaComments (id_cs mid))
+  setAnnotationAnchor mid _anc _ cs = mid { id_cs = priorComments cs ++ getFollowingComments cs }
+     `debug` ("HsModuleImpDecls.setAnnotationAnchor:cs=" ++ showAst cs)
+  exact (HsModuleImpDecls cs imports decls) = do
+    imports' <- markTopLevelList imports
+    decls' <- markTopLevelList (filter notDocDecl decls)
+    return (HsModuleImpDecls cs imports' decls')
+
 
 -- ---------------------------------------------------------------------
 

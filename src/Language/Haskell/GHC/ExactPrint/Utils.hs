@@ -305,6 +305,8 @@ workInComments ocs new = cs'
 insertTopLevelCppComments ::  HsModule GhcPs -> [LEpaComment] -> (HsModule GhcPs, [LEpaComment])
 insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports imports decls) cs
   = (HsModule (XModulePs an4 lo mdeprec mbDoc) mmn mexports' imports' decls', cs3)
+    -- `debug` ("insertTopLevelCppComments: (cs2,cs3,hc0,hc1,hc_cs)" ++ showAst (cs2,cs3,hc0,hc1,hc_cs))
+    `debug` ("insertTopLevelCppComments: (cs2,cs3,hc0i,hc0,hc1,hc_cs)" ++ showAst (cs2,cs3,hc0i,hc0,hc1,hc_cs))
   where
     -- Comments at the top level.
     (an0, cs0) =
@@ -352,12 +354,20 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
 
                                _ -> ([], cs0b)
                            (exports', cse) = allocPreceding exports cs0b'
-    (imports', cs2) = allocPreceding imports cs1
+    (imports0, cs2) = allocPreceding imports cs1
+    (imports', hc0i) = balanceFirstLocatedAComments imports0
 
     (decls0, cs3) = allocPreceding decls cs2
-    (decls', hc0) = balanceFirstDeclComments decls0
-    hc1 = workInComments (comments an3) hc0
-    an4 = an3 { comments = hc1 }
+    (decls', hc0d) = balanceFirstLocatedAComments decls0
+
+    -- Either hc0i or hc0d should have comments. Combine them
+    hc0 = hc0i ++ hc0d
+
+    (hc1,hc_cs) = if null ( am_main $ anns an3)
+        then (hc0,[])
+        else splitOnWhere (am_main $ anns an3)  hc0
+    hc2 = workInComments (comments an3) hc1
+    an4 = an3 { anns = (anns an3) {am_cs = hc_cs}, comments = hc2 }
 
     allocPreceding :: [LocatedA a] -> [LEpaComment] -> ([LocatedA a], [LEpaComment])
     allocPreceding [] cs' = ([], cs')
@@ -371,13 +381,21 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
         cs4' = workInComments cs4 these
         (xs',rest') = allocPreceding xs rest
 
-balanceFirstDeclComments :: [LHsDecl GhcPs] -> ([LHsDecl GhcPs], [LEpaComment])
-balanceFirstDeclComments [] = ([],[])
-balanceFirstDeclComments ((L (EpAnn anc an csd) a):ds) = (L (EpAnn anc an csd0) a:ds, hc')
+splitOnWhere :: [AddEpAnn] -> [LEpaComment] -> ([LEpaComment], [LEpaComment])
+splitOnWhere [] csIn = (csIn,[])
+splitOnWhere (AddEpAnn AnnWhere (EpaSpan (RealSrcSpan s _)):_) csIn = (hc, fc)
+  where
+    (hc,fc) = break (\(L ll _) -> (ss2pos $ anchor ll) > (ss2pos s) ) csIn
+splitOnWhere (AddEpAnn AnnWhere _:_) csIn = (csIn, [])
+splitOnWhere (_:as) csIn = splitOnWhere as csIn
+
+balanceFirstLocatedAComments :: [LocatedA a] -> ([LocatedA a], [LEpaComment])
+balanceFirstLocatedAComments [] = ([],[])
+balanceFirstLocatedAComments ((L (EpAnn anc an csd) a):ds) = (L (EpAnn anc an csd0) a:ds, hc')
   where
     (csd0, hc') = case anc of
         EpaSpan (RealSrcSpan s _) -> (csd', hc)
-               `debug` ("balanceFirstDeclComments: (csd,csd',attached,header)=" ++ showAst (csd,csd',attached,header))
+               `debug` ("balanceFirstLocatedAComments: (csd,csd',attached,header)=" ++ showAst (csd,csd',attached,header))
           where
             (priors, inners) =  break (\(L ll _) -> (ss2pos $ anchor ll) > (ss2pos s) )
                                        (priorComments csd)
