@@ -2868,7 +2868,7 @@ instance ExactPrint (Sig GhcPs) where
     an1 <- markEpAnnLMS'' an0 lidl AnnClose (Just "#-}")
     return (SCCFunSig (an1,src) ln' ml')
 
-  exact (CompleteMatchSig (an,src) (L l cs) mty) = do
+  exact (CompleteMatchSig (an,src) cs mty) = do
     an0 <- markAnnOpen an src "{-# COMPLETE"
     cs' <- mapM markAnnotated cs
     (an1, mty') <-
@@ -2879,7 +2879,7 @@ instance ExactPrint (Sig GhcPs) where
           ty' <- markAnnotated ty
           return (an1, Just ty')
     an2 <- markEpAnnLMS'' an1 lidl AnnClose (Just "#-}")
-    return (CompleteMatchSig (an2,src) (L l cs') mty')
+    return (CompleteMatchSig (an2,src) cs' mty')
 
 -- ---------------------------------------------------------------------
 
