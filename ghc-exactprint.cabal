@@ -16,7 +16,7 @@ author:              Alan Zimmerman, Matthew Pickering
 maintainer:          alan.zimm@gmail.com
 category:            Development
 build-type:          Simple
-tested-with:         GHC == 9.8.1
+tested-with:         GHC == 9.10.1
 extra-doc-files:     ChangeLog
 extra-source-files:  tests/examples/failing/*.hs
                      tests/examples/ghc710-only/*.hs
@@ -74,7 +74,7 @@ library
                      , bytestring >= 0.10.6
                      , containers >= 0.5
                      , data-default
-                     , ghc       >= 9.10.1
+                     , ghc       >= 9.10
                      , mtl       >= 2.2.1
                      , syb       >= 0.5
                      , ghc-boot
@@ -107,7 +107,7 @@ Test-Suite test
                      , directory >= 1.2
                      , extra
                      , filepath  >= 1.4
-                     , ghc       >= 9.10.1
+                     , ghc       >= 9.10
                      , ghc-paths  >= 0.1
                      , syb        >= 0.5
                      , silently   >= 1.2
@@ -177,7 +177,7 @@ executable prepare-hackage
                  , directory
                  , extra
                  , filepath
-                 , ghc       >= 9.10.1
+                 , ghc       >= 9.10
                  , HUnit
                  , text   >= 1.2.2
                  , turtle >= 1.3.0
