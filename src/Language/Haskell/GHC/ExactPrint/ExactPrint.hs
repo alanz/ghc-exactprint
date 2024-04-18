@@ -914,6 +914,7 @@ markArrow (HsExplicitMult (pct, arr) t) = do
   arr' <- markEpUniToken arr
   return (HsExplicitMult (pct', arr') t')
 
+
 -- ---------------------------------------------------------------------
 
 markAnnCloseP :: (Monad m, Monoid w) => EpAnn AnnPragma -> EP w m (EpAnn AnnPragma)
@@ -2513,14 +2514,28 @@ instance ExactPrint (HsBind GhcPs) where
     return (FunBind x fun_id' matches')
 
   exact (PatBind x pat q grhss) = do
+    q' <- markAnnotated q
     pat' <- markAnnotated pat
     grhss' <- markAnnotated grhss
-    return (PatBind x pat' q grhss')
+    return (PatBind x pat' q' grhss')
   exact (PatSynBind x bind) = do
     bind' <- markAnnotated bind
     return (PatSynBind x bind')
 
   exact x = error $ "HsBind: exact for " ++ showAst x
+
+instance ExactPrint (HsMultAnn GhcPs) where
+  getAnnotationEntry _ = NoEntryVal
+  setAnnotationAnchor a _ _ _ = a
+
+  exact (HsNoMultAnn x) = return (HsNoMultAnn x)
+  exact (HsPct1Ann tok) = do
+      tok' <- markEpToken tok
+      return (HsPct1Ann tok')
+  exact (HsMultAnn tok ty) = do
+      tok' <- markEpToken tok
+      ty' <- markAnnotated ty
+      return (HsMultAnn tok' ty')
 
 -- ---------------------------------------------------------------------
 
@@ -2839,15 +2854,16 @@ instance ExactPrint (Sig GhcPs) where
         (an0, vars',ty') <- exactVarSig an vars ty
         return (ClassOpSig an0 is_deflt vars' ty')
 
-  exact (FixSig an (FixitySig x names (Fixity src v fdir))) = do
+  exact (FixSig an (FixitySig ns names (Fixity src v fdir))) = do
     let fixstr = case fdir of
          InfixL -> "infixl"
          InfixR -> "infixr"
          InfixN -> "infix"
     an0 <- markEpAnnLMS'' an  lidl AnnInfix (Just fixstr)
     an1 <- markEpAnnLMS'' an0 lidl AnnVal (Just (sourceTextToString src (show v)))
+    ns' <- markAnnotated ns
     names' <- markAnnotated names
-    return (FixSig an1 (FixitySig x names' (Fixity src v fdir)))
+    return (FixSig an1 (FixitySig ns' names' (Fixity src v fdir)))
 
   exact (InlineSig an ln inl) = do
     an0 <- markAnnOpen an (inl_src inl) "{-# INLINE"
@@ -2897,6 +2913,20 @@ instance ExactPrint (Sig GhcPs) where
           return (an1, Just ty')
     an2 <- markEpAnnLMS'' an1 lidl AnnClose (Just "#-}")
     return (CompleteMatchSig (an2,src) cs' mty')
+
+-- ---------------------------------------------------------------------
+
+instance ExactPrint NamespaceSpecifier where
+  getAnnotationEntry _ = NoEntryVal
+  setAnnotationAnchor a _ _ _ = a
+
+  exact NoNamespaceSpecifier = return NoNamespaceSpecifier
+  exact (TypeNamespaceSpecifier typeTok) = do
+      typeTok' <- markEpToken typeTok
+      return (TypeNamespaceSpecifier typeTok')
+  exact (DataNamespaceSpecifier dataTok) = do
+      dataTok' <- markEpToken dataTok
+      return (DataNamespaceSpecifier dataTok')
 
 -- ---------------------------------------------------------------------
 

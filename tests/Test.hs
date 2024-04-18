@@ -45,8 +45,9 @@ testDirs =
   case ghcVersion of
     GHC98  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96"]
     GHC910 -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96", "ghc98"]
-    -- GHC98  -> ["ghc98"]
-    -- GHC98  -> ["ghc98-copied"]
+    -- GHC910  -> ["ghc910"]
+    -- GHC910  -> ["ghc910-copied"]
+    -- GHC910  -> ["ghc910",  "ghc910-copied"]
 
 -- ---------------------------------------------------------------------
 
@@ -198,38 +199,16 @@ tt' = do
   let libdir = GHC.Paths.libdir
   runTestText (putTextToHandle stdout True) $ TestList [
 
-    -- mkParserTest libdir "ghc710" "Expr.hs"
-    -- mkParserTestMD libdir "ghc710" "Expr.hs"
-
     -- mkParserTest libdir "ghc98" "ModuleComments1.hs"
     -- mkParserTestBC libdir "ghc98" "MonoidsFD1.hs"
     -- mkParserTestMD libdir "ghc98" "ModuleComments1.hs"
 
-    -- mkParserTest libdir "ghc98" "ModuleComments2.hs"
-    -- mkParserTestMD libdir "ghc98" "ModuleComments2.hs"
-
-    -- mkParserTest libdir "ghc98" "ModuleComments3.hs"
-    mkParserTestMD libdir "ghc98" "ModuleComments3.hs"
-
-
-    -- mkParserTest libdir "ghc80" "ForFree.hs"
-    -- mkParserTestMD libdir "ghc80" "ForFree.hs"
-
-    -- mkParserTest libdir "transform" "WhereIn3b.hs"
-    -- mkParserTest libdir "ghc710" "EmptyMostlyTrailing.hs"
-    -- mkParserTest libdir "ghc710" "Undefined10a.hs"
-
-    -- mkParserTest libdir "ghc710" "CExpected1.hs"
-    -- mkParserTestMD libdir "ghc710" "CExpected1.hs"
-
-    -- ExportWarnings_aux.hs
-    -- ghc98:7:T23465.hs
+    -- mkParserTest libdir "ghc910" "LinearLet.hs"
+    mkParserTest libdir "ghc910" "T8761.hs"
+    -- mkParserTestMD libdir "ghc710" "AnnotationNoListTuplePuns.hs"
 
    -- Needs GHC changes
 
-    -- Epalocation needed in WarningTxt
-    -- mkParserTest libdir "ghc80" "DeprM.hs"
-    -- mkParserTestMD libdir "ghc80" "DeprM.hs"
 
 
     ]
