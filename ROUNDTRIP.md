@@ -43,6 +43,8 @@ This will generate three additional executables
   Not all whitespace gets cleaned up via the `prepare-hackage` script,
   so do the rest by
 
+  (make sure you have `fromdos` utility installed, on debian by `apt-get install tofrodos`)
+
   ```
   cd hackage-roundtrip-work/
   ../emacs-ws-cleanup.sh
