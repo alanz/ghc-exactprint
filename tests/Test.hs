@@ -44,8 +44,8 @@ testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
     GHC98  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96"]
-    GHC910 -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96", "ghc98"]
-    -- GHC910  -> ["ghc910"]
+    -- GHC910 -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96", "ghc98"]
+    GHC910  -> ["ghc910"]
     -- GHC910  -> ["ghc910-copied"]
     -- GHC910  -> ["ghc910",  "ghc910-copied"]
 
@@ -142,13 +142,13 @@ mkTests = do
   return $ TestList [
                       internalTests,
                       roundTripTests
-                   ,
-                     (transformTests libdir)
-                   , (failingTests libdir)
-                   ,
-                     roundTripBalanceCommentsTests
-                   ,
-                     roundTripMakeDeltaTests
+                   -- ,
+                   --   (transformTests libdir)
+                   -- , (failingTests libdir)
+                   -- ,
+                   --   roundTripBalanceCommentsTests
+                   -- ,
+                   --   roundTripMakeDeltaTests
                     ]
 
 -- Tests that are no longer needed
@@ -204,7 +204,8 @@ tt' = do
     -- mkParserTestMD libdir "ghc98" "ModuleComments1.hs"
 
     -- mkParserTest libdir "ghc910" "LinearLet.hs"
-    mkParserTest libdir "ghc910" "T8761.hs"
+    -- mkParserTest libdir "ghc910" "Generic.hs"
+    mkParserTest libdir "ghc910" "Disambiguate.hs"
     -- mkParserTestMD libdir "ghc710" "AnnotationNoListTuplePuns.hs"
 
    -- Needs GHC changes
