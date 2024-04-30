@@ -205,7 +205,7 @@ tt' = do
 
     -- mkParserTest libdir "ghc910" "LinearLet.hs"
     -- mkParserTest libdir "ghc910" "Generic.hs"
-    mkParserTest libdir "ghc910" "Disambiguate.hs"
+    mkParserTest libdir "ghc910" "MonoBacktrackPrio.hs"
     -- mkParserTestMD libdir "ghc710" "AnnotationNoListTuplePuns.hs"
 
    -- Needs GHC changes

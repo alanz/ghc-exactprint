@@ -12,5 +12,3 @@ trace_options =
 #endif
      ,  Option []
      ]
-
-

@@ -2,7 +2,7 @@
 
 module Main where
 
-instructions = 
+instructions =
     [ ('2', \m r -> do
                 r m
                 ; `catch` get m r)
