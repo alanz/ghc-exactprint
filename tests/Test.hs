@@ -151,12 +151,6 @@ mkTests = do
                    --   roundTripMakeDeltaTests
                     ]
 
--- Tests that are no longer needed
-                    -- , noAnnotationTests
-                    -- ,
-                    --   prettyRoundTripTests
-                    -- ,
-
 failingTests :: LibDir -> Test
 failingTests libdir = testList "Failing tests"
   [
@@ -205,8 +199,8 @@ tt' = do
 
     -- mkParserTest libdir "ghc910" "LinearLet.hs"
     -- mkParserTest libdir "ghc910" "Generic.hs"
-    mkParserTest libdir "ghc910" "MonoBacktrackPrio.hs"
-    -- mkParserTestMD libdir "ghc710" "AnnotationNoListTuplePuns.hs"
+    -- mkParserTest libdir "ghc910" "Expression.hs"
+    mkParserTest libdir "ghc910" "GenerateBug.hs"
 
    -- Needs GHC changes
 
