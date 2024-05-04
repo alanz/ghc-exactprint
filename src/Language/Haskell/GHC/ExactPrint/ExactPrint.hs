@@ -2798,8 +2798,8 @@ prepareListAnnotationF :: (Monad m, Monoid w) =>
 prepareListAnnotationF ls = map (\b -> (realSrcSpan $ getLocA b, go b)) ls
   where
     go (L l a) = do
-      d' <- markAnnotated (DataFamInstDeclWithContext noAnn NotTopLevel a)
-      return (toDyn (L l (dc_d d')))
+      (L l' d') <- markAnnotated (L l (DataFamInstDeclWithContext noAnn NotTopLevel a))
+      return (toDyn (L l' (dc_d d')))
 
 prepareListAnnotationA :: (Monad m, Monoid w, ExactPrint (LocatedAn an a))
   => [LocatedAn an a] -> [(RealSrcSpan,EP w m Dynamic)]

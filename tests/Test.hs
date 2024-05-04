@@ -200,7 +200,9 @@ tt' = do
     -- mkParserTest libdir "ghc910" "LinearLet.hs"
     -- mkParserTest libdir "ghc910" "Generic.hs"
     -- mkParserTest libdir "ghc910" "Expression.hs"
-    mkParserTest libdir "ghc910" "GenerateBug.hs"
+    -- mkParserTest libdir "ghc910" "GenerateBug.hs"
+    -- mkParserTest libdir "ghc910" "ConstructorArgs.hs"
+    mkParserTest libdir "ghc910" "T23927_2.hs"
 
    -- Needs GHC changes
 
