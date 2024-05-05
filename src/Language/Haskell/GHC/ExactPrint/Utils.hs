@@ -313,12 +313,17 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
       case mmn of
         Nothing -> (an, cs)
         Just (L l _) ->
+            -- We have a module name. Capture all comments up to the `where`
+            -- if no exports
             let
               (remaining, these) =
-                case entry l of
-                  EpaSpan (RealSrcSpan s _) -> do
-                      allocatePriorComments (ss2posEnd s) cs
-                  _ -> (cs, [])
+                case mexports of
+                  Just _ ->
+                    case entry l of
+                      EpaSpan (RealSrcSpan s _) -> do
+                          allocatePriorComments (ss2posEnd s) cs
+                      _ -> (cs, [])
+                  Nothing -> splitOnWhere (<) (am_main $ anns an) cs
 
               (EpAnn a anno ocs) = an :: EpAnn AnnsModule
               anm = EpAnn a anno (workInComments ocs these)
@@ -365,7 +370,7 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
 
     (hc1,hc_cs) = if null ( am_main $ anns an3)
         then (hc0,[])
-        else splitOnWhere (am_main $ anns an3)  hc0
+        else splitOnWhere (>) (am_main $ anns an3)  hc0
     hc2 = workInComments (comments an3) hc1
     an4 = an3 { anns = (anns an3) {am_cs = hc_cs}, comments = hc2 }
 
@@ -381,13 +386,13 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
         cs4' = workInComments cs4 these
         (xs',rest') = allocPreceding xs rest
 
-splitOnWhere :: [AddEpAnn] -> [LEpaComment] -> ([LEpaComment], [LEpaComment])
-splitOnWhere [] csIn = (csIn,[])
-splitOnWhere (AddEpAnn AnnWhere (EpaSpan (RealSrcSpan s _)):_) csIn = (hc, fc)
+splitOnWhere :: (Pos -> Pos -> Bool) -> [AddEpAnn] -> [LEpaComment] -> ([LEpaComment], [LEpaComment])
+splitOnWhere _ [] csIn = (csIn,[])
+splitOnWhere f (AddEpAnn AnnWhere (EpaSpan (RealSrcSpan s _)):_) csIn = (hc, fc)
   where
-    (hc,fc) = break (\(L ll _) -> (ss2pos $ anchor ll) > (ss2pos s) ) csIn
-splitOnWhere (AddEpAnn AnnWhere _:_) csIn = (csIn, [])
-splitOnWhere (_:as) csIn = splitOnWhere as csIn
+    (hc,fc) = break (\(L ll _) ->  f (ss2pos $ anchor ll) (ss2pos s)) csIn
+splitOnWhere _ (AddEpAnn AnnWhere _:_) csIn = (csIn, [])
+splitOnWhere f (_:as) csIn = splitOnWhere f as csIn
 
 balanceFirstLocatedAComments :: [LocatedA a] -> ([LocatedA a], [LEpaComment])
 balanceFirstLocatedAComments [] = ([],[])
