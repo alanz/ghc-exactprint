@@ -2,8 +2,13 @@
 module Generate where
 
 onReturnCode = [||
-  let _ = foo in
-  \farInp ->
-    $$({-trace "unGen.onReturnCode" $-} unGen)
+    $$(
+       {- c1 -} unGen
+      )
   ||]
 
+
+foo =
+      (
+       {- c2 -} blah
+      )

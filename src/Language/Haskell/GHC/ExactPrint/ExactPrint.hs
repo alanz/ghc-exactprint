@@ -3311,11 +3311,11 @@ instance ExactPrint (HsExpr GhcPs) where
 
   exact (HsTypedSplice an s)   = do
     an0 <- markEpAnnL an lidl AnnDollarDollar
-    s' <- exact s
+    s' <- markAnnotated s
     return (HsTypedSplice an0 s')
 
   exact (HsUntypedSplice an s) = do
-    s' <- exact s
+    s' <- markAnnotated s
     return (HsUntypedSplice an s')
 
   exact (HsProc an p c) = do
