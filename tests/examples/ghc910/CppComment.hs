@@ -1,14 +1,9 @@
-{-# LANGUAGE CPP, NamedFieldPuns #-}
-
+{-# LANGUAGE CPP #-}
 module CppComment where
 
 trace_options =
-     [
-        Option ['p']
-
--- TEMPTOGGLE: This feature is not implemented yet:
+-- c1
 #if 0
-     ,  Option []
+    x
 #endif
-     ,  Option []
-     ]
+    y
