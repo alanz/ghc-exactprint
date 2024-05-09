@@ -267,7 +267,7 @@ insertCppComments (L l p) cs0 = insertRemainingCppComments (L l p2) remaining
     p0 = p { hsmodExt = (hsmodExt p) { hsmodAnn = EpAnn anct ant emptyComments }}
     -- Comments embedded within spans
     -- everywhereM is a bottom-up traversal
-    (p1, toplevel) = runState (everywhereM (mkM    addCommentsListItem
+    (p1, toplevel) = runState (everywhereM (mkM   addCommentsListItem
                                            `extM` addCommentsGrhs
                                            `extM` addCommentsList) p0) cs
     (p2, remaining) = insertTopLevelCppComments p1 toplevel
@@ -281,8 +281,8 @@ insertCppComments (L l p) cs0 = insertRemainingCppComments (L l p2) remaining
     addCommentsGrhs :: EpAnn GrhsAnn -> State [LEpaComment] (EpAnn GrhsAnn)
     addCommentsGrhs = addComments
 
-    addComments :: forall ann. String -> EpAnn ann -> State [LEpaComment] (EpAnn ann)
-    addComments ctx (EpAnn anc an ocs) = do
+    addComments :: forall ann. EpAnn ann -> State [LEpaComment] (EpAnn ann)
+    addComments (EpAnn anc an ocs) = do
       case anc of
         EpaSpan (RealSrcSpan s _) -> do
           unAllocated <- get
@@ -313,7 +313,7 @@ insertTopLevelCppComments ::  HsModule GhcPs -> [LEpaComment] -> (HsModule GhcPs
 insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports imports decls) cs
   = (HsModule (XModulePs an4 lo mdeprec mbDoc) mmn mexports' imports' decls', cs3)
     -- `debug` ("insertTopLevelCppComments: (cs2,cs3,hc0,hc1,hc_cs)" ++ showAst (cs2,cs3,hc0,hc1,hc_cs))
-    `debug` ("insertTopLevelCppComments: (cs2,cs3,hc0i,hc0,hc1,hc_cs)" ++ showAst (cs2,cs3,hc0i,hc0,hc1,hc_cs))
+    -- `debug` ("insertTopLevelCppComments: (cs2,cs3,hc0i,hc0,hc1,hc_cs)" ++ showAst (cs2,cs3,hc0i,hc0,hc1,hc_cs))
   where
     -- Comments at the top level.
     (an0, cs0) =
@@ -322,7 +322,7 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
         Just _ ->
             -- We have a module name. Capture all comments up to the `where`
             let
-              (remaining, these) = splitOnWhere (<) (am_main $ anns an) cs
+              (these, remaining) = splitOnWhere Before (am_main $ anns an) cs
               (EpAnn a anno ocs) = an :: EpAnn AnnsModule
               anm = EpAnn a anno (workInComments ocs these)
             in
@@ -368,7 +368,7 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
 
     (hc1,hc_cs) = if null ( am_main $ anns an3)
         then (hc0,[])
-        else splitOnWhere (>) (am_main $ anns an3)  hc0
+        else splitOnWhere After (am_main $ anns an3)  hc0
     hc2 = workInComments (comments an3) hc1
     an4 = an3 { anns = (anns an3) {am_cs = hc_cs}, comments = hc2 }
 
@@ -384,11 +384,14 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
         cs4' = workInComments cs4 these
         (xs',rest') = allocPreceding xs rest
 
-splitOnWhere :: (Pos -> Pos -> Bool) -> [AddEpAnn] -> [LEpaComment] -> ([LEpaComment], [LEpaComment])
+data SplitWhere = Before | After
+splitOnWhere :: SplitWhere -> [AddEpAnn] -> [LEpaComment] -> ([LEpaComment], [LEpaComment])
 splitOnWhere _ [] csIn = (csIn,[])
-splitOnWhere f (AddEpAnn AnnWhere (EpaSpan (RealSrcSpan s _)):_) csIn = (hc, fc)
+splitOnWhere w (AddEpAnn AnnWhere (EpaSpan (RealSrcSpan s _)):_) csIn = (hc, fc)
   where
-    (hc,fc) = break (\(L ll _) ->  f (ss2pos $ anchor ll) (ss2pos s)) csIn
+    splitFunc Before anc_pos c_pos = c_pos < anc_pos
+    splitFunc After  anc_pos c_pos = anc_pos < c_pos
+    (hc,fc) = break (\(L ll _) ->  splitFunc w (ss2pos $ anchor ll) (ss2pos s)) csIn
 splitOnWhere _ (AddEpAnn AnnWhere _:_) csIn = (csIn, [])
 splitOnWhere f (_:as) csIn = splitOnWhere f as csIn
 

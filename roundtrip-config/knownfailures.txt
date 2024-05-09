@@ -211,3 +211,5 @@
 ./hackage-roundtrip-work/willow-0.1.0.0/test/Test/Willow/WebPlatformTests/Manual/Encoding.hs
 ./hackage-roundtrip-work/yesod-goodies-0.0.5/Yesod/Goodies/Markdown.hs
 ./hackage-roundtrip-work/MissingH-1.6.0.1/src/System/IO/WindowsCompat.hs
+./hackage-roundtrip-work/fudgets-0.18.4/hsrc/ghc-dialogue/P_IO_data.hs
+./hackage-roundtrip-work/MagicHaskeller-0.9.7.1/MagicHaskeller/ExecuteAPI610.hs

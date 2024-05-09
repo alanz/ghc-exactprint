@@ -202,6 +202,8 @@ tt' = do
     -- mkParserTest libdir "ghc910" "Expression.hs"
     -- mkParserTest libdir "ghc910" "ConstructorArgs.hs"
     mkParserTest libdir "ghc910" "CppComment.hs"
+    -- mkParserTest libdir "ghc910" "Class.hs"
+    -- mkParserTest libdir "ghc910" "Test138.hs"
 
    -- Needs GHC changes
 
