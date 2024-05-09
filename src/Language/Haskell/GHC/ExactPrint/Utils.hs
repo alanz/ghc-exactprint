@@ -312,19 +312,10 @@ insertTopLevelCppComments (HsModule (XModulePs an lo mdeprec mbDoc) mmn mexports
     (an0, cs0) =
       case mmn of
         Nothing -> (an, cs)
-        Just (L l _) ->
+        Just _ ->
             -- We have a module name. Capture all comments up to the `where`
-            -- if no exports
             let
-              (remaining, these) =
-                case mexports of
-                  Just _ ->
-                    case entry l of
-                      EpaSpan (RealSrcSpan s _) -> do
-                          allocatePriorComments (ss2posEnd s) cs
-                      _ -> (cs, [])
-                  Nothing -> splitOnWhere (<) (am_main $ anns an) cs
-
+              (remaining, these) = splitOnWhere (<) (am_main $ anns an) cs
               (EpAnn a anno ocs) = an :: EpAnn AnnsModule
               anm = EpAnn a anno (workInComments ocs these)
             in
