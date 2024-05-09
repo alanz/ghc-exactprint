@@ -3,6 +3,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Language.Haskell.GHC.ExactPrint.Utils
     -- (
@@ -46,7 +47,8 @@ module Language.Haskell.GHC.ExactPrint.Utils
     where
 
 import Control.Monad (when)
-import Control.Monad.State.Strict
+-- import Control.Monad.State.Lazy
+import GHC.Utils.Monad.State.Strict
 import Data.Data hiding ( Fixity )
 import Data.Function
 import Data.Generics.Aliases
@@ -264,18 +266,23 @@ insertCppComments (L l p) cs0 = insertRemainingCppComments (L l p2) remaining
     cs = sortEpaComments $ priorComments cst ++ getFollowingComments cst ++ cs0
     p0 = p { hsmodExt = (hsmodExt p) { hsmodAnn = EpAnn anct ant emptyComments }}
     -- Comments embedded within spans
+    -- everywhereM is a bottom-up traversal
     (p1, toplevel) = runState (everywhereM (mkM    addCommentsListItem
-                                            `extM` addCommentsList) p0) cs
+                                           `extM` addCommentsGrhs
+                                           `extM` addCommentsList) p0) cs
     (p2, remaining) = insertTopLevelCppComments p1 toplevel
 
-    addCommentsListItem :: EpAnn AnnListItem ->State [LEpaComment] (EpAnn AnnListItem)
+    addCommentsListItem :: EpAnn AnnListItem -> State [LEpaComment] (EpAnn AnnListItem)
     addCommentsListItem = addComments
 
-    addCommentsList :: EpAnn AnnList ->State [LEpaComment] (EpAnn AnnList)
+    addCommentsList :: EpAnn AnnList -> State [LEpaComment] (EpAnn AnnList)
     addCommentsList = addComments
 
-    addComments :: forall ann. EpAnn ann -> State [LEpaComment] (EpAnn ann)
-    addComments (EpAnn anc an ocs) = do
+    addCommentsGrhs :: EpAnn GrhsAnn -> State [LEpaComment] (EpAnn GrhsAnn)
+    addCommentsGrhs = addComments
+
+    addComments :: forall ann. String -> EpAnn ann -> State [LEpaComment] (EpAnn ann)
+    addComments ctx (EpAnn anc an ocs) = do
       case anc of
         EpaSpan (RealSrcSpan s _) -> do
           unAllocated <- get
