@@ -43,8 +43,8 @@ ghcVersion = GHC98
 testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
-    GHC910 -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810",
-               "ghc90", "ghc92", "ghc94", "ghc96", "ghc98", "ghc910"]
+    GHC98 -> ["pre-ghc910"]
+    GHC910 -> ["pre-ghc910", "ghc910"]
     -- GHC910  -> ["ghc910"]
     -- GHC910  -> ["ghc910-copied"]
     -- GHC910  -> ["ghc910",  "ghc910-copied"]
@@ -139,16 +139,16 @@ mkTests = do
   roundTripBalanceCommentsTests <- findTestsBC libdir
   roundTripMakeDeltaTests <- findTestsMD libdir
   return $ TestList [
-                      -- internalTests,
-                   --    roundTripTests
-                   -- ,
-                   --   (transformTests libdir)
-                   -- ,
+                      internalTests,
+                      roundTripTests
+                   ,
+                     (transformTests libdir)
+                   ,
                       (failingTests libdir)
-                   -- ,
-                   --   roundTripBalanceCommentsTests
-                   -- ,
-                   --   roundTripMakeDeltaTests
+                   ,
+                     roundTripBalanceCommentsTests
+                   ,
+                     roundTripMakeDeltaTests
                     ]
 
 failingTests :: LibDir -> Test
@@ -203,9 +203,10 @@ tt' = do
     -- mkParserTest libdir "ghc910" "Generic.hs"
     -- mkParserTest libdir "ghc910" "Expression.hs"
     -- mkParserTest libdir "ghc910" "ConstructorArgs.hs"
-    mkParserTest libdir "ghc910" "CppComment.hs"
+    -- mkParserTest libdir "ghc910" "CppComment.hs"
     -- mkParserTest libdir "ghc910" "Class.hs"
     -- mkParserTest libdir "ghc910" "Test138.hs"
+    mkParserTest libdir "vect" "DiophantineVect.hs"
 
    -- Needs GHC changes
 
