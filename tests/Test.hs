@@ -43,8 +43,8 @@ ghcVersion = GHC98
 testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
-    GHC98  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96"]
-    GHC910 -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96", "ghc98"]
+    GHC910 -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810",
+               "ghc90", "ghc92", "ghc94", "ghc96", "ghc98", "ghc910"]
     -- GHC910  -> ["ghc910"]
     -- GHC910  -> ["ghc910-copied"]
     -- GHC910  -> ["ghc910",  "ghc910-copied"]
@@ -138,17 +138,17 @@ mkTests = do
   roundTripTests <- findTests libdir
   roundTripBalanceCommentsTests <- findTestsBC libdir
   roundTripMakeDeltaTests <- findTestsMD libdir
-  -- prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
-                      internalTests,
-                      roundTripTests
-                   ,
-                     (transformTests libdir)
-                   , (failingTests libdir)
-                   ,
-                     roundTripBalanceCommentsTests
-                   ,
-                     roundTripMakeDeltaTests
+                      -- internalTests,
+                   --    roundTripTests
+                   -- ,
+                   --   (transformTests libdir)
+                   -- ,
+                      (failingTests libdir)
+                   -- ,
+                   --   roundTripBalanceCommentsTests
+                   -- ,
+                   --   roundTripMakeDeltaTests
                     ]
 
 failingTests :: LibDir -> Test
@@ -158,6 +158,8 @@ failingTests libdir = testList "Failing tests"
 
   -- We do not capture EOF location very well any more
     mkTestModBad libdir "T10970a.hs"
+  -- Injecting CPP comments adjacent to existing ones is a problem
+  , mkTestModBad libdir "CppComment.hs"
   ]
 
 

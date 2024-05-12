@@ -235,4 +235,9 @@ cabal configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.10.0
 #--------------------------------------------------------------------
 #- GHC 9.10.1
 
-cabal configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.10.1/bin/ghc --allow-newer
+# roundtrip usage
+# cabal configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.10.1/bin/ghc --allow-newer
+
+# Check final state
+cabal configure -fdev  --enable-tests --with-compiler=/opt/ghc/9.10.1/bin/ghc
+
