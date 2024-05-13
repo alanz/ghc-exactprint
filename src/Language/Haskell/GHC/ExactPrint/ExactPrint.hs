@@ -720,7 +720,7 @@ printStringAtRsC capture pa str = do
   p' <- adjustDeltaForOffsetM p
   debugM $ "printStringAtRsC:(p,p')=" ++ show (p,p')
   printStringAtLsDelta p' str
-  setPriorEndASTD True pa
+  setPriorEndASTD pa
   cs' <- case capture of
     CaptureComments -> takeAppliedComments
     NoCaptureComments -> return []
@@ -782,7 +782,7 @@ printStringAtAAC capture (EpaDelta d cs) s = do
   p2 <- getPosP
   pe2 <- getPriorEndD
   debugM $ "printStringAtAA:(pe1,pe2,p1,p2)=" ++ show (pe1,pe2,p1,p2)
-  setPriorEndASTPD True (pe1,pe2)
+  setPriorEndASTPD (pe1,pe2)
   cs' <- case capture of
     CaptureComments -> takeAppliedComments
     NoCaptureComments -> return []
@@ -5126,13 +5126,13 @@ setPriorEndNoLayoutD pe = do
   debugM $ "setPriorEndNoLayoutD:pe=" ++ show pe
   modify (\s -> s { dPriorEndPosition = pe })
 
-setPriorEndASTD :: (Monad m, Monoid w) => Bool -> RealSrcSpan -> EP w m ()
-setPriorEndASTD layout pe = setPriorEndASTPD layout (rs2range pe)
+setPriorEndASTD :: (Monad m, Monoid w) => RealSrcSpan -> EP w m ()
+setPriorEndASTD pe = setPriorEndASTPD (rs2range pe)
 
-setPriorEndASTPD :: (Monad m, Monoid w) => Bool -> (Pos,Pos) -> EP w m ()
-setPriorEndASTPD layout pe@(fm,to) = do
+setPriorEndASTPD :: (Monad m, Monoid w) => (Pos,Pos) -> EP w m ()
+setPriorEndASTPD pe@(fm,to) = do
   debugM $ "setPriorEndASTD:pe=" ++ show pe
-  when layout $ setLayoutStartD (snd fm)
+  setLayoutStartD (snd fm)
   modify (\s -> s { dPriorEndPosition = to } )
 
 setLayoutStartD :: (Monad m, Monoid w) => Int -> EP w m ()
