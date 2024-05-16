@@ -279,14 +279,13 @@ fixModuleTrailingComments (GHC.L l p) = GHC.L l p'
   where
     an' = case GHC.hsmodAnn $ GHC.hsmodExt p of
       (GHC.EpAnn a an ocs) -> GHC.EpAnn a an (rebalance ocs)
-      unused -> unused
     p' = p { GHC.hsmodExt = (GHC.hsmodExt p){ GHC.hsmodAnn = an' } }
 
     rebalance :: GHC.EpAnnComments -> GHC.EpAnnComments
     rebalance cs = cs'
       where
         cs' = case GHC.hsmodLayout $ GHC.hsmodExt p of
-          GHC.ExplicitBraces _  (GHC.L (GHC.TokenLoc (GHC.EpaSpan ss _)) _) ->
+          GHC.EpExplicitBraces _ (GHC.EpTok (GHC.EpaSpan (GHC.RealSrcSpan ss _))) ->
             let
               pc = GHC.priorComments cs
               fc = GHC.getFollowingComments cs
@@ -305,8 +304,8 @@ fixModuleHeaderComments (GHC.L l p) = GHC.L l p'
     moveComments :: GHC.EpaLocation -> GHC.LHsDecl GHC.GhcPs -> GHC.EpAnnComments
                  -> (GHC.LHsDecl GHC.GhcPs, GHC.EpAnnComments)
     moveComments GHC.EpaDelta{} dd cs = (dd,cs)
-    moveComments _loc dd@(GHC.L (GHC.SrcSpanAnn GHC.EpAnnNotUsed _) _) cs = (dd,cs)
-    moveComments (GHC.EpaSpan r _) (GHC.L (GHC.SrcSpanAnn (GHC.EpAnn anc an csd) ll) a) cs = (dd,css)
+    moveComments (GHC.EpaSpan (GHC.UnhelpfulSpan _)) dd cs = (dd,cs)
+    moveComments (GHC.EpaSpan (GHC.RealSrcSpan r _)) (GHC.L (GHC.EpAnn anc an csd) a) cs = (dd,css)
       where
         -- Move any comments on the decl that occur prior to the location
         pc = GHC.priorComments csd
@@ -315,7 +314,7 @@ fixModuleHeaderComments (GHC.L l p) = GHC.L l p'
         (move,keep) = break bf pc
         csd' = GHC.EpaCommentsBalanced keep fc
 
-        dd = GHC.L (GHC.SrcSpanAnn (GHC.EpAnn anc an csd') ll) a
+        dd = GHC.L (GHC.EpAnn anc an csd') a
         css = cs <> GHC.EpaComments move
 
     (ds',an') = rebalance (GHC.hsmodDecls p, GHC.hsmodAnn $ GHC.hsmodExt p)
@@ -325,7 +324,6 @@ fixModuleHeaderComments (GHC.L l p) = GHC.L l p'
 
     rebalance :: ([GHC.LHsDecl GHC.GhcPs], GHC.EpAnn GHC.AnnsModule)
               -> ([GHC.LHsDecl GHC.GhcPs], GHC.EpAnn GHC.AnnsModule)
-    rebalance (ds, GHC.EpAnnNotUsed) = (ds, GHC.EpAnnNotUsed)
     rebalance (ds, GHC.EpAnn a an cs) = (ds1, GHC.EpAnn a an cs')
       where
         (ds1,cs') = case break (\(GHC.AddEpAnn k _) -> k == GHC.AnnWhere) (GHC.am_main an) of

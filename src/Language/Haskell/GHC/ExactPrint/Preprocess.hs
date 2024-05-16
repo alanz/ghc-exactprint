@@ -12,7 +12,6 @@ module Language.Haskell.GHC.ExactPrint.Preprocess
 
    , CppOptions(..)
    , defaultCppOptions
-   , showErrorMessages
    ) where
 
 import qualified GHC            as GHC hiding (parseModule)
@@ -60,7 +59,7 @@ defaultCppOptions :: CppOptions
 defaultCppOptions = CppOptions [] [] []
 
 -- ---------------------------------------------------------------------
--- | Remove GHC style line pragams (@{-# LINE .. #-}@) and convert them into comments.
+-- | Remove GHC style line pragmas (@{-# LINE .. #-}@) and convert them into comments.
 stripLinePragmas :: String -> (String, [GHC.LEpaComment])
 stripLinePragmas = unlines' . unzip . findLines . lines
   where
@@ -78,7 +77,6 @@ checkLine line s
            ss     = mkSrcSpan (mSrcLoc line 1) (mSrcLoc line (size+1))
        in (res, Just $ mkLEpaComment pragma (GHC.spanAsAnchor ss) (GHC.realSrcSpan ss))
   -- Deal with shebang/cpp directives too
-  -- x |  "#" `isPrefixOf` s = ("",Just $ Comment ((line, 1), (line, length s)) s)
   |  "#!" `isPrefixOf` s =
     let mSrcLoc = mkSrcLoc (mkFastString "SHEBANG")
         ss = mkSrcSpan (mSrcLoc line 1) (mSrcLoc line (length s))
@@ -129,7 +127,6 @@ goodComment c = isGoodComment (tokComment c)
     isGoodComment []                 = False
     isGoodComment [Comment "" _ _ _] = False
     isGoodComment _                  = True
-
 
 toRealLocated :: GHC.Located a -> GHC.RealLocated a
 toRealLocated (GHC.L (GHC.RealSrcSpan s _) x) = GHC.L s              x
@@ -226,8 +223,7 @@ getPreprocessedSrcDirectPrim cppOptions src_fn = do
       txt <- GHC.liftIO $ readFileGhc hspp_fn
       return (txt, buf, dflags')
 
--- showErrorMessages :: GHC.Messages GHC.DriverMessage -> String
-showErrorMessages :: (GHC.Diagnostic a) => GHC.Messages a -> String
+showErrorMessages :: GHC.Messages GHC.DriverMessage -> String
 showErrorMessages msgs =
   GHC.renderWithContext GHC.defaultSDocContext
     $ GHC.vcat
@@ -283,12 +279,7 @@ makeBufSpan ss = pspan
 -- ---------------------------------------------------------------------
 
 parseError :: (GHC.MonadIO m) => GHC.PState -> m b
-parseError pst = do
-     let
-       -- (warns,errs) = GHC.getMessages pst dflags
-     -- throw $ GHC.mkSrcErr (GHC.unitBag $ GHC.mkPlainErrMsg dflags sspan err)
-     -- GHC.throwErrors (fmap GHC.mkParserErr (GHC.getErrorMessages pst))
-     GHC.throwErrors (fmap GHC.GhcPsMessage (GHC.getPsErrorMessages pst))
+parseError pst = GHC.throwErrors (fmap GHC.GhcPsMessage (GHC.getPsErrorMessages pst))
 
 -- ---------------------------------------------------------------------
 

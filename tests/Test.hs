@@ -28,25 +28,26 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-data GHCVersion = GHC96
-           | GHC98
+data GHCVersion = GHC98
+           | GHC910
      deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
-#if MIN_VERSION_ghc(9,8,0)
-ghcVersion = GHC98
+#if MIN_VERSION_ghc(9,10,0)
+ghcVersion = GHC910
 #else
-ghcVersion = GHC96
+ghcVersion = GHC98
 #endif
 
 -- | Directories to automatically find roundtrip tests
 testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
-    GHC96  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96"]
-    GHC98  -> ["ghc710", "ghc80", "ghc82", "ghc84", "ghc86", "ghc88", "ghc810", "ghc90", "ghc92", "ghc94", "ghc96", "ghc98"]
-    -- GHC98  -> ["ghc98"]
-    -- GHC98  -> ["ghc98-copied"]
+    GHC98 -> ["pre-ghc910"]
+    GHC910 -> ["pre-ghc910", "ghc910"]
+    -- GHC910  -> ["ghc910"]
+    -- GHC910  -> ["ghc910-copied"]
+    -- GHC910  -> ["ghc910",  "ghc910-copied"]
 
 -- ---------------------------------------------------------------------
 
@@ -60,14 +61,10 @@ main = hSilence [stderr] $ do
      then exitFailure
      else return () -- exitSuccess
 
-transform :: IO ()
-transform = hSilence [stderr] $ do
+transform :: IO (Counts,Int)
+transform = do
   let libdir = GHC.Paths.libdir
-  cnts <- fst <$> runTestText (putTextToHandle stdout True) (transformTestsTT libdir)
-  putStrLn $ show cnts
-  if errors cnts > 0 || failures cnts > 0
-     then exitFailure
-     else return () -- exitSuccess
+  runTestText (putTextToHandle stdout True) (transformTestsTT libdir)
 
 -- ---------------------------------------------------------------------
 
@@ -141,24 +138,18 @@ mkTests = do
   roundTripTests <- findTests libdir
   roundTripBalanceCommentsTests <- findTestsBC libdir
   roundTripMakeDeltaTests <- findTestsMD libdir
-  -- prettyRoundTripTests <- findPrettyTests libdir
   return $ TestList [
                       internalTests,
                       roundTripTests
                    ,
                      (transformTests libdir)
-                   , (failingTests libdir)
+                   ,
+                      (failingTests libdir)
                    ,
                      roundTripBalanceCommentsTests
                    ,
                      roundTripMakeDeltaTests
                     ]
-
--- Tests that are no longer needed
-                    -- , noAnnotationTests
-                    -- ,
-                    --   prettyRoundTripTests
-                    -- ,
 
 failingTests :: LibDir -> Test
 failingTests libdir = testList "Failing tests"
@@ -167,6 +158,8 @@ failingTests libdir = testList "Failing tests"
 
   -- We do not capture EOF location very well any more
     mkTestModBad libdir "T10970a.hs"
+  -- Injecting CPP comments adjacent to existing ones is a problem
+  , mkTestModBad libdir "CppComment.hs"
   ]
 
 
@@ -201,24 +194,22 @@ tt' :: IO (Counts,Int)
 tt' = do
   let libdir = GHC.Paths.libdir
   runTestText (putTextToHandle stdout True) $ TestList [
-    -- mkParserTest libdir "ghc92" "TopLevelSemis.hs"
-    -- mkParserTestBC libdir "ghc92" "TopLevelSemis.hs"
-    -- mkParserTestMD libdir "ghc92" "TopLevelSemis.hs"
 
-    -- mkParserTest libdir "ghc96" "T11671_run.hs"
+    -- mkParserTest libdir "ghc98" "ModuleComments1.hs"
+    -- mkParserTestBC libdir "ghc98" "MonoidsFD1.hs"
+    -- mkParserTestMD libdir "ghc98" "ModuleComments1.hs"
 
-    -- mkParserTest libdir "ghc96" "LexerM.hs"
-    -- mkParserTestBC libdir "ghc96" "LexerM.hs"
-
-    -- mkParserTest libdir "ghc94" "Haddock.hs"
-    -- mkParserTest libdir "ghc94" "Haddock1.hs"
-    -- mkParserTest libdir "ghc94" "Haddock2.hs"
-    -- mkParserTestBC libdir "ghc94" "Haddock1.hs"
-
-    -- mkParserTest libdir "ghc98" "IndentedModule2.hs"
-    mkParserTest libdir "ghc98" "ModuleComments.hs"
+    -- mkParserTest libdir "ghc910" "LinearLet.hs"
+    -- mkParserTest libdir "ghc910" "Generic.hs"
+    -- mkParserTest libdir "ghc910" "Expression.hs"
+    -- mkParserTest libdir "ghc910" "ConstructorArgs.hs"
+    -- mkParserTest libdir "ghc910" "CppComment.hs"
+    -- mkParserTest libdir "ghc910" "Class.hs"
+    -- mkParserTest libdir "ghc910" "Test138.hs"
+    mkParserTest libdir "vect" "DiophantineVect.hs"
 
    -- Needs GHC changes
+
 
 
     ]

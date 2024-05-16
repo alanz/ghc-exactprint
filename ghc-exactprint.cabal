@@ -1,12 +1,12 @@
 cabal-version:       2.4
 name:                ghc-exactprint
-version:             1.8.0.0
+version:             1.9.0.0
 synopsis:            ExactPrint for GHC
 description:         Using the API Annotations available from GHC 9.2.1, this
                      library provides a means to round trip any code that can
                      be compiled by GHC, currently excluding lhs files.
                      .
-                     Note: requires GHC 9.8.*. For earlier GHC
+                     Note: requires GHC 9.10.*. For earlier GHC
                      versions see lower version numbers.
                      .
 
@@ -16,30 +16,15 @@ author:              Alan Zimmerman, Matthew Pickering
 maintainer:          alan.zimm@gmail.com
 category:            Development
 build-type:          Simple
-tested-with:         GHC == 9.8.1
+tested-with:         GHC == 9.10.1
 extra-doc-files:     ChangeLog
 extra-source-files:  tests/examples/failing/*.hs
-                     tests/examples/ghc710-only/*.hs
-                     tests/examples/ghc710/*.hs
-                     tests/examples/ghc80/*.hs
-                     tests/examples/ghc810/*.hs
-                     tests/examples/ghc82/*.hs
-                     tests/examples/ghc84/*.hs
-                     tests/examples/ghc86/*.hs
-                     tests/examples/ghc88/*.hs
-                     tests/examples/ghc90/*.hs
-                     tests/examples/ghc92/*.hs
-                     tests/examples/ghc94/*.hs
-                     tests/examples/ghc96/*.hs
-                     tests/examples/ghc98/*.hs
-                     tests/examples/pre-ghc810/*.hs
-                     tests/examples/pre-ghc86/*.hs
-                     tests/examples/pre-ghc90/*.hs
-                     tests/examples/vect/*.hs
-                     tests/examples/transform/*.hs
                      tests/examples/failing/*.hs.bad
+                     tests/examples/ghc910/*.hs
+                     tests/examples/pre-ghc910/*.hs
+                     tests/examples/pre-ghc910/*.hs-boot
+                     tests/examples/transform/*.hs
                      tests/examples/transform/*.hs.expected
-                     tests/examples/ghc710/*.hs-boot
 
 source-repository head
   type:     git
@@ -61,10 +46,8 @@ common warnings
 library
   import: warnings
   exposed-modules:     Language.Haskell.GHC.ExactPrint
-                     , Language.Haskell.GHC.ExactPrint.Dump
                      , Language.Haskell.GHC.ExactPrint.ExactPrint
                      , Language.Haskell.GHC.ExactPrint.Lookup
-                     , Language.Haskell.GHC.ExactPrint.Orphans
                      , Language.Haskell.GHC.ExactPrint.Parsers
                      , Language.Haskell.GHC.ExactPrint.Preprocess
                      , Language.Haskell.GHC.ExactPrint.Transform
@@ -72,17 +55,15 @@ library
                      , Language.Haskell.GHC.ExactPrint.Utils
 
   hs-source-dirs:      src
-  build-depends:       base >=4.19 && <4.20
-                     , bytestring >= 0.10.6
-                     , containers >= 0.5
-                     , data-default
-                     , ghc       >= 9.8.1
-                     , mtl       >= 2.2.1
-                     , syb       >= 0.5
-                     , ghc-boot
+  build-depends:       base >=4.20 && <4.21
+                     , containers >= 0.5  && < 0.8
+                     , ghc       >= 9.10 && < 9.11
+                     , ghc-boot  >= 9.10 && < 9.11
+                     , mtl       >= 2.2.1 && < 2.5
+                     , syb       >= 0.5 && < 0.8
 
   default-language:    Haskell2010
-  if impl (ghc < 9.8)
+  if impl (ghc < 9.10)
     buildable: False
 
 Test-Suite test
@@ -101,26 +82,25 @@ Test-Suite test
                      , Test.Transform
   GHC-Options:         -threaded
   Default-language:    Haskell2010
-  Build-depends:       HUnit >= 1.2
-                     , base < 4.20
+  Build-depends:       base < 4.21
+                     , HUnit >= 1.2
                      , containers >= 0.5
                      , Diff
                      , directory >= 1.2
                      , extra
                      , filepath  >= 1.4
-                     , ghc       >= 9.8.1
+                     , ghc       >= 9.10
                      , ghc-paths  >= 0.1
                      , syb        >= 0.5
                      , silently   >= 1.2
                      , ghc-boot
+                     -- , os-string >= 2.0.2
   if flag (dev)
-      build-depends: bytestring
-                   , data-default
-                   , free
-                   , mtl        >= 2.2.1
+      build-depends:
+                     mtl        >= 2.2.1
   else
       build-depends: ghc-exactprint
-  if impl (ghc < 9.8)
+  if impl (ghc < 9.10)
       buildable: False
 
 executable roundtrip
@@ -130,18 +110,18 @@ executable roundtrip
   other-modules: Test.Common
                  Test.CommonUtils
   default-language:    Haskell2010
-  if impl (ghc >= 9.8) && flag (roundtrip)
+  if impl (ghc >= 9.10) && flag (roundtrip)
     build-depends:
-                 HUnit
-               , base
-               , containers
-               , directory
-               , extra
-               , filepath
-               , ghc
+                 HUnit      < 1.7
+               , base       < 4.21
+               , containers < 0.8
+               , directory  < 1.4
+               , extra      < 1.8
+               , filepath   < 1.6
+               , ghc        >= 9.10 && < 9.11
                , ghc-exactprint
-               , ghc-paths
-               , time
+               , ghc-paths  < 0.2
+               , time       < 1.13
                , ghc-boot
     buildable: True
   else
@@ -155,34 +135,34 @@ executable static
   other-modules: Test.CommonUtils
   default-language:    Haskell2010
   if flag (roundtrip)
-    build-depends: base
-                 , directory
-                 , extra
-                 , filepath
-                 , ghc
-                 , Diff
+    build-depends: base < 4.21
+                 , directory < 1.4
+                 , extra     < 1.8
+                 , filepath  < 1.6
+                 , ghc       >= 9.10 && < 9.11
+                 , Diff      < 0.6
     buildable: True
   else
     buildable: False
   GHC-Options: -threaded
 
-executable prepare-hackage
-  import: warnings
-  main-is: PrepareHackage.hs
-  other-modules: Test.CommonUtils
-  hs-source-dirs: tests
-  default-language:    Haskell2010
-  if flag (roundtrip)
-    build-depends: base
-                 , containers
-                 , directory
-                 , extra
-                 , filepath
-                 , ghc       >= 9.8.1
-                 , HUnit
-                 , text   >= 1.2.2
-                 , turtle >= 1.3.0
-    buildable: True
-  else
-    buildable: False
-  GHC-Options: -threaded
+-- executable prepare-hackage
+--   import: warnings
+--   main-is: PrepareHackage.hs
+--   other-modules: Test.CommonUtils
+--   hs-source-dirs: tests
+--   default-language:    Haskell2010
+--   if flag (roundtrip)
+--     build-depends: base < 4.21
+--                  , containers
+--                  , directory
+--                  , extra
+--                  , filepath
+--                  , ghc       >= 9.10
+--                  , HUnit
+--                  , text   >= 1.2.2
+--                  , turtle >= 1.3.0
+--     buildable: True
+--   else
+--     buildable: False
+--   GHC-Options: -threaded

@@ -36,8 +36,12 @@ import Language.Haskell.GHC.ExactPrint.Parsers
 import Language.Haskell.GHC.ExactPrint.Preprocess
 
 import qualified Control.Monad.IO.Class as GHC
-import qualified GHC hiding (parseModule)
+import GHC hiding (moduleName)
+import GHC.Driver.Errors.Types
 import qualified GHC.Driver.Session    as GHC
+import GHC.Types.Error
+import GHC.Utils.Error
+import GHC.Utils.Outputable (renderWithContext, defaultSDocContext, vcat)
 
 import qualified GHC.LanguageExtensions as LangExt
 
@@ -105,8 +109,8 @@ noChange _libdir parsed = return parsed
 
 changeBalanceComments :: Changer
 changeBalanceComments _libdir top = do
-  let (GHC.L l p) = makeDeltaAst top
-  -- let (GHC.L l p) = top
+  -- let (GHC.L l p) = makeDeltaAst top
+  let (GHC.L l p) = top
   let decls0 = GHC.hsmodDecls p
       (decls,_,w) = runTransform (balanceCommentsList decls0)
   let p2 = p { GHC.hsmodDecls = decls}
@@ -143,6 +147,14 @@ genTest libdir f origFile expectedFile  = do
               cppStatus = if useCpp then Just orig else Nothing
           return $ Right Report {..}
 
+showErrorMessages :: Messages GhcMessage -> String
+showErrorMessages msgs =
+  renderWithContext defaultSDocContext
+    $ vcat
+    $ pprMsgEnvelopeBagWithLocDefault
+    $ getMessages
+    $ msgs
+
 -- showErrorMessages :: Messages GhcMessage -> String
 -- showErrorMessages msgs =
 --   renderWithContext defaultSDocContext
@@ -150,6 +162,7 @@ genTest libdir f origFile expectedFile  = do
 --     $ pprMsgEnvelopeBagWithLocDefault
 --     $ getMessages
 --     $ msgs
+
 
 mkDebugOutput :: FilePath -> String -> String
               -> GHC.ParsedSource -> String
@@ -172,7 +185,9 @@ runRoundTrip :: LibDir
              -> [GHC.LEpaComment]
              -> IO (String, GHC.ParsedSource)
 runRoundTrip libdir f !parsedOrig cs = do
+  -- putStrLn $ "comments:" ++ showAst cs
   let !parsedOrigWithComments = insertCppComments parsedOrig cs
+  -- putStrLn $ "parsedOrigWithComments:" ++ showAst parsedOrigWithComments
   pmod <- f libdir parsedOrigWithComments
   let !printed = exactPrint pmod
   return (printed, pmod)
