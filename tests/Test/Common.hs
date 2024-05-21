@@ -112,9 +112,8 @@ changeBalanceComments _libdir top = do
   -- let (GHC.L l p) = makeDeltaAst top
   let (GHC.L l p) = top
   let decls0 = GHC.hsmodDecls p
-      (decls,_,w) = runTransform (balanceCommentsList decls0)
+      decls = balanceCommentsList decls0
   let p2 = p { GHC.hsmodDecls = decls}
-  debugM $ "changeBalanceComments:\n" ++ unlines w
   return (GHC.L l p2)
 
 changeMakeDelta :: Changer
