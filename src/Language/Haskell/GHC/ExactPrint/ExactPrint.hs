@@ -26,7 +26,7 @@ module Language.Haskell.GHC.ExactPrint.ExactPrint
   , makeDeltaAst
 
   -- * Configuration
-  , EPOptions(epAstPrint, epTokenPrint, epWhitespacePrint, epUpdateAnchors)
+  , EPOptions(epAstPrint, epTokenPrint, epWhitespacePrint)
   , stringOptions
   , epOptions
   , deltaOptions
@@ -133,32 +133,30 @@ data EPOptions m a = EPOptions
               epAstPrint :: forall ast . Data ast => GHC.Located ast -> a -> m a
             , epTokenPrint :: String -> m a
             , epWhitespacePrint :: String -> m a
-            , epUpdateAnchors :: Bool
             }
 
 -- | Helper to create a 'EPOptions'
 epOptions ::
-      (forall ast . Data ast => GHC.Located ast -> a -> m a)
+      (forall ast . Data ast
+      => GHC.Located ast -> a -> m a)
       -> (String -> m a)
       -> (String -> m a)
-      -> Bool
       -> EPOptions m a
-epOptions astPrint tokenPrint wsPrint delta = EPOptions
+epOptions astPrint tokenPrint wsPrint = EPOptions
              {
                epAstPrint = astPrint  -- Not used
              , epWhitespacePrint = wsPrint
              , epTokenPrint = tokenPrint
-             , epUpdateAnchors = delta -- Not used
              }
 
 -- | Options which can be used to print as a normal String.
 stringOptions :: EPOptions Identity String
-stringOptions = epOptions (\_ b -> return b) return return False
+stringOptions = epOptions (\_ b -> return b) return return
 
 -- | Options which can be used to simply update the AST to be in delta
 -- form, without generating output
 deltaOptions :: EPOptions Identity ()
-deltaOptions = epOptions (\_ _ -> return ()) (\_ -> return ()) (\_ -> return ()) True
+deltaOptions = epOptions (\_ _ -> return ()) (\_ -> return ()) (\_ -> return ())
 
 data EPWriter a = EPWriter
               { output :: !a }
