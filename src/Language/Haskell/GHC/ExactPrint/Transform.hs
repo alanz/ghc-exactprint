@@ -426,13 +426,13 @@ balanceCommentsFB (L lf (FunBind x n (MG o (L lm matches)))) second
     lf' = setCommentsEpAnn lf (EpaComments before)
     matches' :: [LocatedA (Match GhcPs (LHsExpr GhcPs))]
     matches' = case matches of
-                  (L lm' m':ms') ->
-                    (L (addCommentsToEpAnn lm' (EpaComments middle )) m':ms')
+                  (L lm' m0:ms') ->
+                    (L (addCommentsToEpAnn lm' (EpaComments middle )) m0:ms')
                   _ -> error "balanceCommentsFB"
     matches'' = balanceCommentsListA matches'
     (m,ms) = case reverse matches'' of
-               (L lm' m':ms') ->
-                 (L (addCommentsToEpAnn lm' (EpaCommentsBalanced [] after)) m',ms')
+               (L lm' m0:ms') ->
+                 (L (addCommentsToEpAnn lm' (EpaCommentsBalanced [] after)) m0,ms')
                _ -> error "balanceCommentsFB4"
     (m',second') = balanceCommentsA m second
     m'' = balanceCommentsMatch m'
@@ -455,7 +455,7 @@ balanceCommentsMatch (L l (Match am mctxt pats (GRHSs xg grhss binds)))
     (move',stay') = break simpleBreak (trailingCommentsDeltas (anchorFromLocatedA (L l ())) cs1f)
     move = map snd move'
     stay = map snd stay'
-    (l'', grhss', binds', logInfo)
+    (l'', grhss', binds', _logInfo)
       = case reverse grhss of
           [] -> (l, [], binds,                 (EpaComments [], noSrcSpanA))
           (L lg (GRHS ag grs rhs):gs) ->
@@ -682,7 +682,7 @@ balanceSameLineComments (L la (Match anm mctxt pats (GRHSs x grhss lb)))
   = (L la' (Match anm mctxt pats (GRHSs x grhss' lb)))
   where
     simpleBreak n (r,_) = r > n
-    (la',grhss', logInfo) = case reverse grhss of
+    (la',grhss', _logInfo) = case reverse grhss of
       [] -> (la,grhss,[])
       (L lg (GRHS ga gs rhs):grs) -> (la'',reverse $ (L lg (GRHS ga' gs rhs)):grs,[(gac,(csp,csf))])
         where
@@ -864,8 +864,8 @@ instance HasDecls (LocatedA (Match GhcPs (LocatedA (HsExpr GhcPs)))) where
         (l', rhs') = case binds of
           EmptyLocalBinds{} ->
             let
-              L l' m' = balanceSameLineComments m
-            in (l', grhssGRHSs $ m_grhss m')
+              L l0 m' = balanceSameLineComments m
+            in (l0, grhssGRHSs $ m_grhss m')
           _ -> (l, rhs)
         binds'' = replaceDeclsValbinds WithWhere binds newBinds
       in (L l' (Match xm c p (GRHSs xr rhs' binds'')))
@@ -1141,8 +1141,8 @@ modifyValD p decl f = (packFunDecl decl', r)
            then do
              let
                ds = hsDecls match
-               (ds',r) = f match ds
-             put r
+               (ds',r0) = f match ds
+             put r0
              let match' = replaceDecls match ds'
              return match'
            else return match

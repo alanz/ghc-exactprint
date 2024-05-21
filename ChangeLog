@@ -1,3 +1,6 @@
+2024-05-21 v1.10.0.0
+	* Make the Language.Haskell.GHC.ExactPrint.Transform API pure
+	* Remove EPOoptions fields that had no effect
 2024-05-16 v1.9.0.0
 	* Support GHC 9.10.1
 2022-12-19 v1.8.0.0
