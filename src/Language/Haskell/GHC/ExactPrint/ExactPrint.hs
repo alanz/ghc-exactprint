@@ -26,7 +26,7 @@ module Language.Haskell.GHC.ExactPrint.ExactPrint
   , makeDeltaAst
 
   -- * Configuration
-  , EPOptions(epRigidity, epAstPrint, epTokenPrint, epWhitespacePrint, epUpdateAnchors)
+  , EPOptions(epAstPrint, epTokenPrint, epWhitespacePrint, epUpdateAnchors)
   , stringOptions
   , epOptions
   , deltaOptions
@@ -79,8 +79,7 @@ import Language.Haskell.GHC.ExactPrint.Types
 exactPrint :: ExactPrint ast => ast -> String
 exactPrint ast = snd $ runIdentity (runEP stringOptions (markAnnotated ast))
 
--- | The additional option to specify the rigidity and printing
--- configuration.
+-- | The additional option to specify the printing configuration.
 exactPrintWithOptions :: (ExactPrint ast, Monoid b, Monad m)
                       => EPOptions m b
                       -> ast
@@ -88,9 +87,8 @@ exactPrintWithOptions :: (ExactPrint ast, Monoid b, Monad m)
 exactPrintWithOptions r ast =
     runEP r (markAnnotated ast)
 
--- | Transform concrete annotations into relative annotations which
--- are more useful when transforming an AST. This corresponds to the
--- earlier 'relativiseApiAnns'.
+-- | Transform concrete annotations into relative annotations.
+-- This should be unnecessary from GHC 9.10
 makeDeltaAst :: ExactPrint ast => ast -> ast
 makeDeltaAst ast = fst $ runIdentity (runEP deltaOptions (markAnnotated ast))
 
@@ -135,7 +133,6 @@ data EPOptions m a = EPOptions
               epAstPrint :: forall ast . Data ast => GHC.Located ast -> a -> m a
             , epTokenPrint :: String -> m a
             , epWhitespacePrint :: String -> m a
-            , epRigidity :: Rigidity
             , epUpdateAnchors :: Bool
             }
 
@@ -144,26 +141,24 @@ epOptions ::
       (forall ast . Data ast => GHC.Located ast -> a -> m a)
       -> (String -> m a)
       -> (String -> m a)
-      -> Rigidity
       -> Bool
       -> EPOptions m a
-epOptions astPrint tokenPrint wsPrint rigidity delta = EPOptions
+epOptions astPrint tokenPrint wsPrint delta = EPOptions
              {
-               epAstPrint = astPrint
+               epAstPrint = astPrint  -- Not used
              , epWhitespacePrint = wsPrint
              , epTokenPrint = tokenPrint
-             , epRigidity = rigidity
-             , epUpdateAnchors = delta
+             , epUpdateAnchors = delta -- Not used
              }
 
 -- | Options which can be used to print as a normal String.
 stringOptions :: EPOptions Identity String
-stringOptions = epOptions (\_ b -> return b) return return NormalLayout False
+stringOptions = epOptions (\_ b -> return b) return return False
 
 -- | Options which can be used to simply update the AST to be in delta
 -- form, without generating output
 deltaOptions :: EPOptions Identity ()
-deltaOptions = epOptions (\_ _ -> return ()) (\_ -> return ()) (\_ -> return ()) NormalLayout True
+deltaOptions = epOptions (\_ _ -> return ()) (\_ -> return ()) (\_ -> return ()) True
 
 data EPWriter a = EPWriter
               { output :: !a }
