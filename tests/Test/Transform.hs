@@ -312,16 +312,15 @@ addLocaLDecl1 :: Changer
 addLocaLDecl1 libdir top = do
   Right (L ld (ValD _ decl)) <- withDynFlags libdir (\df -> parseDecl df "decl" "nn = 2")
   let decl' = setEntryDP (L ld decl) (DifferentLine 1 5)
-      doAddLocal :: ParsedSource
-      doAddLocal = replaceDecls lp [de1', d2', d3]
+      doAddLocal = replaceDecls top [de1', d2', d3]
         where
-          lp = top
-          (de1:d2:d3:_) = hsDecls lp
+          (de1:d2:d3:_) = hsDecls top
           (de1'',d2') = balanceComments de1 d2
-          (de1',_) = modifyValD (getLocA de1'') de1'' $ \_m d -> ((wrapDecl decl' : d),Nothing)
+          (de1',_) = modifyValD (getLocA de1'') de1'' $ \_m d ->
+                       ((wrapDecl decl' : d),Nothing)
 
-  let lp' = doAddLocal
-  return lp'
+  let top' = doAddLocal
+  return top'
 
 -- ---------------------------------------------------------------------
 
@@ -505,9 +504,7 @@ rmDecl5 _libdir lp = do
           go :: HsExpr GhcPs -> Transform (HsExpr GhcPs)
           go (HsLet (tkLet, tkIn) lb expr) = do
             let decs = hsDeclsLocalBinds lb
-            let hdecs : _ = decs
             let dec = last decs
-            -- _ <- transferEntryDP hdecs dec
             let lb' = replaceDeclsValbinds WithoutWhere lb [dec]
             return (HsLet (tkLet, tkIn) lb' expr)
           go x = return x
