@@ -1902,20 +1902,7 @@ instance ExactPrint a => ExactPrint (WithHsDocIdentifiers a GhcPs) where
 -- ---------------------------------------------------------------------
 
 instance ExactPrint (HsDecl GhcPs) where
-  getAnnotationEntry (TyClD      _ _) = NoEntryVal
-  getAnnotationEntry (InstD      _ _) = NoEntryVal
-  getAnnotationEntry (DerivD     _ _) = NoEntryVal
-  getAnnotationEntry (ValD       _ _) = NoEntryVal
-  getAnnotationEntry (SigD       _ _) = NoEntryVal
-  getAnnotationEntry (KindSigD   _ _) = NoEntryVal
-  getAnnotationEntry (DefD       _ _) = NoEntryVal
-  getAnnotationEntry (ForD       _ _) = NoEntryVal
-  getAnnotationEntry (WarningD   _ _) = NoEntryVal
-  getAnnotationEntry (AnnD       _ _) = NoEntryVal
-  getAnnotationEntry (RuleD      _ _) = NoEntryVal
-  getAnnotationEntry (SpliceD    _ _) = NoEntryVal
-  getAnnotationEntry (DocD       _ _) = NoEntryVal
-  getAnnotationEntry (RoleAnnotD _ _) = NoEntryVal
+  getAnnotationEntry _ = NoEntryVal
 
   -- We do not recurse, the generic traversal using this feature
   -- should do that for us.
@@ -1939,10 +1926,7 @@ instance ExactPrint (HsDecl GhcPs) where
 -- ---------------------------------------------------------------------
 
 instance ExactPrint (InstDecl GhcPs) where
-  getAnnotationEntry (ClsInstD     _ _) = NoEntryVal
-  getAnnotationEntry (DataFamInstD _ _) = NoEntryVal
-  getAnnotationEntry (TyFamInstD   _ _) = NoEntryVal
-
+  getAnnotationEntry _ = NoEntryVal
   setAnnotationAnchor d _ _ _ = d
 
 
