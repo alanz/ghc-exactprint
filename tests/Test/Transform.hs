@@ -30,7 +30,7 @@ import Test.HUnit
 transformTestsTT :: LibDir -> Test
 transformTestsTT libdir = TestLabel "transformTestsTT" $ TestList
   [
-    mkTestModChange libdir changeWhereIn3b   "WhereIn3b.hs"
+    mkTestModChange libdir addArg1 "AddArg1.hs"
   ]
 
 transformTests :: LibDir -> Test
@@ -304,6 +304,8 @@ transformHighLevelTests libdir =
   , mkTestModChange libdir addHiding2 "AddHiding2.hs"
 
   , mkTestModChange libdir cloneDecl1 "CloneDecl1.hs"
+
+  , mkTestModChange libdir addArg1 "AddArg1.hs"
   ]
 
 -- ---------------------------------------------------------------------
@@ -467,10 +469,10 @@ rmDecl2 _libdir lp = do
 rmDecl3 :: Changer
 rmDecl3 _libdir lp = do
   let
-      doRmDecl = replaceDecls lp [de1',sd1,d2]
+      doRmDecl = replaceDecls lp [de1',sd1'',d2]
         where
           [de1,d2] = hsDecls lp
-          (de1',Just sd1) = modifyValD (getLocA de1) de1 $ \_m [sd1] ->
+          (de1',Just sd1'') = modifyValD (getLocA de1) de1 $ \_m [sd1] ->
                        let
                            sd1' = setEntryDP sd1 (DifferentLine 2 0)
                        in ([],Just sd1')
@@ -483,10 +485,10 @@ rmDecl3 _libdir lp = do
 rmDecl4 :: Changer
 rmDecl4 _libdir lp = do
   let
-      doRmDecl = replaceDecls (anchorEof lp) [de1',sd1]
+      doRmDecl = replaceDecls (anchorEof lp) [de1',sd1'']
         where
          [de1] = hsDecls lp
-         (de1',Just sd1) = modifyValD (getLocA de1) de1 $ \_m [sd1,sd2] ->
+         (de1',Just sd1'') = modifyValD (getLocA de1) de1 $ \_m [sd1,sd2] ->
            let
              sd2' = transferEntryDP' sd1 sd2
              sd1' = setEntryDP sd1 (DifferentLine 2 0)
@@ -647,5 +649,34 @@ cloneDecl1 _libdir lp = do
 
   let lp' = doChange
   return lp'
+
+-- ---------------------------------------------------------------------
+
+addArg1 :: Changer
+addArg1 _libdir lp = return $ replaceDecls lp [d']
+  where
+    -- GHC 9.10 has
+    -- noLocA = L (noAnnSrcSpan noSrcSpan)
+    -- noSrcSpan = UnhelpfulSpan UnhelpfulNoLocationInfo
+    --
+    -- instance (NoAnn ann) => NoAnn (EpAnn ann) where
+    --   noAnn = EpAnn noSpanAnchor noAnn emptyComments
+    -- noSpanAnchor :: (NoAnn a) => (EpaLocation' a)
+    -- noSpanAnchor =  EpaDelta (SameLine 0) noAnn
+
+
+    unqualName = (mkRdrUnqual $ mkVarOcc "new_arg") :: IdP GhcPs
+    -- newPat = (L noAnnSrcSpanDP1 $ VarPat NoExtField (noLocA unqualName)) :: LPat GhcPs
+    newPat = (L noAnnSrcSpanDP1 $ VarPat NoExtField (L noAnn unqualName)) :: LPat GhcPs
+
+    [(L l (ValD xd funbind))] = hsDecls lp
+    FunBind x n (MG mgx (L lmm [L lm m])) = funbind
+    Match mx c pats grhs = m
+    pats' = pats ++ [newPat]
+    -- GRHSs gc [L gl (GRHS ga gg rhs)] binds = grhs
+    d' = (L l (ValD xd (FunBind x n (MG mgx (L lmm [L lm (Match mx c pats' grhs)])))))
+    -- d' = error $ "addArg1:" ++ showAst ga
+
+
 
 -- ---------------------------------------------------------------------

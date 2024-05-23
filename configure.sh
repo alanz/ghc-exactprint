@@ -242,5 +242,6 @@ rm -fr dist*
 # cabal configure -fdev  --enable-tests --with-compiler=ghc-9.10.1
 # cabal configure -fdev  --enable-tests --with-compiler=ghc-9.101 --allow-newer
 # cabal configure -fdev -froundtrip --enable-tests --with-compiler=ghc-9.10.1
-cabal configure  -froundtrip --enable-tests --with-compiler=ghc-9.10.1
+# cabal configure  -froundtrip --enable-tests --with-compiler=ghc-9.10.1
+cabal configure -fdev -froundtrip --enable-tests --with-compiler=ghc-9.10.1
 
