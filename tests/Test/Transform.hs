@@ -30,7 +30,9 @@ import Test.HUnit
 transformTestsTT :: LibDir -> Test
 transformTestsTT libdir = TestLabel "transformTestsTT" $ TestList
   [
-    mkTestModChange libdir addArg1 "AddArg1.hs"
+    -- mkTestModChange libdir addArg1 "AddArg1.hs"
+    -- mkTestModChange libdir balance "AddArgFromWhereComments.hs"
+    mkTestModChange libdir addLocaLDecl1  "AddLocalDecl1.hs"
   ]
 
 transformTests :: LibDir -> Test
@@ -310,19 +312,29 @@ transformHighLevelTests libdir =
 
 -- ---------------------------------------------------------------------
 
+-- addLocaLDecl1 :: Changer
+-- addLocaLDecl1 libdir top = do
+--   Right (L ld (ValD _ decl)) <- withDynFlags libdir (\df -> parseDecl df "decl" "nn = 2")
+--   let
+--       decl' = setEntryDP (L ld decl) (DifferentLine 1 5)
+--       (de1:d2:d3:_) = hsDecls top
+--       (de1',d2') = balanceComments de1 d2
+--       (de1'',_) = modifyValD (getLocA de1') de1' $ \_m d ->
+--                    ((wrapDecl decl' : d), Nothing)
+--   return $ replaceDecls top [de1'', d2', d3]
+
+-- ---------------------------------------------------------------------
+
 addLocaLDecl1 :: Changer
 addLocaLDecl1 libdir top = do
-  Right (L ld (ValD _ decl)) <- withDynFlags libdir (\df -> parseDecl df "decl" "nn = 2")
-  let decl' = setEntryDP (L ld decl) (DifferentLine 1 5)
-      doAddLocal = replaceDecls top [de1', d2', d3]
-        where
-          (de1:d2:d3:_) = hsDecls top
-          (de1'',d2') = balanceComments de1 d2
-          (de1',_) = modifyValD (getLocA de1'') de1'' $ \_m d ->
-                       ((wrapDecl decl' : d),Nothing)
+  Right decl <- withDynFlags libdir (\df -> parseDecl df "decl" "nn = 2")
+  let
+      (de1:d2:ds) = hsDecls top
+      (de1',d2') = balanceComments de1 d2
 
-  let top' = doAddLocal
-  return top'
+      (de1'',_) = modifyValD (getLocA de1') de1' $ \_m ds ->
+                   (decl : ds, Nothing)
+  return $ replaceDecls top (de1'':d2':ds)
 
 -- ---------------------------------------------------------------------
 
@@ -674,9 +686,15 @@ addArg1 _libdir lp = return $ replaceDecls lp [d']
     Match mx c pats grhs = m
     pats' = pats ++ [newPat]
     -- GRHSs gc [L gl (GRHS ga gg rhs)] binds = grhs
-    d' = (L l (ValD xd (FunBind x n (MG mgx (L lmm [L lm (Match mx c pats' grhs)])))))
-    -- d' = error $ "addArg1:" ++ showAst ga
-
-
+    -- d' = (L l (ValD xd (FunBind x n (MG mgx (L lmm [L lm (Match mx c pats' grhs)])))))
+    d' = error $ "addArg1:" ++ showAst grhs
 
 -- ---------------------------------------------------------------------
+
+balance :: Changer
+balance _libdir lp = return $ replaceDecls lp ds'
+  where
+    ds = hsDecls lp
+    -- ds' = balanceCommentsList ds
+    ds' = map unpackFunDecl ds
+

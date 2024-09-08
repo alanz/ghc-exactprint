@@ -20,7 +20,7 @@
 -----------------------------------------------------------------------------
 module Language.Haskell.GHC.ExactPrint.Transform
         (
-        -- * The Transform Monad
+        -- * The Transform Monad (should not be needed)
           Transform
         , TransformT(..)
         , hoistTransform
@@ -34,13 +34,16 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , logDataWithAnnsTr
         , uniqueSrcSpanT
 
-        -- ** Managing declarations, in Transform monad
+        -- ** Managing declarations
         , HasTransform (..)
         , HasDecls (..)
         , hsDeclsPatBind, hsDeclsPatBindD
         , replaceDeclsPatBind, replaceDeclsPatBindD
         , modifyDeclsT
         , modifyValD
+        , unpackFunDecl, packFunDecl
+        , unpackFunBind, packFunBind
+
         -- *** Utility, does not manage layout
         , hsDeclsValBinds, replaceDeclsValbinds
         , WithWhere(..)
@@ -54,7 +57,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , addComma
 
         -- ** Managing lists, Transform monad
-        , insertAt
+        , changeDecls, insertAt
         , insertAtStart
         , insertAtEnd
         , insertAfter
@@ -65,6 +68,10 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , balanceCommentsList
         , balanceCommentsListA
         , anchorEof
+
+        -- ** Other
+        , addCommentOrigDeltas
+        , splitCommentsEnd, splitCommentsStart
 
         -- ** Managing lists, pure functions
         , captureOrderBinds
@@ -741,8 +748,16 @@ addComma (EpAnn anc (AnnListItem as) cs)
 
 -- ---------------------------------------------------------------------
 
--- | Insert a declaration into an AST element having sub-declarations
--- (@HasDecls@) according to the given location function.
+-- | Operate on the subddecls of the given AST item having
+-- sub-declarations (@HasDecls@) according to the given function.
+changeDecls :: (HasDecls ast)
+         => ([LHsDecl GhcPs] -> [LHsDecl GhcPs])
+         -> ast
+         -> ast
+changeDecls f t = replaceDecls t (f oldDecls)
+  where
+    oldDecls = balanceCommentsList (hsDecls t)
+
 insertAt :: (HasDecls ast)
          => (LHsDecl GhcPs
               -> [LHsDecl GhcPs]
@@ -750,14 +765,10 @@ insertAt :: (HasDecls ast)
          -> ast
          -> LHsDecl GhcPs
          -> ast
-insertAt f t decl = replaceDecls t (f decl oldDecls')
-  where
-    oldDecls = hsDecls t
-    oldDeclsb = balanceCommentsList oldDecls
-    oldDecls' = oldDeclsb
+insertAt f t decl = changeDecls (f decl) t
 
 -- |Insert a declaration at the beginning or end of the subdecls of the given
--- AST item
+-- AST item having sub-declarations (@HasDecls@)
 insertAtStart, insertAtEnd :: HasDecls ast => ast -> LHsDecl GhcPs -> ast
 
 insertAtEnd   = insertAt (\x xs -> xs ++ [x])
@@ -772,7 +783,7 @@ insertAtStart = insertAt insertFirst
 
 
 -- |Insert a declaration at a specific location in the subdecls of the given
--- AST item
+-- AST item having sub-declarations (@HasDecls@)
 insertAfter, insertBefore :: HasDecls (LocatedA ast)
                           => LocatedA old
                           -> LocatedA ast
@@ -1004,9 +1015,6 @@ instance HasDecls (LocatedA (Stmt GhcPs (LocatedA (HsExpr GhcPs)))) where
 unpackFunBind :: LHsBind GhcPs -> LHsBind GhcPs
 unpackFunBind (L loc (FunBind x1 fid (MG x2 (L lg (L lm m:matches)))))
   = (L loc'' (FunBind x1 fid (MG x2 (L lg (reverse (L llm' lmtch:ms))))))
-     -- `debug` ("unpackFunBind: ="
-     --          ++ showAst (("loc",loc), ("loc'",loc'), ("loc''",loc''),
-     --                      ("lm'",lm'), ("llm",llm), ("llm'", llm')))
   where
     (loc', lm') = transferPriorCommentsA loc lm
     matches' = reverse $ L lm' m:matches
@@ -1023,9 +1031,6 @@ unpackFunBind d = d
 packFunBind :: LHsBind GhcPs -> LHsBind GhcPs
 packFunBind (L loc (FunBind x1 fid (MG x2 (L lg (L lm m:matches)))))
   = (L loc'' (FunBind x1 fid (MG x2 (L lg (reverse (L llm' lmtch:ms))))))
-     -- `debug` ("packFunBind: ="
-     --          ++ showAst (("loc",loc), ("loc'",loc'), ("loc''",loc''),
-     --                      ("lm'",lm'), ("llm",llm), ("llm'", llm')))
   where
     (lm', loc') = transferPriorCommentsA lm loc
     matches' = reverse $ L lm' m:matches
@@ -1159,6 +1164,7 @@ instance Monad m => HasTransform (TransformT m) where
 -- ---------------------------------------------------------------------
 
 -- | Apply a transformation to the decls contained in @t@
+-- Legacy, should not be needed anymore
 modifyDeclsT :: (HasDecls t,HasTransform m)
              => ([LHsDecl GhcPs] -> m [LHsDecl GhcPs])
              -> t -> m t

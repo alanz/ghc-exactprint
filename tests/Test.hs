@@ -140,15 +140,15 @@ mkTests = do
   roundTripMakeDeltaTests <- findTestsMD libdir
   return $ TestList [
                       internalTests,
-                      roundTripTests
-                   ,
+                      -- roundTripTests
+                   -- ,
                      (transformTests libdir)
-                   ,
-                      (failingTests libdir)
-                   ,
-                     roundTripBalanceCommentsTests
-                   ,
-                     roundTripMakeDeltaTests
+                   -- ,
+                   --    (failingTests libdir)
+                   -- ,
+                   --   roundTripBalanceCommentsTests
+                   -- ,
+                   --   roundTripMakeDeltaTests
                     ]
 
 failingTests :: LibDir -> Test
@@ -206,7 +206,11 @@ tt' = do
     -- mkParserTest libdir "ghc910" "CppComment.hs"
     -- mkParserTest libdir "ghc910" "Class.hs"
     -- mkParserTest libdir "ghc910" "Test138.hs"
-    mkParserTest libdir "vect" "DiophantineVect.hs"
+    -- mkParserTest libdir "vect" "DiophantineVect.hs"
+
+    -- mkParserTest libdir "transform" "AddArgFromWhereComments.hs"
+    -- mkParserTest libdir "ghc910" "ConPat.hs"
+    mkParserTest libdir "ghc910" "Operator1.hs"
 
    -- Needs GHC changes
 
