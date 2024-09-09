@@ -13,7 +13,6 @@ import Language.Haskell.GHC.ExactPrint.Parsers
 import Language.Haskell.GHC.ExactPrint.Utils
 
 import GHC                       as GHC
-import GHC.Data.Bag              as GHC
 import GHC.Data.FastString       as GHC
 import GHC.Types.Name.Occurrence as GHC
 import GHC.Types.Name.Reader     as GHC
@@ -131,15 +130,15 @@ changeLocalDecls2 libdir (L l p) = do
       replaceLocalBinds :: LMatch GhcPs (LHsExpr GhcPs)
                         -> Transform (LMatch GhcPs (LHsExpr GhcPs))
       replaceLocalBinds (L lm (Match ma mln pats (GRHSs _ rhs EmptyLocalBinds{}))) = do
-        let anc = (EpaDelta (DifferentLine 1 3) [])
-        let anc2 = (EpaDelta (DifferentLine 1 5) [])
+        let anc = (EpaDelta noSrcSpan (DifferentLine 1 3) [])
+        let anc2 = (EpaDelta noSrcSpan (DifferentLine 1 5) [])
         let an = EpAnn anc
                         (AnnList (Just anc2) Nothing Nothing
-                                 [AddEpAnn AnnWhere (EpaDelta (SameLine 0) [])] [])
+                                 [AddEpAnn AnnWhere (EpaDelta noSrcSpan (SameLine 0) [])] [])
                         emptyComments
         let decls = [s,d]
         let sortKey = captureOrderBinds decls
-        let binds = (HsValBinds an (ValBinds sortKey (listToBag $ [decl'])
+        let binds = (HsValBinds an (ValBinds sortKey [decl']
                                     [sig']))
         return (L lm (Match ma mln pats (GRHSs emptyComments rhs binds)))
       replaceLocalBinds x = return x
@@ -159,7 +158,7 @@ changeLocalDecls libdir (L l p) = do
       replaceLocalBinds :: LMatch GhcPs (LHsExpr GhcPs)
                         -> Transform (LMatch GhcPs (LHsExpr GhcPs))
       replaceLocalBinds (L lm (Match an mln pats (GRHSs _ rhs (HsValBinds van (ValBinds _ binds sigs))))) = do
-        let oldDecls = sortLocatedA $ map wrapDecl (bagToList binds) ++ map wrapSig sigs
+        let oldDecls = sortLocatedA $ map wrapDecl binds ++ map wrapSig sigs
         let decls = s:d:oldDecls
         let oldDecls' = captureLineSpacing oldDecls
         let oldBinds     = concatMap decl2Bind oldDecls'
@@ -167,11 +166,11 @@ changeLocalDecls libdir (L l p) = do
             os' = setEntryDP os (DifferentLine 2 0)
         let sortKey = captureOrderBinds decls
         let (EpAnn anc (AnnList (Just _) a b c dd) cs) = van
-        let van' = (EpAnn anc (AnnList (Just (EpaDelta (DifferentLine 1 5) [])) a b c dd) cs)
+        let van' = (EpAnn anc (AnnList (Just (EpaDelta noSrcSpan (DifferentLine 1 5) [])) a b c dd) cs)
         -- let (EpAnn anc (AnnList (Just _) a b c dd) cs) = van
         -- let van' = (EpAnn anc (AnnList (Just (EpaDelta (DifferentLine 1 5) [])) a b c dd) cs)
         let binds' = (HsValBinds van'
-                          (ValBinds sortKey (listToBag $ decl':oldBinds)
+                          (ValBinds sortKey (decl':oldBinds)
                                           (sig':os':oldSigs)))
         return (L lm (Match an mln pats (GRHSs emptyComments rhs binds')))
                    `debug` ("oldDecls=" ++ showAst oldDecls)
@@ -263,13 +262,13 @@ changeLetIn1 _libdir parsed
     replace :: HsExpr GhcPs -> HsExpr GhcPs
     replace (HsLet (tkLet, _) localDecls expr)
       =
-         let (HsValBinds x (ValBinds xv bagDecls sigs)) = localDecls
-             [l2,_l1] = map wrapDecl $ bagToList bagDecls
-             bagDecls' = listToBag $ concatMap decl2Bind [l2]
+         let (HsValBinds x (ValBinds xv decls sigs)) = localDecls
+             [l2,_l1] = map wrapDecl decls
+             bagDecls' = concatMap decl2Bind [l2]
              (L _ e) = expr
-             a = EpAnn (EpaDelta (SameLine 1) []) noAnn emptyComments
+             a = EpAnn (EpaDelta noSrcSpan (SameLine 1) []) noAnn emptyComments
              expr' = L a e
-             tkIn' = EpTok (EpaDelta (DifferentLine 1 0) [])
+             tkIn' = EpTok (EpaDelta noSrcSpan (DifferentLine 1 0) [])
          in (HsLet (tkLet, tkIn')
                 (HsValBinds x (ValBinds xv bagDecls' sigs)) expr')
 
@@ -463,6 +462,7 @@ rmDecl2 _libdir lp = do
   let (lp',_,_w) = runTransform doRmDecl
   debugM $ "log:[\n" ++ intercalate "\n" _w ++ "]log end\n"
   return lp'
+
 -- ---------------------------------------------------------------------
 
 rmDecl3 :: Changer
@@ -471,9 +471,9 @@ rmDecl3 _libdir lp = do
       doRmDecl = replaceDecls lp [de1',sd1,d2]
         where
           [de1,d2] = hsDecls lp
-          (de1',Just sd1) = modifyValD (getLocA de1) de1 $ \_m [sd1] ->
+          (de1',Just sd1) = modifyValD (getLocA de1) de1 $ \_m [sd1a] ->
                        let
-                           sd1' = setEntryDP sd1 (DifferentLine 2 0)
+                           sd1' = setEntryDP sd1a (DifferentLine 2 0)
                        in ([],Just sd1')
 
       lp' = doRmDecl
@@ -487,10 +487,10 @@ rmDecl4 _libdir lp = do
       doRmDecl = replaceDecls (anchorEof lp) [de1',sd1]
         where
          [de1] = hsDecls lp
-         (de1',Just sd1) = modifyValD (getLocA de1) de1 $ \_m [sd1,sd2] ->
+         (de1',Just sd1) = modifyValD (getLocA de1) de1 $ \_m [sd1a,sd2] ->
            let
-             sd2' = transferEntryDP' sd1 sd2
-             sd1' = setEntryDP sd1 (DifferentLine 2 0)
+             sd2' = transferEntryDP' sd1a sd2
+             sd1' = setEntryDP sd1a (DifferentLine 2 0)
            in ([sd2'],Just sd1')
       lp' = doRmDecl
   return lp'
@@ -507,7 +507,6 @@ rmDecl5 _libdir lp = do
             let decs = hsDeclsLocalBinds lb
             let hdecs : _ = decs
             let dec = last decs
-            -- _ <- transferEntryDP hdecs dec
             let lb' = replaceDeclsValbinds WithoutWhere lb [dec]
             return (HsLet (tkLet, tkIn) lb' expr)
           go x = return x
