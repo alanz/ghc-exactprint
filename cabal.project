@@ -1,10 +1,9 @@
 packages: .
-          ../extra
 
--- source-repository-package
---     type: git
---     location: https://github.com/ndmitchell/extra.git
---     tag: e5255e2741a7aba84aa767d5342a3c39cd8e11a0
+source-repository-package
+    type: git
+    location: https://github.com/alanz/extra.git
+    tag: a4305c56ea2c696ea241381b96007b00b0f0b21
 
 repository head.hackage.ghc.haskell.org
    url: https://ghc.gitlab.haskell.org/head.hackage/
