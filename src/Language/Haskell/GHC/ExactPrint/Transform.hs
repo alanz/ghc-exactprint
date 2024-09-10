@@ -367,9 +367,14 @@ pushDeclDP d _dp = d
 
 -- ---------------------------------------------------------------------
 
--- | If we compile in haddock mode we get DocDecls, which we strip out
--- while exact printing. Make sure we do not balance any comments on
--- to them be stripping them out here already.
+-- | If we compile in haddock mode, the haddock processing inserts
+-- DocDecls to carry the Haddock Documentation. We ignore these in
+-- exact printing, as all the comments are also available in their
+-- normal location, and the haddock processing is lossy, in that it
+-- does not preserve all haddock-like comments. When we balance
+-- comments in a list, we migrate some to preceding or following
+-- declarations in the list. We must make sure we do not move any to
+-- these DocDecls, which are not printed.
 balanceCommentsList :: [LHsDecl GhcPs] -> [LHsDecl GhcPs]
 balanceCommentsList decls = balanceCommentsList' (filter notDocDecl decls)
 

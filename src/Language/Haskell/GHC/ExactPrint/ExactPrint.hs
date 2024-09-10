@@ -608,7 +608,7 @@ addComments sortNeeded csNew = do
   cs <- getUnallocatedComments
   debugM $ "addComments:cs" ++ show cs
   -- We can only sort the comments if we are in the first phase,
-  -- were all comments have locations. If any have EpaDelta the
+  -- where all comments have locations. If any have EpaDelta the
   -- sort will fail, so we do not try.
   if sortNeeded && all noDelta (csNew ++ cs)
     then putUnallocatedComments (sort (cs ++ csNew))
@@ -1729,7 +1729,7 @@ data HsModuleImpDecls
     } deriving Data
 
 instance ExactPrint HsModuleImpDecls where
-  -- Use an UnHelpfulSpan for the anchor, we are only interested in the comments
+  -- Use an UnhelpfulSpan for the anchor, we are only interested in the comments
   getAnnotationEntry mid = mkEntry (EpaSpan (UnhelpfulSpan UnhelpfulNoLocationInfo)) [] (EpaComments (id_cs mid))
   setAnnotationAnchor mid _anc _ cs = mid { id_cs = priorComments cs ++ getFollowingComments cs }
      `debug` ("HsModuleImpDecls.setAnnotationAnchor:cs=" ++ showAst cs)
