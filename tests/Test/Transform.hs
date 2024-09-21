@@ -505,7 +505,6 @@ rmDecl5 _libdir lp = do
           go :: HsExpr GhcPs -> Transform (HsExpr GhcPs)
           go (HsLet (tkLet, tkIn) lb expr) = do
             let decs = hsDeclsLocalBinds lb
-            let hdecs : _ = decs
             let dec = last decs
             let lb' = replaceDeclsValbinds WithoutWhere lb [dec]
             return (HsLet (tkLet, tkIn) lb' expr)

@@ -479,7 +479,7 @@ tokComment t@(L lt c) =
     (GHC.EpaComment (EpaDocComment dc) pt) -> hsDocStringComments (noCommentsToEpaLocation lt) pt dc
     _ -> [mkComment (normaliseCommentText (ghcCommentText t)) lt (ac_prior_tok c)]
 
-hsDocStringComments :: Anchor -> RealSrcSpan -> GHC.HsDocString -> [Comment]
+hsDocStringComments :: EpaLocation -> RealSrcSpan -> GHC.HsDocString -> [Comment]
 hsDocStringComments _ pt (MultiLineDocString dec (x :| xs)) =
   let
     decStr = printDecorator dec
@@ -564,7 +564,7 @@ mkKWComment kw (EpaSpan (UnhelpfulSpan _))
 mkKWComment kw (EpaDelta ss dp cs)
   = Comment (keywordToString kw) (EpaDelta ss dp cs) placeholderRealSpan (Just kw)
 
-sortAnchorLocated :: [GenLocated Anchor a] -> [GenLocated Anchor a]
+sortAnchorLocated :: [GenLocated EpaLocation a] -> [GenLocated EpaLocation a]
 sortAnchorLocated = sortBy (compare `on` (anchor . getLoc))
 
 -- | Calculates the distance from the start of a string to the end of
