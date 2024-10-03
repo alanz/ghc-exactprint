@@ -1226,6 +1226,7 @@ laiElseSemi k parent = fmap (\new -> parent { aiElseSemi = new })
 -- data EpAnnHsCase = EpAnnHsCase
 --       { hsCaseAnnCase :: EpaLocation
 --       , hsCaseAnnOf   :: EpaLocation
+--       , hsCaseAnnsRest :: [AddEpAnn]
 --       } deriving Data
 
 lhsCaseAnnCase :: Lens EpAnnHsCase EpaLocation
@@ -1235,6 +1236,10 @@ lhsCaseAnnCase k parent = fmap (\new -> parent { hsCaseAnnCase = new })
 lhsCaseAnnOf :: Lens EpAnnHsCase EpaLocation
 lhsCaseAnnOf k parent = fmap (\new -> parent { hsCaseAnnOf = new })
                                (k (hsCaseAnnOf parent))
+
+lhsCaseAnnsRest :: Lens EpAnnHsCase [AddEpAnn]
+lhsCaseAnnsRest k parent = fmap (\new -> parent { hsCaseAnnsRest = new })
+                                (k (hsCaseAnnsRest parent))
 
 -- ---------------------------------------------------------------------
 
@@ -1321,12 +1326,12 @@ lasRest k parent = fmap (\new -> parent { asRest = new })
 
 -- ---------------------------------------------------------------------
 -- data EpAnnSumPat = EpAnnSumPat
---       { sumPatParens      :: (EpaLocation, EpaLocation)
+--       { sumPatParens      :: [AddEpAnn]
 --       , sumPatVbarsBefore :: [EpaLocation]
 --       , sumPatVbarsAfter  :: [EpaLocation]
 --       } deriving Data
 
-lsumPatParens :: Lens EpAnnSumPat (EpaLocation, EpaLocation)
+lsumPatParens :: Lens EpAnnSumPat [AddEpAnn]
 lsumPatParens k parent = fmap (\new -> parent { sumPatParens = new })
                               (k (sumPatParens parent))
 
@@ -1337,23 +1342,6 @@ lsumPatVbarsBefore k parent = fmap (\new -> parent { sumPatVbarsBefore = new })
 lsumPatVbarsAfter :: Lens EpAnnSumPat [EpaLocation]
 lsumPatVbarsAfter k parent = fmap (\new -> parent { sumPatVbarsAfter = new })
                               (k (sumPatVbarsAfter parent))
-
--- ---------------------------------------------------------------------
--- data EpAnnLam = EpAnnLam
---       { epl_lambda :: EpaLocation -- ^ Location of '\' keyword
---       , epl_case   :: Maybe EpaLocation -- ^ Location of 'case' or
---                                         -- 'cases' keyword, depending
---                                         -- on related 'HsLamVariant'.
---       } deriving Data
-
-lepl_lambda :: Lens EpAnnLam EpaLocation
-lepl_lambda k parent = fmap (\new -> parent { epl_lambda = new })
-                            (k (epl_lambda parent))
-
-lepl_case :: Lens EpAnnLam (Maybe EpaLocation)
-lepl_case k parent = fmap (\new -> parent { epl_case = new })
-                          (k (epl_case parent))
-
 
 -- End of lenses
 -- ---------------------------------------------------------------------
@@ -1395,8 +1383,11 @@ markLensKwM (EpAnn anc a cs) l kw = do
 markLensKwM' :: (Monad m, Monoid w)
   => a -> Lens a (Maybe EpaLocation) -> AnnKeywordId -> EP w m a
 markLensKwM' a l kw = do
-  loc <- mapM (markKwA kw) (view l a)
-  return (set l loc a)
+  new <- go (view l a)
+  return (set l new a)
+  where
+    go Nothing = return Nothing
+    go (Just s) = Just <$> markKwA kw s
 
 markLensTok :: (Monad m, Monoid w, KnownSymbol sym)
   => EpAnn a -> Lens a (EpToken sym) -> EP w m (EpAnn a)
@@ -2531,7 +2522,7 @@ instance ExactPrint (HsBind GhcPs) where
       fun_id' = case unLoc (mg_alts matches') of
         [] -> fid
         (L _ m:_) -> case m_ctxt m of
-          FunRhs f _ _ _ -> f
+          FunRhs f _ _ -> f
           _ -> fid
     return (FunBind x fun_id' matches')
 
@@ -2647,18 +2638,20 @@ exactMatch (Match an mctxt pats grhss) = do
 
   debugM $ "exact Match entered"
 
-  (mctxt', pats') <-
+  (an0, mctxt', pats') <-
     case mctxt of
-      FunRhs fun fixity strictness (AnnFunRhs strict opens closes) -> do
+      FunRhs fun fixity strictness -> do
         debugM $ "exact Match FunRhs:" ++ showPprUnsafe fun
-        strict' <- markEpToken strict
+        an0' <-
+          case strictness of
+            SrcStrict -> markEpAnnL an lidl AnnBang
+            _ -> pure an
         case fixity of
           Prefix -> do
-            epTokensToComments AnnOpenP opens
-            epTokensToComments AnnCloseP closes
+            an' <- annotationsToComments an0' lidl [AnnOpenP,AnnCloseP]
             fun' <- markAnnotated fun
             pats' <- markAnnotated pats
-            return (FunRhs fun' fixity strictness (AnnFunRhs strict' [] []), pats')
+            return (an', FunRhs fun' fixity strictness, pats')
           Infix ->
             case pats of
               L l (p1:p2:rest)
@@ -2666,32 +2659,36 @@ exactMatch (Match an mctxt pats grhss) = do
                     p1'  <- markAnnotated p1
                     fun' <- markAnnotated fun
                     p2'  <- markAnnotated p2
-                    return (FunRhs fun' fixity strictness (AnnFunRhs strict' [] []), L l [p1',p2'])
+                    return (an0', FunRhs fun' fixity strictness, L l [p1',p2'])
                 | otherwise -> do
-                    opens' <- markEpToken1 opens
+                    an0  <- markEpAnnL an0' lidl AnnOpenP
                     p1'  <- markAnnotated p1
                     fun' <- markAnnotated fun
                     p2'  <- markAnnotated p2
-                    closes' <- markEpToken1 closes
+                    an1  <- markEpAnnL an0 lidl AnnCloseP
                     rest' <- mapM markAnnotated rest
-                    return (FunRhs fun' fixity strictness (AnnFunRhs strict' opens' closes'), L l (p1':p2':rest'))
+                    return (an1, FunRhs fun' fixity strictness, L l (p1':p2':rest'))
               _ -> panic "FunRhs"
 
+      -- ToDo: why is LamSingle treated differently?
+      LamAlt LamSingle -> do
+        an0' <- markEpAnnL an lidl AnnLam
+        pats' <- markAnnotated pats
+        return (an0', LamAlt LamSingle, pats')
       LamAlt v -> do
         pats' <- markAnnotated pats
-        return (LamAlt v, pats')
+        return (an, LamAlt v, pats')
 
       CaseAlt -> do
         pats' <- markAnnotated pats
-        return (CaseAlt, pats')
-
+        return (an, CaseAlt, pats')
       _ -> do
         mctxt' <- withPpr mctxt
-        return (mctxt', pats)
+        return (an, mctxt', pats)
 
   grhss' <- markAnnotated grhss
 
-  return (Match an mctxt' pats' grhss')
+  return (Match an0 mctxt' pats' grhss')
 
 -- ---------------------------------------------------------------------
 
@@ -3109,11 +3106,11 @@ instance ExactPrint (HsExpr GhcPs) where
     return (HsLit an lit')
 
   exact (HsLam an lam_variant mg) = do
-    an0 <- markLensKw an lepl_lambda AnnLam
+    an0 <- mark an AnnLam
     an1 <- case lam_variant of
              LamSingle -> return an0
-             LamCase -> markLensKwM' an0 lepl_case AnnCase
-             LamCases -> markLensKwM' an0 lepl_case AnnCases
+             LamCase -> mark an0 AnnCase
+             LamCases -> mark an0 AnnCases
     mg' <- markAnnotated mg
     return (HsLam an1 lam_variant mg')
 
@@ -3128,14 +3125,14 @@ instance ExactPrint (HsExpr GhcPs) where
     at' <- markEpToken at
     arg' <- markAnnotated arg
     return (HsAppType at' fun' arg')
-  exact (OpApp x e1 e2 e3) = do
+  exact (OpApp an e1 e2 e3) = do
     e1' <- markAnnotated e1
     e2' <- markAnnotated e2
     e3' <- markAnnotated e3
-    return (OpApp x e1' e2' e3')
+    return (OpApp an e1' e2' e3')
 
   exact (NegApp an e s) = do
-    an0 <- markEpToken an
+    an0 <- markEpAnnL an lidl AnnMinus
     e' <- markAnnotated e
     return (NegApp an0 e' s)
 
@@ -3157,16 +3154,16 @@ instance ExactPrint (HsExpr GhcPs) where
     expr' <- markAnnotated expr
     return (SectionR an op' expr')
 
-  exact (ExplicitTuple (o,c) args b) = do
-    o0 <- if b == Boxed then markLensKw o lid AnnOpenP
-                        else markLensKw o lid AnnOpenPH
+  exact (ExplicitTuple an args b) = do
+    an0 <- if b == Boxed then markEpAnnL an lidl AnnOpenP
+                         else markEpAnnL an lidl AnnOpenPH
 
     args' <- mapM markAnnotated args
 
-    c0 <- if b == Boxed then markLensKw c lid AnnCloseP
-                        else markLensKw c lid AnnClosePH
+    an1 <- if b == Boxed then markEpAnnL an0 lidl AnnCloseP
+                         else markEpAnnL an0 lidl AnnClosePH
     debugM $ "ExplicitTuple done"
-    return (ExplicitTuple (o0,c0) args' b)
+    return (ExplicitTuple an1 args' b)
 
   exact (ExplicitSum an alt arity expr) = do
     an0 <- markLensKw an laesOpen AnnOpenPH
@@ -3180,8 +3177,11 @@ instance ExactPrint (HsExpr GhcPs) where
     an0 <- markLensKw an lhsCaseAnnCase AnnCase
     e' <- markAnnotated e
     an1 <- markLensKw an0 lhsCaseAnnOf AnnOf
+    an2 <- markEpAnnL an1 lhsCaseAnnsRest AnnOpenC
+    an3 <- markEpAnnAllL' an2 lhsCaseAnnsRest AnnSemi
     alts' <- setLayoutBoth $ markAnnotated alts
-    return (HsCase an1 e' alts')
+    an4 <- markEpAnnL an3 lhsCaseAnnsRest AnnCloseC
+    return (HsCase an4 e' alts')
 
   exact (HsIf an e1 e2 e3) = do
     an0 <- markLensKw an laiIf AnnIf
@@ -3194,12 +3194,12 @@ instance ExactPrint (HsExpr GhcPs) where
     e3' <- markAnnotated e3
     return (HsIf an4 e1' e2' e3')
 
-  exact (HsMultiIf (i,o,c) mg) = do
-    i0 <- markEpToken i
-    o0 <- markEpToken o
+  exact (HsMultiIf an mg) = do
+    an0 <- markEpAnnL an lidl AnnIf
+    an1 <- markEpAnnL an0 lidl AnnOpenC -- optional
     mg' <- markAnnotated mg
-    c0 <- markEpToken c
-    return (HsMultiIf (i0,o0,c0) mg')
+    an2 <- markEpAnnL an1 lidl AnnCloseC -- optional
+    return (HsMultiIf an2 mg')
 
   exact (HsLet (tkLet, tkIn) binds e) = do
     setLayoutBoth $ do -- Make sure the 'in' gets indented too
@@ -3633,11 +3633,11 @@ instance ExactPrint (HsCmd GhcPs) where
     return (HsCmdApp an e1' e2')
 
   exact (HsCmdLam an lam_variant matches) = do
-    an0 <- markLensKw an lepl_lambda AnnLam
+    an0 <- markEpAnnL an lidl AnnLam
     an1 <- case lam_variant of
              LamSingle -> return an0
-             LamCase -> markLensKwM' an0 lepl_case AnnCase
-             LamCases -> markLensKwM' an0 lepl_case AnnCases
+             LamCase -> markEpAnnL an0 lidl AnnCase
+             LamCases -> markEpAnnL an0 lidl AnnCases
     matches' <- markAnnotated matches
     return (HsCmdLam an1 lam_variant matches')
 
@@ -3651,8 +3651,11 @@ instance ExactPrint (HsCmd GhcPs) where
     an0 <- markLensKw an lhsCaseAnnCase AnnCase
     e' <- markAnnotated e
     an1 <- markLensKw an0 lhsCaseAnnOf AnnOf
+    an2 <- markEpAnnL an1 lhsCaseAnnsRest AnnOpenC
+    an3 <- markEpAnnAllL' an2 lhsCaseAnnsRest AnnSemi
     alts' <- markAnnotated alts
-    return (HsCmdCase an1 e' alts')
+    an4 <- markEpAnnL an3 lhsCaseAnnsRest AnnCloseC
+    return (HsCmdCase an4 e' alts')
 
   exact (HsCmdIf an a e1 e2 e3) = do
     an0 <- markLensKw an laiIf AnnIf
@@ -4099,22 +4102,31 @@ instance ExactPrintTVFlag flag => ExactPrint (HsTyVarBndr flag GhcPs) where
   getAnnotationEntry _ = NoEntryVal
   setAnnotationAnchor a _ _ _ = a
 
-  exact (UserTyVar an flag n) = do
+  exact (HsTvb an flag n (HsBndrNoKind _)) = do
     r <- exactTVDelimiters an flag $ \ani -> do
            n' <- markAnnotated n
-           return (ani, UserTyVar an flag n')
+           return (ani, HsTvb an flag n' (HsBndrNoKind noExtField))
     case r of
-      (an', flag', UserTyVar _ _ n'') -> return (UserTyVar an' flag' n'')
-      _ -> error "KindedTyVar should never happen here"
-  exact (KindedTyVar an flag n k) = do
+      (an', flag', HsTvb _ _ n'' k'') -> return (HsTvb an' flag' n'' k'')
+  exact (HsTvb an flag n (HsBndrKind _ k)) = do
     r <- exactTVDelimiters an flag $ \ani -> do
           n' <- markAnnotated n
           an0 <- markEpAnnL ani lidl AnnDcolon
           k' <- markAnnotated k
-          return (an0, KindedTyVar an0 flag n' k')
+          return (an0, HsTvb an0 flag n' (HsBndrKind noExtField k'))
     case r of
-      (an',flag', KindedTyVar _ _ n'' k'') -> return (KindedTyVar an' flag' n'' k'')
-      _ -> error "UserTyVar should never happen here"
+      (an',flag', HsTvb _ _ n'' k'') -> return (HsTvb an' flag' n'' k'')
+
+instance ExactPrint (HsBndrVar GhcPs) where
+  getAnnotationEntry _ = NoEntryVal
+  setAnnotationAnchor a _ _ _ = a
+
+  exact (HsBndrVar x n) = do
+    n' <- markAnnotated n
+    return (HsBndrVar x n')
+  exact (HsBndrWildCard x) = do
+    printStringAdvance "_"
+    return (HsBndrWildCard x)
 
 -- ---------------------------------------------------------------------
 
@@ -4837,7 +4849,7 @@ instance ExactPrint (Pat GhcPs) where
     return (ParPat (lpar', rpar') pat')
 
   exact (BangPat an pat) = do
-    an0 <- markEpToken an
+    an0 <- markEpAnnL an lidl AnnBang
     pat' <- markAnnotated pat
     return (BangPat an0 pat')
 
@@ -4845,22 +4857,22 @@ instance ExactPrint (Pat GhcPs) where
     (an', pats') <- markAnnList' an (markAnnotated pats)
     return (ListPat an' pats')
 
-  exact (TuplePat (o,c) pats boxity) = do
-    o0 <- case boxity of
-             Boxed   -> markLensKw o lid AnnOpenP
-             Unboxed -> markLensKw o lid AnnOpenPH
+  exact (TuplePat an pats boxity) = do
+    an0 <- case boxity of
+             Boxed   -> markEpAnnL an lidl AnnOpenP
+             Unboxed -> markEpAnnL an lidl AnnOpenPH
     pats' <- markAnnotated pats
-    c0 <- case boxity of
-             Boxed   -> markLensKw c lid AnnCloseP
-             Unboxed -> markLensKw c lid AnnClosePH
-    return (TuplePat (o0,c0) pats' boxity)
+    an1 <- case boxity of
+             Boxed   -> markEpAnnL an0 lidl AnnCloseP
+             Unboxed -> markEpAnnL an0 lidl AnnClosePH
+    return (TuplePat an1 pats' boxity)
 
   exact (SumPat an pat alt arity) = do
-    an0 <- markLensKw an (lsumPatParens . lfst) AnnOpenPH
+    an0 <- markEpAnnL an lsumPatParens AnnOpenPH
     an1 <- markAnnKwAllL an0 lsumPatVbarsBefore AnnVbar
     pat' <- markAnnotated pat
     an2 <- markAnnKwAllL an1 lsumPatVbarsAfter AnnVbar
-    an3 <- markLensKw an2 (lsumPatParens . lsnd)  AnnClosePH
+    an3 <- markEpAnnL an2 lsumPatParens AnnClosePH
     return (SumPat an3 pat' alt arity)
 
   exact (OrPat an pats) = do
@@ -4881,7 +4893,7 @@ instance ExactPrint (Pat GhcPs) where
   exact p@(LitPat _ lit) = printStringAdvance (hsLit2String lit) >> return p
   exact (NPat an ol mn z) = do
     an0 <- if (isJust mn)
-      then markEpToken an
+      then markEpAnnL an lidl AnnMinus
       else return an
     ol' <- markAnnotated ol
     return (NPat an0 ol' mn z)
