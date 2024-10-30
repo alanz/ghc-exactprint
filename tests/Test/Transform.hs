@@ -133,8 +133,10 @@ changeLocalDecls2 libdir (L l p) = do
         let anc = (EpaDelta noSrcSpan (DifferentLine 1 3) [])
         let anc2 = (EpaDelta noSrcSpan (DifferentLine 1 5) [])
         let an = EpAnn anc
-                        (AnnList (Just anc2) Nothing Nothing
-                                 [AddEpAnn AnnWhere (EpaDelta noSrcSpan (SameLine 0) [])] [])
+                        (AnnList (Just anc2) ListNone
+                                 []
+                                 (EpTok (EpaDelta noSrcSpan (SameLine 0) []))
+                                 [])
                         emptyComments
         let decls = [s,d]
         let sortKey = captureOrderBinds decls
@@ -591,9 +593,9 @@ addHiding1 _libdir (L l p) = do
           v2 = L (           noAnnSrcSpanDP0) (IEVar Nothing (L noAnnSrcSpanDP0 (IEName noExtField n2)) Nothing)
           impHiding = L (EpAnn d0
                                (AnnList Nothing
-                                        (Just (AddEpAnn AnnOpenP  d1))
-                                        (Just (AddEpAnn AnnCloseP d0))
-                                        [(AddEpAnn AnnHiding d1)]
+                                        (ListParens  (EpTok  d1) (EpTok d0))
+                                        []
+                                        (EpTok d1, [])
                                         [])
                                  emptyComments) [v1,v2]
           imp1' = imp1 { ideclImportList = Just (EverythingBut,impHiding)}
@@ -616,9 +618,9 @@ addHiding2 _libdir top = do
           Just (_,L _lh ns) = ideclImportList imp1
           lh' = (EpAnn d0
                        (AnnList Nothing
-                                (Just (AddEpAnn AnnOpenP  d1))
-                                (Just (AddEpAnn AnnCloseP d0))
-                                [(AddEpAnn AnnHiding d1)]
+                                (ListParens (EpTok d1) (EpTok d0))
+                                []
+                                (EpTok d1, [])
                                 [])
                          emptyComments)
           n1 = L (noAnnSrcSpanDP0) (mkVarUnqual (mkFastString "n1"))

@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -203,17 +204,18 @@ captureLineSpacing ds = map (\(_,_,x) -> x) $ go (map to ds)
 -- ---------------------------------------------------------------------
 
 captureTypeSigSpacing :: LHsDecl GhcPs -> LHsDecl GhcPs
-captureTypeSigSpacing (L l (SigD x (TypeSig (AnnSig dc rs') ns (HsWC xw ty))))
-  = (L l (SigD x (TypeSig (AnnSig dc' rs') ns (HsWC xw ty'))))
+captureTypeSigSpacing (L l (SigD x (TypeSig (AnnSig NoEpUniTok mp md) ns (HsWC xw ty))))
+  = (L l (SigD x (TypeSig (AnnSig NoEpUniTok mp md) ns (HsWC xw ty))))
+captureTypeSigSpacing (L l (SigD x (TypeSig (AnnSig (EpUniTok dca u) mp md) ns (HsWC xw ty))))
+  = (L l (SigD x (TypeSig (AnnSig (EpUniTok dca' u) mp md) ns (HsWC xw ty'))))
   where
     -- we want DPs for the distance from the end of the ns to the
     -- AnnDColon, and to the start of the ty
-    AddEpAnn kw dca = dc
     rd = case last ns of
-      L (EpAnn anc' _ _) _ -> anchor anc' -- TODO MovedAnchor?
-    dc' = case dca of
-      EpaSpan ss@(RealSrcSpan r _) -> AddEpAnn kw (EpaDelta ss (ss2delta (ss2posEnd rd) r) [])
-      _                            -> AddEpAnn kw dca
+      L (EpAnn anc' _ _) _ -> epaLocationRealSrcSpan anc'
+    dca' = case dca of
+          EpaSpan ss@(RealSrcSpan r _) -> (EpaDelta ss (ss2delta (ss2posEnd rd) r) [])
+          _                            -> dca
 
     -- ---------------------------------
 
@@ -297,7 +299,7 @@ setEntryDP (L (EpAnn (EpaSpan ss@(RealSrcSpan r _)) an cs) a) dp
                 col = deltaColumn delta
                 edp' = if line == 0 then SameLine col
                                     else DifferentLine line col
-                edp = edp' `debug` ("setEntryDP :" ++ showGhc (edp', (ss2pos $ anchor $ getLoc lc), r))
+                edp = edp' `debug` ("setEntryDP :" ++ showGhc (edp', (ss2pos $ epaLocationRealSrcSpan $ getLoc lc), r))
 
 
 -- ---------------------------------------------------------------------
@@ -551,12 +553,12 @@ trailingCommentsDeltas _ [] = []
 trailingCommentsDeltas r (la@(L (EpaDelta _ dp _) _):las)
   = (getDeltaLine dp, la): trailingCommentsDeltas r las
 trailingCommentsDeltas r (la@(L l _):las)
-  = deltaComment r la : trailingCommentsDeltas (anchor l) las
+  = deltaComment r la : trailingCommentsDeltas (epaLocationRealSrcSpan l) las
   where
     deltaComment rs' (L loc c) = (abs(ll - al), L loc c)
       where
         (al,_) = ss2posEnd rs'
-        (ll,_) = ss2pos (anchor loc)
+        (ll,_) = ss2pos (epaLocationRealSrcSpan loc)
 
 priorCommentsDeltas :: RealSrcSpan -> [LEpaComment]
                     -> [(Int, LEpaComment)]
@@ -564,14 +566,14 @@ priorCommentsDeltas r cs = go r (sortEpaComments cs)
   where
     go :: RealSrcSpan -> [LEpaComment] -> [(Int, LEpaComment)]
     go _   [] = []
-    go _   (la@(L l@(EpaDelta _ dp _) _):las) = (deltaLine dp, la) : go (anchor l) las
-    go rs' (la@(L l _):las) = deltaComment rs' la : go (anchor l) las
+    go _   (la@(L l@(EpaDelta _ dp _) _):las) = (getDeltaLine dp, la) : go (epaLocationRealSrcSpan l) las
+    go rs' (la@(L l _):las) = deltaComment rs' la : go (epaLocationRealSrcSpan l) las
 
     deltaComment :: RealSrcSpan -> LEpaComment -> (Int, LEpaComment)
     deltaComment rs' (L loc c) = (abs(ll - al), L loc c)
       where
         (al,_) = ss2pos rs'
-        (ll,_) = ss2pos (anchor loc)
+        (ll,_) = ss2pos (epaLocationRealSrcSpan loc)
 
 
 -- ---------------------------------------------------------------------
@@ -663,14 +665,14 @@ addCommentOrigDeltasAnn (EpAnn e a cs) = EpAnn e a (addCommentOrigDeltas cs)
 -- TODO: this is replicating functionality in ExactPrint. Sort out the
 -- import loop`
 anchorFromLocatedA :: LocatedA a -> RealSrcSpan
-anchorFromLocatedA (L (EpAnn anc _ _) _) = anchor anc
+anchorFromLocatedA (L (EpAnn anc _ _) _) = epaLocationRealSrcSpan anc
 
 -- | Get the full span of interest for comments from a LocatedA.
 -- This extends up to the last TrailingAnn
 fullSpanFromLocatedA :: LocatedA a -> RealSrcSpan
 fullSpanFromLocatedA (L (EpAnn anc (AnnListItem tas)  _) _) = rr
   where
-    r = anchor anc
+    r = epaLocationRealSrcSpan anc
     trailing_loc ta = case ta_location ta of
         EpaSpan (RealSrcSpan s _) -> [s]
         _ -> []
@@ -694,7 +696,7 @@ balanceSameLineComments (L la (Match anm mctxt pats (GRHSs x grhss lb)))
           (csp,csf) = case anc1 of
             EpaComments cs -> ([],cs)
             EpaCommentsBalanced p f -> (p,f)
-          (move',stay') = break (simpleBreak 0) (trailingCommentsDeltas (anchor anc) csf)
+          (move',stay') = break (simpleBreak 0) (trailingCommentsDeltas (epaLocationRealSrcSpan anc) csf)
           move = map snd move'
           stay = map snd stay'
           cs1 = epaCommentsBalanced csp stay
@@ -740,7 +742,7 @@ dn n = EpaDelta noSrcSpan (SameLine n) []
 
 addComma :: SrcSpanAnnA -> SrcSpanAnnA
 addComma (EpAnn anc (AnnListItem as) cs)
-  = EpAnn anc (AnnListItem (AddCommaAnn d0:as)) cs
+  = EpAnn anc (AnnListItem (AddCommaAnn (EpTok d0):as)) cs
 
 -- ---------------------------------------------------------------------
 
@@ -1081,33 +1083,34 @@ replaceDeclsValbinds w (EmptyLocalBinds _) new
         sortKey = captureOrderBinds new
       in (HsValBinds an (ValBinds sortKey decs sigs))
 
-oldWhereAnnotation :: EpAnn AnnList -> WithWhere -> RealSrcSpan -> (EpAnn AnnList)
+oldWhereAnnotation :: EpAnn (AnnList (EpToken "where"))
+  -> WithWhere -> RealSrcSpan -> (EpAnn (AnnList (EpToken "where")))
 oldWhereAnnotation (EpAnn anc an cs) ww _oldSpan = an'
   -- TODO: when we set DP (0,0) for the HsValBinds EpEpaLocation,
   -- change the AnnList anchor to have the correct DP too
   where
-    (AnnList ancl o c _r t) = an
+    (AnnList ancl p s _r t) = an
     w = case ww of
-      WithWhere -> [AddEpAnn AnnWhere (EpaDelta noSrcSpan (SameLine 0) [])]
-      WithoutWhere -> []
+      WithWhere -> EpTok (EpaDelta noSrcSpan (SameLine 0) [])
+      WithoutWhere -> NoEpTok
     (anc', ancl') =
           case ww of
             WithWhere -> (anc, ancl)
             WithoutWhere -> (anc, ancl)
     an' = EpAnn anc'
-                (AnnList ancl' o c w t)
+                (AnnList ancl' p s w t)
                 cs
 
-newWhereAnnotation :: WithWhere -> (EpAnn AnnList)
+newWhereAnnotation :: WithWhere -> (EpAnn (AnnList (EpToken "where")))
 newWhereAnnotation ww = an
   where
   anc  = EpaDelta noSrcSpan (DifferentLine 1 3) []
   anc2 = EpaDelta noSrcSpan (DifferentLine 1 5) []
   w = case ww of
-    WithWhere -> [AddEpAnn AnnWhere (EpaDelta noSrcSpan (SameLine 0) [])]
-    WithoutWhere -> []
+    WithWhere -> EpTok (EpaDelta noSrcSpan (SameLine 0) [])
+    WithoutWhere -> NoEpTok
   an = EpAnn anc
-              (AnnList (Just anc2) Nothing Nothing w [])
+              (AnnList (Just anc2) ListNone [] w [])
               emptyComments
 
 -- ---------------------------------------------------------------------

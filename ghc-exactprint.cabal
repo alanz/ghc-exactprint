@@ -47,7 +47,6 @@ library
   import: warnings
   exposed-modules:     Language.Haskell.GHC.ExactPrint
                      , Language.Haskell.GHC.ExactPrint.ExactPrint
-                     , Language.Haskell.GHC.ExactPrint.Lookup
                      , Language.Haskell.GHC.ExactPrint.Parsers
                      , Language.Haskell.GHC.ExactPrint.Preprocess
                      , Language.Haskell.GHC.ExactPrint.Transform
