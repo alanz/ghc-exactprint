@@ -252,10 +252,12 @@ cabal configure  -froundtrip --enable-tests --with-compiler=ghc-9.10.1
 # cabal configure -fdev --enable-tests --with-compiler=/opt/ghc/9.11.20240908/bin/ghc --allow-newer
 
 # cabal configure -fdev --enable-tests --with-compiler=/opt/ghc/9.11.20240921/bin/ghc --allow-newer
-cabal configure -fdev --enable-tests --with-compiler=/opt/ghc/9.11.20240922/bin/ghc --allow-newer
+# cabal configure -fdev --enable-tests --with-compiler=/opt/ghc/9.11.20240922/bin/ghc --allow-newer
+cabal configure -fdev --enable-tests --with-compiler=/opt/ghc/9.12.0.20241105/bin/ghc 
+
 
 #--------------------------------------------------------------------
 #- GHC 9.14.1
 
-cabal configure -fdev --enable-tests --with-compiler=/opt/ghc/9.13.20241029/bin/ghc --allow-newer
+# cabal configure -fdev --enable-tests --with-compiler=/opt/ghc/9.13.20241029/bin/ghc --allow-newer
 
