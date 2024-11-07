@@ -28,26 +28,26 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-data GHCVersion = GHC98
-           | GHC910
+data GHCVersion = GHC910
+           | GHC912
      deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
-#if MIN_VERSION_ghc(9,10,0)
-ghcVersion = GHC910
+#if MIN_VERSION_ghc(9,12,0)
+ghcVersion = GHC912
 #else
-ghcVersion = GHC98
+ghcVersion = GHC910
 #endif
 
 -- | Directories to automatically find roundtrip tests
 testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
-    GHC98 -> ["pre-ghc910"]
     GHC910 -> ["pre-ghc910", "ghc910"]
-    -- GHC910  -> ["ghc910"]
-    -- GHC910  -> ["ghc910-copied"]
-    -- GHC910  -> ["ghc910",  "ghc910-copied"]
+    GHC912 -> ["pre-ghc910", "ghc910", "ghc912"]
+    -- GHC912  -> ["ghc912"]
+    -- GHC912  -> ["ghc912-copied"]
+    -- GHC912  -> ["ghc912",  "ghc912-copied"]
 
 -- ---------------------------------------------------------------------
 
@@ -208,7 +208,9 @@ tt' = do
     -- mkParserTest libdir "ghc910" "Test138.hs"
     -- mkParserTest libdir "vect" "DiophantineVect.hs"
 
-    mkParserTest libdir "pre-ghc910" "RandomPGC.hs"
+    -- mkParserTest libdir "pre-ghc910" "RandomPGC.hs"
+
+    mkParserTest libdir "ghc912-copied" "T23501a.hs"
    -- Needs GHC changes
 
 

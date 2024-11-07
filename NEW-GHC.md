@@ -8,7 +8,7 @@ Change to the current GHC git repository (for the new version of GHC)
 
     $ mkdir /tmp/ghc-tests
     $ export DESTINATION=/tmp/ghc-tests
-    $ export PREVIOUS=ghc-9.8
+    $ export PREVIOUS=ghc-9.10
 
 Sanity check
 
@@ -27,8 +27,8 @@ tests. Generally remove any `should_fail` directory.
 
 In the ghc-exactprint directory
 
-    $ mkdir tests/examples/ghc910-copied
-    $ find /tmp/ghc-tests -iname "*.hs"  | xargs cp  --backup=numbered -t ./tests/examples/ghc910-copied/
+    $ mkdir tests/examples/ghc912-copied
+    $ find /tmp/ghc-tests -iname "*.hs"  | xargs cp  --backup=numbered -t ./tests/examples/ghc912-copied/
 
 Note: there is a pathological file `parsing001.hs`, which should be deleted
 
@@ -40,12 +40,12 @@ extension.
 You may need to do `apt-get install mmv` first.
 See http://manpages.ubuntu.com/manpages/zesty/en/man1/mmv.1.html
 
-    $ cd tests/examples/ghc910-copied
+    $ cd tests/examples/ghc912-copied
     $ mmv "*.hs.~*~" "#1.#2.hs"
 
 ### cleanup whitespace in the files
 
-    $ cd tests/examples/ghc910-copied
+    $ cd tests/examples/ghc912-copied
     $ ../../../emacs-ws-cleanup.sh
     $ rm *~ # get rid of emacs backup files
 
@@ -72,4 +72,4 @@ Also comment out the running of the `roundTripBalanceCommentsTests` and
 will not be useful.
 
 Run the tests, and move the failing test files over to the
-`tests/examples/ghc96` directory
+`tests/examples/ghc912` directory

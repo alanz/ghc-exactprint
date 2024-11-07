@@ -63,3 +63,4 @@ packages
 /failing-tests-for-ghc9.2.txt
 /failures.txt
 /tests/examples/ghc910-copied/
+/tests/examples/transform/AddArgFromWhereComments.hs.expected
