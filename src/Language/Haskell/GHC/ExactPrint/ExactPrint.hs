@@ -2530,8 +2530,7 @@ instance ExactPrint (HsLocalBinds GhcPs) where
   setAnnotationAnchor a _ _ _ = a
 
   exact (HsValBinds an valbinds) = do
-    debugM $ "exact HsValBinds: an=" ++ showAst an
-    an0 <- markLensFun' an lal_rest markEpToken
+    an0 <- markLensFun' an lal_rest markEpToken -- 'where'
 
     case al_anchor $ anns an of
       Just anc -> do
@@ -2774,8 +2773,8 @@ instance ExactPrint (DefaultDecl GhcPs) where
 
   exact (DefaultDecl (d,op,cp) cl tys) = do
     d' <- markEpToken d
-    cl' <- markAnnotated cl
     op' <- markEpToken op
+    cl' <- markAnnotated cl
     tys' <- markAnnotated tys
     cp' <- markEpToken cp
     return (DefaultDecl (d',op',cp') cl' tys')
@@ -3935,9 +3934,9 @@ instance ExactPrint (HsBndrVar GhcPs) where
   exact (HsBndrVar x n) = do
     n' <- markAnnotated n
     return (HsBndrVar x n')
-  exact (HsBndrWildCard x) = do
-    printStringAdvance "_"
-    return (HsBndrWildCard x)
+  exact (HsBndrWildCard t) = do
+    t' <- markEpToken t
+    return (HsBndrWildCard t')
 
 -- ---------------------------------------------------------------------
 
@@ -4046,12 +4045,14 @@ instance ExactPrint (HsType GhcPs) where
     tys' <- markAnnotated tys
     c' <- markEpToken c
     return (HsExplicitListTy (sq',o',c') prom tys')
-  exact (HsExplicitTupleTy (sq, o, c) tys) = do
-    sq' <- markEpToken sq
+  exact (HsExplicitTupleTy (sq, o, c) prom tys) = do
+    sq' <- if (isPromoted prom)
+              then markEpToken sq
+              else return sq
     o' <- markEpToken o
     tys' <- markAnnotated tys
     c' <- markEpToken c
-    return (HsExplicitTupleTy (sq', o', c') tys')
+    return (HsExplicitTupleTy (sq', o', c') prom tys')
   exact (HsTyLit a lit) = do
     case lit of
       (HsNumTy src v) -> printSourceText src (show v)

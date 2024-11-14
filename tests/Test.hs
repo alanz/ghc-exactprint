@@ -210,7 +210,9 @@ tt' = do
 
     -- mkParserTest libdir "pre-ghc910" "RandomPGC.hs"
 
-    mkParserTest libdir "ghc912-copied" "T23501a.hs"
+    -- mkParserTest libdir "ghc912" "Module.hs"
+    -- mkParserTest libdir "ghc912" "tests.hs"
+    mkParserTest libdir "ghc912" "T23501a.hs"
    -- Needs GHC changes
 
 
