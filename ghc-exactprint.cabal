@@ -6,7 +6,7 @@ description:         Using the API Annotations available from GHC 9.2.1, this
                      library provides a means to round trip any code that can
                      be compiled by GHC, currently excluding lhs files.
                      .
-                     Note: requires GHC 9.10.*. For earlier GHC
+                     Note: requires GHC 9.12.*. For earlier GHC
                      versions see lower version numbers.
                      .
 
@@ -16,7 +16,7 @@ author:              Alan Zimmerman, Matthew Pickering
 maintainer:          alan.zimm@gmail.com
 category:            Development
 build-type:          Simple
-tested-with:         GHC == 9.10.1
+tested-with:         GHC == 9.12.1
 extra-doc-files:     ChangeLog
 extra-source-files:  tests/examples/failing/*.hs
                      tests/examples/failing/*.hs.bad
