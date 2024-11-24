@@ -257,13 +257,11 @@ setEntryDP (L (EpAnn (EpaSpan ss) an (EpaComments [])) a) dp
 setEntryDP (L (EpAnn (EpaDelta ss d csd) an cs) a) dp
   = L (EpAnn (EpaDelta ss d' csd') an cs') a
   where
+    -- I suspect we should assume the comments are already in the
+    -- right place, and just set the entry DP for this case. This
+    -- avoids suprises from the caller.
     (d', csd', cs') = case cs of
-      EpaComments (h:t) ->
-        let
-          (dp0,c') = go h
-        in
-          (dp0, c':t++csd, EpaComments [])
-      EpaComments [] ->
+      EpaComments _ ->
           (dp, csd, cs)
       EpaCommentsBalanced (h:t) ts ->
         let
@@ -279,8 +277,8 @@ setEntryDP (L (EpAnn (EpaDelta ss d csd) an cs) a) dp
                 in
                   (dp0, c':t, EpaCommentsBalanced [] ts)
     go :: GenLocated NoCommentsLocation e -> (DeltaPos, GenLocated NoCommentsLocation e)
-    go (L (EpaDelta ss0 _ c0) c) = (d,  L (EpaDelta ss0 dp c0) c)
-    go (L (EpaSpan ss0)       c) = (d,  L (EpaDelta ss0 dp NoComments) c)
+    go (L (EpaDelta ss0 d0 c0) c) = (d0,  L (EpaDelta ss0 dp c0) c)
+    go (L (EpaSpan ss0)       c)  = (d,  L (EpaDelta ss0 dp NoComments) c)
 setEntryDP (L (EpAnn (EpaSpan ss@(RealSrcSpan r _)) an cs) a) dp
   = case sortEpaComments (priorComments cs) of
       [] ->
