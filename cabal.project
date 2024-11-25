@@ -30,3 +30,5 @@ packages: .
 package ghc-exactprint
   test-show-details: direct
 
+allow-newer: all
+
