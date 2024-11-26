@@ -54,6 +54,8 @@ testDirs =
 main :: IO ()
 main = hSilence [stderr] $ do
   print ghcVersion
+  cwd <- getCurrentDirectory
+  putStrLn $ "cwd:" ++ show cwd
   tests <- mkTests
   cnts <- fst <$> runTestText (putTextToHandle stdout True) tests
   putStrLn $ show cnts
