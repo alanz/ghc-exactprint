@@ -192,6 +192,7 @@ jobs:
           $HCPKG list --simple-output --names-only | perl -ne 'for (split /\s+/) { print "constraints: any.$_ installed\n" unless /^(ghc-exactprint)$/; }' >> cabal.project.local
           cat cabal.project
           cat cabal.project.local
+          pwd
       - name: dump install plan
         run: |
           $CABAL v2-build $ARG_COMPILER $ARG_TESTS $ARG_BENCH --dry-run all
@@ -214,6 +215,9 @@ jobs:
           $CABAL v2-build $ARG_COMPILER $ARG_TESTS $ARG_BENCH all --write-ghc-environment-files=always
       - name: tests
         run: |
+          pwd
+          cd ${PKGDIR_ghc_exactprint} || false
+          pwd
           $CABAL v2-test $ARG_COMPILER $ARG_TESTS $ARG_BENCH all --test-show-details=direct
       - name: cabal check
         run: |
