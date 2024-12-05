@@ -254,7 +254,10 @@ rm -fr dist*
 # cabal configure -fdev --enable-tests --with-compiler=/opt/ghc/9.11.20240921/bin/ghc --allow-newer
 # cabal configure -fdev --enable-tests --with-compiler=/opt/ghc/9.11.20240922/bin/ghc --allow-newer
 # cabal configure -fdev --enable-tests --with-compiler=/opt/ghc/9.12.0.20241105/bin/ghc
-cabal configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.12.0.20241114/bin/ghc --allow-newer
+# cabal configure -fdev -froundtrip --enable-tests --with-compiler=/opt/ghc/9.12.0.20241114/bin/ghc --allow-newer
+
+# cabal configure -fdev -froundtrip --enable-tests --with-compiler=/home/alanz/.ghcup/bin/ghc-9.12.0.20241128 --allow-newer
+cabal configure -fdev --enable-tests --with-compiler=/home/alanz/.ghcup/bin/ghc-9.12.0.20241128 
 
 
 
