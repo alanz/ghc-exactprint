@@ -332,17 +332,23 @@ setEntryDPFromAnchor  off (EpaSpan (RealSrcSpan anc _)) ll@(L la _) = setEntryDP
 
 -- ---------------------------------------------------------------------
 
--- |Take the annEntryDelta associated with the first item and associate it with the second.
--- Also transfer any comments occurring before it.
+-- |Take the annEntryDelta associated with the first item and
+-- associate it with the second. Also transfer any comments occurring
+-- before it.
 transferEntryDP :: (Typeable t1, Typeable t2)
   => LocatedAn t1 a -> LocatedAn t2 b -> (LocatedAn t2 b)
-transferEntryDP (L (EpAnn anc1 an1 cs1) _) (L (EpAnn _anc2 an2 cs2) b) =
+transferEntryDP (L (EpAnn anc1 an1 cs1) _) (L (EpAnn anc2 an2 cs2) b) =
+  -- Note: the EpaDelta version of an EpaLocation contains the original
+  -- SrcSpan. We must preserve that.
+  let anc1' = case (anc1,anc2) of
+          (EpaDelta _ dp cs, EpaDelta ss2 _ _) -> EpaDelta ss2 dp cs
+          (_, _) -> anc1
   -- Problem: if the original had preceding comments, blindly
   -- transferring the location is not correct
-  case priorComments cs1 of
-    [] -> (L (EpAnn anc1 (combine an1 an2) cs2) b)
+  in case priorComments cs1 of
+    [] -> (L (EpAnn anc1' (combine an1 an2) cs2) b)
     -- TODO: what happens if the receiving side already has comments?
-    (L _ _:_) -> (L (EpAnn anc1 (combine an1 an2) (cs1 <> cs2)) b)
+    (L _ _:_) -> (L (EpAnn anc1' (combine an1 an2) (cs1 <> cs2)) b)
 
 
 -- |If a and b are the same type return first arg, else return second
