@@ -28,32 +28,34 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-data GHCVersion = GHC98
-           | GHC910
+data GHCVersion = GHC910
+           | GHC912
      deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
-#if MIN_VERSION_ghc(9,10,0)
-ghcVersion = GHC910
+#if MIN_VERSION_ghc(9,12,0)
+ghcVersion = GHC912
 #else
-ghcVersion = GHC98
+ghcVersion = GHC910
 #endif
 
 -- | Directories to automatically find roundtrip tests
 testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
-    GHC98 -> ["pre-ghc910"]
     GHC910 -> ["pre-ghc910", "ghc910"]
-    -- GHC910  -> ["ghc910"]
-    -- GHC910  -> ["ghc910-copied"]
-    -- GHC910  -> ["ghc910",  "ghc910-copied"]
+    GHC912 -> ["pre-ghc910", "ghc910", "ghc912"]
+    -- GHC912  -> ["ghc912"]
+    -- GHC912  -> ["ghc912-copied"]
+    -- GHC912  -> ["ghc912",  "ghc912-copied"]
 
 -- ---------------------------------------------------------------------
 
 main :: IO ()
 main = hSilence [stderr] $ do
   print ghcVersion
+  cwd <- getCurrentDirectory
+  putStrLn $ "cwd:" ++ show cwd
   tests <- mkTests
   cnts <- fst <$> runTestText (putTextToHandle stdout True) tests
   putStrLn $ show cnts
@@ -206,8 +208,15 @@ tt' = do
     -- mkParserTest libdir "ghc910" "CppComment.hs"
     -- mkParserTest libdir "ghc910" "Class.hs"
     -- mkParserTest libdir "ghc910" "Test138.hs"
-    mkParserTest libdir "vect" "DiophantineVect.hs"
+    -- mkParserTest libdir "vect" "DiophantineVect.hs"
 
+    -- mkParserTest libdir "pre-ghc910" "RandomPGC.hs"
+
+    -- mkParserTest libdir "ghc912" "Module.hs"
+    -- mkParserTest libdir "ghc912" "tests.hs"
+    mkParserTestMD libdir "ghc912" "Fff.hs"
+    -- mkParserTestMD libdir "ghc912" "Module.hs"
+    -- mkParserTestMD libdir "ghc912" "Operator.hs"
    -- Needs GHC changes
 
 
