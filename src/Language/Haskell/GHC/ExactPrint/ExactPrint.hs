@@ -1473,11 +1473,6 @@ markAnnotatedWithLayout :: (Monad m, Monoid w) => ExactPrint ast => ast -> EP w 
 markAnnotatedWithLayout a = setLayoutBoth $ markAnnotated a
 
 -- ---------------------------------------------------------------------
-
-markTopLevelList :: (Monad m, Monoid w) => ExactPrint ast => [ast] -> EP w m [ast]
-markTopLevelList ls = mapM (\a -> setLayoutTopLevelP $ markAnnotated a) ls
-
--- ---------------------------------------------------------------------
 -- End of utility functions
 -- ---------------------------------------------------------------------
 -- Start of ExactPrint instances
@@ -1548,11 +1543,11 @@ instance ExactPrint (HsModule GhcPs) where
           an0 <- markLensTok an lam_mod
           m' <- markAnnotated m
 
-          mdeprec' <- setLayoutTopLevelP $ markAnnotated mdeprec
+          mdeprec' <- markAnnotated mdeprec
 
-          mexports' <- setLayoutTopLevelP $ markAnnotated mexports
+          mexports' <- markAnnotated mexports
 
-          an1 <- setLayoutTopLevelP $ markLensTok an0 lam_where
+          an1 <- markLensTok an0 lam_where
 
           return (an1, Just m', mdeprec', mexports')
 
@@ -1603,8 +1598,8 @@ instance ExactPrint HsModuleImpDecls where
   setAnnotationAnchor mid _anc _ cs = mid { id_cs = priorComments cs ++ getFollowingComments cs }
      `debug` ("HsModuleImpDecls.setAnnotationAnchor:cs=" ++ showAst cs)
   exact (HsModuleImpDecls cs imports decls) = do
-    imports' <- markTopLevelList imports
-    decls' <- markTopLevelList (filter notDocDecl decls)
+    imports' <- mapM markAnnotated imports
+    decls' <- mapM markAnnotated (filter notDocDecl decls)
     return (HsModuleImpDecls cs imports' decls')
 
 
@@ -4907,18 +4902,6 @@ setLayoutBoth k = do
                         , pMarkLayout = False
                         , pLHS = oldAnchorOffset} )
   k <* reset
-
--- Use 'local', designed for this
-setLayoutTopLevelP :: (Monad m, Monoid w) => EP w m a -> EP w m a
-setLayoutTopLevelP k = do
-  debugM $ "setLayoutTopLevelP entered"
-  oldAnchorOffset <- getLayoutOffsetP
-  modify (\a -> a { pMarkLayout = False
-                  , pLHS = 0} )
-  r <- k
-  debugM $ "setLayoutTopLevelP:resetting"
-  setLayoutOffsetP oldAnchorOffset
-  return r
 
 ------------------------------------------------------------------------
 
