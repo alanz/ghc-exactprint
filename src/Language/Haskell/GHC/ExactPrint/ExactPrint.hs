@@ -111,16 +111,19 @@ runEP epReader action = do
 
 defaultEPState :: EPState
 defaultEPState = EPState
-             { epPos      = (1,1)
-             , dLHS       = 0
-             , pMarkLayout = False
-             , pLHS = 0
-             , dMarkLayout = False
-             , dPriorEndPosition = (1,1)
-             , uAnchorSpan = badRealSrcSpan
+             { uAnchorSpan = badRealSrcSpan
              , uExtraDP = Nothing
              , uExtraDPReturn = Nothing
              , pAcceptSpan = False
+
+             , epPos       = (1,1)
+             , pMarkLayout = False
+             , pLHS = 0
+
+             , dPriorEndPosition = (1,1)
+             , dMarkLayout = False
+             , dLHS        = 0
+
              , epComments = []
              , epCommentsApplied = []
              , epEof = Nothing
