@@ -118,11 +118,11 @@ defaultEPState = EPState
 
              , epPos       = (1,1)
              , pMarkLayout = False
-             , pLHS = 0
+             , pLHS = LayoutStartCol 1
 
              , dPriorEndPosition = (1,1)
              , dMarkLayout = False
-             , dLHS        = 0
+             , dLHS        = LayoutStartCol 1
 
              , epComments = []
              , epCommentsApplied = []
@@ -520,7 +520,7 @@ enterAnn !(Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
     Just (pos, prior) -> do
        let dp = if pos == prior
              then (DifferentLine 1 0)
-             else origDelta pos prior
+             else adjustDeltaForOffset off (origDelta pos prior)
        debugM $ "EOF:(pos,posEnd,prior,dp) =" ++ showGhc (ss2pos pos, ss2posEnd pos, ss2pos prior, dp)
        printStringAtLsDelta dp ""
        setEofPos Nothing -- Only do this once
