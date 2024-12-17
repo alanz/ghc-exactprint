@@ -460,7 +460,6 @@ enterAnn !(Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
   -- delta phase variables -----------------------------------
   -- Calculate offset required to get to the start of the SrcSPan
   !off <- getLayoutOffsetD
-  let spanStart = ss2pos curAnchor
   priorEndAfterComments <- getPriorEndD
   let edp' = adjustDeltaForOffset
                -- Use the propagated offset if one is set
@@ -488,6 +487,7 @@ enterAnn !(Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
   when (isJust medr) $ setExtraDPReturn medr
   -- ---------------------------------------------
   -- Preparation complete, perform the action
+  let spanStart = ss2pos curAnchor
   when (priorEndAfterComments < spanStart) (do
     debugM $ "enterAnn.dPriorEndPosition:spanStart=" ++ show spanStart
     modify (\s -> s { dPriorEndPosition    = spanStart } ))
