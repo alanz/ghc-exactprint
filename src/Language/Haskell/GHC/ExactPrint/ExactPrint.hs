@@ -521,7 +521,7 @@ enterAnn !(Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
        let dp = if pos == prior
              then (DifferentLine 1 0)
              else adjustDeltaForOffset off (origDelta pos prior)
-       debugM $ "EOF:(pos,posEnd,prior,dp) =" ++ showGhc (ss2pos pos, ss2posEnd pos, ss2pos prior, dp)
+       debugM $ "EOF:(pos,posend,prior,off,dp) =" ++ show (ss2pos pos, ss2posEnd pos, ss2pos prior, off, dp)
        printStringAtLsDelta dp ""
        setEofPos Nothing -- Only do this once
 
@@ -550,8 +550,8 @@ enterAnn !(Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
               return after
            else return []
   !trailing' <- markTrailing trailing_anns
-  -- mapM_ printOneComment (concatMap tokComment $ following)
   addCommentsA following
+  debugM $ "enterAnn:done:(anchor,priorCs,postCs) =" ++ show (showAst anchor', priorCs, postCs)
 
   -- Update original anchor, comments based on the printing process
   -- TODO:AZ: probably need to put something appropriate in instead of noSrcSpan
@@ -1408,28 +1408,9 @@ updateAndApplyComment :: (Monad m, Monoid w) => Comment -> DeltaPos -> EP w m ()
 updateAndApplyComment (Comment str anc pp mo) dp = do
   applyComment (Comment str anc' pp mo)
   where
-    (r,c) = ss2posEnd pp
-    dp'' = case anc of
-      EpaDelta _ dp1 _ -> dp1
-      EpaSpan (RealSrcSpan la _) ->
-           if r == 0
-             then (ss2delta (r,c+0) la)
-             else (ss2delta (r,c)   la)
-      EpaSpan (UnhelpfulSpan _) -> SameLine 0
-    dp' = case anc of
-      EpaSpan (RealSrcSpan r1 _) ->
-          if pp == r1
-                 then dp
-                 else dp''
-      _ -> dp''
     ss = case anc of
         EpaSpan ss' -> ss'
         _          -> noSrcSpan
-    op' = case dp' of
-            SameLine n -> if n >= 0
-                            then EpaDelta ss dp' NoComments
-                            else EpaDelta ss dp NoComments
-            _ -> EpaDelta ss dp' NoComments
     anc' = EpaDelta ss dp NoComments
 
 -- ---------------------------------------------------------------------

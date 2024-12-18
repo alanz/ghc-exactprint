@@ -389,10 +389,10 @@ addLocaLDecl4 libdir lp = do
 addLocaLDecl5 :: Changer
 addLocaLDecl5 _libdir lp = do
   let
-      doAddLocal = replaceDecls lp [s1,de1',d3']
+      doAddLocal = replaceDecls lp (s1:de1':d3':ds)
         where
           decls = hsDecls lp
-          [s1,de1,d2,d3] = balanceCommentsList decls
+          (s1:de1:d2:d3:ds) = balanceCommentsList decls
 
           d3' = setEntryDP d3 (DifferentLine 2 0)
 
