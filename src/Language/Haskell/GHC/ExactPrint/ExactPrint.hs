@@ -1430,9 +1430,7 @@ updateAndApplyComment (Comment str anc pp mo) dp = do
                             then EpaDelta ss dp' NoComments
                             else EpaDelta ss dp NoComments
             _ -> EpaDelta ss dp' NoComments
-    anc' = if str == "" && op' == EpaDelta ss (SameLine 0) NoComments -- EOF comment
-           then EpaDelta ss dp NoComments
-           else EpaDelta ss dp NoComments
+    anc' = EpaDelta ss dp NoComments
 
 -- ---------------------------------------------------------------------
 
