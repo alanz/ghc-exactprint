@@ -1395,7 +1395,7 @@ printOneComment c@(Comment _str loc _r _mo) = do
   dp' <- case mep of
     Just (EpaDelta _ edp _) -> do
       debugM $ "printOneComment:edp=" ++ show edp
-      adjustDeltaForOffsetM edp
+      return edp
     _ -> return dp
   -- Start of debug printing
   LayoutStartCol dOff <- getLayoutOffsetD

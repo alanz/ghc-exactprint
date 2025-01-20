@@ -109,7 +109,6 @@ noChange _libdir parsed = return parsed
 
 changeBalanceComments :: Changer
 changeBalanceComments _libdir top = do
-  -- let (GHC.L l p) = makeDeltaAst top
   let (GHC.L l p) = top
   let decls0 = GHC.hsmodDecls p
       decls = balanceCommentsList decls0
