@@ -301,7 +301,9 @@ setEntryDP (L (EpAnn (EpaSpan ss@(RealSrcSpan r _)) an cs) a) dp
                 line = getDeltaLine delta
                 col = deltaColumn delta
                 edp' = if line == 0 then SameLine col
-                                    else DifferentLine line col
+                                    else DifferentLine line (col - 1)
+                                         -- At the top level the layout offset is 1, adjust for it
+                                         -- TODO: what about the layout offset for nested items?
                 edp = edp' `debug` ("setEntryDP :" ++ showGhc (edp', (ss2pos $ epaLocationRealSrcSpan $ getLoc lc), r))
 
 
@@ -528,7 +530,7 @@ balanceCommentsA la1 la2 = (la1', la2')
     anc2 = comments an2
 
     (p1,m1,f1) = splitComments (anchorFromLocatedA la1) anc1
-    cs1p = priorCommentsDeltas    (anchorFromLocatedA la1) p1
+    cs1p = priorCommentsDeltas (anchorFromLocatedA la1) p1
 
     -- Split cs1 following comments into those before any
     -- TrailingAnn's on an1, and any after
@@ -769,6 +771,7 @@ insertAt f t decl = replaceDecls t (f decl oldDecls')
     oldDecls = hsDecls t
     oldDeclsb = balanceCommentsList oldDecls
     oldDecls' = oldDeclsb
+      `debug` ("insertAt: oldDeclsb:" ++ showAst oldDeclsb)
 
 -- |Insert a declaration at the beginning or end of the subdecls of the given
 -- AST item
@@ -1113,8 +1116,8 @@ oldWhereAnnotation (EpAnn anc an cs) ww _oldSpan = an'
 newWhereAnnotation :: WithWhere -> (EpAnn (AnnList (EpToken "where")))
 newWhereAnnotation ww = an
   where
-  anc  = EpaDelta noSrcSpan (DifferentLine 1 3) []
-  anc2 = EpaDelta noSrcSpan (DifferentLine 1 5) []
+  anc  = EpaDelta noSrcSpan (DifferentLine 1 2) []
+  anc2 = EpaDelta noSrcSpan (DifferentLine 1 4) []
   w = case ww of
     WithWhere -> EpTok (EpaDelta noSrcSpan (SameLine 0) [])
     WithoutWhere -> NoEpTok

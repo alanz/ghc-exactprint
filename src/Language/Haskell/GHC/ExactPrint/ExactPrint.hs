@@ -111,16 +111,19 @@ runEP epReader action = do
 
 defaultEPState :: EPState
 defaultEPState = EPState
-             { epPos      = (1,1)
-             , dLHS       = 0
-             , pMarkLayout = False
-             , pLHS = 0
-             , dMarkLayout = False
-             , dPriorEndPosition = (1,1)
-             , uAnchorSpan = badRealSrcSpan
+             { uAnchorSpan = badRealSrcSpan
              , uExtraDP = Nothing
              , uExtraDPReturn = Nothing
              , pAcceptSpan = False
+
+             , epPos       = (1,1)
+             , pMarkLayout = False
+             , pLHS = LayoutStartCol 1
+
+             , dPriorEndPosition = (1,1)
+             , dMarkLayout = False
+             , dLHS        = LayoutStartCol 1
+
              , epComments = []
              , epCommentsApplied = []
              , epEof = Nothing
@@ -457,7 +460,6 @@ enterAnn !(Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
   -- delta phase variables -----------------------------------
   -- Calculate offset required to get to the start of the SrcSPan
   !off <- getLayoutOffsetD
-  let spanStart = ss2pos curAnchor
   priorEndAfterComments <- getPriorEndD
   let edp' = adjustDeltaForOffset
                -- Use the propagated offset if one is set
@@ -485,6 +487,7 @@ enterAnn !(Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
   when (isJust medr) $ setExtraDPReturn medr
   -- ---------------------------------------------
   -- Preparation complete, perform the action
+  let spanStart = ss2pos curAnchor
   when (priorEndAfterComments < spanStart) (do
     debugM $ "enterAnn.dPriorEndPosition:spanStart=" ++ show spanStart
     modify (\s -> s { dPriorEndPosition    = spanStart } ))
@@ -517,8 +520,8 @@ enterAnn !(Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
     Just (pos, prior) -> do
        let dp = if pos == prior
              then (DifferentLine 1 0)
-             else origDelta pos prior
-       debugM $ "EOF:(pos,posEnd,prior,dp) =" ++ showGhc (ss2pos pos, ss2posEnd pos, ss2pos prior, dp)
+             else adjustDeltaForOffset off (origDelta pos prior)
+       debugM $ "EOF:(pos,posend,prior,off,dp) =" ++ show (ss2pos pos, ss2posEnd pos, ss2pos prior, off, dp)
        printStringAtLsDelta dp ""
        setEofPos Nothing -- Only do this once
 
@@ -547,8 +550,8 @@ enterAnn !(Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
               return after
            else return []
   !trailing' <- markTrailing trailing_anns
-  -- mapM_ printOneComment (concatMap tokComment $ following)
   addCommentsA following
+  debugM $ "enterAnn:done:(anchor,priorCs,postCs) =" ++ show (showAst anchor', priorCs, postCs)
 
   -- Update original anchor, comments based on the printing process
   -- TODO:AZ: probably need to put something appropriate in instead of noSrcSpan
@@ -1392,7 +1395,7 @@ printOneComment c@(Comment _str loc _r _mo) = do
   dp' <- case mep of
     Just (EpaDelta _ edp _) -> do
       debugM $ "printOneComment:edp=" ++ show edp
-      adjustDeltaForOffsetM edp
+      return edp
     _ -> return dp
   -- Start of debug printing
   LayoutStartCol dOff <- getLayoutOffsetD
@@ -1405,31 +1408,10 @@ updateAndApplyComment :: (Monad m, Monoid w) => Comment -> DeltaPos -> EP w m ()
 updateAndApplyComment (Comment str anc pp mo) dp = do
   applyComment (Comment str anc' pp mo)
   where
-    (r,c) = ss2posEnd pp
-    dp'' = case anc of
-      EpaDelta _ dp1 _ -> dp1
-      EpaSpan (RealSrcSpan la _) ->
-           if r == 0
-             then (ss2delta (r,c+0) la)
-             else (ss2delta (r,c)   la)
-      EpaSpan (UnhelpfulSpan _) -> SameLine 0
-    dp' = case anc of
-      EpaSpan (RealSrcSpan r1 _) ->
-          if pp == r1
-                 then dp
-                 else dp''
-      _ -> dp''
     ss = case anc of
         EpaSpan ss' -> ss'
         _          -> noSrcSpan
-    op' = case dp' of
-            SameLine n -> if n >= 0
-                            then EpaDelta ss dp' NoComments
-                            else EpaDelta ss dp NoComments
-            _ -> EpaDelta ss dp' NoComments
-    anc' = if str == "" && op' == EpaDelta ss (SameLine 0) NoComments -- EOF comment
-           then EpaDelta ss dp NoComments
-           else EpaDelta ss dp NoComments
+    anc' = EpaDelta ss dp NoComments
 
 -- ---------------------------------------------------------------------
 
@@ -1468,11 +1450,6 @@ commentAllocationIn ss = do
 
 markAnnotatedWithLayout :: (Monad m, Monoid w) => ExactPrint ast => ast -> EP w m ast
 markAnnotatedWithLayout a = setLayoutBoth $ markAnnotated a
-
--- ---------------------------------------------------------------------
-
-markTopLevelList :: (Monad m, Monoid w) => ExactPrint ast => [ast] -> EP w m [ast]
-markTopLevelList ls = mapM (\a -> setLayoutTopLevelP $ markAnnotated a) ls
 
 -- ---------------------------------------------------------------------
 -- End of utility functions
@@ -1545,11 +1522,11 @@ instance ExactPrint (HsModule GhcPs) where
           an0 <- markLensTok an lam_mod
           m' <- markAnnotated m
 
-          mdeprec' <- setLayoutTopLevelP $ markAnnotated mdeprec
+          mdeprec' <- markAnnotated mdeprec
 
-          mexports' <- setLayoutTopLevelP $ markAnnotated mexports
+          mexports' <- markAnnotated mexports
 
-          an1 <- setLayoutTopLevelP $ markLensTok an0 lam_where
+          an1 <- markLensTok an0 lam_where
 
           return (an1, Just m', mdeprec', mexports')
 
@@ -1600,8 +1577,8 @@ instance ExactPrint HsModuleImpDecls where
   setAnnotationAnchor mid _anc _ cs = mid { id_cs = priorComments cs ++ getFollowingComments cs }
      `debug` ("HsModuleImpDecls.setAnnotationAnchor:cs=" ++ showAst cs)
   exact (HsModuleImpDecls cs imports decls) = do
-    imports' <- markTopLevelList imports
-    decls' <- markTopLevelList (filter notDocDecl decls)
+    imports' <- mapM markAnnotated imports
+    decls' <- mapM markAnnotated (filter notDocDecl decls)
     return (HsModuleImpDecls cs imports' decls')
 
 
@@ -2849,9 +2826,7 @@ instance ExactPrint (GRHS GhcPs (LocatedA (HsExpr GhcPs))) where
   setAnnotationAnchor (GRHS an a b) anc ts cs = GRHS (setAnchorEpa an anc ts cs) a b
 
   exact (GRHS an guards expr) = do
-    an0 <- if null guards
-             then return an
-             else markLensFun' an lga_vbar (\mt -> mapM markEpToken mt)
+    an0 <- markLensFun' an lga_vbar (\mt -> mapM markEpToken mt)
     guards' <- markAnnotated guards
     -- Mark the matchSeparator for these GRHSs
     an1 <- markLensFun' an0 lga_sep (\s -> case s of
@@ -4906,18 +4881,6 @@ setLayoutBoth k = do
                         , pMarkLayout = False
                         , pLHS = oldAnchorOffset} )
   k <* reset
-
--- Use 'local', designed for this
-setLayoutTopLevelP :: (Monad m, Monoid w) => EP w m a -> EP w m a
-setLayoutTopLevelP k = do
-  debugM $ "setLayoutTopLevelP entered"
-  oldAnchorOffset <- getLayoutOffsetP
-  modify (\a -> a { pMarkLayout = False
-                  , pLHS = 0} )
-  r <- k
-  debugM $ "setLayoutTopLevelP:resetting"
-  setLayoutOffsetP oldAnchorOffset
-  return r
 
 ------------------------------------------------------------------------
 

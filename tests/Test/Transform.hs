@@ -29,7 +29,7 @@ import Test.HUnit
 transformTestsTT :: LibDir -> Test
 transformTestsTT libdir = TestLabel "transformTestsTT" $ TestList
   [
-    mkTestModChange libdir changeWhereIn3b   "WhereIn3b.hs"
+    mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
   ]
 
 transformTests :: LibDir -> Test
@@ -130,8 +130,8 @@ changeLocalDecls2 libdir (L l p) = do
       replaceLocalBinds :: LMatch GhcPs (LHsExpr GhcPs)
                         -> Transform (LMatch GhcPs (LHsExpr GhcPs))
       replaceLocalBinds (L lm (Match ma mln pats (GRHSs _ rhs EmptyLocalBinds{}))) = do
-        let anc = (EpaDelta noSrcSpan (DifferentLine 1 3) [])
-        let anc2 = (EpaDelta noSrcSpan (DifferentLine 1 5) [])
+        let anc = (EpaDelta noSrcSpan (DifferentLine 1 2) [])
+        let anc2 = (EpaDelta noSrcSpan (DifferentLine 1 4) [])
         let an = EpAnn anc
                         (AnnList (Just anc2) ListNone
                                  []
@@ -168,9 +168,7 @@ changeLocalDecls libdir (L l p) = do
             os' = setEntryDP os (DifferentLine 2 0)
         let sortKey = captureOrderBinds decls
         let (EpAnn anc (AnnList (Just _) a b c dd) cs) = van
-        let van' = (EpAnn anc (AnnList (Just (EpaDelta noSrcSpan (DifferentLine 1 5) [])) a b c dd) cs)
-        -- let (EpAnn anc (AnnList (Just _) a b c dd) cs) = van
-        -- let van' = (EpAnn anc (AnnList (Just (EpaDelta (DifferentLine 1 5) [])) a b c dd) cs)
+        let van' = (EpAnn anc (AnnList (Just (EpaDelta noSrcSpan (DifferentLine 1 4) [])) a b c dd) cs)
         let binds' = (HsValBinds van'
                           (ValBinds sortKey (decl':oldBinds)
                                           (sig':os':oldSigs)))
@@ -391,10 +389,10 @@ addLocaLDecl4 libdir lp = do
 addLocaLDecl5 :: Changer
 addLocaLDecl5 _libdir lp = do
   let
-      doAddLocal = replaceDecls lp [s1,de1',d3']
+      doAddLocal = replaceDecls lp (s1:de1':d3':ds)
         where
           decls = hsDecls lp
-          [s1,de1,d2,d3] = balanceCommentsList decls
+          (s1:de1:d2:d3:ds) = balanceCommentsList decls
 
           d3' = setEntryDP d3 (DifferentLine 2 0)
 

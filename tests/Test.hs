@@ -54,8 +54,6 @@ testDirs =
 main :: IO ()
 main = hSilence [stderr] $ do
   print ghcVersion
-  cwd <- getCurrentDirectory
-  putStrLn $ "cwd:" ++ show cwd
   tests <- mkTests
   cnts <- fst <$> runTestText (putTextToHandle stdout True) tests
   putStrLn $ show cnts
@@ -214,7 +212,9 @@ tt' = do
 
     -- mkParserTest libdir "ghc912" "Module.hs"
     -- mkParserTest libdir "ghc912" "tests.hs"
-    mkParserTestMD libdir "ghc912" "Fff.hs"
+    -- mkParserTestMD libdir "ghc912" "Fff.hs"
+    -- mkParserTestMD libdir "transform" "AddLocalDecl5.hs"
+    mkParserTestBC libdir "transform" "AddLocalDecl5.hs"
     -- mkParserTestMD libdir "ghc912" "Module.hs"
     -- mkParserTestMD libdir "ghc912" "Operator.hs"
    -- Needs GHC changes
