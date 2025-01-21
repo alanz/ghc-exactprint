@@ -2826,7 +2826,9 @@ instance ExactPrint (GRHS GhcPs (LocatedA (HsExpr GhcPs))) where
   setAnnotationAnchor (GRHS an a b) anc ts cs = GRHS (setAnchorEpa an anc ts cs) a b
 
   exact (GRHS an guards expr) = do
-    an0 <- markLensFun' an lga_vbar (\mt -> mapM markEpToken mt)
+    an0 <- if null guards
+             then return an
+             else markLensFun' an lga_vbar (\mt -> mapM markEpToken mt)
     guards' <- markAnnotated guards
     -- Mark the matchSeparator for these GRHSs
     an1 <- markLensFun' an0 lga_sep (\s -> case s of
