@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns         #-}
 {-# LANGUAGE BlockArguments       #-}
-{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DataKinds            #-}
 {-# LANGUAGE DeriveDataTypeable   #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE FlexibleInstances    #-}
@@ -55,7 +55,6 @@ import GHC.Unit.Module.Warnings
 import GHC.Utils.Misc
 import GHC.Utils.Outputable hiding ( (<>) )
 import GHC.Utils.Panic
-
 
 import Language.Haskell.Syntax.Basic (FieldLabelString(..))
 
@@ -1502,6 +1501,11 @@ instance (ExactPrint a) => ExactPrint (Maybe a) where
   setAnnotationAnchor ma _ _ _ = ma
   exact ma = mapM markAnnotated ma
 
+instance (ExactPrint a) => ExactPrint (NonEmpty a) where
+  getAnnotationEntry = const NoEntryVal
+  setAnnotationAnchor ls _ _ _ = ls
+  exact ls = mapM markAnnotated ls
+
 -- ---------------------------------------------------------------------
 
 -- | 'Located (HsModule GhcPs)' corresponds to 'ParsedSource'
@@ -2793,7 +2797,7 @@ instance ExactPrint (AnnDecl GhcPs) where
 
 -- ---------------------------------------------------------------------
 
-instance ExactPrint (BF.BooleanFormula (LocatedN RdrName)) where
+instance ExactPrint (BF.BooleanFormula GhcPs) where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ _ = a
 
@@ -4515,7 +4519,7 @@ instance ExactPrint (LocatedL [LocatedA (ConDeclField GhcPs)]) where
     (an', fs') <- markAnnList an (markAnnotated fs)
     return (L an' fs')
 
-instance ExactPrint (LocatedL (BF.BooleanFormula (LocatedN RdrName))) where
+instance ExactPrint (LocatedL (BF.BooleanFormula GhcPs)) where
   getAnnotationEntry = entryFromLocatedA
   setAnnotationAnchor = setAnchorAn
   exact (L an bf) = do
@@ -4768,8 +4772,6 @@ hsLit2String lit =
     HsWord16Prim src v   -> toSourceTextWithSuffix src v ""
     HsWord32Prim src v   -> toSourceTextWithSuffix src v ""
     HsWord64Prim src v   -> toSourceTextWithSuffix src v ""
-    HsInteger    src v _ -> toSourceTextWithSuffix src v ""
-    HsRat        _ fl@(FL{fl_text = src }) _ -> toSourceTextWithSuffix src fl ""
     HsFloatPrim  _ fl@(FL{fl_text = src })   -> toSourceTextWithSuffix src fl "#"
     HsDoublePrim _ fl@(FL{fl_text = src })   -> toSourceTextWithSuffix src fl "##"
 

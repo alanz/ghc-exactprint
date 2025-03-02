@@ -96,6 +96,8 @@ import GHC.Data.FastString
 import GHC.Types.SrcLoc
 
 import Data.Data
+import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.List.NonEmpty as NE
 import Data.Maybe
 import Data.Generics
 
@@ -473,9 +475,8 @@ balanceCommentsMatch (L l (Match am mctxt pats (GRHSs xg grhss binds)))
     move = map snd move'
     stay = map snd stay'
     (l'', grhss', binds', _logInfo)
-      = case reverse grhss of
-          [] -> (l, [], binds,                 (EpaComments [], noSrcSpanA))
-          (L lg (GRHS ag grs rhs):gs) ->
+      = case NE.reverse grhss of
+          L lg (GRHS ag grs rhs):|gs ->
             let
               anc1' = setFollowingComments anc1 stay
               an1' = setCommentsEpAnn l anc1'
@@ -490,7 +491,7 @@ balanceCommentsMatch (L l (Match am mctxt pats (GRHSs xg grhss binds)))
                       then EpAnn anc an lgc'
                       else EpAnn anc an (lgc' <> (EpaCommentsBalanced [] move))
 
-            in (an1', (reverse $ (L lg (GRHS ag' grs rhs):gs)), bindsm, (anc1',an1'))
+            in (an1', (NE.reverse $ L lg (GRHS ag' grs rhs):|gs), bindsm, (anc1',an1'))
 
 pushTrailingComments :: WithWhere -> EpAnnComments -> HsLocalBinds GhcPs -> (Bool, HsLocalBinds GhcPs)
 pushTrailingComments _ _cs b@EmptyLocalBinds{} = (False, b)
@@ -698,9 +699,8 @@ balanceSameLineComments (L la (Match anm mctxt pats (GRHSs x grhss lb)))
   = (L la' (Match anm mctxt pats (GRHSs x grhss' lb)))
   where
     simpleBreak n (r,_) = r > n
-    (la',grhss', _logInfo) = case reverse grhss of
-      [] -> (la,grhss,[])
-      (L lg (GRHS ga gs rhs):grs) -> (la'',reverse $ (L lg (GRHS ga' gs rhs)):grs,[(gac,(csp,csf))])
+    (la',grhss', _logInfo) = case NE.reverse grhss of
+      L lg (GRHS ga gs rhs):|grs -> (la'',NE.reverse $ L lg (GRHS ga' gs rhs):|grs,[(gac,(csp,csf))])
         where
           anc1 = comments la
           (EpAnn anc an _) = ga :: EpAnn GrhsAnn
