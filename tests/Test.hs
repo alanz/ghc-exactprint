@@ -214,9 +214,11 @@ tt' = do
     -- mkParserTest libdir "ghc912" "tests.hs"
     -- mkParserTestMD libdir "ghc912" "Fff.hs"
     -- mkParserTestMD libdir "transform" "AddLocalDecl5.hs"
-    mkParserTestBC libdir "transform" "AddLocalDecl5.hs"
+    -- mkParserTestBC libdir "transform" "AddLocalDecl5.hs"
     -- mkParserTestMD libdir "ghc912" "Module.hs"
     -- mkParserTestMD libdir "ghc912" "Operator.hs"
+
+    mkParserTest libdir "pre-ghc910" "Checkpoint.hs"
    -- Needs GHC changes
 
 

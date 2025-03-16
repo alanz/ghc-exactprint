@@ -54,15 +54,18 @@ import qualified Control.Monad.IO.Class as GHC
 import qualified GHC.Data.FastString    as GHC
 import qualified GHC.Data.StringBuffer  as GHC
 import qualified GHC.Driver.Config.Parser as GHC
-import qualified GHC.Driver.Errors.Types as GHC
+import qualified GHC.Driver.Env.Types     as GHC
+import qualified GHC.Driver.Errors.Types  as GHC
 import qualified GHC.Driver.Session     as GHC
 import qualified GHC.Parser             as GHC
 import qualified GHC.Parser.Header      as GHC
-import qualified GHC.Parser.Lexer       as GHC
+import qualified GHC.Parser.Lexer       as GHC hiding (initParserState)
 import qualified GHC.Parser.PostProcess as GHC
 import qualified GHC.Types.SrcLoc       as GHC
 
 import qualified GHC.LanguageExtensions as LangExt
+import qualified GHC.Parser.PreProcess as GHC
+import GHC (GhcMonad(getSession))
 
 -- ---------------------------------------------------------------------
 
@@ -70,7 +73,7 @@ import qualified GHC.LanguageExtensions as LangExt
 -- element.
 parseWith :: GHC.DynFlags
           -> FilePath
-          -> GHC.P w
+          -> GHC.P GHC.PpState w
           -> String
           -> ParseResult w
 parseWith dflags fileName parser s =
@@ -84,7 +87,7 @@ parseWith dflags fileName parser s =
 parseWithECP :: (GHC.DisambECP w)
           => GHC.DynFlags
           -> FilePath
-          -> GHC.P GHC.ECP
+          -> GHC.P GHC.PpState GHC.ECP
           -> String
           -> ParseResult (GHC.LocatedA w)
 parseWithECP dflags fileName parser s =
@@ -96,7 +99,7 @@ parseWithECP dflags fileName parser s =
 
 -- ---------------------------------------------------------------------
 
-runParser :: GHC.P a -> GHC.DynFlags -> FilePath -> String -> GHC.ParseResult a
+runParser :: GHC.P GHC.PpState a -> GHC.DynFlags -> FilePath -> String -> GHC.ParseResult GHC.PpState a
 runParser parser flags filename str = GHC.unP parser parseState
     where
       location = GHC.mkRealSrcLoc (GHC.mkFastString filename) 1 1
@@ -119,7 +122,7 @@ withDynFlags libdir action = ghcWrapper libdir $ do
 
 -- ---------------------------------------------------------------------
 
-parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult (GHC.Located (GHC.HsModule GHC.GhcPs))
+parseFile :: GHC.DynFlags -> FilePath -> String -> GHC.ParseResult GHC.PpState (GHC.Located (GHC.HsModule GHC.GhcPs))
 parseFile = runParser GHC.parseModule
 
 -- ---------------------------------------------------------------------
@@ -348,7 +351,9 @@ initDynFlags file = do
   -- Based on GHC backpack driver doBackPack
   dflags0         <- GHC.getSessionDynFlags
   let parser_opts0 = GHC.initParserOpts dflags0
-  (_, src_opts)   <- GHC.liftIO $ GHC.getOptionsFromFile parser_opts0 (GHC.supportedLanguagePragmas dflags0) file
+  hsc <- GHC.getSession
+  let unit_env = GHC.hsc_unit_env hsc
+  (_, src_opts)   <- GHC.liftIO $ GHC.getOptionsFromFile dflags0 unit_env parser_opts0 (GHC.supportedLanguagePragmas dflags0) file
   (dflags1, _, _) <- GHC.parseDynamicFilePragma dflags0 src_opts
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
