@@ -26,6 +26,7 @@ module Test.Common (
               , mkDebugOutput
               , showErrorMessages
               , LibDir
+              , useGhcCpp
               ) where
 
 
@@ -52,6 +53,9 @@ import System.Directory
 
 import Test.HUnit
 import System.FilePath
+
+useGhcCpp :: Bool
+useGhcCpp = True
 
 testPrefix :: FilePath
 testPrefix = "." </> "tests" </> "examples"
@@ -121,7 +125,7 @@ changeMakeDelta _libdir m = do
 
 genTest :: LibDir -> Changer -> FilePath -> FilePath -> IO Report
 genTest libdir f origFile expectedFile  = do
-      res <- parseModuleEpAnnsWithCpp libdir defaultCppOptions origFile
+      res <- parseModuleEpAnnsWithCpp libdir useGhcCpp defaultCppOptions origFile
       expected <- GHC.liftIO $ readFileGhc expectedFile
       orig <- GHC.liftIO $ readFileGhc origFile
       -- let pristine = removeSpaces expected

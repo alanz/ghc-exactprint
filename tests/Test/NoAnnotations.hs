@@ -50,7 +50,7 @@ mkPrettyRoundtrip libdir dir fp = mkParsingTest (prettyRoundtripTest libdir) dir
 prettyRoundtripTest :: LibDir -> FilePath -> IO Report
 prettyRoundtripTest libdir origFile = do
       -- res <- parseModuleApiAnnsWithCpp defaultCppOptions origFile
-      res <- parseModuleEpAnnsWithCpp libdir defaultCppOptions origFile
+      res <- parseModuleEpAnnsWithCpp libdir useGhcCpp defaultCppOptions origFile
       case res of
         Left m -> return . Left $ ParseFailure (showErrorMessages m)
         Right (injectedComments, _dflags, parsed)  -> do

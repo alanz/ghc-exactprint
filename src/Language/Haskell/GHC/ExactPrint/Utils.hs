@@ -76,8 +76,8 @@ import Debug.Trace
 
 -- |Global switch to enable debug tracing in ghc-exactprint Delta / Print
 debugEnabledFlag :: Bool
--- debugEnabledFlag = True
-debugEnabledFlag = False
+debugEnabledFlag = True
+-- debugEnabledFlag = False
 
 -- |Provide a version of trace that comes at the end of the line, so it can
 -- easily be commented out when debugging different things.
