@@ -28,6 +28,10 @@ This will generate three additional executables
 
   ```
 
+  OR, use https://github.com/nh2/hackage-download
+  It is *very* fast.
+
+
   This will manage the `cabal` programme to call `cabal get` for each package on
   hackage, into `./hackage-roundtrip-work`. It also untabifies each haskell file,
   and deletes trailing whitespace.

@@ -114,7 +114,6 @@ executable roundtrip
                , base       < 4.22
                , containers < 0.8
                , directory  < 1.4
-               , extra      < 1.8
                , filepath   < 1.6
                , ghc        >= 9.12 && < 9.13
                , ghc-exactprint
@@ -135,7 +134,6 @@ executable static
   if flag (roundtrip)
     build-depends: base < 4.22
                  , directory < 1.4
-                 , extra     < 1.8
                  , filepath  < 1.6
                  , ghc       >= 9.12 && < 9.13
                  , Diff      < 0.6

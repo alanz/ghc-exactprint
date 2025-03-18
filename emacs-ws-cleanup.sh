@@ -4,7 +4,7 @@
 
 for file in `find . -name "*.hs"`; do
     fromdos $file
-    echo "$file"; emacs --batch -Q "$file" \
+    echo "$file"; emacs --batch --no-init-file -Q "$file" \
         --eval '(setq-default indent-tabs-mode nil)' \
         --eval '(whitespace-cleanup)' \
         --eval '(untabify (point-min) (point-max))' \
