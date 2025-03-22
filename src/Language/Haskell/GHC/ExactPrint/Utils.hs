@@ -76,8 +76,8 @@ import Debug.Trace
 
 -- |Global switch to enable debug tracing in ghc-exactprint Delta / Print
 debugEnabledFlag :: Bool
-debugEnabledFlag = True
--- debugEnabledFlag = False
+-- debugEnabledFlag = True
+debugEnabledFlag = False
 
 -- |Provide a version of trace that comes at the end of the line, so it can
 -- easily be commented out when debugging different things.
@@ -474,8 +474,8 @@ ghcCommentText (L _ (GHC.EpaComment (EpaDocComment s) _))      = exactPrintHsDoc
 ghcCommentText (L _ (GHC.EpaComment (EpaDocOptions s) _))      = s
 ghcCommentText (L _ (GHC.EpaComment (EpaLineComment s) _))     = s
 ghcCommentText (L _ (GHC.EpaComment (EpaBlockComment s) _))    = s
-ghcCommentText (L _ (GHC.EpaComment (EpaCppIgnored [L _ s]) _))= s
-ghcCommentText (L _ (GHC.EpaComment (EpaCppIgnored _) _))      = ""
+ghcCommentText (L _ (GHC.EpaComment (EpaCpp s) _))             = s
+ghcCommentText (L _ (GHC.EpaComment (EpaCppIgnored s) _))      = s
 
 tokComment :: LEpaComment -> [Comment]
 tokComment t@(L lt c) =

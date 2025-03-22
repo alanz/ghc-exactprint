@@ -55,7 +55,8 @@ import Test.HUnit
 import System.FilePath
 
 useGhcCpp :: Bool
-useGhcCpp = True
+-- useGhcCpp = True
+useGhcCpp = False
 
 testPrefix :: FilePath
 testPrefix = "." </> "tests" </> "examples"

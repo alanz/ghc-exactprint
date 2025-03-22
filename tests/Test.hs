@@ -219,7 +219,8 @@ tt' = do
     -- mkParserTestMD libdir "ghc912" "Operator.hs"
 
     -- mkParserTest libdir "pre-ghc910" "Checkpoint.hs"
-    mkParserTest libdir "pre-ghc910" "Cpp.hs"
+    -- mkParserTest libdir "pre-ghc910" "Cpp.hs"
+    mkParserTest libdir "pre-ghc910" "T10251.hs"
 
     ]
 

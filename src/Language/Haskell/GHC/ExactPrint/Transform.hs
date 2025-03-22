@@ -261,7 +261,7 @@ setEntryDP (L (EpAnn (EpaDelta ss d csd) an cs) a) dp
   where
     -- I suspect we should assume the comments are already in the
     -- right place, and just set the entry DP for this case. This
-    -- avoids suprises from the caller.
+    -- avoids surprises from the caller.
     (d', csd', cs') = case cs of
       EpaComments (h:t) ->
         let
@@ -771,7 +771,6 @@ insertAt f t decl = replaceDecls t (f decl oldDecls')
     oldDecls = hsDecls t
     oldDeclsb = balanceCommentsList oldDecls
     oldDecls' = oldDeclsb
-      `debug` ("insertAt: oldDeclsb:" ++ showAst oldDeclsb)
 
 -- |Insert a declaration at the beginning or end of the subdecls of the given
 -- AST item
