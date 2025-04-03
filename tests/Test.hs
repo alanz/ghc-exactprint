@@ -1,4 +1,4 @@
-{-# LANGUAGE GHC_CPP #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
@@ -220,7 +220,13 @@ tt' = do
 
     -- mkParserTest libdir "pre-ghc910" "Checkpoint.hs"
     -- mkParserTest libdir "pre-ghc910" "Cpp.hs"
-    mkParserTest libdir "pre-ghc910" "T10251.hs"
+    -- mkParserTest libdir "pre-ghc910" "Control.hs"
+    -- mkParserTest libdir "pre-ghc910" "HashTab.hs"
+    -- mkParserTest libdir "pre-ghc910" "Query.hs"
+    -- mkParserTest libdir "pre-ghc910" "ExperimIOP.hs"
+    -- mkParserTest libdir "pre-ghc910" "RandomPGC1.hs"
+    -- mkParserTest libdir "pre-ghc910" "Utils.hs"
+    mkParserTest libdir "failing" "CppComment.hs"
 
     ]
 
