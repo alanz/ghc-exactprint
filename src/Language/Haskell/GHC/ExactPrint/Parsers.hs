@@ -394,13 +394,15 @@ initDynFlags file = do
   dflags0         <- GHC.getSessionDynFlags
   let parser_opts0 = GHC.initParserOpts dflags0
   hsc <- GHC.getSession
+  let logger = GHC.hsc_logger hsc
   let unit_env = GHC.hsc_unit_env hsc
   (_, src_opts)   <- GHC.liftIO $ GHC.getOptionsFromFile dflags0 unit_env parser_opts0 (GHC.supportedLanguagePragmas dflags0) file
-  (dflags1, _, _) <- GHC.parseDynamicFilePragma dflags0 src_opts
+  (dflags1, _, _) <- GHC.parseDynamicFilePragma logger dflags0 src_opts
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
   -- Prevent parsing of .ghc.environment.* "package environment files"
   (dflags3, _, _) <- GHC.parseDynamicFlagsCmdLine
+    logger
     dflags2
     [GHC.noLoc "-hide-all-packages"]
   _ <- GHC.setSessionDynFlags dflags3
@@ -422,13 +424,15 @@ initDynFlagsPure fp s = do
   -- as long as `parseDynamicFilePragma` is impure there seems to be
   -- no reason to use it.
   dflags0 <- GHC.getSessionDynFlags
+  logger <- GHC.getLogger
   let parser_opts0 = GHC.initParserOpts dflags0
   let (_, pragmaInfo) = GHC.getOptions parser_opts0 (GHC.supportedLanguagePragmas dflags0) (GHC.stringToStringBuffer $ s) fp
-  (dflags1, _, _) <- GHC.parseDynamicFilePragma dflags0 pragmaInfo
+  (dflags1, _, _) <- GHC.parseDynamicFilePragma logger dflags0 pragmaInfo
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
   -- Prevent parsing of .ghc.environment.* "package environment files"
   (dflags3, _, _) <- GHC.parseDynamicFlagsCmdLine
+    logger
     dflags2
     [GHC.noLoc "-hide-all-packages"]
   _ <- GHC.setSessionDynFlags dflags3
