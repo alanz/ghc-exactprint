@@ -6,6 +6,7 @@ module Main where
 import qualified GHC.Paths
 import Control.Exception
 import Control.Monad
+import Data.IORef
 import Data.Time.Clock
 import Data.Time.Format
 import Debug.Trace
@@ -18,6 +19,8 @@ import Test.Common
 import Test.CommonUtils
 import Test.HUnit
 import qualified Data.Set as S
+
+import Language.Haskell.GHC.ExactPrint.Parsers (macroIORef)
 
 -- ---------------------------------------------------------------------
 
@@ -78,6 +81,8 @@ main = do
   createDirectoryIfMissing True workDir
   createDirectoryIfMissing True configDir
   createDirectoryIfMissing True failuresDir
+  ms <- getHackageVersionMacros
+  writeIORef macroIORef ms
   as <- getArgs
   case as of
     [] -> putStrLn "Must enter directory to process"

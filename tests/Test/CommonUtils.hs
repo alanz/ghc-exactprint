@@ -19,14 +19,17 @@ module Test.CommonUtils
   , blackListed
   , knownFailuresFile
   , failuresHtmlFile
+  , hackageVersionMacros
   ) where
 
 import Control.Monad
 import GHC.Utils.Monad
 import Data.List hiding (find)
 import qualified GHC.Data.StringBuffer as GHC
+import qualified GHC.SysTools.Cpp      as GHC
 import System.Directory
 import System.FilePath
+import GHC.Internal.Data.Version (Version, makeVersion)
 
 -- ---------------------------------------------------------------------
 
@@ -138,3 +141,44 @@ readFileGhc :: FilePath -> IO String
 readFileGhc file = do
   buf@(GHC.StringBuffer _ len _) <- GHC.hGetStringBuffer file
   return (GHC.lexemeToString buf len)
+
+-- ---------------------------------------------------------------------
+
+packages :: IO [(String, Version)]
+packages = do
+  packageDirsFull <- drop 2 <$> getDirectoryContents hackageWorkDir
+  let cond c = c == '-'
+  let packageDirs = map (\p -> break cond $ reverse p) packageDirsFull
+  let pp = map (\(v,n) -> (dashToLower $ reverse (drop 1 n), makeVersion $ parseVersion $ reverse v)) packageDirs
+  return pp
+
+dashToLower :: String -> String
+dashToLower s = map go s
+  where
+    go '-' = '_'
+    go c = c
+
+parseVersion :: String -> [Int]
+parseVersion v = case break (== '.') v of
+  (n, rest) -> read n : case rest of
+    [] -> []
+    ('.':v') -> parseVersion v'
+    _ -> error "bug in parseVersion"
+
+hackageVersionMacros :: IO String
+hackageVersionMacros = do
+  versions <- packages
+  return $ generatePackageVersionMacros versions
+
+generatePackageVersionMacros :: [(String, Version)] -> String
+generatePackageVersionMacros pkgs = concat
+  [ GHC.generateMacros "" pkgname version
+  | pkg <- pkgs
+  , let version = snd pkg
+        pkgname = fst pkg
+  ]
+
+_fff :: IO ()
+_fff = do
+    ms <- hackageVersionMacros
+    writeFile "hackage-version-macros.txt" ms

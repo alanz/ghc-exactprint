@@ -92,6 +92,7 @@ Test-Suite test
                      , ghc-paths  >= 0.1
                      , syb        >= 0.5
                      , silently   >= 1.2
+                     , ghc-internal
                      , ghc-boot
   if flag (dev)
       build-depends:
@@ -119,6 +120,8 @@ executable roundtrip
                , ghc-exactprint
                , ghc-paths  < 0.2
                , time       < 1.13
+               , text       >= 1.2.2
+               , ghc-internal
                , ghc-boot
     buildable: True
   else
@@ -135,6 +138,7 @@ executable static
     build-depends: base < 4.22
                  , directory < 1.4
                  , filepath  < 1.6
+                 , ghc-internal
                  , ghc       >= 9.12 && < 9.13
                  , Diff      < 0.6
     buildable: True

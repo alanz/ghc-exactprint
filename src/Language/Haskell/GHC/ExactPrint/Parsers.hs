@@ -34,6 +34,8 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
         , parseWith
 
         -- * Internal
+        , macroIORef
+        , macrosFromIORef
 
         , ghcWrapper
 
@@ -48,6 +50,8 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
 import Language.Haskell.GHC.ExactPrint.Preprocess
 
 import Data.Functor (void)
+import Data.IORef
+import System.IO.Unsafe
 
 import qualified GHC hiding (parseModule)
 import qualified Control.Monad.IO.Class as GHC
@@ -105,7 +109,19 @@ runParser parser flags filename str = GHC.unP parser parseState
       location = GHC.mkRealSrcLoc (GHC.mkFastString filename) 1 1
       buffer = GHC.stringToStringBuffer str
       -- parseState = GHC.initParserState (GHC.initParserOpts flags) buffer location
-      parseState = GHC.initParserStateWithMacros flags Nothing (GHC.initParserOpts flags) buffer location
+      -- parseState = GHC.initParserStateWithMacros flags Nothing (GHC.initParserOpts flags) buffer location
+
+      -- TODO: precompute the macros first, store them in an IORef
+      -- macros = Nothing
+      macros = macrosFromIORef
+      parseState = GHC.initParserStateWithMacrosString flags macros (GHC.initParserOpts flags) buffer location
+
+macroIORef :: IORef (Maybe String)
+{-# NOINLINE macroIORef #-}
+macroIORef = unsafePerformIO (newIORef Nothing)
+
+macrosFromIORef :: Maybe String
+macrosFromIORef =  unsafePerformIO (readIORef macroIORef)
 
 -- ---------------------------------------------------------------------
 

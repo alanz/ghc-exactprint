@@ -27,6 +27,7 @@ module Test.Common (
               , showErrorMessages
               , LibDir
               , useGhcCpp
+              , getHackageVersionMacros
               ) where
 
 
@@ -50,6 +51,8 @@ import Control.Monad
 import Data.List hiding (find)
 
 import System.Directory
+
+import Test.CommonUtils (hackageVersionMacros)
 
 import Test.HUnit
 import System.FilePath
@@ -225,3 +228,9 @@ getModSummaryForFile fileName = do
    _ -> return Nothing
 
 -- ---------------------------------------------------------------------
+
+getHackageVersionMacros :: IO (Maybe String)
+getHackageVersionMacros =
+  if useGhcCpp
+      then Just <$> hackageVersionMacros
+      else return Nothing
