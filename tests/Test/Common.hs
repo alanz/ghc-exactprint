@@ -41,16 +41,25 @@ import Language.Haskell.GHC.ExactPrint.Preprocess
 import qualified Control.Monad.IO.Class as GHC
 import GHC hiding (moduleName)
 import GHC.Driver.Errors.Types
+import qualified Data.List.NonEmpty as NE
+import qualified GHC.Data.FastString    as GHC
+import qualified GHC.Data.StringBuffer  as GHC
+import qualified GHC.Driver.Config.Parser as GHC
 import qualified GHC.Driver.Session    as GHC
+import qualified GHC.Parser            as GHC
+import qualified GHC.Parser.Lexer      as Lexer
+import qualified GHC.Parser.PreProcess.State as GHC
+import qualified GHC.Types.SrcLoc       as GHC
+
+import qualified GHC.LanguageExtensions as LangExt
 import GHC.Types.Error
 import GHC.Utils.Error
 import GHC.Utils.Outputable (renderWithContext, defaultSDocContext, vcat)
 
-import qualified GHC.LanguageExtensions as LangExt
-
 import Control.Monad
 import Data.IORef
 import Data.List hiding (find)
+import qualified Data.Map as Map
 
 import System.Directory
 
@@ -231,8 +240,8 @@ getModSummaryForFile fileName = do
 
 -- ---------------------------------------------------------------------
 
-presetHackageVersionMacros :: IO ()
-presetHackageVersionMacros = do
+presetHackageVersionMacros :: LibDir -> IO ()
+presetHackageVersionMacros _libdir = do
   ms <- getHackageVersionMacros
   writeIORef macroIORef ms
 
@@ -241,3 +250,23 @@ getHackageVersionMacros =
   if useGhcCpp
       then Just <$> hackageVersionMacros
       else return Nothing
+
+parseMacroDefines :: DynFlags -> String -> GHC.MacroDefines
+parseMacroDefines df macro_defs = defines
+  where
+    opts = GHC.initParserOpts df
+    pos = GHC.mkRealSrcLoc (GHC.mkFastString "macros") 1 1
+    p_state0 = Lexer.initParserState (GHC.initPpState { GHC.pp_defines =GHC.predefinedMacros df
+                                                      , GHC.pp_scope = (GHC.PpScope True GHC.PpNoGroup) NE.:| [] })
+                                     opts (GHC.stringToStringBuffer macro_defs) pos
+    defines =
+        case Lexer.unP GHC.parseHeader p_state0 of
+          Lexer.PFailed _ -> Map.empty
+          Lexer.POk st  _ -> GHC.pp_defines (Lexer.pp st)
+
+
+getMacroDefines :: LibDir -> IO GHC.MacroDefines
+getMacroDefines libdir = ghcWrapper libdir $ do
+    dflags <- GHC.getSessionDynFlags
+    macro_defs <- GHC.liftIO hackageVersionMacros
+    return $ parseMacroDefines dflags macro_defs

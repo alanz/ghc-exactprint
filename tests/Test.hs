@@ -193,7 +193,7 @@ tr = hSilence [stderr] $ do
 tt' :: IO (Counts,Int)
 tt' = do
   let libdir = GHC.Paths.libdir
-  presetHackageVersionMacros
+  presetHackageVersionMacros libdir
   runTestText (putTextToHandle stdout True) $ TestList [
 
     -- mkParserTest libdir "ghc98" "ModuleComments1.hs"

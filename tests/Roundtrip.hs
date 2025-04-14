@@ -19,8 +19,6 @@ import Test.CommonUtils
 import Test.HUnit
 import qualified Data.Set as S
 
-import Language.Haskell.GHC.ExactPrint.Parsers (macroIORef)
-
 -- ---------------------------------------------------------------------
 
 data Verbosity = Debug | Status | None deriving (Eq, Show, Ord, Enum)
@@ -80,7 +78,7 @@ main = do
   createDirectoryIfMissing True workDir
   createDirectoryIfMissing True configDir
   createDirectoryIfMissing True failuresDir
-  presetHackageVersionMacros
+  presetHackageVersionMacros libdir
   as <- getArgs
   case as of
     [] -> putStrLn "Must enter directory to process"
