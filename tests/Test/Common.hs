@@ -28,6 +28,7 @@ module Test.Common (
               , LibDir
               , useGhcCpp
               , getHackageVersionMacros
+              , presetHackageVersionMacros
               ) where
 
 
@@ -48,6 +49,7 @@ import GHC.Utils.Outputable (renderWithContext, defaultSDocContext, vcat)
 import qualified GHC.LanguageExtensions as LangExt
 
 import Control.Monad
+import Data.IORef
 import Data.List hiding (find)
 
 import System.Directory
@@ -228,6 +230,11 @@ getModSummaryForFile fileName = do
    _ -> return Nothing
 
 -- ---------------------------------------------------------------------
+
+presetHackageVersionMacros :: IO ()
+presetHackageVersionMacros = do
+  ms <- getHackageVersionMacros
+  writeIORef macroIORef ms
 
 getHackageVersionMacros :: IO (Maybe String)
 getHackageVersionMacros =

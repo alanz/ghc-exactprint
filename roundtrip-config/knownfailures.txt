@@ -1,0 +1,7 @@
+./hackage-roundtrip-work/accelerate-bignum-0.3.0.0/src/Data/Array/Accelerate/Internal/Orphans/Base.hs
+./hackage-roundtrip-work/accelerate-cuda-0.17.0.0/Data/Array/Accelerate/CUDA/Array/Data.hs
+./hackage-roundtrip-work/accelerate-cuda-0.17.0.0/Data/Array/Accelerate/CUDA/Persistent.hs
+./hackage-roundtrip-work/Adaptive-0.23/Control/Monad/Adaptive.hs
+./hackage-roundtrip-work/Adaptive-Blaisorblade-0.23/Control/Monad/Adaptive.hs
+./hackage-roundtrip-work/adp-multi-0.2.3/tests/MCFG/MCFG.hs
+./hackage-roundtrip-work/AERN-Net-0.2.1.1/src/Control/ERNet/Foundations/Manager.hs

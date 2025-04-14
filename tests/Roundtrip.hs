@@ -6,7 +6,6 @@ module Main where
 import qualified GHC.Paths
 import Control.Exception
 import Control.Monad
-import Data.IORef
 import Data.Time.Clock
 import Data.Time.Format
 import Debug.Trace
@@ -81,8 +80,7 @@ main = do
   createDirectoryIfMissing True workDir
   createDirectoryIfMissing True configDir
   createDirectoryIfMissing True failuresDir
-  ms <- getHackageVersionMacros
-  writeIORef macroIORef ms
+  presetHackageVersionMacros
   as <- getArgs
   case as of
     [] -> putStrLn "Must enter directory to process"

@@ -193,6 +193,7 @@ tr = hSilence [stderr] $ do
 tt' :: IO (Counts,Int)
 tt' = do
   let libdir = GHC.Paths.libdir
+  presetHackageVersionMacros
   runTestText (putTextToHandle stdout True) $ TestList [
 
     -- mkParserTest libdir "ghc98" "ModuleComments1.hs"
@@ -227,7 +228,7 @@ tt' = do
     -- mkParserTest libdir "pre-ghc910" "RandomPGC1.hs"
     -- mkParserTest libdir "pre-ghc910" "Utils.hs"
     -- mkParserTest libdir "failing" "CppComment.hs"
-    mkParserTest libdir "ghc-cpp" "Persistent.hs"
+    mkParserTest libdir "ghc-cpp" "Scan.hs"
 
     ]
 
