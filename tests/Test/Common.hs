@@ -67,6 +67,7 @@ import Test.CommonUtils (hackageVersionMacros)
 
 import Test.HUnit
 import System.FilePath
+import qualified GHC.Paths
 
 useGhcCpp :: Bool
 useGhcCpp = True
@@ -241,9 +242,10 @@ getModSummaryForFile fileName = do
 -- ---------------------------------------------------------------------
 
 presetHackageVersionMacros :: LibDir -> IO ()
-presetHackageVersionMacros _libdir = do
-  ms <- getHackageVersionMacros
-  writeIORef macroIORef ms
+presetHackageVersionMacros libdir = do
+  -- ms <- getHackageVersionMacros
+  ms <- getMacroDefines libdir
+  writeIORef macroIORef (Just ms)
 
 getHackageVersionMacros :: IO (Maybe String)
 getHackageVersionMacros =
@@ -252,21 +254,43 @@ getHackageVersionMacros =
       else return Nothing
 
 parseMacroDefines :: DynFlags -> String -> GHC.MacroDefines
-parseMacroDefines df macro_defs = defines
+parseMacroDefines df0 macro_defs = defines
   where
+    df = GHC.xopt_set df0 LangExt.GhcCpp
     opts = GHC.initParserOpts df
     pos = GHC.mkRealSrcLoc (GHC.mkFastString "macros") 1 1
-    p_state0 = Lexer.initParserState (GHC.initPpState { GHC.pp_defines =GHC.predefinedMacros df
+    p_state0 = Lexer.initParserState (GHC.initPpState { GHC.pp_defines = GHC.predefinedMacros df
                                                       , GHC.pp_scope = (GHC.PpScope True GHC.PpNoGroup) NE.:| [] })
                                      opts (GHC.stringToStringBuffer macro_defs) pos
     defines =
         case Lexer.unP GHC.parseHeader p_state0 of
           Lexer.PFailed _ -> Map.empty
+          -- Lexer.PFailed _ -> error $ "blah:"
           Lexer.POk st  _ -> GHC.pp_defines (Lexer.pp st)
+          -- Lexer.POk st r -> error $ "sss:" ++ show (GHC.pp_defines $ Lexer.pp st)
 
 
 getMacroDefines :: LibDir -> IO GHC.MacroDefines
 getMacroDefines libdir = ghcWrapper libdir $ do
     dflags <- GHC.getSessionDynFlags
     macro_defs <- GHC.liftIO hackageVersionMacros
+    return $ parseMacroDefines dflags macro_defs
+
+
+fff = do
+  let libdir = GHC.Paths.libdir
+  hhh libdir
+
+hhh :: LibDir -> IO GHC.MacroDefines
+hhh libdir = ghcWrapper libdir $ do
+    dflags <- GHC.getSessionDynFlags
+    let macro_defs = concat
+            [ ""
+            , "#define VERSION_logging_effect_extra_handler \"2.0.1\""
+            , "#define MIN_VERSION_logging_effect_extra_handler(major1,major2,minor) (\\"
+            , "  (major1) <  2 || \\"
+            , "  (major1) == 2 && (major2) <  0 || \\"
+            , "  (major1) == 2 && (major2) == 0 && (minor) <= 1)"
+            , ""
+            ]
     return $ parseMacroDefines dflags macro_defs
