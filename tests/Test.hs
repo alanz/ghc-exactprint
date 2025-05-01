@@ -229,7 +229,9 @@ tt' = do
     -- mkParserTest libdir "pre-ghc910" "Utils.hs"
     -- mkParserTest libdir "failing" "CppComment.hs"
     -- mkParserTest libdir "ghc-cpp" "Scan.hs"
-    mkParserTest libdir "ghc-cpp" "Test1.hs"
+    -- mkParserTest libdir "ghc-cpp" "Test1.hs"
+    -- mkParserTest libdir "ghc-cpp" "WithoutSomeFixpoints.hs"
+    mkParserTest libdir "ghc-cpp" "HelperMain.hs"
 
     ]
 

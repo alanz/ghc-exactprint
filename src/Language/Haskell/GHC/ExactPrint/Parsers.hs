@@ -59,6 +59,7 @@ import qualified GHC hiding (parseModule)
 import qualified Control.Monad.IO.Class as GHC
 import qualified GHC.Data.FastString    as GHC
 import qualified GHC.Data.StringBuffer  as GHC
+import qualified GHC.Driver.Config.Diagnostic as GHC
 import qualified GHC.Driver.Config.Parser as GHC
 import qualified GHC.Driver.Env.Types     as GHC
 import qualified GHC.Driver.Errors.Types  as GHC
@@ -117,9 +118,14 @@ runParser parser flags filename str = GHC.unP parser parseState
       -- TODO: precompute the macros first, store them in an IORef
       -- macros = Nothing
       macros = fromMaybe Map.empty macrosFromIORef
-      parseState0 = GHC.initParserStateWithMacrosString flags Nothing (GHC.initParserOpts flags) buffer location
+      -- opts0 = GHC.initParserOpts flags
+      -- opts1 = GHC.enableExtBit GHC.UsePosPragsBit opts0
+      -- opts = opts1
+      opts = myInitParserOpts flags
+      parseState0 = GHC.initParserStateWithMacrosString flags Nothing opts buffer location
       parseState = parseState0 { GHC.pp = (GHC.pp parseState0) { GHC.pp_defines = macros }
                                , GHC.buffer = buffer }
+
 
 macroIORef :: IORef (Maybe GHC.MacroDefines)
 {-# NOINLINE macroIORef #-}
@@ -127,6 +133,17 @@ macroIORef = unsafePerformIO (newIORef Nothing)
 
 macrosFromIORef :: Maybe GHC.MacroDefines
 macrosFromIORef =  unsafePerformIO (readIORef macroIORef)
+
+myInitParserOpts :: GHC.DynFlags -> GHC.ParserOpts
+myInitParserOpts =
+  GHC.mkParserOpts
+    <$> GHC.extensionFlags
+    <*> GHC.initDiagOpts
+    <*> GHC.safeImportsOn
+    <*> GHC.gopt GHC.Opt_Haddock
+    <*> GHC.gopt GHC.Opt_KeepRawTokenStream
+    <*> const False -- do not use LINE/COLUMN to update the internal location
+
 
 -- ---------------------------------------------------------------------
 
@@ -277,13 +294,9 @@ parseModuleEpAnnsWithGhcCppInternal cppOptions dflags file = do
   (fileContents, injectedComments, dflags') <-
     if useCpp
       then do
-        -- (contents,dflags1) <- getPreprocessedSrcDirect cppOptions file
-        -- cppComments <- getCppTokensAsComments cppOptions file
-        -- return (contents,cppComments,dflags1)
         txt <- GHC.liftIO $ readFileGhc file
-        -- let (contents1,lp) = stripLinePragmas txt
         let (contents1,lp) = (txt, [])
-        let no_cpp_dflags = GHC.xopt_unset dflags  LangExt.GhcCpp
+        let no_cpp_dflags = GHC.xopt_unset dflags LangExt.Cpp
         return (contents1, lp, GHC.xopt_set no_cpp_dflags LangExt.GhcCpp)
       else do
         txt <- GHC.liftIO $ readFileGhc file

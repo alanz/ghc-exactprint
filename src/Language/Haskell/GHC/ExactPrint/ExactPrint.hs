@@ -1608,7 +1608,7 @@ instance ExactPrint (ImportDecl GhcPs) where
                     = (ideclExt idecl) { ideclAnn = setAnchorEpa (ideclAnn $ ideclExt idecl) anc ts cs} }
 
   exact (ImportDecl (XImportDeclPass ann msrc impl)
-                     modname mpkg src safeflag qualFlag mAs hiding) = do
+                     modname mpkg src st safeflag qualFlag mAs hiding) = do
 
     ann0 <- markLensFun' ann limportDeclAnnImport markEpToken
     let (EpAnn _anc an _cs) = ann0
@@ -1670,7 +1670,7 @@ instance ExactPrint (ImportDecl GhcPs) where
                   }
 
     return (ImportDecl (XImportDeclPass (EpAnn anc' an2 cs') msrc impl)
-                     modname' mpkg src safeflag qualFlag mAs' hiding')
+                     modname' mpkg src st safeflag qualFlag mAs' hiding')
 
 
 -- ---------------------------------------------------------------------

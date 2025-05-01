@@ -292,5 +292,11 @@ hhh libdir = ghcWrapper libdir $ do
             , "  (major1) == 2 && (major2) <  0 || \\"
             , "  (major1) == 2 && (major2) == 0 && (minor) <= 1)"
             , ""
+            , "#define VERSION_template_haskell \"2.23.0\""
+            , "#define MIN_VERSION_template_haskell(major1,major2,minor) (\\"
+            , "  (major1) <  2 || \\"
+            , "  (major1) == 2 && (major2) <  23 || \\"
+            , "  (major1) == 2 && (major2) == 23 && (minor) <= 0)"
+            , ""
             ]
     return $ parseMacroDefines dflags macro_defs
