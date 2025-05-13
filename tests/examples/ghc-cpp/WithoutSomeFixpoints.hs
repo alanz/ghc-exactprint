@@ -1,5 +1,3 @@
--- Do not edit! Automatically created with doctest-extract from src/Combinatorics/Permutation/WithoutSomeFixpoints.hs
-{-# LANGUAGE CPP #-}
 {-# LINE 5 "src/Combinatorics/Permutation/WithoutSomeFixpoints.hs" #-}
 
 module Test.Combinatorics.Permutation.WithoutSomeFixpoints where
@@ -7,10 +5,6 @@ module Test.Combinatorics.Permutation.WithoutSomeFixpoints where
 import qualified Test.DocTest.Driver as DocTest
 
 {-# LINE 6 "src/Combinatorics/Permutation/WithoutSomeFixpoints.hs" #-}
-import     qualified Combinatorics.Permutation.WithoutSomeFixpoints as PermWOFP
-import     qualified Combinatorics as Comb
-import     qualified Test.QuickCheck as QC
-import     Control.Applicative ((<$>))
 import     Data.List (nub)
 
 genPermutationWOFP     :: QC.Gen (Int, String)

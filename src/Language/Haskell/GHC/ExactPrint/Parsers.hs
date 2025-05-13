@@ -292,7 +292,8 @@ parseModuleEpAnnsWithGhcCppInternal
 parseModuleEpAnnsWithGhcCppInternal cppOptions dflags file = do
   let useCpp = GHC.xopt LangExt.Cpp dflags
   (fileContents, injectedComments, dflags') <-
-    if useCpp
+    -- if useCpp
+    if True
       then do
         txt <- GHC.liftIO $ readFileGhc file
         let (contents1,lp) = (txt, [])
@@ -430,7 +431,8 @@ initDynFlags file = do
   hsc <- GHC.getSession
   let logger = GHC.hsc_logger hsc
   let unit_env = GHC.hsc_unit_env hsc
-  (_, src_opts)   <- GHC.liftIO $ GHC.getOptionsFromFile dflags0 unit_env parser_opts0 (GHC.supportedLanguagePragmas dflags0) file
+  let supported_pragmas = "JavaScriptFFI" : GHC.supportedLanguagePragmas dflags0
+  (_, src_opts)   <- GHC.liftIO $ GHC.getOptionsFromFile dflags0 unit_env parser_opts0 supported_pragmas file
   (dflags1, _, _) <- GHC.parseDynamicFilePragma logger dflags0 src_opts
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream

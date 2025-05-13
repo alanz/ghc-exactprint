@@ -2476,6 +2476,7 @@ instance ExactPrint (HsLocalBinds GhcPs) where
         when (not $ isEmptyValBinds valbinds) $ setExtraDP (Just anc)
       _ -> return ()
 
+    debugM $ "exact HsValBinds: starting"
     (an1, valbinds') <- markAnnList an0 $ markAnnotatedWithLayout valbinds
     debugM $ "exact HsValBinds: an1=" ++ showAst an1
     medr <- getExtraDPReturn

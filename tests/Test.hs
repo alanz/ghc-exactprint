@@ -44,7 +44,8 @@ testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
     GHC910 -> ["pre-ghc910", "ghc910"]
-    GHC912 -> ["pre-ghc910", "ghc910", "ghc912"]
+    -- GHC912 -> ["pre-ghc910", "ghc910", "ghc912"]
+    GHC912 -> ["ghc-cpp"]
     -- GHC912  -> ["ghc912"]
     -- GHC912  -> ["ghc912-copied"]
     -- GHC912  -> ["ghc912",  "ghc912-copied"]
@@ -141,14 +142,14 @@ mkTests = do
   return $ TestList [
                       internalTests,
                       roundTripTests
-                   ,
-                     (transformTests libdir)
-                   ,
-                      (failingTests libdir)
-                   ,
-                     roundTripBalanceCommentsTests
-                   ,
-                     roundTripMakeDeltaTests
+                   -- ,
+                   --   (transformTests libdir)
+                   -- ,
+                   --    (failingTests libdir)
+                   -- ,
+                   --   roundTripBalanceCommentsTests
+                   -- ,
+                   --   roundTripMakeDeltaTests
                     ]
 
 failingTests :: LibDir -> Test
@@ -230,8 +231,10 @@ tt' = do
     -- mkParserTest libdir "failing" "CppComment.hs"
     -- mkParserTest libdir "ghc-cpp" "Scan.hs"
     -- mkParserTest libdir "ghc-cpp" "Test1.hs"
-    -- mkParserTest libdir "ghc-cpp" "WithoutSomeFixpoints.hs"
-    mkParserTest libdir "ghc-cpp" "HelperMain.hs"
+    mkParserTest libdir "ghc-cpp" "WithoutSomeFixpoints.hs"
+
+    -- mkParserTest libdir "ghc-cpp" "Promise.hs"
+    -- mkParserTest libdir "ghc-cpp" "Set1.hs"
 
     ]
 

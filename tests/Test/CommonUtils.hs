@@ -37,6 +37,9 @@ import GHC.Internal.Data.Version (Version, makeVersion)
 hackageWorkDir :: FilePath
 hackageWorkDir = "./hackage-roundtrip-work"
 
+hackageWorkDirRest :: FilePath
+hackageWorkDirRest = "./hackage-roundtrip-work.rest"
+
 -- ---------------------------------------------------------------------
 
 -- | Round trip working dir, can be deleted
@@ -147,8 +150,9 @@ readFileGhc file = do
 packages :: IO [(String, Version)]
 packages = do
   packageDirsFull <- drop 2 <$> getDirectoryContents hackageWorkDir
+  packageDirsFullRest <- drop 2 <$> getDirectoryContents hackageWorkDirRest
   let cond c = c == '-'
-  let packageDirs = map (\p -> break cond $ reverse p) packageDirsFull
+  let packageDirs = map (\p -> break cond $ reverse p) (packageDirsFull ++ packageDirsFullRest)
   let pp = map (\(v,n) -> (dashToLower $ reverse (drop 1 n), makeVersion $ parseVersion $ reverse v)) packageDirs
   return pp
 
