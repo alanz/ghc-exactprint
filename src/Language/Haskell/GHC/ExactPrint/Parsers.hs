@@ -265,7 +265,7 @@ parseModuleEpAnnsWithCpp
            ([GHC.LEpaComment], GHC.DynFlags, GHC.ParsedSource)
        )
 parseModuleEpAnnsWithCpp libdir useGhcCpp cppOptions file = ghcWrapper libdir $ do
-  dflags <- initDynFlags file
+  dflags <- initDynFlags useGhcCpp file
   if useGhcCpp
      then parseModuleEpAnnsWithGhcCppInternal cppOptions dflags file
      else parseModuleEpAnnsWithCppInternal cppOptions dflags file
@@ -423,10 +423,16 @@ fixModuleHeaderComments (GHC.L l p) = GHC.L l p'
 -- package environment files. However this only works if there is no
 -- invocation of `setSessionDynFlags` before calling `initDynFlags`.
 -- See ghc tickets #15513, #15541.
-initDynFlags :: GHC.GhcMonad m => FilePath -> m GHC.DynFlags
-initDynFlags file = do
+initDynFlags :: GHC.GhcMonad m
+    => Bool -- ^ Use GhcCpp
+    -> FilePath
+    -> m GHC.DynFlags
+initDynFlags useGhcCpp file = do
   -- Based on GHC backpack driver doBackPack
-  dflags0         <- GHC.getSessionDynFlags
+  dflags         <- GHC.getSessionDynFlags
+  let dflags0 = if useGhcCpp
+          then GHC.xopt_set dflags LangExt.GhcCpp
+          else dflags
   let parser_opts0 = GHC.initParserOpts dflags0
   hsc <- GHC.getSession
   let logger = GHC.hsc_logger hsc

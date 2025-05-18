@@ -6,6 +6,8 @@
 module Main where
 
 -- import Language.Haskell.GHC.ExactPrint.Utils ( showGhc )
+import Language.Haskell.GHC.ExactPrint.Preprocess (defaultCppOptions)
+import Language.Haskell.GHC.ExactPrint.Parsers
 import qualified GHC.Paths
 import Control.Monad
 import System.Directory
@@ -231,10 +233,11 @@ tt' = do
     -- mkParserTest libdir "failing" "CppComment.hs"
     -- mkParserTest libdir "ghc-cpp" "Scan.hs"
     -- mkParserTest libdir "ghc-cpp" "Test1.hs"
-    mkParserTest libdir "ghc-cpp" "WithoutSomeFixpoints.hs"
+    -- mkParserTest libdir "ghc-cpp" "WithoutSomeFixpoints.hs"
 
     -- mkParserTest libdir "ghc-cpp" "Promise.hs"
     -- mkParserTest libdir "ghc-cpp" "Set1.hs"
+    mkParserTest libdir "ghc-cpp" "Serialize.hs"
 
     ]
 
@@ -290,3 +293,17 @@ pwd = getCurrentDirectory
 
 cd :: FilePath -> IO ()
 cd = setCurrentDirectory
+
+parseOnly :: String -> IO (Either String ())
+parseOnly file = do
+    presetHackageVersionMacros GHC.Paths.libdir
+    wd <- getCurrentDirectory
+    let file2 = wd ++ "/" ++ file
+    res <- parseModuleEpAnnsWithCpp GHC.Paths.libdir useGhcCpp defaultCppOptions file2
+    case res of
+        Left m -> return . Left $ (showErrorMessages m)
+        Right (injectedComments, dflags, pmod)  -> do
+            putStrLn "ok"
+            return $ Right ()
+
+po = parseOnly

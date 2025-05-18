@@ -243,7 +243,7 @@ getModSummaryForFile fileName = do
 
 presetHackageVersionMacros :: LibDir -> IO ()
 presetHackageVersionMacros libdir = do
-  -- ms <- getHackageVersionMacros
+  -- TODO: check if already done, do not repeat
   ms <- getMacroDefines libdir
   writeIORef macroIORef (Just ms)
 
