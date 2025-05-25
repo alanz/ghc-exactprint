@@ -51,12 +51,14 @@ import Language.Haskell.GHC.ExactPrint.Preprocess
 
 import Data.Functor (void)
 import Data.IORef
+import System.IO
 import System.IO.Unsafe
 import qualified Data.Map as Map
 import Data.Maybe
 
 import qualified GHC hiding (parseModule)
 import qualified Control.Monad.IO.Class as GHC
+import qualified GHC.Data.Bag           as GHC
 import qualified GHC.Data.FastString    as GHC
 import qualified GHC.Data.StringBuffer  as GHC
 import qualified GHC.Driver.Config.Diagnostic as GHC
@@ -66,14 +68,21 @@ import qualified GHC.Driver.Errors.Types  as GHC
 import qualified GHC.Driver.Session     as GHC
 import qualified GHC.Parser             as GHC
 import qualified GHC.Parser.Header      as GHC
-import qualified GHC.Parser.Lexer       as GHC hiding (initParserState)
+import qualified GHC.Parser.Lexer       as GHC hiding (initParserState, initPragState,lexer)
 import qualified GHC.Parser.PreProcess.State as GHC
 import qualified GHC.Parser.PostProcess as GHC
+import qualified GHC.Types.Error        as GHC
 import qualified GHC.Types.SrcLoc       as GHC
+import qualified GHC.Unit.Env           as GHC
+import qualified GHC.Utils.Misc         as GHC
+import qualified GHC.Parser.Lexer       as Lexer
 
+
+import GHC.Utils.Exception as Exception
 import qualified GHC.LanguageExtensions as LangExt
 import qualified GHC.Parser.PreProcess as GHC
 import GHC (GhcMonad(getSession))
+import Debug.Trace
 
 -- ---------------------------------------------------------------------
 
@@ -115,9 +124,9 @@ runParser parser flags filename str = GHC.unP parser parseState
       -- parseState = GHC.initParserState (GHC.initParserOpts flags) buffer location
       -- parseState = GHC.initParserStateWithMacros flags Nothing (GHC.initParserOpts flags) buffer location
 
-      -- TODO: precompute the macros first, store them in an IORef
-      -- macros = Nothing
-      macros = fromMaybe Map.empty macrosFromIORef
+      -- macros = fromMaybe Map.empty macrosFromIORef
+      macros = fromMaybe (error "macroIORef not set up") macrosFromIORef
+
       -- opts0 = GHC.initParserOpts flags
       -- opts1 = GHC.enableExtBit GHC.UsePosPragsBit opts0
       -- opts = opts1
@@ -438,7 +447,8 @@ initDynFlags useGhcCpp file = do
   let logger = GHC.hsc_logger hsc
   let unit_env = GHC.hsc_unit_env hsc
   let supported_pragmas = "JavaScriptFFI" : GHC.supportedLanguagePragmas dflags0
-  (_, src_opts)   <- GHC.liftIO $ GHC.getOptionsFromFile dflags0 unit_env parser_opts0 supported_pragmas file
+  (_, src_opts)   <- GHC.liftIO $ myGetOptionsFromFile dflags0 unit_env parser_opts0 supported_pragmas file
+  -- error $ "initDynFlags:src_opts: " ++ show  (map GHC.unLoc src_opts)
   (dflags1, _, _) <- GHC.parseDynamicFilePragma logger dflags0 src_opts
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
@@ -479,5 +489,146 @@ initDynFlagsPure fp s = do
     [GHC.noLoc "-hide-all-packages"]
   _ <- GHC.setSessionDynFlags dflags3
   return dflags3
+
+-- ---------------------------------------------------------------------
+
+myGetOptionsFromFile :: GHC.DynFlags
+                   -> GHC.UnitEnv
+                   -> GHC.ParserOpts
+                   -> [String] -- ^ Supported LANGUAGE pragmas
+                   -> FilePath            -- ^ Input file
+                   -> IO (GHC.Messages GHC.PsMessage, [GHC.Located String]) -- ^ Parsed options, if any.
+myGetOptionsFromFile df unit_env popts supported filename
+    = Exception.bracket
+              (openBinaryFile filename ReadMode)
+              (hClose)
+              (\handle -> do
+                  (warns, opts) <- fmap (GHC.getOptions' popts supported)
+                               (myGetPragState df unit_env popts' filename handle
+                               -- >>= \prag_state -> traceToks <$> GHC.lazyGetToks prag_state handle)
+                               >>= \prag_state -> GHC.lazyGetToks prag_state handle)
+                  GHC.seqList opts
+                    $ GHC.seqList (GHC.bagToList $ GHC.getMessages warns)
+                    $ return (warns, opts))
+    where -- We don't need to get haddock doc tokens when we're just
+          -- getting the options from pragmas, and lazily lexing them
+          -- correctly is a little tricky: If there is "\n" or "\n-"
+          -- left at the end of a buffer then the haddock doc may
+          -- continue past the end of the buffer, despite the fact that
+          -- we already have an apparently-complete token.
+          -- We therefore just turn Opt_Haddock off when doing the lazy
+          -- lex.
+          popts' = GHC.disableHaddock popts
+
+blockSize :: Int
+-- blockSize = 17 -- for testing :-)
+blockSize = 1024
+
+myGetPragState :: GHC.DynFlags -> GHC.UnitEnv -> GHC.ParserOpts -> FilePath -> Handle -> IO (GHC.PState GHC.PpState)
+myGetPragState df unit_env popts filename handle = do
+  buf <- GHC.hGetStringBufferBlock handle blockSize
+
+  let macros = fromMaybe (error "macroIORef not set up") macrosFromIORef
+
+      -- opts0 = GHC.initParserOpts flags
+      -- opts1 = GHC.enableExtBit GHC.UsePosPragsBit opts0
+      -- opts = opts1
+  let popts = myInitParserOpts df
+  let loc  = GHC.mkRealSrcLoc (GHC.mkFastString filename) 1 1
+  let prag_state = if Lexer.ghcCppEnabled popts
+        then GHC.initPragStateWithMacros df unit_env popts buf loc
+        else GHC.initPragState popts buf loc
+  return prag_state { GHC.pp = (GHC.pp prag_state) { GHC.pp_defines = macros }
+                    , GHC.buffer = buf }
+
+
+-- getOptions :: ParserOpts
+--            -> [String] -- ^ Supported LANGUAGE pragmas
+--            -> StringBuffer -- ^ Input Buffer
+--            -> FilePath     -- ^ Source filename.  Used for location info.
+--            -> (Messages PsMessage,[Located String]) -- ^ warnings and parsed options.
+-- getOptions opts supported buf filename
+--     = getOptions' opts supported (getToks opts filename buf)
+-- myGetOptions :: GHC.ParserOpts
+--            -> [String] -- ^ Supported LANGUAGE pragmas
+--            -> GHC.StringBuffer -- ^ Input Buffer
+--            -> FilePath     -- ^ Source filename.  Used for location info.
+--            -> (GHC.Messages GHC.PsMessage,[GHC.Located String]) -- ^ warnings and parsed options.
+-- myGetOptions opts supported buf filename
+--     = GHC.getOptions' opts supported (myGetToks opts filename buf)
+
+-- getOptions' :: GHC.ParserOpts
+--             -> [String]
+--             -> [GHC.Located GHC.Token]      -- Input buffer
+--             -> (GHC.Messages GHC.PsMessage,[GHC.Located String])     -- Options.
+-- getOptions' opts supported toks =
+--     error $ "getOptions': toks " ++ show toks
+
+traceToks :: [GHC.Located GHC.Token] -> [GHC.Located GHC.Token]
+traceToks [] = []
+traceToks (h:t) = trace ("tok: " ++ show (GHC.unLoc h)) h : traceToks t
+
+
+-- getToks :: ParserOpts -> FilePath -> StringBuffer -> [Located Token]
+-- getToks popts filename buf = lexAll pstate
+--  where
+--   pstate = initPragState popts buf loc
+--   loc  = mkRealSrcLoc (mkFastString filename) 1 1
+
+--   lexAll state = case unP (lexer False return) state of
+--                    POk _      t@(L _ ITeof) -> [t]
+--                    POk state' t -> t : lexAll state'
+--                    _ -> [L (mkSrcSpanPs (last_loc state)) ITeof]
+
+-- lazyGetToks :: DynFlags -> UnitEnv -> ParserOpts -> FilePath -> Handle -> IO [Located Token]
+-- lazyGetToks df unit_env popts filename handle = do
+--   buf <- hGetStringBufferBlock handle blockSize
+--   let prag_state = if Lexer.ghcCppEnabled popts
+--         then initPragStateWithMacros df unit_env popts buf loc
+--         else initPragState popts buf loc
+--   unsafeInterleaveIO $ lazyLexBuf handle prag_state False blockSize
+--  where
+--   loc  = mkRealSrcLoc (mkFastString filename) 1 1
+
+--   ....
+
+myGetToks :: GHC.DynFlags -> GHC.UnitEnv -> GHC.ParserOpts -> FilePath -> Handle -> IO [GHC.Located GHC.Token]
+myGetToks df unit_env popts filename handle = do
+  buf <- GHC.hGetStringBufferBlock handle blockSize
+  let loc = GHC.mkRealSrcLoc (GHC.mkFastString filename) 1 1
+  let prag_state = if Lexer.ghcCppEnabled popts
+        then GHC.initPragStateWithMacros df unit_env popts buf loc
+        else GHC.initPragState popts buf loc
+  -- GHC.getToks popts filename buf
+  return $ lexAll prag_state
+  where
+  lexAll state = case GHC.unP (GHC.lexer False return) state of
+                   GHC.POk _      t@(GHC.L _ GHC.ITeof) -> [t]
+                   GHC.POk state' t -> t : lexAll state'
+                   _ -> [GHC.L (GHC.mkSrcSpanPs (GHC.last_loc state)) GHC.ITeof]
+
+
+-- getToks :: ParserOpts -> FilePath -> StringBuffer -> [Located Token]
+-- getToks popts filename buf = lexAll pstate
+--  where
+--   pstate = initPragState popts buf loc
+--   loc  = mkRealSrcLoc (mkFastString filename) 1 1
+
+--   lexAll state = case unP (lexer False return) state of
+--                    POk _      t@(L _ ITeof) -> [t]
+--                    POk state' t -> t : lexAll state'
+--                    _ -> [L (mkSrcSpanPs (last_loc state)) ITeof]
+
+
+-- doGetToks :: GHC.ParserOpts -> FilePath -> GHC.StringBuffer -> [GHC.Located GHC.Token]
+-- doGetToks popts filename buf = lexAll pstate
+--  where
+--   pstate = initPragState popts buf loc
+--   loc  = mkRealSrcLoc (mkFastString filename) 1 1
+
+--   lexAll state = case unP (lexer False return) state of
+--                    GHC.POk _      t@(GHC.L _ GHC.ITeof) -> [t]
+--                    GHC.POk state' t -> t : lexAll state'
+--                    _ -> [L (mkSrcSpanPs (last_loc state)) GHC.ITeof]
 
 -- ---------------------------------------------------------------------
