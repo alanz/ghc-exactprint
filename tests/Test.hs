@@ -237,7 +237,7 @@ tt' = do
 
     -- mkParserTest libdir "ghc-cpp" "Promise.hs"
     -- mkParserTest libdir "ghc-cpp" "Set1.hs"
-    mkParserTest libdir "ghc-cpp" "Serialize.hs"
+    mkParserTest libdir "ghc-cpp" "Compat.hs"
 
     ]
 
