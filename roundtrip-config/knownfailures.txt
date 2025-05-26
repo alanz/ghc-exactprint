@@ -1,6 +1,6 @@
 # -*- mode: org -*-
 * Run Started [2025-04-13 Sun]
-** 508 Problems
+** 511 Problems
 ***  32  #include used
 32 files
 ./hackage-roundtrip-work/AvlTree-4.2/Data/Tree/AVL/Size.hs
@@ -508,6 +508,10 @@
 ./hackage-roundtrip-work/cabal-install-bundle-1.18.0.2.1/Distribution/Client/Sandbox.hs
 ./hackage-roundtrip-work/Frames-streamly-0.3.1.0/src/Frames/Streamly/TH.hs
 ./hackage-roundtrip-work/ip-1.7.8/test/IPv4Text1.hs
+***   3 cpp directive not against the margin
+./hackage-roundtrip-work/arrow-list-0.7.1/src/Control/Monad/Sequence.hs
+./hackage-roundtrip-work/halive-0.1.8/src/Halive/SubHalive.hs
+./hackage-roundtrip-work/halive-0.1.8/test/TestGHC.hs
 ***  12 CPP failure (cpp.txt)
 **** MIN_TOOL_VERSION
 7 files
