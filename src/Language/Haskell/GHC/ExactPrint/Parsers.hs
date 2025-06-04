@@ -124,8 +124,8 @@ runParser parser flags filename str = GHC.unP parser parseState
       -- parseState = GHC.initParserState (GHC.initParserOpts flags) buffer location
       -- parseState = GHC.initParserStateWithMacros flags Nothing (GHC.initParserOpts flags) buffer location
 
-      -- macros = fromMaybe Map.empty macrosFromIORef
-      macros = fromMaybe (error "macroIORef not set up") macrosFromIORef
+      macros = fromMaybe Map.empty macrosFromIORef
+      -- macros = fromMaybe (error "macroIORef not set up") macrosFromIORef
 
       -- opts0 = GHC.initParserOpts flags
       -- opts1 = GHC.enableExtBit GHC.UsePosPragsBit opts0
@@ -528,7 +528,8 @@ myGetPragState :: GHC.DynFlags -> GHC.UnitEnv -> GHC.ParserOpts -> FilePath -> H
 myGetPragState df unit_env popts filename handle = do
   buf <- GHC.hGetStringBufferBlock handle blockSize
 
-  let macros = fromMaybe (error "macroIORef not set up") macrosFromIORef
+  let macros = fromMaybe Map.empty macrosFromIORef
+  -- let macros = fromMaybe (error "macroIORef not set up") macrosFromIORef
 
       -- opts0 = GHC.initParserOpts flags
       -- opts1 = GHC.enableExtBit GHC.UsePosPragsBit opts0

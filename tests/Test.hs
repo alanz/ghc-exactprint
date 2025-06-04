@@ -46,8 +46,8 @@ testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
     GHC910 -> ["pre-ghc910", "ghc910"]
-    -- GHC912 -> ["pre-ghc910", "ghc910", "ghc912"]
-    GHC912 -> ["ghc-cpp"]
+    GHC912 -> ["pre-ghc910", "ghc910", "ghc912"]
+    -- GHC912 -> ["ghc-cpp"]
     -- GHC912  -> ["ghc912"]
     -- GHC912  -> ["ghc912-copied"]
     -- GHC912  -> ["ghc912",  "ghc912-copied"]
@@ -196,7 +196,7 @@ tr = hSilence [stderr] $ do
 tt' :: IO (Counts,Int)
 tt' = do
   let libdir = GHC.Paths.libdir
-  presetHackageVersionMacros libdir
+  -- presetHackageVersionMacros libdir
   runTestText (putTextToHandle stdout True) $ TestList [
 
     -- mkParserTest libdir "ghc98" "ModuleComments1.hs"
@@ -230,6 +230,7 @@ tt' = do
     -- mkParserTest libdir "pre-ghc910" "ExperimIOP.hs"
     -- mkParserTest libdir "pre-ghc910" "RandomPGC1.hs"
     -- mkParserTest libdir "pre-ghc910" "Utils.hs"
+    mkParserTest libdir "pre-ghc910" "A.hs"
     -- mkParserTest libdir "failing" "CppComment.hs"
     -- mkParserTest libdir "ghc-cpp" "Scan.hs"
     -- mkParserTest libdir "ghc-cpp" "Test1.hs"
@@ -237,7 +238,7 @@ tt' = do
 
     -- mkParserTest libdir "ghc-cpp" "Promise.hs"
     -- mkParserTest libdir "ghc-cpp" "Set1.hs"
-    mkParserTest libdir "ghc-cpp" "Compat.hs"
+    -- mkParserTest libdir "ghc-cpp" "Compat.hs"
 
     ]
 
