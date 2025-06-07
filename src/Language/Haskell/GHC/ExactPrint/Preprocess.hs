@@ -44,7 +44,6 @@ import Language.Haskell.GHC.ExactPrint.Utils
 import qualified Data.Set as Set
 import qualified GHC.Data.Strict as Strict
 
-
 -- ---------------------------------------------------------------------
 
 data CppOptions = CppOptions

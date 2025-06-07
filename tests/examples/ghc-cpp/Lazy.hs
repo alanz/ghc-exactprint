@@ -14,8 +14,7 @@ unstreamChunks (Stream step s0 _) = go s0
 {-# RULES
 "Lazy Bitstream streamChunks/unstreamChunks fusion"
     ∀s. streamChunks (unId (unstreamChunks s)) = s
-#if MIN_VERSION_base(4,9,0)
-#else
+#if 1
 "Lazy Bitstream unstreamChunks/streamChunks fusion"
     ∀v. unId (unstreamChunks (streamChunks v)) = v
 #endif

@@ -6,7 +6,7 @@
 module Main where
 
 -- import Language.Haskell.GHC.ExactPrint.Utils ( showGhc )
-import Language.Haskell.GHC.ExactPrint.Preprocess (defaultCppOptions)
+-- import Language.Haskell.GHC.ExactPrint.Preprocess (defaultCppOptions)
 import Language.Haskell.GHC.ExactPrint.Parsers
 import qualified GHC.Paths
 import Control.Monad
@@ -46,8 +46,8 @@ testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
     GHC910 -> ["pre-ghc910", "ghc910"]
-    GHC912 -> ["pre-ghc910", "ghc910", "ghc912"]
-    -- GHC912 -> ["ghc-cpp"]
+    -- GHC912 -> ["pre-ghc910", "ghc910", "ghc912"]
+    GHC912 -> ["ghc-cpp"]
     -- GHC912  -> ["ghc912"]
     -- GHC912  -> ["ghc912-copied"]
     -- GHC912  -> ["ghc912",  "ghc912-copied"]
@@ -138,20 +138,21 @@ mkTests :: IO Test
 mkTests = do
   -- listTests
   let libdir = GHC.Paths.libdir
+  when useGhcCpp $ presetHackageVersionMacros libdir
   roundTripTests <- findTests libdir
   roundTripBalanceCommentsTests <- findTestsBC libdir
   roundTripMakeDeltaTests <- findTestsMD libdir
   return $ TestList [
                       internalTests,
                       roundTripTests
-                   -- ,
-                   --   (transformTests libdir)
-                   -- ,
-                   --    (failingTests libdir)
-                   -- ,
-                   --   roundTripBalanceCommentsTests
-                   -- ,
-                   --   roundTripMakeDeltaTests
+                   ,
+                     (transformTests libdir)
+                   ,
+                      (failingTests libdir)
+                   ,
+                     roundTripBalanceCommentsTests
+                   ,
+                     roundTripMakeDeltaTests
                     ]
 
 failingTests :: LibDir -> Test
@@ -196,7 +197,7 @@ tr = hSilence [stderr] $ do
 tt' :: IO (Counts,Int)
 tt' = do
   let libdir = GHC.Paths.libdir
-  -- presetHackageVersionMacros libdir
+  when useGhcCpp $ presetHackageVersionMacros libdir
   runTestText (putTextToHandle stdout True) $ TestList [
 
     -- mkParserTest libdir "ghc98" "ModuleComments1.hs"
@@ -230,7 +231,7 @@ tt' = do
     -- mkParserTest libdir "pre-ghc910" "ExperimIOP.hs"
     -- mkParserTest libdir "pre-ghc910" "RandomPGC1.hs"
     -- mkParserTest libdir "pre-ghc910" "Utils.hs"
-    mkParserTest libdir "pre-ghc910" "A.hs"
+    -- mkParserTest libdir "pre-ghc910" "A.hs"
     -- mkParserTest libdir "failing" "CppComment.hs"
     -- mkParserTest libdir "ghc-cpp" "Scan.hs"
     -- mkParserTest libdir "ghc-cpp" "Test1.hs"
@@ -238,7 +239,7 @@ tt' = do
 
     -- mkParserTest libdir "ghc-cpp" "Promise.hs"
     -- mkParserTest libdir "ghc-cpp" "Set1.hs"
-    -- mkParserTest libdir "ghc-cpp" "Compat.hs"
+    mkParserTest libdir "ghc-cpp" "Compat.hs"
 
     ]
 
@@ -295,7 +296,7 @@ pwd = getCurrentDirectory
 cd :: FilePath -> IO ()
 cd = setCurrentDirectory
 
-parseOnly :: String -> IO (Either String ())
+parseOnly :: FilePath -> IO (Either String ())
 parseOnly file = do
     presetHackageVersionMacros GHC.Paths.libdir
     wd <- getCurrentDirectory
@@ -303,8 +304,12 @@ parseOnly file = do
     res <- parseModuleEpAnnsWithCpp GHC.Paths.libdir useGhcCpp defaultCppOptions file2
     case res of
         Left m -> return . Left $ (showErrorMessages m)
-        Right (injectedComments, dflags, pmod)  -> do
+        Right (_injectedComments, _dflags, _pmod)  -> do
             putStrLn "ok"
             return $ Right ()
 
+-- | Intended for use in ghci, parse a file using GHC_CPP, including
+-- the preset macros. Can be used on the contents of roundtrip failure
+-- files (cpp.txt, pfail.txt).
+po :: FilePath -> IO (Either String ())
 po = parseOnly

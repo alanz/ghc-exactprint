@@ -1,4 +1,5 @@
 -- Originally ./hackage-roundtrip-work/base-compat-0.14.1/src/Type/Reflection/Compat.hs
+
 {-# LANGUAGE CPP, NoImplicitPrelude #-}
 {-# LANGUAGE Trustworthy #-}
 #if MIN_VERSION_base(4,10,0)

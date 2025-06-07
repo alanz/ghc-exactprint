@@ -1,6 +1,7 @@
 -- | Type checking declarations
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE UnicodeSyntax #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Statics.Decl (
   tcProg, tcDecls, tcDecl, tcSigExp,
 ) where

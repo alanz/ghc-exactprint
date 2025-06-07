@@ -65,3 +65,8 @@ packages
 /failures.txt
 /tests/examples/transform/AddArgFromWhereComments.hs.expected
 /tests/examples/ghc912-copied/
+/hackage-version-macros.txt
+/hie.yaml.1
+/hie.yaml.bak
+/javascript-ffi-files.txt
+/roundtrip-config/knownfailures.txt.2025-05-26

@@ -70,8 +70,8 @@ import System.FilePath
 import qualified GHC.Paths
 
 useGhcCpp :: Bool
--- useGhcCpp = True
-useGhcCpp = False
+useGhcCpp = True
+-- useGhcCpp = False
 
 testPrefix :: FilePath
 testPrefix = "." </> "tests" </> "examples"
