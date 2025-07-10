@@ -217,7 +217,7 @@ tt' = do
     -- mkParserTestMD libdir "ghc912" "Module.hs"
     -- mkParserTestMD libdir "ghc912" "Operator.hs"
 
-    mkParserTest libdir "ghc914" "SI26.hs"
+    mkParserTest libdir "ghc914" "SI27.hs"
    -- Needs GHC changes
 
 
