@@ -129,7 +129,7 @@ genTest libdir f origFile expectedFile  = do
 
       case res of
         Left m -> return . Left $ ParseFailure (showErrorMessages m)
-        Right (injectedComments, dflags, pmod)  -> do
+        Right (!injectedComments, !dflags, !pmod)  -> do
           (printed', pmod') <- GHC.liftIO (runRoundTrip libdir f pmod injectedComments)
           let useCpp = GHC.xopt LangExt.Cpp dflags
               printed = trimPrinted printed'
@@ -186,7 +186,7 @@ runRoundTrip libdir f !parsedOrig cs = do
   -- putStrLn $ "comments:" ++ showAst cs
   let !parsedOrigWithComments = insertCppComments parsedOrig cs
   -- putStrLn $ "parsedOrigWithComments:" ++ showAst parsedOrigWithComments
-  pmod <- f libdir parsedOrigWithComments
+  !pmod <- f libdir parsedOrigWithComments
   let !printed = exactPrint pmod
   return (printed, pmod)
 
