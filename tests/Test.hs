@@ -44,8 +44,9 @@ testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
     GHC912 -> ["pre-ghc910", "ghc910", "ghc912"]
+    GHC914 -> ["pre-ghc910", "ghc910", "ghc912", "ghc914"]
     -- GHC914  -> ["ghc914"]
-    GHC914  -> ["ghc914-copied"]
+    -- GHC914  -> ["ghc914-copied"]
     -- GHC914  -> ["ghc914",  "ghc914-copied"]
 
 -- ---------------------------------------------------------------------
@@ -140,14 +141,14 @@ mkTests = do
   return $ TestList [
                       internalTests,
                       roundTripTests
-                   -- ,
-                   --   (transformTests libdir)
-                   -- ,
-                   --    (failingTests libdir)
-                   -- ,
-                   --   roundTripBalanceCommentsTests
-                   -- ,
-                   --   roundTripMakeDeltaTests
+                   ,
+                     (transformTests libdir)
+                   ,
+                      (failingTests libdir)
+                   ,
+                     roundTripBalanceCommentsTests
+                   ,
+                     roundTripMakeDeltaTests
                     ]
 
 failingTests :: LibDir -> Test
@@ -217,7 +218,8 @@ tt' = do
     -- mkParserTestMD libdir "ghc912" "Module.hs"
     -- mkParserTestMD libdir "ghc912" "Operator.hs"
 
-    mkParserTest libdir "ghc914" "SI27.hs"
+    -- mkParserTest libdir "pre-ghc910" "AnnPackageName.hs"
+    mkParserTestMD libdir "pre-ghc910" "AnnPackageName.hs"
    -- Needs GHC changes
 
 

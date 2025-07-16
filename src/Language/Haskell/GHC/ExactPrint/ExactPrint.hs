@@ -1659,7 +1659,7 @@ instance ExactPrint (ImportDecl GhcPs) where
     -- post level
     ann3' <- case st of
         LevelStylePost _ -> markLensFun' ann3 limportDeclAnnLevel (\mt -> mapM markEpAnnLevel mt)
-        _ -> return ann0
+        _ -> return ann3
 
     ann4 <-
       case qualFlag of
