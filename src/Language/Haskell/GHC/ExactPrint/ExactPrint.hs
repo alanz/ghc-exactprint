@@ -947,7 +947,6 @@ lam_where k annsModule = fmap (\newAnns -> annsModule { am_where = newAnns })
 --   , importDeclAnnAs        :: Maybe (EpToken "as") -- ^ The location of the @as@ keyword
 --   } deriving (Data)
 
-
 limportDeclAnnImport :: Lens EpAnnImportDecl (EpToken "import")
 limportDeclAnnImport k annImp = fmap (\new -> annImp { importDeclAnnImport = new })
                                      (k (importDeclAnnImport annImp))
