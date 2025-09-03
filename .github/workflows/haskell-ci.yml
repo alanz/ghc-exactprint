@@ -33,11 +33,6 @@ jobs:
             compilerVersion: 9.14.0.20250819
             setup-method: ghcup
             allow-failure: false
-          - compiler: ghc-9.14.0.20250819
-            compilerKind: ghc
-            compilerVersion: 9.14.0.20250819
-            setup-method: ghcup-prerelease
-            allow-failure: false
       fail-fast: false
     steps:
       - name: apt-get install
