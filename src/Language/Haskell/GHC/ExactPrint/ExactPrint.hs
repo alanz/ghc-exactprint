@@ -940,6 +940,7 @@ lam_where k annsModule = fmap (\newAnns -> annsModule { am_where = newAnns })
 --   { importDeclAnnImport    :: EpToken "import" -- ^ The location of the @import@ keyword
 --   , importDeclAnnPragma    :: Maybe (EpaLocation, EpToken "#-}") -- ^ The locations of @{-# SOURCE@ and @#-}@ respectively
 --   , importDeclAnnSafe      :: Maybe (EpToken "safe") -- ^ The location of the @safe@ keyword
+--   , importDeclAnnLevel     :: Maybe EpAnnLevel -- ^ The location of the @splice@ or @quote@ keyword
 --   , importDeclAnnQualified :: Maybe (EpToken "qualified") -- ^ The location of the @qualified@ keyword
 --   , importDeclAnnPackage   :: Maybe EpaLocation -- ^ The location of the package name (when using @-XPackageImports@)
 --   , importDeclAnnAs        :: Maybe (EpToken "as") -- ^ The location of the @as@ keyword
@@ -956,6 +957,10 @@ limportDeclAnnImport k annImp = fmap (\new -> annImp { importDeclAnnImport = new
 limportDeclAnnSafe :: Lens EpAnnImportDecl (Maybe (EpToken "safe"))
 limportDeclAnnSafe k annImp = fmap (\new -> annImp { importDeclAnnSafe = new })
                                      (k (importDeclAnnSafe annImp))
+
+limportDeclAnnLevel :: Lens EpAnnImportDecl (Maybe EpAnnLevel)
+limportDeclAnnLevel k annImp = fmap (\new -> annImp { importDeclAnnLevel = new })
+                                     (k (importDeclAnnLevel annImp))
 
 limportDeclAnnQualified :: Lens EpAnnImportDecl (Maybe (EpToken "qualified"))
 limportDeclAnnQualified k annImp = fmap (\new -> annImp { importDeclAnnQualified = new })
@@ -1628,9 +1633,15 @@ instance ExactPrint (ImportDecl GhcPs) where
               printStringAtLsDelta (SameLine 1) "#-}"
               return Nothing
         NoSourceText -> return (importDeclAnnPragma an)
+    -- pre level
+    ann0' <- case st of
+        LevelStylePre _ -> markLensFun' ann0 limportDeclAnnLevel (\mt -> mapM markEpAnnLevel mt)
+        _ -> return ann0
+
+
     ann1 <- if safeflag
-      then markLensFun' ann0 limportDeclAnnSafe (\mt -> mapM markEpToken mt)
-      else return ann0
+      then markLensFun' ann0' limportDeclAnnSafe (\mt -> mapM markEpToken mt)
+      else return ann0'
     ann2 <-
       case qualFlag of
         QualifiedPre  -- 'qualified' appears in prepositive position.
@@ -1643,11 +1654,16 @@ instance ExactPrint (ImportDecl GhcPs) where
        _ -> return ann2
     modname' <- markAnnotated modname
 
+    -- post level
+    ann3' <- case st of
+        LevelStylePost _ -> markLensFun' ann3 limportDeclAnnLevel (\mt -> mapM markEpAnnLevel mt)
+        _ -> return ann3
+
     ann4 <-
       case qualFlag of
         QualifiedPost  -- 'qualified' appears in postpositive position.
-          -> markLensFun' ann3 limportDeclAnnQualified (\ml -> mapM markEpToken ml)
-        _ -> return ann3
+          -> markLensFun' ann3' limportDeclAnnQualified (\ml -> mapM markEpToken ml)
+        _ -> return ann3'
 
     (importDeclAnnAs', mAs') <-
       case mAs of
@@ -1672,6 +1688,9 @@ instance ExactPrint (ImportDecl GhcPs) where
     return (ImportDecl (XImportDeclPass (EpAnn anc' an2 cs') msrc impl)
                      modname' mpkg src st safeflag qualFlag mAs' hiding')
 
+markEpAnnLevel :: (Monad m, Monoid w) => EpAnnLevel -> EP w m EpAnnLevel
+markEpAnnLevel (EpAnnLevelSplice tok) = EpAnnLevelSplice <$> markEpToken tok
+markEpAnnLevel (EpAnnLevelQuote tok) = EpAnnLevelQuote <$> markEpToken tok
 
 -- ---------------------------------------------------------------------
 
@@ -1993,25 +2012,27 @@ instance ExactPrint (RuleDecl GhcPs) where
 
 markActivation :: (Monad m, Monoid w)
   => ActivationAnn -> Activation -> EP w m ActivationAnn
-markActivation (ActivationAnn o c t v) act = do
+markActivation (ActivationAnn o src c t v) act = do
   case act of
-    ActiveBefore src phase -> do
+    ActiveBefore phase -> do
       o' <- markEpToken o --  '['
       t' <- mapM markEpToken t -- ~
       v' <- mapM (\val -> printStringAtAA val (toSourceTextWithSuffix src (show phase) "")) v
       c' <- markEpToken c -- ']'
-      return (ActivationAnn o' c' t' v')
-    ActiveAfter src phase -> do
+      return (ActivationAnn o' src c' t' v')
+    ActiveAfter phase -> do
       o' <- markEpToken o --  '['
       v' <- mapM (\val -> printStringAtAA val (toSourceTextWithSuffix src (show phase) "")) v
       c' <- markEpToken c -- ']'
-      return (ActivationAnn o' c' t v')
+      return (ActivationAnn o' src c' t v')
     NeverActive -> do
       o' <- markEpToken o --  '['
       t' <- mapM markEpToken t -- ~
       c' <- markEpToken c -- ']'
-      return (ActivationAnn o' c' t' v)
-    _ -> return (ActivationAnn o c t v)
+      return (ActivationAnn o' src c' t' v)
+
+    -- Other activations don't have corresponding source syntax
+    _ -> return (ActivationAnn o src c t v)
 
 -- ---------------------------------------------------------------------
 
@@ -3076,9 +3097,8 @@ instance ExactPrint (HsExpr GhcPs) where
     return (HsUntypedBracket a (VarBr an0 b e'))
 
   exact (HsTypedSplice an s)   = do
-    an0 <- markEpToken an
     s' <- markAnnotated s
-    return (HsTypedSplice an0 s')
+    return (HsTypedSplice an s')
 
   exact (HsUntypedSplice an s) = do
     s' <- markAnnotated s
@@ -3171,6 +3191,16 @@ instance ExactPrint (HsPragE GhcPs) where
     l1' <- printStringAtAA l1 (sourceTextToString (sl_st sl) (unpackFS $ sl_fs sl))
     c' <- markEpToken c
     return (HsPragSCC (AnnPragma o' c' s l1' l2 t m,st) sl)
+
+instance ExactPrint (HsTypedSplice GhcPs) where
+  getAnnotationEntry _ = NoEntryVal
+
+  setAnnotationAnchor a _ _ _ = a
+
+  exact (HsTypedSpliceExpr an e) = do
+    an0 <- markEpToken an
+    e' <- markAnnotated e
+    return (HsTypedSpliceExpr an0 e')
 
 
 -- ---------------------------------------------------------------------
@@ -4276,7 +4306,8 @@ instance ExactPrint (ConDecl GhcPs) where
 
   exact (ConDeclGADT { con_g_ext = AnnConDeclGADT ops cps dcol
                      , con_names = cons
-                     , con_bndrs = bndrs
+                     , con_outer_bndrs = outer_bndrs
+                     , con_inner_bndrs = inner_bndrs
                      , con_mb_cxt = mcxt, con_g_args = args
                      , con_res_ty = res_ty, con_doc = doc }) = do
     cons' <- mapM markAnnotated cons
@@ -4285,9 +4316,11 @@ instance ExactPrint (ConDecl GhcPs) where
     epTokensToComments ")" cps
 
     -- Work around https://gitlab.haskell.org/ghc/ghc/-/issues/20558
-    bndrs' <- case bndrs of
-      L _ (HsOuterImplicit _) -> return bndrs
-      _ -> markAnnotated bndrs
+    outer_bndrs' <- case outer_bndrs of
+      L _ (HsOuterImplicit _) -> return outer_bndrs
+      _ -> markAnnotated outer_bndrs
+
+    inner_bndrs' <- mapM markAnnotated inner_bndrs
 
     mcxt' <- mapM markAnnotated mcxt
     args' <-
@@ -4302,7 +4335,8 @@ instance ExactPrint (ConDecl GhcPs) where
     res_ty' <- markAnnotated res_ty
     return (ConDeclGADT { con_g_ext = AnnConDeclGADT [] [] dcol'
                         , con_names = cons'
-                        , con_bndrs = bndrs'
+                        , con_outer_bndrs = outer_bndrs'
+                        , con_inner_bndrs = inner_bndrs'
                         , con_mb_cxt = mcxt', con_g_args = args'
                         , con_res_ty = res_ty', con_doc = doc })
 

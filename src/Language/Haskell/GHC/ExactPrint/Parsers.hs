@@ -76,6 +76,7 @@ import qualified GHC.Types.SrcLoc       as GHC
 import qualified GHC.Unit.Env           as GHC
 import qualified GHC.Utils.Misc         as GHC
 import qualified GHC.Parser.Lexer       as Lexer
+import qualified GHC.Types.SourceError  as GHC
 
 
 import GHC.Utils.Exception as Exception
@@ -443,12 +444,13 @@ initDynFlags useGhcCpp file = do
           then GHC.xopt_set dflags LangExt.GhcCpp
           else dflags
   let parser_opts0 = GHC.initParserOpts dflags0
+  logger <- GHC.getLogger
+  let sec = GHC.initSourceErrorContext dflags0
   hsc <- GHC.getSession
-  let logger = GHC.hsc_logger hsc
   let unit_env = GHC.hsc_unit_env hsc
   let supported_pragmas = "JavaScriptFFI" : GHC.supportedLanguagePragmas dflags0
-  (_, src_opts)   <- GHC.liftIO $ myGetOptionsFromFile dflags0 unit_env parser_opts0 supported_pragmas file
-  -- error $ "initDynFlags:src_opts: " ++ show  (map GHC.unLoc src_opts)
+  (_, src_opts)   <- GHC.liftIO $ myGetOptionsFromFile dflags0 unit_env parser_opts0 sec supported_pragmas file
+  -- (_, src_opts)   <- GHC.liftIO $ GHC.getOptionsFromFile dflags0 unit_env parser_opts0 sec (GHC.supportedLanguagePragmas dflags0) file
   (dflags1, _, _) <- GHC.parseDynamicFilePragma logger dflags0 src_opts
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
@@ -477,8 +479,9 @@ initDynFlagsPure fp s = do
   -- no reason to use it.
   dflags0 <- GHC.getSessionDynFlags
   logger <- GHC.getLogger
+  let sec = GHC.initSourceErrorContext dflags0
   let parser_opts0 = GHC.initParserOpts dflags0
-  let (_, pragmaInfo) = GHC.getOptions parser_opts0 (GHC.supportedLanguagePragmas dflags0) (GHC.stringToStringBuffer $ s) fp
+  let (_, pragmaInfo) = GHC.getOptions parser_opts0 sec (GHC.supportedLanguagePragmas dflags0) (GHC.stringToStringBuffer $ s) fp
   (dflags1, _, _) <- GHC.parseDynamicFilePragma logger dflags0 pragmaInfo
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
@@ -495,18 +498,19 @@ initDynFlagsPure fp s = do
 myGetOptionsFromFile :: GHC.DynFlags
                    -> GHC.UnitEnv
                    -> GHC.ParserOpts
+                   -> GHC.SourceErrorContext
                    -> [String] -- ^ Supported LANGUAGE pragmas
                    -> FilePath            -- ^ Input file
                    -> IO (GHC.Messages GHC.PsMessage, [GHC.Located String]) -- ^ Parsed options, if any.
-myGetOptionsFromFile df unit_env popts supported filename
+myGetOptionsFromFile df unit_env popts sec supported filename
     = Exception.bracket
               (openBinaryFile filename ReadMode)
               (hClose)
-              (\handle -> do
-                  (warns, opts) <- fmap (GHC.getOptions' popts supported)
-                               (myGetPragState df unit_env popts' filename handle
-                               -- >>= \prag_state -> traceToks <$> GHC.lazyGetToks prag_state handle)
-                               >>= \prag_state -> GHC.lazyGetToks prag_state handle)
+              (\handle0 -> do
+                  (warns, opts) <- fmap (GHC.getOptions' popts sec supported)
+                               (myGetPragState df unit_env popts' filename handle0
+                               -- >>= \prag_state -> traceToks <$> GHC.lazyGetToks prag_state handle0)
+                               >>= \prag_state -> GHC.lazyGetToks prag_state handle0)
                   GHC.seqList opts
                     $ GHC.seqList (GHC.bagToList $ GHC.getMessages warns)
                     $ return (warns, opts))
@@ -525,8 +529,8 @@ blockSize :: Int
 blockSize = 1024
 
 myGetPragState :: GHC.DynFlags -> GHC.UnitEnv -> GHC.ParserOpts -> FilePath -> Handle -> IO (GHC.PState GHC.PpState)
-myGetPragState df unit_env popts filename handle = do
-  buf <- GHC.hGetStringBufferBlock handle blockSize
+myGetPragState df unit_env popts filename handle0 = do
+  buf <- GHC.hGetStringBufferBlock handle0 blockSize
 
   let macros = fromMaybe Map.empty macrosFromIORef
   -- let macros = fromMaybe (error "macroIORef not set up") macrosFromIORef
@@ -594,8 +598,8 @@ traceToks (h:t) = trace ("tok: " ++ show (GHC.unLoc h)) h : traceToks t
 --   ....
 
 myGetToks :: GHC.DynFlags -> GHC.UnitEnv -> GHC.ParserOpts -> FilePath -> Handle -> IO [GHC.Located GHC.Token]
-myGetToks df unit_env popts filename handle = do
-  buf <- GHC.hGetStringBufferBlock handle blockSize
+myGetToks df unit_env popts filename handle0 = do
+  buf <- GHC.hGetStringBufferBlock handle0 blockSize
   let loc = GHC.mkRealSrcLoc (GHC.mkFastString filename) 1 1
   let prag_state = if Lexer.ghcCppEnabled popts
         then GHC.initPragStateWithMacros df unit_env popts buf loc

@@ -105,7 +105,7 @@ getCppTokensAsComments cppOptions sourceFile = do
 
   let flags2 = GHC.initParserOpts flags2'
   -- hash-ifdef tokens
-  directiveToks <- GHC.liftIO $ getPreprocessorAsComments (GHC.enableGhcCpp flags2) source startLoc
+  directiveToks <- getPreprocessorAsComments (GHC.enableGhcCpp flags2) source startLoc
   -- Tokens without hash-ifdef
   nonDirectiveToks <- tokeniseOriginalSrc startLoc flags2 source
   case GHC.lexTokenStream () flags2 strSrcBuf startLoc of
@@ -261,7 +261,7 @@ alterToolSettings f dynFlags = dynFlags { GHC.toolSettings = f (GHC.toolSettings
 
 -- | Get the preprocessor directives as comment tokens from the
 -- source.
-getPreprocessorAsComments :: GHC.ParserOpts -> GHC.StringBuffer -> GHC.RealSrcLoc -> IO [(GHC.Located GHC.Token, String)]
+getPreprocessorAsComments :: (GHC.GhcMonad m) => GHC.ParserOpts -> GHC.StringBuffer -> GHC.RealSrcLoc -> m [(GHC.Located GHC.Token, String)]
 getPreprocessorAsComments opts source startLoc = do
   case GHC.lexTokenStream () opts source startLoc of
         GHC.POk _ ts ->
@@ -283,8 +283,11 @@ makeBufSpan ss = pspan
 
 -- ---------------------------------------------------------------------
 
-parseError :: (GHC.MonadIO m) => GHC.PState p -> m b
-parseError pst = GHC.throwErrors (fmap GHC.GhcPsMessage (GHC.getPsErrorMessages pst))
+parseError :: GHC.GhcMonad m => GHC.PState p -> m b
+parseError pst = do
+  hsc_env <- GHC.getSession
+  let sec = GHC.initSourceErrorContext (GHC.hsc_dflags hsc_env)
+  GHC.throwErrors sec (fmap GHC.GhcPsMessage (GHC.getPsErrorMessages pst))
 
 -- ---------------------------------------------------------------------
 
