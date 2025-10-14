@@ -22,7 +22,7 @@ module Test.CommonUtils
   ) where
 
 import Control.Monad
-import Control.Monad.Extra
+import GHC.Utils.Monad
 import Data.List hiding (find)
 import qualified GHC.Data.StringBuffer as GHC
 import System.Directory
