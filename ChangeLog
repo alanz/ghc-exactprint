@@ -1,3 +1,5 @@
+2025-10-14 v1.14.0.0
+	* Support GHC 9.14.1
 2025-01-21 v1.12.0.0
 	* Harmonise layout processing so we do not have a special case for
 	the top level This is a breaking change, in that the hand-crafted
