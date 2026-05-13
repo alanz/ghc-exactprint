@@ -65,7 +65,7 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , balanceComments
         , balanceCommentsList
         , balanceCommentsListA
-        , anchorEof
+        , addModuleCommentOrigDeltas
 
         -- ** Managing lists, pure functions
         , captureOrderBinds
@@ -96,6 +96,7 @@ import GHC.Data.FastString
 import GHC.Types.SrcLoc
 
 import Data.Data
+import Data.List (unsnoc)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NE
 import Data.Maybe
@@ -206,15 +207,16 @@ captureLineSpacing ds = map (\(_,_,x) -> x) $ go (map to ds)
 -- ---------------------------------------------------------------------
 
 captureTypeSigSpacing :: LHsDecl GhcPs -> LHsDecl GhcPs
-captureTypeSigSpacing (L l (SigD x (TypeSig (AnnSig NoEpUniTok mp md) ns (HsWC xw ty))))
-  = (L l (SigD x (TypeSig (AnnSig NoEpUniTok mp md) ns (HsWC xw ty))))
-captureTypeSigSpacing (L l (SigD x (TypeSig (AnnSig (EpUniTok dca u) mp md) ns (HsWC xw ty))))
-  = (L l (SigD x (TypeSig (AnnSig (EpUniTok dca' u) mp md) ns (HsWC xw ty'))))
+captureTypeSigSpacing (L l (SigD x (TypeSig (AnnSig NoEpUniTok mp md) mods ns (HsWC xw ty))))
+  = (L l (SigD x (TypeSig (AnnSig NoEpUniTok mp md) mods ns (HsWC xw ty))))
+captureTypeSigSpacing (L l (SigD x (TypeSig (AnnSig (EpUniTok dca u) mp md) mods ns (HsWC xw ty))))
+  = (L l (SigD x (TypeSig (AnnSig (EpUniTok dca' u) mp md) mods ns (HsWC xw ty'))))
   where
     -- we want DPs for the distance from the end of the ns to the
     -- AnnDColon, and to the start of the ty
-    rd = case last ns of
-      L (EpAnn anc' _ _) _ -> epaLocationRealSrcSpan anc'
+    rd = case unsnoc ns of
+      Nothing -> error "unexpected empty list in 'ns' variable"
+      Just (_, L (EpAnn anc' _ _) _) -> epaLocationRealSrcSpan anc'
     dca' = case dca of
           EpaSpan ss@(RealSrcSpan r _) -> (EpaDelta ss (ss2delta (ss2posEnd rd) r) [])
           _                            -> dca
@@ -253,6 +255,8 @@ setEntryDPDecl d dp = setEntryDP d dp
 -- element. This is the 'DeltaPos' ignoring any comments.
 setEntryDP :: LocatedAn t a -> DeltaPos -> LocatedAn t a
 setEntryDP (L (EpAnn (EpaSpan ss@(UnhelpfulSpan _)) an cs) a) dp
+  = L (EpAnn (EpaDelta ss dp []) an cs) a
+setEntryDP (L (EpAnn (EpaSpan ss@(GeneratedSrcSpan _)) an cs) a) dp
   = L (EpAnn (EpaDelta ss dp []) an cs) a
 setEntryDP (L (EpAnn (EpaSpan ss) an (EpaComments [])) a) dp
   = L (EpAnn (EpaDelta ss dp []) an (EpaComments [])) a
@@ -295,7 +299,7 @@ setEntryDP (L (EpAnn (EpaSpan ss@(RealSrcSpan r _)) an cs) a) dp
               where
                 cs'' = setPriorComments cs []
                 csd = L (EpaDelta ss dp NoComments) c:commentOrigDeltas cs'
-                lc = last $ (L ca c:cs')
+                lc = NE.last (L ca c :| cs')
                 delta = case getLoc lc of
                           EpaSpan (RealSrcSpan rr _) -> ss2delta (ss2pos rr) r
                           EpaSpan _ -> (SameLine 0)
@@ -319,20 +323,20 @@ getEntryDP _ = SameLine 1
 
 addEpaLocationDelta :: LayoutStartCol -> RealSrcSpan -> EpaLocation -> EpaLocation
 addEpaLocationDelta _off _anc (EpaDelta ss d cs) = EpaDelta ss d cs
-addEpaLocationDelta _off _anc (EpaSpan ss@(UnhelpfulSpan _)) = EpaDelta ss (SameLine 0) []
 addEpaLocationDelta  off  anc (EpaSpan ss@(RealSrcSpan r _))
   = EpaDelta ss (adjustDeltaForOffset off (ss2deltaEnd anc r)) []
+addEpaLocationDelta _off _anc (EpaSpan ss) = EpaDelta ss (SameLine 0) []
 
 -- Set the entry DP for an element coming after an existing keyword annotation
 setEntryDPFromAnchor :: LayoutStartCol -> EpaLocation -> LocatedA t -> LocatedA t
-setEntryDPFromAnchor _off (EpaDelta _ _ _) (L la a) = L la a
-setEntryDPFromAnchor _off (EpaSpan (UnhelpfulSpan _)) (L la a) = L la a
 setEntryDPFromAnchor  off (EpaSpan (RealSrcSpan anc _)) ll@(L la _) = setEntryDP ll dp'
   where
     dp' = case la of
       (EpAnn (EpaSpan (RealSrcSpan r' _)) _ _) -> adjustDeltaForOffset off (ss2deltaEnd anc r')
       (EpAnn (EpaSpan _) _ _)                  -> adjustDeltaForOffset off (SameLine 0)
       (EpAnn (EpaDelta _ dp _) _ _)            -> adjustDeltaForOffset off dp
+
+setEntryDPFromAnchor _off _ ll = ll
 
 -- ---------------------------------------------------------------------
 
@@ -721,8 +725,8 @@ balanceSameLineComments (L la (Match anm mctxt pats (GRHSs x grhss lb)))
 
 -- ---------------------------------------------------------------------
 
-anchorEof :: ParsedSource -> ParsedSource
-anchorEof (L l m@(HsModule (XModulePs an _lo _ _) _mn _exps _imps _decls)) = L l (m { hsmodExt = (hsmodExt m){ hsmodAnn = an' } })
+addModuleCommentOrigDeltas :: ParsedSource -> ParsedSource
+addModuleCommentOrigDeltas (L l m@(HsModule (XModulePs an _lo _ _) _mn _exps _imps _decls)) = L l (m { hsmodExt = (hsmodExt m){ hsmodAnn = an' } })
   where
     an' = addCommentOrigDeltasAnn an
 
@@ -901,7 +905,7 @@ instance HasDecls (LocatedA (HsExpr GhcPs)) where
             let
               off = case l of
                       (EpaSpan (RealSrcSpan r _)) -> LayoutStartCol $ snd $ ss2pos r
-                      (EpaSpan (UnhelpfulSpan _)) -> LayoutStartCol 0
+                      (EpaSpan _)                 -> LayoutStartCol 0
                       (EpaDelta _ (SameLine _) _) -> LayoutStartCol 0
                       (EpaDelta _ (DifferentLine _ c) _) -> LayoutStartCol c
               ex'' = setEntryDPFromAnchor off i ex

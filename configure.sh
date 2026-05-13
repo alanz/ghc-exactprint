@@ -275,3 +275,9 @@ rm -fr dist*
 
 cabal configure -fdev -froundtrip --with-compiler=/home/alanz/.ghcup/bin/ghc-9.14.0.20251007
 
+
+#--------------------------------------------------------------------
+#- GHC 10.1.1
+
+# cabal configure -fdev --enable-tests --with-compiler=/home/alanz/.ghcup/bin/ghc-9.14.1
+cabal configure -fdev -froundtrip --with-compiler=/opt/ghc/10.1.20260512/bin/ghc --allow-newer
