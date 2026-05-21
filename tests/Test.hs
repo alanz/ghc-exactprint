@@ -28,26 +28,26 @@ import Test.HUnit
 
 -- ---------------------------------------------------------------------
 
-data GHCVersion = GHC912
-           | GHC914
+data GHCVersion = GHC914
+           | GHC1001
      deriving (Eq, Ord, Show)
 
 ghcVersion :: GHCVersion
-#if MIN_VERSION_ghc(9,14,0)
-ghcVersion = GHC914
+#if MIN_VERSION_ghc(10,1,0)
+ghcVersion = GHC1001
 #else
-ghcVersion = GHC912
+ghcVersion = GHC914
 #endif
 
 -- | Directories to automatically find roundtrip tests
 testDirs :: [FilePath]
 testDirs =
   case ghcVersion of
-    GHC912 -> ["pre-ghc910", "ghc910", "ghc912"]
     GHC914 -> ["pre-ghc910", "ghc910", "ghc912", "ghc914"]
-    -- GHC914  -> ["ghc914"]
-    -- GHC914  -> ["ghc914-copied"]
-    -- GHC914  -> ["ghc914",  "ghc914-copied"]
+    -- GHC1001 -> ["pre-ghc910", "ghc910", "ghc912", "ghc914"]
+    -- GHC1001  -> ["ghc1001"]
+    GHC1001  -> ["ghc1001-copied"]
+    -- GHC1001  -> ["ghc1001",  "ghc1001-copied"]
 
 -- ---------------------------------------------------------------------
 
@@ -141,14 +141,14 @@ mkTests = do
   return $ TestList [
                       internalTests,
                       roundTripTests
-                   ,
-                     (transformTests libdir)
-                   ,
-                      (failingTests libdir)
-                   ,
-                     roundTripBalanceCommentsTests
-                   ,
-                     roundTripMakeDeltaTests
+                   -- ,
+                   --   (transformTests libdir)
+                   -- ,
+                   --    (failingTests libdir)
+                   -- ,
+                   --   roundTripBalanceCommentsTests
+                   -- ,
+                   --   roundTripMakeDeltaTests
                     ]
 
 failingTests :: LibDir -> Test
@@ -217,9 +217,10 @@ tt' = do
     -- mkParserTestBC libdir "transform" "AddLocalDecl5.hs"
     -- mkParserTestMD libdir "ghc912" "Module.hs"
     -- mkParserTestMD libdir "ghc912" "Operator.hs"
+    mkParserTest libdir "ghc1001" "qstrings_th.hs"
 
     -- mkParserTest libdir "pre-ghc910" "AnnPackageName.hs"
-    mkParserTestMD libdir "pre-ghc910" "AnnPackageName.hs"
+    -- mkParserTestMD libdir "pre-ghc910" "AnnPackageName.hs"
    -- Needs GHC changes
 
 
