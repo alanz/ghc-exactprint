@@ -47,14 +47,11 @@ module Language.Haskell.GHC.ExactPrint.ExactPrint
 
 import GHC
 import GHC.Base (NonEmpty(..))
-import GHC.Core.Coercion.Axiom (Role(..))
 import qualified GHC.Data.BooleanFormula as BF
 import GHC.Data.FastString
 import qualified GHC.Data.Strict as Strict
 import GHC.Hs.Decls.Overlap (OverlapMode(..))
 import GHC.TypeLits
-import GHC.Types.Basic hiding (EP)
-import GHC.Types.Fixity
 import GHC.Types.ForeignCall
 import GHC.Types.InlinePragma (ActivationGhc, inlinePragmaActivation, inlinePragmaSource)
 import GHC.Types.Name.Reader
@@ -62,7 +59,6 @@ import GHC.Types.PkgQual
 import GHC.Types.SourceText
 import GHC.Types.SrcLoc
 import GHC.Types.Var
-import GHC.Unit.Module.Warnings
 import GHC.Utils.Misc
 import GHC.Utils.Outputable hiding ( (<>) )
 import GHC.Utils.Panic
@@ -680,10 +676,7 @@ class (Typeable a) => ExactPrint a where
 -- Start of utility functions
 -- ---------------------------------------------------------------------
 
-printSourceText :: (Monad m, Monoid w) => SourceText -> String -> EP w m ()
-printSourceText (NoSourceText) txt   =  printStringAdvance txt >> return ()
-printSourceText (SourceText   txt) _ =  printStringAdvance (unpackFS txt) >> return ()
-
+-- TODO:AZ: Rename to be printSourceText
 printSourceTextAA :: (Monad m, Monoid w) => SourceText -> String -> EP w m ()
 printSourceTextAA (NoSourceText) txt   = printStringAdvanceA  txt >> return ()
 printSourceTextAA (SourceText   txt) _ = printStringAdvanceA  (unpackFS txt) >> return ()
@@ -751,7 +744,7 @@ printStringAtNC el str = do
 printStringAtAAC :: (Monad m, Monoid w)
   => CaptureComments -> EpaLocation -> String -> EP w m EpaLocation
 printStringAtAAC capture (EpaSpan (RealSrcSpan r _)) s = printStringAtRsC capture r s
-printStringAtAAC _capture (EpaSpan ss@(UnhelpfulSpan _)) _s = error $ "printStringAtAAC:ss=" ++ show ss
+printStringAtAAC _capture (EpaSpan ss) _s = error $ "printStringAtAAC:ss=" ++ show ss
 printStringAtAAC capture (EpaDelta ss d cs) s = do
   mapM_ printOneComment $ concatMap tokComment cs
   pe1 <- getPriorEndD
@@ -3156,6 +3149,12 @@ instance ExactPrint (HsExpr GhcPs) where
     body' <- markAnnotated body
     return (HsQual noExtField ctxt' body')
 
+  exact (HsQualLit _ (QualLit _ modu (HsQualString src fs))) = do
+    modu' <- markAnnotated modu
+    printStringAdvanceA "."
+    printSourceTextAA src (show (unpackFS fs))
+    return (HsQualLit noExtField (QualLit noExtField modu' (HsQualString src fs)))
+
   exact x = error $ "exact HsExpr for:" ++ showAst x
 
 -- ---------------------------------------------------------------------
@@ -4592,9 +4591,9 @@ instance ExactPrint (IE GhcPs) where
     return (IEThingAbs depr' thing' doc')
   exact (IEThingAll x ns_spec thing doc) = do
     depr' <- markAnnotated (ieta_warning x)
-    ns_spec' <- markAnnotated ns_spec
     thing' <- markAnnotated thing
     op' <- markEpToken (ieta_tok_lpar x)
+    ns_spec' <- markAnnotated ns_spec
     dd' <- markEpToken (ieta_tok_wc x)
     cp' <- markEpToken (ieta_tok_rpar x)
     doc' <- markAnnotated doc
@@ -4741,6 +4740,7 @@ instance ExactPrint (Pat GhcPs) where
     splice' <- markAnnotated splice
     return (SplicePat x splice')
   exact p@(LitPat _ lit) = printStringAdvance (hsLit2String lit) >> return p
+  exact p@(QualLitPat _ lit) = printStringAdvance (hsQualLit2String lit) >> return p
   exact (NPat an ol mn z) = do
     an0 <- if (isJust mn)
       then markEpToken an

@@ -45,8 +45,9 @@ testDirs =
   case ghcVersion of
     GHC914 -> ["pre-ghc910", "ghc910", "ghc912", "ghc914"]
     -- GHC1001 -> ["pre-ghc910", "ghc910", "ghc912", "ghc914"]
+    GHC1001 -> ["pre-ghc910", "ghc910", "ghc912", "ghc914", "ghc1001"]
     -- GHC1001  -> ["ghc1001"]
-    GHC1001  -> ["ghc1001-copied"]
+    -- GHC1001  -> ["ghc1001-copied"]
     -- GHC1001  -> ["ghc1001",  "ghc1001-copied"]
 
 -- ---------------------------------------------------------------------
@@ -141,14 +142,14 @@ mkTests = do
   return $ TestList [
                       internalTests,
                       roundTripTests
-                   -- ,
-                   --   (transformTests libdir)
-                   -- ,
-                   --    (failingTests libdir)
-                   -- ,
-                   --   roundTripBalanceCommentsTests
-                   -- ,
-                   --   roundTripMakeDeltaTests
+                   ,
+                     (transformTests libdir)
+                   ,
+                      (failingTests libdir)
+                   ,
+                     roundTripBalanceCommentsTests
+                   ,
+                     roundTripMakeDeltaTests
                     ]
 
 failingTests :: LibDir -> Test
@@ -217,7 +218,8 @@ tt' = do
     -- mkParserTestBC libdir "transform" "AddLocalDecl5.hs"
     -- mkParserTestMD libdir "ghc912" "Module.hs"
     -- mkParserTestMD libdir "ghc912" "Operator.hs"
-    mkParserTest libdir "ghc1001" "qstrings_th.hs"
+    -- mkParserTest libdir "ghc1001" "Modifiers.hs"
+    mkParserTest libdir "ghc1001" "unboxedsums4p.hs"
 
     -- mkParserTest libdir "pre-ghc910" "AnnPackageName.hs"
     -- mkParserTestMD libdir "pre-ghc910" "AnnPackageName.hs"

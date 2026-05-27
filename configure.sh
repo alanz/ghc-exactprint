@@ -280,4 +280,5 @@ cabal configure -fdev -froundtrip --with-compiler=/home/alanz/.ghcup/bin/ghc-9.1
 #- GHC 10.1.1
 
 # cabal configure -fdev --enable-tests --with-compiler=/home/alanz/.ghcup/bin/ghc-9.14.1
-cabal configure -fdev -froundtrip --with-compiler=/opt/ghc/10.1.20260512/bin/ghc --allow-newer
+# cabal configure -fdev -froundtrip --with-compiler=/opt/ghc/10.1.20260512/bin/ghc --allow-newer
+cabal configure -fdev -froundtrip --with-compiler=/opt/ghc/10.1.20260526/bin/ghc --allow-newer
