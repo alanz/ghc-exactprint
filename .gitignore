@@ -25,6 +25,7 @@
 /failures
 /origfailures.txt
 /hackage-roundtrip-work
+/hackage-roundtrip-work.rest
 /roundtrip-work
 .cabal-sandbox/
 cabal.sandbox.config
@@ -65,3 +66,10 @@ packages
 /failures.txt
 /tests/examples/transform/AddArgFromWhereComments.hs.expected
 /tests/examples/ghc912-copied/
+/roundtrip-todo.txt
+/tests/examples/ghc1001-copied/
+/hie.yaml.1
+/hie.yaml.bak
+/failure_reasons-keep.org
+/failure_reasons.org
+/hackage-download.py
