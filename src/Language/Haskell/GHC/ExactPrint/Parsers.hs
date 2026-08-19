@@ -46,6 +46,7 @@ module Language.Haskell.GHC.ExactPrint.Parsers (
         ) where
 
 import Language.Haskell.GHC.ExactPrint.Preprocess
+import Language.Haskell.GHC.ExactPrint.Utils
 
 import Data.Functor (void)
 
@@ -61,6 +62,7 @@ import qualified GHC.Parser.Header      as GHC
 import qualified GHC.Parser.Lexer       as GHC
 import qualified GHC.Parser.PostProcess as GHC
 import qualified GHC.Types.SrcLoc       as GHC
+import qualified GHC.Types.SourceError  as GHC
 
 import qualified GHC.LanguageExtensions as LangExt
 
@@ -269,7 +271,10 @@ postParseTransform
   -> Either a (GHC.ParsedSource)
 postParseTransform parseRes = fmap mkAnns parseRes
   where
-    mkAnns (_cs, _, m) = fixModuleComments m
+    mkAnns (cs, _, m) = fixModuleComments (insertCppComments (noIEDoc m) cs)
+    noIEDoc (GHC.L l m) = case GHC.hsmodExports m of
+                  Nothing -> GHC.L l m
+                  Just exps -> GHC.L l m { GHC.hsmodExports = Just $ filter notIEDoc exps }
 
 fixModuleComments :: GHC.ParsedSource -> GHC.ParsedSource
 fixModuleComments p = fixModuleHeaderComments $ fixModuleTrailingComments p
@@ -304,8 +309,6 @@ fixModuleHeaderComments (GHC.L l p) = GHC.L l p'
   where
     moveComments :: GHC.EpaLocation -> GHC.LHsDecl GHC.GhcPs -> GHC.EpAnnComments
                  -> (GHC.LHsDecl GHC.GhcPs, GHC.EpAnnComments)
-    moveComments GHC.EpaDelta{} dd cs = (dd,cs)
-    moveComments (GHC.EpaSpan (GHC.UnhelpfulSpan _)) dd cs = (dd,cs)
     moveComments (GHC.EpaSpan (GHC.RealSrcSpan r _)) (GHC.L (GHC.EpAnn anc an csd) a) cs = (dd,css)
       where
         -- Move any comments on the decl that occur prior to the location
@@ -317,15 +320,17 @@ fixModuleHeaderComments (GHC.L l p) = GHC.L l p'
 
         dd = GHC.L (GHC.EpAnn anc an csd') a
         css = cs <> GHC.EpaComments move
+    moveComments _ dd cs = (dd,cs)
 
-    (ds',an') = rebalance (GHC.hsmodDecls p, GHC.hsmodAnn $ GHC.hsmodExt p)
+    (ds',an') = rebalance (GHC.hsmodAnn $ GHC.hsmodExt p)
     p' = p { GHC.hsmodExt = (GHC.hsmodExt p){ GHC.hsmodAnn = an' },
              GHC.hsmodDecls = ds'
            }
 
-    rebalance :: ([GHC.LHsDecl GHC.GhcPs], GHC.EpAnn GHC.AnnsModule)
+
+    rebalance :: GHC.EpAnn GHC.AnnsModule
               -> ([GHC.LHsDecl GHC.GhcPs], GHC.EpAnn GHC.AnnsModule)
-    rebalance (ds, GHC.EpAnn a an cs) = (ds1, GHC.EpAnn a an cs')
+    rebalance (GHC.EpAnn a an cs) = (ds1, GHC.EpAnn a an cs')
       where
         (ds1,cs') = case GHC.am_where an of
                      GHC.EpTok whereLoc ->
@@ -333,8 +338,6 @@ fixModuleHeaderComments (GHC.L l p) = GHC.L l p'
                                (d:ds0) -> (d':ds0, cs0)
                                    where (d',cs0) = moveComments whereLoc d cs
                                ds0 -> (ds0,cs)
-                     _ -> (ds,cs)
-
 
 
 -- | Internal function. Initializes DynFlags value for parsing.
@@ -349,7 +352,8 @@ initDynFlags file = do
   dflags0         <- GHC.getSessionDynFlags
   let parser_opts0 = GHC.initParserOpts dflags0
   logger <- GHC.getLogger
-  (_, src_opts)   <- GHC.liftIO $ GHC.getOptionsFromFile parser_opts0 (GHC.supportedLanguagePragmas dflags0) file
+  let sec = GHC.initSourceErrorContext dflags0
+  (_, src_opts)   <- GHC.liftIO $ GHC.getOptionsFromFile parser_opts0 sec (GHC.supportedLanguagePragmas dflags0) file
   (dflags1, _, _) <- GHC.parseDynamicFilePragma logger dflags0 src_opts
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream
@@ -378,8 +382,9 @@ initDynFlagsPure fp s = do
   -- no reason to use it.
   dflags0 <- GHC.getSessionDynFlags
   logger <- GHC.getLogger
+  let sec = GHC.initSourceErrorContext dflags0
   let parser_opts0 = GHC.initParserOpts dflags0
-  let (_, pragmaInfo) = GHC.getOptions parser_opts0 (GHC.supportedLanguagePragmas dflags0) (GHC.stringToStringBuffer $ s) fp
+  let (_, pragmaInfo) = GHC.getOptions parser_opts0 sec (GHC.supportedLanguagePragmas dflags0) (GHC.stringToStringBuffer $ s) fp
   (dflags1, _, _) <- GHC.parseDynamicFilePragma logger dflags0 pragmaInfo
   -- Turn this on last to avoid T10942
   let dflags2 = dflags1 `GHC.gopt_set` GHC.Opt_KeepRawTokenStream

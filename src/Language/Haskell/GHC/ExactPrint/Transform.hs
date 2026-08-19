@@ -65,10 +65,9 @@ module Language.Haskell.GHC.ExactPrint.Transform
         , balanceComments
         , balanceCommentsList
         , balanceCommentsListA
-        , anchorEof
+        , addModuleCommentOrigDeltas
 
         -- ** Managing lists, pure functions
-        , captureOrderBinds
         , captureLineSpacing
         , captureMatchLineSpacing
         , captureTypeSigSpacing
@@ -92,10 +91,12 @@ import Control.Monad.RWS
 import qualified Control.Monad.Fail as Fail
 
 import GHC  hiding (parseModule, parsedSource)
+import GHC.Parser.PostProcess ( wrapValBind )
 import GHC.Data.FastString
-import GHC.Types.SrcLoc
+-- import GHC.Types.SrcLoc
 
 import Data.Data
+import Data.List (unsnoc)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NE
 import Data.Maybe
@@ -206,15 +207,14 @@ captureLineSpacing ds = map (\(_,_,x) -> x) $ go (map to ds)
 -- ---------------------------------------------------------------------
 
 captureTypeSigSpacing :: LHsDecl GhcPs -> LHsDecl GhcPs
-captureTypeSigSpacing (L l (SigD x (TypeSig (AnnSig NoEpUniTok mp md) ns (HsWC xw ty))))
-  = (L l (SigD x (TypeSig (AnnSig NoEpUniTok mp md) ns (HsWC xw ty))))
-captureTypeSigSpacing (L l (SigD x (TypeSig (AnnSig (EpUniTok dca u) mp md) ns (HsWC xw ty))))
-  = (L l (SigD x (TypeSig (AnnSig (EpUniTok dca' u) mp md) ns (HsWC xw ty'))))
+captureTypeSigSpacing (L l (SigD x (TypeSig (AnnSig (EpUniTok dca u) mp md) mods ns (HsWC xw ty))))
+  = (L l (SigD x (TypeSig (AnnSig (EpUniTok dca' u) mp md) mods ns (HsWC xw ty'))))
   where
     -- we want DPs for the distance from the end of the ns to the
     -- AnnDColon, and to the start of the ty
-    rd = case last ns of
-      L (EpAnn anc' _ _) _ -> epaLocationRealSrcSpan anc'
+    rd = case unsnoc ns of
+      Nothing -> error "unexpected empty list in 'ns' variable"
+      Just (_, L (EpAnn anc' _ _) _) -> epaLocationRealSrcSpan anc'
     dca' = case dca of
           EpaSpan ss@(RealSrcSpan r _) -> (EpaDelta ss (ss2delta (ss2posEnd rd) r) [])
           _                            -> dca
@@ -253,6 +253,8 @@ setEntryDPDecl d dp = setEntryDP d dp
 -- element. This is the 'DeltaPos' ignoring any comments.
 setEntryDP :: LocatedAn t a -> DeltaPos -> LocatedAn t a
 setEntryDP (L (EpAnn (EpaSpan ss@(UnhelpfulSpan _)) an cs) a) dp
+  = L (EpAnn (EpaDelta ss dp []) an cs) a
+setEntryDP (L (EpAnn (EpaSpan ss@(GeneratedSrcSpan _)) an cs) a) dp
   = L (EpAnn (EpaDelta ss dp []) an cs) a
 setEntryDP (L (EpAnn (EpaSpan ss) an (EpaComments [])) a) dp
   = L (EpAnn (EpaDelta ss dp []) an (EpaComments [])) a
@@ -295,7 +297,7 @@ setEntryDP (L (EpAnn (EpaSpan ss@(RealSrcSpan r _)) an cs) a) dp
               where
                 cs'' = setPriorComments cs []
                 csd = L (EpaDelta ss dp NoComments) c:commentOrigDeltas cs'
-                lc = last $ (L ca c:cs')
+                lc = NE.last (L ca c :| cs')
                 delta = case getLoc lc of
                           EpaSpan (RealSrcSpan rr _) -> ss2delta (ss2pos rr) r
                           EpaSpan _ -> (SameLine 0)
@@ -319,20 +321,20 @@ getEntryDP _ = SameLine 1
 
 addEpaLocationDelta :: LayoutStartCol -> RealSrcSpan -> EpaLocation -> EpaLocation
 addEpaLocationDelta _off _anc (EpaDelta ss d cs) = EpaDelta ss d cs
-addEpaLocationDelta _off _anc (EpaSpan ss@(UnhelpfulSpan _)) = EpaDelta ss (SameLine 0) []
 addEpaLocationDelta  off  anc (EpaSpan ss@(RealSrcSpan r _))
   = EpaDelta ss (adjustDeltaForOffset off (ss2deltaEnd anc r)) []
+addEpaLocationDelta _off _anc (EpaSpan ss) = EpaDelta ss (SameLine 0) []
 
 -- Set the entry DP for an element coming after an existing keyword annotation
 setEntryDPFromAnchor :: LayoutStartCol -> EpaLocation -> LocatedA t -> LocatedA t
-setEntryDPFromAnchor _off (EpaDelta _ _ _) (L la a) = L la a
-setEntryDPFromAnchor _off (EpaSpan (UnhelpfulSpan _)) (L la a) = L la a
 setEntryDPFromAnchor  off (EpaSpan (RealSrcSpan anc _)) ll@(L la _) = setEntryDP ll dp'
   where
     dp' = case la of
       (EpAnn (EpaSpan (RealSrcSpan r' _)) _ _) -> adjustDeltaForOffset off (ss2deltaEnd anc r')
       (EpAnn (EpaSpan _) _ _)                  -> adjustDeltaForOffset off (SameLine 0)
       (EpAnn (EpaDelta _ dp _) _ _)            -> adjustDeltaForOffset off dp
+
+setEntryDPFromAnchor _off _ ll = ll
 
 -- ---------------------------------------------------------------------
 
@@ -400,6 +402,14 @@ balanceCommentsList' (a:b:ls) = (a':r)
   where
     (a',b') = balanceComments a b
     r = balanceCommentsList' (b':ls)
+
+balanceCommentsListA :: [LocatedA a ] -> [LocatedA a]
+balanceCommentsListA [] = []
+balanceCommentsListA [x] = [x]
+balanceCommentsListA (a:b:ls) = (a':r)
+  where
+    (a',b') = balanceCommentsA a b
+    r = balanceCommentsListA (b':ls)
 
 -- |The GHC parser puts all comments appearing between the end of one AST
 -- item and the beginning of the next as 'annPriorComments' for the second one.
@@ -493,27 +503,18 @@ balanceCommentsMatch (L l (Match am mctxt pats (GRHSs xg grhss binds)))
 
             in (an1', (NE.reverse $ L lg (GRHS ag' grs rhs):|gs), bindsm, (anc1',an1'))
 
-pushTrailingComments :: WithWhere -> EpAnnComments -> HsLocalBinds GhcPs -> (Bool, HsLocalBinds GhcPs)
-pushTrailingComments _ _cs b@EmptyLocalBinds{} = (False, b)
-pushTrailingComments _ _cs (HsIPBinds _ _) = error "TODO: pushTrailingComments:HsIPBinds"
-pushTrailingComments w cs lb@(HsValBinds an _) = (True, HsValBinds an' vb)
+pushTrailingComments :: WithWhere -> EpAnnComments -> LHsLocalBinds GhcPs -> (Bool, LHsLocalBinds GhcPs)
+pushTrailingComments _ _cs b@(L _ EmptyLocalBinds{}) = (False, b)
+pushTrailingComments _ _cs (L _ HsIPBinds{}) = error "TODO: pushTrailingComments:HsIPBinds"
+pushTrailingComments w cs lb@(L l (HsValBinds (an,wt) _)) = (True, L l' (HsValBinds (an,wt) vb))
   where
     decls = hsDeclsLocalBinds lb
-    (an', decls') = case reverse decls of
-      [] -> (addCommentsToEpAnn an cs, decls)
-      (L la d:ds) -> (an, L (addCommentsToEpAnn la cs) d:ds)
+    (l', decls') = case reverse decls of
+      [] -> (addCommentsToEpAnn l cs, decls)
+      (L la d:ds) -> (l, L (addCommentsToEpAnn la cs) d:ds)
     vb = case replaceDeclsValbinds w lb (reverse decls') of
-      (HsValBinds _ vb') -> vb'
-      _ -> ValBinds NoAnnSortKey [] []
-
-
-balanceCommentsListA :: [LocatedA a] -> [LocatedA a]
-balanceCommentsListA [] = []
-balanceCommentsListA [x] = [x]
-balanceCommentsListA (a:b:ls) = (a':r)
-  where
-    (a',b') = balanceCommentsA a b
-    r = balanceCommentsListA (b':ls)
+      L _ (HsValBinds _ vb') -> vb'
+      _ -> ValBinds noExtField []
 
 -- |Prior to moving an AST element, make sure any trailing comments belonging to
 -- it are attached to it, and not the following element. Of necessity this is a
@@ -590,59 +591,6 @@ priorCommentsDeltas r cs = go r (sortEpaComments cs)
 
 -- ---------------------------------------------------------------------
 
--- | Split comments into ones occurring before the end of the reference
--- span, and those after it.
-splitComments :: RealSrcSpan -> EpAnnComments -> ([LEpaComment], [LEpaComment], [LEpaComment])
-splitComments p cs = (before, middle, after)
-  where
-    cmpe (L (EpaSpan (RealSrcSpan l _)) _) = ss2pos l > ss2posEnd p
-    cmpe (L _ _) = True
-
-    cmpb (L (EpaSpan (RealSrcSpan l _)) _) = ss2pos l > ss2pos p
-    cmpb (L _ _) = True
-
-    (beforeEnd, after) = break cmpe ((priorComments cs) ++ (getFollowingComments cs))
-    (before, middle) = break cmpb beforeEnd
-
-
--- | Split comments into ones occurring before the end of the reference
--- span, and those after it.
-splitCommentsEnd :: RealSrcSpan -> EpAnnComments -> EpAnnComments
-splitCommentsEnd p (EpaComments cs) = cs'
-  where
-    cmp (L (EpaSpan (RealSrcSpan l _)) _) = ss2pos l > ss2posEnd p
-    cmp (L _ _) = True
-    (before, after) = break cmp cs
-    cs' = case after of
-      [] -> EpaComments cs
-      _ -> epaCommentsBalanced before after
-splitCommentsEnd p (EpaCommentsBalanced cs ts) = epaCommentsBalanced cs' ts'
-  where
-    cmp (L (EpaSpan (RealSrcSpan l _)) _) = ss2pos l > ss2posEnd p
-    cmp (L _ _) = True
-    (before, after) = break cmp cs
-    cs' = before
-    ts' = after <> ts
-
--- | Split comments into ones occurring before the start of the reference
--- span, and those after it.
-splitCommentsStart :: RealSrcSpan -> EpAnnComments -> EpAnnComments
-splitCommentsStart p (EpaComments cs) = cs'
-  where
-    cmp (L (EpaSpan (RealSrcSpan l _)) _) = ss2pos l > ss2posEnd p
-    cmp (L _ _) = True
-    (before, after) = break cmp cs
-    cs' = case after of
-      [] -> EpaComments cs
-      _ -> epaCommentsBalanced before after
-splitCommentsStart p (EpaCommentsBalanced cs ts) = epaCommentsBalanced cs' ts'
-  where
-    cmp (L (EpaSpan (RealSrcSpan l _)) _) = ss2pos l > ss2posEnd p
-    cmp (L _ _) = True
-    (before, after) = break cmp cs
-    cs' = before
-    ts' = after <> ts
-
 moveLeadingComments :: (Data t, Data u, NoAnn t, NoAnn u)
   => LocatedAn t a -> EpAnn u -> (LocatedAn t a, EpAnn u)
 moveLeadingComments (L la a) lb = (L la' a, lb')
@@ -679,19 +627,6 @@ addCommentOrigDeltasAnn (EpAnn e a cs) = EpAnn e a (addCommentOrigDeltas cs)
 anchorFromLocatedA :: LocatedA a -> RealSrcSpan
 anchorFromLocatedA (L (EpAnn anc _ _) _) = epaLocationRealSrcSpan anc
 
--- | Get the full span of interest for comments from a LocatedA.
--- This extends up to the last TrailingAnn
-fullSpanFromLocatedA :: LocatedA a -> RealSrcSpan
-fullSpanFromLocatedA (L (EpAnn anc (AnnListItem tas)  _) _) = rr
-  where
-    r = epaLocationRealSrcSpan anc
-    trailing_loc ta = case ta_location ta of
-        EpaSpan (RealSrcSpan s _) -> [s]
-        _ -> []
-    rr = case reverse (concatMap trailing_loc tas) of
-        [] -> r
-        (s:_) -> combineRealSrcSpans r s
-
 -- ---------------------------------------------------------------------
 
 balanceSameLineComments :: LMatch GhcPs (LHsExpr GhcPs) -> (LMatch GhcPs (LHsExpr GhcPs))
@@ -721,8 +656,8 @@ balanceSameLineComments (L la (Match anm mctxt pats (GRHSs x grhss lb)))
 
 -- ---------------------------------------------------------------------
 
-anchorEof :: ParsedSource -> ParsedSource
-anchorEof (L l m@(HsModule (XModulePs an _lo _ _) _mn _exps _imps _decls)) = L l (m { hsmodExt = (hsmodExt m){ hsmodAnn = an' } })
+addModuleCommentOrigDeltas :: ParsedSource -> ParsedSource
+addModuleCommentOrigDeltas (L l m@(HsModule (XModulePs an _lo _ _) _mn _exps _imps _decls)) = L l (m { hsmodExt = (hsmodExt m){ hsmodAnn = an' } })
   where
     an' = addCommentOrigDeltasAnn an
 
@@ -752,8 +687,8 @@ dn :: Int -> EpaLocation
 dn n = EpaDelta noSrcSpan (SameLine n) []
 
 addComma :: SrcSpanAnnA -> SrcSpanAnnA
-addComma (EpAnn anc (AnnListItem as) cs)
-  = EpAnn anc (AnnListItem (AddCommaAnn (EpTok d0):as)) cs
+addComma (EpAnn anc as cs)
+  = EpAnn anc (AddCommaAnn (EpTok d0):as) cs
 
 -- ---------------------------------------------------------------------
 
@@ -877,7 +812,7 @@ instance HasDecls (LocatedA (Match GhcPs (LocatedA (HsExpr GhcPs)))) where
     = let
         -- Need to throw in a fresh where clause if the binds were empty,
         -- in the annotations.
-        (l', rhs') = case binds of
+        (l', rhs') = case unLoc binds of
           EmptyLocalBinds{} ->
             let
               L l0 m' = balanceSameLineComments m
@@ -894,14 +829,14 @@ instance HasDecls (LocatedA (HsExpr GhcPs)) where
 
   replaceDecls (L ll (HsLet (tkLet, tkIn) binds ex)) newDecls
     = let
-        lastAnc = realSrcSpan $ spanHsLocaLBinds binds
+        lastAnc = realSrcSpan $ getLocA binds
         -- TODO: may be an intervening comment, take account for lastAnc
         (tkLet', tkIn', ex',newDecls') = case (tkLet, tkIn) of
           (EpTok l, EpTok i) ->
             let
               off = case l of
                       (EpaSpan (RealSrcSpan r _)) -> LayoutStartCol $ snd $ ss2pos r
-                      (EpaSpan (UnhelpfulSpan _)) -> LayoutStartCol 0
+                      (EpaSpan _)                 -> LayoutStartCol 0
                       (EpaDelta _ (SameLine _) _) -> LayoutStartCol 0
                       (EpaDelta _ (DifferentLine _ c) _) -> LayoutStartCol c
               ex'' = setEntryDPFromAnchor off i ex
@@ -912,7 +847,6 @@ instance HasDecls (LocatedA (HsExpr GhcPs)) where
                , EpTok (addEpaLocationDelta off lastAnc i)
                , ex''
                , newDecls'')
-          (_,_) -> (tkLet, tkIn, ex, newDecls)
         binds' = replaceDeclsValbinds WithoutWhere binds newDecls'
       in (L ll (HsLet (tkLet', tkIn') binds' ex'))
 
@@ -1074,55 +1008,37 @@ data WithWhere = WithWhere
 -- ordering should be done by the calling function from the 'HsLocalBinds'
 -- context in the AST.
 replaceDeclsValbinds :: WithWhere
-                     -> HsLocalBinds GhcPs -> [LHsDecl GhcPs]
-                     -> HsLocalBinds GhcPs
-replaceDeclsValbinds _ _ [] = EmptyLocalBinds NoExtField
-replaceDeclsValbinds w b@(HsValBinds a _) new
+                     -> LHsLocalBinds GhcPs -> [LHsDecl GhcPs]
+                     -> LHsLocalBinds GhcPs
+replaceDeclsValbinds _ (L l _) [] = L (l { entry = noSpanAnchor}) (EmptyLocalBinds NoExtField)
+replaceDeclsValbinds w (L l (HsValBinds a _)) new
     = let
-        oldSpan = spanHsLocaLBinds b
-        an = oldWhereAnnotation a w (realSrcSpan oldSpan)
-        decs = concatMap decl2Bind new
-        sigs = concatMap decl2Sig new
-        sortKey = captureOrderBinds new
-      in (HsValBinds an (ValBinds sortKey decs sigs))
-replaceDeclsValbinds _ (HsIPBinds {}) _new    = error "undefined replaceDecls HsIPBinds"
-replaceDeclsValbinds w (EmptyLocalBinds _) new
-    = let
-        an = newWhereAnnotation w
-        decs = concatMap decl2Bind new
-        sigs = concatMap decl2Sig  new
-        sortKey = captureOrderBinds new
-      in (HsValBinds an (ValBinds sortKey decs sigs))
+        an = oldWhereAnnotation a w
+      in (L l (HsValBinds an (ValBinds noExtField (map wrapValBind new))))
+replaceDeclsValbinds _ (L _ (HsIPBinds {})) _new    = error "undefined replaceDecls HsIPBinds"
+replaceDeclsValbinds w (L l (EmptyLocalBinds _)) new
+    = let an = newWhereAnnotation w
+          l' = l { entry = EpaDelta noSrcSpan (DifferentLine 1 2) [] }
+      in (L l' (HsValBinds an (ValBinds noExtField (map wrapValBind new))))
 
-oldWhereAnnotation :: EpAnn (AnnList (EpToken "where"))
-  -> WithWhere -> RealSrcSpan -> (EpAnn (AnnList (EpToken "where")))
-oldWhereAnnotation (EpAnn anc an cs) ww _oldSpan = an'
+oldWhereAnnotation :: (AnnList, EpToken "where")
+  -> WithWhere -> (AnnList, EpToken "where")
+oldWhereAnnotation (an, _w) ww  = (an, w')
   -- TODO: when we set DP (0,0) for the HsValBinds EpEpaLocation,
   -- change the AnnList anchor to have the correct DP too
   where
-    (AnnList ancl p s _r t) = an
-    w = case ww of
+    w' = case ww of
       WithWhere -> EpTok (EpaDelta noSrcSpan (SameLine 0) [])
-      WithoutWhere -> NoEpTok
-    (anc', ancl') =
-          case ww of
-            WithWhere -> (anc, ancl)
-            WithoutWhere -> (anc, ancl)
-    an' = EpAnn anc'
-                (AnnList ancl' p s w t)
-                cs
+      WithoutWhere -> noEpTok
 
-newWhereAnnotation :: WithWhere -> (EpAnn (AnnList (EpToken "where")))
-newWhereAnnotation ww = an
+newWhereAnnotation :: WithWhere -> (AnnList, EpToken "where")
+newWhereAnnotation ww = (an, w)
   where
-  anc  = EpaDelta noSrcSpan (DifferentLine 1 2) []
   anc2 = EpaDelta noSrcSpan (DifferentLine 1 4) []
   w = case ww of
     WithWhere -> EpTok (EpaDelta noSrcSpan (SameLine 0) [])
-    WithoutWhere -> NoEpTok
-  an = EpAnn anc
-              (AnnList (Just anc2) ListNone [] w [])
-              emptyComments
+    WithoutWhere -> noEpTok
+  an = AnnList (EpVirtualBraces anc2) []
 
 -- ---------------------------------------------------------------------
 

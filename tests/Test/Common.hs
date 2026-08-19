@@ -35,6 +35,8 @@ import Language.Haskell.GHC.ExactPrint.Utils
 import Language.Haskell.GHC.ExactPrint.Parsers
 import Language.Haskell.GHC.ExactPrint.Preprocess
 
+
+
 import qualified Control.Monad.IO.Class as GHC
 import GHC hiding (moduleName)
 import GHC.Driver.Errors.Types
@@ -146,12 +148,7 @@ genTest libdir f origFile expectedFile  = do
           return $ Right Report {..}
 
 showErrorMessages :: Messages GhcMessage -> String
-showErrorMessages msgs =
-  renderWithContext defaultSDocContext
-    $ vcat
-    $ pprMsgEnvelopeBagWithLocDefault
-    $ getMessages
-    $ msgs
+showErrorMessages = internalDebugShowMessages
 
 -- showErrorMessages :: Messages GhcMessage -> String
 -- showErrorMessages msgs =
