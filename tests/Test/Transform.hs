@@ -30,7 +30,8 @@ import Test.HUnit
 transformTestsTT :: LibDir -> Test
 transformTestsTT libdir = TestLabel "transformTestsTT" $ TestList
   [
-    mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
+    -- mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
+    mkTestModChange libdir addCaseClauses1  "AddCaseClauses1.hs"
   ]
 
 transformTests :: LibDir -> Test
@@ -325,6 +326,8 @@ transformHighLevelTests libdir =
   , mkTestModChange libdir addHiding2 "AddHiding2.hs"
 
   , mkTestModChange libdir cloneDecl1 "CloneDecl1.hs"
+
+  , mkTestModChange libdir addCaseClauses1  "AddCaseClauses1.hs"
   ]
 
 -- ---------------------------------------------------------------------
@@ -670,5 +673,13 @@ cloneDecl1 _libdir lp = do
 
   let lp' = doChange
   return lp'
+
+-- ---------------------------------------------------------------------
+
+addCaseClauses1 :: Changer
+addCaseClauses1 _libdir lp = do
+  -- Add some calls to the new
+  -- Language.Haskell.GHC.ExactPrint.Transform.appendMissingPats
+  return lp
 
 -- ---------------------------------------------------------------------

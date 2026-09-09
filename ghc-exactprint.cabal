@@ -87,6 +87,7 @@ Test-Suite test
   Build-depends:       base < 4.23
                      , HUnit >= 1.2
                      , containers >= 0.5
+                     , extra
                      , Diff
                      , directory >= 1.2
                      , extra
