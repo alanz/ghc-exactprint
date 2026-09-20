@@ -62,7 +62,7 @@ import Language.Haskell.Syntax.Basic (FieldLabelString(..))
 import Control.Monad (forM, when, unless)
 import Control.Monad.Identity (Identity(..))
 import qualified Control.Monad.Reader as Reader
-import Control.Monad.RWS (MonadReader, RWST, evalRWST, tell, modify, get, gets, ask)
+import Control.Monad.RWS.CPS (MonadReader, RWST, evalRWST, tell, modify', get, gets, ask)
 import Control.Monad.Trans (lift)
 import Data.Data ( Data )
 import Data.Dynamic
@@ -100,7 +100,7 @@ makeDeltaAst ast = fst $ runIdentity (runEP deltaOptions (markAnnotated ast))
 
 type EP w m a = RWST (EPOptions m w) (EPWriter w) EPState m a
 
-runEP :: (Monad m)
+runEP :: (Monad m, Monoid w)
       => EPOptions m w
       -> EP w m a -> m (a, w)
 runEP epReader action = do
@@ -158,14 +158,30 @@ stringOptions = epOptions return return
 deltaOptions :: EPOptions Identity ()
 deltaOptions = epOptions (\_ -> return ()) (\_ -> return ())
 
-data EPWriter a = EPWriter
-              { output :: !a }
+-- Note: EPWriter
+--
+-- We use the CPS 'RWST' to be strict in the writer type. However, this
+-- makes performance beholden to the behavior of 'mappend' on the chosen
+-- type. For commonly-used types such as 'String' and 'Text', repeatedly
+-- appending to a growing accumulator results in quadratic cost. Instead,
+-- we store the writer as a reversed list of items so 'tell' is a constant
+-- time 'cons'. We then 'mconcat' the items in 'output', since 'mconcat'
+-- implementations for common monoids are optimized to be linear time.
+--
+-- We do not use 'Endo' because it still builds a tree of mappends,
+-- whereas 'mconcat' for 'Text'/'ByteString' can allocate a single
+-- buffer upfront. We do not use 'Builder' because it would be exposed
+-- to the public-facing API.
+newtype EPWriter a = EPWriter { chunks :: [a] }
 
-instance Monoid w => Semigroup (EPWriter w) where
-  (EPWriter a) <> (EPWriter b) = EPWriter (a <> b)
+output :: Monoid a => EPWriter a -> a
+output = mconcat . reverse . chunks
 
-instance Monoid w => Monoid (EPWriter w) where
-  mempty = EPWriter mempty
+instance Semigroup (EPWriter w) where
+  EPWriter a <> EPWriter b = EPWriter (b ++ a)
+
+instance Monoid (EPWriter w) where
+  mempty = EPWriter []
 
 data EPState = EPState
              { uAnchorSpan :: !RealSrcSpan -- ^ in pre-changed AST
@@ -490,7 +506,7 @@ enterAnn !(Entry anchor' trailing_anns cs flush canUpdateAnchor) a = do
   let spanStart = ss2pos curAnchor
   when (priorEndAfterComments < spanStart) (do
     debugM $ "enterAnn.dPriorEndPosition:spanStart=" ++ show spanStart
-    modify (\s -> s { dPriorEndPosition    = spanStart } ))
+    modify' (\s -> s { dPriorEndPosition    = spanStart } ))
 
   debugM $ "enterAnn: (anchor', curAnchor):" ++ show (anchor', rs2range curAnchor)
   -- debugM $ "enterAnn: (dLHS,spanStart,pec,edp)=" ++ show (off,spanStart,priorEndAfterComments,edp)
@@ -4874,11 +4890,11 @@ setLayoutBoth k = do
   oldLHS <- getLayoutOffsetD
   oldAnchorOffset <- getLayoutOffsetP
   debugM $ "setLayoutBoth: (oldLHS,oldAnchorOffset)=" ++ show (oldLHS,oldAnchorOffset)
-  modify (\a -> a { dMarkLayout = True
+  modify' (\a -> a { dMarkLayout = True
                   , pMarkLayout = True } )
   let reset = do
         debugM $ "setLayoutBoth:reset: (oldLHS,oldAnchorOffset)=" ++ show (oldLHS,oldAnchorOffset)
-        modify (\a -> a { dMarkLayout = False
+        modify' (\a -> a { dMarkLayout = False
                         , dLHS = oldLHS
                         , pMarkLayout = False
                         , pLHS = oldAnchorOffset} )
@@ -4892,7 +4908,7 @@ getPosP = gets epPos
 setPosP :: (Monad m, Monoid w) => Pos -> EP w m ()
 setPosP l = do
   debugM $ "setPosP:" ++ show l
-  modify (\s -> s {epPos = l})
+  modify' (\s -> s {epPos = l})
 
 getExtraDP :: (Monad m, Monoid w) => EP w m (Maybe EpaLocation)
 getExtraDP = gets uExtraDP
@@ -4900,7 +4916,7 @@ getExtraDP = gets uExtraDP
 setExtraDP :: (Monad m, Monoid w) => Maybe EpaLocation -> EP w m ()
 setExtraDP md = do
   debugM $ "setExtraDP:" ++ show md
-  modify (\s -> s {uExtraDP = md})
+  modify' (\s -> s {uExtraDP = md})
 
 getExtraDPReturn :: (Monad m, Monoid w) => EP w m (Maybe (SrcSpan, DeltaPos))
 getExtraDPReturn = gets uExtraDPReturn
@@ -4908,7 +4924,7 @@ getExtraDPReturn = gets uExtraDPReturn
 setExtraDPReturn :: (Monad m, Monoid w) => Maybe (SrcSpan, DeltaPos) -> EP w m ()
 setExtraDPReturn md = do
   debugM $ "setExtraDPReturn:" ++ show md
-  modify (\s -> s {uExtraDPReturn = md})
+  modify' (\s -> s {uExtraDPReturn = md})
 
 getPriorEndD :: (Monad m, Monoid w) => EP w m Pos
 getPriorEndD = gets dPriorEndPosition
@@ -4921,7 +4937,7 @@ getAcceptSpan = gets pAcceptSpan
 
 setAcceptSpan ::(Monad m, Monoid w) => Bool -> EP w m ()
 setAcceptSpan f =
-  modify (\s -> s { pAcceptSpan = f })
+  modify' (\s -> s { pAcceptSpan = f })
 
 setPriorEndD :: (Monad m, Monoid w) => Pos -> EP w m ()
 setPriorEndD pe = do
@@ -4930,7 +4946,7 @@ setPriorEndD pe = do
 setPriorEndNoLayoutD :: (Monad m, Monoid w) => Pos -> EP w m ()
 setPriorEndNoLayoutD pe = do
   debugM $ "setPriorEndNoLayoutD:pe=" ++ show pe
-  modify (\s -> s { dPriorEndPosition = pe })
+  modify' (\s -> s { dPriorEndPosition = pe })
 
 setPriorEndASTD :: (Monad m, Monoid w) => RealSrcSpan -> EP w m ()
 setPriorEndASTD pe = setPriorEndASTPD (rs2range pe)
@@ -4939,14 +4955,14 @@ setPriorEndASTPD :: (Monad m, Monoid w) => (Pos,Pos) -> EP w m ()
 setPriorEndASTPD pe@(fm,to) = do
   debugM $ "setPriorEndASTD:pe=" ++ show pe
   setLayoutStartD (snd fm)
-  modify (\s -> s { dPriorEndPosition = to } )
+  modify' (\s -> s { dPriorEndPosition = to } )
 
 setLayoutStartD :: (Monad m, Monoid w) => Int -> EP w m ()
 setLayoutStartD p = do
   EPState{dMarkLayout} <- get
   when dMarkLayout $ do
     debugM $ "setLayoutStartD: setting dLHS=" ++ show p
-    modify (\s -> s { dMarkLayout = False
+    modify' (\s -> s { dMarkLayout = False
                     , dLHS = LayoutStartCol p})
 
 getLayoutOffsetD :: (Monad m, Monoid w) => EP w m LayoutStartCol
@@ -4955,13 +4971,13 @@ getLayoutOffsetD = gets dLHS
 setAnchorU :: (Monad m, Monoid w) => RealSrcSpan -> EP w m ()
 setAnchorU rss = do
   debugM $ "setAnchorU:" ++ show (rs2range rss)
-  modify (\s -> s { uAnchorSpan = rss })
+  modify' (\s -> s { uAnchorSpan = rss })
 
 getEofPos :: (Monad m, Monoid w) => EP w m (Maybe (RealSrcSpan, RealSrcSpan))
 getEofPos = gets epEof
 
 setEofPos :: (Monad m, Monoid w) => Maybe (RealSrcSpan, RealSrcSpan) -> EP w m ()
-setEofPos l = modify (\s -> s {epEof = l})
+setEofPos l = modify' (\s -> s {epEof = l})
 
 -- ---------------------------------------------------------------------
 
@@ -4969,11 +4985,11 @@ getUnallocatedComments :: (Monad m, Monoid w) => EP w m [Comment]
 getUnallocatedComments = gets epComments
 
 putUnallocatedComments :: (Monad m, Monoid w) => [Comment] -> EP w m ()
-putUnallocatedComments !cs = modify (\s -> s { epComments = cs } )
+putUnallocatedComments !cs = modify' (\s -> s { epComments = cs } )
 
 -- | Push a fresh stack frame for the applied comments gatherer
 pushAppliedComments  :: (Monad m, Monoid w) => EP w m ()
-pushAppliedComments = modify (\s -> s { epCommentsApplied = []:(epCommentsApplied s) })
+pushAppliedComments = modify' (\s -> s { epCommentsApplied = []:(epCommentsApplied s) })
 
 -- | Return the comments applied since the last call
 -- takeAppliedComments, and clear them, not popping the stack
@@ -4982,10 +4998,10 @@ takeAppliedComments = do
   !ccs <- gets epCommentsApplied
   case ccs of
     [] -> do
-      modify (\s -> s { epCommentsApplied = [] })
+      modify' (\s -> s { epCommentsApplied = [] })
       return []
     h:t -> do
-      modify (\s -> s { epCommentsApplied = []:t })
+      modify' (\s -> s { epCommentsApplied = []:t })
       return (reverse h)
 
 -- | Return the comments applied since the last call
@@ -4995,10 +5011,10 @@ takeAppliedCommentsPop = do
   !ccs <- gets epCommentsApplied
   case ccs of
     [] -> do
-      modify (\s -> s { epCommentsApplied = [] })
+      modify' (\s -> s { epCommentsApplied = [] })
       return []
     h:t -> do
-      modify (\s -> s { epCommentsApplied = t })
+      modify' (\s -> s { epCommentsApplied = t })
       return (reverse h)
 
 -- | Mark a comment as being applied.  This is used to update comments
@@ -5007,8 +5023,8 @@ applyComment :: (Monad m, Monoid w) => Comment -> EP w m ()
 applyComment c = do
   !ccs <- gets epCommentsApplied
   case ccs of
-    []    -> modify (\s -> s { epCommentsApplied = [[c]] } )
-    (h:t) -> modify (\s -> s { epCommentsApplied = (c:h):t } )
+    []    -> modify' (\s -> s { epCommentsApplied = [[c]] } )
+    (h:t) -> modify' (\s -> s { epCommentsApplied = (c:h):t } )
 
 getLayoutOffsetP :: (Monad m, Monoid w) => EP w m LayoutStartCol
 getLayoutOffsetP = gets pLHS
@@ -5016,7 +5032,7 @@ getLayoutOffsetP = gets pLHS
 setLayoutOffsetP :: (Monad m, Monoid w) => LayoutStartCol -> EP w m ()
 setLayoutOffsetP c = do
   debugM $ "setLayoutOffsetP:" ++ show c
-  modify (\s -> s { pLHS = c })
+  modify' (\s -> s { pLHS = c })
 
 
 -- ---------------------------------------------------------------------
@@ -5055,7 +5071,7 @@ printString layout str = do
   EPOptions{epTokenPrint, epWhitespacePrint} <- ask
   when (pMarkLayout && layout) $ do
     debugM $ "printString: setting pLHS to " ++ show c
-    modify (\s -> s { pLHS = LayoutStartCol c, pMarkLayout = False } )
+    modify' (\s -> s { pLHS = LayoutStartCol c, pMarkLayout = False } )
 
   -- Advance position, taking care of any newlines in the string
   let strDP = dpFromString str
@@ -5080,8 +5096,8 @@ printString layout str = do
 
   --
   if not layout && c == 0
-    then lift (epWhitespacePrint str) >>= \s -> tell EPWriter { output = s}
-    else lift (epTokenPrint      str) >>= \s -> tell EPWriter { output = s}
+    then lift (epWhitespacePrint str) >>= \s -> tell (EPWriter [s])
+    else lift (epTokenPrint      str) >>= \s -> tell (EPWriter [s])
 
 --------------------------------------------------------
 
