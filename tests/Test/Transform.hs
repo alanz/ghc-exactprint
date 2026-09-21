@@ -22,6 +22,7 @@ import Data.Generics as SYB
 import System.FilePath
 import Data.List
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.List.NonEmpty as NE
 
 import Test.Common
 
@@ -30,7 +31,8 @@ import Test.HUnit
 transformTestsTT :: LibDir -> Test
 transformTestsTT libdir = TestLabel "transformTestsTT" $ TestList
   [
-    mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
+    -- mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
+    mkTestModChange libdir addCaseClauses1  "AddCaseClauses1.hs"
   ]
 
 transformTests :: LibDir -> Test
@@ -325,6 +327,12 @@ transformHighLevelTests libdir =
   , mkTestModChange libdir addHiding2 "AddHiding2.hs"
 
   , mkTestModChange libdir cloneDecl1 "CloneDecl1.hs"
+
+  -- TODO: I should add some test also for:
+  --    without braces, no existing patterns
+  --    with braces, with existing patterns
+  --    with braces, no existing patterns
+  , mkTestModChange libdir addCaseClauses1  "AddCaseClauses1.hs"
   ]
 
 -- ---------------------------------------------------------------------
@@ -670,5 +678,16 @@ cloneDecl1 _libdir lp = do
 
   let lp' = doChange
   return lp'
+
+-- ---------------------------------------------------------------------
+
+addCaseClauses1 :: Changer
+addCaseClauses1 _libdir lp = do
+  pure $ case lp of
+  -- TODO Can improve the following with lenses
+    L a m@HsModule { hsmodDecls = [L b (SpliceD c (SpliceDecl d (L e (HsUntypedSpliceExpr f (L g (HsCase h i mg@MG { mg_alts = L _ [lm] })))) j))] }
+        -> let mg' = appendMissingPats mg (NE.singleton lm) NonBraced -- reuse the existing match
+           in L a m{ hsmodDecls = [L b (SpliceD c (SpliceDecl d (L e (HsUntypedSpliceExpr f (L g (HsCase h i mg')))) j))] }
+    _ -> error "Unexpected input code and/or AST structure"
 
 -- ---------------------------------------------------------------------
