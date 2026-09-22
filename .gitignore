@@ -25,6 +25,7 @@
 /failures
 /origfailures.txt
 /hackage-roundtrip-work
+/hackage-roundtrip-work.rest
 /roundtrip-work
 .cabal-sandbox/
 cabal.sandbox.config
