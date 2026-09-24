@@ -58,6 +58,7 @@ library
   hs-source-dirs:      src
   build-depends:       base >=4.22 && <4.23
                      , containers >= 0.5  && < 0.9
+                     , extra
                      , ghc       >= 9.14 && < 9.15
                      , ghc-boot  >= 9.14 && < 9.15
                      , mtl       >= 2.3 && < 2.5
@@ -88,6 +89,7 @@ Test-Suite test
                      , containers >= 0.5
                      , Diff
                      , directory >= 1.2
+                     , extra
                      , filepath  >= 1.4
                      , ghc       >= 9.14
                      , ghc-paths  >= 0.1
