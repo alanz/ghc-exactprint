@@ -3431,7 +3431,7 @@ instance ExactPrint (HsCmd GhcPs) where
              LamSingle -> return an0
              LamCase -> markLensFun an0 lepl_case (\ml -> mapM (\l -> printStringAtAA l "case") ml)
              LamCases -> markLensFun an0 lepl_case (\ml -> mapM (\l -> printStringAtAA l "cases") ml)
-    matches' <- markAnnotated matches
+    matches' <- markAnnotatedWithLayout matches
     return (HsCmdLam an1 lam_variant matches')
 
   exact (HsCmdPar (lpar, rpar) e) = do
@@ -3444,7 +3444,7 @@ instance ExactPrint (HsCmd GhcPs) where
     an0 <- markLensFun an lhsCaseAnnCase markEpToken
     e' <- markAnnotated e
     an1 <- markLensFun an0 lhsCaseAnnOf markEpToken
-    alts' <- markAnnotated alts
+    alts' <- markAnnotatedWithLayout alts
     return (HsCmdCase an1 e' alts')
 
   exact (HsCmdIf an a e1 e2 e3) = do
@@ -3468,9 +3468,8 @@ instance ExactPrint (HsCmd GhcPs) where
 
   exact (HsCmdDo an es) = do
     debugM $ "HsCmdDo"
-    an0 <- markLensFun an lal_rest (\l -> printStringAtAA l "do")
-    es' <- markAnnotated es
-    return (HsCmdDo an0 es')
+    (an', es') <- markAnnListA' an $ \a -> exactDo a (DoExpr Nothing) es
+    return (HsCmdDo an' es')
 
 -- ---------------------------------------------------------------------
 
