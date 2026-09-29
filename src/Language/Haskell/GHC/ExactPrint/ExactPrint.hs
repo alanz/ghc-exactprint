@@ -2982,7 +2982,7 @@ instance ExactPrint (HsExpr GhcPs) where
   exact (HsMultiIf (i,o,c) mg) = do
     i0 <- markEpToken i
     o0 <- markEpToken o
-    mg' <- markAnnotated mg
+    mg' <- markAnnotatedWithLayout mg
     c0 <- markEpToken c
     return (HsMultiIf (i0,o0,c0) mg')
 
