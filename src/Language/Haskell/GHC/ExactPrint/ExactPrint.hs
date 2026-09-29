@@ -2899,7 +2899,7 @@ instance ExactPrint (HsExpr GhcPs) where
              LamSingle -> return an0
              LamCase  -> markLensFun an0 lepl_case (\ml -> mapM (\l -> printStringAtAA l "case") ml)
              LamCases -> markLensFun an0 lepl_case (\ml -> mapM (\l -> printStringAtAA l "cases") ml)
-    mg' <- setLayoutBoth $ markAnnotated mg
+    mg' <- markAnnotatedWithLayout mg
     return (HsLam an1 lam_variant mg')
 
   exact (HsApp an e1 e2) = do
@@ -2965,7 +2965,7 @@ instance ExactPrint (HsExpr GhcPs) where
     an0 <- markLensFun an lhsCaseAnnCase markEpToken
     e' <- markAnnotated e
     an1 <- markLensFun an0 lhsCaseAnnOf markEpToken
-    alts' <- setLayoutBoth $ markAnnotated alts
+    alts' <- markAnnotatedWithLayout alts
     return (HsCase an1 e' alts')
 
   exact (HsIf an e1 e2 e3) = do
@@ -2989,7 +2989,7 @@ instance ExactPrint (HsExpr GhcPs) where
   exact (HsLet (tkLet, tkIn) binds e) = do
     setLayoutBoth $ do -- Make sure the 'in' gets indented too
       tkLet' <- markEpToken tkLet
-      binds' <- setLayoutBoth $ markAnnotated binds
+      binds' <- markAnnotatedWithLayout binds
       tkIn' <- markEpToken tkIn
       e' <- markAnnotated e
       return (HsLet (tkLet',tkIn') binds' e')
@@ -3461,7 +3461,7 @@ instance ExactPrint (HsCmd GhcPs) where
   exact (HsCmdLet (tkLet, tkIn) binds e) = do
     setLayoutBoth $ do -- Make sure the 'in' gets indented too
       tkLet' <- markEpToken tkLet
-      binds' <- setLayoutBoth $ markAnnotated binds
+      binds' <- markAnnotatedWithLayout binds
       tkIn' <- markEpToken tkIn
       e' <- markAnnotated e
       return (HsCmdLet (tkLet', tkIn') binds' e')
