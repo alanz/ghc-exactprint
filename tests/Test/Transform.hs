@@ -12,7 +12,7 @@ import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Parsers
 import Language.Haskell.GHC.ExactPrint.Utils
 
-import GHC                       as GHC
+import GHC                       as GHC hiding (parseExpr)
 import GHC.Data.FastString       as GHC
 import GHC.Types.Name.Occurrence as GHC
 import GHC.Types.Name.Reader     as GHC
@@ -21,7 +21,6 @@ import Data.Generics as SYB
 
 import System.FilePath
 import Data.List
-import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NE
 
 import Test.Common
@@ -68,7 +67,7 @@ transformLowLevelTests libdir = [
   , mkTestModChange libdir changeLocalDecls2 "LocalDecls2.hs"
   , mkTestModChange libdir changeWhereIn3a   "WhereIn3a.hs"
   , mkTestModChange libdir changeWhereIn3b   "WhereIn3b.hs"
-  , mkTestModChange libdir changeInstanceGraft "InstanceGraft.hs"
+  , mkTestModChange libdir changeGraft       "InstanceGraft.hs"
 --  , mkTestModChange changeCifToCase  "C.hs"          "C"
   ]
 
@@ -109,23 +108,18 @@ changeWhereIn3a _libdir (L l p) = do
 
 -- ---------------------------------------------------------------------
 
--- | A delta-anchored expression grafted into a class or instance method
--- must indent its continuation lines relative to the method declarations
--- layout column.
-changeInstanceGraft :: Changer
-changeInstanceGraft _libdir top = do
-  let lp = makeDeltaAst top
-      grab :: HsBind GhcPs -> [LHsExpr GhcPs]
-      grab FunBind{ fun_id = L _ n
-                  , fun_matches = MG{mg_alts = L _ [L _ Match{m_grhss = GRHSs _ (L _ (GRHS _ _ e) :| []) _}]}}
-        | occNameString (rdrNameOcc n) == "combine" = [e]
-      grab _ = []
-      [body] = everything (++) ([] `mkQ` grab) lp
+-- | Replace instances of @graft@ with an expression that spans two lines. This
+-- tests what indentation the printer uses (and whether the correct layout is
+-- followed).
+changeGraft :: Changer
+changeGraft libdir top = do
+  Right parsed <- withDynFlags libdir (\df -> parseExpr df "graft" "a\n  + b")
+  let graft = makeDeltaAst parsed
       replace :: LHsExpr GhcPs -> LHsExpr GhcPs
-      replace (L _ (HsVar _ (L _ n)))
-        | occNameString (rdrNameOcc n) == "todo" = setEntryDP body (SameLine 1)
+      replace x@(L _ (HsVar _ (L _ n)))
+        | occNameString (rdrNameOcc n) == "graft" = transferEntryDP x graft
       replace x = x
-  return (everywhere (mkT replace) lp)
+  return (everywhere (mkT replace) (makeDeltaAst top))
 
 -- ---------------------------------------------------------------------
 
