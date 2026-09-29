@@ -69,6 +69,7 @@ transformLowLevelTests libdir = [
   , mkTestModChange libdir changeWhereIn3b   "WhereIn3b.hs"
   , mkTestModChange libdir changeGraft       "InstanceGraft.hs"
   , mkTestModChange libdir changeGraft       "MultiwayIfGraft.hs"
+  , mkTestModChange libdir changeGraft       "RecGraft.hs"
 --  , mkTestModChange changeCifToCase  "C.hs"          "C"
   ]
 
