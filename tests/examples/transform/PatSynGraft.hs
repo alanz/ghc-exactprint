@@ -1,0 +1,7 @@
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
+module PatSynGraft where
+
+pattern P :: Int -> Int
+pattern P x <- (subtract 1 -> x) where
+  P a = graft
