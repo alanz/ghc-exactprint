@@ -1434,6 +1434,11 @@ commentAllocationIn ss = do
 markAnnotatedWithLayout :: (Monad m, Monoid w) => ExactPrint ast => ast -> EP w m ast
 markAnnotatedWithLayout a = setLayoutBoth $ markAnnotated a
 
+markLamMatches :: (Monad m, Monoid w, ExactPrint ast) => HsLamVariant -> ast -> EP w m ast
+markLamMatches LamSingle = markAnnotated
+markLamMatches LamCase   = markAnnotatedWithLayout
+markLamMatches LamCases  = markAnnotatedWithLayout
+
 -- ---------------------------------------------------------------------
 -- End of utility functions
 -- ---------------------------------------------------------------------
@@ -2899,7 +2904,7 @@ instance ExactPrint (HsExpr GhcPs) where
              LamSingle -> return an0
              LamCase  -> markLensFun an0 lepl_case (\ml -> mapM (\l -> printStringAtAA l "case") ml)
              LamCases -> markLensFun an0 lepl_case (\ml -> mapM (\l -> printStringAtAA l "cases") ml)
-    mg' <- markAnnotatedWithLayout mg
+    mg' <- markLamMatches lam_variant mg
     return (HsLam an1 lam_variant mg')
 
   exact (HsApp an e1 e2) = do
@@ -3434,7 +3439,7 @@ instance ExactPrint (HsCmd GhcPs) where
              LamSingle -> return an0
              LamCase -> markLensFun an0 lepl_case (\ml -> mapM (\l -> printStringAtAA l "case") ml)
              LamCases -> markLensFun an0 lepl_case (\ml -> mapM (\l -> printStringAtAA l "cases") ml)
-    matches' <- markAnnotatedWithLayout matches
+    matches' <- markLamMatches lam_variant matches
     return (HsCmdLam an1 lam_variant matches')
 
   exact (HsCmdPar (lpar, rpar) e) = do
