@@ -4514,7 +4514,11 @@ instance (ExactPrint (Match GhcPs (LocatedA body)))
     an0 <- markLensFun' an lal_rest markEpToken
     an1 <- markLensBracketsO an0 lal_brackets
     an2 <- markEpAnnAllLT an1 lal_semis
-    a' <- markAnnotated a
+    -- in an explicitly bidirectional pattern synonym, a match list introduced
+    -- by its own 'where', is a layout block
+    a' <- case al_rest (anns an) of
+            EpTok{} -> markAnnotatedWithLayout a
+            NoEpTok -> markAnnotated a
     an3 <- markLensBracketsC an2 lal_brackets
     return (L an3 a')
 
