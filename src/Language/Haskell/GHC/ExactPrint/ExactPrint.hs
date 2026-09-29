@@ -3711,7 +3711,7 @@ instance ExactPrint (FamilyDecl GhcPs) where
                        dd' <- markEpToken dd
                        return (dd', mb_eqns)
                      Just eqns -> do
-                       eqns' <- markAnnotated eqns
+                       eqns' <- markAnnotatedWithLayout eqns
                        return (dd, Just eqns')
                  cc' <- markEpToken cc
                  return (w',oc',dd',cc', ClosedTypeFamily mb_eqns')

@@ -76,6 +76,7 @@ transformLowLevelTests libdir = [
   , mkTestModChange libdir changeGraft       "DecBracketGraft.hs"
   , mkTestModChange libdir changeGraft       "DecBracketBracesGraft.hs"
   , mkTestModChange libdir changeGadtRename  "GadtRename.hs"
+  , mkTestModChange libdir changeTypeFamilyRename "TypeFamilyRename.hs"
 --  , mkTestModChange changeCifToCase  "C.hs"          "C"
   ]
 
@@ -231,6 +232,9 @@ changeRenameCase2 _libdir parsed = return (rename "fooLonger" [((3,1),(3,4))] pa
 
 changeGadtRename :: Changer
 changeGadtRename _libdir parsed = return (rename "Tlonger" [((4,6),(4,7)),((4,21),(4,22)),((5,21),(5,22))] parsed)
+
+changeTypeFamilyRename :: Changer
+changeTypeFamilyRename _libdir parsed = return (rename "Flonger" [((4,13),(4,14)),((4,23),(4,24)),((5,23),(5,24))] parsed)
 
 changeLayoutLet2 :: Changer
 changeLayoutLet2 _libdir parsed = return (rename "xxxlonger" [((7,5),(7,8)),((8,24),(8,27))] parsed)
