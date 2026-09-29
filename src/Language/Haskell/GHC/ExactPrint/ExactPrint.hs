@@ -3520,7 +3520,7 @@ instance (
   exact (RecStmt an stmts a b c d e) = do
     debugM $ "RecStmt"
     an0 <- markLensFun an lal_rest markEpToken
-    (an1, stmts') <- markAnnList' an0 (markAnnotated stmts)
+    (an1, stmts') <- markAnnList' an0 (markAnnotatedWithLayout stmts)
     return (RecStmt an1 stmts' a b c d e)
 
 -- ---------------------------------------------------------------------
