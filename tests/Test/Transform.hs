@@ -22,6 +22,7 @@ import Data.Generics as SYB
 import System.FilePath
 import Data.List
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.List.NonEmpty as NE
 
 import Test.Common
 
@@ -30,7 +31,11 @@ import Test.HUnit
 transformTestsTT :: LibDir -> Test
 transformTestsTT libdir = TestLabel "transformTestsTT" $ TestList
   [
-    mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
+    -- mkTestModChange libdir addLocaLDecl5  "AddLocalDecl5.hs"
+    mkTestModChange libdir (addCaseClauses NonBraced)  "AddCaseClauses1.hs"
+  , mkTestModChange libdir (addCaseClauses (Braced (SomeMatches 1)))  "AddCaseClauses2.hs"
+  , mkTestModChange libdir (addCaseClauses NonBraced)  "AddCaseClauses3.hs"
+  , mkTestModChange libdir (addCaseClauses (Braced (SomeMatches 0)))  "AddCaseClauses4.hs"
   ]
 
 transformTests :: LibDir -> Test
@@ -325,6 +330,14 @@ transformHighLevelTests libdir =
   , mkTestModChange libdir addHiding2 "AddHiding2.hs"
 
   , mkTestModChange libdir cloneDecl1 "CloneDecl1.hs"
+
+  -- TODO: I should add some test also for:
+  --    without braces, no existing patterns
+  --    with braces, no existing patterns
+  , mkTestModChange libdir (addCaseClauses NonBraced)  "AddCaseClauses1.hs"
+  , mkTestModChange libdir (addCaseClauses (Braced (SomeMatches 1)))  "AddCaseClauses2.hs"
+  , mkTestModChange libdir (addCaseClauses NonBraced)  "AddCaseClauses3.hs"
+  , mkTestModChange libdir (addCaseClauses (Braced (SomeMatches 0)))  "AddCaseClauses4.hs"
   ]
 
 -- ---------------------------------------------------------------------
@@ -670,5 +683,39 @@ cloneDecl1 _libdir lp = do
 
   let lp' = doChange
   return lp'
+
+-- ---------------------------------------------------------------------
+
+addCaseClauses :: MatchLayout -> Changer
+addCaseClauses layout _libdir lp = do
+  pure $ case lp of
+  -- TODO Probably the following can improve using lenses
+    L a hsmod@HsModule { hsmodDecls = [L b (SpliceD c (SpliceDecl d (L e (HsUntypedSpliceExpr f (L g (HsCase h i mg)))) j))] }
+        -> let m' = case mg of
+                  -- for the test where there's 1 existing match
+                  MG { mg_alts = L _ [L _ m] } -> m
+                  -- for the test where there's no existing matches
+                  MG { mg_alts = L _ [] } -> underscoreToUnderscore
+                  _ -> error "Unexpected input code and/or AST structure"
+
+               -- Apply the 'appendMissingPats' function to be tested:
+               mg' = appendMissingPats mg (NE.singleton (L noAnn m')) layout
+
+           in L a hsmod{ hsmodDecls = [L b (SpliceD c (SpliceDecl d (L e (HsUntypedSpliceExpr f (L g (HsCase h i mg')))) j))] }
+    _ -> error "Unexpected input code and/or AST structure"
+    where
+      underscoreToUnderscore
+            = Match { m_ext = NoExtField
+                    , m_ctxt = CaseAlt
+                    , m_pats = L noSrcSpanA [nlWildPat]
+                    , m_grhss = GRHSs emptyComments
+                                      (NE.singleton $ L noSrcSpanA $ GRHS (EpAnn noSrcSpanA
+                                                                                 (GrhsAnn{ ga_vbar = Nothing
+                                                                                         , ga_sep = Right $ EpUniTok d1 NormalSyntax })
+                                                                                 emptyComments)
+                                                                          []
+                                                    $ L noSrcSpanA $ HsHole $ HoleVar $ L noAnnSrcSpanDP1 $ unnamedHoleRdrName)
+                                      (EmptyLocalBinds NoExtField)
+                    }
 
 -- ---------------------------------------------------------------------
