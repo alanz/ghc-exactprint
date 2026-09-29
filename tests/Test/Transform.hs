@@ -71,6 +71,7 @@ transformLowLevelTests libdir = [
   , mkTestModChange libdir changeGraft       "MultiwayIfGraft.hs"
   , mkTestModChange libdir changeGraft       "RecGraft.hs"
   , mkTestModChange libdir changeGraft       "ArrowGraft.hs"
+  , mkTestModChange libdir changeGraft       "LetFirstGraft.hs"
 --  , mkTestModChange changeCifToCase  "C.hs"          "C"
   ]
 
