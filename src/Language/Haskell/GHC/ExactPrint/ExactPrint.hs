@@ -3087,7 +3087,10 @@ instance ExactPrint (HsExpr GhcPs) where
   exact (HsUntypedBracket a (DecBrL (o,c, (oc,cc)) e)) = do
     o' <- markEpToken o
     oc' <- markEpToken oc
-    e' <- markAnnotated e
+    -- explicit braces don't open a layout context
+    e' <- case oc of
+            NoEpTok -> markAnnotatedWithLayout e
+            EpTok{} -> markAnnotated e
     cc' <- markEpToken cc
     c' <- markEpUniToken c
     return (HsUntypedBracket a (DecBrL (o',c',(oc',cc')) e'))
