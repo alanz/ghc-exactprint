@@ -4253,7 +4253,7 @@ exact_condecls :: (Monad m, Monoid w)
 exact_condecls eq cs
   | gadt_syntax                  -- In GADT syntax
   = do
-      cs' <- mapM markAnnotated cs
+      cs' <- markAnnotatedWithLayout cs
       return (eq, cs')
   | otherwise                    -- In H98 syntax
   = do
