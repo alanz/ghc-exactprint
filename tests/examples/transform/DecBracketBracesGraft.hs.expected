@@ -1,0 +1,8 @@
+{-# LANGUAGE TemplateHaskell #-}
+module DecBracketBracesGraft where
+
+ds = a
+  + b [d| { f = x
+  where
+    x = 1
+  ; g = 2 } |]
