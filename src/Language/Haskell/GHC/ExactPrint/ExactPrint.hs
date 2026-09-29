@@ -4903,15 +4903,14 @@ setLayoutBoth :: (Monad m) => EP w m a -> EP w m a
 setLayoutBoth k = do
   oldLHS <- getLayoutOffsetD
   oldAnchorOffset <- getLayoutOffsetP
+  EPState{dMarkLayout = dPending, pMarkLayout = pPending} <- get
   debugM $ "setLayoutBoth: (oldLHS,oldAnchorOffset)=" ++ show (oldLHS,oldAnchorOffset)
   modify' (\a -> a { dMarkLayout = True
                   , pMarkLayout = True } )
   let reset = do
         debugM $ "setLayoutBoth:reset: (oldLHS,oldAnchorOffset)=" ++ show (oldLHS,oldAnchorOffset)
-        modify' (\a -> a { dMarkLayout = False
-                        , dLHS = oldLHS
-                        , pMarkLayout = False
-                        , pLHS = oldAnchorOffset} )
+        unless dPending $ modify' (\a -> a { dMarkLayout = False, dLHS = oldLHS })
+        unless pPending $ modify' (\a -> a { pMarkLayout = False, pLHS = oldAnchorOffset })
   k <* reset
 
 ------------------------------------------------------------------------
