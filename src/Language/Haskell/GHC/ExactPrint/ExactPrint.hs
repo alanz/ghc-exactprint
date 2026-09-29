@@ -4539,10 +4539,8 @@ instance ExactPrint (LocatedLW [LocatedA (StmtLR GhcPs GhcPs (LocatedA (HsCmd Gh
   setAnnotationAnchor = setAnchorAn
   exact (L ann es) = do
     debugM $ "LocatedL [CmdLStmt"
-    an0 <- markLensBracketsO ann lal_brackets
-    es' <- mapM markAnnotated es
-    an1 <- markLensBracketsC an0 lal_brackets
-    return (L an1 es')
+    (an', es') <- markAnnList ann (mapM markAnnotated es)
+    return (L an' es')
 
 instance ExactPrint (LocatedL [LocatedA (HsConDeclRecField GhcPs)]) where
   getAnnotationEntry = entryFromLocatedA
