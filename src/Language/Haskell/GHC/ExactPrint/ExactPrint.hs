@@ -1434,6 +1434,11 @@ commentAllocationIn ss = do
 markAnnotatedWithLayout :: (Monad m, Monoid w) => ExactPrint ast => ast -> EP w m ast
 markAnnotatedWithLayout a = setLayoutBoth $ markAnnotated a
 
+markLamMatches :: (Monad m, Monoid w, ExactPrint ast) => HsLamVariant -> ast -> EP w m ast
+markLamMatches LamSingle = markAnnotated
+markLamMatches LamCase   = markAnnotatedWithLayout
+markLamMatches LamCases  = markAnnotatedWithLayout
+
 -- ---------------------------------------------------------------------
 -- End of utility functions
 -- ---------------------------------------------------------------------
@@ -2899,7 +2904,7 @@ instance ExactPrint (HsExpr GhcPs) where
              LamSingle -> return an0
              LamCase  -> markLensFun an0 lepl_case (\ml -> mapM (\l -> printStringAtAA l "case") ml)
              LamCases -> markLensFun an0 lepl_case (\ml -> mapM (\l -> printStringAtAA l "cases") ml)
-    mg' <- setLayoutBoth $ markAnnotated mg
+    mg' <- markLamMatches lam_variant mg
     return (HsLam an1 lam_variant mg')
 
   exact (HsApp an e1 e2) = do
@@ -2965,7 +2970,7 @@ instance ExactPrint (HsExpr GhcPs) where
     an0 <- markLensFun an lhsCaseAnnCase markEpToken
     e' <- markAnnotated e
     an1 <- markLensFun an0 lhsCaseAnnOf markEpToken
-    alts' <- setLayoutBoth $ markAnnotated alts
+    alts' <- markAnnotatedWithLayout alts
     return (HsCase an1 e' alts')
 
   exact (HsIf an e1 e2 e3) = do
@@ -2982,14 +2987,14 @@ instance ExactPrint (HsExpr GhcPs) where
   exact (HsMultiIf (i,o,c) mg) = do
     i0 <- markEpToken i
     o0 <- markEpToken o
-    mg' <- markAnnotated mg
+    mg' <- markAnnotatedWithLayout mg
     c0 <- markEpToken c
     return (HsMultiIf (i0,o0,c0) mg')
 
   exact (HsLet (tkLet, tkIn) binds e) = do
     setLayoutBoth $ do -- Make sure the 'in' gets indented too
       tkLet' <- markEpToken tkLet
-      binds' <- setLayoutBoth $ markAnnotated binds
+      binds' <- markAnnotatedWithLayout binds
       tkIn' <- markEpToken tkIn
       e' <- markAnnotated e
       return (HsLet (tkLet',tkIn') binds' e')
@@ -3087,7 +3092,10 @@ instance ExactPrint (HsExpr GhcPs) where
   exact (HsUntypedBracket a (DecBrL (o,c, (oc,cc)) e)) = do
     o' <- markEpToken o
     oc' <- markEpToken oc
-    e' <- markAnnotated e
+    -- explicit braces don't open a layout context
+    e' <- case oc of
+            NoEpTok -> markAnnotatedWithLayout e
+            EpTok{} -> markAnnotated e
     cc' <- markEpToken cc
     c' <- markEpUniToken c
     return (HsUntypedBracket a (DecBrL (o',c',(oc',cc')) e'))
@@ -3431,7 +3439,7 @@ instance ExactPrint (HsCmd GhcPs) where
              LamSingle -> return an0
              LamCase -> markLensFun an0 lepl_case (\ml -> mapM (\l -> printStringAtAA l "case") ml)
              LamCases -> markLensFun an0 lepl_case (\ml -> mapM (\l -> printStringAtAA l "cases") ml)
-    matches' <- markAnnotated matches
+    matches' <- markLamMatches lam_variant matches
     return (HsCmdLam an1 lam_variant matches')
 
   exact (HsCmdPar (lpar, rpar) e) = do
@@ -3444,7 +3452,7 @@ instance ExactPrint (HsCmd GhcPs) where
     an0 <- markLensFun an lhsCaseAnnCase markEpToken
     e' <- markAnnotated e
     an1 <- markLensFun an0 lhsCaseAnnOf markEpToken
-    alts' <- markAnnotated alts
+    alts' <- markAnnotatedWithLayout alts
     return (HsCmdCase an1 e' alts')
 
   exact (HsCmdIf an a e1 e2 e3) = do
@@ -3461,16 +3469,15 @@ instance ExactPrint (HsCmd GhcPs) where
   exact (HsCmdLet (tkLet, tkIn) binds e) = do
     setLayoutBoth $ do -- Make sure the 'in' gets indented too
       tkLet' <- markEpToken tkLet
-      binds' <- setLayoutBoth $ markAnnotated binds
+      binds' <- markAnnotatedWithLayout binds
       tkIn' <- markEpToken tkIn
       e' <- markAnnotated e
       return (HsCmdLet (tkLet', tkIn') binds' e')
 
   exact (HsCmdDo an es) = do
     debugM $ "HsCmdDo"
-    an0 <- markLensFun an lal_rest (\l -> printStringAtAA l "do")
-    es' <- markAnnotated es
-    return (HsCmdDo an0 es')
+    (an', es') <- markAnnListA' an $ \a -> exactDo a (DoExpr Nothing) es
+    return (HsCmdDo an' es')
 
 -- ---------------------------------------------------------------------
 
@@ -3520,7 +3527,7 @@ instance (
   exact (RecStmt an stmts a b c d e) = do
     debugM $ "RecStmt"
     an0 <- markLensFun an lal_rest markEpToken
-    (an1, stmts') <- markAnnList' an0 (markAnnotated stmts)
+    (an1, stmts') <- markAnnList' an0 (markAnnotatedWithLayout stmts)
     return (RecStmt an1 stmts' a b c d e)
 
 -- ---------------------------------------------------------------------
@@ -3709,7 +3716,7 @@ instance ExactPrint (FamilyDecl GhcPs) where
                        dd' <- markEpToken dd
                        return (dd', mb_eqns)
                      Just eqns -> do
-                       eqns' <- markAnnotated eqns
+                       eqns' <- markAnnotatedWithLayout eqns
                        return (dd, Just eqns')
                  cc' <- markEpToken cc
                  return (w',oc',dd',cc', ClosedTypeFamily mb_eqns')
@@ -4251,7 +4258,7 @@ exact_condecls :: (Monad m, Monoid w)
 exact_condecls eq cs
   | gadt_syntax                  -- In GADT syntax
   = do
-      cs' <- mapM markAnnotated cs
+      cs' <- markAnnotatedWithLayout cs
       return (eq, cs')
   | otherwise                    -- In H98 syntax
   = do
@@ -4515,7 +4522,11 @@ instance (ExactPrint (Match GhcPs (LocatedA body)))
     an0 <- markLensFun' an lal_rest markEpToken
     an1 <- markLensBracketsO an0 lal_brackets
     an2 <- markEpAnnAllLT an1 lal_semis
-    a' <- markAnnotated a
+    -- in an explicitly bidirectional pattern synonym, a match list introduced
+    -- by its own 'where', is a layout block
+    a' <- case al_rest (anns an) of
+            EpTok{} -> markAnnotatedWithLayout a
+            NoEpTok -> markAnnotated a
     an3 <- markLensBracketsC an2 lal_brackets
     return (L an3 a')
 
@@ -4540,10 +4551,8 @@ instance ExactPrint (LocatedLW [LocatedA (StmtLR GhcPs GhcPs (LocatedA (HsCmd Gh
   setAnnotationAnchor = setAnchorAn
   exact (L ann es) = do
     debugM $ "LocatedL [CmdLStmt"
-    an0 <- markLensBracketsO ann lal_brackets
-    es' <- mapM markAnnotated es
-    an1 <- markLensBracketsC an0 lal_brackets
-    return (L an1 es')
+    (an', es') <- markAnnList ann (mapM markAnnotated es)
+    return (L an' es')
 
 instance ExactPrint (LocatedL [LocatedA (HsConDeclRecField GhcPs)]) where
   getAnnotationEntry = entryFromLocatedA
@@ -4904,15 +4913,14 @@ setLayoutBoth :: (Monad m) => EP w m a -> EP w m a
 setLayoutBoth k = do
   oldLHS <- getLayoutOffsetD
   oldAnchorOffset <- getLayoutOffsetP
+  EPState{dMarkLayout = dPending, pMarkLayout = pPending} <- get
   debugM $ "setLayoutBoth: (oldLHS,oldAnchorOffset)=" ++ show (oldLHS,oldAnchorOffset)
   modify' (\a -> a { dMarkLayout = True
                   , pMarkLayout = True } )
   let reset = do
         debugM $ "setLayoutBoth:reset: (oldLHS,oldAnchorOffset)=" ++ show (oldLHS,oldAnchorOffset)
-        modify' (\a -> a { dMarkLayout = False
-                        , dLHS = oldLHS
-                        , pMarkLayout = False
-                        , pLHS = oldAnchorOffset} )
+        unless dPending $ modify' (\a -> a { dMarkLayout = False, dLHS = oldLHS })
+        unless pPending $ modify' (\a -> a { pMarkLayout = False, pLHS = oldAnchorOffset })
   k <* reset
 
 ------------------------------------------------------------------------

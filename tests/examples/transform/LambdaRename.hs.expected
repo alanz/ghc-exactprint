@@ -1,0 +1,14 @@
+{-# LANGUAGE Arrows #-}
+module LambdaRename where
+
+import Control.Arrow
+
+f :: IO Int
+f = return 1 `l` \y ->
+  do
+    return y
+
+g :: Arrow k => k Int Int
+g = proc x -> (returnA -< x) `l` \y ->
+  do
+    returnA -< y

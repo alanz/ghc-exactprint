@@ -1,3 +1,6 @@
+Unreleased
+	* Constructing GADT decls using hand-crafted
+	different line deltas will be printed at a different column.
 2026-09-21 v1.14.2.0
 	* Fix space leak in the EP monad: use CPS RWST and a chunked writer (#150, @xich)
 2026-08-06 v1.14.1.0

@@ -12,7 +12,7 @@ import Language.Haskell.GHC.ExactPrint.Types
 import Language.Haskell.GHC.ExactPrint.Parsers
 import Language.Haskell.GHC.ExactPrint.Utils
 
-import GHC                       as GHC
+import GHC                       as GHC hiding (parseExpr)
 import GHC.Data.FastString       as GHC
 import GHC.Types.Name.Occurrence as GHC
 import GHC.Types.Name.Reader     as GHC
@@ -21,7 +21,6 @@ import Data.Generics as SYB
 
 import System.FilePath
 import Data.List
-import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NE
 
 import Test.Common
@@ -68,7 +67,17 @@ transformLowLevelTests libdir = [
   , mkTestModChange libdir changeLocalDecls2 "LocalDecls2.hs"
   , mkTestModChange libdir changeWhereIn3a   "WhereIn3a.hs"
   , mkTestModChange libdir changeWhereIn3b   "WhereIn3b.hs"
-  , mkTestModChange libdir changeInstanceGraft "InstanceGraft.hs"
+  , mkTestModChange libdir changeGraft       "InstanceGraft.hs"
+  , mkTestModChange libdir changeGraft       "MultiwayIfGraft.hs"
+  , mkTestModChange libdir changeGraft       "RecGraft.hs"
+  , mkTestModChange libdir changeGraft       "ArrowGraft.hs"
+  , mkTestModChange libdir changeGraft       "LetFirstGraft.hs"
+  , mkTestModChange libdir changeGraft       "PatSynGraft.hs"
+  , mkTestModChange libdir changeGraft       "DecBracketGraft.hs"
+  , mkTestModChange libdir changeGraft       "DecBracketBracesGraft.hs"
+  , mkTestModChange libdir changeGadtRename  "GadtRename.hs"
+  , mkTestModChange libdir changeTypeFamilyRename "TypeFamilyRename.hs"
+  , mkTestModChange libdir changeLambdaRename "LambdaRename.hs"
 --  , mkTestModChange changeCifToCase  "C.hs"          "C"
   ]
 
@@ -109,23 +118,18 @@ changeWhereIn3a _libdir (L l p) = do
 
 -- ---------------------------------------------------------------------
 
--- | A delta-anchored expression grafted into a class or instance method
--- must indent its continuation lines relative to the method declarations
--- layout column.
-changeInstanceGraft :: Changer
-changeInstanceGraft _libdir top = do
-  let lp = makeDeltaAst top
-      grab :: HsBind GhcPs -> [LHsExpr GhcPs]
-      grab FunBind{ fun_id = L _ n
-                  , fun_matches = MG{mg_alts = L _ [L _ Match{m_grhss = GRHSs _ (L _ (GRHS _ _ e) :| []) _}]}}
-        | occNameString (rdrNameOcc n) == "combine" = [e]
-      grab _ = []
-      [body] = everything (++) ([] `mkQ` grab) lp
+-- | Replace instances of @graft@ with an expression that spans two lines. This
+-- tests what indentation the printer uses (and whether the correct layout is
+-- followed).
+changeGraft :: Changer
+changeGraft libdir top = do
+  Right parsed <- withDynFlags libdir (\df -> parseExpr df "graft" "a\n  + b")
+  let graft = makeDeltaAst parsed
       replace :: LHsExpr GhcPs -> LHsExpr GhcPs
-      replace (L _ (HsVar _ (L _ n)))
-        | occNameString (rdrNameOcc n) == "todo" = setEntryDP body (SameLine 1)
+      replace x@(L _ (HsVar _ (L _ n)))
+        | occNameString (rdrNameOcc n) == "graft" = transferEntryDP x graft
       replace x = x
-  return (everywhere (mkT replace) lp)
+  return (everywhere (mkT replace) (makeDeltaAst top))
 
 -- ---------------------------------------------------------------------
 
@@ -226,6 +230,15 @@ changeRenameCase1 _libdir parsed = return (rename "bazLonger" [((3,15),(3,18))] 
 
 changeRenameCase2 :: Changer
 changeRenameCase2 _libdir parsed = return (rename "fooLonger" [((3,1),(3,4))] parsed)
+
+changeGadtRename :: Changer
+changeGadtRename _libdir parsed = return (rename "Tlonger" [((4,6),(4,7)),((4,21),(4,22)),((5,21),(5,22))] parsed)
+
+changeTypeFamilyRename :: Changer
+changeTypeFamilyRename _libdir parsed = return (rename "Flonger" [((4,13),(4,14)),((4,23),(4,24)),((5,23),(5,24))] parsed)
+
+changeLambdaRename :: Changer
+changeLambdaRename _libdir parsed = return (rename "l" [((7,14),(7,24)),((12,30),(12,40))] parsed)
 
 changeLayoutLet2 :: Changer
 changeLayoutLet2 _libdir parsed = return (rename "xxxlonger" [((7,5),(7,8)),((8,24),(8,27))] parsed)
