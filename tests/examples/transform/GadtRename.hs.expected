@@ -1,0 +1,5 @@
+{-# LANGUAGE GADTs #-}
+module GadtRename where
+
+data Tlonger where MkA :: Tlonger
+                   MkB :: Tlonger

@@ -1,0 +1,5 @@
+{-# LANGUAGE TypeFamilies #-}
+module TypeFamilyRename where
+
+type family Flonger a where Flonger Int = Bool
+                            Flonger a   = a

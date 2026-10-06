@@ -1,0 +1,8 @@
+{-# LANGUAGE TemplateHaskell #-}
+module DecBracketGraft where
+
+ds = [d|
+  f a b = a
+    + b
+  g = 1
+  |]
